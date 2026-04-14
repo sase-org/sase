@@ -152,14 +152,15 @@ If no front matter is present, the entire file content is the template body and 
 Reference an xprompt inside any prompt with the `#` prefix. The `#` must appear at the start of the string, after
 whitespace, or after one of `([{"'`.
 
-| Syntax                        | Description                                           |
-| ----------------------------- | ----------------------------------------------------- |
-| `#name`                       | Simple reference, no arguments                        |
-| `#name(args)`                 | Parenthesis syntax with comma-separated arguments     |
-| `#name:arg`                   | Colon syntax, passes `arg` as a single positional arg |
-| `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces      |
-| `#name+`                      | Plus syntax, equivalent to `#name:true`               |
-| `#ns/name`                    | Namespaced reference (e.g., project-specific)         |
+| Syntax                        | Description                                                    |
+| ----------------------------- | -------------------------------------------------------------- |
+| `#name`                       | Simple reference, no arguments                                 |
+| `#name(args)`                 | Parenthesis syntax with comma-separated arguments              |
+| `#name:arg`                   | Colon syntax, passes `arg` as a single positional arg          |
+| `#name:a,b,c`                 | Colon syntax with comma-separated multiple positional args     |
+| `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces (single only) |
+| `#name+`                      | Plus syntax, equivalent to `#name:true`                        |
+| `#ns/name`                    | Namespaced reference (e.g., project-specific)                  |
 
 For VCS workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to
 `#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
