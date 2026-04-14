@@ -1,5 +1,5 @@
 ---
-keywords: [changespec, status transition, suffix strip, archive, sibling, draft flag, mentor draft, parent-child]
+keywords: [changespec, child, parent, sibling]
 ---
 
 # ChangeSpec Lifecycle

@@ -1,5 +1,5 @@
 ---
-keywords: [config, configuration, sase.yml, schema, merge, default_config, overlay, plugin config, local config]
+keywords: [config, configuration, sase.yml, schema]
 ---
 
 # Configuration System

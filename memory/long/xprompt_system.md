@@ -1,5 +1,5 @@
 ---
-keywords: [xprompt, directive, workflow step, prompt_part, reference expansion, workflow yaml, xprompt loading]
+keywords: [xprompt, directive, workflow step, prompt_part]
 ---
 
 # xprompt System
