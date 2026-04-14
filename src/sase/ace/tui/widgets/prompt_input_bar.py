@@ -178,19 +178,22 @@ class PromptInputBar(Static):
         rows: list[tuple[str, bool]],
         selected_index: int,
         scroll_offset: int = 0,
+        completion_kind: str = "file",
     ) -> None:
-        """Show the path completion panel with Rich styling.
+        """Show the path/xprompt completion panel with Rich styling.
 
         Args:
             token: Current token being completed.
             rows: Completion entries as (display_label, is_dir).
             selected_index: Highlighted row index.
             scroll_offset: First visible entry index for scrolling.
+            completion_kind: "file" for path completion, "xprompt" for xprompt.
         """
         panel = self.query_one("#prompt-completion", Static)
         total = len(rows)
         visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
 
+        is_xprompt = completion_kind == "xprompt"
         content = Text()
         for i, (label, is_dir) in enumerate(visible):
             actual_idx = scroll_offset + i
@@ -201,7 +204,10 @@ class PromptInputBar(Static):
             else:
                 content.append("  ")
 
-            if is_dir:
+            if is_xprompt:
+                content.append("# ", style="magenta")
+                content.append(label, style="bold green" if is_selected else "green")
+            elif is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(label, style="bold cyan" if is_selected else "cyan")
             else:
@@ -215,12 +221,13 @@ class PromptInputBar(Static):
         if remaining > 0:
             content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
 
-        # Border title shows the directory being completed
-        if "/" in token:
-            dir_part = token[: token.rindex("/") + 1]
+        # Border title: "xprompts" for xprompt completion, directory for file
+        if is_xprompt:
+            panel.border_title = "xprompts"
+        elif "/" in token:
+            panel.border_title = token[: token.rindex("/") + 1]
         else:
-            dir_part = token
-        panel.border_title = dir_part
+            panel.border_title = token
 
         panel.update(content)
         panel.remove_class("hidden")

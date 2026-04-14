@@ -73,6 +73,7 @@ class PromptTextArea(
         self._file_completion_candidates: list[CompletionCandidate] = []
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
+        self._completion_kind: str = "file"
         self._vcs_mru_index: int | None = None
 
     @property

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 17:44:33
-status: wip
+status: done
 ---
 
 # Plan: xprompt Completion via ctrl+t

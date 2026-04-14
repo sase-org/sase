@@ -11,6 +11,10 @@ from sase.ace.tui.widgets.file_completion import (
     extract_token_around_cursor,
     is_path_like_token,
 )
+from sase.ace.tui.widgets.xprompt_completion import (
+    build_xprompt_completion_candidates,
+    is_xprompt_like_token,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -29,6 +33,7 @@ class FileCompletionMixin(_MixinBase):
         _file_completion_candidates: list[CompletionCandidate]
         _file_completion_index: int
         _file_completion_active: bool
+        _completion_kind: str
 
         def _find_prompt_bar(self) -> Any: ...
 
@@ -52,6 +57,18 @@ class FileCompletionMixin(_MixinBase):
 
         start, end, token = token_info
         if not is_path_like_token(token):
+            return None
+        row, _ = self.cursor_location
+        return row, start, end, token
+
+    def _get_xprompt_token_context(self) -> tuple[int, int, int, str] | None:
+        """Return (row, start, end, token) for the current xprompt token."""
+        token_info = self._extract_token_around_cursor()
+        if token_info is None:
+            return None
+
+        start, end, token = token_info
+        if not is_xprompt_like_token(token):
             return None
         row, _ = self.cursor_location
         return row, start, end, token
@@ -81,7 +98,11 @@ class FileCompletionMixin(_MixinBase):
                 0, min(self._file_completion_index - half, total - MAX_VISIBLE)
             )
         bar.show_file_completions(
-            token, rows, self._file_completion_index, scroll_offset
+            token,
+            rows,
+            self._file_completion_index,
+            scroll_offset,
+            completion_kind=self._completion_kind,
         )
 
     def _clear_file_completion(self) -> None:
@@ -89,7 +110,14 @@ class FileCompletionMixin(_MixinBase):
         self._file_completion_active = False
         self._file_completion_candidates = []
         self._file_completion_index = 0
+        self._completion_kind = "file"
         self._update_file_completion_panel("")
+
+    def _get_token_context(self) -> tuple[int, int, int, str] | None:
+        """Return token context using the appropriate getter for the active kind."""
+        if self._completion_kind == "xprompt":
+            return self._get_xprompt_token_context()
+        return self._get_path_token_context()
 
     def _move_file_completion(self, delta: int) -> bool:
         """Move highlighted completion candidate."""
@@ -97,7 +125,7 @@ class FileCompletionMixin(_MixinBase):
             return False
         size = len(self._file_completion_candidates)
         self._file_completion_index = (self._file_completion_index + delta) % size
-        ctx = self._get_path_token_context()
+        ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
         return True
 
@@ -105,7 +133,7 @@ class FileCompletionMixin(_MixinBase):
         """Accept currently highlighted completion candidate."""
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
-        ctx = self._get_path_token_context()
+        ctx = self._get_token_context()
         if ctx is None:
             self._clear_file_completion()
             return False
@@ -113,7 +141,8 @@ class FileCompletionMixin(_MixinBase):
         selected = self._file_completion_candidates[self._file_completion_index]
         self._replace_token_text(row, start, end, selected.insertion)
         # Directory drill-down: open completion for the accepted directory
-        if selected.is_dir:
+        # (only applies to file completion, not xprompt)
+        if selected.is_dir and self._completion_kind == "file":
             self._file_completion_active = False
             self._file_completion_candidates = []
             self._file_completion_index = 0
@@ -128,7 +157,7 @@ class FileCompletionMixin(_MixinBase):
         if not self._file_completion_active:
             return
 
-        ctx = self._get_path_token_context()
+        ctx = self._get_token_context()
         if ctx is None:
             self._clear_file_completion()
             return
@@ -139,7 +168,10 @@ class FileCompletionMixin(_MixinBase):
             previous = self._file_completion_candidates[
                 self._file_completion_index
             ].insertion
-        candidates, _shared = build_completion_candidates(token)
+        if self._completion_kind == "xprompt":
+            candidates, _shared = build_xprompt_completion_candidates(token)
+        else:
+            candidates, _shared = build_completion_candidates(token)
         if not candidates:
             self._clear_file_completion()
             return
@@ -162,14 +194,35 @@ class FileCompletionMixin(_MixinBase):
         self._update_file_completion_panel(token)
 
     def _try_file_completion_tab(self) -> bool:
-        """Handle Ctrl+T-driven file completion for path tokens."""
-        ctx = self._get_path_token_context()
-        if ctx is None:
+        """Handle Ctrl+T-driven completion for path or xprompt tokens."""
+        token_info = self._extract_token_around_cursor()
+        if token_info is None:
             self._clear_file_completion()
             return False
 
-        row, start, end, token = ctx
-        candidates, shared_extension = build_completion_candidates(token)
+        _start, _end, raw_token = token_info
+
+        # Determine completion kind from the raw token.
+        if is_xprompt_like_token(raw_token):
+            self._completion_kind = "xprompt"
+            ctx = self._get_xprompt_token_context()
+            if ctx is None:
+                self._clear_file_completion()
+                return False
+            row, start, end, token = ctx
+            candidates, shared_extension = build_xprompt_completion_candidates(token)
+        elif is_path_like_token(raw_token):
+            self._completion_kind = "file"
+            ctx = self._get_path_token_context()
+            if ctx is None:
+                self._clear_file_completion()
+                return False
+            row, start, end, token = ctx
+            candidates, shared_extension = build_completion_candidates(token)
+        else:
+            self._clear_file_completion()
+            return False
+
         if not candidates:
             self._clear_file_completion()
             return True
@@ -182,12 +235,15 @@ class FileCompletionMixin(_MixinBase):
         if shared_extension:
             next_token = f"{token}{shared_extension}"
             self._replace_token_text(row, start, end, next_token)
-            ctx = self._get_path_token_context()
+            ctx = self._get_token_context()
             if ctx is None:
                 self._clear_file_completion()
                 return True
             row, start, end, token = ctx
-            candidates, _ = build_completion_candidates(token)
+            if self._completion_kind == "xprompt":
+                candidates, _ = build_xprompt_completion_candidates(token)
+            else:
+                candidates, _ = build_completion_candidates(token)
             if not candidates:
                 self._clear_file_completion()
                 return True
