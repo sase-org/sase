@@ -1,5 +1,5 @@
 ---
-keywords: [bead, epic, phase, dependency, claim, beads create, beads ready, beads close]
+keywords: [bead, beads, epic]
 ---
 
 # Bead System
