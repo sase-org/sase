@@ -11,6 +11,7 @@ from sase.memory.dynamic import (
     _memory_filename,
     format_dynamic_memory_section,
     generate_dynamic_memory,
+    _strip_dynamic_memory_section,
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
@@ -482,4 +483,95 @@ def test_format_dynamic_memory_section_multiple() -> None:
         "### DYNAMIC MEMORY\n"
         "- @.sase/memory/long-external-repos.md (matched: `chezmoi`, `plugin`)\n"
         "- @.sase/memory/long-generated-skills.md (matched: `skill`, `commit workflow`)"
+    )
+
+
+# ── _strip_dynamic_memory_section ─────────────────────────────────────────
+
+
+def test__strip_dynamic_memory_section_at_end() -> None:
+    prompt = (
+        "Some prompt text\n\n"
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-foo.md (matched: `bar`)"
+    )
+    assert _strip_dynamic_memory_section(prompt) == "Some prompt text"
+
+
+def test__strip_dynamic_memory_section_in_middle() -> None:
+    prompt = (
+        "Before\n\n"
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-foo.md (matched: `bar`)\n\n"
+        "After"
+    )
+    assert _strip_dynamic_memory_section(prompt) == "Before"
+
+
+def test__strip_dynamic_memory_section_not_present() -> None:
+    prompt = "Just a normal prompt with no dynamic memory"
+    assert _strip_dynamic_memory_section(prompt) == prompt
+
+
+# ── stale file cleanup ───────────────────────────────────────────────────
+
+
+def test_stale_memory_file_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stale long-*.md files are deleted when their source xprompt no longer exists."""
+    monkeypatch.chdir(tmp_path)
+    memory_dir = tmp_path / ".sase" / "memory"
+    memory_dir.mkdir(parents=True)
+
+    # Pre-create a stale file that has no corresponding xprompt
+    stale = memory_dir / "long-tui-development.md"
+    stale.write_text("# Stale content")
+
+    # Also create a valid file that DOES correspond to an xprompt
+    valid = memory_dir / "long-external-repos.md"
+    valid.write_text("# Valid content")
+
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        generate_dynamic_memory("nothing relevant here", None)
+
+    assert not stale.exists(), "Stale file should have been deleted"
+    assert valid.exists(), "Valid file should be preserved"
+
+
+def test_prompt_with_existing_dynamic_memory_section_stripped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Existing ### DYNAMIC MEMORY section is stripped before keyword matching."""
+    monkeypatch.chdir(tmp_path)
+
+    # Create workflows where "stale_keyword" only appears in the DYNAMIC MEMORY
+    # section — it should NOT trigger a match after stripping.
+    entries = {
+        "memory/long/stale_test": {
+            "tags": "memory",
+            "keywords": ["stale_keyword"],
+            "content": "# Stale test content",
+        },
+    }
+    xprompts = parse_xprompt_entries(entries, "test")
+    workflows = {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
+
+    prompt = (
+        "A clean prompt with no keywords\n\n"
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-stale-test.md (matched: `stale_keyword`)"
+    )
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
+        result = generate_dynamic_memory(prompt, None)
+
+    assert result.matched == [], (
+        "stale_keyword in DYNAMIC MEMORY section should not trigger a match"
     )
