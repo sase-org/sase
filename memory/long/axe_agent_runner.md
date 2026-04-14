@@ -1,5 +1,5 @@
 ---
-keywords: [axe, lumberjack, chop, agent runner, scheduler, daemon, runner pool, zombie, retry, fallback]
+keywords: [axe, lumberjack, chop, agent, zombie]
 ---
 
 # Axe Agent Runner
