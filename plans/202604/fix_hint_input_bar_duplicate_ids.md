@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 12:54:02
-status: wip
+status: done
 ---
 
 # Fix HintInputBar DuplicateIds TUI Crash
