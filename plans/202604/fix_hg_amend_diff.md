@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 00:03:08
-status: wip
+status: done
 ---
 
 # Fix: hg.yml Diff Step Shows Entire CL Instead of Incremental Changes on Amend
