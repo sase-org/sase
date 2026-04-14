@@ -11,7 +11,7 @@ highest):
 
 1. **Internal** — `src/sase/xprompts/*.md` (built-in)
 2. **Plugins** — `sase_xprompts` entry points
-3. **Config YAML** — sase.yml sources (built-in defaults, plugin defaults, user sase.yml, overlay sase\_\*.yml, local
+3. **Config YAML** — sase.yml sources (built-in defaults, plugin defaults, user sase.yml, overlay `sase_*.yml`, local
    ./sase.yml)
 4. **Memory/long** — `memory/long/*.md` files with `keywords` frontmatter (auto-discovered from CWD and home dirs,
    across all runtimes)
