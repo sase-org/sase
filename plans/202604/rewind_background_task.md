@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 17:28:42
-status: wip
+status: done
 ---
 
 # Plan: Run Rewind as a Background Task

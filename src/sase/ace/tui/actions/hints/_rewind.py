@@ -11,6 +11,26 @@ if TYPE_CHECKING:
     from ....changespec import ChangeSpec
 
 
+def _rewind_task(
+    cl_name: str,
+    project_file: str,
+    selected_entry_num: int,
+) -> tuple[bool, str]:
+    """Execute rewind workflow as a background task.
+
+    Returns:
+        Tuple of (success, message).
+    """
+    from sase.workflows.rewind import RewindWorkflow
+
+    workflow = RewindWorkflow(
+        cl_name=cl_name,
+        project_file=project_file,
+        selected_entry_num=selected_entry_num,
+    )
+    return workflow.run()
+
+
 class RewindMixin(HintMixinBase):
     """Mixin providing rewind workflow actions."""
 
@@ -117,24 +137,15 @@ class RewindMixin(HintMixinBase):
             changespec: The ChangeSpec to rewind.
             selected_entry_num: The entry number to rewind to.
         """
-        from sase.workflows.rewind import RewindWorkflow
+        cl_name = changespec.name
+        project_file = changespec.file_path
 
-        def run_handler() -> tuple[bool, str]:
-            workflow = RewindWorkflow(
-                cl_name=changespec.name,
-                project_file=changespec.file_path,
-                selected_entry_num=selected_entry_num,
-            )
-            return workflow.run()
+        def task_callable() -> tuple[bool, str]:
+            return _rewind_task(cl_name, project_file, selected_entry_num)
 
-        self.notify(f"Rewinding to entry ({selected_entry_num})...")  # type: ignore[attr-defined]
+        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+            "rewind", cl_name, project_file, task_callable
+        )
 
-        with self.suspend():  # type: ignore[attr-defined]
-            success, message = run_handler()
-
-        if success:
-            self.notify(message)  # type: ignore[attr-defined]
-        else:
-            self.notify(f"Rewind failed: {message}", severity="error")  # type: ignore[attr-defined]
-
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        if submitted:
+            self.notify(f"Rewinding to entry ({selected_entry_num})...")  # type: ignore[attr-defined]
