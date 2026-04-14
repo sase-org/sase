@@ -52,12 +52,6 @@ class InputProcessingMixin(HintMixinBase):
 
         try:
             hint_bar = self.query_one("#hint-input-bar", HintInputBar)  # type: ignore[attr-defined]
-            # Synchronously detach from parent's node list so the ID is freed
-            # immediately. Without this, hint_bar.remove() only schedules async
-            # removal and a subsequent mount() would hit DuplicateIds.
-            parent = hint_bar._parent
-            if parent is not None:
-                parent._nodes._remove(hint_bar)
             hint_bar.remove()
         except Exception:
             pass
@@ -209,7 +203,6 @@ class InputProcessingMixin(HintMixinBase):
                 self._mentor_hint_to_info = mentor_hint_to_info
                 self._hint_changespec_name = changespec.name
 
-                self._remove_hint_input_bar()
                 detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
                 if not detail_container.is_attached:
                     return

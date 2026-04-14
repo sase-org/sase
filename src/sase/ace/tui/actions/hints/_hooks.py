@@ -44,7 +44,6 @@ class HookEditingMixin(HintMixinBase):
         self._hint_changespec_name = changespec.name
 
         # Mount the hint input bar
-        self._remove_hint_input_bar()  # type: ignore[attr-defined]
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
             return
@@ -94,7 +93,6 @@ class HookEditingMixin(HintMixinBase):
         detail_widget.show_failed_hooks_targets(targets, file_path)
 
         # Mount the hint input bar
-        self._remove_hint_input_bar()  # type: ignore[attr-defined]
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
             return

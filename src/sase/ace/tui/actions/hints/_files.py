@@ -50,7 +50,6 @@ class FileViewingMixin(HintMixinBase):
         self._hint_changespec_name = changespec.name
 
         # Mount the hint input bar
-        self._remove_hint_input_bar()  # type: ignore[attr-defined]
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
             return
@@ -79,7 +78,6 @@ class FileViewingMixin(HintMixinBase):
         self._hint_changespec_name = agent.cl_name
 
         # Mount the hint input bar in the agent detail container
-        self._remove_hint_input_bar()  # type: ignore[attr-defined]
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
             return
