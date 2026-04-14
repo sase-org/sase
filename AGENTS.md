@@ -17,7 +17,7 @@ that prompt listing individual `.sase/memory/` file paths — one per matched me
 ```
 ### DYNAMIC MEMORY
 - @.sase/memory/long-external-repos.md (matched: `chezmoi`, `plugin`)
-- @.sase/memory/long-generated-skills.md (matched: `skill`, `commit workflow`)
+- @.sase/memory/long-generated-skills.md (matched: `commit skill`)
 ```
 
 File names use a prefix that encodes the source tier: `long-` means the file originates from a long-term (tier 3) memory
