@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 18:18:18
-status: wip
+status: done
 ---
 
 # Plan: Faster TUI Tab Switching

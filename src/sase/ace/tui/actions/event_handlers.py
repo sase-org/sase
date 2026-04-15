@@ -75,7 +75,7 @@ class EventHandlersMixin:
         self._countdown_remaining = self.refresh_interval
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING states)
-        self._load_axe_status()  # type: ignore[attr-defined]
+        await self._load_axe_status_async()  # type: ignore[attr-defined]
 
         # Poll agent completions for notifications (regardless of tab)
         self._poll_agent_completions()  # type: ignore[attr-defined]

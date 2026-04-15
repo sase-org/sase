@@ -56,6 +56,9 @@ class AgentLoadingMixin:
     # Agent search/filter query
     _agent_search_query: str
 
+    # Loading guard
+    _agents_loading: bool
+
     # Panel focus and index maps for pinned panel split
     _pinned_panel_focused: Literal["main", "pinned"]
     _main_panel_indices: list[int]
@@ -234,6 +237,22 @@ class AgentLoadingMixin:
         self._finalize_agent_list(
             on_agents_tab, selected_identity, save_unfiltered=True
         )
+
+    def _schedule_agents_async_refresh(self) -> None:
+        """Schedule an async agent reload without blocking."""
+        if self._agents_loading:
+            return
+        self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
+
+    async def _run_agents_async_refresh(self) -> None:
+        """Run the async agent refresh with loading guard."""
+        if self._agents_loading:
+            return
+        self._agents_loading = True
+        try:
+            await self._load_agents_async()
+        finally:
+            self._agents_loading = False
 
     def _refilter_agents(self) -> None:
         """Lightweight agent refresh that skips disk I/O.

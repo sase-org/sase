@@ -576,14 +576,20 @@ class AceApp(
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
             axe_view.add_class("hidden")
-            # Load agents on first access or refresh
-            self._load_agents()
+            # Show cached data immediately if available, then refresh async
+            if getattr(self, "_agents_with_children", None):
+                self._refilter_agents()
+                self._schedule_agents_async_refresh()
+            else:
+                # First load ever — must block to populate initial state
+                self._load_agents()
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")
             axe_view.remove_class("hidden")
-            # Load axe status
-            self._load_axe_status()
+            # Show existing state immediately, then refresh async
+            self._refresh_axe_display()
+            self._schedule_axe_async_refresh()
 
         # If help modal is open, refresh it with new tab context
         from .modals import HelpModal

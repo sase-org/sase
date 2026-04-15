@@ -44,6 +44,70 @@ def get_axe_process_module() -> types.ModuleType:
     return importlib.import_module("sase.axe.process")
 
 
+@dataclasses.dataclass
+class _AxeCollectedData:
+    """Data collected from disk I/O for axe status."""
+
+    axe_running: bool
+    axe_status: AxeStatus | None
+    axe_metrics: AxeMetrics | None
+    axe_output: str
+    lumberjack_names: list[str]
+    bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
+
+
+def _collect_axe_status_data() -> _AxeCollectedData:
+    """Collect axe status data via disk I/O (thread-safe, no app state mutation).
+
+    Returns:
+        Collected axe status data ready to be applied to the app.
+    """
+    proc = get_axe_process_module()
+    axe_running = proc.is_axe_running()
+
+    axe_status: AxeStatus | None = None
+    axe_metrics: AxeMetrics | None = None
+    if axe_running:
+        status_dict = proc.get_axe_status()
+        if status_dict:
+            try:
+                axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
+                filtered = {k: v for k, v in status_dict.items() if k in axe_fields}
+                axe_status = AxeStatus(**filtered)
+            except TypeError:
+                pass
+        axe_metrics = read_metrics()
+
+    axe_output = read_output_log_tail(500)
+
+    # Load lumberjack names from config
+    from sase.axe.config import load_axe_config as load_new_axe_config
+
+    config = load_new_axe_config()
+    lumberjack_names = sorted(config.lumberjacks.keys())
+
+    # Load bgcmd state
+    active_slots = get_active_slots()
+    bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
+    for slot in active_slots:
+        info = get_slot_info(slot)
+        if info is not None:
+            if not is_slot_running(slot) and info.finished_at is None:
+                mark_slot_finished(slot)
+                info = get_slot_info(slot)
+            if info is not None:
+                bgcmd_slots.append((slot, info))
+
+    return _AxeCollectedData(
+        axe_running=axe_running,
+        axe_status=axe_status,
+        axe_metrics=axe_metrics,
+        axe_output=axe_output,
+        lumberjack_names=lumberjack_names,
+        bgcmd_slots=bgcmd_slots,
+    )
+
+
 class AxeDisplayMixin:
     """Mixin providing axe display refresh and state loading."""
 
@@ -70,10 +134,12 @@ class AxeDisplayMixin:
 
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
-        proc = get_axe_process_module()
+        data = _collect_axe_status_data()
+        self._apply_axe_status_data(data)
 
-        # Check if axe is running
-        self.axe_running = proc.is_axe_running()
+    def _apply_axe_status_data(self, data: _AxeCollectedData) -> None:
+        """Apply collected axe status data to app state and refresh widgets."""
+        self.axe_running = data.axe_running
 
         # Clear starting/restarting state once confirmed running
         if self.axe_running:
@@ -84,33 +150,21 @@ class AxeDisplayMixin:
         if not self.axe_running:
             self._set_axe_stopping(False)
 
-        # Load status data
-        if self.axe_running:
-            status_dict = proc.get_axe_status()
-            if status_dict:
-                try:
-                    # Filter to only AxeStatus fields (get_axe_status
-                    # may include extra keys like 'lumberjacks')
-                    axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
-                    filtered = {k: v for k, v in status_dict.items() if k in axe_fields}
-                    self._axe_status = AxeStatus(**filtered)
-                except TypeError:
-                    self._axe_status = None
-            else:
-                self._axe_status = None
-            self._axe_metrics = read_metrics()
-        else:
-            self._axe_status = None
-            self._axe_metrics = None
+        self._axe_status = data.axe_status
+        self._axe_metrics = data.axe_metrics
+        self._axe_output = data.axe_output
 
-        # Load output log (always, for display even when stopped)
-        self._axe_output = read_output_log_tail(500)
+        # Apply lumberjack names
+        self._axe_lumberjack_names = data.lumberjack_names
+        if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(
+            self._axe_lumberjack_names
+        ):
+            self._axe_lumberjack_idx = None
 
-        # Load lumberjack names from config (new architecture only)
-        self._load_lumberjack_names()
-
-        # Also load bgcmd state
-        self._load_bgcmd_state()
+        # Apply bgcmd state
+        self._bgcmd_slots = data.bgcmd_slots
+        self._update_bgcmd_count()
+        self._build_axe_items()
 
         # Update AXE tab bar count
         self._update_axe_tab_count()
@@ -121,6 +175,17 @@ class AxeDisplayMixin:
 
         # Update keybinding footer for all tabs (X binding changes label)
         self._update_axe_keybinding()
+
+    async def _load_axe_status_async(self) -> None:
+        """Load axe status with disk I/O in a background thread."""
+        import asyncio
+
+        data = await asyncio.to_thread(_collect_axe_status_data)
+        self._apply_axe_status_data(data)
+
+    def _schedule_axe_async_refresh(self) -> None:
+        """Schedule an async axe status reload without blocking."""
+        self.call_later(self._load_axe_status_async)  # type: ignore[attr-defined]
 
     def _load_lumberjack_names(self) -> None:
         """Load lumberjack names from axe config."""
