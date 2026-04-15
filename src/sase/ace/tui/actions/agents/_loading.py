@@ -12,183 +12,14 @@ if TYPE_CHECKING:
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
 from ....changespec import ChangeSpec
-
-# Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
-
-# Statuses that indicate an agent is dismissable (shows "x dismiss" in footer)
-DISMISSABLE_STATUSES = {
-    "DONE",
-    "FAILED",
-    "PLAN COMMITTED",
-    "PLAN DONE",
-}
-
-
-def _is_always_visible(agent: Agent) -> bool:
-    """Check if agent should always be visible (dismissable or running).
-
-    Args:
-        agent: The agent to check.
-
-    Returns:
-        True if agent should always be visible, False if it's hideable.
-    """
-    # Workflow children: visibility managed by fold state, not hide toggle
-    if agent.is_workflow_child:
-        return True
-
-    # Agents marked hidden (via %hide directive, axe-spawned detection, etc.)
-    # are hideable (hidden by default, shown with '.' toggle)
-    if agent.hidden:
-        return False
-
-    return True
-
-
-def _is_axe_spawned_agent(agent: Agent) -> bool:
-    """Check if agent was spawned by sase axe (not user-initiated).
-
-    Agents spawned by axe should not trigger notifications since they're
-    automated background tasks.
-
-    Args:
-        agent: The agent to check.
-
-    Returns:
-        True if agent was spawned by axe, False if user-initiated.
-    """
-    if agent.workflow:
-        # Normalize hyphens to underscores (canonical form uses underscores,
-        # e.g. xprompt workflow_label "fix_hook")
-        workflow = agent.workflow.replace("-", "_")
-        # axe-spawned workflows start with axe(...)
-        if workflow.startswith(("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")):
-            return True
-        # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
-        if workflow in ("fix_hook", "crs", "mentor", "summarize_hook"):
-            return True
-
-    return False
-
-
-def apply_custom_order(
-    agents: list[Agent], order: list[tuple[AgentType, str, str | None]]
-) -> list[Agent]:
-    """Reorder top-level agents according to the user's custom order.
-
-    Agents whose identity appears in *order* are placed at the positions
-    specified by the order list.  New agents (not in the order) keep their
-    default time-sorted position.  Workflow children stay grouped after
-    their parent.
-    """
-    # Build identity -> desired position lookup
-    order_map: dict[tuple[AgentType, str, str | None], int] = {
-        identity: pos for pos, identity in enumerate(order)
-    }
-
-    # Separate top-level agents from workflow children
-    top_level: list[Agent] = []
-    children_by_parent: dict[str, list[Agent]] = {}
-    for agent in agents:
-        if agent.is_workflow_child:
-            parent_ts = agent.parent_timestamp or ""
-            children_by_parent.setdefault(parent_ts, []).append(agent)
-        else:
-            top_level.append(agent)
-
-    # Sort top-level: agents in custom order get their specified position,
-    # agents not in the order get a high position (preserving relative order)
-    max_pos = len(order)
-    top_level.sort(
-        key=lambda a: (order_map.get(a.identity, max_pos + agents.index(a)),)
-    )
-
-    # Reassemble with children after their parents
-    result: list[Agent] = []
-    for agent in top_level:
-        result.append(agent)
-        if agent.raw_suffix and agent.raw_suffix in children_by_parent:
-            result.extend(children_by_parent[agent.raw_suffix])
-    # Append any orphaned children (parent not in list)
-    seen_parents = {a.raw_suffix for a in top_level if a.raw_suffix}
-    for parent_ts, children in children_by_parent.items():
-        if parent_ts not in seen_parents:
-            result.extend(children)
-
-    return result
-
-
-def _load_agents_from_disk(
-    dismissed_agents: set[tuple[AgentType, str, str | None]],
-) -> tuple[list[Agent], list[Agent]]:
-    """Load agents from disk (thread-safe, no app state mutation).
-
-    Args:
-        dismissed_agents: Snapshot of dismissed agent identities.
-
-    Returns:
-        Tuple of (all_agents, dismissed_from_loader).
-    """
-    from ...models import load_all_agents
-
-    all_agents = load_all_agents()
-
-    # Populate retry fields from retry_state.json for running agents
-    from sase.llm_provider.retry_config import RetryState
-
-    for agent in all_agents:
-        if agent.status != "RUNNING":
-            continue
-        artifacts_dir = agent.get_artifacts_dir()
-        if not artifacts_dir:
-            continue
-        retry_state = RetryState.read_from(artifacts_dir)
-        if retry_state is None:
-            continue
-        agent.retry_count = retry_state.retry_count
-        agent.max_retries = retry_state.max_retries
-        agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
-        agent.retry_wait_seconds = retry_state.wait_seconds
-        agent.using_fallback = retry_state.using_fallback
-        agent.fallback_model = retry_state.fallback_model
-        agent.retry_status = retry_state.status
-        if retry_state.status == "retrying":
-            agent.status = "RETRYING"
-
-    # Build secondary index for robust dismissed matching
-    dismissed_suffixes: set[str] = {
-        raw_suffix for _, _, raw_suffix in dismissed_agents if raw_suffix is not None
-    }
-
-    # Capture dismissed agents found by the loader (for revive + self-healing).
-    # Exclude RUNNING agents: a done.json auto-dismiss can share the same
-    # identity/raw_suffix as a still-active RUNNING field agent; treating the
-    # running agent as dismissed would delete its artifacts and hide it.
-    dismissed_from_loader = [
-        a
-        for a in all_agents
-        if a.status != "RUNNING"
-        and (
-            a.identity in dismissed_agents
-            or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
-        )
-    ]
-
-    # Supplement with bundles: load saved bundles for agents whose identity
-    # is in dismissed_agents but not already found by the loader.
-    from ....dismissed_agents import load_dismissed_bundles
-
-    loader_identities = {a.identity for a in dismissed_from_loader}
-    loader_suffixes = {
-        a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
-    }
-    needed_suffixes = dismissed_suffixes - loader_suffixes
-    for bundled_agent in load_dismissed_bundles(needed_suffixes):
-        if bundled_agent.identity not in loader_identities:
-            dismissed_from_loader.append(bundled_agent)
-
-    return all_agents, dismissed_from_loader
+from ._loading_helpers import (
+    DISMISSABLE_STATUSES,
+    TabName,
+    apply_custom_order,
+    is_always_visible,
+    is_axe_spawned_agent,
+    load_agents_from_disk,
+)
 
 
 class AgentLoadingMixin:
@@ -245,7 +76,7 @@ class AgentLoadingMixin:
             selected_identity = self._agents[self.current_idx].identity
 
         dismissed_snapshot = set(self._dismissed_agents)
-        all_agents, dismissed_from_loader = _load_agents_from_disk(dismissed_snapshot)
+        all_agents, dismissed_from_loader = load_agents_from_disk(dismissed_snapshot)
         self._apply_loaded_agents(
             all_agents, dismissed_from_loader, on_agents_tab, selected_identity
         )
@@ -262,7 +93,7 @@ class AgentLoadingMixin:
 
         dismissed_snapshot = set(self._dismissed_agents)
         all_agents, dismissed_from_loader = await asyncio.to_thread(
-            _load_agents_from_disk, dismissed_snapshot
+            load_agents_from_disk, dismissed_snapshot
         )
         self._apply_loaded_agents(
             all_agents, dismissed_from_loader, on_agents_tab, selected_identity
@@ -375,16 +206,16 @@ class AgentLoadingMixin:
             auto_dismissed_ids = {a.identity for a in auto_dismissed}
             all_agents = [a for a in all_agents if a.identity not in auto_dismissed_ids]
 
-        # Mark axe-spawned agents as hidden so the ◌ icon renders correctly
+        # Mark axe-spawned agents as hidden so the icon renders correctly
         for agent in all_agents:
-            if not agent.hidden and _is_axe_spawned_agent(agent):
+            if not agent.hidden and is_axe_spawned_agent(agent):
                 agent.hidden = True
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
         always_visible: list[Agent] = []
         hideable: list[Agent] = []
         for a in all_agents:
-            if _is_always_visible(a):
+            if is_always_visible(a):
                 always_visible.append(a)
             else:
                 hideable.append(a)
@@ -400,12 +231,64 @@ class AgentLoadingMixin:
         else:
             self._agents = all_agents
 
+        self._finalize_agent_list(
+            on_agents_tab, selected_identity, save_unfiltered=True
+        )
+
+    def _refilter_agents(self) -> None:
+        """Lightweight agent refresh that skips disk I/O.
+
+        Reuses the cached ``_agents_with_children`` list from the last full
+        ``_load_agents()`` call and re-applies only the in-memory pipeline:
+        fold filtering, ordering, search, status overrides, panel indices,
+        selection restoration, tab-bar counts, and display refresh.
+
+        Falls back to ``_load_agents()`` if no full load has run yet.
+        """
+        # Guard: first load hasn't happened yet
+        if not self._agents_with_children:
+            self._load_agents()
+            return
+
+        on_agents_tab = self.current_tab == "agents"
+
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+
+        # Start from the cached unfiltered list (already has dismiss/hide applied)
+        self._agents = list(self._agents_with_children)
+
+        self._finalize_agent_list(
+            on_agents_tab, selected_identity, save_unfiltered=False
+        )
+
+    def _finalize_agent_list(
+        self,
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        *,
+        save_unfiltered: bool,
+    ) -> None:
+        """Shared post-processing pipeline for agent list finalization.
+
+        Applies fold filtering, custom ordering, search filter, status
+        overrides, panel indices, selection restoration, tab-bar counts,
+        and display refresh.
+
+        Args:
+            on_agents_tab: Whether the agents tab is currently active.
+            selected_identity: Identity of the previously selected agent.
+            save_unfiltered: If True, save ``_agents_with_children`` before
+                fold filtering (used by full load, not refilter).
+        """
         # Apply fold-state filtering for workflow children
         from ...models import filter_agents_by_fold_state
 
-        # Save unfiltered list (with children) for bundle/dismiss operations
-        # that need to find child steps even when fold state is COLLAPSED.
-        self._agents_with_children = list(self._agents)
+        if save_unfiltered:
+            # Save unfiltered list (with children) for bundle/dismiss operations
+            # that need to find child steps even when fold state is COLLAPSED.
+            self._agents_with_children = list(self._agents)
         self._agents, self._fold_counts = filter_agents_by_fold_state(
             self._agents, self._fold_manager
         )
@@ -448,7 +331,7 @@ class AgentLoadingMixin:
         for agent in self._agents:
             if agent.status in DISMISSABLE_STATUSES:
                 # Agent finished (DONE/FAILED, including dead-PID detection)
-                # — clear any override
+                # -- clear any override
                 self._agent_status_overrides.pop(agent.identity, None)
                 self._agent_pre_question_status.pop(agent.identity, None)
             elif agent.identity in self._agent_status_overrides:
@@ -505,176 +388,12 @@ class AgentLoadingMixin:
             self._agents_last_idx = new_idx
 
         # Update the running agent counts on the tab bar.
-        # Exclude workflow children — they are sub-steps of a parent agent
+        # Exclude workflow children -- they are sub-steps of a parent agent
         # and should not inflate the top-level running count.
         # All counts use the final displayed list (self._agents) rather than
-        # the pre-filter always_visible/all_agents — fold-state filtering
+        # the pre-filter always_visible/all_agents -- fold-state filtering
         # removes workflow parents whose children are all hidden steps, so
         # the pre-filter lists can contain agents not shown in the UI.
-        manual_running = sum(
-            1
-            for a in self._agents
-            if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-        )
-        if self._has_always_visible:
-            hidden_running = sum(
-                1
-                for a in hideable
-                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-            )
-        else:
-            hidden_running = 0
-        pinned_visible = sum(
-            1
-            for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and not a.is_workflow_child
-            and a.identity in self._pinned_agents
-        )
-        done_visible = sum(
-            1
-            for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and not a.is_workflow_child
-            and a.identity not in self._pinned_agents
-        )
-        from ...widgets import TabBar
-
-        tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-        tab_bar.update_agents_count(
-            manual_running,
-            hidden_running,
-            show_hidden=not self.hide_non_run_agents,
-            done_count=done_visible,
-            pinned_count=pinned_visible,
-        )
-
-        # Only refresh display if on agents tab
-        if on_agents_tab:
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-
-    def _refilter_agents(self) -> None:
-        """Lightweight agent refresh that skips disk I/O.
-
-        Reuses the cached ``_agents_with_children`` list from the last full
-        ``_load_agents()`` call and re-applies only the in-memory pipeline:
-        fold filtering, ordering, search, status overrides, panel indices,
-        selection restoration, tab-bar counts, and display refresh.
-
-        Falls back to ``_load_agents()`` if no full load has run yet.
-        """
-        # Guard: first load hasn't happened yet
-        if not self._agents_with_children:
-            self._load_agents()
-            return
-
-        on_agents_tab = self.current_tab == "agents"
-
-        selected_identity: tuple[AgentType, str, str | None] | None = None
-        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
-            selected_identity = self._agents[self.current_idx].identity
-
-        # Start from the cached unfiltered list (already has dismiss/hide applied)
-        self._agents = list(self._agents_with_children)
-
-        # Apply fold-state filtering for workflow children
-        from ...models import filter_agents_by_fold_state
-
-        self._agents, self._fold_counts = filter_agents_by_fold_state(
-            self._agents, self._fold_manager
-        )
-
-        # Apply custom ordering (user-defined via J/K move)
-        if self._agent_custom_order:
-            self._agents = apply_custom_order(self._agents, self._agent_custom_order)
-
-        # Apply agent search filter (case-insensitive substring match)
-        if self._agent_search_query:
-            query_lower = self._agent_search_query.lower()
-            # Collect identities of matching parents so children stay visible
-            matching_parent_names: set[str] = set()
-            for agent in self._agents:
-                if not agent.is_workflow_child and any(
-                    query_lower in (getattr(agent, field, "") or "").lower()
-                    for field in ("cl_name", "display_name", "agent_name", "status")
-                ):
-                    matching_parent_names.add(agent.agent_name or agent.cl_name)
-
-            self._agents = [
-                a
-                for a in self._agents
-                if (
-                    # Direct match
-                    any(
-                        query_lower in (getattr(a, field, "") or "").lower()
-                        for field in ("cl_name", "display_name", "agent_name", "status")
-                    )
-                    # Or child of a matching parent (preserve hierarchy)
-                    or (
-                        a.is_workflow_child
-                        and (a.agent_name or a.cl_name) in matching_parent_names
-                    )
-                )
-            ]
-
-        # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
-        loaded_identities = {a.identity for a in self._agents}
-        for agent in self._agents:
-            if agent.status in DISMISSABLE_STATUSES:
-                self._agent_status_overrides.pop(agent.identity, None)
-                self._agent_pre_question_status.pop(agent.identity, None)
-            elif agent.identity in self._agent_status_overrides:
-                agent.status = self._agent_status_overrides[agent.identity]
-
-        # Clean overrides for agents that no longer exist in the loaded list
-        for identity in list(self._agent_status_overrides):
-            if identity not in loaded_identities:
-                self._agent_status_overrides.pop(identity, None)
-                self._agent_pre_question_status.pop(identity, None)
-
-        # Build panel index maps (must happen after _agents is finalized)
-        self._build_panel_indices()  # type: ignore[attr-defined]
-
-        # Calculate the new index
-        # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
-        saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
-
-        if selected_identity is not None:
-            # Try to restore selection by identity
-            for idx, agent in enumerate(self._agents):
-                if agent.identity == selected_identity:
-                    saved_idx = idx
-                    break
-
-        # Clamp to valid bounds
-        if self._agents:
-            new_idx = min(saved_idx, len(self._agents) - 1)
-        else:
-            new_idx = 0
-
-        # Ensure panel focus is valid after refresh
-        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":  # type: ignore[attr-defined]
-            self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-        elif (
-            not self._main_panel_indices  # type: ignore[attr-defined]
-            and self._pinned_panel_indices  # type: ignore[attr-defined]
-            and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
-        ):
-            self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
-
-        # If selection target is not in focused panel, adjust
-        if self._agents and new_idx not in self._active_panel_indices():  # type: ignore[attr-defined]
-            active = self._active_panel_indices()  # type: ignore[attr-defined]
-            if active:
-                new_idx = active[0]
-
-        # Only modify current_idx if we're on the agents tab
-        if on_agents_tab:
-            self.current_idx = new_idx
-        else:
-            self._agents_last_idx = new_idx
-
-        # Update the running agent counts on the tab bar
         manual_running = sum(
             1
             for a in self._agents
