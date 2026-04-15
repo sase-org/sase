@@ -63,7 +63,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"ace_profile_{timestamp}.txt"
         with open(output_path, "w") as f:
-            f.write(profiler.output_text(unicode=True, color=False))
+            f.write(profiler.output_text(unicode=True, color=False, show_all=True))
         print(f"Profile written to: {output_path}", file=sys.stderr)
     else:
         app.run()

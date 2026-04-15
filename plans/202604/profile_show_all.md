@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 16:29:06
-status: wip
+status: done
 ---
 
 # Plan: Fix `sase ace --profile` output hiding all frames
