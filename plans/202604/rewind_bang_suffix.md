@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 13:17:08
-status: wip
+status: done
 ---
 
 # Plan: Support `!` suffix for rewind (`R`) keymap on CLs tab

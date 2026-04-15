@@ -28,6 +28,7 @@ class RewindWorkflow:
         cl_name: str,
         project_file: str,
         selected_entry_num: int,
+        skip_vcs: bool = False,
     ) -> None:
         """Initialize the rewind workflow.
 
@@ -35,10 +36,12 @@ class RewindWorkflow:
             cl_name: The CL name.
             project_file: Path to the project file.
             selected_entry_num: The entry number to rewind to.
+            skip_vcs: If True, skip VCS operations (bookkeeping only).
         """
         self._cl_name = cl_name
         self._project_file = os.path.expanduser(project_file)
         self._selected_entry_num = selected_entry_num
+        self._skip_vcs = skip_vcs
 
     def run(self) -> tuple[bool, str]:
         """Run the rewind workflow.
@@ -82,6 +85,28 @@ class RewindWorkflow:
 
         # Kill running processes before rewind
         self._kill_running_processes(changespec, project_file, cl_name)
+
+        # Bookkeeping-only mode: skip all VCS operations
+        if self._skip_vcs:
+            print_status("Skipping VCS operations (bookkeeping only)", "progress")
+            print_status("Updating ChangeSpec entries...", "progress")
+            if rewind_commit_entries(project_file, cl_name, selected_entry_num):
+                print_status("ChangeSpec entries updated", "success")
+            else:
+                return (False, "Failed to update ChangeSpec entries")
+
+            add_timestamp_entry_atomic(
+                project_file,
+                cl_name,
+                "REWIND",
+                f"({selected_entry_num})",
+            )
+
+            return (
+                True,
+                f"Successfully rewound to entry ({selected_entry_num})"
+                " (bookkeeping only)",
+            )
 
         # Claim an available workspace
         workspace_num = get_first_available_axe_workspace(project_file)

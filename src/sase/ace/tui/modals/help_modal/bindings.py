@@ -77,7 +77,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.mail), "Mail CL"),
                 (d(a.toggle_mark), "Mark/unmark current CL"),
                 (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),
-                (d(a.start_rewind), "Rewind to prev commit (non-Sub/Rev)"),
+                (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
                 (d(a.change_status), "Change status"),
                 (d(a.bulk_change_status), "Bulk status change (marked CLs)"),
                 (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),

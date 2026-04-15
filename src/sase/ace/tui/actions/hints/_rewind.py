@@ -15,6 +15,7 @@ def _rewind_task(
     cl_name: str,
     project_file: str,
     selected_entry_num: int,
+    skip_vcs: bool = False,
 ) -> tuple[bool, str]:
     """Execute rewind workflow as a background task.
 
@@ -27,6 +28,7 @@ def _rewind_task(
         cl_name=cl_name,
         project_file=project_file,
         selected_entry_num=selected_entry_num,
+        skip_vcs=skip_vcs,
     )
     return workflow.run()
 
@@ -76,17 +78,26 @@ class RewindMixin(HintMixinBase):
     def _process_rewind_input(self, user_input: str) -> None:
         """Process the selected entry number for rewind.
 
+        Supports a ``!`` suffix (e.g. ``3!``) to skip VCS operations
+        and only perform bookkeeping (renumber ChangeSpec + timestamp).
+
         Args:
-            user_input: The user's input (should be an all-numeric entry number).
+            user_input: The user's input (entry number, optionally with ``!``).
         """
         if not user_input:
             return
 
         changespec = self.changespecs[self.current_idx]
 
+        # Strip trailing '!' suffix for bookkeeping-only mode
+        stripped = user_input.strip()
+        skip_vcs = stripped.endswith("!")
+        if skip_vcs:
+            stripped = stripped[:-1]
+
         # Parse and validate entry number
         try:
-            selected_entry_num = int(user_input.strip())
+            selected_entry_num = int(stripped)
         except ValueError:
             self.notify(  # type: ignore[attr-defined]
                 f"Invalid entry number: {user_input}",
@@ -126,26 +137,34 @@ class RewindMixin(HintMixinBase):
             return
 
         # Run rewind workflow
-        self._run_rewind_workflow(changespec, selected_entry_num)
+        self._run_rewind_workflow(changespec, selected_entry_num, skip_vcs=skip_vcs)
 
     def _run_rewind_workflow(
-        self, changespec: ChangeSpec, selected_entry_num: int
+        self,
+        changespec: ChangeSpec,
+        selected_entry_num: int,
+        *,
+        skip_vcs: bool = False,
     ) -> None:
         """Execute the rewind workflow.
 
         Args:
             changespec: The ChangeSpec to rewind.
             selected_entry_num: The entry number to rewind to.
+            skip_vcs: If True, skip VCS operations (bookkeeping only).
         """
         cl_name = changespec.name
         project_file = changespec.file_path
 
         def task_callable() -> tuple[bool, str]:
-            return _rewind_task(cl_name, project_file, selected_entry_num)
+            return _rewind_task(
+                cl_name, project_file, selected_entry_num, skip_vcs=skip_vcs
+            )
 
         submitted = self._submit_background_task(  # type: ignore[attr-defined]
             "rewind", cl_name, project_file, task_callable
         )
 
         if submitted:
-            self.notify(f"Rewinding to entry ({selected_entry_num})...")  # type: ignore[attr-defined]
+            suffix = " (bookkeeping only)" if skip_vcs else ""
+            self.notify(f"Rewinding to entry ({selected_entry_num}){suffix}...")  # type: ignore[attr-defined]
