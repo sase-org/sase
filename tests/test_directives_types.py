@@ -363,9 +363,9 @@ def test_repeat_colon_arg() -> None:
     assert directives.repeat_count == 3
 
 
-def test_repeat_alias_N() -> None:
-    """%N:5 (uppercase alias) sets repeat_count=5."""
-    prompt = "%N:5\nDo the work"
+def test_repeat_alias_r() -> None:
+    """%r:5 (short alias) sets repeat_count=5."""
+    prompt = "%r:5\nDo the work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do the work"
     assert directives.repeat_count == 5

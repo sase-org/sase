@@ -135,7 +135,7 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "h": "hide",
     "m": "model",
     "n": "name",
-    "N": "repeat",
+    "r": "repeat",
     "p": "plan",
     "w": "wait",
 }
