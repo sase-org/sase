@@ -342,7 +342,7 @@ def handle_plan_marker(
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
-            agent_name_override=f"{ctx.agent_name}.{state.agent_step}"
+            agent_name_override=f"{ctx.agent_name}{state.current_role_suffix}"
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
@@ -379,7 +379,7 @@ def handle_plan_marker(
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
-            agent_name_override=f"{ctx.agent_name}.{state.agent_step}"
+            agent_name_override=f"{ctx.agent_name}{state.current_role_suffix}"
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
@@ -400,7 +400,10 @@ def handle_plan_marker(
         # planner is step - 1.
         resume_prefix = ""
         if ctx.agent_name:
-            planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
+            if state.agent_step == 2:
+                planner_name = f"{ctx.agent_name}.plan"
+            else:
+                planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
             resume_prefix = f"#resume:{planner_name} "
 
         state.current_prompt = (

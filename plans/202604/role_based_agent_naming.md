@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 22:41:48
-status: wip
+status: done
 ---
 
 # Plan: Role-Based Agent Naming (`<name>.plan` / `<name>.code`)

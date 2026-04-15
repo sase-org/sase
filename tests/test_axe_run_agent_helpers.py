@@ -32,14 +32,14 @@ def test_update_meta_field_missing_file(tmp_path) -> None:
 
 
 def test_promote_to_workflow_renames_and_adds_workflow_name(tmp_path) -> None:
-    """promote_to_workflow sets name to base.1 and adds workflow_name."""
+    """promote_to_workflow sets name to base.plan and adds workflow_name."""
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"name": "a", "pid": 123}))
 
     promote_to_workflow(str(tmp_path), "a")
 
     meta = json.loads(meta_path.read_text())
-    assert meta["name"] == "a.1"
+    assert meta["name"] == "a.plan"
     assert meta["workflow_name"] == "a"
     assert meta["pid"] == 123
 
@@ -58,12 +58,12 @@ def test_create_followup_with_name_override(tmp_path) -> None:
             {"name": "a", "model": "test"},
             ".code",
             "20260326120000",
-            agent_name_override="a.2",
+            agent_name_override="a.code",
             workflow_name="a",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
-    assert meta["name"] == "a.2"
+    assert meta["name"] == "a.code"
     assert meta["workflow_name"] == "a"
 
 

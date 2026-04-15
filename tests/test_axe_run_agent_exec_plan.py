@@ -318,9 +318,9 @@ class TestModelInheritance:
         state = self._run(tmp_path, action="approve", agent_model="opus")
         # agent_name is "test_agent", agent_step was 0 -> incremented to 1 for
         # planner (promote_to_workflow) then 2 for coder, so planner = step-1 = 1
-        assert "#resume:test_agent.1 " in state.current_prompt
+        assert "#resume:test_agent.plan " in state.current_prompt
         # Must appear after %model and before vcs_prefix
-        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent.1 ")
+        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent.plan ")
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""

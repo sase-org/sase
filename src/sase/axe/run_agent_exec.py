@@ -118,11 +118,14 @@ def _finalize_loop(
 
     # Compute the final agent name for the done marker.
     # Multi-agent workflows use the last child name; single-agent keeps original.
-    _done_agent_name = (
-        f"{ctx.agent_name}.{state.agent_step}"
-        if state.agent_step > 1 and ctx.agent_name
-        else ctx.agent_name
-    )
+    _done_agent_name: str | None
+    if state.agent_step > 1 and ctx.agent_name:
+        if state.current_role_suffix in (".code", ".epic"):
+            _done_agent_name = f"{ctx.agent_name}{state.current_role_suffix}"
+        else:
+            _done_agent_name = f"{ctx.agent_name}.{state.agent_step}"
+    else:
+        _done_agent_name = ctx.agent_name
 
     saved_path: str | None = None
     diff_path: str | None = None

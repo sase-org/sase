@@ -191,7 +191,7 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
 
 
 def promote_to_workflow(artifacts_dir: str, base_name: str) -> None:
-    """Retroactively rename the initial agent to ``<base_name>.1``.
+    """Retroactively rename the initial agent to ``<base_name>.plan``.
 
     Called when the first follow-up agent is created, promoting a
     single-agent run into a multi-agent workflow.  Sets both
@@ -201,7 +201,7 @@ def promote_to_workflow(artifacts_dir: str, base_name: str) -> None:
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["name"] = f"{base_name}.1"
+        meta["name"] = f"{base_name}.plan"
         meta["workflow_name"] = base_name
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
