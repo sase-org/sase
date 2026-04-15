@@ -87,3 +87,51 @@ def test_renumber_commit_entries_mark_ready_to_mail_rejects_proposals() -> None:
         assert "STATUS: Ready\n" in content
     finally:
         os.unlink(temp_path)
+
+
+def test_renumber_commit_entries_strips_rejected_proposal_suffix() -> None:
+    """Test that accepting a rejected proposal strips the (~!: NEW PROPOSAL) suffix."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        f.write("COMMITS:\n")
+        f.write("  (1) First commit\n")
+        f.write("  (1a) Proposal A - (~!: NEW PROPOSAL)\n")
+        temp_path = f.name
+
+    try:
+        result = renumber_commit_entries(temp_path, "test_cl", [(1, "a")])
+        assert result is True
+
+        with open(temp_path) as f:
+            content = f.read()
+
+        # (1a) became (2) with the rejected proposal suffix stripped
+        assert "(2) Proposal A\n" in content
+        assert "~!" not in content
+    finally:
+        os.unlink(temp_path)
+
+
+def test_renumber_commit_entries_strips_broken_proposal_suffix() -> None:
+    """Test that accepting a broken proposal strips the (~!: BROKEN PROPOSAL) suffix."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        f.write("COMMITS:\n")
+        f.write("  (1) First commit\n")
+        f.write("  (1a) Proposal A - (~!: BROKEN PROPOSAL)\n")
+        temp_path = f.name
+
+    try:
+        result = renumber_commit_entries(temp_path, "test_cl", [(1, "a")])
+        assert result is True
+
+        with open(temp_path) as f:
+            content = f.read()
+
+        # (1a) became (2) with the broken proposal suffix stripped
+        assert "(2) Proposal A\n" in content
+        assert "~!" not in content
+    finally:
+        os.unlink(temp_path)

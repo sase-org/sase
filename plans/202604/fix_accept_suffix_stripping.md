@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 21:30:21
-status: wip
+status: done
 ---
 
 # Fix: Strip NEW/BROKEN PROPOSAL suffix when accepting proposals

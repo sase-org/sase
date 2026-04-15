@@ -437,7 +437,7 @@ def renumber_commit_entries(
                         new_entry["letter"] = None
                         # Strip any proposal suffix (e.g., "- (!: NEW PROPOSAL)")
                         new_entry["note"] = re.sub(
-                            r" - \([!~]: [^)]+\)$", "", entry["note"]
+                            r" - \(~?!: [^)]+\)$", "", entry["note"]
                         )
                         # Append per-proposal message to the note if provided
                         if extra_msgs and idx < len(extra_msgs) and extra_msgs[idx]:
