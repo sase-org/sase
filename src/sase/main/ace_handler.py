@@ -44,7 +44,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    if getattr(args, "profile", False):
+    if args.profile is not None:
         try:
             import pyinstrument
         except ImportError:
@@ -60,8 +60,17 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         app.run()
         profiler.stop()
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"ace_profile_{timestamp}.txt"
+        if args.profile:
+            output_path = args.profile
+            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        else:
+            from sase.core.paths import get_sase_tmpdir
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"ace_profile_{timestamp}.txt"
+            tmpdir = get_sase_tmpdir()
+            output_path = os.path.join(tmpdir, filename) if tmpdir else filename
+
         with open(output_path, "w") as f:
             f.write(profiler.output_text(unicode=True, color=False, show_all=True))
         print(f"Profile written to: {output_path}", file=sys.stderr)

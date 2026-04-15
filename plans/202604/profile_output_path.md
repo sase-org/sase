@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 16:42:30
-status: wip
+status: done
 ---
 
 # Plan: Accept optional file path for `sase ace --profile`

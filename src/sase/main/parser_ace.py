@@ -39,8 +39,11 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     ace_parser.add_argument(
         "-p",
         "--profile",
-        action="store_true",
-        help="Profile the TUI session with pyinstrument and write results to a file",
+        nargs="?",
+        const="",
+        default=None,
+        help="Profile the TUI session with pyinstrument. Optionally provide a file path "
+        "for the output (default: $SASE_TMPDIR/ace_profile_<timestamp>.txt)",
     )
     ace_parser.add_argument(
         "-r",
