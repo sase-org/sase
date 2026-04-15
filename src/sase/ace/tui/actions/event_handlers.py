@@ -39,6 +39,7 @@ class EventHandlersMixin:
     _checkout_mode_active: bool
     _copy_mode_active: bool
     _agents: list[Agent]
+    _agents_loading: bool
     _changespecs_last_idx: int
     _agents_last_idx: int
     _ancestor_mode_active: bool
@@ -69,7 +70,7 @@ class EventHandlersMixin:
         else:  # axe
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
-    def _on_auto_refresh(self) -> None:
+    async def _on_auto_refresh(self) -> None:
         """Auto-refresh handler called by timer."""
         self._countdown_remaining = self.refresh_interval
 
@@ -90,8 +91,16 @@ class EventHandlersMixin:
         if getattr(self, "_accept_mode_active", False):
             return
 
-        # Always refresh agents to keep the tab bar count up to date
-        self._load_agents()  # type: ignore[attr-defined]
+        # Skip if a background agent load is already in progress
+        if self._agents_loading:
+            return
+
+        # Load agents asynchronously to avoid blocking the event loop
+        self._agents_loading = True
+        try:
+            await self._load_agents_async()  # type: ignore[attr-defined]
+        finally:
+            self._agents_loading = False
 
         # Tab-specific refreshes
         if self.current_tab == "changespecs":

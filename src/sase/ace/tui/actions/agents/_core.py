@@ -92,6 +92,7 @@ class AgentsMixinCore(
     _pinned_panel_indices: list[int]
     _main_panel_idx_map: dict[int, int]
     _pinned_panel_idx_map: dict[int, int]
+    _non_child_main_indices: list[int]
 
     # Custom agent ordering
     _agent_custom_order: list[tuple[AgentType, str, str | None]]
@@ -137,6 +138,9 @@ class AgentsMixinCore(
         self._pinned_panel_indices = pinned
         self._main_panel_idx_map = {g: loc for loc, g in enumerate(main)}
         self._pinned_panel_idx_map = {g: loc for loc, g in enumerate(pinned)}
+        self._non_child_main_indices = [
+            i for i in main if not self._agents[i].is_workflow_child
+        ]
 
     def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
         """Convert a global _agents index to (panel, local_index).
@@ -164,6 +168,12 @@ class AgentsMixinCore(
         if self._pinned_panel_focused == "pinned":
             return self._pinned_panel_indices
         return self._main_panel_indices
+
+    def _active_panel_idx_map(self) -> dict[int, int]:
+        """Get the O(1) index lookup map for the currently focused panel."""
+        if self._pinned_panel_focused == "pinned":
+            return self._pinned_panel_idx_map
+        return self._main_panel_idx_map
 
     def _switch_panel_focus(self, target: PanelFocus) -> None:
         """Switch panel focus safely, selecting first item if needed."""

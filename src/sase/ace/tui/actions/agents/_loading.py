@@ -119,6 +119,78 @@ def apply_custom_order(
     return result
 
 
+def _load_agents_from_disk(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+) -> tuple[list[Agent], list[Agent]]:
+    """Load agents from disk (thread-safe, no app state mutation).
+
+    Args:
+        dismissed_agents: Snapshot of dismissed agent identities.
+
+    Returns:
+        Tuple of (all_agents, dismissed_from_loader).
+    """
+    from ...models import load_all_agents
+
+    all_agents = load_all_agents()
+
+    # Populate retry fields from retry_state.json for running agents
+    from sase.llm_provider.retry_config import RetryState
+
+    for agent in all_agents:
+        if agent.status != "RUNNING":
+            continue
+        artifacts_dir = agent.get_artifacts_dir()
+        if not artifacts_dir:
+            continue
+        retry_state = RetryState.read_from(artifacts_dir)
+        if retry_state is None:
+            continue
+        agent.retry_count = retry_state.retry_count
+        agent.max_retries = retry_state.max_retries
+        agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
+        agent.retry_wait_seconds = retry_state.wait_seconds
+        agent.using_fallback = retry_state.using_fallback
+        agent.fallback_model = retry_state.fallback_model
+        agent.retry_status = retry_state.status
+        if retry_state.status == "retrying":
+            agent.status = "RETRYING"
+
+    # Build secondary index for robust dismissed matching
+    dismissed_suffixes: set[str] = {
+        raw_suffix for _, _, raw_suffix in dismissed_agents if raw_suffix is not None
+    }
+
+    # Capture dismissed agents found by the loader (for revive + self-healing).
+    # Exclude RUNNING agents: a done.json auto-dismiss can share the same
+    # identity/raw_suffix as a still-active RUNNING field agent; treating the
+    # running agent as dismissed would delete its artifacts and hide it.
+    dismissed_from_loader = [
+        a
+        for a in all_agents
+        if a.status != "RUNNING"
+        and (
+            a.identity in dismissed_agents
+            or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
+        )
+    ]
+
+    # Supplement with bundles: load saved bundles for agents whose identity
+    # is in dismissed_agents but not already found by the loader.
+    from ....dismissed_agents import load_dismissed_bundles
+
+    loader_identities = {a.identity for a in dismissed_from_loader}
+    loader_suffixes = {
+        a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
+    }
+    needed_suffixes = dismissed_suffixes - loader_suffixes
+    for bundled_agent in load_dismissed_bundles(needed_suffixes):
+        if bundled_agent.identity not in loader_identities:
+            dismissed_from_loader.append(bundled_agent)
+
+    return all_agents, dismissed_from_loader
+
+
 class AgentLoadingMixin:
     """Mixin providing agent loading and filtering methods.
 
@@ -166,88 +238,55 @@ class AgentLoadingMixin:
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
-        from ...models import load_all_agents
-
-        # Only capture selection identity if we're on the agents tab
-        # (current_idx refers to changespecs when on changespecs tab)
         on_agents_tab = self.current_tab == "agents"
 
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
 
-        # Load fresh agent list
-        all_agents = load_all_agents()
+        dismissed_snapshot = set(self._dismissed_agents)
+        all_agents, dismissed_from_loader = _load_agents_from_disk(dismissed_snapshot)
+        self._apply_loaded_agents(
+            all_agents, dismissed_from_loader, on_agents_tab, selected_identity
+        )
 
-        # Populate retry fields from retry_state.json for running agents
-        from sase.llm_provider.retry_config import RetryState
+    async def _load_agents_async(self) -> None:
+        """Load agents with disk IO in a background thread."""
+        import asyncio
 
-        for agent in all_agents:
-            if agent.status != "RUNNING":
-                continue
-            artifacts_dir = agent.get_artifacts_dir()
-            if not artifacts_dir:
-                continue
-            retry_state = RetryState.read_from(artifacts_dir)
-            if retry_state is None:
-                continue
-            agent.retry_count = retry_state.retry_count
-            agent.max_retries = retry_state.max_retries
-            agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
-            agent.retry_wait_seconds = retry_state.wait_seconds
-            agent.using_fallback = retry_state.using_fallback
-            agent.fallback_model = retry_state.fallback_model
-            agent.retry_status = retry_state.status
-            # Override display status for "retrying" state
-            if retry_state.status == "retrying":
-                agent.status = "RETRYING"
+        on_agents_tab = self.current_tab == "agents"
 
-        # Build secondary index for robust dismissed matching
-        # (agent cl_name or type may change between loads due to dedup merging)
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+
+        dismissed_snapshot = set(self._dismissed_agents)
+        all_agents, dismissed_from_loader = await asyncio.to_thread(
+            _load_agents_from_disk, dismissed_snapshot
+        )
+        self._apply_loaded_agents(
+            all_agents, dismissed_from_loader, on_agents_tab, selected_identity
+        )
+
+    def _apply_loaded_agents(
+        self,
+        all_agents: list[Agent],
+        dismissed_from_loader: list[Agent],
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+    ) -> None:
+        """Apply loaded agent data to app state (main thread only)."""
+        # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {
             raw_suffix
             for _, _, raw_suffix in self._dismissed_agents
             if raw_suffix is not None
         }
-
-        # Build (cl_name, raw_suffix) pairs for cross-type matching of
-        # RUNNING agents.  When a WORKFLOW agent is killed and its artifacts
-        # are deleted, the RUNNING field entry may persist and produce an
-        # agent with AgentType.RUNNING — a direct identity mismatch that
-        # the primary identity check misses.
         dismissed_cl_suffixes: set[tuple[str, str]] = {
             (cl_name, raw_suffix)
             for _, cl_name, raw_suffix in self._dismissed_agents
             if raw_suffix is not None
         }
-
-        # Capture dismissed agents found by the loader (for revive + self-healing).
-        # Exclude RUNNING agents: a done.json auto-dismiss can share the same
-        # identity/raw_suffix as a still-active RUNNING field agent; treating the
-        # running agent as dismissed would delete its artifacts and hide it.
-        dismissed_from_loader = [
-            a
-            for a in all_agents
-            if a.status != "RUNNING"
-            and (
-                a.identity in self._dismissed_agents
-                or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
-            )
-        ]
-
-        # Supplement with bundles: load saved bundles for agents whose identity
-        # is in _dismissed_agents but not already found by the loader.
-        # Only load the specific files we need (by raw_suffix).
-        from ....dismissed_agents import load_dismissed_bundles
-
-        loader_identities = {a.identity for a in dismissed_from_loader}
-        loader_suffixes = {
-            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
-        }
-        needed_suffixes = dismissed_suffixes - loader_suffixes
-        for bundled_agent in load_dismissed_bundles(needed_suffixes):
-            if bundled_agent.identity not in loader_identities:
-                dismissed_from_loader.append(bundled_agent)
 
         self._dismissed_agent_objects = dismissed_from_loader
 
@@ -313,6 +352,10 @@ class AgentLoadingMixin:
         # dismissed agents (bundle-sourced agents have no artifacts to clean)
         from ._killing import delete_agent_artifacts
 
+        loader_identities = {a.identity for a in dismissed_from_loader}
+        loader_suffixes = {
+            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
+        }
         for a in self._dismissed_agent_objects:
             if a.identity in loader_identities or (
                 a.raw_suffix is not None and a.raw_suffix in loader_suffixes

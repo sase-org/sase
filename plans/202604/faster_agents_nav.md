@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 17:09:00
-status: wip
+status: done
 ---
 
 # Plan: Make Agents Tab j/k Navigation WAY Faster

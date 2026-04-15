@@ -109,7 +109,6 @@ class AceApp(
 
     # Reactive properties
     changespecs: reactive[list[ChangeSpec]] = reactive([], recompose=False)
-    current_idx: reactive[int] = reactive(0, recompose=False)
     hooks_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
     )
@@ -129,6 +128,20 @@ class AceApp(
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
     marked_indices: reactive[set[int]] = reactive(set, recompose=False)
 
+    _current_idx: int
+
+    @property
+    def current_idx(self) -> int:
+        """Current selection index (manual property to avoid reactive refresh)."""
+        return self._current_idx
+
+    @current_idx.setter
+    def current_idx(self, value: int) -> None:
+        old = self._current_idx
+        self._current_idx = value
+        if old != value:
+            self.watch_current_idx(old, value)
+
     def __init__(
         self,
         query: str = "!!!",
@@ -147,6 +160,7 @@ class AceApp(
             restart_axe: Whether to restart the axe daemon on startup
         """
         super().__init__()
+        self._current_idx = 0
         self._init_task_queue()
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe
@@ -233,6 +247,7 @@ class AceApp(
         self._changespecs_last_idx: int = 0
         self._agents_last_idx: int = 0
         self._agents: list[Agent] = []
+        self._agents_loading: bool = False
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
@@ -243,6 +258,7 @@ class AceApp(
         self._pinned_panel_focused: PanelFocus = "main"
         self._main_panel_indices: list[int] = []
         self._pinned_panel_indices: list[int] = []
+        self._non_child_main_indices: list[int] = []
 
         # Fold state for nested workflow steps
         from .models.fold_state import FoldStateManager

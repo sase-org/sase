@@ -42,6 +42,7 @@ class AgentDisplayMixin:
     _pinned_panel_indices: list[int]
     _main_panel_idx_map: dict[int, int]
     _pinned_panel_idx_map: dict[int, int]
+    _non_child_main_indices: list[int]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
@@ -289,15 +290,11 @@ class AgentDisplayMixin:
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
         # Position is 1-based for display; exclude workflow children from count
-        main_set = set(self._main_panel_indices)
-        non_child_indices = [
-            i
-            for i, a in enumerate(self._agents)
-            if not a.is_workflow_child and i in main_set
-        ]
-        total = len(non_child_indices)
+        from bisect import bisect_right
+
+        total = len(self._non_child_main_indices)
         if self._agents:
-            position = sum(1 for i in non_child_indices if i <= self.current_idx)
+            position = bisect_right(self._non_child_main_indices, self.current_idx)
         else:
             position = 0
         agent_info_panel.update_position(position, total)

@@ -21,9 +21,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         indices = self._active_panel_indices()  # type: ignore[attr-defined]
         if not indices:
             return
-        try:
-            pos = indices.index(self.current_idx)
-        except ValueError:
+        idx_map = self._active_panel_idx_map()  # type: ignore[attr-defined]
+        pos = idx_map.get(self.current_idx)
+        if pos is None:
             # Current idx not in focused panel — snap to first
             self.current_idx = indices[0]
             return
