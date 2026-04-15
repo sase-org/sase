@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 18:55:34
-status: wip
+status: done
 ---
 
 # Plan: Fix race condition in TUI j/k navigation where async agent refresh restores stale selection

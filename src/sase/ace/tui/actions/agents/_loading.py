@@ -88,16 +88,18 @@ class AgentLoadingMixin:
         """Load agents with disk IO in a background thread."""
         import asyncio
 
-        on_agents_tab = self.current_tab == "agents"
-
-        selected_identity: tuple[AgentType, str, str | None] | None = None
-        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
-            selected_identity = self._agents[self.current_idx].identity
-
         dismissed_snapshot = set(self._dismissed_agents)
         all_agents, dismissed_from_loader = await asyncio.to_thread(
             load_agents_from_disk, dismissed_snapshot
         )
+
+        # Capture current state AFTER the await — the user may have navigated
+        # (j/k) or switched tabs while disk I/O was in flight.
+        on_agents_tab = self.current_tab == "agents"
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+
         self._apply_loaded_agents(
             all_agents, dismissed_from_loader, on_agents_tab, selected_identity
         )
