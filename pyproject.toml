@@ -32,6 +32,7 @@ dev = [
     "pytest-xdist",
     "hypothesis",
     "inline-snapshot",
+    "pyinstrument",
     "tox",
     "build",
     "twine",

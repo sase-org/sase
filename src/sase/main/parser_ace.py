@@ -37,6 +37,12 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Deprecated: use --model-tier instead",
     )
     ace_parser.add_argument(
+        "-p",
+        "--profile",
+        action="store_true",
+        help="Profile the TUI session with pyinstrument and write results to a file",
+    )
+    ace_parser.add_argument(
         "-r",
         "--refresh-interval",
         type=int,

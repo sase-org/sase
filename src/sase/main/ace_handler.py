@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from datetime import datetime
 from typing import Literal, cast
 
 from sase.ace.query import QueryParseError
@@ -42,5 +43,29 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
-    app.run()
+
+    if getattr(args, "profile", False):
+        try:
+            import pyinstrument
+        except ImportError:
+            print(
+                "Error: pyinstrument is not installed. "
+                "Install it with: pip install sase[dev]",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        profiler = pyinstrument.Profiler(async_mode="enabled")
+        profiler.start()
+        app.run()
+        profiler.stop()
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"ace_profile_{timestamp}.txt"
+        with open(output_path, "w") as f:
+            f.write(profiler.output_text(unicode=True, color=False))
+        print(f"Profile written to: {output_path}", file=sys.stderr)
+    else:
+        app.run()
+
     sys.exit(0)
