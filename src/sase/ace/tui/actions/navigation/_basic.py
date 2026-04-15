@@ -169,6 +169,9 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
+        elif self.current_tab == "changespecs":
+            scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll_container.scroll_home(animate=False)
 
     def action_scroll_to_bottom(self) -> None:
         """Scroll to the bottom of the current scrollable area.
@@ -183,6 +186,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
+            scroll_container.scroll_end(animate=False)
+        elif self.current_tab == "changespecs":
+            scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
 
     # --- Tab Switching Actions ---

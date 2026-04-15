@@ -55,6 +55,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
                     "Scroll detail panel down / up",
                 ),
+                (
+                    f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
+                    "Scroll detail panel to top / bottom",
+                ),
             ],
         ),
         (

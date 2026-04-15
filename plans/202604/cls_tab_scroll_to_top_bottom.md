@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 12:35:04
-status: wip
+status: done
 ---
 
 # Plan: Add `g`/`G` scroll-to-top/bottom on CLs tab
