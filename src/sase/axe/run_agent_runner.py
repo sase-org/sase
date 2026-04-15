@@ -360,7 +360,10 @@ def main() -> None:
 
                     print(f"\n=== Repeat iteration {iteration}/{repeat_count} ===\n")
                     exec_result = run_execution_loop(
-                        ctx, prompt, repeat_iteration=iteration
+                        ctx,
+                        prompt,
+                        repeat_iteration=iteration,
+                        repeat_count=repeat_count,
                     )
                     success = exec_result.success
                     saved_path = exec_result.saved_path

@@ -55,7 +55,7 @@ class TestRepeatDirectiveParsing:
 
 
 class TestRepeatIterationVariable:
-    """Tests for N variable injection into workflow named_args."""
+    """Tests for n/N variable injection into workflow named_args."""
 
     @patch("sase.xprompt.workflow_runner.execute_workflow")
     @patch("sase.xprompt.models.create_anonymous_workflow")
@@ -65,7 +65,7 @@ class TestRepeatIterationVariable:
         mock_execute: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """run_execution_loop passes N in named_args when repeat_iteration is set."""
+        """run_execution_loop passes n and N in named_args when repeat_iteration is set."""
         from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 
         mock_wf = MagicMock()
@@ -91,10 +91,11 @@ class TestRepeatIterationVariable:
         ctx.project_file = "/tmp/test.gp"
         ctx.output_path = str(tmp_path / "output")
 
-        run_execution_loop(ctx, "test prompt", repeat_iteration=3)
+        run_execution_loop(ctx, "test prompt", repeat_iteration=3, repeat_count=5)
 
         named_args = mock_execute.call_args[0][2]
-        assert named_args["N"] == 3
+        assert named_args["n"] == 3
+        assert named_args["N"] == 5
 
     @patch("sase.xprompt.workflow_runner.execute_workflow")
     @patch("sase.xprompt.models.create_anonymous_workflow")
@@ -104,7 +105,7 @@ class TestRepeatIterationVariable:
         mock_execute: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """run_execution_loop does not inject N when repeat_iteration is None."""
+        """run_execution_loop does not inject n or N when repeat_iteration is None."""
         from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 
         mock_wf = MagicMock()
@@ -133,4 +134,5 @@ class TestRepeatIterationVariable:
         run_execution_loop(ctx, "test prompt")
 
         named_args = mock_execute.call_args[0][2]
+        assert "n" not in named_args
         assert "N" not in named_args

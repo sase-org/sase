@@ -253,6 +253,7 @@ def run_execution_loop(
     prompt: str,
     *,
     repeat_iteration: int | None = None,
+    repeat_count: int | None = None,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling.
 
@@ -306,7 +307,11 @@ def run_execution_loop(
                 {
                     "cl_name": ctx.cl_name,
                     "workspace_num": ctx.workspace_num,
-                    **({"N": repeat_iteration} if repeat_iteration is not None else {}),
+                    **(
+                        {"n": repeat_iteration, "N": repeat_count}
+                        if repeat_iteration is not None
+                        else {}
+                    ),
                 },
                 artifacts_dir=state.current_artifacts_dir,
                 silent=True,

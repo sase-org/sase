@@ -723,12 +723,18 @@ count:
 Run lint checks on the codebase.
 ```
 
-This launches 3 separate agent runs with identical prompts. Each iteration exposes a Jinja2 variable `N` containing the
-1-based iteration number (1, 2, 3, ...), which can be used in the prompt body:
+This launches 3 separate agent runs with identical prompts. Each iteration exposes two Jinja2 variables:
+
+| Variable | Meaning                                   | Example with `%repeat:5` |
+| -------- | ----------------------------------------- | ------------------------ |
+| `n`      | Current iteration (1-based)               | 1, 2, 3, 4, 5            |
+| `N`      | Total iterations (the `%repeat` argument) | 5                        |
+
+These can be used in the prompt body:
 
 ```
 %repeat:5
-Run test suite batch {{ N }} of 5.
+Run test suite batch {{ n }} of {{ N }}.
 ```
 
 ### Alt Directive

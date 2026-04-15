@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 20:41:13
-status: wip
+status: done
 ---
 
 # Plan: Split repeat directive Jinja2 variables into `n` (iteration) and `N` (total)
