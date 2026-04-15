@@ -54,6 +54,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `'`                 | Jump to entry by hint character (current tab)                         |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal)) |
 | `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                     |
+| `g` / `G`           | Scroll detail panel to top / bottom                                   |
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                             |
 
 ### CL Actions
@@ -70,7 +71,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `M`             | Mail CL                                                     |
 | `m`             | Mark / unmark current CL (auto-advances to next)            |
 | `n`             | Rename CL (non-Sub/Rev CLs only)                            |
-| `R`             | Rewind to previous commit (non-Sub/Rev CLs only)            |
+| `R`             | Rewind to previous commit (`!` suffix skips VCS operations) |
 | `s`             | Change status (opens status modal)                          |
 | `S`             | Bulk status change for all marked CLs                       |
 | `T`             | Checkout + tmux (opens workspace input modal for number)    |
@@ -247,6 +248,12 @@ When resuming or waiting on an agent, VCS tags in the prompt (e.g., `#git(ref)`,
 point to the correct branch. For non-project agents, the ref is replaced with the agent's CL name (branch). For project
 agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
 are stripped during replacement since resume scenarios should not carry over HITL overrides.
+
+### Repeat Iteration Nesting
+
+When a prompt uses the `%repeat` directive, each iteration is displayed as a nested child entry under the parent agent
+on the Agents tab. The parent entry shows the overall workflow, and individual iterations appear indented beneath it.
+This makes it easy to track progress and inspect results for each iteration independently.
 
 ### Workflow Visibility
 
@@ -773,27 +780,31 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 
 ### INSERT Mode (Default)
 
-| Key      | Action                                                                            |
-| -------- | --------------------------------------------------------------------------------- |
-| `Enter`  | Submit the prompt                                                                 |
-| `Ctrl+J` | Insert a newline                                                                  |
-| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0)          |
-| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)                    |
-| `Ctrl+G` | Open full prompt in `$EDITOR`                                                     |
-| `Ctrl+I` | Load a prompt from history                                                        |
-| `Ctrl+T` | File completion (if on a path; see [File Path Completion](#file-path-completion)) |
-| `Tab`    | Snippet expansion (see below)                                                     |
-| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                                   |
-| `Escape` | Switch to vim NORMAL mode                                                         |
+| Key      | Action                                                                   |
+| -------- | ------------------------------------------------------------------------ |
+| `Enter`  | Submit the prompt                                                        |
+| `Ctrl+J` | Insert a newline                                                         |
+| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0) |
+| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)           |
+| `Ctrl+G` | Open full prompt in `$EDITOR`                                            |
+| `Ctrl+I` | Load a prompt from history                                               |
+| `Ctrl+T` | Completion (file paths or xprompt names; see [Completion](#completion))  |
+| `Tab`    | Snippet expansion (see below)                                            |
+| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                          |
+| `Escape` | Switch to vim NORMAL mode                                                |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
 
-### File Path Completion
+### Completion
 
-Press `Ctrl+T` to activate file path completion. The cursor must be on a path-like token — those starting with `/`,
-`./`, `../`, `~/`, or containing `/`. Tokens starting with `@` are also recognized — the `@` prefix is preserved in the
-completed path (useful for file-reference arguments).
+Press `Ctrl+T` to activate completion. The completion kind is determined by the token under the cursor:
+
+- **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`), completion shows matching
+  xprompt names from all discovery sources.
+- **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
+  `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
+  preserved in the completed path (useful for file-reference arguments).
 
 | Key                | Action                                   |
 | ------------------ | ---------------------------------------- |
@@ -803,9 +814,9 @@ completed path (useful for file-reference arguments).
 | `Enter` / `Ctrl+L` | Accept highlighted candidate             |
 | `Escape`           | Cancel completion                        |
 
-Directories appear before files in the candidate list. Dotfiles are hidden unless the partial prefix starts with `.`.
-Accepting a directory automatically re-opens completion for the next level (drill-down). The completion panel shows up
-to 10 candidates at a time and scrolls to keep the highlight visible.
+For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
+prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
+completion panel shows up to 10 candidates at a time and scrolls to keep the highlight visible.
 
 ### Special Prompt Shortcuts
 

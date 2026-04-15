@@ -102,6 +102,10 @@ Specifies the dependency relationship between CLs.
 - Omit this field entirely - This CL has no dependencies (default, preferred for parallelization)
 - `<parent_cl_name>` - The NAME of a parent CL that must be completed first
 
+**Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field is automatically set if the
+current branch corresponds to an existing ChangeSpec. This can be overridden with the `-p`/`--parent` flag (see
+[commit_workflows.md](commit_workflows.md) for details).
+
 **CRITICAL Dependency Guidelines**:
 
 - **Default to omitting PARENT** to maximize parallel development
