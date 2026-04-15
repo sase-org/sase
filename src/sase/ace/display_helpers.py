@@ -1,8 +1,11 @@
 """Shared display helper functions for ChangeSpec rendering."""
 
 import re
+
 from collections.abc import Sequence
 from typing import Protocol
+
+_ENTRY_REF_RE = re.compile(r"^\d+[a-z]?$")
 
 
 def get_status_color(status: str) -> str:
@@ -58,7 +61,7 @@ def is_entry_ref_suffix(suffix: str | None) -> bool:
     """
     if not suffix:
         return False
-    return bool(re.match(r"^\d+[a-z]?$", suffix))
+    return bool(_ENTRY_REF_RE.match(suffix))
 
 
 class _WorkspaceClaimLike(Protocol):
