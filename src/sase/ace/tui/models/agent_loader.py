@@ -19,6 +19,7 @@ from ._loaders import (
     load_agents_from_mentors,
     load_agents_from_running_field,
     load_done_agents,
+    load_repeat_iteration_children,
     load_running_home_agents,
     load_workflow_agent_steps,
     load_workflow_agents,
@@ -126,6 +127,10 @@ def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
 
         # COMMENTS - CRS agents
         agents.extend(load_agents_from_comments(cs, bug, cl_num))
+
+    # Load repeat iteration children from marker files
+    repeat_children = load_repeat_iteration_children(agents)
+    workflow_agent_steps.extend(repeat_children)
 
     return agents, workflow_agent_steps
 
@@ -365,12 +370,16 @@ def _sort_and_reorder(
             suffix = agent.raw_suffix
             if not suffix:
                 continue
-            if agent.agent_type == AgentType.WORKFLOW or (
-                agent.workflow
-                and (
-                    agent.workflow.startswith("workflow-")
-                    or agent.workflow.startswith("ace(run)")
+            if (
+                agent.agent_type == AgentType.WORKFLOW
+                or (
+                    agent.workflow
+                    and (
+                        agent.workflow.startswith("workflow-")
+                        or agent.workflow.startswith("ace(run)")
+                    )
                 )
+                or (agent.repeat_count is not None and agent.repeat_count > 1)
             ):
                 steps = steps_by_parent.get(suffix, [])
                 followups = followups_by_parent.pop(suffix, [])

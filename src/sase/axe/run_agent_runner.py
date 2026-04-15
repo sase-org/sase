@@ -62,6 +62,30 @@ def _write_repeat_state(
         json.dump(state, f, indent=2)
 
 
+def _write_repeat_iteration_marker(
+    artifacts_dir: str,
+    iteration: int,
+    total: int,
+    status: str,
+    saved_path: str | None,
+    diff_path: str | None,
+    current_artifacts_dir: str,
+) -> None:
+    """Write repeat_iter_N.json marker for TUI nesting display."""
+    marker = {
+        "iteration": iteration,
+        "total": total,
+        "status": status,
+        "saved_path": saved_path,
+        "diff_path": diff_path,
+        "artifacts_dir": current_artifacts_dir,
+        "response_path": saved_path,
+    }
+    marker_path = os.path.join(artifacts_dir, f"repeat_iter_{iteration}.json")
+    with open(marker_path, "w", encoding="utf-8") as f:
+        json.dump(marker, f, indent=2)
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
@@ -374,6 +398,17 @@ def main() -> None:
                     # Update completed count
                     _write_repeat_state(
                         repeat_state_path, repeat_count, iteration, iteration
+                    )
+
+                    # Write per-iteration marker file for TUI nesting
+                    _write_repeat_iteration_marker(
+                        artifacts_dir,
+                        iteration,
+                        repeat_count,
+                        "completed" if success else "failed",
+                        exec_result.saved_path,
+                        exec_result.diff_path,
+                        exec_result.current_artifacts_dir,
                     )
 
                     if not success or was_killed():

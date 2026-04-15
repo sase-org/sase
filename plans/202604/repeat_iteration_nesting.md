@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 22:03:43
-status: wip
+status: done
 ---
 
 # Show All Repeat Iterations as Nested Entries on Agents Tab

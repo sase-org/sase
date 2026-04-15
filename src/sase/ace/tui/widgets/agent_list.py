@@ -79,15 +79,21 @@ def _step_role_suffix(agent: Agent) -> str:
 
 
 def _is_foldable_parent(agent: Agent) -> bool:
-    """Check if an agent is a foldable workflow parent.
+    """Check if an agent is a foldable parent (workflow or repeat).
 
     Args:
         agent: The agent to check.
 
     Returns:
-        True if this agent is a workflow parent that can be folded.
+        True if this agent is a parent that can be folded.
     """
-    return agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child
+    if agent.is_workflow_child:
+        return False
+    if agent.agent_type == AgentType.WORKFLOW:
+        return True
+    if agent.repeat_count is not None and agent.repeat_count > 1:
+        return True
+    return False
 
 
 class AgentList(OptionList, inherit_bindings=False):

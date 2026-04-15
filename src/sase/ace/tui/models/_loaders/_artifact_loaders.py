@@ -479,6 +479,109 @@ def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
         agent.step_output.update(meta_fields)
 
 
+def load_repeat_iteration_children(agents: list[Agent]) -> list[Agent]:
+    """Load repeat iteration marker files as child agent entries.
+
+    For each agent with repeat_count > 1, scans for repeat_iter_*.json
+    markers in the artifacts directory and creates child Agent entries
+    that nest under the parent (like workflow steps).
+
+    Also creates a RUNNING child for the currently-executing iteration
+    when repeat_state.json indicates an in-progress iteration without
+    a corresponding marker file.
+
+    Args:
+        agents: List of agents to scan for repeat parents.
+
+    Returns:
+        List of child Agent objects for all repeat iterations found.
+    """
+    children: list[Agent] = []
+
+    for parent in agents:
+        if not parent.repeat_count or parent.repeat_count <= 1:
+            continue
+        if not parent.raw_suffix:
+            continue
+
+        artifacts_dir = parent.artifacts_dir or parent.get_artifacts_dir()
+        if not artifacts_dir:
+            continue
+
+        artifacts_path = Path(artifacts_dir)
+        seen_iterations: set[int] = set()
+
+        for marker_file in sorted(artifacts_path.glob("repeat_iter_*.json")):
+            try:
+                with open(marker_file, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(data, dict):
+                continue
+
+            iteration = data.get("iteration", 0)
+            total = data.get("total", parent.repeat_count)
+            status_raw = data.get("status", "completed")
+            if status_raw == "completed":
+                display_status = "DONE"
+            elif status_raw == "failed":
+                display_status = "FAILED"
+            elif status_raw == "in_progress":
+                display_status = "RUNNING"
+            else:
+                display_status = status_raw.upper()
+
+            seen_iterations.add(iteration)
+            child = Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name=parent.cl_name,
+                project_file=parent.project_file,
+                status=display_status,
+                start_time=parent.start_time,
+                parent_timestamp=parent.raw_suffix,
+                step_index=iteration - 1,
+                total_steps=total,
+                step_type="agent",
+                response_path=data.get("response_path"),
+                diff_path=data.get("diff_path"),
+                artifacts_dir=data.get("artifacts_dir"),
+                raw_suffix=parent.raw_suffix,
+                workflow=parent.workflow,
+            )
+            children.append(child)
+
+        # If repeat_state.json exists, the loop is still running — create
+        # a RUNNING child for the in-progress iteration if no marker exists.
+        repeat_state_path = artifacts_path / "repeat_state.json"
+        if repeat_state_path.exists():
+            try:
+                with open(repeat_state_path, encoding="utf-8") as f:
+                    state_data = json.load(f)
+                if isinstance(state_data, dict):
+                    current = state_data.get("current_iteration")
+                    total = state_data.get("repeat_count", parent.repeat_count)
+                    if current and current not in seen_iterations:
+                        child = Agent(
+                            agent_type=AgentType.RUNNING,
+                            cl_name=parent.cl_name,
+                            project_file=parent.project_file,
+                            status="RUNNING",
+                            start_time=parent.start_time,
+                            parent_timestamp=parent.raw_suffix,
+                            step_index=int(current) - 1,
+                            total_steps=int(total),
+                            step_type="agent",
+                            raw_suffix=parent.raw_suffix,
+                            workflow=parent.workflow,
+                        )
+                        children.append(child)
+            except (json.JSONDecodeError, OSError, ValueError, TypeError):
+                pass
+
+    return children
+
+
 def load_running_home_agents() -> list[Agent]:
     """Load running home mode agents from running.json marker files.
 
