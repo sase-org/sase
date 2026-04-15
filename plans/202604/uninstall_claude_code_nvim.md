@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 12:14:57
-status: wip
+status: done
 ---
 
 # Plan: Uninstall claude-code.nvim from Neovim config
