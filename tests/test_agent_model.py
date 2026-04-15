@@ -658,9 +658,12 @@ def test_format_wait_until_same_day() -> None:
 
 def test_format_wait_until_different_day() -> None:
     """Different-day target shows month, day, and time."""
-    future = datetime(2026, 4, 15, 9, 0, 0)
-    result = format_wait_until(future.isoformat())
-    assert result == "Apr 15 09:00"
+    tomorrow = (datetime.now() + timedelta(days=1)).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+    result = format_wait_until(tomorrow.isoformat())
+    expected = tomorrow.strftime("%b %-d %H:%M")
+    assert result == expected
 
 
 def test_timestamps_display_wait_tag_for_waiting_status() -> None:
