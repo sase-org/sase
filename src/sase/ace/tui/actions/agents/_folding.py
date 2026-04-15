@@ -63,7 +63,7 @@ class AgentFoldingMixin:
             return
 
         if self._fold_manager.expand(key):
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
 
     def _collapse_fold(self) -> None:
         """Collapse the fold for the selected workflow (one level).
@@ -93,7 +93,7 @@ class AgentFoldingMixin:
                         break
 
         if self._fold_manager.collapse(key):
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
 
     def _get_focused_panel_workflow_keys(self) -> list[str]:
         """Get workflow keys for agents in the currently focused panel.
@@ -119,7 +119,7 @@ class AgentFoldingMixin:
             return
 
         if self._fold_manager.expand_all(keys):
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
 
     def _collapse_all_folds(self) -> None:
         """Collapse all workflow folds in the focused panel one level."""
@@ -128,7 +128,7 @@ class AgentFoldingMixin:
             return
 
         if self._fold_manager.collapse_all(keys):
-            self._load_agents()  # type: ignore[attr-defined]
+            self._refilter_agents()  # type: ignore[attr-defined]
 
     def _expand_axe_fold(self) -> None:
         """Expand the AXE lumberjack fold."""
