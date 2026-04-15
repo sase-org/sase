@@ -76,12 +76,13 @@ class RewindWorkflow:
         if not entries_after:
             return (False, f"No entries after ({selected_entry_num})")
 
-        # Validate selected entry has DIFF
-        selected_entry = next(
-            (e for e in numeric_entries if e.number == selected_entry_num), None
-        )
-        if not selected_entry or not selected_entry.diff:
-            return (False, f"Entry ({selected_entry_num}) has no DIFF path")
+        # Validate selected entry has DIFF (skip in bookkeeping-only mode)
+        if not self._skip_vcs:
+            selected_entry = next(
+                (e for e in numeric_entries if e.number == selected_entry_num), None
+            )
+            if not selected_entry or not selected_entry.diff:
+                return (False, f"Entry ({selected_entry_num}) has no DIFF path")
 
         # Kill running processes before rewind
         self._kill_running_processes(changespec, project_file, cl_name)

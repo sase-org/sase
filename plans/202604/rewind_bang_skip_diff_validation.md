@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-15 13:50:25
-status: wip
+status: done
 ---
 
 # Plan: Skip DIFF path validation when rewind `!` suffix is used

@@ -125,16 +125,17 @@ class RewindMixin(HintMixinBase):
             )
             return
 
-        # Validate selected entry has a DIFF file
-        selected_entry = next(
-            (e for e in numeric_entries if e.number == selected_entry_num), None
-        )
-        if not selected_entry or not selected_entry.diff:
-            self.notify(  # type: ignore[attr-defined]
-                f"Entry ({selected_entry_num}) has no DIFF path",
-                severity="warning",
+        # Validate selected entry has a DIFF file (skip in bookkeeping-only mode)
+        if not skip_vcs:
+            selected_entry = next(
+                (e for e in numeric_entries if e.number == selected_entry_num), None
             )
-            return
+            if not selected_entry or not selected_entry.diff:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Entry ({selected_entry_num}) has no DIFF path",
+                    severity="warning",
+                )
+                return
 
         # Run rewind workflow
         self._run_rewind_workflow(changespec, selected_entry_num, skip_vcs=skip_vcs)
