@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-14 19:50:54
-status: wip
+status: done
 ---
 
 # Plan: Run Status Change TUI Actions as Background Tasks

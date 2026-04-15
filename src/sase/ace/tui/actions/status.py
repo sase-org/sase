@@ -13,6 +13,127 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _revert_task(file_path: str, name: str) -> tuple[bool, str]:
+    """Execute revert workflow as a background task."""
+    from rich.console import Console
+
+    from sase.ace.changespec import parse_project_file
+    from sase.ace.revert import revert_changespec
+
+    changespecs = parse_project_file(file_path)
+    cs = next((c for c in changespecs if c.name == name), None)
+    if cs is None:
+        return (False, f"ChangeSpec '{name}' not found")
+
+    success, error_msg = revert_changespec(cs, Console())
+    if success:
+        return (True, f"Reverted {name}")
+    return (False, error_msg or f"Failed to revert {name}")
+
+
+def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool, str]:
+    """Execute submit workflow as a background task."""
+    from rich.console import Console
+
+    from sase.workspace_provider import submit_changespec
+
+    success, error_msg = submit_changespec(file_path, name, project_basename, Console())
+    if success:
+        return (True, f"Submitted {name}")
+    return (False, error_msg or f"Failed to submit {name}")
+
+
+def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
+    """Execute archive workflow as a background task."""
+    from rich.console import Console
+
+    from sase.ace.archive import archive_changespec
+    from sase.ace.changespec import parse_project_file
+
+    changespecs = parse_project_file(file_path)
+    cs = next((c for c in changespecs if c.name == name), None)
+    if cs is None:
+        return (False, f"ChangeSpec '{name}' not found")
+
+    success, error_msg = archive_changespec(cs, Console())
+    if success:
+        return (True, f"Archived {name}")
+    return (False, error_msg or f"Failed to archive {name}")
+
+
+def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, str]:
+    """Execute restore workflow as a background task.
+
+    Handles the full restore flow: restores from Reverted to WIP, then
+    optionally transitions to Draft or Ready if target_status requires it.
+    """
+    from rich.console import Console
+
+    from sase.ace.changespec import parse_project_file
+    from sase.ace.restore import restore_changespec
+    from sase.core.changespec import strip_reverted_suffix
+    from sase.status_state_machine import transition_changespec_status
+
+    changespecs = parse_project_file(file_path)
+    cs = next((c for c in changespecs if c.name == name), None)
+    if cs is None:
+        return (False, f"ChangeSpec '{name}' not found")
+
+    success, error_msg = restore_changespec(cs, Console())
+    if not success:
+        return (False, error_msg or f"Failed to restore {name}")
+
+    if target_status in ("Draft", "Ready"):
+        base_name = strip_reverted_suffix(name)
+        changespecs = parse_project_file(file_path)
+        restored_cs = next(
+            (
+                c
+                for c in changespecs
+                if strip_reverted_suffix(c.name) == base_name and c.status == "WIP"
+            ),
+            None,
+        )
+        if restored_cs:
+            success, _, error_msg, _ = transition_changespec_status(
+                file_path, restored_cs.name, target_status, validate=False
+            )
+            if not success:
+                return (
+                    False,
+                    f"Restored but failed to transition to {target_status}: {error_msg}",
+                )
+            return (True, f"Restored and set to {target_status}")
+        return (True, f"Restored {name} to WIP")
+
+    return (True, f"Restored {name}")
+
+
+def _transition_with_siblings_task(
+    file_path: str, name: str, new_status: str
+) -> tuple[bool, str]:
+    """Execute status transition with potential sibling reverts as a background task."""
+    from rich.console import Console
+
+    from sase.status_state_machine import transition_changespec_status
+
+    success, old_status, error_msg, sibling_results = transition_changespec_status(
+        file_path, name, new_status, validate=False, console=Console()
+    )
+
+    if success:
+        msg_parts = [f"Status updated: {old_status} -> {new_status}"]
+        reverted = [r.name for r in sibling_results if r.success]
+        failed = [r.name for r in sibling_results if not r.success]
+        if reverted:
+            msg_parts.append(f"Auto-reverted siblings: {', '.join(reverted)}")
+        if failed:
+            msg_parts.append(f"Failed to revert: {', '.join(failed)}")
+        return (True, "\n".join(msg_parts))
+
+    return (False, error_msg or f"Failed to transition to {new_status}")
+
+
 class StatusActionsMixin:
     """Mixin providing status change actions."""
 
@@ -38,135 +159,77 @@ class StatusActionsMixin:
 
     def _apply_status_change(self, changespec: ChangeSpec, new_status: str) -> None:
         """Apply a status change to a ChangeSpec."""
-        from sase.core.changespec import has_suffix, strip_reverted_suffix
+        from sase.core.changespec import has_suffix
         from sase.status_state_machine import (
             transition_changespec_status,
         )
 
-        from ...archive import archive_changespec
-        from ...revert import revert_changespec
         from ...status import STATUS_ARCHIVED, STATUS_REVERTED, STATUS_SUBMITTED
 
-        # Special handling for "Reverted" status
+        cl_name = changespec.name
+        project_file = changespec.file_path
+
+        # Special handling for "Reverted" status → background task
         if new_status == STATUS_REVERTED:
-            # Need to suspend for revert workflow
-            def run_revert() -> tuple[bool, str | None]:
-                from rich.console import Console
 
-                console = Console()
-                return revert_changespec(changespec, console)
+            def task_callable() -> tuple[bool, str]:
+                return _revert_task(project_file, cl_name)
 
-            with self.suspend():  # type: ignore[attr-defined]
-                success, error_msg = run_revert()
-
-            if not success:
-                self.notify(f"Error reverting: {error_msg}", severity="error")  # type: ignore[attr-defined]
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                "revert", cl_name, project_file, task_callable
+            )
+            if submitted:
+                self.notify(f"Reverting {cl_name}...")  # type: ignore[attr-defined]
             return
 
-        # Special handling for "Submitted" status (git/gh projects)
+        # Special handling for "Submitted" status (git/gh projects) → background task
         if new_status == STATUS_SUBMITTED:
-            from sase.workspace_provider import detect_workflow_type, submit_changespec
+            from sase.workspace_provider import detect_workflow_type
 
-            vcs_type = detect_workflow_type(changespec.file_path)
+            vcs_type = detect_workflow_type(project_file)
             if vcs_type in ("git", "gh"):
                 import os
 
-                project_basename = os.path.basename(changespec.file_path).replace(
-                    ".gp", ""
+                project_basename = os.path.basename(project_file).replace(".gp", "")
+
+                def task_callable() -> tuple[bool, str]:
+                    return _submit_task(project_file, cl_name, project_basename)
+
+                submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                    "submit", cl_name, project_file, task_callable
                 )
-
-                def run_submit() -> tuple[bool, str | None]:
-                    from rich.console import Console
-
-                    console = Console()
-                    return submit_changespec(
-                        changespec.file_path, changespec.name, project_basename, console
-                    )
-
-                with self.suspend():  # type: ignore[attr-defined]
-                    success, error_msg = run_submit()
-
-                if not success:
-                    self.notify(f"Error submitting: {error_msg}", severity="error")  # type: ignore[attr-defined]
-                self._reload_and_reposition()  # type: ignore[attr-defined]
+                if submitted:
+                    self.notify(f"Submitting {cl_name}...")  # type: ignore[attr-defined]
                 return
 
-        # Special handling for "Archived" status
+        # Special handling for "Archived" status → background task
         if new_status == STATUS_ARCHIVED:
-            # Need to suspend for archive workflow
-            def run_archive() -> tuple[bool, str | None]:
-                from rich.console import Console
 
-                console = Console()
-                return archive_changespec(changespec, console)
+            def task_callable() -> tuple[bool, str]:
+                return _archive_task(project_file, cl_name)
 
-            with self.suspend():  # type: ignore[attr-defined]
-                success, error_msg = run_archive()
-
-            if not success:
-                self.notify(f"Error archiving: {error_msg}", severity="error")  # type: ignore[attr-defined]
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                "archive", cl_name, project_file, task_callable
+            )
+            if submitted:
+                self.notify(f"Archiving {cl_name}...")  # type: ignore[attr-defined]
             return
 
-        # Special handling for transitioning FROM "Reverted" status
+        # Special handling for transitioning FROM "Reverted" status → background task
         if changespec.status == STATUS_REVERTED and new_status in (
             "WIP",
             "Draft",
             "Ready",
         ):
-            from ...restore import restore_changespec
 
-            def run_restore() -> tuple[bool, str | None]:
-                from rich.console import Console
+            def task_callable() -> tuple[bool, str]:
+                return _restore_task(project_file, cl_name, new_status)
 
-                console = Console()
-                return restore_changespec(changespec, console)
-
-            with self.suspend():  # type: ignore[attr-defined]
-                success, error_msg = run_restore()
-
-            if not success:
-                self.notify(f"Error restoring: {error_msg}", severity="error")  # type: ignore[attr-defined]
-                self._reload_and_reposition()  # type: ignore[attr-defined]
-                return
-
-            # restore_changespec sets status to WIP; if target is Draft or Ready, transition again
-            if new_status in ("Draft", "Ready"):
-                # Need to find the new name (restore strips suffix, sase commit adds it back)
-                from ...changespec import parse_project_file
-
-                base_name = strip_reverted_suffix(changespec.name)
-                changespecs = parse_project_file(changespec.file_path)
-                restored_cs = next(
-                    (
-                        cs
-                        for cs in changespecs
-                        if strip_reverted_suffix(cs.name) == base_name
-                        and cs.status == "WIP"
-                    ),
-                    None,
-                )
-                if restored_cs:
-                    success, _, error_msg, _ = transition_changespec_status(
-                        changespec.file_path,
-                        restored_cs.name,
-                        new_status,
-                        validate=False,
-                    )
-                    if not success:
-                        self.notify(  # type: ignore[attr-defined]
-                            f"Error transitioning to {new_status}: {error_msg}",
-                            severity="error",
-                        )
-                    else:
-                        self.notify(f"Restored and set ChangeSpec to {new_status}")  # type: ignore[attr-defined]
-                else:
-                    self.notify("Restored ChangeSpec to WIP")  # type: ignore[attr-defined]
-            else:
-                self.notify("Restored ChangeSpec")  # type: ignore[attr-defined]
-
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                "restore", cl_name, project_file, task_callable
+            )
+            if submitted:
+                self.notify(f"Restoring {cl_name}...")  # type: ignore[attr-defined]
             return
 
         # Kill running processes when transitioning to WIP
@@ -175,8 +238,8 @@ class StatusActionsMixin:
 
             kill_and_persist_all_running_processes(
                 changespec,
-                changespec.file_path,
-                changespec.name,
+                project_file,
+                cl_name,
                 "Killed: ChangeSpec transitioned to WIP.",
             )
 
@@ -184,34 +247,29 @@ class StatusActionsMixin:
         may_have_sibling_reverts = (
             changespec.status == "Draft"
             and new_status == "Ready"
-            and has_suffix(changespec.name)
+            and has_suffix(cl_name)
         )
 
         if may_have_sibling_reverts:
-            # Need to suspend to show console output during sibling reverts
-            from rich.console import Console
+            # Sibling reverts involve git operations → background task
 
-            with self.suspend():  # type: ignore[attr-defined]
-                console = Console()
-                success, old_status, error_msg, sibling_results = (
-                    transition_changespec_status(
-                        changespec.file_path,
-                        changespec.name,
-                        new_status,
-                        validate=False,
-                        console=console,
-                    )
-                )
-        else:
-            # No sibling reverts expected, run without console
-            success, old_status, error_msg, sibling_results = (
-                transition_changespec_status(
-                    changespec.file_path,
-                    changespec.name,
-                    new_status,
-                    validate=False,
-                )
+            def task_callable() -> tuple[bool, str]:
+                return _transition_with_siblings_task(project_file, cl_name, new_status)
+
+            submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                "status", cl_name, project_file, task_callable
             )
+            if submitted:
+                self.notify(f"Transitioning {cl_name} to {new_status}...")  # type: ignore[attr-defined]
+            return
+
+        # Standard transition (synchronous, fast)
+        success, old_status, error_msg, sibling_results = transition_changespec_status(
+            project_file,
+            cl_name,
+            new_status,
+            validate=False,
+        )
 
         if success:
             # Build notification message
