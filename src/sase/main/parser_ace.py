@@ -49,8 +49,8 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         "-r",
         "--refresh-interval",
         type=int,
-        default=7,
-        help="Auto-refresh interval in seconds (default: 7, 0 to disable)",
+        default=10,
+        help="Auto-refresh interval in seconds (default: 10, 0 to disable)",
     )
     ace_parser.add_argument(
         "-R",

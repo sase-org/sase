@@ -146,7 +146,7 @@ class AceApp(
         self,
         query: str = "!!!",
         model_tier_override: Literal["large", "small"] | None = None,
-        refresh_interval: int = 8,
+        refresh_interval: int = 10,
         auto_start_axe: bool = True,
         restart_axe: bool = False,
     ) -> None:
