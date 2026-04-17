@@ -173,6 +173,19 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         if agent.raw_suffix and not agent.is_workflow_child:
             parent_by_suffix[agent.raw_suffix] = agent
 
+    # Collect parents that have an active (non-completed) feedback round so
+    # later overrides can treat them as actively-running rather than waiting
+    # for plan review.
+    parents_with_active_feedback: set[str] = set()
+    for agent in agents:
+        if (
+            agent.parent_timestamp
+            and not agent.parent_workflow
+            and _is_feedback_suffix(agent.role_suffix)
+            and agent.status not in completed_statuses
+        ):
+            parents_with_active_feedback.add(agent.parent_timestamp)
+
     # Propagate timestamps from feedback round children (.2, .3, …) to parent
     # so the metadata panel shows one entry per proposal/feedback/question round.
     for agent in agents:
@@ -260,6 +273,8 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     # A workflow with role_suffix ".plan" that's still DONE means the plan was
     # submitted but no coder follow-up exists yet (awaiting user approval).
     # If a follow-up exists (even if completed), the plan was already approved.
+    # If an active feedback round exists, the agent is actively processing
+    # feedback, so use RUNNING instead of PLANNING.
     for agent in agents:
         if (
             agent.agent_type == AgentType.WORKFLOW
@@ -267,7 +282,10 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             and agent.status == "DONE"
             and agent.raw_suffix not in parents_with_followup
         ):
-            agent.status = "PLANNING"
+            if agent.raw_suffix in parents_with_active_feedback:
+                agent.status = "RUNNING"
+            else:
+                agent.status = "PLANNING"
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in agents:

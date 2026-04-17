@@ -379,3 +379,92 @@ def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
     _apply_status_overrides(agents)
 
     assert parent.code_time == datetime(2025, 6, 15, 10, 10, 0)
+
+
+def test_apply_status_overrides_done_with_active_feedback_becomes_running() -> None:
+    """A DONE .plan parent with an active feedback child is marked RUNNING."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 33, 26),
+        raw_suffix="20260417163326",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 17, 16, 45, 16),
+        parent_timestamp="20260417163326",
+        role_suffix=".2",
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "RUNNING"
+
+
+def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() -> None:
+    """A DONE .plan parent with only completed feedback falls through to PLANNING."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 33, 26),
+        raw_suffix="20260417163326",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 45, 16),
+        parent_timestamp="20260417163326",
+        role_suffix=".2",
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLANNING"
+
+
+def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_approved() -> (
+    None
+):
+    """A DONE .plan parent with a completed feedback child + active .code child is PLAN APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 33, 26),
+        raw_suffix="20260417163326",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 45, 16),
+        parent_timestamp="20260417163326",
+        role_suffix=".2",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 17, 16, 50, 0),
+        parent_timestamp="20260417163326",
+        role_suffix=".code",
+    )
+    agents = [parent, feedback_child, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"

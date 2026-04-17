@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-17 17:07:00
-status: wip
+status: done
 ---
 
 # Fix: Agent shows PLANNING instead of RUNNING after user gives feedback
