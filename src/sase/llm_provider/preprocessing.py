@@ -95,8 +95,10 @@ def preprocess_prompt_early(
 
     # 3. Directive extraction (after xprompt expansion so directives inside
     #    expanded xprompts are also discovered; fenced-block protection is
-    #    built into extract_prompt_directives)
-    prompt, directives = extract_prompt_directives(prompt)
+    #    built into extract_prompt_directives). Preserve disabled region
+    #    markers so preprocess_prompt_late can still protect their contents
+    #    from command substitution and file-reference validation.
+    prompt, directives = extract_prompt_directives(prompt, strip_disabled_markers=False)
 
     return PreprocessResult(prompt=prompt, directives=directives)
 

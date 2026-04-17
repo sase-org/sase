@@ -248,3 +248,57 @@ class TestPreprocessPromptLateDisabledRegions:
         # The command substitution should NOT see the $(dangerous command) text
         for inp in cmd_sub_inputs:
             assert "$(dangerous command)" not in inp
+
+    @patch(
+        "sase.gemini_wrapper.file_references.process_command_substitution",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.format_with_prettier",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.strip_html_comments",
+        side_effect=lambda x: x,
+    )
+    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    def test_early_then_late_preserves_disabled_region_protection(
+        self,
+        _mock_jinja: MagicMock,
+        _mock_html: MagicMock,
+        _mock_prettier: MagicMock,
+        _mock_cmd_sub: MagicMock,
+    ) -> None:
+        """Full two-phase pipeline must protect @refs inside disabled regions.
+
+        Regression test: preprocess_prompt_early used to eagerly strip the
+        %xprompts_enabled:false/true markers via extract_prompt_directives,
+        which exposed @refs inside the region to validate_file_references in
+        preprocess_prompt_late — triggering SystemExit on annotations like
+        @Input that are not real files.
+        """
+        from sase.llm_provider.preprocessing import (
+            preprocess_prompt_early,
+            preprocess_prompt_late,
+        )
+
+        prompt = (
+            "%xprompts_enabled:false\n"
+            "Consider using more inclusive language for these new public"
+            " @Input() fields.\n"
+            "The getters should be marked with the '@visibleForTemplate'"
+            " annotation.\n"
+            "%xprompts_enabled:true\n"
+        )
+        early = preprocess_prompt_early(prompt)
+        # Markers must survive the early phase so the late phase can protect
+        # the enclosed @refs from validation.
+        assert "%xprompts_enabled:false" in early.prompt
+        assert "%xprompts_enabled:true" in early.prompt
+
+        # Late phase with file_ref_mode="validate" must NOT raise SystemExit
+        # because the @refs are inside a protected disabled region.
+        result = preprocess_prompt_late(early.prompt, file_ref_mode="validate")
+
+        # Final output has the markers stripped by preprocess_prompt_late.
+        assert "%xprompts_enabled" not in result

@@ -188,3 +188,26 @@ def test_disabled_region_markers_stripped_from_output() -> None:
     cleaned, _ = extract_prompt_directives(prompt)
     assert "%xprompts_enabled" not in cleaned
     assert "some content" in cleaned
+
+
+def test_disabled_region_markers_preserved_when_flag_false() -> None:
+    """With strip_disabled_markers=False, markers remain in the cleaned output.
+
+    This path is used by preprocess_prompt_early so that preprocess_prompt_late
+    can still protect the disabled region contents from later pipeline steps.
+    """
+    prompt = (
+        "%model:opus\n"
+        "%xprompts_enabled:false\n"
+        "some @Input content\n"
+        "%xprompts_enabled:true\n"
+        "Rest of prompt"
+    )
+    cleaned, directives = extract_prompt_directives(
+        prompt, strip_disabled_markers=False
+    )
+    assert directives.model == "opus"
+    assert "%xprompts_enabled:false" in cleaned
+    assert "%xprompts_enabled:true" in cleaned
+    assert "some @Input content" in cleaned
+    assert "Rest of prompt" in cleaned

@@ -302,7 +302,9 @@ def has_alt_directive(prompt: str) -> bool:
     return bool(re.search(r"(?:^|\s)%(?:alt)?\(", prompt, re.MULTILINE))
 
 
-def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
+def extract_prompt_directives(
+    prompt: str, *, strip_disabled_markers: bool = True
+) -> tuple[str, PromptDirectives]:
     """Extract ``%name`` directives from a prompt.
 
     Finds all ``%name`` patterns in the prompt. Known directives are parsed,
@@ -311,6 +313,11 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     Args:
         prompt: The raw prompt text.
+        strip_disabled_markers: If True (default), strip
+            ``%xprompts_enabled:false``/``%xprompts_enabled:true`` markers from
+            the returned prompt. Set to False when this function is called as
+            part of a multi-phase pipeline that needs to preserve the markers
+            for a later phase (e.g. :func:`preprocess_prompt_early`).
 
     Returns:
         Tuple of (cleaned_prompt, directives).
@@ -333,7 +340,8 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     matches = list(re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE))
     if not matches:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
-        prompt = strip_disabled_region_markers(prompt)
+        if strip_disabled_markers:
+            prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Collect known directive matches (we'll strip these from the prompt)
@@ -391,7 +399,8 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     if not regions_to_remove:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
-        prompt = strip_disabled_region_markers(prompt)
+        if strip_disabled_markers:
+            prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Auto-generate name if %name was used bare (no argument)
@@ -506,7 +515,8 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     # Restore disabled regions, then strip markers
     cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
-    cleaned = strip_disabled_region_markers(cleaned)
+    if strip_disabled_markers:
+        cleaned = strip_disabled_region_markers(cleaned)
 
     # Restore fenced code blocks before returning
     cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)
