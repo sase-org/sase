@@ -206,7 +206,8 @@ def handle_plan_marker(
     from sase.history.chat_links import format_plan_as_response
 
     plan_response = format_plan_as_response(plan_result.plan_file)
-    planner_agent = f"{ctx.agent_name}.plan" if ctx.agent_name else None
+    _planner_suffix = state.current_role_suffix or ".plan"
+    planner_agent = f"{ctx.agent_name}{_planner_suffix}" if ctx.agent_name else None
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
     _planner_chat = save_chat_history(
         prompt=state.current_prompt,
@@ -217,7 +218,6 @@ def handle_plan_marker(
         extra_sections=_planner_extra,
         branch_or_workspace=ctx.cl_name,
     )
-    _planner_suffix = state.current_role_suffix or ".plan"
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _planner_chat)
@@ -453,7 +453,8 @@ def handle_questions_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
 
-    _q_agent = f"{ctx.agent_name}.q" if ctx.agent_name else None
+    _q_suffix = state.current_role_suffix or ".q"
+    _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None
     _q_extra = format_extra_sections(state.current_artifacts_dir)
     _q_chat = save_chat_history(
         prompt=state.current_prompt,
@@ -464,7 +465,6 @@ def handle_questions_marker(
         extra_sections=_q_extra,
         branch_or_workspace=ctx.cl_name,
     )
-    _q_suffix = state.current_role_suffix or ".q"
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
