@@ -1,4 +1,4 @@
-"""Tests for per-agent repeat context (n/N) in the runner execution loop."""
+"""Tests for per-agent repeat context (n/N) read from SASE_REPEAT_* env vars."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

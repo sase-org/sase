@@ -249,12 +249,6 @@ point to the correct branch. For non-project agents, the ref is replaced with th
 agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
 are stripped during replacement since resume scenarios should not carry over HITL overrides.
 
-### Repeat Iteration Nesting
-
-When a prompt uses the `%repeat` directive, each iteration is displayed as a nested child entry under the parent agent
-on the Agents tab. The parent entry shows the overall workflow, and individual iterations appear indented beneath it.
-This makes it easy to track progress and inspect results for each iteration independently.
-
 ### Workflow Visibility
 
 Workflows launched via `sase run` are visible in the Agents tab alongside ACE-launched workflows. The TUI scans

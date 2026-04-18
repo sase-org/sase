@@ -437,3 +437,16 @@ def test_repeat_default_none() -> None:
     prompt = "Just a normal prompt"
     _, directives = extract_prompt_directives(prompt)
     assert directives.repeat_count is None
+
+
+def test_extract_prompt_directives_preserves_repeat_for_launcher() -> None:
+    """Sanity check that the directive parser stays in sync with the launcher."""
+    from sase.agent.repeat_launcher import extract_repeat_and_name
+
+    prompt = "%r:4 do X"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.repeat_count == 4
+
+    launcher_count, launcher_base, _ = extract_repeat_and_name(prompt)
+    assert launcher_count == directives.repeat_count
+    assert launcher_base is None

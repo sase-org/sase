@@ -723,7 +723,10 @@ count:
 Run lint checks on the codebase.
 ```
 
-This launches 3 separate agent runs with identical prompts. Each iteration exposes two Jinja2 variables:
+This launches 3 independent agents — each spawned with its own process, workspace, and `agent_meta.json`, appearing as
+its own top-level entry in the Agents tab. The slot numbers are appended to the `%name` base (`linter.1`, `linter.2`,
+`linter.3`); when `%name` is omitted the auto-assigned base is used (e.g. `a.1`, `a.2`, `a.3`). Each iteration exposes
+two Jinja2 variables:
 
 | Variable | Meaning                                   | Example with `%repeat:5` |
 | -------- | ----------------------------------------- | ------------------------ |
