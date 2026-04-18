@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-17 23:58:05
-status: wip
+status: done
 ---
 
 # Context-Efficient `just check` for Agents

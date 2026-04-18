@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Context-efficient command wrapper for agent-driven pipelines.
+#
+# Usage: tools/run_silent <description> <cmd> [args...]
+#
+# Runs <cmd> with combined stdout+stderr captured to a tempfile.
+# On success (exit 0): prints "✓ <description>" and discards the captured output.
+# On failure (nonzero): prints "✗ <description>", dumps the captured output,
+#                       and exits with the same code.
+
+set -uo pipefail
+
+if [ $# -lt 2 ]; then
+    printf 'Usage: %s <description> <cmd> [args...]\n' "$0" >&2
+    exit 2
+fi
+
+description="$1"
+shift
+
+tmp_file=$(mktemp)
+trap 'rm -f "$tmp_file"' EXIT
+
+if "$@" >"$tmp_file" 2>&1; then
+    printf '✓ %s\n' "$description"
+    exit 0
+else
+    exit_code=$?
+    printf '✗ %s\n' "$description"
+    cat "$tmp_file"
+    exit "$exit_code"
+fi

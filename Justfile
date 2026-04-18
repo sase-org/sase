@@ -25,12 +25,28 @@ install: _setup
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
-    {{ venv_bin }}/ruff check src/ tests/
+    @just _lint-ruff
     @printf "\n---------- Running mypy type checker... ----------\n"
-    {{ venv_bin }}/mypy
+    @just _lint-mypy
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
-    {{ venv_bin }}/python tools/pyscripts-260314
+    @just _lint-pyscripts
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
+    @just _lint-pyvision
+
+# Run ruff linter on Python files (private, extracted for per-stage wrapping)
+_lint-ruff: _setup
+    {{ venv_bin }}/ruff check src/ tests/
+
+# Run mypy type checker (private, extracted for per-stage wrapping)
+_lint-mypy: _setup
+    {{ venv_bin }}/mypy
+
+# Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
+_lint-pyscripts: _setup
+    {{ venv_bin }}/python tools/pyscripts-260314
+
+# Check for unused Python definitions (private, extracted for per-stage wrapping)
+_lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase
 
 # Auto-fix all code (format + keep-sorted)
@@ -87,8 +103,16 @@ test-tox: _setup
 test-py VER: _setup
     {{ venv_bin }}/tox -e py{{ VER }}
 
-# Run all checks (format check + lint + test)
-check: fmt-check lint test
+# Run all checks (format check + lint + test) with context-efficient output for agents
+check: _setup
+    @tools/run_silent "fmt (python)"       just fmt-py-check
+    @tools/run_silent "fmt (markdown)"     just fmt-md-check
+    @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
+    @tools/run_silent "lint (ruff)"        just _lint-ruff
+    @tools/run_silent "lint (mypy)"        just _lint-mypy
+    @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
+    @tools/run_silent "lint (pyvision)"    just _lint-pyvision
+    @tools/run_silent "test"               just test
 
 # Fix code, run linters, and run tests.
 all: fix lint pylimit test
