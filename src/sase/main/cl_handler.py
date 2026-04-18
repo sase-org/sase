@@ -17,6 +17,22 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """
     import os
 
+    if args.resume:
+        from sase.workflows.commit.workflow import EXIT_CODE_CONFLICT, RunResult
+
+        result = CommitWorkflow.resume()
+        if result == RunResult.OK:
+            try:
+                from sase.logs.run_log import log_event
+
+                log_event(event="commit_resumed")
+            except Exception:
+                pass
+            sys.exit(0)
+        if result == RunResult.CONFLICT:
+            sys.exit(EXIT_CODE_CONFLICT)
+        sys.exit(int(result))
+
     # Resolve commit message from inline string or file
     message = ""
     if args.message:

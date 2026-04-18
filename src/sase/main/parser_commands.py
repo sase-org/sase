@@ -92,6 +92,15 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=[*VALID_METHODS, *METHOD_ALIASES],
         help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
     )
+    commit_parser.add_argument(
+        "-r",
+        "--resume",
+        action="store_true",
+        help=(
+            "Resume a previously-checkpointed commit after manual conflict "
+            "resolution. When set, -m/-M/-f and other commit args are ignored."
+        ),
+    )
 
 
 def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
