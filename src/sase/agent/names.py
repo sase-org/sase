@@ -7,6 +7,7 @@ assigned name (via %name directive or manual TUI naming).
 import itertools
 import json
 import os
+import re
 import string
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -15,6 +16,10 @@ from pathlib import Path
 
 class _AgentRefError(Exception):
     """Raised when an @name agent reference cannot be resolved."""
+
+
+class NameCollisionError(ValueError):
+    """Raised when an explicit repeat-name base conflicts with existing agents."""
 
 
 @dataclass
@@ -551,3 +556,91 @@ def _next_available_name(used: set[str]) -> str:
             return name
     # Unreachable — infinite generator
     raise AssertionError("unreachable")
+
+
+def _get_active_child_names(base: str) -> set[str]:
+    """Return the set of active agent names matching ``<base>.<digits>``.
+
+    Walks the same artifact tree as :func:`_get_active_agent_names` but keys
+    on each agent's ``name`` field (not its ``workflow_name``), so callers
+    can detect collisions for individual repeat slots like ``sase-z.2``.
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return set()
+
+    dismissed_suffixes = _load_dismissed_suffixes()
+    pattern = re.compile(rf"^{re.escape(base)}\.\d+$")
+    names: set[str] = set()
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+            if artifact_dir.name in dismissed_suffixes:
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            name = data.get("name")
+            if not isinstance(name, str) or not pattern.match(name):
+                continue
+
+            done_path = artifact_dir / "done.json"
+            if done_path.exists():
+                names.add(name)
+                continue
+
+            if is_process_alive(data, artifact_dir):
+                names.add(name)
+
+    return names
+
+
+def reserve_repeat_name_base(explicit_base: str | None, count: int) -> str:
+    """Return a repeat-batch base name with ``count`` free ``<base>.<k>`` slots.
+
+    When *explicit_base* is provided, verify none of ``<explicit_base>.1``
+    through ``<explicit_base>.<count>`` is currently claimed by an active
+    agent and raise :class:`NameCollisionError` otherwise.
+
+    When *explicit_base* is ``None``, delegate to :func:`get_next_auto_name`.
+    The auto sequence (``a, b, ..., z, aa, ...``) never collides with an
+    existing batch because active agents' ``workflow_name`` reserves the
+    base (see :func:`_get_active_agent_names`).
+    """
+    if count <= 0:
+        raise ValueError(f"count must be positive, got {count}")
+    if explicit_base is None:
+        return get_next_auto_name()
+
+    existing = _get_active_child_names(explicit_base)
+    conflicts = [
+        f"{explicit_base}.{k}"
+        for k in range(1, count + 1)
+        if f"{explicit_base}.{k}" in existing
+    ]
+    if conflicts:
+        raise NameCollisionError(
+            f"agent name '{explicit_base}' would collide at "
+            f"{', '.join(repr(c) for c in conflicts)} — dismiss or wait for "
+            f"the existing agent, or pick a different base name"
+        )
+    return explicit_base

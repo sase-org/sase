@@ -249,6 +249,37 @@ def launch_agent_from_cwd(
         )
         return results[0]
 
+    # --- Repeat fan-out ---
+    # When %r:N is present, spawn N independent agents before any further
+    # dispatch.  Each spec's prompt has %r / %n stripped and %n:<base>.<k>
+    # re-injected, so the recursive call resolves through the single-agent
+    # path without re-triggering this branch.
+    from sase.agent.repeat_launcher import (
+        REPEAT_ITERATION_ENV,
+        REPEAT_NAME_ENV,
+        REPEAT_TOTAL_ENV,
+        RepeatAgentSpec,
+        extract_repeat_and_name,
+        spawn_repeat_batch,
+    )
+
+    repeat_count, _, _ = extract_repeat_and_name(query)
+    if repeat_count is not None and repeat_count > 1:
+        slot_results: list[AgentLaunchResult] = []
+
+        def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
+            slot_env = {
+                REPEAT_NAME_ENV: spec.name,
+                REPEAT_ITERATION_ENV: str(spec.iteration),
+                REPEAT_TOTAL_ENV: str(spec.total),
+            }
+            if extra_env:
+                slot_env.update(extra_env)
+            slot_results.append(launch_agent_from_cwd(spec.prompt, extra_env=slot_env))
+
+        spawn_repeat_batch(query, base_spawn_fn=_spawn_repeat_slot)
+        return slot_results[0]
+
     # --- Alt-split detection ---
     from sase.xprompt.directives import split_prompt_for_models
 
