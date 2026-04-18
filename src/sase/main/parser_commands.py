@@ -136,6 +136,18 @@ def register_init_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Generate and deploy agent skill files from xprompt sources",
     )
     init_skills_parser.add_argument(
+        "-A",
+        "--no-apply",
+        action="store_true",
+        help="With use_chezmoi: skip running 'chezmoi apply' after pushing",
+    )
+    init_skills_parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="With use_chezmoi: skip the entire git commit/push/apply sequence",
+    )
+    init_skills_parser.add_argument(
         "-f",
         "--force",
         action="store_true",
@@ -146,6 +158,12 @@ def register_init_skills_parser(subparsers: argparse._SubParsersAction) -> None:
         "--dry-run",
         action="store_true",
         help="Show what would be written without writing",
+    )
+    init_skills_parser.add_argument(
+        "-P",
+        "--no-push",
+        action="store_true",
+        help="With use_chezmoi: commit but skip 'git pull --rebase && git push' and 'chezmoi apply'",
     )
     init_skills_parser.add_argument(
         "-p",

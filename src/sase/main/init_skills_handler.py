@@ -3,6 +3,7 @@
 import argparse
 import difflib
 import re
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -120,6 +121,128 @@ def _prompt_overwrite(target: Path, new_content: str) -> bool:
             sys.stdout.writelines(diff)
 
 
+def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> int:
+    """Stage, commit, push, and ``chezmoi apply`` after writing skill files.
+
+    Returns the desired process exit code (0 on success, 1 on pull/push/apply
+    failure). Honors ``--no-commit`` / ``--no-push`` / ``--no-apply`` flags.
+    """
+    no_commit: bool = getattr(args, "no_commit", False)
+    no_push: bool = getattr(args, "no_push", False)
+    no_apply: bool = getattr(args, "no_apply", False)
+    provider_filter: str | None = getattr(args, "provider", None)
+
+    if no_commit:
+        return 0
+
+    git_root = CHEZMOI_HOME.parent
+
+    try:
+        repo_check = subprocess.run(
+            ["git", "-C", str(git_root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        print("init-skills: git not found on PATH, skipping deploy", file=sys.stderr)
+        return 0
+
+    if repo_check.returncode != 0:
+        print(
+            f"init-skills: {git_root} is not a git repo, skipping deploy",
+            file=sys.stderr,
+        )
+        return 0
+
+    for path in written_paths:
+        subprocess.run(
+            ["git", "-C", str(git_root), "add", "--", str(path)],
+            capture_output=True,
+            check=False,
+        )
+
+    staged = subprocess.run(
+        ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
+        capture_output=True,
+        check=False,
+    )
+    if staged.returncode == 0:
+        print(f"\nNothing to commit in {git_root} (files identical to HEAD).")
+        return 0
+
+    message = "chore: regenerate skills via sase init-skills"
+    if provider_filter:
+        message = f"chore: regenerate {provider_filter} skills via sase init-skills"
+
+    print(f"\nCommitting in {git_root}...")
+    commit = subprocess.run(
+        ["git", "-C", str(git_root), "commit", "-m", message],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit.returncode != 0:
+        print(f"init-skills: commit failed: {commit.stderr.strip()}", file=sys.stderr)
+        return 1
+    first_line = commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else ""
+    if first_line:
+        print(f"  {first_line}")
+
+    if no_push:
+        return 0
+
+    print("Pulling...")
+    pull = subprocess.run(
+        ["git", "-C", str(git_root), "pull", "--rebase"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if pull.returncode != 0:
+        print(f"init-skills: pull failed: {pull.stderr.strip()}", file=sys.stderr)
+        return 1
+    if pull.stdout.strip():
+        print(f"  {pull.stdout.strip().splitlines()[0]}")
+
+    print("Pushing...")
+    push = subprocess.run(
+        ["git", "-C", str(git_root), "push"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if push.returncode != 0:
+        print(f"init-skills: push failed: {push.stderr.strip()}", file=sys.stderr)
+        return 1
+    tail = push.stderr.strip() or push.stdout.strip()
+    if tail:
+        print(f"  {tail.splitlines()[-1]}")
+
+    if no_apply:
+        return 0
+
+    print("Applying chezmoi...")
+    try:
+        apply = subprocess.run(
+            ["chezmoi", "apply"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        print("init-skills: chezmoi not found on PATH", file=sys.stderr)
+        return 0
+    if apply.returncode != 0:
+        print(
+            f"init-skills: chezmoi apply failed: {apply.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+    print("  Done.")
+    return 0
+
+
 def handle_init_skills_command(args: argparse.Namespace) -> None:
     """Handle the 'sase init-skills' command."""
     skills_dir = get_sase_package_xprompts_dir() / "skills"
@@ -140,6 +263,7 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
 
     written = 0
     skipped = 0
+    written_paths: list[Path] = []
 
     for src_path in source_files:
         content = src_path.read_text(encoding="utf-8")
@@ -188,10 +312,15 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
             target.write_text(output, encoding="utf-8")
             print(f"  {target}")
             written += 1
+            written_paths.append(target)
 
     if dry_run:
         print(f"\nDry run: {len(source_files)} source files, no files written")
     else:
         print(f"\nWritten: {written}, Skipped: {skipped}")
 
-    sys.exit(0)
+    exit_code = 0
+    if use_chezmoi and not dry_run and written > 0:
+        exit_code = _deploy_to_chezmoi(written_paths, args)
+
+    sys.exit(exit_code)

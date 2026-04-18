@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-17 23:21:56
-status: wip
+status: done
 ---
 
 # Plan: Auto-deploy chezmoi skill changes from `sase init-skills`
