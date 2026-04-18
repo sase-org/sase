@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-18 00:26:03
-status: wip
+status: done
 ---
 
 # Plan: Auto-expand trimmed file panel before `G` scroll-to-bottom

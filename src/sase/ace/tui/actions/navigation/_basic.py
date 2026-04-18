@@ -186,6 +186,16 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
+            if scroll_id == "#agent-file-scroll":
+                from ...widgets import AgentDetail
+
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+                if agent_detail.is_file_trimmed():
+                    agent_detail.show_all_file_lines()
+                    self.call_after_refresh(  # type: ignore[attr-defined]
+                        lambda: scroll_container.scroll_end(animate=False)
+                    )
+                    return
             scroll_container.scroll_end(animate=False)
         elif self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
