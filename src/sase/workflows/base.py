@@ -5,12 +5,13 @@ class BaseWorkflow(ABC):
     """Base class for all SASE workflows."""
 
     @abstractmethod
-    def run(self) -> bool:
+    def run(self) -> int:
         """
         Run the workflow.
 
         Returns:
-            bool: True if the workflow completed successfully, False otherwise
+            int: 0 (or truthy bool) on success, non-zero on failure. Subclasses
+                 may return a richer ``IntEnum`` (e.g. ``RunResult``).
         """
         pass
 

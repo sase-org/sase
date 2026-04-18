@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.main.parser_commands import register_commit_parser
+from sase.workflows.commit.workflow import RunResult
 
 
 def _parse_commit_args(argv: list[str]) -> argparse.Namespace:
@@ -30,7 +31,7 @@ def _run_handler(
     """Run handle_commit_command and return (payload, method) passed to CommitWorkflow."""
     args = _parse_commit_args(argv)
     mock_workflow = MagicMock()
-    mock_workflow.run.return_value = True
+    mock_workflow.run.return_value = RunResult.OK
 
     with (
         patch("sase.main.cl_handler.CommitWorkflow", return_value=mock_workflow) as cls,

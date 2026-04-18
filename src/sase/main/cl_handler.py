@@ -75,16 +75,19 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         payload["checkout_target"] = args.checkout_target
     if args.parent:
         payload["parent"] = args.parent
+    from sase.workflows.commit.workflow import RunResult
+
     workflow = CommitWorkflow(payload=payload, method=method)
-    success = workflow.run()
-    if success:
+    result = workflow.run()
+    if result == RunResult.OK:
         try:
             from sase.logs.run_log import log_event
 
             log_event(event="commit_created", method=method)
         except Exception:
             pass
-    sys.exit(0 if success else 1)
+        sys.exit(0)
+    sys.exit(int(result))
 
 
 def handle_restore_command(args: argparse.Namespace) -> NoReturn:

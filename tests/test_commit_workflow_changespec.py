@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.workflows.commit.commit_tracking import create_changespec
-from sase.workflows.commit.workflow import CommitWorkflow
+from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
@@ -65,7 +65,7 @@ class TestCommitWorkflowChangeSpec:
         payload = {"name": "feat-x", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once_with(
             project_name="proj",
             project_file="/fake/proj.gp",
@@ -127,7 +127,7 @@ class TestCommitWorkflowChangeSpec:
             "create_pull_request",
         )
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
@@ -171,7 +171,7 @@ class TestCommitWorkflowBugId:
         payload = {"name": "feat-x", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once()
         assert mock_cs.call_args.kwargs["bug"] == "http://b/12345"
 
@@ -205,7 +205,7 @@ class TestCommitWorkflowBugId:
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once()
         assert mock_cs.call_args.kwargs["bug"] == "http://b/99999"
 
@@ -239,7 +239,7 @@ class TestCommitWorkflowBugId:
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once()
         assert mock_cs.call_args.kwargs["bug"] == "http://b/111"
 
@@ -268,7 +268,7 @@ class TestCommitWorkflowBugId:
         payload = {"name": "feat-x", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once()
         assert mock_cs.call_args.kwargs["bug"] is None
 
@@ -297,7 +297,7 @@ class TestCommitWorkflowBugId:
         payload = {"name": "feat-x", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_cs.assert_called_once()
         assert mock_cs.call_args.kwargs["bug"] is None
 
@@ -324,17 +324,17 @@ class TestCommitWorkflowChangeSpecErrorHandling:
         payload = {"name": "feat-x", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
 
     def test_missing_name_for_pull_request_returns_false(self) -> None:
         """Empty/missing name field fails validation for create_pull_request."""
         wf = CommitWorkflow({"message": "test"}, "create_pull_request")
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
     def test_empty_name_for_pull_request_returns_false(self) -> None:
         """Explicitly empty name field fails validation."""
         wf = CommitWorkflow({"name": "", "message": "test"}, "create_pull_request")
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
@@ -353,7 +353,7 @@ class TestCommitWorkflowChangeSpecErrorHandling:
         payload = {"name": "feat-branch", "message": "test"}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
 
 
 class TestCreateChangespecReturn:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from enum import IntEnum
 
 from sase.output import print_status
 from sase.vcs_provider import get_vcs_provider
@@ -27,6 +28,15 @@ from sase.workflows.commit.pr_operations import (
     build_pr_body,
     detect_parent_changespec,
 )
+
+
+class RunResult(IntEnum):
+    OK = 0
+    FAILED = 1
+    CONFLICT = 2
+
+
+EXIT_CODE_CONFLICT = 2
 
 VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
 
@@ -58,7 +68,7 @@ class CommitWorkflow(BaseWorkflow):
     def description(self) -> str:
         return "Dispatch a VCS commit operation via JSON payload"
 
-    def run(self) -> bool:
+    def run(self) -> RunResult:
         if self._method not in VALID_METHODS:
             aliases = ", ".join(f"{a} -> {c}" for a, c in METHOD_ALIASES.items())
             print_status(
@@ -67,20 +77,20 @@ class CommitWorkflow(BaseWorkflow):
                 f"(aliases: {aliases})",
                 "error",
             )
-            return False
+            return RunResult.FAILED
 
         if not isinstance(self._payload, dict):
             print_status("Payload must be a JSON object.", "error")
-            return False
+            return RunResult.FAILED
         if "message" not in self._payload and self._method != "create_pull_request":
             print_status("Payload missing required 'message' field.", "error")
-            return False
+            return RunResult.FAILED
         if self._method == "create_pull_request" and not self._payload.get("name"):
             print_status(
                 "Payload missing required 'name' field for create_pull_request.",
                 "error",
             )
-            return False
+            return RunResult.FAILED
 
         cwd = os.getcwd()
 
@@ -92,7 +102,7 @@ class CommitWorkflow(BaseWorkflow):
 
         # Run precommit command (e.g. `just fix`) after all files are staged
         if not run_precommit(cwd):
-            return False
+            return RunResult.FAILED
 
         # Pre-compute the _<N> suffix for create_pull_request so the CL is
         # created with the correct suffixed name (important for non-git VCS
@@ -151,7 +161,7 @@ class CommitWorkflow(BaseWorkflow):
         if not ok:
             print_status(f"{self._method} failed: {result}", "error")
             cleanup_reservation(self._reserved_name)
-            return False
+            return RunResult.FAILED
 
         print_status(f"{self._method} completed successfully!", "success")
 
@@ -192,4 +202,4 @@ class CommitWorkflow(BaseWorkflow):
                     entry_id=entry_id,
                 )
 
-        return True
+        return RunResult.OK

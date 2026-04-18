@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from sase.workflows.commit.workflow import CommitWorkflow
+from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
@@ -45,7 +45,7 @@ class TestCommitWorkflowDispatch:
         payload = {"message": "fix: bug", "files": ["a.py"]}
         wf = CommitWorkflow(payload, "create_commit")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
 
     @patch(_PROVIDER_TARGET)
@@ -56,7 +56,7 @@ class TestCommitWorkflowDispatch:
         payload = {"message": "propose: new feature"}
         wf = CommitWorkflow(payload, "create_proposal")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_provider.create_proposal.assert_called_once_with(payload, ANY)
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
@@ -71,12 +71,12 @@ class TestCommitWorkflowDispatch:
         payload = {"name": "feat-branch", "message": "add feature", "files": []}
         wf = CommitWorkflow(payload, "create_pull_request")
 
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
         mock_provider.create_pull_request.assert_called_once_with(payload, ANY)
 
     def test_invalid_method_returns_false(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "invalid_method")
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
     @patch(_PROVIDER_TARGET)
     def test_provider_failure_returns_false(
@@ -86,7 +86,7 @@ class TestCommitWorkflowDispatch:
         mock_get.return_value = mock_provider
         wf = CommitWorkflow({"message": "test"}, "create_commit")
 
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
 
 class TestCommitWorkflowValidation:
@@ -94,11 +94,11 @@ class TestCommitWorkflowValidation:
 
     def test_non_dict_payload_returns_false(self) -> None:
         wf = CommitWorkflow("not a dict", "create_commit")  # type: ignore[arg-type]
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
     def test_missing_message_returns_false(self) -> None:
         wf = CommitWorkflow({"files": ["a.py"]}, "create_commit")
-        assert wf.run() is False
+        assert wf.run() == RunResult.FAILED
 
     def test_missing_message_ok_for_pull_request(self) -> None:
         """create_pull_request doesn't require 'message' at validation time."""
@@ -112,7 +112,7 @@ class TestCommitWorkflowValidation:
                     "https://github.com/org/repo/pull/1",
                 )
                 mock_get.return_value = mock_prov
-                assert wf.run() is True
+                assert wf.run() == RunResult.OK
 
 
 class TestCommitWorkflowProperties:
@@ -145,7 +145,7 @@ class TestProposalSkipsBeadsAndPlan:
                 "sase.workflows.commit.workflow.append_commits_entry", return_value=None
             ),
         ):
-            assert wf.run() is True
+            assert wf.run() == RunResult.OK
             mock_beads.assert_not_called()
             mock_plan.assert_not_called()
 
@@ -164,7 +164,7 @@ class TestProposalSkipsBeadsAndPlan:
                 "sase.workflows.commit.workflow.append_commits_entry", return_value=None
             ),
         ):
-            assert wf.run() is True
+            assert wf.run() == RunResult.OK
             mock_beads.assert_called_once()
             mock_plan.assert_called_once()
 
@@ -185,7 +185,7 @@ class TestCreatePullRequestValidation:
         mock_get.return_value = provider
         payload = {"name": "feat-branch", "message": "add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
@@ -203,4 +203,4 @@ class TestCreatePullRequestValidation:
         mock_get.return_value = provider
         payload = {"name": "feat-branch", "message": "add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
-        assert wf.run() is True
+        assert wf.run() == RunResult.OK
