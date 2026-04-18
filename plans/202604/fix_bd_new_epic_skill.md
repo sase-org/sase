@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-17 22:27:29
-status: wip
+status: done
 ---
 
 # Plan: Fix Stale `bd:new_epic` Slash-Command Skill That Confuses Agents
