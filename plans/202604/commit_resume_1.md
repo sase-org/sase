@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 21:21:28
 status: wip
+bead_id: sase-j
 ---
 
 # Plan: Resumable `sase commit` After Agent-Resolved Merge Conflicts (Phased)
