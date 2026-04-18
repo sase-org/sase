@@ -74,7 +74,6 @@ _AGENT_INFO = _AgentInfo(
     hidden=False,
     approve=False,
     plan=False,
-    repeat_count=None,
     meta={"pid": 1},
     local_xprompts={},
 )

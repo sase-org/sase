@@ -26,7 +26,6 @@ class _AgentInfo(NamedTuple):
     hidden: bool
     approve: bool
     plan: bool
-    repeat_count: int | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
 
@@ -88,6 +87,8 @@ def extract_directives_and_write_meta(
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
     agent_name = directives.name
+    if agent_name is None:
+        agent_name = os.environ.get("SASE_REPEAT_NAME")
     if agent_name is None and not auto_dismiss:
         from sase.agent.names import get_next_auto_name
 
@@ -132,8 +133,6 @@ def extract_directives_and_write_meta(
         agent_meta["hidden"] = True
     if directives.plan:
         agent_meta["plan"] = True
-    if directives.repeat_count is not None and directives.repeat_count > 1:
-        agent_meta["repeat_count"] = directives.repeat_count
 
     # Write agent_meta.json
     if agent_meta:
@@ -158,7 +157,6 @@ def extract_directives_and_write_meta(
         hidden=bool(directives.hide or auto_dismiss),
         approve=bool(directives.approve),
         plan=bool(directives.plan),
-        repeat_count=directives.repeat_count,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
     )

@@ -254,9 +254,6 @@ def _finalize_loop(
 def run_execution_loop(
     ctx: AgentExecContext,
     prompt: str,
-    *,
-    repeat_iteration: int | None = None,
-    repeat_count: int | None = None,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling.
 
@@ -303,19 +300,24 @@ def run_execution_loop(
         if ctx.local_xprompts:
             anon_workflow.xprompts = ctx.local_xprompts
 
+        named_args: dict[str, Any] = {
+            "cl_name": ctx.cl_name,
+            "workspace_num": ctx.workspace_num,
+        }
+        _repeat_iter_env = os.environ.get("SASE_REPEAT_ITERATION")
+        _repeat_total_env = os.environ.get("SASE_REPEAT_TOTAL")
+        if _repeat_iter_env is not None and _repeat_total_env is not None:
+            try:
+                named_args["n"] = int(_repeat_iter_env)
+                named_args["N"] = int(_repeat_total_env)
+            except ValueError:
+                pass
+
         try:
             result = execute_workflow(
                 anon_workflow.name,
                 [],
-                {
-                    "cl_name": ctx.cl_name,
-                    "workspace_num": ctx.workspace_num,
-                    **(
-                        {"n": repeat_iteration, "N": repeat_count}
-                        if repeat_iteration is not None
-                        else {}
-                    ),
-                },
+                named_args,
                 artifacts_dir=state.current_artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,
