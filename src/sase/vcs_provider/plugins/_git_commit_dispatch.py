@@ -240,3 +240,18 @@ class GitCommitDispatchMixin(CommandRunner):
         if not ok:
             return (False, err)
         return (True, None)
+
+    @hookimpl
+    def vcs_finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Re-run idempotent post-commit operations after a resumed workflow."""
+        if not payload.get("_skip_bead_amend"):
+            self._post_commit_bead_amend(payload, cwd)
+        ok, err = self._push_with_retry(cwd)
+        if not ok:
+            return (False, err)
+        VCS_OPERATIONS.labels(
+            provider=self._provider_name,
+            operation="finalize_commit",
+            status="ok",
+        ).inc()
+        return (True, None)

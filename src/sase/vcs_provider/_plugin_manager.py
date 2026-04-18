@@ -243,6 +243,9 @@ class VCSPluginManager(VCSProvider):
     def create_pull_request(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_create_pull_request", payload=payload, cwd=cwd)
 
+    def finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_finalize_commit", payload=payload, cwd=cwd)
+
     # --- VCS-agnostic methods ---
 
     def abandon_change(

@@ -298,6 +298,12 @@ class VCSProvider(ABC):
             "create_pull_request is not supported by this VCS provider"
         )
 
+    def finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Re-run idempotent post-commit operations after a resumed workflow."""
+        raise NotImplementedError(
+            "finalize_commit is not supported by this VCS provider"
+        )
+
     # --- VCS-agnostic methods (default implementations) ---
 
     def abandon_change(

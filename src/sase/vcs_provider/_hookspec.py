@@ -186,6 +186,11 @@ class VCSHookSpec:
         self, payload: dict, cwd: str
     ) -> tuple[bool, str | None]: ...
 
+    @hookspec(firstresult=True)
+    def vcs_finalize_commit(
+        self, payload: dict, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
     # --- VCS-agnostic operations ---
 
     @hookspec(firstresult=True)
