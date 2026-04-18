@@ -9,7 +9,12 @@ from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
-from sase.workflows.commit import checkpoint
+from sase.workflows.commit.checkpoint import (
+    CommitCheckpoint,
+    checkpoint_delete,
+    checkpoint_load,
+    checkpoint_save,
+)
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     capture_pre_commit_diff,
@@ -160,7 +165,7 @@ class CommitWorkflow(BaseWorkflow):
 
         # Snapshot the post-mutation payload + resolved fields so the resume
         # path can replay tracking even if dispatch crashes.
-        cp = checkpoint._CommitCheckpoint(
+        cp = CommitCheckpoint(
             method=self._method,
             payload=self._payload,
             cwd=cwd,
@@ -171,7 +176,7 @@ class CommitWorkflow(BaseWorkflow):
             reserved_name=self._reserved_name,
             parent_cl_name=self._parent_cl_name,
         )
-        checkpoint.save(cp)
+        checkpoint_save(cp)
 
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
         ok, result = dispatch(self._payload, cwd)
@@ -191,12 +196,12 @@ class CommitWorkflow(BaseWorkflow):
                 return RunResult.CONFLICT
             print_status(f"{self._method} failed: {result}", "error")
             cleanup_reservation(self._reserved_name)
-            checkpoint.delete()
+            checkpoint_delete()
             return RunResult.FAILED
 
         cp.dispatch_result = result
         cp.completed_steps.append("dispatch")
-        checkpoint.save(cp)
+        checkpoint_save(cp)
 
         print_status(f"{self._method} completed successfully!", "success")
 
@@ -204,11 +209,11 @@ class CommitWorkflow(BaseWorkflow):
         if tracking_result != RunResult.OK:
             return tracking_result
 
-        checkpoint.delete()
+        checkpoint_delete()
         return RunResult.OK
 
     def _run_tracking_steps(
-        self, cp: checkpoint._CommitCheckpoint, result: str | None
+        self, cp: CommitCheckpoint, result: str | None
     ) -> RunResult:
         """Run the post-dispatch tracking steps and update *cp* as each completes.
 
@@ -232,7 +237,7 @@ class CommitWorkflow(BaseWorkflow):
                 else:
                     cp.cs_name = cs_name
                     cp.completed_steps.append("create_changespec")
-                    checkpoint.save(cp)
+                    checkpoint_save(cp)
         else:
             cs_name = cp.cs_name
 
@@ -241,7 +246,7 @@ class CommitWorkflow(BaseWorkflow):
                 self._method, self._payload, self._diff_path, result, cs_name
             )
             cp.completed_steps.append("write_result_marker")
-            checkpoint.save(cp)
+            checkpoint_save(cp)
 
         if self._method in ("create_commit", "create_proposal"):
             if "append_commits_entry" in cp.completed_steps:
@@ -258,7 +263,7 @@ class CommitWorkflow(BaseWorkflow):
                 if entry_id:
                     cp.entry_id = entry_id
                     cp.completed_steps.append("append_commits_entry")
-                    checkpoint.save(cp)
+                    checkpoint_save(cp)
 
             if entry_id and "final_result_marker" not in cp.completed_steps:
                 write_result_marker(
@@ -270,14 +275,14 @@ class CommitWorkflow(BaseWorkflow):
                     entry_id=entry_id,
                 )
                 cp.completed_steps.append("final_result_marker")
-                checkpoint.save(cp)
+                checkpoint_save(cp)
 
         return RunResult.OK
 
     @classmethod
     def resume(cls) -> RunResult:
         """Resume a checkpointed commit workflow after manual conflict resolution."""
-        cp = checkpoint.load()
+        cp = checkpoint_load()
         if cp is None:
             print_status("No commit checkpoint found — nothing to resume", "error")
             return RunResult.FAILED
@@ -355,7 +360,7 @@ class CommitWorkflow(BaseWorkflow):
             ).inc()
             return tracking_result
 
-        checkpoint.delete()
+        checkpoint_delete()
         VCS_OPERATIONS.labels(
             provider=provider_name,
             operation="commit_resume",
@@ -380,7 +385,7 @@ def _get_head_subject(provider: object, cwd: str) -> str | None:
 
 
 def _reconcile_changespec_from_project_file(
-    wf: CommitWorkflow, cp: checkpoint._CommitCheckpoint
+    wf: CommitWorkflow, cp: CommitCheckpoint
 ) -> None:
     """Mark `create_changespec` complete if the project file already records it.
 
@@ -398,7 +403,7 @@ def _reconcile_changespec_from_project_file(
     if _changespec_name_in_project_file(wf._project_file, candidate):
         cp.cs_name = candidate
         cp.completed_steps.append("create_changespec")
-        checkpoint.save(cp)
+        checkpoint_save(cp)
 
 
 def _changespec_name_in_project_file(project_file: str, cl_name: str) -> bool:

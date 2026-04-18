@@ -10,10 +10,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.workflows.commit import checkpoint
-from sase.workflows.commit.checkpoint import _CommitCheckpoint
+from sase.workflows.commit.checkpoint import CommitCheckpoint
 
 
-def _make_cp(**overrides: object) -> _CommitCheckpoint:
+def _make_cp(**overrides: object) -> CommitCheckpoint:
     """Build a populated checkpoint with sensible defaults."""
     base: dict[str, object] = {
         "method": "create_commit",
@@ -31,17 +31,17 @@ def _make_cp(**overrides: object) -> _CommitCheckpoint:
         "completed_steps": ["dispatch", "write_result_marker"],
     }
     base.update(overrides)
-    return _CommitCheckpoint(**base)  # type: ignore[arg-type]
+    return CommitCheckpoint(**base)  # type: ignore[arg-type]
 
 
 def test_save_and_load_round_trip(tmp_path: Path) -> None:
     cp = _make_cp()
     target = tmp_path / "commit_state.json"
 
-    written = checkpoint.save(cp, str(target))
+    written = checkpoint.checkpoint_save(cp, str(target))
 
     assert written == str(target)
-    loaded = checkpoint.load(str(target))
+    loaded = checkpoint.checkpoint_load(str(target))
     assert loaded is not None
     assert loaded.method == cp.method
     assert loaded.payload == cp.payload
@@ -61,7 +61,7 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
 
 
 def test_load_returns_none_when_missing(tmp_path: Path) -> None:
-    assert checkpoint.load(str(tmp_path / "nope.json")) is None
+    assert checkpoint.checkpoint_load(str(tmp_path / "nope.json")) is None
 
 
 def test_load_returns_none_for_unknown_version(tmp_path: Path) -> None:
@@ -77,7 +77,7 @@ def test_load_returns_none_for_unknown_version(tmp_path: Path) -> None:
         )
     )
 
-    assert checkpoint.load(str(target)) is None
+    assert checkpoint.checkpoint_load(str(target)) is None
 
 
 def test_get_checkpoint_path_uses_artifacts_dir(
@@ -85,7 +85,7 @@ def test_get_checkpoint_path_uses_artifacts_dir(
 ) -> None:
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
 
-    path = checkpoint.get_checkpoint_path()
+    path = checkpoint._get_checkpoint_path()
 
     assert path == str(tmp_path / "commit_state.json")
     assert os.path.isdir(os.path.dirname(path))
@@ -98,7 +98,7 @@ def test_get_checkpoint_path_falls_back_to_session_timestamp(
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "2026-04-17T12-00-00")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    path = checkpoint.get_checkpoint_path()
+    path = checkpoint._get_checkpoint_path()
 
     expected = str(tmp_path / ".sase" / "commit_state" / "2026-04-17T12-00-00.json")
     assert path == expected
@@ -112,7 +112,7 @@ def test_get_checkpoint_path_falls_back_to_pid_when_no_timestamp(
     monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    path = checkpoint.get_checkpoint_path()
+    path = checkpoint._get_checkpoint_path()
 
     expected = str(tmp_path / ".sase" / "commit_state" / f"{os.getpid()}.json")
     assert path == expected
@@ -123,10 +123,10 @@ def test_delete_is_idempotent(tmp_path: Path) -> None:
     target.write_text("{}")
     assert target.exists()
 
-    checkpoint.delete(str(target))
+    checkpoint.checkpoint_delete(str(target))
     assert not target.exists()
     # Second call must not raise.
-    checkpoint.delete(str(target))
+    checkpoint.checkpoint_delete(str(target))
 
 
 def test_save_writes_atomically(tmp_path: Path) -> None:
@@ -135,7 +135,7 @@ def test_save_writes_atomically(tmp_path: Path) -> None:
     tmp_sibling.write_text("garbage that should be replaced")
 
     cp = _make_cp(payload={"message": "atomic"})
-    written = checkpoint.save(cp, str(target))
+    written = checkpoint.checkpoint_save(cp, str(target))
 
     assert written == str(target)
     assert target.exists()
@@ -153,7 +153,7 @@ def test_save_tolerates_unwritable_path(tmp_path: Path) -> None:
         raise OSError("disk full")
 
     with patch("sase.workflows.commit.checkpoint.open", _boom, create=True):
-        result = checkpoint.save(cp, str(target))
+        result = checkpoint.checkpoint_save(cp, str(target))
 
     assert result is None
     assert not target.exists()

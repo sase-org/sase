@@ -64,7 +64,7 @@ def test_run_detects_conflict_and_returns_conflict_code(
 
     cp_path = artifacts_dir / "commit_state.json"
     assert cp_path.exists(), "checkpoint must remain on disk after a conflict"
-    loaded = checkpoint.load(str(cp_path))
+    loaded = checkpoint.checkpoint_load(str(cp_path))
     assert loaded is not None
     assert loaded.completed_steps == []
     assert loaded.payload == payload
@@ -107,10 +107,10 @@ def test_run_records_completed_steps_in_order_for_create_commit(
     mock_get.return_value = provider
 
     snapshots: list[list[str]] = []
-    real_save = checkpoint.save
+    real_save = checkpoint.checkpoint_save
 
     def spy_save(
-        cp: checkpoint._CommitCheckpoint, path: str | None = None
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
     ) -> str | None:
         snapshots.append(list(cp.completed_steps))
         return real_save(cp, path)
@@ -122,7 +122,7 @@ def test_run_records_completed_steps_in_order_for_create_commit(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value="42",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint.save", side_effect=spy_save),
+        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
     ):
         assert wf.run() == RunResult.OK
 
@@ -152,10 +152,10 @@ def test_run_records_completed_steps_for_pull_request(
     mock_get.return_value = provider
 
     snapshots: list[list[str]] = []
-    real_save = checkpoint.save
+    real_save = checkpoint.checkpoint_save
 
     def spy_save(
-        cp: checkpoint._CommitCheckpoint, path: str | None = None
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
     ) -> str | None:
         snapshots.append(list(cp.completed_steps))
         return real_save(cp, path)
@@ -167,7 +167,7 @@ def test_run_records_completed_steps_for_pull_request(
             "sase.workflows.commit.workflow.create_changespec",
             return_value="proj_feat_1",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint.save", side_effect=spy_save),
+        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
     ):
         assert wf.run() == RunResult.OK
 
@@ -230,7 +230,7 @@ def test_pre_dispatch_checkpoint_has_post_mutation_payload_for_pr(
     ):
         assert wf.run() == RunResult.CONFLICT
 
-    loaded = checkpoint.load(str(artifacts_dir / "commit_state.json"))
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
     assert loaded is not None
     assert loaded.payload.get("_mutated") is True
 
@@ -243,10 +243,10 @@ def test_dispatch_step_recorded_after_success(
     mock_get.return_value = provider
 
     saved_states: list[dict] = []
-    real_save = checkpoint.save
+    real_save = checkpoint.checkpoint_save
 
     def spy_save(
-        cp: checkpoint._CommitCheckpoint, path: str | None = None
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
     ) -> str | None:
         saved_states.append(
             {
@@ -263,7 +263,7 @@ def test_dispatch_step_recorded_after_success(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value="1",
         ),
-        patch("sase.workflows.commit.workflow.checkpoint.save", side_effect=spy_save),
+        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
     ):
         assert wf.run() == RunResult.OK
 
@@ -284,10 +284,10 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
 
     saves_before_dispatch: list[list[str]] = []
     dispatch_called = False
-    real_save = checkpoint.save
+    real_save = checkpoint.checkpoint_save
 
     def spy_save(
-        cp: checkpoint._CommitCheckpoint, path: str | None = None
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
     ) -> str | None:
         if not dispatch_called:
             saves_before_dispatch.append(list(cp.completed_steps))
@@ -302,7 +302,7 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
 
     wf = CommitWorkflow({"message": "fix"}, "create_commit")
 
-    with patch("sase.workflows.commit.workflow.checkpoint.save", side_effect=spy_save):
+    with patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save):
         assert wf.run() == RunResult.CONFLICT
 
     assert saves_before_dispatch == [[]]

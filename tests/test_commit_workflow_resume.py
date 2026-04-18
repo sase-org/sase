@@ -48,8 +48,8 @@ def _save_checkpoint(
     cs_name: str | None = None,
     entry_id: str | None = None,
     dispatch_result: str | None = None,
-) -> checkpoint._CommitCheckpoint:
-    cp = checkpoint._CommitCheckpoint(
+) -> checkpoint.CommitCheckpoint:
+    cp = checkpoint.CommitCheckpoint(
         method=method,
         payload=payload if payload is not None else {"message": "fix: bug"},
         cwd=cwd,
@@ -58,7 +58,7 @@ def _save_checkpoint(
         entry_id=entry_id,
         dispatch_result=dispatch_result,
     )
-    checkpoint.save(cp)
+    checkpoint.checkpoint_save(cp)
     return cp
 
 
@@ -279,14 +279,14 @@ def test_resume_detects_existing_changespec_in_project_file(
     project_file = tmp_path / "proj.gp"
     project_file.write_text("NAME: proj_feat_1\nDESCRIPTION:\n  desc\nSTATUS: Draft\n")
 
-    cp = checkpoint._CommitCheckpoint(
+    cp = checkpoint.CommitCheckpoint(
         method="create_pull_request",
         payload={"name": "feat", "message": "feat: x"},
         cwd=str(tmp_path),
         project_file=str(project_file),
         reserved_name="proj_feat_1",
     )
-    checkpoint.save(cp)
+    checkpoint.checkpoint_save(cp)
 
     with (
         patch("sase.workflows.commit.workflow.create_changespec") as mock_cs,

@@ -15,7 +15,7 @@ _CHECKPOINT_FILENAME = "commit_state.json"
 
 
 @dataclass
-class _CommitCheckpoint:
+class CommitCheckpoint:
     """Snapshot of a `CommitWorkflow` invocation, persisted between attempts."""
 
     method: str
@@ -35,7 +35,7 @@ class _CommitCheckpoint:
     created_at: float = field(default_factory=time.time)
 
 
-def get_checkpoint_path() -> str:
+def _get_checkpoint_path() -> str:
     """Return the on-disk path used for checkpoint persistence.
 
     Prefers ``$SASE_ARTIFACTS_DIR/commit_state.json`` when the env var is set,
@@ -51,9 +51,9 @@ def get_checkpoint_path() -> str:
     return path
 
 
-def save(cp: _CommitCheckpoint, path: str | None = None) -> str | None:
+def checkpoint_save(cp: CommitCheckpoint, path: str | None = None) -> str | None:
     """Atomically persist *cp* to *path*; return the path written, or None on failure."""
-    target = path or get_checkpoint_path()
+    target = path or _get_checkpoint_path()
     tmp = target + ".tmp"
     try:
         with open(tmp, "w") as f:
@@ -65,9 +65,9 @@ def save(cp: _CommitCheckpoint, path: str | None = None) -> str | None:
     return target
 
 
-def load(path: str | None = None) -> _CommitCheckpoint | None:
+def checkpoint_load(path: str | None = None) -> CommitCheckpoint | None:
     """Read a checkpoint from *path*; return None if missing, malformed, or unknown version."""
-    target = path or get_checkpoint_path()
+    target = path or _get_checkpoint_path()
     try:
         with open(target) as f:
             data = json.load(f)
@@ -82,14 +82,14 @@ def load(path: str | None = None) -> _CommitCheckpoint | None:
         )
         return None
     try:
-        return _CommitCheckpoint(**data)
+        return CommitCheckpoint(**data)
     except TypeError:
         return None
 
 
-def delete(path: str | None = None) -> None:
+def checkpoint_delete(path: str | None = None) -> None:
     """Best-effort removal of the checkpoint file at *path*."""
-    target = path or get_checkpoint_path()
+    target = path or _get_checkpoint_path()
     try:
         os.remove(target)
     except FileNotFoundError:
