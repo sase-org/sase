@@ -284,6 +284,8 @@ def test_explicit_parent_overrides_auto_detect() -> None:
     # is set.
     mock_provider = MagicMock()
     mock_provider.create_pull_request.return_value = (False, "stopped")
+    mock_provider.is_sync_in_progress.return_value = False
+    mock_provider.get_conflicted_files.return_value = []
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
@@ -294,6 +296,10 @@ def test_explicit_parent_overrides_auto_detect() -> None:
         patch(
             "sase.workflows.commit.workflow.get_vcs_provider",
             return_value=mock_provider,
+        ),
+        patch(
+            "sase.workflows.utils.get_project_from_workspace",
+            return_value=None,
         ),
     ):
         wf.run()
@@ -309,6 +315,8 @@ def test_explicit_parent_skips_auto_detect() -> None:
     wf._base_cl_name = "child_cl"
     mock_provider = MagicMock()
     mock_provider.create_pull_request.return_value = (False, "stopped")
+    mock_provider.is_sync_in_progress.return_value = False
+    mock_provider.get_conflicted_files.return_value = []
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
@@ -319,6 +327,10 @@ def test_explicit_parent_skips_auto_detect() -> None:
         patch(
             "sase.workflows.commit.workflow.get_vcs_provider",
             return_value=mock_provider,
+        ),
+        patch(
+            "sase.workflows.utils.get_project_from_workspace",
+            return_value=None,
         ),
         patch("sase.workflows.commit.workflow.detect_parent_changespec") as mock_detect,
     ):
