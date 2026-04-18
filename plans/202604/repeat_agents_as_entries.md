@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 22:14:28
 status: wip
+bead_id: sase-k
 ---
 
 # Plan: Spawn Each `%r:N` Iteration as Its Own Top-Level Agent Entry
