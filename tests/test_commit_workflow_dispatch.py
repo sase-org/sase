@@ -83,6 +83,8 @@ class TestCommitWorkflowDispatch:
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_provider.create_commit.return_value = (False, "git add failed")
+        mock_provider.is_sync_in_progress.return_value = False
+        mock_provider.get_conflicted_files.return_value = []
         mock_get.return_value = mock_provider
         wf = CommitWorkflow({"message": "test"}, "create_commit")
 

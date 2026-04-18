@@ -75,7 +75,7 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         payload["checkout_target"] = args.checkout_target
     if args.parent:
         payload["parent"] = args.parent
-    from sase.workflows.commit.workflow import RunResult
+    from sase.workflows.commit.workflow import EXIT_CODE_CONFLICT, RunResult
 
     workflow = CommitWorkflow(payload=payload, method=method)
     result = workflow.run()
@@ -87,6 +87,14 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         except Exception:
             pass
         sys.exit(0)
+    if result == RunResult.CONFLICT:
+        try:
+            from sase.logs.run_log import log_event
+
+            log_event(event="commit_conflict", method=method)
+        except Exception:
+            pass
+        sys.exit(EXIT_CODE_CONFLICT)
     sys.exit(int(result))
 
 

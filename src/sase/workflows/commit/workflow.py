@@ -6,8 +6,10 @@ import os
 from enum import IntEnum
 
 from sase.output import print_status
+from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
+from sase.workflows.commit import checkpoint
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     capture_pre_commit_diff,
@@ -156,43 +158,109 @@ class CommitWorkflow(BaseWorkflow):
         # COMMITS entry.  After the commit the working-tree diff is empty.
         self._diff_path = capture_pre_commit_diff(provider, cwd, self._cl_name)
 
+        # Snapshot the post-mutation payload + resolved fields so the resume
+        # path can replay tracking even if dispatch crashes.
+        cp = checkpoint._CommitCheckpoint(
+            method=self._method,
+            payload=self._payload,
+            cwd=cwd,
+            cl_name=self._cl_name,
+            project_file=self._project_file,
+            diff_path=self._diff_path,
+            base_cl_name=self._base_cl_name,
+            reserved_name=self._reserved_name,
+            parent_cl_name=self._parent_cl_name,
+        )
+        checkpoint.save(cp)
+
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
         ok, result = dispatch(self._payload, cwd)
         if not ok:
+            if _is_conflict_state(provider, cwd):
+                VCS_OPERATIONS.labels(
+                    provider=getattr(provider, "_provider_name", "unknown"),
+                    operation="commit_conflict_detected",
+                    status="ok",
+                ).inc()
+                print_status(
+                    f"{self._method} hit a merge conflict: {result}. "
+                    "Resolve the conflict, then run "
+                    "`sase commit --resume` to finish.",
+                    "warning",
+                )
+                return RunResult.CONFLICT
             print_status(f"{self._method} failed: {result}", "error")
             cleanup_reservation(self._reserved_name)
+            checkpoint.delete()
             return RunResult.FAILED
+
+        cp.dispatch_result = result
+        cp.completed_steps.append("dispatch")
+        checkpoint.save(cp)
 
         print_status(f"{self._method} completed successfully!", "success")
 
-        cs_name: str | None = None
+        tracking_result = self._run_tracking_steps(cp, result)
+        if tracking_result != RunResult.OK:
+            return tracking_result
+
+        checkpoint.delete()
+        return RunResult.OK
+
+    def _run_tracking_steps(
+        self, cp: checkpoint._CommitCheckpoint, result: str | None
+    ) -> RunResult:
+        """Run the post-dispatch tracking steps and update *cp* as each completes.
+
+        Steps already listed in ``cp.completed_steps`` are skipped so this
+        helper is reusable from the resume path.  Returns ``RunResult.OK``
+        when every applicable step succeeds.
+        """
         if self._method == "create_pull_request":
-            cs_name = create_changespec(
-                self._payload,
-                self._base_cl_name,
-                self._parent_cl_name,
-                self._reserved_name,
-                cl_url=result,
+            if "create_changespec" in cp.completed_steps:
+                cs_name = cp.cs_name
+            else:
+                cs_name = create_changespec(
+                    self._payload,
+                    self._base_cl_name,
+                    self._parent_cl_name,
+                    self._reserved_name,
+                    cl_url=result,
+                )
+                if cs_name is None:
+                    cleanup_reservation(self._reserved_name)
+                else:
+                    cp.cs_name = cs_name
+                    cp.completed_steps.append("create_changespec")
+                    checkpoint.save(cp)
+        else:
+            cs_name = cp.cs_name
+
+        if "write_result_marker" not in cp.completed_steps:
+            write_result_marker(
+                self._method, self._payload, self._diff_path, result, cs_name
             )
-            if cs_name is None:
-                cleanup_reservation(self._reserved_name)
+            cp.completed_steps.append("write_result_marker")
+            checkpoint.save(cp)
 
-        # Write initial result marker (needed by append_post_commit_entry)
-        write_result_marker(
-            self._method, self._payload, self._diff_path, result, cs_name
-        )
-
-        # Append COMMITS entry for commit/proposal (not PR - it uses ChangeSpec).
-        entry_id: str | None = None
         if self._method in ("create_commit", "create_proposal"):
-            entry_id = append_commits_entry(
-                self._project_file,
-                self._cl_name,
-                self._payload,
-                self._method,
-                self._diff_path,
-            )
-            if entry_id:
+            if "append_commits_entry" in cp.completed_steps:
+                entry_id = cp.entry_id
+            else:
+                entry_id = append_commits_entry(
+                    self._project_file,
+                    self._cl_name,
+                    self._payload,
+                    self._method,
+                    self._diff_path,
+                    expected_entry_id=cp.entry_id,
+                )
+                if entry_id:
+                    cp.entry_id = entry_id
+                    cp.completed_steps.append("append_commits_entry")
+                    checkpoint.save(cp)
+
+            if entry_id and "final_result_marker" not in cp.completed_steps:
                 write_result_marker(
                     self._method,
                     self._payload,
@@ -201,5 +269,27 @@ class CommitWorkflow(BaseWorkflow):
                     cs_name,
                     entry_id=entry_id,
                 )
+                cp.completed_steps.append("final_result_marker")
+                checkpoint.save(cp)
 
         return RunResult.OK
+
+
+def _is_conflict_state(provider: object, cwd: str) -> bool:
+    """Return True when the working tree appears to be in a merge-conflict state."""
+    try:
+        if provider.is_sync_in_progress(cwd):  # type: ignore[attr-defined]
+            return True
+    except NotImplementedError:
+        pass
+    except Exception:
+        pass
+    try:
+        conflicted = provider.get_conflicted_files(cwd)  # type: ignore[attr-defined]
+        if conflicted:
+            return True
+    except NotImplementedError:
+        pass
+    except Exception:
+        pass
+    return False
