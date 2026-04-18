@@ -256,25 +256,6 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
                 )
         header_text.append("\n")
 
-    # Repeat info (for agents using %repeat directive)
-    if agent.repeat_count is not None and agent.repeat_count > 1:
-        header_text.append("Repeat: ", style="bold #87D7FF")
-        iteration = agent.repeat_iteration or 0
-        total = agent.repeat_count
-        if agent.status in ("DONE", "FAILED"):
-            if iteration >= total:
-                header_text.append(f"{total}/{total} done\n", style="#5FD75F")
-            else:
-                header_text.append(f"{iteration}/{total} (stopped)\n", style="#FF8700")
-        else:
-            # Running: show progress bar + fraction
-            bar_width = 10
-            filled = int(bar_width * iteration / total) if total > 0 else 0
-            empty = bar_width - filled
-            bar = "\u2588" * filled + "\u2591" * empty
-            header_text.append(f"{bar} ", style="bold #00D7D7")
-            header_text.append(f"{iteration}/{total}\n", style="#00D7D7")
-
     # Retry info (for agents that have retried or are using fallback)
     if agent.retry_count > 0 or agent.using_fallback:
         header_text.append("Retries: ", style="bold #87D7FF")

@@ -4,7 +4,6 @@ from ._artifact_loaders import (
     get_all_project_files,
     load_agents_from_running_field,
     load_done_agents,
-    load_repeat_iteration_children,
     load_running_home_agents,
 )
 from ._changespec_loaders import (
@@ -27,7 +26,6 @@ __all__ = [
     "load_agents_from_mentors",
     "load_agents_from_running_field",
     "load_done_agents",
-    "load_repeat_iteration_children",
     "load_running_home_agents",
     "load_workflow_agent_steps",
     "load_workflow_agents",
