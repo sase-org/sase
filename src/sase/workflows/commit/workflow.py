@@ -140,6 +140,15 @@ class CommitWorkflow(BaseWorkflow):
             explicit_parent = self._payload.get("parent")
             if explicit_parent:
                 self._parent_cl_name = str(explicit_parent)
+                if not _explicit_parent_resolves(self._parent_cl_name):
+                    print_status(
+                        f"Explicit parent '{self._parent_cl_name}' does not "
+                        "resolve to an existing ChangeSpec — dropping it so "
+                        "it does not leak into the PARENT field.",
+                        "warning",
+                    )
+                    self._parent_cl_name = None
+                    self._payload.pop("parent", None)
             else:
                 self._parent_cl_name = detect_parent_changespec(
                     self._base_cl_name, self._payload
@@ -417,6 +426,28 @@ def _changespec_name_in_project_file(project_file: str, cl_name: str) -> bool:
     except OSError:
         return False
     return False
+
+
+def _explicit_parent_resolves(parent_name: str) -> bool:
+    """Return True if ``parent_name`` is a known ChangeSpec in this project.
+
+    Looks in both the active project file and the archive. On any
+    resolution failure (e.g., project can't be determined), returns True
+    so a transient error does not cause us to silently drop a legitimate
+    parent reference.
+    """
+    try:
+        from sase.workflows.commit.changespec_queries import (
+            changespec_exists_anywhere,
+        )
+        from sase.workflows.utils import get_project_from_workspace
+
+        project_name = get_project_from_workspace()
+        if not project_name:
+            return True
+        return changespec_exists_anywhere(project_name, parent_name)
+    except Exception:
+        return True
 
 
 def _is_conflict_state(provider: object, cwd: str) -> bool:

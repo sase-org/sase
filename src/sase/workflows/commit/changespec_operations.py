@@ -52,6 +52,23 @@ def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | N
     return None
 
 
+def _changespec_in_archive(project_file: str, changespec_name: str) -> bool:
+    """Return True when ``changespec_name`` appears in the archive file."""
+    from sase.ace.changespec.archive import get_archive_file_path
+
+    archive_file = get_archive_file_path(project_file)
+    if not os.path.isfile(archive_file):
+        return False
+    try:
+        with open(archive_file, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("NAME: ") and line[6:].strip() == changespec_name:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
 def _remove_reservation_lines(lines: list[str], reserved_name: str) -> list[str]:
     """Remove a ``Reserved`` ChangeSpec stub from a list of file lines.
 
@@ -238,10 +255,8 @@ def add_changespec_to_project_file(
     description_lines = description.strip().split("\n")
     formatted_description = "\n".join(f"  {line}" for line in description_lines)
 
-    # Build partial ChangeSpec components (name added after suffix computation)
-    # Only include PARENT line if parent is specified
-    parent_line = f"PARENT: {parent}\n" if parent else ""
-    # BUG line is built later after potential parent inheritance
+    # PARENT line and BUG line are built later, after parent resolution and
+    # potential parent inheritance.
 
     # Build COMMITS field if initial_commits provided
     commits_block = ""
@@ -336,19 +351,29 @@ def add_changespec_to_project_file(
                             if not bug and cs.bug:
                                 bug = cs.bug
                             break
+                elif _changespec_in_archive(project_file, parent):
+                    # Parent is a terminal CS (submitted / reverted / archived);
+                    # keep the PARENT reference but append to end of file.
+                    insert_index = len(lines)
                 else:
-                    # Parent not found, append to end
+                    # Parent does not exist in this project at all. Guard
+                    # against bogus values (e.g., a VCS ref like ``p4head`` or
+                    # ``origin/main``) leaking into the PARENT field by
+                    # dropping it and warning loudly.
                     print_status(
-                        f"Parent ChangeSpec '{parent}' not found. "
-                        "Appending to end of file.",
+                        f"Parent ChangeSpec '{parent}' does not exist — "
+                        "omitting PARENT field.",
                         "warning",
                     )
+                    parent = None
                     insert_index = len(lines)
             else:
                 # No parent - append to end of file
                 insert_index = len(lines)
 
-            # Build BUG line (may be inherited from parent)
+            # Build PARENT line (after validation) and BUG line (may be
+            # inherited from parent above).
+            parent_line = f"PARENT: {parent}\n" if parent else ""
             bug_line = f"BUG: {bug}\n" if bug else ""
 
             # Build HOOKS field with initial hooks + inherited parent hooks

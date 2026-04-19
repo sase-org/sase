@@ -527,3 +527,115 @@ def test_compute_suffixed_cl_name_no_double_prefix() -> None:
         assert result == "myproj_fix_bug_1"
     finally:
         os.unlink(project_file)
+
+
+def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
+    """Bogus parent (not in active file, not in archive) is dropped with a warning.
+
+    Regression guard: previously ``PARENT: p4head`` (or any other unresolvable
+    string) would be written verbatim into the generated ChangeSpec. Now the
+    PARENT line is omitted entirely when the parent does not resolve.
+    """
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="child_feature",
+                description="Child description",
+                parent="p4head",  # hg sentinel — not a ChangeSpec name
+                cl_url="http://cl/22222",
+            )
+
+        assert result is not None
+
+        with open(project_file, encoding="utf-8") as f:
+            content = f.read()
+
+        # The bogus PARENT value must not appear anywhere.
+        assert "PARENT: p4head" not in content
+        assert "PARENT:" not in content
+
+        # Parser agrees the ChangeSpec has no parent.
+        changespecs = parse_project_file(project_file)
+        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        assert child_cs.parent is None
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_keeps_parent_when_in_archive() -> None:
+    """Parent in the archive (terminal CS) is valid — PARENT line is kept."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+    archive_file = project_file[:-3] + "-archive.gp"
+    with open(archive_file, "w", encoding="utf-8") as f:
+        f.write(
+            "NAME: submitted_parent\n"
+            "DESCRIPTION:\n  Parent that was submitted\n"
+            "STATUS: Submitted\n"
+        )
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="child_feature",
+                description="Child description",
+                parent="submitted_parent",
+                cl_url="http://cl/55555",
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        assert child_cs.parent == "submitted_parent"
+    finally:
+        os.unlink(project_file)
+        if os.path.isfile(archive_file):
+            os.unlink(archive_file)
+
+
+def test_add_changespec_keeps_real_active_parent() -> None:
+    """A real active parent still produces ``PARENT: <name>`` at the right spot."""
+    parent_content = (
+        "NAME: parent_feature\n"
+        "DESCRIPTION:\n  Parent description\n"
+        "CL: http://cl/11111\n"
+        "STATUS: Draft\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(parent_content)
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="child_feature",
+                description="Child description",
+                parent="parent_feature",
+                cl_url="http://cl/22222",
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        child_cs = next(c for c in changespecs if c.name == "child_feature_1")
+        assert child_cs.parent == "parent_feature"
+    finally:
+        os.unlink(project_file)

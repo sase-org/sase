@@ -102,6 +102,11 @@ Specifies the dependency relationship between CLs.
 - Omit this field entirely - This CL has no dependencies (default, preferred for parallelization)
 - `<parent_cl_name>` - The NAME of a parent CL that must be completed first
 
+The PARENT field is a ChangeSpec **name** — never a VCS ref. Values like `origin/main`, `origin/master`, or the
+Mercurial sentinel `p4head` are not valid here; they describe checkout targets for the VCS, not dependency relationships
+between CLs. "No parent ChangeSpec" is represented by omitting the field entirely. `sase commit` drops the PARENT field
+and warns when the value passed via `-p` does not resolve to an existing ChangeSpec.
+
 **Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field is automatically set if the
 current branch corresponds to an existing ChangeSpec. This can be overridden with the `-p`/`--parent` flag (see
 [commit_workflows.md](commit_workflows.md) for details).

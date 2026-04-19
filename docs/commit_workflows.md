@@ -32,17 +32,17 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
 
 ### CLI Arguments
 
-| Short | Long                | Description                                                                                |
-| ----- | ------------------- | ------------------------------------------------------------------------------------------ |
-| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                       |
-| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`) |
-| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                              |
-| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                                        |
-| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                                             |
-| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                             |
-| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                    |
-| `-p`  | `--parent`          | Parent ChangeSpec name (overrides auto-detection from current branch)                      |
-| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                      |
+| Short | Long                | Description                                                                                                                                                                                                                                                                 |
+| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                        |
+| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                                  |
+| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                               |
+| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                                                                                                                                                                                                                         |
+| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                                                                                                                                                                                                                              |
+| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                              |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                     |
+| `-p`  | `--parent`          | Parent ChangeSpec **name** (overrides auto-detection from current branch). Must be an existing ChangeSpec in the active project file or archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
+| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                       |
 
 #### Type Aliases
 

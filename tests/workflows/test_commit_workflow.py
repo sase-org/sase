@@ -338,6 +338,74 @@ def test_explicit_parent_skips_auto_detect() -> None:
     mock_detect.assert_not_called()
 
 
+def test_unresolvable_explicit_parent_is_dropped() -> None:
+    """Bogus ``-p`` values (e.g., a VCS ref like ``p4head``) get dropped early.
+
+    Regression: previously the string was threaded through to the ChangeSpec
+    PARENT field verbatim. Now the workflow verifies the parent resolves and
+    warns + clears it when it does not.
+    """
+    wf = CommitWorkflow(
+        payload={"name": "child_cl", "parent": "p4head"},
+        method="create_pull_request",
+    )
+    wf._base_cl_name = "child_cl"
+    mock_provider = MagicMock()
+    mock_provider.create_pull_request.return_value = (False, "stopped")
+    mock_provider.is_sync_in_progress.return_value = False
+    mock_provider.get_conflicted_files.return_value = []
+    with (
+        patch("sase.workflows.commit.workflow.handle_beads"),
+        patch("sase.workflows.commit.workflow.handle_sase_plan"),
+        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
+        patch("sase.workflows.commit.workflow.append_pr_tags"),
+        patch("sase.workflows.commit.workflow.build_pr_body"),
+        patch(
+            "sase.workflows.commit.workflow.get_vcs_provider",
+            return_value=mock_provider,
+        ),
+        patch(
+            "sase.workflows.commit.workflow._explicit_parent_resolves",
+            return_value=False,
+        ),
+    ):
+        wf.run()
+    assert wf._parent_cl_name is None
+    assert "parent" not in wf._payload
+
+
+def test_resolvable_explicit_parent_is_kept() -> None:
+    """A real existing parent name is kept when the resolver confirms it."""
+    wf = CommitWorkflow(
+        payload={"name": "child_cl", "parent": "real_parent"},
+        method="create_pull_request",
+    )
+    wf._base_cl_name = "child_cl"
+    mock_provider = MagicMock()
+    mock_provider.create_pull_request.return_value = (False, "stopped")
+    mock_provider.is_sync_in_progress.return_value = False
+    mock_provider.get_conflicted_files.return_value = []
+    with (
+        patch("sase.workflows.commit.workflow.handle_beads"),
+        patch("sase.workflows.commit.workflow.handle_sase_plan"),
+        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
+        patch("sase.workflows.commit.workflow.append_pr_tags"),
+        patch("sase.workflows.commit.workflow.build_pr_body"),
+        patch(
+            "sase.workflows.commit.workflow.get_vcs_provider",
+            return_value=mock_provider,
+        ),
+        patch(
+            "sase.workflows.commit.workflow._explicit_parent_resolves",
+            return_value=True,
+        ),
+    ):
+        wf.run()
+    assert wf._parent_cl_name == "real_parent"
+
+
 # --- _append_commits_entry (human CLI path, no env vars) ---
 
 
