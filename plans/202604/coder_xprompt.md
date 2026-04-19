@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-19 16:46:54
-status: wip
+status: done
 ---
 
 # Plan: Add `#coder` builtin xprompt
