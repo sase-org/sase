@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-19 15:29:09
-status: wip
+status: done
 ---
 
 # Plan: Drop `#resume:<planner>` from Coder Agent Prompts to Fix "Prompt is too long"

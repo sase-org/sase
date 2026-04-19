@@ -395,11 +395,12 @@ def handle_plan_marker(
 
                 if has_model_directive(plan_result.coder_prompt):
                     model_prefix = ""
-        # Prepend #resume so the coder inherits the planner's conversation.
-        # state.agent_step was just incremented for the coder, so the
-        # planner is step - 1.
+        # By default the coder starts with a fresh context window; the plan
+        # file itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1
+        # to restore the old behavior of prepending #resume:<planner_name> so
+        # the coder inherits the planner's full chat transcript.
         resume_prefix = ""
-        if ctx.agent_name:
+        if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
             if state.agent_step == 2:
                 planner_name = f"{ctx.agent_name}.plan"
             else:

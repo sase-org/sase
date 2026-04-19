@@ -317,14 +317,46 @@ class TestModelInheritance:
         assert "Additional instructions:" in state.current_prompt
         assert "#foo\ncustom" in state.current_prompt
 
-    def test_coder_prompt_includes_resume_prefix(self, tmp_path) -> None:
-        """Coder prompt prepends #resume:<planner_name> for named agents."""
+    def test_coder_prompt_excludes_resume_prefix_by_default(self, tmp_path) -> None:
+        """Coder prompt does NOT prepend #resume:<planner_name> by default."""
         state = self._run(tmp_path, action="approve", agent_model="opus")
-        # agent_name is "test_agent", agent_step was 0 -> incremented to 1 for
-        # planner (promote_to_workflow) then 2 for coder, so planner = step-1 = 1
+        assert "#resume:" not in state.current_prompt
+        plan_ref = f"@{tmp_path / 'plan.md'}"
+        assert plan_ref in state.current_prompt
+        # Model prefix still leads the prompt.
+        assert state.current_prompt.startswith("%model:opus\n")
+
+    def test_coder_prompt_preserves_resume_when_env_set(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #resume behavior."""
+        monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
+        state = self._run(tmp_path, action="approve", agent_model="opus")
         assert "#resume:test_agent.plan " in state.current_prompt
-        # Must appear after %model and before vcs_prefix
         assert state.current_prompt.startswith("%model:opus\n#resume:test_agent.plan ")
+
+    def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
+        """Q&A round (agent_step > 2) also drops #resume by default."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        state.agent_step = 2  # simulate a prior Q&A round; coder runs at step 3
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert "#resume:" not in state.current_prompt
+        assert f"@{plan_file}" in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""
