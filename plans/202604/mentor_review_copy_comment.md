@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-19 17:00:10
-status: wip
+status: done
 ---
 
 # Plan: Add `y` Copy-Comment Keymap to Mentor Review Modal

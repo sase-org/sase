@@ -52,6 +52,7 @@ class MentorReviewModal(
         ("space", "toggle_accept", "Toggle accept"),
         ("a", "apply_propose", "Apply + propose"),
         ("A", "apply_commit", "Apply + commit"),
+        ("y", "copy_comment", "Copy comment"),
         ("r", "run_profile", "Run mentor profile"),
         ("K", "kill_mentor", "Kill mentor"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -362,6 +363,7 @@ class MentorReviewModal(
             ("\u2423", "toggle"),
             ("a", "apply+propose"),
             ("A", "apply+commit"),
+            ("y", "copy"),
             ("K", "kill"),
             ("r", "run"),
             ("q", "close"),
@@ -524,6 +526,25 @@ class MentorReviewModal(
                 mode="propose",
             )
         )
+
+    # -- Copy --
+
+    def action_copy_comment(self) -> None:
+        """Copy current comment's file:line + description to clipboard (y)."""
+        mentor = self._current_mentor()
+        if not mentor or not mentor.comments:
+            return
+        comment = mentor.comments[self._comment_idx]
+        content = (
+            f"{comment['file_path']}:{comment['line_number']}\n{comment['description']}"
+        )
+
+        from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+
+        if copy_to_system_clipboard(content):
+            self.app.notify("Copied comment to clipboard")
+        else:
+            self.app.notify("Failed to copy to clipboard", severity="error")
 
     # -- Kill --
 

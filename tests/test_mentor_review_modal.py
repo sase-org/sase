@@ -1,6 +1,9 @@
 """Tests for the Mentor Review modal data building and navigation logic."""
 
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from sase.ace.mentor_output import (
     MentorAcceptanceState,
@@ -18,6 +21,25 @@ from sase.ace.tui.modals.mentor_review_models import (
     build_mentor_review_data,
 )
 from sase.ace.tui.modals.mentor_review_modal import MentorReviewModal
+
+
+class _FakeApp:
+    """Minimal stand-in for Textual App that records notify() calls."""
+
+    def __init__(self) -> None:
+        self.notifications: list[tuple[str, str]] = []
+
+    def notify(self, msg: str, *, severity: str = "information", **_: Any) -> None:
+        self.notifications.append((msg, severity))
+
+
+def _install_fake_app(
+    monkeypatch: pytest.MonkeyPatch, modal: MentorReviewModal
+) -> _FakeApp:
+    """Shadow Textual's DOMNode.app property with a fake app for testing."""
+    fake = _FakeApp()
+    monkeypatch.setattr(type(modal), "app", fake, raising=False)
+    return fake
 
 
 # ── MentorReviewData ──────────────────────────────────────────────────────
@@ -623,3 +645,75 @@ def test_kill_produces_result_for_running_mentor() -> None:
     assert result.mentor_name == "quality"
     assert result.profile_name == "code"
     assert result.cl_name == "my-cl"
+
+
+# ── Copy comment action (y) ─────────────────────────────────────────────
+
+
+def test_copy_comment_copies_current(monkeypatch: pytest.MonkeyPatch) -> None:
+    """y copies the current comment's file:line and description to clipboard."""
+    data = _make_modal_data([3])
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 1
+    fake_app = _install_fake_app(monkeypatch, modal)
+
+    captured: list[str] = []
+
+    def fake_copy(content: str) -> bool:
+        captured.append(content)
+        return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", fake_copy
+    )
+
+    modal.action_copy_comment()
+
+    assert len(captured) == 1
+    assert "file_1.py:2" in captured[0]
+    assert "Comment 1" in captured[0]
+    assert fake_app.notifications == [("Copied comment to clipboard", "information")]
+
+
+def test_copy_comment_no_op_when_mentor_has_no_comments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """y on a mentor with no comments is a silent no-op."""
+    data = _make_modal_data([0])
+    modal = MentorReviewModal(data)
+    fake_app = _install_fake_app(monkeypatch, modal)
+
+    called = False
+
+    def fake_copy(_content: str) -> bool:
+        nonlocal called
+        called = True
+        return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", fake_copy
+    )
+
+    modal.action_copy_comment()
+
+    assert called is False
+    assert fake_app.notifications == []
+
+
+def test_copy_comment_notifies_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """y reports an error when the clipboard helper fails."""
+    data = _make_modal_data([2])
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    fake_app = _install_fake_app(monkeypatch, modal)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard",
+        lambda _content: False,
+    )
+
+    modal.action_copy_comment()
+
+    assert fake_app.notifications == [("Failed to copy to clipboard", "error")]
