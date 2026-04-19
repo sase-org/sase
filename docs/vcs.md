@@ -45,7 +45,10 @@ The hooks are organized into several groups:
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
-  methods dispatched by `CommitWorkflow`)
+  methods dispatched by `CommitWorkflow`), plus `vcs_finalize_commit` (replays idempotent post-commit work — bead amend,
+  push-with-retry — when `sase commit --resume` finishes a workflow whose dispatch was interrupted by a merge conflict;
+  plugins that cannot safely replay finalization can leave this unimplemented, and the workflow will only replay its
+  tracking steps). See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
 - **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_get_change_url`
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
   `vcs_get_cl_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,

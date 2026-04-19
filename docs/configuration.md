@@ -682,18 +682,23 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase commit`
 
-| Flag                  | Values | Default            | Description                                                   |
-| --------------------- | ------ | ------------------ | ------------------------------------------------------------- |
-| `cl_name`             | string | (required)         | CL name for the commit.                                       |
-| `[file_path]`         | path   | -                  | File containing the CL description (opens editor if omitted). |
-| `-b, --bug`           | string | auto-detected      | Bug number for the `BUG=` tag.                                |
-| `-B, --fixed-bug`     | string | -                  | Bug number for the `FIXED=` tag.                              |
-| `-c, --chat`          | path   | -                  | Chat file path for the COMMITS entry.                         |
-| `-m, --message`       | string | -                  | Commit message (mutually exclusive with file_path).           |
-| `-n, --note`          | string | `"Initial Commit"` | Custom note for the initial COMMITS entry.                    |
-| `-p, --project`       | string | auto-detected      | Project name prefix.                                          |
-| `-t, --timestamp`     | string | -                  | Shared timestamp (YYmmdd_HHMMSS format).                      |
-| `-e, --end-timestamp` | string | -                  | End timestamp for duration calculation.                       |
+Dispatches a commit, proposal, or PR via the VCS provider layer. See [commit_workflows.md](commit_workflows.md) for the
+full flow, payload, checkpoint, and resume semantics.
+
+| Flag                    | Values                        | Default                 | Description                                                                                      |
+| ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `payload`               | JSON string                   | -                       | JSON payload (message, name, files, bead_id). Ignored when `--resume` is set.                    |
+| `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                                   |
+| `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).              |
+| `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                           |
+| `-n, --name`            | string                        | -                       | Branch/CL name (required for `create_pull_request`).                                             |
+| `-b, --bead-id`         | string                        | -                       | Bead ID to close and associate with the commit.                                                  |
+| `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                             |
+| `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                                    |
+| `-p, --parent`          | ChangeSpec name               | auto                    | Parent ChangeSpec name (overrides branch-based auto-detection). Unresolvable values are dropped. |
+| `-r, --resume`          | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                        |
+| `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | ChangeSpec status override for PRs.                                                              |
+| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.          |
 
 ### `sase search`
 

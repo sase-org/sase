@@ -712,6 +712,13 @@ APPROVED once the user approves it:
 Refactor the authentication module to use the new middleware.
 ```
 
+Once the plan is approved, sase launches a follow-up **coder** agent whose prompt is built from the `#coder` built-in
+xprompt (see [sase/xprompts/coder.md](../src/sase/xprompts/coder.md)). `#coder` takes the approved plan file as its
+`plan_file` input, injects it with `@`, and instructs the agent to implement the plan. By default the coder does _not_
+inherit the planner's chat transcript — the plan file is the hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1`
+to restore the old behavior, in which case a `#resume:<planner_name>` reference is prepended to the coder prompt so it
+resumes the planner's session.
+
 ### Repeat Directive
 
 The `%repeat` directive runs the same prompt multiple times. The argument is a positive integer specifying the repeat
@@ -724,16 +731,21 @@ Run lint checks on the codebase.
 ```
 
 This launches 3 independent agents — each spawned with its own process, workspace, and `agent_meta.json`, appearing as
-its own top-level entry in the Agents tab. The slot numbers are appended to the `%name` base (`linter.1`, `linter.2`,
-`linter.3`); when `%name` is omitted the auto-assigned base is used (e.g. `a.1`, `a.2`, `a.3`). Each iteration exposes
-two Jinja2 variables:
+its own top-level entry in the Agents tab. Fan-out happens at launch time: the directive is consumed when the agents are
+spawned, so there is no outer loop or TUI affordance ticking through iterations. The slot numbers are appended to the
+`%name` base (`linter.1`, `linter.2`, `linter.3`); when `%name` is omitted the auto-assigned base is used (e.g. `a.1`,
+`a.2`, `a.3`).
+
+Each iteration exposes two iteration-scoped named arguments in the agent's workflow:
 
 | Variable | Meaning                                   | Example with `%repeat:5` |
 | -------- | ----------------------------------------- | ------------------------ |
 | `n`      | Current iteration (1-based)               | 1, 2, 3, 4, 5            |
 | `N`      | Total iterations (the `%repeat` argument) | 5                        |
 
-These can be used in the prompt body:
+These are threaded through via the `SASE_REPEAT_ITERATION` and `SASE_REPEAT_TOTAL` environment variables — the agent
+runner reads them, converts to ints, and passes them as named args into the workflow so they appear as Jinja2 variables
+in the prompt body:
 
 ```
 %repeat:5

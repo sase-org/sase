@@ -19,7 +19,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | -------------------------- | -------------------------------------------------------------- |
 | `QUERY` (positional)       | Query string for filtering ChangeSpecs                         |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 8, 0 to disable)    |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
@@ -177,6 +177,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `a`                 | Apply accepted comments and propose (amend with propose) |
 | `A`                 | Apply accepted comments and commit                       |
 | `r`                 | Run a mentor profile (opens profile picker)              |
+| `y`                 | Copy the current comment to the clipboard                |
 | `Shift+K`           | Kill a running mentor                                    |
 | `Esc` / `q`         | Close modal                                              |
 
@@ -539,6 +540,9 @@ When viewing agent files on the Agents tab, large files are automatically trimme
 indicator shows "N more lines below" when content is trimmed. Trim controls (`-`, `=`) are listed in the
 [Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
 data.
+
+Pressing `G` on a trimmed file auto-expands it first, then scrolls to the bottom — so jumping to the end of a large file
+never leaves you staring at a trimmed page.
 
 ## Agent Auto-Naming
 
@@ -976,5 +980,8 @@ references rather than expanding static templates.
 
 ## Auto-Refresh
 
-ACE auto-refreshes data at a configurable interval (default: 8 seconds). The remaining time until the next refresh is
+ACE auto-refreshes data at a configurable interval (default: 10 seconds). The remaining time until the next refresh is
 shown in the info panel. Set `--refresh-interval 0` to disable.
+
+Tab switches are instant: cached data is shown immediately while a background refresh runs asynchronously, so moving
+between tabs never blocks on disk I/O.

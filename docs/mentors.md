@@ -192,6 +192,7 @@ comments and lets you accept or reject individual suggestions.
 | `a`                 | Apply accepted comments and propose (amend with propose) |
 | `A`                 | Apply accepted comments and commit                       |
 | `r`                 | Run a mentor profile (opens profile picker)              |
+| `y`                 | Copy the current comment to the clipboard                |
 | `Shift+K`           | Kill a running mentor                                    |
 | `Esc` / `q`         | Close modal                                              |
 

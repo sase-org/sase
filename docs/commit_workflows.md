@@ -42,6 +42,8 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
 | `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                              |
 | `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                     |
 | `-p`  | `--parent`          | Parent ChangeSpec **name** (overrides auto-detection from current branch). Must be an existing ChangeSpec in the active project file or archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
+| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                            |
+| `-s`  | `--status`          | ChangeSpec status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                       |
 | `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                       |
 
 #### Type Aliases
@@ -227,6 +229,58 @@ The three dispatch methods are defined in `VCSHookSpec` and implemented by each 
 | `HgPlugin`      | `hg commit` + mail | `sase_hg_clean`   | Not supported natively    |
 
 All methods return `tuple[bool, str | None]` (success flag and optional result string).
+
+Plugins that support resume also implement `vcs_finalize_commit(payload, cwd)`, which re-runs the idempotent portion of
+a commit (bead amend, push with retry) after a previously-checkpointed workflow has had its merge conflicts resolved by
+hand. See [Resume after Conflict](#resume-after-conflict) below for how this fits into the overall flow. Providers that
+cannot safely replay finalization (e.g., Mercurial today) can leave it unimplemented — `CommitWorkflow.resume` catches
+the `NotImplementedError` and only replays the tracking steps.
+
+## Run Result
+
+`CommitWorkflow.run()` and `CommitWorkflow.resume()` return a `RunResult` with three states:
+
+| State      | Exit code | Meaning                                                                         |
+| ---------- | --------- | ------------------------------------------------------------------------------- |
+| `OK`       | `0`       | Commit succeeded end-to-end (or resume replayed tracking).                      |
+| `FAILED`   | `1`       | Unrecoverable failure — bail out, no checkpoint is left behind on fatal errors. |
+| `CONFLICT` | `2`       | VCS dispatch hit a merge conflict; a checkpoint is left on disk for resume.     |
+
+The `sase commit` CLI propagates these states to its process exit code, so wrapper skills (`/sase_git_commit`) can
+branch on `$?` to distinguish a real failure from a conflict that the user needs to resolve.
+
+## Resume after Conflict
+
+`CommitWorkflow` persists its progress to a checkpoint file so that a dispatch interrupted by a merge conflict can be
+finished by hand without re-running the whole flow:
+
+```
+SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running under a workflow
+~/.sase/commit_state/<session>.json               # fallback when no artifacts dir is set
+```
+
+**Normal flow:**
+
+1. `CommitWorkflow.run()` snapshots its resolved state (payload, CL name, project file, diff path, reserved name, parent
+   CL) to the checkpoint **before** calling the VCS dispatch method.
+2. If dispatch succeeds, the checkpoint is updated with the dispatch result, tracking steps run, and the file is deleted
+   on success.
+3. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint is retained and the CLI prints:
+
+   > `create_commit` hit a merge conflict: ... Resolve the conflict, then run `sase commit --resume` to finish.
+
+**Resume flow (`sase commit --resume`):**
+
+1. Load the checkpoint from disk (if missing, the command errors out).
+2. Re-check the working tree for conflict markers — if they're still present, refuse to continue with `CONFLICT`.
+3. Verify the commit at `HEAD` matches the subject line from the checkpointed message. If it doesn't, abort with
+   `FAILED`; the user is expected to re-run `sase commit` from scratch rather than resume into a foreign commit.
+4. Call the provider's `vcs_finalize_commit` hook to replay idempotent post-commit work (bead amend, push with retry).
+5. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the snapshotted payload.
+6. Delete the checkpoint on success.
+
+Resume is VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs. Skills emit the on-conflict
+instructions automatically, so agents know to hand control back to the user rather than retry blindly.
 
 ## Environment Variables
 
