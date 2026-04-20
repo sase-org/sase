@@ -18,7 +18,11 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sase.agent.names import NameCollisionError, reserve_repeat_name_base
+from sase.agent.names import (
+    NameCollisionError,
+    reserve_repeat_name_base,
+    wait_for_agent_completion,
+)
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
@@ -150,14 +154,17 @@ def spawn_repeat_batch(
     prompt: str,
     *,
     base_spawn_fn: Callable[[RepeatAgentSpec], None],
-    sleep_between: float = 1.0,
+    sleep_between: float = 0.25,
 ) -> list[RepeatAgentSpec]:
-    """Resolve names + call *base_spawn_fn* once per repeat slot.
+    """Resolve names + call *base_spawn_fn* once per repeat slot, sequentially.
 
     *base_spawn_fn* receives a :class:`RepeatAgentSpec` and is responsible
     for every launch-site concern (workspace claim, timestamp, env-var
-    injection).  Returns the specs actually spawned, or an empty list when
-    *prompt* has no ``%r:N`` directive (or ``N <= 1``).
+    injection).  After each spawn, blocks on
+    :func:`wait_for_agent_completion` until the just-spawned agent writes
+    ``done.json`` or its PID dies — only then is the next spec spawned.
+    Returns the specs actually spawned, or an empty list when *prompt*
+    has no ``%r:N`` directive (or ``N <= 1``).
 
     Raises :class:`NameCollisionError` if an explicit base name collides
     with a currently-active agent.
@@ -178,9 +185,12 @@ def spawn_repeat_batch(
         for k in range(1, count + 1)
     ]
 
+    last = len(specs) - 1
     for i, spec in enumerate(specs):
-        if i > 0 and sleep_between > 0:
-            time.sleep(sleep_between)
         base_spawn_fn(spec)
+        if i < last:
+            wait_for_agent_completion(spec.name)
+            if sleep_between > 0:
+                time.sleep(sleep_between)
 
     return specs

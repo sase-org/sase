@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-20 18:48:16
-status: wip
+status: done
 ---
 
 # Plan: Fix `%repeat` directive to run agents sequentially

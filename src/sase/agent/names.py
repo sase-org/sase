@@ -6,12 +6,16 @@ assigned name (via %name directive or manual TUI naming).
 
 import itertools
 import json
+import logging
 import os
 import re
 import string
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 class _AgentRefError(Exception):
@@ -538,6 +542,94 @@ def is_process_alive(meta: dict[str, object], artifact_dir: Path) -> bool:
         pass
 
     return True
+
+
+def _find_artifact_dir_by_name(name: str) -> Path | None:
+    """Return the artifact dir for *name*, regardless of liveness/done state.
+
+    Unlike :func:`find_named_agent`, this matches on ``name`` alone and does
+    not filter out dead-without-done agents — callers that have just spawned
+    a subprocess need to see the artifact dir even if the process already
+    crashed, so they can recognize completion via PID-death.
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return None
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+            if isinstance(data, dict) and data.get("name") == name:
+                return artifact_dir
+    return None
+
+
+def wait_for_agent_completion(
+    name: str,
+    *,
+    poll_interval: float = 2.0,
+    find_timeout: float = 60.0,
+) -> None:
+    """Block until the agent named *name* finishes (done.json or PID death).
+
+    Phase 1 polls for the agent's artifact dir — the subprocess may take a
+    moment to write ``agent_meta.json`` after spawn.  If the directory
+    never appears within *find_timeout* seconds, logs a warning and returns
+    (the first spawn likely failed, but we shouldn't hang the whole batch).
+
+    Phase 2 polls that directory for either ``done.json`` (normal
+    completion) or a dead PID (crashed without writing ``done.json``).
+    Both count as "complete" — a crashed agent must not block the
+    remainder of the batch.
+    """
+    deadline = time.monotonic() + find_timeout
+    artifact_dir: Path | None = None
+    while True:
+        artifact_dir = _find_artifact_dir_by_name(name)
+        if artifact_dir is not None:
+            break
+        if time.monotonic() >= deadline:
+            log.warning(
+                "wait_for_agent_completion: artifact dir for %r never appeared "
+                "within %.1fs; proceeding",
+                name,
+                find_timeout,
+            )
+            return
+        time.sleep(poll_interval)
+
+    while True:
+        if (artifact_dir / "done.json").exists():
+            return
+
+        meta_path = artifact_dir / "agent_meta.json"
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return
+
+        if not isinstance(meta, dict):
+            return
+
+        if not is_process_alive(meta, artifact_dir):
+            return
+
+        time.sleep(poll_interval)
 
 
 def _name_sequence() -> Iterator[str]:
