@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-20 13:32:36
-status: wip
+status: done
 ---
 
 # Plan: Fix `critique_comments` stderr-merge bug breaking `sase axe` comment polling
