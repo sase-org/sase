@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-20 19:22:29
-status: wip
+status: done
 ---
 
 # Sequential `%repeat` via `%wait` Chain

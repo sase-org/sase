@@ -143,6 +143,40 @@ class TestSpawnRepeatBatch:
                 )
         assert sleep_calls == [0.25, 0.25, 0.25]  # N-1 sleeps
 
+    def test_first_iteration_has_no_wait(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 %n:ww do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert specs[0].prompt.startswith("%n:ww.1\n")
+        assert "%wait:ww" not in specs[0].prompt
+
+    def test_later_iterations_wait_on_predecessor(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:4 %n:ww do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert specs[1].prompt.startswith("%n:ww.2\n%wait:ww.1\n")
+        assert specs[2].prompt.startswith("%n:ww.3\n%wait:ww.2\n")
+        assert specs[3].prompt.startswith("%n:ww.4\n%wait:ww.3\n")
+
+    def test_preexisting_user_wait_is_preserved(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:2 %n:ww %wait:other do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        # The user's %wait:other survives prompt cleanup and coexists with
+        # the injected %wait:ww.1 for iteration 2.
+        assert "%wait:other" in specs[0].prompt
+        assert "%wait:other" in specs[1].prompt
+        assert "%wait:ww.1" in specs[1].prompt
+
     def test_explicit_base_collision_raises(self, tmp_path: Path) -> None:
         project_dir = (
             tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"

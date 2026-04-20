@@ -159,6 +159,11 @@ def spawn_repeat_batch(
     injection).  Returns the specs actually spawned, or an empty list when
     *prompt* has no ``%r:N`` directive (or ``N <= 1``).
 
+    Iterations 2..N have a ``%wait:<prev_name>`` directive prepended to
+    their prompt so each agent blocks until its predecessor completes —
+    turning the fan-out into a sequential chain coordinated at the agent
+    level, not in the launcher.
+
     Raises :class:`NameCollisionError` if an explicit base name collides
     with a currently-active agent.
     """
@@ -173,7 +178,11 @@ def spawn_repeat_batch(
             name=f"{base}.{k}",
             iteration=k,
             total=count,
-            prompt=f"%n:{base}.{k}\n{prompt_stripped}",
+            prompt=(
+                f"%n:{base}.{k}\n{prompt_stripped}"
+                if k == 1
+                else f"%n:{base}.{k}\n%wait:{base}.{k - 1}\n{prompt_stripped}"
+            ),
         )
         for k in range(1, count + 1)
     ]
