@@ -93,12 +93,11 @@ class TestSpawnRepeatBatch:
     def test_calls_spawn_fn_n_times(self, tmp_path: Path) -> None:
         calls: list[RepeatAgentSpec] = []
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                specs = spawn_repeat_batch(
-                    "%r:3 %n:zz do X",
-                    base_spawn_fn=calls.append,
-                    sleep_between=0.0,
-                )
+            specs = spawn_repeat_batch(
+                "%r:3 %n:zz do X",
+                base_spawn_fn=calls.append,
+                sleep_between=0.0,
+            )
         assert len(specs) == 3
         assert [s.name for s in specs] == ["zz.1", "zz.2", "zz.3"]
         assert [s.iteration for s in specs] == [1, 2, 3]
@@ -107,12 +106,11 @@ class TestSpawnRepeatBatch:
 
     def test_specs_have_n_injected(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                specs = spawn_repeat_batch(
-                    "%r:2 %n:aa do Y",
-                    base_spawn_fn=lambda _s: None,
-                    sleep_between=0.0,
-                )
+            specs = spawn_repeat_batch(
+                "%r:2 %n:aa do Y",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
         assert specs[0].prompt.startswith("%n:aa.1")
         assert specs[1].prompt.startswith("%n:aa.2")
         assert "do Y" in specs[0].prompt
@@ -124,75 +122,26 @@ class TestSpawnRepeatBatch:
                 "sase.agent.repeat_launcher.reserve_repeat_name_base",
                 return_value="c",
             ):
-                with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                    specs = spawn_repeat_batch(
-                        "%r:2 do X",
-                        base_spawn_fn=lambda _s: None,
-                        sleep_between=0.0,
-                    )
-        assert [s.name for s in specs] == ["c.1", "c.2"]
-
-    def test_waits_between_spawns_sequentially(self, tmp_path: Path) -> None:
-        """spawn_k+1 must only run after wait_k — no fan-out."""
-        events: list[tuple[str, str]] = []
-
-        def fake_spawn(spec: RepeatAgentSpec) -> None:
-            events.append(("spawn", spec.name))
-
-        def fake_wait(name: str) -> None:
-            events.append(("wait", name))
-
-        with patch.object(Path, "home", return_value=tmp_path):
-            with patch(
-                "sase.agent.repeat_launcher.wait_for_agent_completion",
-                side_effect=fake_wait,
-            ):
-                spawn_repeat_batch(
-                    "%r:3 %n:qq do X",
-                    base_spawn_fn=fake_spawn,
-                    sleep_between=0.0,
-                )
-
-        assert events == [
-            ("spawn", "qq.1"),
-            ("wait", "qq.1"),
-            ("spawn", "qq.2"),
-            ("wait", "qq.2"),
-            ("spawn", "qq.3"),
-        ]
-
-    def test_no_wait_after_last_spawn(self, tmp_path: Path) -> None:
-        """Don't wait after the last agent — nothing to gate on."""
-        wait_calls: list[str] = []
-
-        with patch.object(Path, "home", return_value=tmp_path):
-            with patch(
-                "sase.agent.repeat_launcher.wait_for_agent_completion",
-                side_effect=wait_calls.append,
-            ):
-                spawn_repeat_batch(
-                    "%r:3 %n:pp do X",
+                specs = spawn_repeat_batch(
+                    "%r:2 do X",
                     base_spawn_fn=lambda _s: None,
                     sleep_between=0.0,
                 )
+        assert [s.name for s in specs] == ["c.1", "c.2"]
 
-        assert wait_calls == ["pp.1", "pp.2"]  # N-1 waits
-
-    def test_sleep_cushion_after_each_wait(self, tmp_path: Path) -> None:
-        """Keep a small cushion between completion and next spawn."""
+    def test_stagger_sleep(self, tmp_path: Path) -> None:
         sleep_calls: list[float] = []
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                with patch(
-                    "sase.agent.repeat_launcher.time.sleep",
-                    side_effect=sleep_calls.append,
-                ):
-                    spawn_repeat_batch(
-                        "%r:4 %n:qq do X",
-                        base_spawn_fn=lambda _s: None,
-                        sleep_between=0.25,
-                    )
-        assert sleep_calls == [0.25, 0.25, 0.25]  # N-1 cushions
+            with patch(
+                "sase.agent.repeat_launcher.time.sleep",
+                side_effect=lambda s: sleep_calls.append(s),
+            ):
+                spawn_repeat_batch(
+                    "%r:4 %n:qq do X",
+                    base_spawn_fn=lambda _s: None,
+                    sleep_between=0.25,
+                )
+        assert sleep_calls == [0.25, 0.25, 0.25]  # N-1 sleeps
 
     def test_explicit_base_collision_raises(self, tmp_path: Path) -> None:
         project_dir = (

@@ -94,14 +94,13 @@ class TestLaunchRepeatAgents:
     def test_spawns_n_agents_with_repeat_envs(self, tmp_path: Path) -> None:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                app._launch_repeat_agents(
-                    prompt="%r:3 %n:foo body",
-                    ctx=_fake_context(),
-                    vcs_ref=None,
-                    has_wait=False,
-                )
-                _join_threads()
+            app._launch_repeat_agents(
+                prompt="%r:3 %n:foo body",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+            _join_threads()
 
         assert len(app.launched) == 3
         names = [call["extra_env"]["SASE_REPEAT_NAME"] for call in app.launched]  # type: ignore[index]
@@ -120,14 +119,13 @@ class TestLaunchRepeatAgents:
     def test_prompt_has_repeat_stripped_and_name_injected(self, tmp_path: Path) -> None:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                app._launch_repeat_agents(
-                    prompt="%r:2 %n:bar do Y",
-                    ctx=_fake_context(),
-                    vcs_ref=None,
-                    has_wait=False,
-                )
-                _join_threads()
+            app._launch_repeat_agents(
+                prompt="%r:2 %n:bar do Y",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+            _join_threads()
 
         assert len(app.launched) == 2
         for idx, call in enumerate(app.launched, start=1):
@@ -161,14 +159,13 @@ class TestLaunchRepeatAgents:
 
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("sase.agent.repeat_launcher.wait_for_agent_completion"):
-                app._launch_repeat_agents(
-                    prompt="%r:3 %n:zz body",
-                    ctx=_fake_context(),
-                    vcs_ref=None,
-                    has_wait=False,
-                )
-                _join_threads()
+            app._launch_repeat_agents(
+                prompt="%r:3 %n:zz body",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+            _join_threads()
 
         error_notifications = [
             msg for msg, severity in app.notifications if severity == "error"
