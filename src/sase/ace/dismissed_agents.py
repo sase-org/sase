@@ -131,6 +131,27 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
 
     agents: list[Agent] = []
     if suffixes is not None:
+        # Single directory scan → map raw_suffix → list of child filenames.
+        # Raw suffixes are 14-digit timestamps that never contain ``__c``;
+        # child filenames always have the form ``{suffix}__c{index}.json``.
+        child_files_by_suffix: dict[str, list[str]] = {}
+        import os
+
+        try:
+            with os.scandir(_DISMISSED_BUNDLES_DIR) as it:
+                for entry in it:
+                    name = entry.name
+                    if not name.endswith(".json"):
+                        continue
+                    stem = name[: -len(".json")]
+                    marker = stem.find("__c")
+                    if marker == -1:
+                        continue
+                    raw_suffix = stem[:marker]
+                    child_files_by_suffix.setdefault(raw_suffix, []).append(name)
+        except OSError:
+            return []
+
         for suffix in suffixes:
             # Load parent bundle
             filepath = _DISMISSED_BUNDLES_DIR / f"{suffix}.json"
@@ -138,8 +159,8 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
             if agent is not None:
                 agents.append(agent)
             # Load child bundles (e.g. {suffix}__c0.json, {suffix}__c1.json)
-            for child_path in _DISMISSED_BUNDLES_DIR.glob(f"{suffix}__c*.json"):
-                child = _load_bundle_file(child_path)
+            for child_name in child_files_by_suffix.get(suffix, []):
+                child = _load_bundle_file(_DISMISSED_BUNDLES_DIR / child_name)
                 if child is not None:
                     agents.append(child)
     else:

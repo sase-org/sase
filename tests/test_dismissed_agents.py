@@ -194,6 +194,92 @@ def test_bundle_load_by_suffixes(tmp_path: Path) -> None:
         assert suffixes == {"20250615100000", "20250615120000"}
 
 
+def test_bundle_load_by_suffixes_with_children(tmp_path: Path) -> None:
+    """Parent and child bundles are both returned when suffix is requested."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="cl_1",
+            raw_suffix="20250615100000",
+            workflow="wf",
+        )
+        child0 = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="cl_1",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=0,
+        )
+        child1 = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="cl_1",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=1,
+        )
+        unrelated = _make_agent(cl_name="cl_2", raw_suffix="20250615110000")
+        save_dismissed_bundle(parent)
+        save_dismissed_bundle(child0)
+        save_dismissed_bundle(child1)
+        save_dismissed_bundle(unrelated)
+
+        loaded = load_dismissed_bundles({"20250615100000"})
+        assert len(loaded) == 3
+        step_indices = sorted(a.step_index for a in loaded if a.step_index is not None)
+        assert step_indices == [0, 1]
+
+
+def test_bundle_load_by_suffixes_child_only(tmp_path: Path) -> None:
+    """Child-only suffix (no parent .json) still returns children."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        child0 = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="cl_1",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=0,
+        )
+        save_dismissed_bundle(child0)
+
+        loaded = load_dismissed_bundles({"20250615100000"})
+        assert len(loaded) == 1
+        assert loaded[0].step_index == 0
+
+
+def test_bundle_load_by_suffixes_ignores_unrelated_files(tmp_path: Path) -> None:
+    """Files that don't match the suffix patterns are ignored."""
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    # Create files that should be ignored
+    (bundles_dir / "README.txt").write_text("notes")
+    (bundles_dir / "no_extension").write_text("{}")
+    # Create an unrelated bundle file with a different suffix
+    unrelated_path = bundles_dir / "99999999999999.json"
+    unrelated_path.write_text("{}")
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(raw_suffix="20250615100000")
+        save_dismissed_bundle(agent)
+
+        loaded = load_dismissed_bundles({"20250615100000"})
+        assert len(loaded) == 1
+        assert loaded[0].raw_suffix == "20250615100000"
+
+
 def test_bundle_no_limit(tmp_path: Path) -> None:
     """Test that all bundles are preserved (no trimming)."""
     bundles_dir = tmp_path / "bundles"

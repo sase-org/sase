@@ -21,6 +21,12 @@ from ._loading_helpers import (
     load_agents_from_disk,
 )
 
+# Per-process cache of artifact dirs already reconciled by the loader's
+# self-healing pass.  First call inspects the dir (and may call
+# ``delete_agent_artifacts``); subsequent full reloads skip it, saving the
+# stat/glob syscalls when many dismissed agents accumulate.
+_CLEANED_ARTIFACT_DIRS: set[str] = set()
+
 
 class AgentLoadingMixin:
     """Mixin providing agent loading and filtering methods.
@@ -186,6 +192,8 @@ class AgentLoadingMixin:
 
         # Self-healing: clean up stale artifacts only for loader-sourced
         # dismissed agents (bundle-sourced agents have no artifacts to clean)
+        from pathlib import Path
+
         from ._killing import delete_agent_artifacts
 
         loader_identities = {a.identity for a in dismissed_from_loader}
@@ -196,7 +204,15 @@ class AgentLoadingMixin:
             if a.identity in loader_identities or (
                 a.raw_suffix is not None and a.raw_suffix in loader_suffixes
             ):
-                delete_agent_artifacts(a.artifacts_dir or a.get_artifacts_dir())
+                artifacts_dir = a.artifacts_dir or a.get_artifacts_dir()
+                if artifacts_dir is None or artifacts_dir in _CLEANED_ARTIFACT_DIRS:
+                    continue
+                if not Path(artifacts_dir).is_dir():
+                    # Directory gone — already cleaned by an earlier dismiss.
+                    _CLEANED_ARTIFACT_DIRS.add(artifacts_dir)
+                    continue
+                delete_agent_artifacts(artifacts_dir)
+                _CLEANED_ARTIFACT_DIRS.add(artifacts_dir)
 
         # Auto-dismiss hidden agents that have completed successfully.
         # Failed agents are kept visible so the user can investigate.

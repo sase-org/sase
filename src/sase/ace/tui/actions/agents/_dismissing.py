@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -33,10 +34,64 @@ class AgentDismissingMixin:
     # Agent state
     _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _dismissed_agent_objects: list[Agent]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+
+    def _apply_dismissal_in_memory(self, agents: Iterable[Agent]) -> None:
+        """Update in-memory agent state after a dismiss without a disk reload.
+
+        Removes the dismissed agents (and workflow-child steps when the
+        dismissed agent is a workflow parent) from the cached unfiltered
+        agent list, appends them to ``_dismissed_agent_objects`` for
+        same-session revive, and re-runs the in-memory filter pipeline.
+        """
+        from ...models.agent import AgentType
+
+        agents_list = list(agents)
+        if not agents_list:
+            self._refilter_agents()  # type: ignore[attr-defined]
+            return
+
+        removed: list[Agent] = list(agents_list)
+        removed_identities: set[tuple[AgentType, str, str | None]] = {
+            a.identity for a in agents_list
+        }
+
+        # Include workflow child steps when dismissing a workflow parent
+        for agent in agents_list:
+            if (
+                agent.agent_type == AgentType.WORKFLOW
+                and not agent.is_workflow_child
+                and agent.raw_suffix is not None
+            ):
+                for step in self._agents_with_children:
+                    if (
+                        step.is_workflow_child
+                        and step.parent_timestamp == agent.raw_suffix
+                        and step.parent_workflow == agent.workflow
+                        and step.identity not in removed_identities
+                    ):
+                        removed.append(step)
+                        removed_identities.add(step.identity)
+
+        # Remove from cached unfiltered list
+        self._agents_with_children = [
+            a
+            for a in self._agents_with_children
+            if a.identity not in removed_identities
+        ]
+
+        # Append to dismissed objects list for same-session revive (dedupe by identity)
+        existing_identities = {a.identity for a in self._dismissed_agent_objects}
+        for agent in removed:
+            if agent.identity not in existing_identities:
+                self._dismissed_agent_objects.append(agent)
+                existing_identities.add(agent.identity)
+
+        self._refilter_agents()  # type: ignore[attr-defined]
 
     def _save_agent_bundle(self, agent: Agent) -> None:
         """Save a serialized bundle of agent data before artifact deletion.
@@ -168,7 +223,7 @@ class AgentDismissingMixin:
         count = len(agents)
         s = "s" if count != 1 else ""
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
-        self._load_agents()  # type: ignore[attr-defined]
+        self._apply_dismissal_in_memory(agents)
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
@@ -252,7 +307,7 @@ class AgentDismissingMixin:
 
                 save_dismissed_agents(self._dismissed_agents)
 
-            self._load_agents()  # type: ignore[attr-defined]
+            self._apply_dismissal_in_memory([agent])
             return
 
         # Handle ChangeSpec-loaded agents (hooks, mentors, CRS)
@@ -264,7 +319,7 @@ class AgentDismissingMixin:
             self.notify(  # type: ignore[attr-defined]
                 f"Dismissed agent for {agent.cl_name}"
             )
-            self._load_agents()  # type: ignore[attr-defined]
+            self._apply_dismissal_in_memory([agent])
             return
 
         # Save bundle before deleting artifacts (for revive support)
@@ -278,4 +333,4 @@ class AgentDismissingMixin:
         self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
 
         # Refresh agents list
-        self._load_agents()  # type: ignore[attr-defined]
+        self._apply_dismissal_in_memory([agent])
