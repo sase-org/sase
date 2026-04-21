@@ -36,6 +36,20 @@ class RetryTracker:
     using_fallback: bool = False
 
 
+def _maybe_prepend_continuation(state: LoopState, cfg: ProviderRetryConfig) -> None:
+    """Prepend the retry continuation nudge to the current prompt if set.
+
+    Idempotent: if the nudge is already at the head of the prompt, it is
+    not re-applied (guards against compounding across multiple retries).
+    """
+    nudge = cfg.continuation_prompt
+    if not nudge or not state.current_prompt:
+        return
+    if state.current_prompt.startswith(nudge):
+        return
+    state.current_prompt = f"{nudge}\n\n{state.current_prompt}"
+
+
 def handle_workflow_error(
     exc: Exception,
     tracker: RetryTracker,
@@ -69,6 +83,7 @@ def handle_workflow_error(
         # Retry with wait
         tracker.retry_count += 1
         LLM_RETRIES.labels(provider=ctx.agent_llm_provider or "unknown").inc()
+        _maybe_prepend_continuation(state, active_retry_cfg)
         wait_time = get_wait_time(tracker.retry_count, active_retry_cfg)
         RetryState(
             status="retrying",

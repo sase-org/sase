@@ -14,6 +14,11 @@ from sase.llm_provider.retry_config import (
     is_retryable_error,
 )
 
+# Provider name guaranteed to have no built-in or user config — used to
+# assert "truly unconfigured" behavior now that some providers ship with
+# built-in defaults (e.g. claude's "Prompt is too long" recovery).
+_UNCONFIGURED_PROVIDER = "fake-unconfigured-provider"
+
 
 # --- ProviderRetryConfig tests ---
 
@@ -25,6 +30,7 @@ class TestProviderRetryConfig:
         assert config.error_patterns == []
         assert config.wait_times == [30]
         assert config.fallback_model is None
+        assert config.continuation_prompt is None
 
     def test_custom_values(self) -> None:
         config = ProviderRetryConfig(
@@ -32,11 +38,13 @@ class TestProviderRetryConfig:
             error_patterns=["rate limit", "503"],
             wait_times=[30, 60, 120],
             fallback_model="gemini-3-flash-preview",
+            continuation_prompt="resume where you left off",
         )
         assert config.max_retries == 3
         assert config.error_patterns == ["rate limit", "503"]
         assert config.wait_times == [30, 60, 120]
         assert config.fallback_model == "gemini-3-flash-preview"
+        assert config.continuation_prompt == "resume where you left off"
 
 
 # --- get_retry_config tests ---
@@ -78,7 +86,7 @@ class TestGetRetryConfig:
                 }
             }
         }
-        assert get_retry_config("claude") is None
+        assert get_retry_config(_UNCONFIGURED_PROVIDER) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_partial_config_uses_defaults(self, mock_config: object) -> None:
@@ -99,17 +107,17 @@ class TestGetRetryConfig:
         self, mock_config: object
     ) -> None:
         mock_config.return_value = {}  # type: ignore[union-attr]
-        assert get_retry_config("gemini") is None
+        assert get_retry_config(_UNCONFIGURED_PROVIDER) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_returns_none_when_retry_section_missing(self, mock_config: object) -> None:
         mock_config.return_value = {"llm_provider": {"provider": "gemini"}}  # type: ignore[union-attr]
-        assert get_retry_config("gemini") is None
+        assert get_retry_config(_UNCONFIGURED_PROVIDER) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_returns_none_on_exception(self, mock_config: object) -> None:
         mock_config.side_effect = RuntimeError("config error")  # type: ignore[union-attr]
-        assert get_retry_config("gemini") is None
+        assert get_retry_config(_UNCONFIGURED_PROVIDER) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_empty_fallback_model_becomes_none(self, mock_config: object) -> None:
@@ -196,6 +204,132 @@ class TestFindRetryConfigForError:
     def test_returns_none_on_exception(self, mock_config: object) -> None:
         mock_config.side_effect = RuntimeError("broken")  # type: ignore[union-attr]
         assert find_retry_config_for_error("any error") is None
+
+
+# --- Built-in default tests ---
+
+
+class TestBuiltInDefaults:
+    """Built-in retry defaults for universal failure modes."""
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_claude_built_in_returned_without_user_config(
+        self, mock_config: object
+    ) -> None:
+        """claude gets a built-in 'Prompt is too long' recovery config."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.max_retries == 3
+        assert "Prompt is too long" in config.error_patterns
+        assert config.wait_times == [0]
+        assert config.continuation_prompt is not None
+        assert "context window" in config.continuation_prompt
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_built_in_returned_when_exception(self, mock_config: object) -> None:
+        """Even if user config can't be loaded, built-ins still apply."""
+        mock_config.side_effect = RuntimeError("broken")  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.max_retries == 3
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_appends_custom_pattern_to_built_in(self, mock_config: object) -> None:
+        """User patterns are unioned with built-in patterns, deduplicated."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {
+                        "error_patterns": ["my custom pattern", "Prompt is too long"],
+                    }
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        # Built-in pattern appears exactly once (dedup'd) and order preserved:
+        # built-in first, then new user patterns.
+        assert config.error_patterns == ["Prompt is too long", "my custom pattern"]
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_explicit_max_retries_zero_disables(self, mock_config: object) -> None:
+        """User explicitly setting max_retries=0 disables even built-in retries."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"max_retries": 0},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.max_retries == 0  # user's explicit 0 wins over built-in 3
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_unset_max_retries_uses_built_in(self, mock_config: object) -> None:
+        """When user doesn't set max_retries, the built-in value is used."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"error_patterns": ["other"]},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.max_retries == 3  # from built-in
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_empty_continuation_prompt_overrides(
+        self, mock_config: object
+    ) -> None:
+        """User setting continuation_prompt='' disables the built-in nudge."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"continuation_prompt": ""},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.continuation_prompt == ""
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_custom_continuation_prompt_wins(self, mock_config: object) -> None:
+        """User-set continuation_prompt replaces the built-in nudge."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"continuation_prompt": "my custom nudge"},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.continuation_prompt == "my custom nudge"
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_built_in_clone_is_defensive(self, mock_config: object) -> None:
+        """Mutating a returned built-in must not affect later calls."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        first = get_retry_config("claude")
+        assert first is not None
+        first.error_patterns.append("not really a pattern")
+
+        second = get_retry_config("claude")
+        assert second is not None
+        assert "not really a pattern" not in second.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_find_retry_config_picks_up_built_in(self, mock_config: object) -> None:
+        """find_retry_config_for_error checks built-in providers too."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = find_retry_config_for_error("API Error: 400 - Prompt is too long")
+        assert config is not None
+        assert config.max_retries == 3
+        assert "Prompt is too long" in config.error_patterns
 
 
 # --- is_retryable_error tests ---

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-21 19:09:06
-status: wip
+status: done
 ---
 
 # Plan: Auto-Recover Coder Agents from "Prompt is too long" via Checkpoint-Restart
