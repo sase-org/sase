@@ -10,6 +10,7 @@ import pytest
 from sase.main import init_skills_handler
 from sase.main.init_skills_handler import (
     _deploy_to_chezmoi,
+    _get_target_path,
     handle_init_skills_command,
 )
 
@@ -435,3 +436,34 @@ def test_handler_propagates_deploy_exit_code(
         handle_init_skills_command(_make_args())
 
     assert exc.value.code == 1
+
+
+# === Tests for _get_target_path provider → deploy-path mapping ===
+
+
+def test_get_target_path_claude_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Claude deploys to ~/.claude/skills/<name>/SKILL.md."""
+    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
+    target = _get_target_path("claude", "foo", use_chezmoi=False)
+    assert target == Path("/home/u/.claude/skills/foo/SKILL.md")
+
+
+def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Claude under chezmoi deploys to <CHEZMOI_HOME>/dot_claude/skills/..."""
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
+    target = _get_target_path("claude", "foo", use_chezmoi=True)
+    assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
+
+
+def test_get_target_path_jetski_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Jetski skills land under ~/.gemini/jetski/, sharing the Gemini parent."""
+    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
+    target = _get_target_path("jetski", "foo", use_chezmoi=False)
+    assert target == Path("/home/u/.gemini/jetski/skills/foo/SKILL.md")
+
+
+def test_get_target_path_jetski_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Jetski under chezmoi: only the first segment is dot-prefixed."""
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
+    target = _get_target_path("jetski", "foo", use_chezmoi=True)
+    assert target == Path("/c/home/dot_gemini/jetski/skills/foo/SKILL.md")

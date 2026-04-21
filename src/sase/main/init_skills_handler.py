@@ -14,7 +14,7 @@ from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 
-ALL_PROVIDERS = ["claude", "gemini", "codex"]
+ALL_PROVIDERS = ["claude", "gemini", "codex", "jetski"]
 
 PROVIDER_CONTEXT: dict[str, dict[str, str]] = {
     "claude": {
@@ -32,6 +32,21 @@ PROVIDER_CONTEXT: dict[str, dict[str, str]] = {
         "provider_tool_name": "Codex",
         "provider_native_ask_tool": "ask_user",
     },
+    "jetski": {
+        "provider_name": "Jetski",
+        "provider_tool_name": "Jetski CLI",
+        # TODO: confirm native ask-tool name on Cloudtop (open question 6).
+        "provider_native_ask_tool": "ask_user",
+    },
+}
+
+# Provider → subdirectory under ``~/`` (or under ``CHEZMOI_HOME``) where
+# skills deploy. Providers not listed default to ``f".{provider}"``.
+#
+# Jetski shares the ``~/.gemini/`` parent with Gemini CLI by design — don't
+# "fix" this to ``~/.jetski/``.
+_SKILL_DEPLOY_SUBPATH: dict[str, str] = {
+    "jetski": ".gemini/jetski",
 }
 
 
@@ -46,9 +61,14 @@ def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
 
 def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
     """Return the deployment path for a skill file."""
+    subpath = _SKILL_DEPLOY_SUBPATH.get(provider, f".{provider}")
     if use_chezmoi:
-        return CHEZMOI_HOME / f"dot_{provider}" / "skills" / skill_name / "SKILL.md"
-    return Path.home() / f".{provider}" / "skills" / skill_name / "SKILL.md"
+        # Only the first path segment is a dotfile under chezmoi; nested
+        # directories keep their plain names.
+        parts = subpath.split("/")
+        parts[0] = "dot_" + parts[0].removeprefix(".")
+        return CHEZMOI_HOME / Path(*parts) / "skills" / skill_name / "SKILL.md"
+    return Path.home() / subpath / "skills" / skill_name / "SKILL.md"
 
 
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)

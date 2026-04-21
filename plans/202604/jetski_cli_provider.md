@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-21 17:32:51
-status: wip
+status: done
 ---
 
 # Add `JetskiProvider` LLM Backend (keeping Gemini CLI)

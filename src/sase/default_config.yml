@@ -220,6 +220,12 @@ llm_provider:
         - "overloaded_error"
       wait_times: [60, 300, 1800]
       fallback_model: "sonnet"
+    jetski:
+      max_retries: 3
+      error_patterns:
+        - "An unexpected critical error occurred:"
+      wait_times: [60, 300, 1800]
+      fallback_model: "" # TODO: fill in once canonical Jetski model names are confirmed
 
 vcs_provider:
   provider: "auto"

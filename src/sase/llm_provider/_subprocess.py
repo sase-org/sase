@@ -6,8 +6,11 @@ import re
 import select
 import subprocess
 import sys
+import threading
+import time
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from collections.abc import Mapping
+from pathlib import Path
 from typing import IO
 
 # Matches ANSI escape sequences: CSI, OSC, charset selection, and other
@@ -58,6 +61,39 @@ def _write_usage_artifact(usage_totals: dict[str, int]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(usage_totals, f, indent=2)
         f.write("\n")
+
+
+def start_interrupt_monitor(
+    process: subprocess.Popen[str],
+    on_interrupt: Callable[[str | None], None],
+) -> None:
+    """Spin a daemon thread that watches for interrupt_request.json.
+
+    When the file appears, invoke ``on_interrupt(message)`` with the
+    ``"message"`` field from the JSON, unlink the file, and call
+    ``process.terminate()``. Reads ``SASE_ARTIFACTS_DIR`` from the
+    environment; no-op if unset.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+
+    interrupt_path = Path(artifacts_dir) / "interrupt_request.json"
+
+    def _monitor_interrupt() -> None:
+        while process.poll() is None:
+            if interrupt_path.exists():
+                try:
+                    data = json.loads(interrupt_path.read_text(encoding="utf-8"))
+                    on_interrupt(data.get("message"))
+                    interrupt_path.unlink(missing_ok=True)
+                    process.terminate()
+                except (OSError, json.JSONDecodeError):
+                    pass
+                return
+            time.sleep(1.0)
+
+    threading.Thread(target=_monitor_interrupt, daemon=True).start()
 
 
 def stream_process_output(

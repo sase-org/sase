@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sase.output import gemini_timer
 
-from ._subprocess import stream_and_parse_json_output
+from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
 
@@ -183,31 +183,10 @@ class ClaudeCodeProvider(LLMProvider):
             process.stdin.write(prompt)
             process.stdin.close()
 
-        # Interrupt monitor: watch for interrupt_request.json from TUI
-        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-        if artifacts_dir:
-            import json
-            import threading
-            import time
-
-            interrupt_path = Path(artifacts_dir) / "interrupt_request.json"
-
-            def _monitor_interrupt() -> None:
-                while process.poll() is None:
-                    if interrupt_path.exists():
-                        try:
-                            data = json.loads(
-                                interrupt_path.read_text(encoding="utf-8")
-                            )
-                            self._pending_interrupt_message = data.get("message")
-                            interrupt_path.unlink(missing_ok=True)
-                            process.terminate()
-                        except (OSError, json.JSONDecodeError):
-                            pass
-                        return
-                    time.sleep(1.0)
-
-            threading.Thread(target=_monitor_interrupt, daemon=True).start()
+        start_interrupt_monitor(
+            process,
+            on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
+        )
 
         # Stream JSON output and extract assistant text
         return stream_and_parse_json_output(process, suppress_output=suppress_output)

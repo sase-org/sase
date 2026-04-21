@@ -35,7 +35,7 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
 }
 
 # Pattern for explicit provider/model syntax, e.g. "codex/o3"
-_PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini)/(.+)$")
+_PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini|jetski)/(.+)$")
 
 
 def register_provider(name: str, provider_class: type[LLMProvider]) -> None:
@@ -125,17 +125,18 @@ def get_default_provider_name() -> str:
 
     Returns:
         The configured default provider name, or auto-detected provider.
-        Prefers claude if available on PATH, then codex, falls back to gemini.
+        Auto-detect priority: claude → codex → jetski → gemini.
     """
     config = get_llm_provider_config()
     provider = config.get("provider")
     if provider:
         return provider
-    # Auto-detect: prefer claude, then codex, fall back to gemini
     if shutil.which("claude"):
         return "claude"
     if shutil.which("codex"):
         return "codex"
+    if shutil.which("jetski-cli"):
+        return "jetski"
     return "gemini"
 
 
@@ -144,10 +145,12 @@ def _register_builtin_providers() -> None:
     from .claude import ClaudeCodeProvider
     from .codex import CodexProvider
     from .gemini import GeminiProvider
+    from .jetski import JetskiProvider
 
     register_provider("claude", ClaudeCodeProvider)
     register_provider("codex", CodexProvider)
     register_provider("gemini", GeminiProvider)
+    register_provider("jetski", JetskiProvider)
 
 
 # Auto-register built-in providers on module import

@@ -1,10 +1,7 @@
-"""Gemini LLM provider implementation."""
+"""Jetski (Google successor to Gemini CLI) LLM provider implementation."""
 
 import os
-import pty
 import subprocess
-import termios
-import time
 from pathlib import Path
 
 from sase.output import gemini_timer
@@ -13,17 +10,35 @@ from ._subprocess import start_interrupt_monitor, stream_process_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
 
-_DEFAULT_MODEL = "gemini-3-flash-preview"
+# Default install path for the Jetski CLI binary (from Jetski install docs).
+# Users can override with SASE_JETSKI_PATH, or place ``jetski-cli`` on PATH.
+_DEFAULT_BINARY = "/google/bin/releases/jetski-devs/tools/cli"
+
+# TODO(open-question-3): replace with canonical Jetski model name once the
+# Cloudtop spike confirms it.
+_DEFAULT_MODEL = "jetski-default"
 
 
-def _gemini_bin() -> str:
-    """Return the path to the Gemini CLI binary."""
-    return os.environ.get("SASE_GEMINI_PATH", "gemini")
+def _jetski_bin() -> str:
+    """Return the path to the Jetski CLI binary.
+
+    Resolution order:
+    1. ``SASE_JETSKI_PATH`` env var.
+    2. ``/google/bin/releases/jetski-devs/tools/cli`` if present on disk.
+    3. ``"jetski-cli"`` (PATH lookup, for users who aliased the long path).
+    """
+    env_path = os.environ.get("SASE_JETSKI_PATH")
+    if env_path:
+        return env_path
+    if Path(_DEFAULT_BINARY).exists():
+        return _DEFAULT_BINARY
+    return "jetski-cli"
 
 
 def _log_interrupt(message: str, cycle: int) -> None:
     """Append an entry to the interrupt log in the artifacts directory."""
     import json
+    import time
 
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -40,13 +55,17 @@ def _log_interrupt(message: str, cycle: int) -> None:
         pass
 
 
-class GeminiProvider(LLMProvider):
-    """LLM provider that invokes Google's Gemini CLI tool."""
+class JetskiProvider(LLMProvider):
+    """LLM provider that invokes Google's Jetski CLI tool."""
 
     _pending_interrupt_message: str | None = None
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:  # noqa: ARG002
-        """Return the Gemini model name."""
+        """Return the Jetski model name.
+
+        TODO(open-question-3): map ``model_tier`` to tier-specific models once
+        canonical Jetski model names are confirmed.
+        """
         return _DEFAULT_MODEL
 
     def invoke(
@@ -57,11 +76,11 @@ class GeminiProvider(LLMProvider):
         suppress_output: bool = False,
         model_override: str | None = None,
     ) -> InvokeResult:
-        """Invoke Gemini CLI with the given prompt.
+        """Invoke Jetski CLI with the given prompt.
 
         Args:
             prompt: The preprocessed prompt to send.
-            model_tier: Unused. Accepted for interface compatibility.
+            model_tier: Unused pending tier mapping (open question 3).
             suppress_output: If True, suppress real-time output to console.
             model_override: If set, use this model instead of the default.
 
@@ -69,19 +88,20 @@ class GeminiProvider(LLMProvider):
             An ``InvokeResult`` with the response text (usage is ``None``).
 
         Raises:
-            subprocess.CalledProcessError: If the Gemini CLI process fails.
+            subprocess.CalledProcessError: If the Jetski CLI process fails.
         """
         model = model_override or _DEFAULT_MODEL
 
+        # TODO(open-question-2): confirm ``--model`` is accepted in ``-p`` mode.
         base_args = [
-            _gemini_bin(),
-            "--yolo",
+            _jetski_bin(),
+            "-p",
             "--model",
             model,
         ]
 
         timer_context = (
-            gemini_timer("Waiting for Gemini") if not suppress_output else None
+            gemini_timer("Waiting for Jetski") if not suppress_output else None
         )
 
         current_prompt = prompt
@@ -100,14 +120,17 @@ class GeminiProvider(LLMProvider):
                     base_args, current_prompt, suppress_output
                 )
 
-            # Check for user interrupt before error handling
+            # Check for user interrupt before error handling.
             if self._pending_interrupt_message is not None:
                 user_msg = self._pending_interrupt_message
                 self._pending_interrupt_message = None
                 cycle += 1
                 _log_interrupt(user_msg, cycle)
                 accumulated_response += response_content
-                # Gemini has no session persistence — reconstruct context
+                # TODO(open-question-4): if Jetski ``-p`` supports
+                # ``--continue`` / ``--conversation <id>``, switch to
+                # Claude-style session resume. Until confirmed, fall back to
+                # Gemini-style context rebuild.
                 current_prompt = (
                     f"{prompt}\n\n"
                     f"--- Your Previous Response ---\n{accumulated_response}\n\n"
@@ -137,11 +160,7 @@ class GeminiProvider(LLMProvider):
         prompt: str,
         suppress_output: bool,
     ) -> tuple[str, str, int]:
-        """Run the Gemini CLI subprocess.
-
-        Uses a PTY for stdout so that the Gemini CLI uses line-buffered
-        output (instead of block-buffered pipes), enabling real-time
-        streaming into ``live_reply.md`` for the TUI.
+        """Run the Jetski CLI subprocess.
 
         Args:
             args: Command-line arguments.
@@ -151,41 +170,14 @@ class GeminiProvider(LLMProvider):
         Returns:
             Tuple of (stdout_content, stderr_content, return_code).
         """
-        # Create a PTY pair so Gemini CLI sees a terminal on stdout and
-        # flushes output line-by-line instead of block-buffering.
-        master_fd, slave_fd = pty.openpty()
-
-        # Disable output post-processing (OPOST) to prevent the PTY
-        # line discipline from converting \n → \r\n.
-        try:
-            attrs = termios.tcgetattr(slave_fd)
-            attrs[1] &= ~termios.OPOST
-            termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
-        except termios.error:
-            pass
-
-        env = os.environ.copy()
-        env["TERM"] = "dumb"
-        env["NO_COLOR"] = "1"
-
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
-            stdout=slave_fd,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=env,
         )
-        os.close(slave_fd)  # Parent doesn't need the slave end
 
-        # Wrap the PTY master as a text stream so stream_process_output
-        # can read from it exactly like a regular pipe.
-        pty_stdout = open(  # noqa: SIM115
-            master_fd, encoding="utf-8", closefd=True
-        )
-        process.stdout = pty_stdout  # type: ignore[assignment]
-
-        # Write prompt to stdin
         if process.stdin:
             process.stdin.write(prompt)
             process.stdin.close()
@@ -195,11 +187,9 @@ class GeminiProvider(LLMProvider):
             on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
         )
 
-        # Stream output in real-time with ANSI stripping (the PTY may
-        # cause Gemini CLI to emit terminal control codes).
-        try:
-            return stream_process_output(
-                process, suppress_output=suppress_output, clean_ansi=True
-            )
-        finally:
-            pty_stdout.close()
+        # TODO(open-question-1): Jetski output-format parsing. If ``-p`` emits
+        # JSON/NDJSON, swap this for a dedicated parser and populate
+        # ``InvokeResult.usage`` (open question 5).
+        return stream_process_output(
+            process, suppress_output=suppress_output, clean_ansi=True
+        )
