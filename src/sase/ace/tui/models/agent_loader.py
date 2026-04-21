@@ -160,6 +160,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     - DONE → PLAN APPROVED: parent has active follow-up children
     - DONE → PLAN DONE: plan workflow where all follow-ups completed
     - DONE → PLANNING: plan workflow with no follow-up spawned yet
+    - DONE → QUESTION: agent submitted a question that was never answered
     """
     completed_statuses = {"DONE", "FAILED"}
 
@@ -281,6 +282,19 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                 agent.status = "RUNNING"
             else:
                 agent.status = "PLANNING"
+
+    # Override DONE → QUESTION for agents whose last question was never answered.
+    # The .q follow-up is created only AFTER a response is received, so its
+    # absence with a recorded questions_submitted_at means polling was killed
+    # before the user answered.
+    for agent in agents:
+        if (
+            agent.status == "DONE"
+            and agent.questions_times
+            and agent.raw_suffix
+            and agent.raw_suffix not in parents_with_followup
+        ):
+            agent.status = "QUESTION"
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in agents:

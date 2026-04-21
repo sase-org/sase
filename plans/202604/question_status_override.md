@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-21 16:30:38
-status: wip
+status: done
 ---
 
 # Fix: Agents with Unanswered Questions Incorrectly Show DONE Instead of QUESTION

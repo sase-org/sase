@@ -468,3 +468,64 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     _apply_status_overrides(agents)
 
     assert parent.status == "PLAN APPROVED"
+
+
+def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (
+    None
+):
+    """A DONE agent with questions_times and no .q follow-up becomes QUESTION."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 21, 16, 4, 27),
+        raw_suffix="20260421160427",
+        questions_times=[datetime(2026, 4, 21, 16, 17, 4)],
+    )
+    agents = [agent]
+    _apply_status_overrides(agents)
+
+    assert agent.status == "QUESTION"
+
+
+def test_apply_status_overrides_done_with_answered_question_stays_done() -> None:
+    """A DONE agent with a .q follow-up stays DONE (question was answered)."""
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 21, 16, 4, 27),
+        raw_suffix="20260421160427",
+        questions_times=[datetime(2026, 4, 21, 16, 17, 4)],
+    )
+    q_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 21, 16, 20, 0),
+        parent_timestamp="20260421160427",
+        role_suffix=".q",
+    )
+    agents = [parent, q_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "DONE"
+
+
+def test_apply_status_overrides_done_without_questions_stays_done() -> None:
+    """A DONE agent with empty questions_times stays DONE."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 21, 16, 4, 27),
+        raw_suffix="20260421160427",
+    )
+    agents = [agent]
+    _apply_status_overrides(agents)
+
+    assert agent.status == "DONE"
