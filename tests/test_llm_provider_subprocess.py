@@ -39,6 +39,7 @@ def test_start_interrupt_monitor_fires_callback_and_terminates(
     assert _wait_until(lambda: bool(received))
     assert received == ["stop work"]
     assert _wait_until(lambda: not interrupt_path.exists())
+    assert _wait_until(lambda: process.terminate.called)
     process.terminate.assert_called_once()
 
 
@@ -103,4 +104,5 @@ def test_start_interrupt_monitor_missing_message_field(
     assert _wait_until(lambda: bool(received))
     assert received == [None]
     assert _wait_until(lambda: not interrupt_path.exists())
+    assert _wait_until(lambda: process.terminate.called)
     process.terminate.assert_called_once()

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 10:17:40
-status: wip
+status: done
 ---
 
 # Fix flaky Python 3.14 CI failure in `test_start_interrupt_monitor_missing_message_field`
