@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 16:57:35
-status: wip
+status: done
 ---
 
 # Plan: Preserve agent file-panel selection across auto-refresh

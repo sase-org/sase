@@ -92,7 +92,18 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             self._pick_up_extra_files(agent)
             return
 
-        # Different agent or no cache -- full reset (existing behavior)
+        # Different agent or no cache -- full reset (existing behavior),
+        # except when same_agent=True we preserve the user's current file by
+        # path identity so auto-refresh doesn't clobber a <ctrl+n>/<ctrl+p>
+        # selection.
+        saved_path: str | None = None
+        if (
+            same_agent
+            and self._file_list
+            and 0 <= self._current_file_index < len(self._file_list)
+        ):
+            saved_path = self._file_list[self._current_file_index]
+
         self._reset_trim_state()
         self._current_file_index = 0
         self._current_agent = agent
@@ -106,6 +117,8 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                 self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
             else:
                 self._file_list = list(agent.extra_files)
+            if saved_path is not None and saved_path in self._file_list:
+                self._current_file_index = self._file_list.index(saved_path)
             self.post_message(
                 FileListChanged(
                     file_count=len(self._file_list),
@@ -167,11 +180,25 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # full reset (which would leave this static file list on screen).
         self._current_agent = None
 
-        if files == self._file_list and start_index == self._current_file_index:
+        if files == self._file_list and self._file_list:
+            # Files unchanged — preserve the user's current_file_index regardless
+            # of the caller's default start_index. Auto-refresh must not overwrite
+            # a user selection driven by <ctrl+n>/<ctrl+p>.
             return
+
+        # Remember the file the user is currently on so we can preserve the
+        # selection across refreshes where the list has grown/shrunk but the
+        # current file still exists.
+        old_path: str | None = None
+        if self._file_list and 0 <= self._current_file_index < len(self._file_list):
+            old_path = self._file_list[self._current_file_index]
+
         self._reset_trim_state()
         self._file_list = list(files)
-        self._current_file_index = min(start_index, len(files) - 1) if files else 0
+        if old_path is not None and old_path in self._file_list:
+            self._current_file_index = self._file_list.index(old_path)
+        else:
+            self._current_file_index = min(start_index, len(files) - 1) if files else 0
         self.post_message(
             FileListChanged(
                 file_count=len(self._file_list),
