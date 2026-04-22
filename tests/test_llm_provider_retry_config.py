@@ -31,6 +31,7 @@ class TestProviderRetryConfig:
         assert config.wait_times == [30]
         assert config.fallback_model is None
         assert config.continuation_prompt is None
+        assert config.preserve_workspace is False
 
     def test_custom_values(self) -> None:
         config = ProviderRetryConfig(
@@ -39,12 +40,14 @@ class TestProviderRetryConfig:
             wait_times=[30, 60, 120],
             fallback_model="gemini-3-flash-preview",
             continuation_prompt="resume where you left off",
+            preserve_workspace=True,
         )
         assert config.max_retries == 3
         assert config.error_patterns == ["rate limit", "503"]
         assert config.wait_times == [30, 60, 120]
         assert config.fallback_model == "gemini-3-flash-preview"
         assert config.continuation_prompt == "resume where you left off"
+        assert config.preserve_workspace is True
 
 
 # --- get_retry_config tests ---
@@ -225,6 +228,7 @@ class TestBuiltInDefaults:
         assert config.wait_times == [0]
         assert config.continuation_prompt is not None
         assert "context window" in config.continuation_prompt
+        assert config.preserve_workspace is True
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_built_in_returned_when_exception(self, mock_config: object) -> None:
@@ -321,6 +325,84 @@ class TestBuiltInDefaults:
         second = get_retry_config("claude")
         assert second is not None
         assert "not really a pattern" not in second.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_built_in_clone_copies_preserve_workspace(
+        self, mock_config: object
+    ) -> None:
+        """_clone_config defensively copies the preserve_workspace flag."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.preserve_workspace is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_unset_preserve_workspace_uses_built_in(
+        self, mock_config: object
+    ) -> None:
+        """User config without preserve_workspace inherits built-in True."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"error_patterns": ["other"]},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.preserve_workspace is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_explicit_preserve_workspace_false_overrides(
+        self, mock_config: object
+    ) -> None:
+        """User explicit preserve_workspace=False overrides built-in True."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {"preserve_workspace": False},
+                }
+            }
+        }
+        config = get_retry_config("claude")
+        assert config is not None
+        assert config.preserve_workspace is False
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_only_config_preserve_workspace_defaults_false(
+        self, mock_config: object
+    ) -> None:
+        """User-only provider with no preserve_workspace key defaults to False."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "gemini": {"max_retries": 2, "error_patterns": ["503"]},
+                }
+            }
+        }
+        config = get_retry_config("gemini")
+        assert config is not None
+        assert config.preserve_workspace is False
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_user_only_config_preserve_workspace_true(
+        self, mock_config: object
+    ) -> None:
+        """User-only provider can opt in to preserve_workspace=True."""
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "gemini": {
+                        "max_retries": 2,
+                        "error_patterns": ["503"],
+                        "preserve_workspace": True,
+                    },
+                }
+            }
+        }
+        config = get_retry_config("gemini")
+        assert config is not None
+        assert config.preserve_workspace is True
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_find_retry_config_picks_up_built_in(self, mock_config: object) -> None:

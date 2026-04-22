@@ -23,6 +23,7 @@ class ProviderRetryConfig:
     wait_times: list[int] = field(default_factory=lambda: [30])
     fallback_model: str | None = None
     continuation_prompt: str | None = None
+    preserve_workspace: bool = False
 
 
 @dataclass
@@ -99,6 +100,7 @@ _BUILT_IN_DEFAULTS: dict[str, ProviderRetryConfig] = {
         error_patterns=["Prompt is too long"],
         wait_times=[0],
         continuation_prompt=_CONTEXT_OVERFLOW_NUDGE,
+        preserve_workspace=True,
     ),
 }
 
@@ -122,6 +124,7 @@ def _clone_config(cfg: ProviderRetryConfig) -> ProviderRetryConfig:
         wait_times=list(cfg.wait_times),
         fallback_model=cfg.fallback_model,
         continuation_prompt=cfg.continuation_prompt,
+        preserve_workspace=cfg.preserve_workspace,
     )
 
 
@@ -148,14 +151,16 @@ def _config_from_user_dict(user_dict: dict[str, Any]) -> ProviderRetryConfig:
         wait_times=list(user_dict.get("wait_times", [30])),
         fallback_model=user_dict.get("fallback_model") or None,
         continuation_prompt=user_dict.get("continuation_prompt") or None,
+        preserve_workspace=bool(user_dict.get("preserve_workspace", False)),
     )
 
 
 def _merge_with_built_in(
     user_dict: dict[str, Any], built_in: ProviderRetryConfig
 ) -> ProviderRetryConfig:
-    # max_retries and continuation_prompt use key-presence checks so that
-    # explicit falsy user values (0, "") override the built-in defaults.
+    # max_retries, continuation_prompt, and preserve_workspace use key-presence
+    # checks so that explicit falsy user values (0, "", False) override the
+    # built-in defaults.
     max_retries = (
         user_dict["max_retries"] if "max_retries" in user_dict else built_in.max_retries
     )
@@ -163,6 +168,11 @@ def _merge_with_built_in(
         user_dict["continuation_prompt"]
         if "continuation_prompt" in user_dict
         else built_in.continuation_prompt
+    )
+    preserve_workspace = (
+        bool(user_dict["preserve_workspace"])
+        if "preserve_workspace" in user_dict
+        else built_in.preserve_workspace
     )
     return ProviderRetryConfig(
         max_retries=max_retries,
@@ -172,6 +182,7 @@ def _merge_with_built_in(
         wait_times=list(user_dict.get("wait_times") or []) or list(built_in.wait_times),
         fallback_model=user_dict.get("fallback_model") or built_in.fallback_model,
         continuation_prompt=continuation_prompt,
+        preserve_workspace=preserve_workspace,
     )
 
 

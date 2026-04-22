@@ -115,7 +115,11 @@ def handle_workflow_error(
             "retry_started_at",
             datetime.now(UTC).isoformat(),
         )
-        if ctx.update_target and not ctx.is_home_mode:
+        if (
+            ctx.update_target
+            and not ctx.is_home_mode
+            and not active_retry_cfg.preserve_workspace
+        ):
             prepare_workspace(
                 ctx.workspace_dir,
                 ctx.cl_name,
@@ -144,7 +148,11 @@ def handle_workflow_error(
             datetime.now(UTC).isoformat(),
         )
 
-        if ctx.update_target and not ctx.is_home_mode:
+        if (
+            ctx.update_target
+            and not ctx.is_home_mode
+            and not active_retry_cfg.preserve_workspace
+        ):
             prepare_workspace(
                 ctx.workspace_dir,
                 ctx.cl_name,

@@ -185,7 +185,9 @@ class TestHandleWorkflowErrorContinuation:
 
     def test_prepends_nudge_on_zero_wait_retry(self, tmp_path: Path) -> None:
         """Built-in default wait=0 still injects nudge and writes retry state."""
-        ctx = _make_ctx(tmp_path)
+        import dataclasses
+
+        ctx = dataclasses.replace(_make_ctx(tmp_path), update_target="origin/master")
         state = _make_state("Do the work.")
         # Use the built-in claude config
         from sase.llm_provider.retry_config import get_retry_config
@@ -205,7 +207,7 @@ class TestHandleWorkflowErrorContinuation:
             patch(
                 "sase.axe.run_agent_exec_retry.prepare_workspace",
                 MagicMock(),
-            ),
+            ) as mock_prepare,
         ):
             action = handle_workflow_error(
                 RuntimeError("API Error: 400 - Prompt is too long"),
@@ -219,6 +221,9 @@ class TestHandleWorkflowErrorContinuation:
         assert "Do the work." in state.current_prompt
         # retry_state.json should have been written during the retry cycle.
         assert (tmp_path / "artifacts" / "retry_state.json").exists()
+        # Built-in claude config has preserve_workspace=True, so the coder's
+        # on-disk edits must not be wiped.
+        mock_prepare.assert_not_called()
 
 
 class TestHandleWorkflowErrorNoNudge:
@@ -285,3 +290,104 @@ class TestHandleWorkflowErrorPostPhaseTransition:
         assert action == "continue"
         assert state.current_prompt.startswith("NUDGE\n\n")
         assert tracker.retry_count == 1
+
+
+def _make_ctx_with_update_target(tmp_path: Path) -> AgentExecContext:
+    """ctx with update_target set so prepare_workspace is eligible to fire."""
+    import dataclasses
+
+    return dataclasses.replace(_make_ctx(tmp_path), update_target="origin/master")
+
+
+def _preserve_cfg(max_retries: int = 2) -> ProviderRetryConfig:
+    return ProviderRetryConfig(
+        max_retries=max_retries,
+        error_patterns=["Prompt is too long"],
+        wait_times=[0],
+        continuation_prompt="NUDGE",
+        preserve_workspace=True,
+    )
+
+
+def _fallback_preserve_cfg() -> ProviderRetryConfig:
+    return ProviderRetryConfig(
+        max_retries=0,
+        error_patterns=["Prompt is too long"],
+        wait_times=[0],
+        fallback_model="backup-model",
+        preserve_workspace=True,
+    )
+
+
+class TestHandleWorkflowErrorPreserveWorkspace:
+    """preserve_workspace gates the in-loop prepare_workspace call."""
+
+    def test_preserve_workspace_skips_prepare_on_retry(self, tmp_path: Path) -> None:
+        ctx = _make_ctx_with_update_target(tmp_path)
+        state = _make_state("Do the work.")
+        tracker = RetryTracker(retry_cfg=_preserve_cfg())
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as mock_prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError("Prompt is too long"), tracker, ctx, state
+            )
+
+        assert action == "continue"
+        mock_prepare.assert_not_called()
+
+    def test_preserve_workspace_skips_prepare_on_fallback(self, tmp_path: Path) -> None:
+        ctx = _make_ctx_with_update_target(tmp_path)
+        state = _make_state("Do the work.")
+        # max_retries=0 means we skip the retry branch and go to fallback.
+        tracker = RetryTracker(retry_cfg=_fallback_preserve_cfg())
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as mock_prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError("Prompt is too long"), tracker, ctx, state
+            )
+
+        assert action == "continue"
+        assert tracker.using_fallback is True
+        mock_prepare.assert_not_called()
+
+    def test_default_preserve_workspace_false_still_calls_prepare(
+        self, tmp_path: Path
+    ) -> None:
+        """Rate-limit retries (preserve_workspace=False default) still wipe — no regression."""
+        ctx = _make_ctx_with_update_target(tmp_path)
+        state = _make_state("Do the work.")
+        cfg = ProviderRetryConfig(
+            max_retries=2,
+            error_patterns=["rate limit"],
+            wait_times=[0],
+        )
+        tracker = RetryTracker(retry_cfg=cfg)
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as mock_prepare,
+        ):
+            action = handle_workflow_error(
+                RuntimeError("hit a rate limit"), tracker, ctx, state
+            )
+
+        assert action == "continue"
+        mock_prepare.assert_called_once()
