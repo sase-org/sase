@@ -12,6 +12,47 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_list import AgentList
 
 
+def _make_plain_agent(
+    cl_name: str = "test", raw_suffix: str = "20240101120000"
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file="/tmp/p.gp",
+        status="RUNNING",
+        start_time=datetime(2024, 1, 1, 12, 0, 0),
+        raw_suffix=raw_suffix,
+    )
+
+
+def test_mark_prefix_renders_when_marked() -> None:
+    """A marked agent's Option text starts with the green [✓] prefix."""
+    agent = _make_plain_agent()
+    widget = AgentList()
+    option = widget._format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+        is_marked=True,
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert "[✓] " in plain
+    assert plain.index("[✓]") < plain.index("[")  # mark comes before other brackets
+
+
+def test_mark_prefix_absent_when_unmarked() -> None:
+    """Without is_marked, the [✓] prefix is not rendered."""
+    agent = _make_plain_agent()
+    widget = AgentList()
+    option = widget._format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+        is_marked=False,
+    )
+    assert "[✓]" not in option.prompt.plain  # type: ignore[union-attr]
+
+
 def _make_agent() -> Agent:
     """Create a minimal running agent."""
     return Agent(
