@@ -78,7 +78,6 @@ class LoopState:
     feedback_bullets: list[str] = field(default_factory=list)
     feedback_round: int = 0
     agent_step: int = 1
-    allow_retry: bool = True
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
 
 

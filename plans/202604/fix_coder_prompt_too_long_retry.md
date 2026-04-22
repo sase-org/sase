@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 14:57:44
-status: wip
+status: done
 ---
 
 # Plan: Fix "Prompt is too long" Retry Failing for Coder Agents

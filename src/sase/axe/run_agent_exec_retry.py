@@ -71,7 +71,7 @@ def handle_workflow_error(
     if not (active_retry_cfg and is_retryable_error(error_str, active_retry_cfg)):
         active_retry_cfg = find_retry_config_for_error(error_str)
 
-    if not (state.allow_retry and active_retry_cfg):
+    if not active_retry_cfg:
         return "raise"
 
     # Promote to retry_cfg so subsequent iterations use it

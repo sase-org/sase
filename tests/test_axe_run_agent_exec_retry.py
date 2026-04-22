@@ -248,3 +248,40 @@ class TestHandleWorkflowErrorNoNudge:
 
         assert action == "continue"
         assert state.current_prompt == "Original prompt."
+
+
+class TestHandleWorkflowErrorPostPhaseTransition:
+    """Retries must fire after the plan has been approved / questions answered."""
+
+    def test_retry_fires_for_coder_after_plan_approval(self, tmp_path: Path) -> None:
+        """A coder-shaped LoopState (agent_step=2, .code suffix) still retries."""
+        ctx = _make_ctx(tmp_path)
+        state = LoopState(
+            current_prompt="@/tmp/plan.md\n\nThe above plan has been reviewed...",
+            current_role_suffix=".code",
+            current_artifacts_dir=str(tmp_path / "artifacts"),
+            loop_outcome="completed",
+            sdd_spec_path=None,
+            original_prompt="Implement feature X.",
+            agent_step=2,
+        )
+        tracker = RetryTracker(retry_cfg=_config_with_nudge("NUDGE", max_retries=2))
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError("Step 'main' failed: ... Prompt is too long"),
+                tracker,
+                ctx,
+                state,
+            )
+
+        assert action == "continue"
+        assert state.current_prompt.startswith("NUDGE\n\n")
+        assert tracker.retry_count == 1

@@ -258,7 +258,6 @@ def handle_plan_marker(
             base += "\n\n" + qa
         reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
         state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
-        state.allow_retry = False
         return None  # continue loop
 
     # Write SDD files (spec + plan) to project
@@ -414,7 +413,6 @@ def handle_plan_marker(
             f"Implement it now.{coder_extra}\n{embedded_refs}"
         )
 
-    state.allow_retry = False
     return None  # continue loop
 
 
@@ -497,5 +495,4 @@ def handle_questions_marker(
         except Exception:
             pass  # Best effort
 
-    state.allow_retry = False
     return None  # continue loop
