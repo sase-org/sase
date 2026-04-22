@@ -22,6 +22,7 @@ class AgentKillPinMixin:
     current_idx: int
     _agents: list[Agent]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
 
     def action_kill_agent(self) -> None:
         """Kill or dismiss agent, or toggle/kill axe on AXE tab."""
@@ -32,6 +33,11 @@ class AgentKillPinMixin:
             self._toggle_or_kill_axe_view()  # type: ignore[attr-defined]
             return
         if self.current_tab != "agents":
+            return
+
+        # Bulk mode: if any marks exist, kill/dismiss the full marked set.
+        if self._marked_agents:
+            self._bulk_kill_marked_agents()  # type: ignore[attr-defined]
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]

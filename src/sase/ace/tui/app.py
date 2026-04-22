@@ -274,6 +274,7 @@ class AceApp(
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
         self._pinned_agents = load_pinned_agents()
+        self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
 
         from ..agent_order import load_agent_order
 

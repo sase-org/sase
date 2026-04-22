@@ -204,6 +204,7 @@ class KeybindingFooter(Horizontal):
         pinned_count: int = 0,
         panel_focus: str = "main",
         can_jump_to_changespec: bool = False,
+        marked_count: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -213,6 +214,7 @@ class KeybindingFooter(Horizontal):
             pinned_count=pinned_count,
             panel_focus=panel_focus,
             can_jump_to_changespec=can_jump_to_changespec,
+            marked_count=marked_count,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -436,6 +438,7 @@ class KeybindingFooter(Horizontal):
         pinned_count: int = 0,
         panel_focus: str = "main",
         can_jump_to_changespec: bool = False,
+        marked_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -443,6 +446,13 @@ class KeybindingFooter(Horizontal):
         state) and app-state bindings (e.g. completed agents exist).
         """
         bindings: list[tuple[str, str]] = []
+        x = self._kd("kill_agent")
+
+        # When marks exist, x operates on the marked set and the label loses
+        # its per-entry form. The unmark affordance is surfaced too.
+        if marked_count > 0:
+            bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
+            bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings
@@ -458,11 +468,10 @@ class KeybindingFooter(Horizontal):
                 bindings.append((self._kd("focus_pinned_panel"), label))
             return bindings
 
-        x = self._kd("kill_agent")
-
         # --- Status-dependent actions ---
         if agent.status in ("DONE", "FAILED"):
-            bindings.append((x, "unpin" if is_pinned else "dismiss"))
+            if marked_count == 0:
+                bindings.append((x, "unpin" if is_pinned else "dismiss"))
             pin_label = "unpin" if is_pinned else "pin"
             bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status != "FAILED":
@@ -471,16 +480,18 @@ class KeybindingFooter(Horizontal):
                     bindings.append((self._kd("run_workflow"), "resume"))
         elif agent.status == "WAITING INPUT":
             bindings.append((self._kd("accept_proposal"), "answer"))
-            if agent.pid is None:
-                bindings.append((x, "dismiss"))
-            else:
-                bindings.append((x, "kill"))
+            if marked_count == 0:
+                if agent.pid is None:
+                    bindings.append((x, "dismiss"))
+                else:
+                    bindings.append((x, "kill"))
         else:
             # RUNNING or other active statuses
-            if agent.pid is None:
-                bindings.append((x, "dismiss"))
-            else:
-                bindings.append((x, "kill"))
+            if marked_count == 0:
+                if agent.pid is None:
+                    bindings.append((x, "dismiss"))
+                else:
+                    bindings.append((x, "kill"))
             pin_label = "unpin" if is_pinned else "pin"
             bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status in ("WAITING", "RUNNING"):

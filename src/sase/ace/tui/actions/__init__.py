@@ -1,7 +1,7 @@
 """Action mixins for the ace TUI app."""
 
 from .agent_workflow import AgentWorkflowMixin
-from .agents import AgentsMixin
+from .agents import AgentMarkingMixin, AgentsMixin
 from .axe import AxeMixin
 from .base import BaseActionsMixin
 from .changespec import ChangeSpecMixin
@@ -20,6 +20,7 @@ from .task_actions import TaskActionsMixin
 from .workspace import WorkspaceActionsMixin
 
 __all__ = [
+    "AgentMarkingMixin",
     "AgentsMixin",
     "AgentWorkflowMixin",
     "AxeMixin",

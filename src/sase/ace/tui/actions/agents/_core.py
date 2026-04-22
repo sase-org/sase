@@ -8,6 +8,7 @@ from ._display import AgentDisplayMixin
 from ._folding import AgentFoldingMixin
 from ._kill_pin import AgentKillPinMixin
 from ._killing import AgentKillingMixin
+from ._marking import AgentMarkingMixin
 from ._ordering import AgentOrderingMixin
 from ._panels import AgentPanelsMixin
 from ._loading import AgentLoadingMixin
@@ -38,6 +39,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 class AgentsMixinCore(
     AgentFoldingMixin,
     AgentKillPinMixin,
+    AgentMarkingMixin,
     AgentWaitResumeMixin,
     AgentPanelsMixin,
     AgentOrderingMixin,
@@ -75,6 +77,7 @@ class AgentsMixinCore(
     _last_unread_count: int
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
 
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]

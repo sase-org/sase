@@ -44,6 +44,7 @@ class AgentDisplayMixin:
     _pinned_panel_idx_map: dict[int, int]
     _non_child_main_indices: list[int]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
 
@@ -72,6 +73,8 @@ class AgentDisplayMixin:
         footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
 
         if list_changed:
+            # Drop any marks pointing at identities that no longer exist.
+            self._prune_stale_marked_agents()  # type: ignore[attr-defined]
             # Build panel-specific agent lists
             main_agents = [self._agents[i] for i in self._main_panel_indices]
             pinned_agents = [self._agents[i] for i in self._pinned_panel_indices]
@@ -103,6 +106,7 @@ class AgentDisplayMixin:
                 main_local_idx,
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
+                marked_agents=self._marked_agents,
                 has_focus=(self._pinned_panel_focused == "main"),
                 jump_hints=main_jump_hints,
             )
@@ -111,6 +115,7 @@ class AgentDisplayMixin:
                 pinned_local_idx,
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
+                marked_agents=self._marked_agents,
                 has_focus=(self._pinned_panel_focused == "pinned"),
                 jump_hints=pinned_jump_hints,
             )
@@ -230,6 +235,7 @@ class AgentDisplayMixin:
                 pinned_count=len(self._pinned_panel_indices),
                 panel_focus=self._pinned_panel_focused,
                 can_jump_to_changespec=can_jump,
+                marked_count=len(self._marked_agents),
             )
 
     def _update_panel_focus_styling(self) -> None:
