@@ -13,6 +13,49 @@ from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
 
 
+def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
+    """Render a Rich-markup badge like ``CLAUDE(opus)`` with provider theming.
+
+    Returns an empty string when neither field is set, so callers can collapse
+    the title to its unbadged form.
+    """
+    if not llm_provider and not model:
+        return ""
+
+    provider = (llm_provider or "").lower()
+    if not provider and model:
+        if model in ("opus", "sonnet", "haiku"):
+            provider = "claude"
+        elif "gemini" in model.lower():
+            provider = "gemini"
+        elif model.startswith(("gpt-", "o3", "o4")):
+            provider = "codex"
+
+    if provider == "claude":
+        name_style, paren_style, model_style = "bold #FF5F00", "#D75F00", "#FFAF00"
+    elif provider == "codex":
+        name_style, paren_style, model_style = "bold #87FF00", "#5FAF00", "#AFFF5F"
+    elif provider == "gemini":
+        name_style, paren_style, model_style = "bold #4285F4", "#5F87D7", "#87AFFF"
+    else:
+        # Unknown/other provider: fall back to the plain-text label with a
+        # neutral muted color, matching the fallback in append_model_field.
+        from sase.llm_provider.registry import format_provider_model_label
+
+        label = format_provider_model_label(llm_provider, model)
+        return f"[#AF87D7]{label}[/]"
+
+    provider_name = provider.upper()
+    if model:
+        return (
+            f"[{name_style}]{provider_name}[/]"
+            f"[{paren_style}]([/]"
+            f"[{model_style}]{model}[/]"
+            f"[{paren_style}])[/]"
+        )
+    return f"[{name_style}]{provider_name}[/]"
+
+
 @dataclass
 class PlanApprovalResult:
     """Result from the plan approval modal."""
@@ -59,6 +102,9 @@ class PlanApprovalModal(
         self,
         plan_file: str,
         pending_approve_state: PendingApproveState | None = None,
+        *,
+        llm_provider: str | None = None,
+        model: str | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -66,14 +112,29 @@ class PlanApprovalModal(
             plan_file: Path to the plan markdown file.
             pending_approve_state: If set, auto-push ApproveOptionsModal on mount
                 with the given state (used after prompt editing round-trip).
+            llm_provider: Provider that produced the plan (e.g. "claude"), for
+                display in the modal title. Optional — when absent the title
+                omits the provider badge.
+            model: Model that produced the plan (e.g. "opus"), for display in
+                the modal title alongside the provider.
         """
         super().__init__()
         self._plan_file = plan_file
         self._pending_approve_state = pending_approve_state
+        self._llm_provider = llm_provider
+        self._model = model
+
+    def _build_title_markup(self) -> str:
+        """Return the Rich markup string used for the modal title."""
+        plan_name = os.path.basename(self._plan_file)
+        badge = _provider_badge_markup(self._llm_provider, self._model)
+        badge_segment = f"  {badge}" if badge else ""
+        return (
+            f"[bold cyan]Plan Review[/bold cyan]{badge_segment}  [dim]{plan_name}[/dim]"
+        )
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        plan_name = os.path.basename(self._plan_file)
         hints = (
             "[green]a[/green]=Approve  [green]A[/green]=Options  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
@@ -85,7 +146,7 @@ class PlanApprovalModal(
 
         with Container(id="plan-approval-container"):
             yield Static(
-                f"[bold cyan]Plan Review[/bold cyan]  [dim]{plan_name}[/dim]",
+                self._build_title_markup(),
                 id="plan-approval-title",
             )
 

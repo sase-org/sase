@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 16:38:10
-status: wip
+status: done
 ---
 
 # Plan: Show LLM Provider / Model in Plan Review Panel Title

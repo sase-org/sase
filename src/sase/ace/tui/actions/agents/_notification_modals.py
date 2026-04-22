@@ -207,6 +207,8 @@ def handle_plan_approval(
         return False
 
     plan_file = notification.files[0]
+    llm_provider = notification.action_data.get("llm_provider")
+    model = notification.action_data.get("model")
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -223,7 +225,11 @@ def handle_plan_approval(
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
             app.push_screen(  # type: ignore[attr-defined]
-                PlanApprovalModal(plan_file),
+                PlanApprovalModal(
+                    plan_file,
+                    llm_provider=llm_provider,
+                    model=model,
+                ),
                 on_dismiss,
             )
             return
@@ -387,7 +393,12 @@ def handle_plan_approval(
             app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(  # type: ignore[attr-defined]
-        PlanApprovalModal(plan_file, pending_approve_state=pending_approve_state),  # type: ignore[arg-type]
+        PlanApprovalModal(
+            plan_file,
+            pending_approve_state=pending_approve_state,  # type: ignore[arg-type]
+            llm_provider=llm_provider,
+            model=model,
+        ),
         on_dismiss,
     )
     return True
