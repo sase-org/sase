@@ -74,7 +74,7 @@ class JetskiProvider(LLMProvider):
         *,
         model_tier: ModelTier,  # noqa: ARG002
         suppress_output: bool = False,
-        model_override: str | None = None,
+        model_override: str | None = None,  # noqa: ARG002
     ) -> InvokeResult:
         """Invoke Jetski CLI with the given prompt.
 
@@ -82,7 +82,10 @@ class JetskiProvider(LLMProvider):
             prompt: The preprocessed prompt to send.
             model_tier: Unused pending tier mapping (open question 3).
             suppress_output: If True, suppress real-time output to console.
-            model_override: If set, use this model instead of the default.
+            model_override: Accepted for interface parity but currently ignored.
+                Jetski CLI has no ``--model`` flag; model selection happens
+                interactively via the ``/model`` slash command, which persists
+                to ``~/.gemini/jetski/cli/settings.json``.
 
         Returns:
             An ``InvokeResult`` with the response text (usage is ``None``).
@@ -90,16 +93,6 @@ class JetskiProvider(LLMProvider):
         Raises:
             subprocess.CalledProcessError: If the Jetski CLI process fails.
         """
-        model = model_override or _DEFAULT_MODEL
-
-        # TODO(open-question-2): confirm ``--model`` is accepted in ``-p`` mode.
-        base_args = [
-            _jetski_bin(),
-            "-p",
-            "--model",
-            model,
-        ]
-
         timer_context = (
             gemini_timer("Waiting for Jetski") if not suppress_output else None
         )
@@ -109,6 +102,14 @@ class JetskiProvider(LLMProvider):
         cycle = 0
 
         while True:
+            # Jetski CLI convention (per go/jetski-cli-getting-started):
+            #   jetski-cli -p "<prompt>"
+            # The prompt is a positional argument after ``-p``; stdin is NOT
+            # read in ``-p`` mode. ``--model`` is not a CLI flag — model
+            # selection is the interactive ``/model`` slash command, which
+            # persists to ``~/.gemini/jetski/cli/settings.json``.
+            base_args = [_jetski_bin(), "-p", current_prompt]
+
             if timer_context:
                 with timer_context:
                     response_content, stderr_content, return_code = (
@@ -157,19 +158,24 @@ class JetskiProvider(LLMProvider):
     def _run_subprocess(
         self,
         args: list[str],
-        prompt: str,
+        prompt: str,  # noqa: ARG002
         suppress_output: bool,
     ) -> tuple[str, str, int]:
         """Run the Jetski CLI subprocess.
 
         Args:
-            args: Command-line arguments.
-            prompt: Prompt to write to stdin.
+            args: Command-line arguments; includes the prompt as the
+                positional token after ``-p``.
+            prompt: Unused — retained as a parameter so tests can patch this
+                method and inspect the prompt independently of argv.
             suppress_output: If True, suppress output.
 
         Returns:
             Tuple of (stdout_content, stderr_content, return_code).
         """
+        # Jetski CLI reads the prompt from argv (positional after ``-p``),
+        # not from stdin. ``stdin=PIPE`` is kept for signature symmetry with
+        # the other providers and costs nothing when left empty-and-closed.
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
@@ -177,10 +183,6 @@ class JetskiProvider(LLMProvider):
             stderr=subprocess.PIPE,
             text=True,
         )
-
-        if process.stdin:
-            process.stdin.write(prompt)
-            process.stdin.close()
 
         start_interrupt_monitor(
             process,

@@ -55,12 +55,15 @@ def test_jetski_bin_uses_default_binary_when_present(
 @patch("sase.llm_provider.jetski.stream_process_output")
 @patch("sase.llm_provider.jetski.subprocess.Popen")
 @patch("sase.llm_provider.jetski.gemini_timer")
-def test_jetski_provider_model_override(
+def test_jetski_provider_model_override_not_in_argv(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
 ) -> None:
-    """model_override is passed through into the subprocess command."""
+    """Regression guard: ``model_override`` must NOT leak into argv.
+
+    Jetski CLI has no ``--model`` flag — passing one corrupts the prompt.
+    """
     mock_popen.return_value = MagicMock()
     mock_stream.return_value = ("response", "", 0)
 
@@ -73,7 +76,8 @@ def test_jetski_provider_model_override(
     )
 
     cmd = mock_popen.call_args[0][0]
-    assert "my-custom-jetski-model" in cmd
+    assert "my-custom-jetski-model" not in cmd
+    assert not any(tok.startswith("--model") for tok in cmd)
 
 
 @patch("sase.llm_provider.jetski.stream_process_output")
@@ -84,15 +88,38 @@ def test_jetski_provider_command_uses_p_mode(
     mock_popen: MagicMock,
     mock_stream: MagicMock,
 ) -> None:
-    """Base command uses the non-interactive ``-p`` flag."""
+    """``-p`` is present with the prompt as the positional arg; no ``--model``."""
     mock_popen.return_value = MagicMock()
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = JetskiProvider()
+    provider.invoke("my-test-prompt", model_tier="large", suppress_output=True)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "-p" in cmd
+    p_index = cmd.index("-p")
+    assert cmd[p_index + 1] == "my-test-prompt"
+    assert not any(tok.startswith("--model") for tok in cmd)
+
+
+@patch("sase.llm_provider.jetski.stream_process_output")
+@patch("sase.llm_provider.jetski.subprocess.Popen")
+@patch("sase.llm_provider.jetski.gemini_timer")
+def test_jetski_provider_does_not_write_to_stdin(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """Regression guard: Jetski reads prompt from argv, so we must not write stdin."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
     mock_stream.return_value = ("response", "", 0)
 
     provider = JetskiProvider()
     provider.invoke("test", model_tier="large", suppress_output=True)
 
-    cmd = mock_popen.call_args[0][0]
-    assert "-p" in cmd
+    mock_process.stdin.write.assert_not_called()
+    mock_process.stdin.close.assert_not_called()
 
 
 @patch("sase.llm_provider.jetski.stream_process_output")

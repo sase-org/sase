@@ -235,3 +235,17 @@ each question and we swap real values in before merge:
   real session resume, and users notice. **Mitigation:** Clearly marked TODO in `jetski.py` pointing to the
   session-resume follow-up; the Cloudtop spike is scheduled pre-merge so in practice the upgrade lands in the same PR if
   the answer to open question 4 is "yes".
+
+## Amendment (2026-04-22): prompt-delivery post-merge fix
+
+This PR shipped with two mis-readings of the Jetski CLI contract that together silently broke every invocation:
+
+1. The prompt was written to stdin, but `jetski-cli -p` takes the prompt as a **positional argument** and does not read
+   stdin.
+2. `--model <name>` was appended to argv, but `jetski-cli` has no `--model` flag — model selection is the interactive
+   `/model` slash command (persists to `~/.gemini/jetski/cli/settings.json`).
+
+Net effect: the real prompt was discarded, jetski-cli parsed stray `--model jetski-default` tokens as the prompt, and
+the model responded with a generic self-identification one-liner. Fixed in
+[`jetski_prompt_delivery_fix`](../../.sase/home/.sase/plans/jetski_prompt_delivery_fix.md). Open question 2 in
+`research/jetski_cli_provider.md` is now resolved.

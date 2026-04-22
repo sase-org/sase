@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 14:40:03
-status: wip
+status: done
 ---
 
 # Fix Jetski Prompt Delivery: Positional Argument, Not Stdin

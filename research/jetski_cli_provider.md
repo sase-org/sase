@@ -213,8 +213,11 @@ Rationale:
 
 1. **What format does `jetski-cli -p <prompt>` emit on stdout?** Plain text, JSON, or NDJSON? Spike with
    `jetski-cli -p "hello" > out.txt` to confirm.
-2. **Does Jetski expose a CLI flag for model selection**, or is `/model` only available interactively? If CLI-level
-   selection is absent, we need a config-driven default and can't support `%model jetski/<model>` meaningfully.
+2. **Does Jetski expose a CLI flag for model selection**, or is `/model` only available interactively? **Answered
+   (2026-04-22):** No — there is no `--model` flag. Model selection is via the `/model` interactive slash command, which
+   persists the choice to `~/.gemini/jetski/cli/settings.json` and applies to all subsequent `-p` invocations. A
+   follow-up plan should decide whether sase owns that settings file (so `%model jetski/<name>` can be honored at the
+   sase layer without an interactive detour).
 3. **What are the canonical Jetski model names** we should register in `_MODEL_TO_PROVIDER`?
 4. **Does `-p` support `--continue` / `--conversation <id>`?** The docs show these flags for interactive launch; need to
    confirm they work in non-interactive mode so we can implement real session resume for interrupts.
