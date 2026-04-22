@@ -65,6 +65,7 @@ class AxeConfig:
     zombie_timeout_seconds: int = 7200
     query: str = ""
     chop_script_dirs: list[str] = field(default_factory=list)
+    coder_plan_inline_max_lines: int = 300
     lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
 
 
@@ -137,6 +138,7 @@ def load_axe_config() -> AxeConfig:
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
     query = axe_data.get("query", "")
     chop_script_dirs = axe_data.get("chop_script_dirs", [])
+    coder_plan_inline_max_lines = axe_data.get("coder_plan_inline_max_lines", 300)
 
     raw_lumberjacks = axe_data.get("lumberjacks")
     if isinstance(raw_lumberjacks, dict):
@@ -150,5 +152,6 @@ def load_axe_config() -> AxeConfig:
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         chop_script_dirs=chop_script_dirs,
+        coder_plan_inline_max_lines=coder_plan_inline_max_lines,
         lumberjacks=lumberjacks,
     )

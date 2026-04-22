@@ -138,6 +138,38 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     return " ".join(refs) + " "
 
 
+def _build_coder_plan_body(plan_file: str, max_lines: int) -> str:
+    """Return the plan-reference body for the coder prompt.
+
+    Small plans (line count <= ``max_lines``) are inlined via ``@{path}`` so the
+    coder sees the content immediately.  Larger plans are referenced by path
+    instead, to avoid "Prompt is too long" errors; the coder reads them via a
+    ``Read`` tool call.  On read error we fall back to the inline form.
+    """
+    try:
+        line_count = len(Path(plan_file).read_text(encoding="utf-8").splitlines())
+    except OSError:
+        logger.warning(
+            "Could not read plan file %s for line-count check; "
+            "falling back to @-inline form",
+            plan_file,
+            exc_info=True,
+        )
+        return (
+            f"@{plan_file}\n\n"
+            "The above plan has been reviewed and approved. Implement it now."
+        )
+    if line_count <= max_lines:
+        return (
+            f"@{plan_file}\n\n"
+            "The above plan has been reviewed and approved. Implement it now."
+        )
+    return (
+        f"The plan at {plan_file} has been reviewed and approved. "
+        "Read it and implement it now."
+    )
+
+
 def _update_coder_model_meta(
     plan_result: Any,
     ctx: AgentExecContext,
@@ -406,11 +438,15 @@ def handle_plan_marker(
                 planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
             resume_prefix = f"#resume:{planner_name} "
 
+        from sase.axe.config import load_axe_config
+
+        axe_config = load_axe_config()
+        plan_body = _build_coder_plan_body(
+            plan_data["plan_file"], axe_config.coder_plan_inline_max_lines
+        )
         state.current_prompt = (
             f"{model_prefix}{resume_prefix}{vcs_prefix}"
-            f"@{plan_data['plan_file']}\n\n"
-            "The above plan has been reviewed and approved. "
-            f"Implement it now.{coder_extra}\n{embedded_refs}"
+            f"{plan_body}{coder_extra}\n{embedded_refs}"
         )
 
     return None  # continue loop

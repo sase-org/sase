@@ -6,8 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.axe.config import AxeConfig
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 from sase.axe.run_agent_exec_plan import (
+    _build_coder_plan_body,
     _get_embedded_workflow_refs,
     handle_plan_marker,
     handle_questions_marker,
@@ -559,3 +561,124 @@ class TestFeedbackRoundChatPath:
         # current_role_suffix was ".2"; handle_questions_marker appends ".q"
         # before save_chat_history, so the agent name must reflect ".2.q".
         assert captured["agent"] == "test_agent.2.q"
+
+
+# ---------------------------------------------------------------------------
+# Tests: coder prompt plan body (inline vs. reference by path)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCoderPlanBody:
+    """Unit tests for the _build_coder_plan_body helper."""
+
+    def test_small_plan_inlined(self, tmp_path) -> None:
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("\n".join(f"line {i}" for i in range(50)))
+        body = _build_coder_plan_body(str(plan_file), max_lines=300)
+        assert body.startswith(f"@{plan_file}\n\n")
+        assert "The above plan has been reviewed and approved." in body
+        assert "Implement it now." in body
+
+    def test_large_plan_referenced_by_path(self, tmp_path) -> None:
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("\n".join(f"line {i}" for i in range(500)))
+        body = _build_coder_plan_body(str(plan_file), max_lines=300)
+        assert f"@{plan_file}" not in body
+        assert f"The plan at {plan_file}" in body
+        assert "Read it and implement it now." in body
+
+    def test_read_error_falls_back_to_inline(self, tmp_path) -> None:
+        missing = tmp_path / "missing.md"
+        body = _build_coder_plan_body(str(missing), max_lines=300)
+        assert body.startswith(f"@{missing}\n\n")
+
+    def test_boundary_equal_to_threshold_is_inlined(self, tmp_path) -> None:
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("\n".join(f"line {i}" for i in range(10)))
+        body = _build_coder_plan_body(str(plan_file), max_lines=10)
+        assert body.startswith(f"@{plan_file}\n\n")
+
+    def test_zero_threshold_always_by_path(self, tmp_path) -> None:
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("one line")
+        body = _build_coder_plan_body(str(plan_file), max_lines=0)
+        assert f"@{plan_file}" not in body
+        assert f"The plan at {plan_file}" in body
+
+
+@pytest.mark.usefixtures("_patch_plan_deps")
+class TestCoderPromptPlanInlining:
+    """Integration tests for plan inlining via handle_plan_marker."""
+
+    def _run(self, tmp_path, *, plan_lines: int, axe_config: AxeConfig | None = None):
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("\n".join(f"line {i}" for i in range(plan_lines)))
+
+        approval = PlanApprovalResult(action="approve", plan_file=str(plan_file))
+        config = axe_config if axe_config is not None else AxeConfig()
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.config.load_axe_config",
+                return_value=config,
+            ),
+        ):
+            handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
+        return state, str(plan_file)
+
+    def test_coder_prompt_inlines_small_plan(self, tmp_path) -> None:
+        state, plan_file = self._run(tmp_path, plan_lines=50)
+        assert f"@{plan_file}" in state.current_prompt
+        assert "The above plan has been reviewed and approved." in state.current_prompt
+
+    def test_coder_prompt_references_large_plan_by_path(self, tmp_path) -> None:
+        state, plan_file = self._run(tmp_path, plan_lines=500)
+        assert f"@{plan_file}" not in state.current_prompt
+        assert f"The plan at {plan_file}" in state.current_prompt
+        assert "Read it and implement it now." in state.current_prompt
+
+    def test_coder_prompt_respects_config_override(self, tmp_path) -> None:
+        override = AxeConfig(coder_plan_inline_max_lines=10)
+        state, plan_file = self._run(tmp_path, plan_lines=20, axe_config=override)
+        assert f"@{plan_file}" not in state.current_prompt
+        assert f"The plan at {plan_file}" in state.current_prompt
+
+    def test_coder_prompt_falls_back_to_inline_on_read_error(self, tmp_path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("# Plan")
+        plan_path_str = str(plan_file)
+
+        def delete_before_read(*_args, **_kwargs):
+            try:
+                plan_file.unlink()
+            except FileNotFoundError:
+                pass
+            return PlanApprovalResult(action="approve", plan_file=plan_path_str)
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                side_effect=delete_before_read,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", plan_file),
+            ),
+            patch(
+                "sase.axe.config.load_axe_config",
+                return_value=AxeConfig(),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_path_str}, ctx, state)
+        assert f"@{plan_path_str}" in state.current_prompt
