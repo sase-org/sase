@@ -39,14 +39,20 @@ class _HintInput(Input):
         """Scroll detail panel up, or clear line if already at top."""
         from textual.containers import VerticalScroll
 
-        # Check if we can scroll up in the detail panel
+        # Resolve the active detail scroll container for the current tab.
+        scroll_id: str | None = None
         if self._ace_app.current_tab == "changespecs":
-            scroll_container = self._ace_app.query_one("#detail-scroll", VerticalScroll)
+            scroll_id = "#detail-scroll"
+        elif self._ace_app.current_tab == "agents":
+            scroll_id = self._ace_app._get_agent_detail_scroll_id()
+
+        if scroll_id is not None:
+            scroll_container = self._ace_app.query_one(scroll_id, VerticalScroll)
             if scroll_container.scroll_y > 0:
                 self._ace_app.action_scroll_detail_up()
                 return
 
-        # At the top (or not on changespecs tab) - clear line
+        # At the top (or no scroll target) - clear line
         if self.cursor_position > 0:
             self.value = self.value[self.cursor_position :]
             self.cursor_position = 0

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 14:46:33
-status: wip
+status: done
 ---
 
 # Plan: Fix `ctrl+u` / `ctrl+d` scroll in Agents tab after `v`
