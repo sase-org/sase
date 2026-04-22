@@ -141,7 +141,6 @@ class AgentList(OptionList, inherit_bindings=False):
         current_idx: int,
         fold_counts: dict[str, tuple[int, int]] | None = None,
         pinned_agents: set[tuple[AgentType, str, str | None]] | None = None,
-        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         has_focus: bool = True,
         jump_hints: dict[int, str] | None = None,
     ) -> None:
@@ -153,7 +152,6 @@ class AgentList(OptionList, inherit_bindings=False):
             fold_counts: Optional dict mapping workflow raw_suffix to
                 (non_hidden_count, hidden_count) for fold annotations
             pinned_agents: Optional set of pinned agent identities
-            marked_agents: Optional set of marked agent identities
             has_focus: Whether this panel currently has focus
             jump_hints: Optional local row index -> hint character mapping
         """
@@ -162,7 +160,6 @@ class AgentList(OptionList, inherit_bindings=False):
         self.clear_options()
 
         pinned = pinned_agents or set()
-        marked = marked_agents or set()
 
         # Determine which parents have visible children in the filtered list
         parents_with_visible_children: set[str] = set()
@@ -180,7 +177,6 @@ class AgentList(OptionList, inherit_bindings=False):
                 and agent.raw_suffix in parents_with_visible_children
             )
             is_pinned = agent.identity in pinned
-            is_marked = agent.identity in marked
             annotation = _compute_fold_annotation(
                 agent,
                 fold_counts,
@@ -194,7 +190,6 @@ class AgentList(OptionList, inherit_bindings=False):
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_pinned=is_pinned,
-                is_marked=is_marked,
                 hint_char=(jump_hints or {}).get(i),
             )
             self.add_option(option)
@@ -241,7 +236,6 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_annotation: str = "",
         is_expanded: bool = False,
         is_pinned: bool = False,
-        is_marked: bool = False,
         hint_char: str | None = None,
     ) -> Option:
         """Format an agent as an option for display.
@@ -253,7 +247,6 @@ class AgentList(OptionList, inherit_bindings=False):
             fold_annotation: Fold annotation text to append
             is_expanded: Whether this agent's fold state is expanded
             is_pinned: Whether this agent is pinned
-            is_marked: Whether this agent is marked
             hint_char: Optional jump hint character
 
         Returns:
@@ -262,10 +255,6 @@ class AgentList(OptionList, inherit_bindings=False):
         text = Text()
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        # Mark indicator (green checkmark) — matches CLs-tab style
-        if is_marked:
-            text.append("[✓] ", style="bold #00D700")
 
         # Approve icon for autonomous agents
         if agent.approve:

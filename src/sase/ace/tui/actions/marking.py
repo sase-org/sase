@@ -24,16 +24,10 @@ class MarkingMixin:
     marked_indices: set[int]
 
     def action_toggle_mark(self) -> None:
-        """Toggle mark on the current ChangeSpec or agent."""
-        if self.current_tab == "changespecs":
-            self._toggle_mark_changespec()
-            return
-        if self.current_tab == "agents":
-            self._toggle_mark_agent()  # type: ignore[attr-defined]
+        """Toggle mark on the current ChangeSpec."""
+        if self.current_tab != "changespecs":
             return
 
-    def _toggle_mark_changespec(self) -> None:
-        """Toggle mark on the currently-selected ChangeSpec."""
         if not self.changespecs:
             self.notify("No ChangeSpecs to mark", severity="warning")  # type: ignore[attr-defined]
             return
@@ -56,16 +50,10 @@ class MarkingMixin:
             self.current_idx = (self.current_idx + 1) % len(self.changespecs)
 
     def action_clear_marks(self) -> None:
-        """Clear all marks on the active tab."""
-        if self.current_tab == "changespecs":
-            self._clear_changespec_marks()
-            return
-        if self.current_tab == "agents":
-            self._clear_agent_marks()  # type: ignore[attr-defined]
+        """Clear all marks."""
+        if self.current_tab != "changespecs":
             return
 
-    def _clear_changespec_marks(self) -> None:
-        """Clear all ChangeSpec marks."""
         if not self.marked_indices:
             self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
             return
