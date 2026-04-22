@@ -200,8 +200,9 @@ def test_bulk_kill_partitions_and_clears_marks() -> None:
             a for a in app._agents_with_children if a.identity not in ids
         ]
 
-    with patch.object(app, "_do_kill_agent", side_effect=fake_kill), patch.object(
-        app, "_do_dismiss_all", side_effect=fake_dismiss
+    with (
+        patch.object(app, "_do_kill_agent", side_effect=fake_kill),
+        patch.object(app, "_do_dismiss_all", side_effect=fake_dismiss),
     ):
         app._bulk_kill_marked_agents()
         assert app.pushed_callbacks, "Modal callback not registered"

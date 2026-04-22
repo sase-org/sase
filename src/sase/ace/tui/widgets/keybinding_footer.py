@@ -452,9 +452,7 @@ class KeybindingFooter(Horizontal):
         # operates on the marked set. Mark/unmark affordance is also shown.
         if marked_count > 0:
             bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
-            bindings.append(
-                (self._kd("clear_marks"), f"unmark ({marked_count})")
-            )
+            bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings
