@@ -23,6 +23,7 @@ and CLI flags.
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
+- [Directory Sharding](#directory-sharding)
 
 ## Config File Location
 
@@ -877,3 +878,46 @@ Supported date range formats:
 | Flag             | Values | Default    | Description                             |
 | ---------------- | ------ | ---------- | --------------------------------------- |
 | `questions_json` | string | (required) | JSON string containing questions to ask |
+
+### `sase agents`
+
+`sase agents` provides cross-project visibility into running agents. Subcommands:
+
+| Subcommand | Flags                                   | Description                                                                                                                                                             |
+| ---------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project. |
+| `show`     | `name`                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                        |
+| `kill`     | `name`                                  | SIGTERM a running agent by name.                                                                                                                                        |
+
+### `sase migrate`
+
+One-shot migrations for the `~/.sase/` data layout. Idempotent: a `.sharded` sentinel file prevents accidental
+re-migration unless `--force` is passed.
+
+| Subcommand   | Flags                                     | Description                                                                                                                                                                                            |
+| ------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shard-dirs` | `-d/--dry-run`, `-f/--force`, `-o/--only` | Move files in high-volume `~/.sase/` subdirectories into `YYYYMM/` shards (based on file mtime). `-o` can be repeated to limit the migration to specific subdirectories; defaults to all sharded dirs. |
+
+See [Directory Sharding](#directory-sharding) below for background on why this exists.
+
+## Directory Sharding
+
+A fresh install writes agent artifacts (chat logs, notifications, prompt history, workflow state, etc.) directly under
+`~/.sase/<kind>/`. After a few months of heavy use those directories can accumulate tens of thousands of files, which
+slows down filesystem walks and makes `ls`-style inspection painful.
+
+New files are automatically written into a `YYYYMM/` shard inside each high-volume directory (keyed by the current
+month). Readers transparently merge sharded and non-sharded files, so the layout is backwards-compatible — existing
+tools keep working whether or not a directory has been migrated.
+
+To backfill existing files into `YYYYMM/` shards, run:
+
+```bash
+sase migrate shard-dirs          # migrate every eligible directory
+sase migrate shard-dirs -d       # dry-run: show what would move
+sase migrate shard-dirs -o chats # only migrate ~/.sase/chats/
+```
+
+After migration completes a `.sharded` sentinel file is written to each migrated directory. Re-running the command is a
+no-op unless `--force` is passed. A standalone Python script for migrating a remote `~/.sase/` directory on another
+machine (without installing sase) lives at [`tools/migrate_sase_shard_dirs.py`](../tools/migrate_sase_shard_dirs.py).

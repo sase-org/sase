@@ -136,6 +136,9 @@ sase
 | Command                        | Description                                                                                                    |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `sase ace`                     | Interactive TUI for navigating and managing ChangeSpecs                                                        |
+| `sase agents status`           | List running agents across all projects (pretty table or JSON)                                                 |
+| `sase agents show`             | Render a full detail panel for one running agent                                                               |
+| `sase agents kill`             | SIGTERM a running agent by name                                                                                |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
 | `sase axe start`               | Start the lumberjack-based daemon (orchestrator mode)                                                          |
@@ -162,6 +165,7 @@ sase
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
+| `sase migrate shard-dirs`      | Migrate high-volume `~/.sase/` subdirectories into `YYYYMM/` shards                                            |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
 | `sase path`                    | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
 | `sase plan`                    | Submit a plan for approval (used by `/sase_plan` skill)                                                        |

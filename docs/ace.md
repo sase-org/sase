@@ -15,14 +15,15 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 
 ### CLI Options
 
-| Option                     | Description                                                    |
-| -------------------------- | -------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering ChangeSpecs                         |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
+| Option                     | Description                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                                                          |
+| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                                                  |
+| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument (writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`) |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                    |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                                                 |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                                                  |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                                                  |
 
 ### Examples
 
@@ -265,6 +266,14 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 | --------- | -------------------------------- |
 | `l` / `h` | Expand / collapse workflow steps |
 | `L` / `H` | Expand / collapse all workflows  |
+
+### Agent Search
+
+Press `/` on the Agents tab to open the query editor. In addition to matching the standard metadata fields (`cl_name`,
+`display_name`, `agent_name`, `status`), the query also searches each agent's **xprompt, live reply/response, chat
+transcript, and prior attempt replies**. Transcript files are read lazily (only while a query is active) and cached by
+`(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads are capped at 512 KB; missing or unreadable files are
+skipped silently.
 
 ### Leader Mode (`,` prefix)
 
@@ -820,6 +829,10 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments).
+- **File-history completion**: When the cursor is in whitespace (or at an empty prompt prefix), `Ctrl+T` opens a list of
+  recently referenced files drawn from prompt history, ranked by recency. Project-local `.sase/` paths are filtered out
+  so internal bead/plan artifacts don't pollute the suggestions. Press `Ctrl+D` in the completion panel to delete the
+  highlighted entry from the on-disk history.
 
 | Key                | Action                                   |
 | ------------------ | ---------------------------------------- |
@@ -899,7 +912,8 @@ The border subtitle shows pending operators and counts (e.g., `2d` when a delete
 ## Prompt History Modal
 
 Press `,.` (leader + `.`) on the CLs or Agents tab to open the prompt history modal. It displays prompts previously run
-in ACE, sorted by relevance to the current CL/agent context.
+in ACE, sorted by relevance to the current CL/agent context. Prompts shorter than two words are skipped when writing to
+history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
 
 ### Keybindings
 
