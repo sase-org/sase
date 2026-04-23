@@ -27,6 +27,7 @@ class AgentDisplayMixin:
     """
 
     current_idx: int
+    current_attempt_number: int | None
     current_tab: TabName
     refresh_interval: int
     _agents: list[Agent]
@@ -109,6 +110,7 @@ class AgentDisplayMixin:
                 marked_agents=self._marked_agents,
                 has_focus=(self._pinned_panel_focused == "main"),
                 jump_hints=main_jump_hints,
+                current_attempt_number=self.current_attempt_number,
             )
             pinned_list.update_list(
                 pinned_agents,
@@ -118,18 +120,19 @@ class AgentDisplayMixin:
                 marked_agents=self._marked_agents,
                 has_focus=(self._pinned_panel_focused == "pinned"),
                 jump_hints=pinned_jump_hints,
+                current_attempt_number=self.current_attempt_number,
             )
         else:
             # Update highlight on the focused panel only; clear unfocused
             if self._pinned_panel_focused == "pinned":
                 local_idx = self._pinned_panel_idx_map.get(self.current_idx)
                 if local_idx is not None:
-                    pinned_list.update_highlight(local_idx)
+                    pinned_list.update_highlight(local_idx, self.current_attempt_number)
                 agent_list.highlighted = None
             else:
                 local_idx = self._main_panel_idx_map.get(self.current_idx)
                 if local_idx is not None:
-                    agent_list.update_highlight(local_idx)
+                    agent_list.update_highlight(local_idx, self.current_attempt_number)
                 pinned_list.highlighted = None
 
         # Update focus styling
@@ -153,14 +156,14 @@ class AgentDisplayMixin:
             pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
             local_idx = self._pinned_panel_idx_map.get(self.current_idx)
             if local_idx is not None:
-                pinned_list.update_highlight(local_idx)
+                pinned_list.update_highlight(local_idx, self.current_attempt_number)
             agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             agent_list.highlighted = None
         else:
             agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             local_idx = self._main_panel_idx_map.get(self.current_idx)
             if local_idx is not None:
-                agent_list.update_highlight(local_idx)
+                agent_list.update_highlight(local_idx, self.current_attempt_number)
             pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
             pinned_list.highlighted = None
         self._update_agents_info_panel()
@@ -197,7 +200,9 @@ class AgentDisplayMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is not None:
             agent_detail.update_display(
-                current_agent, stale_threshold_seconds=self.refresh_interval
+                current_agent,
+                stale_threshold_seconds=self.refresh_interval,
+                attempt_number=self.current_attempt_number,
             )
         else:
             agent_detail.show_empty()
@@ -236,6 +241,7 @@ class AgentDisplayMixin:
                 panel_focus=self._pinned_panel_focused,
                 can_jump_to_changespec=can_jump,
                 marked_count=len(self._marked_agents),
+                attempt_pinned=self.current_attempt_number is not None,
             )
 
     def _update_panel_focus_styling(self) -> None:

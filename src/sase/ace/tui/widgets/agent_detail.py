@@ -46,6 +46,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._trim_total_lines: int = 0
         self._trim_is_trimmed: bool = False
         self._attempt_view_mode: str = "merged"
+        self._current_attempt_number: int | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -57,7 +58,12 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             with VerticalScroll(id="agent-thinking-scroll", classes="hidden"):
                 yield AgentThinkingPanel(id="agent-thinking-panel")
 
-    def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
+    def update_display(
+        self,
+        agent: Agent,
+        stale_threshold_seconds: int = 10,
+        attempt_number: int | None = None,
+    ) -> None:
         """Update panels with agent information.
 
         For NO CHANGES agents, shows only prompt panel (with reply embedded).
@@ -67,6 +73,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Args:
             agent: The Agent to display.
             stale_threshold_seconds: Diffs older than this are refetched.
+            attempt_number: When non-None, pin the detail view to the matching
+                prior-attempt record (shows full error + that attempt's reply).
         """
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
@@ -77,6 +85,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         # thinking persists across j/k navigation.
         prev_agent = self._current_agent
         self._current_agent = agent
+        self._current_attempt_number = attempt_number
         if prev_agent is not None and prev_agent.identity != agent.identity:
             self._has_file_content = False
             self._has_thinking_content = False
@@ -93,8 +102,16 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 thinking_scroll.add_class("hidden")
 
         prompt_panel.attempt_view_mode = self._attempt_view_mode
+        prompt_panel.attempt_pinned_number = attempt_number
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
+
+        # Attempt-pinned view: bypass file/thinking panels — we can't
+        # reconstruct per-attempt file or thinking history from the archived
+        # snapshots. Expand the prompt panel to fill the area.
+        if attempt_number is not None:
+            self._expand_prompt_only()
+            return
 
         # Probe thinking availability in the background so that
         # _has_thinking_content is accurate for panel mode cycling.
@@ -330,6 +347,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             "current-only" if self._attempt_view_mode == "merged" else "merged"
         )
         if self._current_agent is not None:
-            self.update_display(self._current_agent)
+            self.update_display(
+                self._current_agent, attempt_number=self._current_attempt_number
+            )
             return True
         return False

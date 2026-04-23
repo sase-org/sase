@@ -205,6 +205,7 @@ class KeybindingFooter(Horizontal):
         panel_focus: str = "main",
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
+        attempt_pinned: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -215,6 +216,7 @@ class KeybindingFooter(Horizontal):
             panel_focus=panel_focus,
             can_jump_to_changespec=can_jump_to_changespec,
             marked_count=marked_count,
+            attempt_pinned=attempt_pinned,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -439,6 +441,7 @@ class KeybindingFooter(Horizontal):
         panel_focus: str = "main",
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
+        attempt_pinned: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -524,8 +527,9 @@ class KeybindingFooter(Horizontal):
         if can_jump_to_changespec:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
-        # Attempt view toggle (only when prior attempts exist)
-        if agent and agent.attempt_history:
+        # Attempt view toggle (only when prior attempts exist; suppressed
+        # while viewing a pinned attempt since the toggle has no effect there)
+        if agent and agent.attempt_history and not attempt_pinned:
             bindings.append((self._kd("toggle_attempt_view"), "attempt view"))
 
         # Move up/down (only for top-level agents, not workflow children)

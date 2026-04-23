@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:44:38
-status: wip
+status: done
 ---
 
 # Plan: Retry Attempts as Child Entries in the `sase ace` Agents Tab

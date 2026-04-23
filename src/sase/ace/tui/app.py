@@ -130,6 +130,7 @@ class AceApp(
     marked_indices: reactive[set[int]] = reactive(set, recompose=False)
 
     _current_idx: int
+    _current_attempt_number: int | None
 
     @property
     def current_idx(self) -> int:
@@ -141,7 +142,24 @@ class AceApp(
         old = self._current_idx
         self._current_idx = value
         if old != value:
+            # Moving to a different agent clears any pinned-attempt view.
+            self._current_attempt_number = None
             self.watch_current_idx(old, value)
+
+    @property
+    def current_attempt_number(self) -> int | None:
+        """Selected attempt number when an attempt child row is active.
+
+        ``None`` means the live/current attempt (the parent agent row).
+        """
+        return self._current_attempt_number
+
+    @current_attempt_number.setter
+    def current_attempt_number(self, value: int | None) -> None:
+        old = self._current_attempt_number
+        self._current_attempt_number = value
+        if old != value and self.current_tab == "agents":
+            self._refresh_agents_display_debounced()
 
     def __init__(
         self,
@@ -162,6 +180,7 @@ class AceApp(
         """
         super().__init__()
         self._current_idx = 0
+        self._current_attempt_number = None
         self._init_task_queue()
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe

@@ -1,10 +1,12 @@
 """Agent display mixin for the agent prompt panel."""
 
+from datetime import datetime
+
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ...models.agent import Agent, AgentType
+from ...models.agent import Agent, AgentType, AttemptRecord
 from ._agent_display_parts import (
     build_header_text,
     get_phase_label,
@@ -60,6 +62,9 @@ class AgentDisplayMixin:
 
     # Reactive-ish field set by AgentDetail before calling update_display.
     attempt_view_mode: str = "merged"
+    # When non-None, pin the prompt panel to the matching attempt_history
+    # record. Exclusive with the merged / current-only toggle.
+    attempt_pinned_number: int | None = None
 
     def update_display(self, agent: Agent) -> None:
         """Update with agent information and prompt.
@@ -67,6 +72,12 @@ class AgentDisplayMixin:
         Args:
             agent: The Agent to display.
         """
+        # Attempt-pinned view: render the selected prior attempt's full error
+        # + prompt + captured reply; skip all other rendering paths.
+        if self.attempt_pinned_number is not None:
+            self._render_attempt_pinned(agent, self.attempt_pinned_number)  # type: ignore[attr-defined]
+            return
+
         # Check if this is a top-level workflow agent that should display as workflow
         # Workflows with appears_as_agent=True should show as regular agents
         # Workflow children (steps) should show the normal agent view with prompt/chat
@@ -352,7 +363,124 @@ class AgentDisplayMixin:
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
 
+    def _render_attempt_pinned(self, agent: Agent, attempt_number: int) -> None:
+        """Render the prompt panel pinned to a prior attempt.
+
+        Shows the attempt banner (number, timestamp, outcome), the full
+        ``error_full`` traceback, the agent prompt (invariant across retries),
+        and the archived ``live_reply.md`` for the attempt. Thinking/files
+        aren't snapshotted per-attempt; the detail panel hides those panels.
+        """
+        record = _find_attempt(agent, attempt_number)
+        renderables: list[Text | Syntax] = []
+        if record is None:
+            missing = Text()
+            missing.append(
+                f"Attempt {attempt_number} not found for this agent.\n",
+                style="bold #FF5F5F",
+            )
+            self.update(missing)  # type: ignore[attr-defined]
+            return
+
+        renderables.append(
+            _render_attempt_banner(record, total=len(agent.attempt_history))
+        )
+
+        if record.error_full.strip():
+            renderables.append(
+                Syntax(record.error_full, "pytb", theme="monokai", word_wrap=True)
+            )
+        elif record.error_snippet:
+            snippet = Text()
+            snippet.append(f"{record.error_snippet}\n", style="#FF5F5F")
+            renderables.append(snippet)
+
+        divider = Text()
+        divider.append("\n")
+        divider.append("─" * 50 + "\n", style="dim")
+        divider.append("\n")
+        renderables.append(divider)
+
+        prompt_header = Text()
+        prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+        prompt_header.append("\n")
+        renderables.append(prompt_header)
+        prompt_content = get_prompt_content(agent)
+        if prompt_content:
+            renderables.append(
+                Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
+            )
+        else:
+            renderables.append(Text("No prompt file found.\n", style="dim italic"))
+
+        reply_header = Text()
+        reply_header.append("\n")
+        reply_header.append("─" * 50 + "\n", style="dim")
+        reply_header.append("\n")
+        reply_header.append(
+            f"ATTEMPT {record.attempt_number} REPLY\n",
+            style="bold #D7AF5F underline",
+        )
+        reply_header.append("\n")
+        renderables.append(reply_header)
+
+        chunks = record.get_timestamped_reply_chunks()
+        if chunks:
+            for ts, chunk_text in chunks:
+                renderables.append(render_timestamp_divider(ts))
+                content = chunk_text.strip()
+                if content:
+                    renderables.append(
+                        Syntax(content, "markdown", theme="monokai", word_wrap=True)
+                    )
+        else:
+            reply = record.get_reply_content()
+            if reply and reply.strip():
+                renderables.append(
+                    Syntax(reply, "markdown", theme="monokai", word_wrap=True)
+                )
+            else:
+                renderables.append(
+                    Text("(no partial reply captured)\n", style="dim italic")
+                )
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
     def show_empty(self) -> None:
         """Show empty state."""
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]
+
+
+def _find_attempt(agent: Agent, attempt_number: int) -> AttemptRecord | None:
+    for record in agent.attempt_history:
+        if record.attempt_number == attempt_number:
+            return record
+    return None
+
+
+def _render_attempt_banner(record: AttemptRecord, *, total: int) -> Text:
+    """Render the ``Viewing Attempt N of M`` banner for the pinned view."""
+    banner = Text()
+    try:
+        hhmmss = record.start_hhmmss
+    except (ValueError, OSError):
+        hhmmss = "??:??:??"
+    try:
+        end_time = datetime.fromtimestamp(record.end_epoch).strftime("%H:%M:%S")
+    except (ValueError, OSError):
+        end_time = "??:??:??"
+    banner.append(
+        f"Viewing Attempt {record.attempt_number} of {total}",
+        style="bold #FF8700",
+    )
+    banner.append(
+        f" · started {hhmmss} · {record.status} at {end_time}\n",
+        style="dim #FF8700",
+    )
+    if record.used_fallback and record.model:
+        banner.append(f"Fallback model: {record.model}\n", style="dim #FF8700")
+    banner.append("\n")
+    banner.append("ATTEMPT ERROR\n", style="bold #FF5F5F underline")
+    banner.append("\n")
+    return banner

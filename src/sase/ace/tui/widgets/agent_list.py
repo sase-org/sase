@@ -9,7 +9,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
-from ..models.agent import Agent, AgentType, format_compact_duration
+from ..models.agent import Agent, AgentType, AttemptRecord, format_compact_duration
 
 # Panel identity type
 PanelId = Literal["main", "pinned"]
@@ -109,11 +109,22 @@ class AgentList(OptionList, inherit_bindings=False):
     ]
 
     class SelectionChanged(Message):
-        """Message sent when selection changes."""
+        """Message sent when selection changes.
 
-        def __init__(self, index: int, panel: PanelId = "main") -> None:
+        ``index`` is the local-panel index of the target agent; ``attempt_number``
+        is non-None when a prior-attempt child row is selected (the detail view
+        should then pin to that attempt rather than the agent's live state).
+        """
+
+        def __init__(
+            self,
+            index: int,
+            panel: PanelId = "main",
+            attempt_number: int | None = None,
+        ) -> None:
             self.index = index
             self.panel = panel
+            self.attempt_number = attempt_number
             super().__init__()
 
     class WidthChanged(Message):
@@ -134,6 +145,9 @@ class AgentList(OptionList, inherit_bindings=False):
         self._agents: list[Agent] = []
         self._programmatic_update: bool = False
         self._panel: PanelId = panel
+        # Each rendered Option maps back to (agent_local_idx, attempt_number).
+        # attempt_number is None for an agent row, int for an attempt child.
+        self._row_entries: list[tuple[int, int | None]] = []
 
     def update_list(
         self,
@@ -144,6 +158,7 @@ class AgentList(OptionList, inherit_bindings=False):
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         has_focus: bool = True,
         jump_hints: dict[int, str] | None = None,
+        current_attempt_number: int | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -156,10 +171,13 @@ class AgentList(OptionList, inherit_bindings=False):
             marked_agents: Optional set of marked agent identities
             has_focus: Whether this panel currently has focus
             jump_hints: Optional local row index -> hint character mapping
+            current_attempt_number: When non-None, highlight the corresponding
+                attempt child row of the selected agent instead of the agent row.
         """
         self._programmatic_update = True
         self._agents = agents
         self.clear_options()
+        self._row_entries = []
 
         pinned = pinned_agents or set()
         marked = marked_agents or set()
@@ -174,6 +192,7 @@ class AgentList(OptionList, inherit_bindings=False):
                     fully_expanded_parents.add(agent.parent_timestamp)
 
         max_width = 0
+        highlighted_row: int | None = None
         for i, agent in enumerate(agents):
             is_expanded = (
                 agent.raw_suffix is not None
@@ -187,10 +206,13 @@ class AgentList(OptionList, inherit_bindings=False):
                 parents_with_visible_children,
                 fully_expanded_parents,
             )
+            is_selected_agent = (
+                has_focus and i == current_idx and current_attempt_number is None
+            )
             option = self._format_agent_option(
                 agent,
                 i,
-                is_selected=(has_focus and i == current_idx),
+                is_selected=is_selected_agent,
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_pinned=is_pinned,
@@ -198,8 +220,32 @@ class AgentList(OptionList, inherit_bindings=False):
                 hint_char=(jump_hints or {}).get(i),
             )
             self.add_option(option)
+            if is_selected_agent:
+                highlighted_row = len(self._row_entries)
+            self._row_entries.append((i, None))
             width = option.prompt.cell_len  # type: ignore[union-attr]
             max_width = max(max_width, width)
+
+            # Emit attempt child rows below the agent row when the agent has
+            # prior attempt records. Each is selectable and routes the detail
+            # panel to an attempt-pinned view.
+            for record in agent.attempt_history:
+                is_selected_attempt = (
+                    has_focus
+                    and i == current_idx
+                    and current_attempt_number == record.attempt_number
+                )
+                attempt_option = self._format_attempt_option(
+                    agent,
+                    record,
+                    is_selected=is_selected_attempt,
+                )
+                self.add_option(attempt_option)
+                if is_selected_attempt:
+                    highlighted_row = len(self._row_entries)
+                self._row_entries.append((i, record.attempt_number))
+                width = attempt_option.prompt.cell_len  # type: ignore[union-attr]
+                max_width = max(max_width, width)
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
@@ -207,27 +253,36 @@ class AgentList(OptionList, inherit_bindings=False):
         self.post_message(self.WidthChanged(optimal_width, panel=self._panel))
 
         # Highlight the current item only if this panel has focus
-        if has_focus and agents and 0 <= current_idx < len(agents):
-            self.highlighted = current_idx
+        if has_focus and highlighted_row is not None:
+            self.highlighted = highlighted_row
         elif not has_focus:
             self.highlighted = None
 
         # Clear flag after event loop processes pending events
         self.call_later(self._clear_programmatic_flag)
 
-    def update_highlight(self, current_idx: int) -> None:
+    def update_highlight(
+        self, current_idx: int, current_attempt_number: int | None = None
+    ) -> None:
         """Move the highlight without clearing/rebuilding options.
 
         Use this for j/k navigation where the agent list hasn't changed,
         only the selection index.
 
         Args:
-            current_idx: Index to highlight.
+            current_idx: Agent local index to highlight.
+            current_attempt_number: When non-None, highlight the attempt child
+                row of ``current_idx`` instead of the agent row.
         """
-        if self._agents and 0 <= current_idx < len(self._agents):
-            self._programmatic_update = True
-            self.highlighted = current_idx
-            self.call_later(self._clear_programmatic_flag)
+        if not self._agents or not (0 <= current_idx < len(self._agents)):
+            return
+        target = (current_idx, current_attempt_number)
+        for row, entry in enumerate(self._row_entries):
+            if entry == target:
+                self._programmatic_update = True
+                self.highlighted = row
+                self.call_later(self._clear_programmatic_flag)
+                return
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
@@ -416,16 +471,53 @@ class AgentList(OptionList, inherit_bindings=False):
         """Handle option highlight (keyboard navigation)."""
         # Only post message for user-initiated navigation, not programmatic updates
         if event.option_index is not None and not self._programmatic_update:
+            agent_idx, attempt_number = self._resolve_row(event.option_index)
             self.post_message(
-                self.SelectionChanged(event.option_index, panel=self._panel)
+                self.SelectionChanged(
+                    agent_idx, panel=self._panel, attempt_number=attempt_number
+                )
             )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
+            agent_idx, attempt_number = self._resolve_row(event.option_index)
             self.post_message(
-                self.SelectionChanged(event.option_index, panel=self._panel)
+                self.SelectionChanged(
+                    agent_idx, panel=self._panel, attempt_number=attempt_number
+                )
             )
+
+    def _resolve_row(self, option_index: int) -> tuple[int, int | None]:
+        """Translate a raw OptionList row index to (agent_local_idx, attempt_number)."""
+        if 0 <= option_index < len(self._row_entries):
+            return self._row_entries[option_index]
+        return (option_index, None)
+
+    def _format_attempt_option(
+        self,
+        agent: Agent,
+        record: AttemptRecord,
+        *,
+        is_selected: bool,
+    ) -> Option:
+        """Format a prior-attempt row as a selectable child of ``agent``."""
+        text = Text()
+        text.append("    ↳ ", style="dim #808080")
+        label_style = "bold #FF8700" if is_selected else "#FF8700"
+        text.append(f"Attempt {record.attempt_number}", style=label_style)
+        try:
+            hhmmss = record.start_hhmmss
+        except (ValueError, OSError):
+            hhmmss = "??:??:??"
+        text.append(f" · {hhmmss}", style="dim #FF8700")
+        if record.used_fallback:
+            text.append(" (fallback)", style="dim #FF8700")
+        text.append(f" · {record.status}", style="dim #FF8700")
+        if record.error_snippet:
+            text.append(f": {record.error_snippet}", style="dim italic #FF5F5F")
+        option_id = f"attempt:{agent.raw_suffix}:{record.attempt_number}"
+        return Option(text, id=option_id)
 
 
 def _compute_fold_annotation(
@@ -447,40 +539,45 @@ def _compute_fold_annotation(
     Returns:
         Annotation string, or empty string if not applicable.
     """
-    if not fold_counts or not _is_foldable_parent(agent) or not agent.raw_suffix:
-        return ""
+    attempts_count = len(agent.attempt_history)
 
-    counts = fold_counts.get(agent.raw_suffix)
-    if not counts:
-        return ""
+    if _is_foldable_parent(agent) and fold_counts and agent.raw_suffix:
+        counts = fold_counts.get(agent.raw_suffix)
+        if counts:
+            non_hidden, hidden = counts
+            total = non_hidden + hidden
+            if total > 0:
+                has_visible_children = agent.raw_suffix in parents_with_visible_children
+                suffix = _attempt_count_suffix(attempts_count)
+                if not has_visible_children:
+                    if (
+                        agent.is_anonymous
+                        and agent.appears_as_agent
+                        and total == 1
+                        and attempts_count == 0
+                    ):
+                        return ""
+                    return f" ({total} steps{suffix})"
+                is_fully_expanded = (
+                    fully_expanded_parents is not None
+                    and agent.raw_suffix in fully_expanded_parents
+                )
+                if hidden > 0 and is_fully_expanded:
+                    return f" ({total} steps, {hidden} shown{suffix})"
+                if hidden > 0:
+                    return f" ({total} steps, {hidden} hidden{suffix})"
+                if attempts_count > 0:
+                    return f" ({attempts_count} attempts)"
+                return ""
 
-    non_hidden, hidden = counts
-    total = non_hidden + hidden
-    if total == 0:
-        return ""
-
-    has_visible_children = agent.raw_suffix in parents_with_visible_children
-
-    if not has_visible_children:
-        # COLLAPSED: suppress annotation for anonymous single-prompt workflows
-        if agent.is_anonymous and agent.appears_as_agent and total == 1:
-            return ""
-        # COLLAPSED: show total step count
-        return f" ({total} steps)"
-
-    # Children are visible (EXPANDED or FULLY_EXPANDED)
-    is_fully_expanded = (
-        fully_expanded_parents is not None
-        and agent.raw_suffix in fully_expanded_parents
-    )
-
-    if hidden > 0 and is_fully_expanded:
-        # FULLY_EXPANDED: all children shown including hidden ones
-        return f" ({total} steps, {hidden} shown)"
-
-    if hidden > 0:
-        # EXPANDED: some children still hidden
-        return f" ({total} steps, {hidden} hidden)"
-
-    # All children visible, no hidden steps exist
+    # Non-workflow agent: annotate attempts alone when present.
+    if attempts_count > 0:
+        return f" ({attempts_count} attempts)"
     return ""
+
+
+def _attempt_count_suffix(attempts_count: int) -> str:
+    """Return ``, N attempts`` fragment when attempts exist, else empty string."""
+    if attempts_count <= 0:
+        return ""
+    return f", {attempts_count} attempts"

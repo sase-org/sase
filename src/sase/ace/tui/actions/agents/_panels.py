@@ -184,6 +184,10 @@ class AgentPanelsMixin:
                 "No prior attempts for this agent", severity="warning"
             )
             return
+        # Attempt-pinned view renders the selected record directly; the
+        # merged / current-only toggle does not apply.
+        if getattr(self, "current_attempt_number", None) is not None:
+            return
 
         from ...widgets import AgentDetail
 

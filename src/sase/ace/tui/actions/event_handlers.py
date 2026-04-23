@@ -32,6 +32,7 @@ class EventHandlersMixin:
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
     current_idx: int
+    current_attempt_number: int | None
     current_tab: TabName
     refresh_interval: int
     _countdown_remaining: int
@@ -282,7 +283,14 @@ class EventHandlersMixin:
                 if self._pinned_panel_focused != panel:  # type: ignore[has-type]
                     self._pinned_panel_focused = panel  # type: ignore[has-type]
                     self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-                self.current_idx = global_idx
+                # Updating current_idx clears _current_attempt_number (setter
+                # in AceApp). Set the attempt number after so attempt-child
+                # selections land on the pinned view.
+                if global_idx == self.current_idx:
+                    self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+                else:
+                    self.current_idx = global_idx
+                    self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
