@@ -418,6 +418,121 @@ def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
         assert "%wait\n%name reviewer Review the fix" in texts
 
 
+def test_single_word_prompt_not_written(tmp_path: Path) -> None:
+    """Test that a single-word prompt (e.g. bare xprompt trigger) is dropped."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("#gh:sase")
+        assert _load_prompt_history() == []
+
+
+def test_whitespace_only_prompt_not_written(tmp_path: Path) -> None:
+    """Test that whitespace-only prompts are dropped."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("   \n\t  ")
+        assert _load_prompt_history() == []
+
+
+def test_two_word_prompt_is_written(tmp_path: Path) -> None:
+    """Test that a 2-word prompt is written normally (boundary case)."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("fix bug")
+        result = _load_prompt_history()
+        assert len(result) == 1
+        assert result[0].text == "fix bug"
+
+
+def test_single_word_cancelled_prompt_not_written(tmp_path: Path) -> None:
+    """Test that a cancelled single-word prompt is also dropped."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("#gh:sase", cancelled=True)
+        assert _load_prompt_history() == []
+
+
+def test_multi_prompt_skips_short_segments(tmp_path: Path) -> None:
+    """Test that short segments in a multi-prompt are skipped but the whole is kept."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("#gh:sase\n---\nfix auth bug")
+        result = _load_prompt_history()
+        texts = {e.text for e in result}
+        # Whole string (3 words) and "fix auth bug" segment saved;
+        # the single-word "#gh:sase" segment skipped.
+        assert "#gh:sase\n---\nfix auth bug" in texts
+        assert "fix auth bug" in texts
+        assert "#gh:sase" not in texts
+        assert len(result) == 2
+
+
+def test_existing_single_word_entry_not_updated(tmp_path: Path) -> None:
+    """Test that an existing single-word entry does not get its last_used bumped."""
+    test_file = tmp_path / "prompt_history.json"
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+        entry = PromptEntry(
+            text="#gh:sase",
+            branch_or_workspace="main",
+            timestamp="251231_100000",
+            last_used="251231_100000",
+            workspace="myproject",
+        )
+        _save_prompt_history([entry])
+
+        with (
+            patch(
+                "sase.history.prompt._get_current_branch_or_workspace",
+                return_value="main",
+            ),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+            patch(
+                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
+            ),
+        ):
+            add_or_update_prompt("#gh:sase")
+
+        result = _load_prompt_history()
+        assert len(result) == 1
+        # last_used should NOT have been bumped
+        assert result[0].last_used == "251231_100000"
+
+
 def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
     """Test that JSON entries with missing fields are filtered out."""
     test_file = tmp_path / "prompt_history.json"

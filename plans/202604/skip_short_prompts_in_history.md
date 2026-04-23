@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 14:59:06
-status: wip
+status: done
 ---
 
 # Skip Short Prompts in Prompt History

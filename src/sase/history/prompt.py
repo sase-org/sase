@@ -12,6 +12,10 @@ _PROMPT_HISTORY_FILE = Path.home() / ".sase" / "prompt_history.json"
 # Display settings for fzf
 _PROMPT_PREVIEW_LENGTH = 60
 
+# Skip prompts shorter than this — bare xprompt triggers like `#gh:sase` are
+# single-token and not meaningful to re-run from history.
+_MIN_PROMPT_WORDS = 2
+
 
 @dataclass
 class PromptEntry:
@@ -127,6 +131,9 @@ def add_or_update_prompt(
         cancelled: If True, mark this prompt as cancelled (unsent). An existing
             non-cancelled prompt will not be downgraded to cancelled.
     """
+    if len(text.split()) < _MIN_PROMPT_WORDS:
+        return
+
     prompts = _load_prompt_history()
     current_timestamp = generate_timestamp()
     current_branch = (
