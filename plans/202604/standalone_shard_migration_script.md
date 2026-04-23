@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 16:46:02
-status: wip
+status: done
 ---
 
 # Standalone migration script for sharding `~/.sase/` dirs on another machine
