@@ -9,7 +9,6 @@ directories used by the new lumberjack architecture.
 
 import json
 import os
-from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -306,14 +305,7 @@ def read_output_log_tail(lines: int = 1000) -> str:
     """
     if not AXE_OUTPUT_LOG.exists():
         return ""
-
-    try:
-        with open(AXE_OUTPUT_LOG) as f:
-            # Use deque with maxlen for memory-efficient tailing
-            last_lines = deque(f, maxlen=lines)
-        return "".join(last_lines)
-    except OSError:
-        return ""
+    return _read_tail_seek(AXE_OUTPUT_LOG, lines)
 
 
 def clear_output_log() -> None:
@@ -538,6 +530,34 @@ def lumberjack_log_path(name: str) -> Path:
     return _lumberjack_dir(name) / "logs" / "output.log"
 
 
+def _read_tail_seek(log_file: Path, lines: int) -> str:
+    """Read the last N lines of a file by seeking from the end.
+
+    O(tail size), not O(file size). Safe on multi-GB log files where a
+    deque over the whole file would burn minutes of I/O.
+    """
+    # Start with a 64KB window and double until we have enough newlines or
+    # we've read the entire file.
+    block_size = 64 * 1024
+    try:
+        with open(log_file, "rb") as f:
+            f.seek(0, 2)
+            file_size = f.tell()
+            data = b""
+            while len(data) < file_size:
+                to_read = min(block_size, file_size - len(data))
+                f.seek(file_size - len(data) - to_read)
+                data = f.read(to_read) + data
+                if data.count(b"\n") > lines:
+                    break
+                block_size *= 2
+        text = data.decode("utf-8", errors="replace")
+        tail_lines = text.splitlines(keepends=True)[-lines:]
+        return "".join(tail_lines)
+    except OSError:
+        return ""
+
+
 def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
     """Read the last N lines of a lumberjack's output log.
 
@@ -551,12 +571,7 @@ def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
     log_file = lumberjack_log_path(name)
     if not log_file.exists():
         return ""
-    try:
-        with open(log_file) as f:
-            last_lines = deque(f, maxlen=lines)
-        return "".join(last_lines)
-    except OSError:
-        return ""
+    return _read_tail_seek(log_file, lines)
 
 
 def clear_lumberjack_output_log(name: str) -> None:

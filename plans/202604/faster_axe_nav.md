@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:57:47
-status: wip
+status: done
 ---
 
 # Plan: Make Axe tab navigation in `sase ace` WAY faster

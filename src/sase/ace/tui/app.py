@@ -15,7 +15,7 @@ from textual.worker import Worker
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from sase.axe.state import AxeMetrics, AxeStatus
+from sase.axe.state import AxeMetrics, AxeStatus, LumberjackMetrics, LumberjackStatus
 
 from ..changespec import ChangeSpec
 from ..query import parse_query, to_canonical_string
@@ -337,6 +337,20 @@ class AceApp(
         self._axe_current_view: Literal["axe"] | int = "axe"
         self._bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
 
+        # Axe navigation caches: populated by the async collector so that
+        # Ctrl+N / Ctrl+P render without touching disk. Empty until the
+        # first async load completes (first-paint shows empty placeholders).
+        from .actions.axe_display import BgCmdSnapshot
+
+        self._axe_lumberjack_statuses: dict[str, LumberjackStatus | None] = {}
+        self._axe_lumberjack_metrics: dict[str, LumberjackMetrics | None] = {}
+        self._axe_lumberjack_log_tails: dict[str, str] = {}
+        self._axe_bgcmd_details: dict[int, BgCmdSnapshot] = {}
+
+        # Debounce timer for axe j/k navigation detail updates.
+        self._axe_detail_update_timer: Timer | None = None
+        self._axe_loading_placeholder_shown: bool = False
+
         # Lumberjack cycling state (new axe architecture)
         self._axe_lumberjack_names: list[str] = []
         self._axe_lumberjack_idx: int | None = None
@@ -613,7 +627,7 @@ class AceApp(
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
             elif self.current_tab == "axe":
-                self._refresh_axe_display()
+                self._refresh_axe_display_debounced()
 
     def watch_current_tab(self, old_tab: TabName, new_tab: TabName) -> None:
         """React to tab changes by showing/hiding views."""

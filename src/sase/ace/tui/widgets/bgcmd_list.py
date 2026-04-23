@@ -5,7 +5,7 @@ background commands are present.
 """
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from rich.text import Text
 from textual.message import Message
@@ -13,6 +13,9 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from ..bgcmd import BackgroundCommandInfo, is_slot_running
+
+if TYPE_CHECKING:
+    from sase.axe.state import LumberjackStatus
 
 # Item type: "axe" or slot number (1-9)
 ItemType = Literal["axe"] | int
@@ -67,6 +70,8 @@ class BgCmdList(OptionList):
         lumberjack_names: list[str],
         bgcmd_infos: dict[int, BackgroundCommandInfo],
         jump_hints: dict[int, str] | None = None,
+        lumberjack_statuses: "dict[str, LumberjackStatus | None] | None" = None,
+        bgcmd_running: dict[int, bool] | None = None,
     ) -> None:
         """Update the list with current AXE items.
 
@@ -77,9 +82,12 @@ class BgCmdList(OptionList):
             lumberjack_names: Lumberjack names for status lookup.
             bgcmd_infos: Mapping of slot -> info for bgcmds.
             jump_hints: Optional local row index -> hint character mapping.
+            lumberjack_statuses: Cached status per lumberjack. If omitted, the
+                widget falls back to a synchronous read from disk (old
+                behavior — only used by tests / legacy callers).
+            bgcmd_running: Cached running flag per slot. If omitted, falls
+                back to a synchronous process check.
         """
-        from sase.axe.state import read_lumberjack_status
-
         self._programmatic_update = True
         self._item_count = len(items)
 
@@ -100,7 +108,12 @@ class BgCmdList(OptionList):
                         hint_char=(jump_hints or {}).get(idx),
                     )
                 case LumberjackItem(name=name):
-                    lumberjack_status = read_lumberjack_status(name)
+                    if lumberjack_statuses is not None:
+                        lumberjack_status = lumberjack_statuses.get(name)
+                    else:
+                        from sase.axe.state import read_lumberjack_status
+
+                        lumberjack_status = read_lumberjack_status(name)
                     option = self._format_lumberjack_option(
                         name=name,
                         status=lumberjack_status,
@@ -109,11 +122,15 @@ class BgCmdList(OptionList):
                     )
                 case BgCmdItem(slot=slot):
                     info = bgcmd_infos.get(slot)
+                    if bgcmd_running is not None:
+                        running = bgcmd_running.get(slot, False)
+                    else:
+                        running = is_slot_running(slot)
                     option = self._format_bgcmd_option(
                         slot=slot,
                         info=info,
                         is_selected=is_selected,
-                        is_running=is_slot_running(slot),
+                        is_running=running,
                         hint_char=(jump_hints or {}).get(idx),
                     )
             self.add_option(option)
@@ -237,6 +254,19 @@ class BgCmdList(OptionList):
         text.append(cmd_display, style=label_style)
 
         return Option(text, id=str(slot))
+
+    def update_highlight(self, current_idx: int) -> None:
+        """Move the highlight without clearing/rebuilding options.
+
+        Use this for j/k navigation where the item list hasn't changed,
+        only the selection index.
+        """
+        if 0 <= current_idx < self._item_count:
+            self._programmatic_update = True
+            try:
+                self.highlighted = current_idx
+            finally:
+                self._programmatic_update = False
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         """Suppress OptionHighlighted messages during programmatic updates."""

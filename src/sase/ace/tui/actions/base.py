@@ -351,6 +351,9 @@ class BaseActionsMixin:
         elif self.current_tab == "changespecs":
             self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
         else:  # axe
+            # Targeted refresh repaints the focused panel first; the
+            # full-fleet refresh lands whenever it lands.
+            self._schedule_targeted_axe_refresh()  # type: ignore[attr-defined]
             self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
         self.notify("Refreshed")  # type: ignore[attr-defined]
 

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import dataclasses
 import types
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
+    LumberjackMetrics,
     LumberjackStatus,
     read_lumberjack_log_tail,
     read_lumberjack_metrics,
@@ -45,6 +46,15 @@ def get_axe_process_module() -> types.ModuleType:
 
 
 @dataclasses.dataclass
+class BgCmdSnapshot:
+    """Snapshot of a single background command slot."""
+
+    info: BackgroundCommandInfo | None
+    running: bool
+    output_tail: str
+
+
+@dataclasses.dataclass
 class _AxeCollectedData:
     """Data collected from disk I/O for axe status."""
 
@@ -54,6 +64,10 @@ class _AxeCollectedData:
     axe_output: str
     lumberjack_names: list[str]
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
+    lumberjack_statuses: dict[str, LumberjackStatus | None]
+    lumberjack_metrics: dict[str, LumberjackMetrics | None]
+    lumberjack_log_tails: dict[str, str]
+    bgcmd_details: dict[int, BgCmdSnapshot]
 
 
 def _collect_axe_status_data() -> _AxeCollectedData:
@@ -86,17 +100,34 @@ def _collect_axe_status_data() -> _AxeCollectedData:
     config = load_new_axe_config()
     lumberjack_names = sorted(config.lumberjacks.keys())
 
+    # Load per-lumberjack status/metrics/log-tail off the event loop so
+    # navigation can paint from the cache instead of hitting disk per keypress.
+    lumberjack_statuses: dict[str, LumberjackStatus | None] = {}
+    lumberjack_metrics: dict[str, LumberjackMetrics | None] = {}
+    lumberjack_log_tails: dict[str, str] = {}
+    for name in lumberjack_names:
+        lumberjack_statuses[name] = read_lumberjack_status(name)
+        lumberjack_metrics[name] = read_lumberjack_metrics(name)
+        lumberjack_log_tails[name] = read_lumberjack_log_tail(name, 500)
+
     # Load bgcmd state
     active_slots = get_active_slots()
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
+    bgcmd_details: dict[int, BgCmdSnapshot] = {}
     for slot in active_slots:
         info = get_slot_info(slot)
         if info is not None:
-            if not is_slot_running(slot) and info.finished_at is None:
+            running = is_slot_running(slot)
+            if not running and info.finished_at is None:
                 mark_slot_finished(slot)
                 info = get_slot_info(slot)
             if info is not None:
                 bgcmd_slots.append((slot, info))
+                bgcmd_details[slot] = BgCmdSnapshot(
+                    info=info,
+                    running=running,
+                    output_tail=read_slot_output_tail(slot, 500),
+                )
 
     return _AxeCollectedData(
         axe_running=axe_running,
@@ -105,6 +136,10 @@ def _collect_axe_status_data() -> _AxeCollectedData:
         axe_output=axe_output,
         lumberjack_names=lumberjack_names,
         bgcmd_slots=bgcmd_slots,
+        lumberjack_statuses=lumberjack_statuses,
+        lumberjack_metrics=lumberjack_metrics,
+        lumberjack_log_tails=lumberjack_log_tails,
+        bgcmd_details=bgcmd_details,
     )
 
 
@@ -128,6 +163,14 @@ class AxeDisplayMixin:
     _axe_lumberjack_idx: int | None
     _axe_items: list[AxeItem]
     _axe_fold_manager: FoldStateManager
+    # Caches populated by the async collector so navigation paints without I/O.
+    _axe_lumberjack_statuses: dict[str, LumberjackStatus | None]
+    _axe_lumberjack_metrics: dict[str, LumberjackMetrics | None]
+    _axe_lumberjack_log_tails: dict[str, str]
+    _axe_bgcmd_details: dict[int, BgCmdSnapshot]
+    # Timer for debounced axe detail-panel refresh on j/k navigation.
+    _axe_detail_update_timer: Any  # Timer | None
+    _axe_loading_placeholder_shown: bool
     _bang_mode_active: bool
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
@@ -185,6 +228,14 @@ class AxeDisplayMixin:
 
         # Apply bgcmd state
         self._bgcmd_slots = data.bgcmd_slots
+
+        # Apply per-lumberjack and bgcmd caches populated by the async collector
+        # so that navigation renders from memory rather than from disk.
+        self._axe_lumberjack_statuses = data.lumberjack_statuses
+        self._axe_lumberjack_metrics = data.lumberjack_metrics
+        self._axe_lumberjack_log_tails = data.lumberjack_log_tails
+        self._axe_bgcmd_details = data.bgcmd_details
+
         self._update_bgcmd_count()
         self._build_axe_items()
 
@@ -208,6 +259,70 @@ class AxeDisplayMixin:
     def _schedule_axe_async_refresh(self) -> None:
         """Schedule an async axe status reload without blocking."""
         self.call_later(self._load_axe_status_async)  # type: ignore[attr-defined]
+
+    async def _refresh_selected_axe_item_async(self) -> None:
+        """Re-read on-disk state for the currently selected axe item only.
+
+        This is the fast path for the `y` keymap: it repaints the focused
+        panel in well under the full-fleet refresh time, so the user sees
+        fresh data for what they are actually looking at without waiting.
+
+        Falls through silently if nothing is selected or the view is the
+        parent axe entry (the full-fleet refresh handles that case).
+        """
+        import asyncio
+
+        # Snapshot the selection at call time; the user may have moved by the
+        # time the background read completes, but we still want to write the
+        # cache entry for the originally-selected item.
+        self._derive_axe_view_from_selection()
+        view = self._axe_current_view
+        lumberjack_idx = self._axe_lumberjack_idx
+        names = list(self._axe_lumberjack_names)
+
+        if (
+            view == "axe"
+            and lumberjack_idx is not None
+            and 0 <= lumberjack_idx < len(names)
+        ):
+            name = names[lumberjack_idx]
+
+            def _read_one() -> tuple[
+                LumberjackStatus | None, LumberjackMetrics | None, str
+            ]:
+                return (
+                    read_lumberjack_status(name),
+                    read_lumberjack_metrics(name),
+                    read_lumberjack_log_tail(name, 500),
+                )
+
+            status, metrics, log_tail = await asyncio.to_thread(_read_one)
+            self._axe_lumberjack_statuses[name] = status
+            self._axe_lumberjack_metrics[name] = metrics
+            self._axe_lumberjack_log_tails[name] = log_tail
+            if self.current_tab == "axe":
+                self._refresh_axe_display()
+        elif isinstance(view, int):
+            slot = view
+
+            def _read_slot() -> tuple[BackgroundCommandInfo | None, bool, str]:
+                info = get_slot_info(slot)
+                running = is_slot_running(slot)
+                if info is not None and not running and info.finished_at is None:
+                    mark_slot_finished(slot)
+                    info = get_slot_info(slot)
+                return info, running, read_slot_output_tail(slot, 500)
+
+            info, running, tail = await asyncio.to_thread(_read_slot)
+            self._axe_bgcmd_details[slot] = BgCmdSnapshot(
+                info=info, running=running, output_tail=tail
+            )
+            if self.current_tab == "axe":
+                self._refresh_axe_display()
+
+    def _schedule_targeted_axe_refresh(self) -> None:
+        """Schedule a targeted refresh of the selected item's on-disk state."""
+        self.call_later(self._refresh_selected_axe_item_async)  # type: ignore[attr-defined]
 
     async def _run_axe_startup_init(self) -> None:
         """Load axe status and trigger startup auto-start/restart off the critical path."""
@@ -281,11 +396,13 @@ class AxeDisplayMixin:
         """Update the AXE tab bar label with lumberjack and bgcmd counts."""
         from ..widgets import TabBar
 
-        # Count running lumberjacks
+        # Count running lumberjacks from the cache populated by the async
+        # collector — avoids an extra N round-trip of disk reads on every
+        # apply.
         running_lumberjacks = 0
         if self.axe_running:
             for lumberjack_name in self._axe_lumberjack_names:
-                lumberjack_status = read_lumberjack_status(lumberjack_name)
+                lumberjack_status = self._axe_lumberjack_statuses.get(lumberjack_name)
                 if lumberjack_status and lumberjack_status.status == "running":
                     running_lumberjacks += 1
 
@@ -347,6 +464,44 @@ class AxeDisplayMixin:
                 self._axe_current_view = slot
                 self._axe_lumberjack_idx = None
 
+    def _refresh_axe_display_debounced(self) -> None:
+        """Debounced refresh for j/k navigation on the axe tab.
+
+        Updates the side-panel highlight and info-panel position counter
+        immediately, then schedules the full dashboard/info-panel redraw on
+        a 150 ms timer. Rapid bursts of navigation collapse to a single
+        final render.
+        """
+        from ..widgets import BgCmdList
+
+        # Derive the selection so the info panel counter is accurate even
+        # before the debounce fires.
+        self._derive_axe_view_from_selection()
+
+        try:
+            bgcmd_list = self.query_one("#bgcmd-list-panel", BgCmdList)  # type: ignore[attr-defined]
+            bgcmd_list.update_highlight(self.current_idx)
+        except Exception:
+            pass
+
+        # Update position counter on the info panel immediately so the
+        # "N/M" indicator keeps up with j/k even if the panel redraw is
+        # debounced.
+        self._update_axe_info_panel()
+
+        # Cancel any pending debounce timer before scheduling a new one.
+        if self._axe_detail_update_timer is not None:
+            self._axe_detail_update_timer.stop()
+
+        self._axe_detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
+            0.15, self._fire_debounced_axe_refresh
+        )
+
+    def _fire_debounced_axe_refresh(self) -> None:
+        """Timer callback for the debounced axe refresh."""
+        self._axe_detail_update_timer = None
+        self._refresh_axe_display()
+
     def _refresh_axe_display(self) -> None:
         """Refresh the axe dashboard display."""
         from textual.containers import VerticalScroll
@@ -364,15 +519,21 @@ class AxeDisplayMixin:
             # Update countdown
             axe_info.update_countdown(self._countdown_remaining, self.refresh_interval)
 
-            # Update info panel based on current view
+            # Update info panel based on current view. All reads are from the
+            # in-memory cache populated by the async collector; navigation must
+            # never hit disk.
             if self._axe_current_view == "axe":
                 if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
                     # Show lumberjack-specific view
                     lumberjack_name = self._axe_lumberjack_names[
                         self._axe_lumberjack_idx
                     ]
-                    lumberjack_output = read_lumberjack_log_tail(lumberjack_name, 500)
-                    lumberjack_status = read_lumberjack_status(lumberjack_name)
+                    lumberjack_output = self._axe_lumberjack_log_tails.get(
+                        lumberjack_name, ""
+                    )
+                    lumberjack_status = self._axe_lumberjack_statuses.get(
+                        lumberjack_name
+                    )
                     lumberjack_idx = self._axe_lumberjack_idx
                     lumberjack_total = len(self._axe_lumberjack_names)
 
@@ -396,16 +557,20 @@ class AxeDisplayMixin:
                     if self._axe_metrics:
                         full_cycles = self._axe_metrics.full_cycles_run
 
-                    # Gather lumberjack summaries for display
+                    # Gather lumberjack summaries from the cache
                     lumberjack_summaries: list[
                         tuple[str, LumberjackStatus | None, int]
                     ] = []
                     for lumberjack_name in self._axe_lumberjack_names:
-                        lumberjack_status = read_lumberjack_status(lumberjack_name)
-                        lumberjack_metrics = read_lumberjack_metrics(lumberjack_name)
+                        lumberjack_status = self._axe_lumberjack_statuses.get(
+                            lumberjack_name
+                        )
+                        lumberjack_metrics_entry = self._axe_lumberjack_metrics.get(
+                            lumberjack_name
+                        )
                         chops_executed = (
-                            lumberjack_metrics.chops_executed
-                            if lumberjack_metrics
+                            lumberjack_metrics_entry.chops_executed
+                            if lumberjack_metrics_entry
                             else 0
                         )
                         lumberjack_summaries.append(
@@ -421,17 +586,20 @@ class AxeDisplayMixin:
                         lumberjack_summaries=lumberjack_summaries,
                     )
             else:
-                # Showing a bgcmd view
+                # Showing a bgcmd view — paint from cache when available. On a
+                # cold miss we fall back to the quick non-I/O reads (info +
+                # running) so the header still renders; the log panel shows an
+                # empty string until the async collector lands.
                 slot = self._axe_current_view
-                info = get_slot_info(slot)
-                running = is_slot_running(slot)
-
-                # Check if command just finished and mark it
-                if info is not None and not running and info.finished_at is None:
-                    mark_slot_finished(slot)
-                    info = get_slot_info(slot)  # Reload to get updated info
-
-                output = read_slot_output_tail(slot, 500)
+                snapshot = self._axe_bgcmd_details.get(slot)
+                if snapshot is not None:
+                    info = snapshot.info
+                    running = snapshot.running
+                    output = snapshot.output_tail
+                else:
+                    info = get_slot_info(slot)
+                    running = is_slot_running(slot)
+                    output = ""
 
                 axe_info.update_bgcmd_status(slot, info, running)
                 axe_dashboard.update_bgcmd_display(
@@ -459,9 +627,13 @@ class AxeDisplayMixin:
                     axe_current_view=self._axe_current_view,
                 )
 
-            # Always update the side-panel list
+            # Always update the side-panel list. Pass cached statuses and
+            # running flags so the side-panel render path does no disk I/O.
             try:
                 bgcmd_list = self.query_one("#bgcmd-list-panel", BgCmdList)  # type: ignore[attr-defined]
+                bgcmd_running_cache = {
+                    slot: snap.running for slot, snap in self._axe_bgcmd_details.items()
+                }
                 bgcmd_list.update_list(
                     items=self._axe_items,
                     current_idx=self.current_idx,
@@ -473,6 +645,8 @@ class AxeDisplayMixin:
                         if self._entry_jump_mode_active
                         else None
                     ),
+                    lumberjack_statuses=self._axe_lumberjack_statuses,
+                    bgcmd_running=bgcmd_running_cache,
                 )
             except Exception:
                 pass
@@ -495,8 +669,13 @@ class AxeDisplayMixin:
                 axe_info.update_status(self.axe_running)
             else:
                 slot = self._axe_current_view
-                info = get_slot_info(slot)
-                running = is_slot_running(slot)
+                snapshot = self._axe_bgcmd_details.get(slot)
+                if snapshot is not None:
+                    info = snapshot.info
+                    running = snapshot.running
+                else:
+                    info = get_slot_info(slot)
+                    running = is_slot_running(slot)
                 axe_info.update_bgcmd_status(slot, info, running)
             axe_info.update_countdown(self._countdown_remaining, self.refresh_interval)
 
