@@ -227,6 +227,11 @@ class PromptTextArea(
                 event.prevent_default()
                 self._accept_file_completion()
                 return
+            if event.key == "ctrl+d" and self._completion_kind == "file_history":
+                event.stop()
+                event.prevent_default()
+                self._delete_selected_file_completion()
+                return
 
         # VCS MRU cycling: ctrl+n/ctrl+p when prompt is empty or VCS-only
         if not self._file_completion_active and event.key in ("ctrl+n", "ctrl+p"):

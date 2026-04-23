@@ -10,6 +10,7 @@ from sase.history.file_references import (
     extract_recordable_file_refs,
     load_file_references,
     record_file_references,
+    remove_file_reference,
 )
 
 
@@ -115,3 +116,43 @@ class TestFileReferenceStore:
             record_file_references(["/2"])
             record_file_references(["/3"])
             assert load_file_references() == ["/3", "/2", "/1"]
+
+
+class TestRemoveFileReference:
+    def test_removes_existing_path(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            record_file_references(["/a", "/b", "/c"])
+            # After record, most-recent is at index 0: ["/c", "/b", "/a"]
+            remove_file_reference("/b")
+            assert load_file_references() == ["/c", "/a"]
+
+    def test_missing_path_is_noop(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            record_file_references(["/a", "/b"])
+            before = store.read_bytes()
+            remove_file_reference("/nope")
+            assert store.read_bytes() == before
+
+    def test_missing_file_is_noop(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            remove_file_reference("/anything")
+            assert not store.exists()
+
+    def test_corrupt_file_is_noop(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        store.write_text("not json", encoding="utf-8")
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            remove_file_reference("/anything")
+            # File must not have been overwritten — user's corrupt-but-
+            # recoverable data is preserved.
+            assert store.read_text(encoding="utf-8") == "not json"
+
+    def test_remove_last_entry_leaves_empty_list(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            record_file_references(["/only"])
+            remove_file_reference("/only")
+            assert load_file_references() == []

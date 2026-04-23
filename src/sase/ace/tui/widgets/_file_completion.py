@@ -165,6 +165,35 @@ class FileCompletionMixin(_MixinBase):
             self._clear_file_completion()
         return True
 
+    def _delete_selected_file_completion(self) -> bool:
+        """Delete the highlighted entry from file-history completion."""
+        if not self._file_completion_active:
+            return False
+        if self._completion_kind != "file_history":
+            return False
+        if not self._file_completion_candidates:
+            return False
+
+        from sase.history.file_references import remove_file_reference
+
+        idx = self._file_completion_index
+        if idx >= len(self._file_completion_candidates):
+            return False
+
+        victim = self._file_completion_candidates[idx].insertion
+        remove_file_reference(victim)
+
+        del self._file_completion_candidates[idx]
+        if not self._file_completion_candidates:
+            self._clear_file_completion()
+            return True
+
+        self._file_completion_index = min(
+            idx, len(self._file_completion_candidates) - 1
+        )
+        self._update_file_completion_panel("")
+        return True
+
     def _refresh_file_completion_from_cursor(self) -> None:
         """Recompute active completions after edits or cursor movement."""
         if not self._file_completion_active:

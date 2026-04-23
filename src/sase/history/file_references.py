@@ -80,6 +80,18 @@ def load_file_references() -> list[str]:
         return []
 
 
+def _write_history(paths: list[str]) -> None:
+    """Atomically overwrite the history file with *paths*."""
+    try:
+        _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = _HISTORY_FILE.with_suffix(_HISTORY_FILE.suffix + ".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump({"paths": paths}, f, indent=2)
+        os.replace(tmp_path, _HISTORY_FILE)
+    except OSError:
+        pass
+
+
 def record_file_references(refs: Iterable[str]) -> None:
     """Prepend *refs* to the on-disk history, dedup, and atomically save.
 
@@ -106,11 +118,27 @@ def record_file_references(refs: Iterable[str]) -> None:
         seen.add(ref)
         deduped.append(ref)
 
+    _write_history(deduped)
+
+
+def remove_file_reference(path: str) -> None:
+    """Remove *path* from the on-disk history, atomically.
+
+    Silent no-op if the history file is missing or corrupt, or if *path*
+    is not present. Exact-match comparison: the caller must pass the
+    stored form (``@`` already stripped, ``~`` not expanded) — which is
+    exactly what :func:`load_file_references` returns.
+    """
+    if not _HISTORY_FILE.exists():
+        return
     try:
-        _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = _HISTORY_FILE.with_suffix(_HISTORY_FILE.suffix + ".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump({"paths": deduped}, f, indent=2)
-        os.replace(tmp_path, _HISTORY_FILE)
-    except OSError:
-        pass
+        with open(_HISTORY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    raw_paths = data.get("paths", [])
+    existing = [p for p in raw_paths if isinstance(p, str)]
+    remaining = [p for p in existing if p != path]
+    if len(remaining) == len(existing):
+        return
+    _write_history(remaining)

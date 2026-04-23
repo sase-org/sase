@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 14:44:16
-status: wip
+status: done
 ---
 
 # Plan: Ctrl+D to Delete Entries from File-History Completion Menu

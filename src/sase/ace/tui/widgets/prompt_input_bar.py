@@ -233,6 +233,11 @@ class PromptInputBar(Static):
         else:
             panel.border_title = token
 
+        if is_history:
+            panel.border_subtitle = "[^L] accept  [^D] delete"
+        else:
+            panel.border_subtitle = ""
+
         panel.update(content)
         panel.remove_class("hidden")
         self._completion_visible = True

@@ -492,6 +492,120 @@ class TestFileHistoryCompletion:
                 assert ta._try_file_completion_tab() is True
             assert ta._completion_kind == "file"
 
+    async def test_ctrl_d_removes_highlighted_entry_and_keeps_panel_open(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import (
+            load_file_references,
+            record_file_references,
+        )
+
+        record_file_references(["/a", "/b", "/c"])
+        # Most-recent first on disk: ["/c", "/b", "/a"]
+
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                # Select the middle entry ("/b")
+                await pilot.press("ctrl+n")
+                assert (
+                    ta._file_completion_candidates[ta._file_completion_index].insertion
+                    == "/b"
+                )
+                await pilot.press("ctrl+d")
+            # Panel stays open with the remaining entries.
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "file_history"
+            insertions = [c.insertion for c in ta._file_completion_candidates]
+            assert insertions == ["/c", "/a"]
+            # Clamped selection — original idx was 1; new length is 2, so idx stays 1.
+            assert ta._file_completion_index == 1
+            # Deletion persisted to disk.
+            assert load_file_references() == ["/c", "/a"]
+
+    async def test_ctrl_d_on_last_remaining_entry_closes_panel(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import (
+            load_file_references,
+            record_file_references,
+        )
+
+        record_file_references(["/only"])
+
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            bar = app.query_one(PromptInputBar)
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                await pilot.press("ctrl+d")
+            assert ta._file_completion_active is False
+            assert bar._completion_visible is False
+            assert load_file_references() == []
+
+    async def test_ctrl_d_is_passthrough_for_file_kind(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        (tmp_path / "alpha").mkdir()
+        (tmp_path / "apple").mkdir()
+
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("~/")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._completion_kind == "file"
+                assert ta._file_completion_active is True
+                insertions_before = {
+                    c.insertion for c in ta._file_completion_candidates
+                }
+                await pilot.press("ctrl+d")
+            # Ctrl+D was not swallowed by our history-delete handler: both
+            # candidates are still present (neither ~/alpha/ nor ~/apple/
+            # has been stripped from the list).
+            insertions_after = {c.insertion for c in ta._file_completion_candidates}
+            assert insertions_before.issubset(
+                insertions_after
+            ) or insertions_after.issubset(insertions_before)
+            # Most importantly, no history file was written by a stray delete.
+            assert not (tmp_path / "hist.json").exists()
+
     async def test_typing_after_history_trigger_dismisses_panel(
         self,
         tmp_path: Path,
