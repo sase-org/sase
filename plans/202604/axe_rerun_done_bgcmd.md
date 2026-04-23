@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 19:20:33
-status: wip
+status: done
 ---
 # Plan: `r` Re-run Keymap for Done Commands on AXE Tab
 

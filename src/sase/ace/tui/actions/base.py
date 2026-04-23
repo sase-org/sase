@@ -44,6 +44,19 @@ class BaseActionsMixin:
             self.action_resume_agent()  # type: ignore[attr-defined]
             return
 
+        # On axe tab, dispatch to re-run when a done bgcmd is selected
+        if self.current_tab == "axe":
+            from ..widgets.bgcmd_list import BgCmdItem
+            from ..bgcmd import is_slot_running
+
+            items = getattr(self, "_axe_items", [])
+            idx = self.current_idx
+            if 0 <= idx < len(items):
+                item = items[idx]
+                if isinstance(item, BgCmdItem) and not is_slot_running(item.slot):
+                    self._rerun_bgcmd(item.slot)  # type: ignore[attr-defined]
+            return
+
         # Only run on changespecs tab
         if self.current_tab != "changespecs":
             return

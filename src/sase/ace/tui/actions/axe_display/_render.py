@@ -8,6 +8,7 @@ and footer-state indicators from the in-memory caches populated by
 from __future__ import annotations
 
 from ...bgcmd import get_slot_info, is_slot_running
+from ...widgets.bgcmd_list import BgCmdItem
 from ._loaders import AxeDisplayLoadersMixin
 
 
@@ -175,8 +176,18 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
                 footer.update_custom_mode_bindings(cm)
             else:
+                selected_slot_done = False
+                if 0 <= self.current_idx < len(self._axe_items):
+                    sel_item = self._axe_items[self.current_idx]
+                    if isinstance(sel_item, BgCmdItem):
+                        sel_snapshot = self._axe_bgcmd_details.get(sel_item.slot)
+                        if sel_snapshot is not None:
+                            selected_slot_done = not sel_snapshot.running
+                        else:
+                            selected_slot_done = not is_slot_running(sel_item.slot)
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
+                    selected_slot_done=selected_slot_done,
                 )
 
             # Always update the side-panel list. Pass cached statuses and

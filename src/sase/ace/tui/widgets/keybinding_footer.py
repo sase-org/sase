@@ -221,20 +221,30 @@ class KeybindingFooter(Horizontal):
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def update_axe_bindings(self, *, axe_current_view: str | int = "axe") -> None:
+    def update_axe_bindings(
+        self,
+        *,
+        axe_current_view: str | int = "axe",
+        selected_slot_done: bool = False,
+    ) -> None:
         """Update bindings for Axe tab (entry-dependent only)."""
-        bindings = self._compute_axe_bindings(axe_current_view)
+        bindings = self._compute_axe_bindings(
+            axe_current_view, selected_slot_done=selected_slot_done
+        )
         text = self._format_bindings(bindings)
         self._update_display(text)
 
     def _compute_axe_bindings(
         self,
         axe_current_view: str | int,
+        *,
+        selected_slot_done: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
-        Only ``x`` is entry-dependent: its label changes between
+        ``x`` is entry-dependent: its label changes between
         "start/stop axe" (AxeParentItem) and "kill" (LumberjackItem / BgCmdItem).
+        ``r`` (re-run) is shown only when a done background command is selected.
         """
         bindings: list[tuple[str, str]] = []
         if axe_current_view == "axe":
@@ -242,6 +252,8 @@ class KeybindingFooter(Horizontal):
         else:
             label = "kill"
         bindings.append((self._kd("kill_agent"), label))
+        if selected_slot_done:
+            bindings.append((self._kd("run_workflow"), "re-run"))
         return bindings
 
     def update_fold_bindings(self) -> None:

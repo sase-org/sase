@@ -451,6 +451,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             [
                 (d(a.start_custom_agent), "Run agent"),
                 (d(a.toggle_axe), "Clear output"),
+                (d(a.run_workflow), "Re-run selected done command"),
             ],
         ),
         (

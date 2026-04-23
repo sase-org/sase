@@ -262,6 +262,75 @@ class AxeBgCmdMixin:
 
         self.push_screen(ConfirmKillModal(description), on_confirmed)  # type: ignore[attr-defined]
 
+    def _rerun_bgcmd(self, slot: int) -> None:
+        """Re-run a done background command in a new slot.
+
+        Prompts the user whether to dismiss the original entry before re-running.
+        If yes, clears the original slot; otherwise leaves it in place. The new
+        slot is allocated up-front — if no slot is available, we notify and do
+        not prompt (avoids a prompt whose Yes path can't complete).
+
+        Args:
+            slot: Original slot number of the done background command.
+        """
+        info = get_slot_info(slot)
+        if info is None:
+            return
+
+        # Defense-in-depth: the footer already hides this binding when running.
+        if is_slot_running(slot):
+            return
+
+        new_slot = find_first_available_slot()
+        if new_slot is None:
+            self.notify("Maximum background commands reached", severity="error")  # type: ignore[attr-defined]
+            return
+
+        from ..modals import ConfirmRerunModal
+
+        description = (
+            f"{info.command}\n({info.project}, workspace {info.workspace_num})"
+        )
+
+        original_info = info
+
+        def on_confirmed(result: bool | None) -> None:
+            if result is None:
+                return
+
+            # Re-check slot availability in case state changed while the modal
+            # was open.
+            target_slot = find_first_available_slot()
+            if target_slot is None:
+                self.notify("Maximum background commands reached", severity="error")  # type: ignore[attr-defined]
+                return
+
+            if result:
+                clear_slot(slot)
+
+            pid = start_background_command(
+                slot=target_slot,
+                command=original_info.command,
+                project=original_info.project,
+                workspace_num=original_info.workspace_num,
+                workspace_dir=original_info.workspace_dir,
+            )
+
+            if pid is None:
+                self.notify("Failed to start background command", severity="error")  # type: ignore[attr-defined]
+                return
+
+            self._load_bgcmd_state()  # type: ignore[attr-defined]
+            self._switch_to_axe_view(target_slot)  # type: ignore[attr-defined]
+            cmd_notify = (
+                original_info.command[:30] + "..."
+                if len(original_info.command) > 30
+                else original_info.command
+            )
+            self.notify(f"Re-running: {cmd_notify}")  # type: ignore[attr-defined]
+
+        self.push_screen(ConfirmRerunModal(description), on_confirmed)  # type: ignore[attr-defined]
+
     def _show_process_selector(self) -> None:
         """Show the process selector modal (for X on non-AXE tabs)."""
         from ..modals import ProcessSelection, ProcessSelectModal
