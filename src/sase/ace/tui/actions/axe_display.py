@@ -131,6 +131,9 @@ class AxeDisplayMixin:
     _bang_mode_active: bool
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
+    # Startup loading indicator flag: flipped to True once the first async
+    # axe-status load completes; remains True forever afterward.
+    _axe_first_load_done: bool
 
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
@@ -139,6 +142,25 @@ class AxeDisplayMixin:
 
     def _apply_axe_status_data(self, data: _AxeCollectedData) -> None:
         """Apply collected axe status data to app state and refresh widgets."""
+        # Clear startup loading indicators on the first completed axe load.
+        if not self._axe_first_load_done:
+            self._axe_first_load_done = True
+            from ..widgets import AxeDashboard, AxeInfoPanel
+
+            try:
+                self.query_one(  # type: ignore[attr-defined]
+                    "#axe-dashboard", AxeDashboard
+                ).loading = False
+            except Exception:
+                pass
+            try:
+                info_panel = self.query_one(  # type: ignore[attr-defined]
+                    "#axe-info-panel", AxeInfoPanel
+                )
+                info_panel.set_loading(False)
+            except Exception:
+                pass
+
         self.axe_running = data.axe_running
 
         # Clear starting/restarting state once confirmed running

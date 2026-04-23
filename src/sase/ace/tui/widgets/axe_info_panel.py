@@ -26,6 +26,18 @@ class AxeInfoPanel(Static):
         self._lumberjack_name: str = ""
         self._lumberjack_idx: int = 0
         self._lumberjack_total: int = 0
+        self._loading: bool = False
+
+    def set_loading(self, loading: bool) -> None:
+        """Show or hide the startup-loading ellipsis.
+
+        While True, the panel renders ``AXE …`` (dim italic) instead of
+        a ``not running`` / status claim that may be wrong during the
+        first-load window.
+        """
+        if self._loading != loading:
+            self._loading = loading
+            self._update_display()
 
     def update_status(self, is_running: bool) -> None:
         """Update the running status display for axe daemon.
@@ -87,6 +99,12 @@ class AxeInfoPanel(Static):
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
+
+        if self._loading:
+            text.append("AXE ", style="bold")
+            text.append("…", style="dim italic")
+            self.update(text)
+            return
 
         if self._lumberjack_mode:
             # Show lumberjack name with index

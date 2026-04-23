@@ -35,6 +35,7 @@ class TabBar(Static):
         self._agents_done_count: int = 0
         self._agents_pinned_count: int = 0
         self._agents_show_hidden: bool = False
+        self._agents_loading: bool = False
         self._axe_main_count: int = 0
         self._axe_hidden_count: int = 0
         self._axe_done_count: int = 0
@@ -100,6 +101,7 @@ class TabBar(Static):
         show_hidden: bool,
         done_count: int = 0,
         pinned_count: int = 0,
+        loading: bool = False,
     ) -> None:
         """Update the running agent counts shown on the Agents tab label.
 
@@ -109,6 +111,8 @@ class TabBar(Static):
             show_hidden: Whether hidden agents are currently visible.
             done_count: Number of non-pinned done agents not yet dismissed.
             pinned_count: Number of pinned done agents.
+            loading: If True, render a dim italic ellipsis suffix instead of
+                the counts to signal that the agent list is still loading.
         """
         if (
             self._agents_manual_count != manual_count
@@ -116,12 +120,14 @@ class TabBar(Static):
             or self._agents_done_count != done_count
             or self._agents_pinned_count != pinned_count
             or self._agents_show_hidden != show_hidden
+            or self._agents_loading != loading
         ):
             self._agents_manual_count = manual_count
             self._agents_hidden_count = hidden_count
             self._agents_done_count = done_count
             self._agents_pinned_count = pinned_count
             self._agents_show_hidden = show_hidden
+            self._agents_loading = loading
             self._refresh_content()
 
     def update_axe_count(
@@ -160,6 +166,7 @@ class TabBar(Static):
         key_counts: list[tuple[str, int]],
         active_color: str,
         is_active: bool,
+        loading: bool = False,
     ) -> tuple[int, int]:
         """Append a styled tab label with suffix counts.
 
@@ -186,7 +193,13 @@ class TabBar(Static):
 
         text.append(f" {name}", style=name_style)
 
-        if has_suffix:
+        if loading:
+            # Dim italic ellipsis as the suffix signals "first load in
+            # progress"; counts are not yet meaningful. Rendered without
+            # the count parentheses so the geometry stays compact.
+            text.append(" ", style="")
+            text.append("…", style="dim italic")
+        elif has_suffix:
             text.append(" (", style=hint_style)
             if main_count > 0:
                 text.append(str(main_count), style=count_style)
@@ -239,6 +252,7 @@ class TabBar(Static):
             agents_key_counts,
             "#87D7FF",
             self._current_tab == "agents",
+            loading=self._agents_loading,
         )
 
         text.append(" │ ", style="#444444")

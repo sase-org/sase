@@ -168,6 +168,11 @@ class AceApp(
         # Set during on_mount to suppress reactive-watcher cold loads that
         # would otherwise duplicate work the mount body already performs.
         self._mounting: bool = False
+        # Startup loading flags: flipped to True once the first async load
+        # completes. Used to distinguish "not yet loaded" from "loaded, empty"
+        # in the TUI's agents and axe surfaces.
+        self._agents_first_load_done: bool = False
+        self._axe_first_load_done: bool = False
         self.query_string = query
         self.parsed_query: QueryExpr = parse_query(query)
         self.refresh_interval = refresh_interval
@@ -487,6 +492,11 @@ class AceApp(
             self._restore_last_selection()
             self._save_current_query()
 
+            # Show loading indicators on panels that populate asynchronously
+            # so users see pulsing spinners / dim ellipses instead of
+            # "loaded, empty" state during the ~3.5s gap before first data.
+            self._apply_startup_loading_state()
+
             # Defer agent load off the critical path so the TUI paints
             # immediately; agents populate in the background ~3.5s later.
             self.call_after_refresh(self._run_agents_async_refresh)
@@ -536,6 +546,43 @@ class AceApp(
                 )
         finally:
             self._mounting = False
+
+    def _apply_startup_loading_state(self) -> None:
+        """Mark async-loaded panels as loading so the user sees spinners.
+
+        Flips ``.loading`` on the two AgentList widgets and the AxeDashboard
+        (driving Textual's built-in LoadingIndicator), and switches the
+        Agents tab label plus info panels into their dim-ellipsis state.
+        The flags are cleared once the first async load completes.
+        """
+        if not self._agents_first_load_done:
+            try:
+                self.query_one("#agent-list-panel", AgentList).loading = True
+            except Exception:
+                pass
+            try:
+                self.query_one("#pinned-list-panel", AgentList).loading = True
+            except Exception:
+                pass
+            try:
+                tab_bar = self.query_one("#tab-bar", TabBar)
+                tab_bar.update_agents_count(0, 0, show_hidden=False, loading=True)
+            except Exception:
+                pass
+            try:
+                self.query_one("#agent-info-panel", AgentInfoPanel).set_loading(True)
+            except Exception:
+                pass
+
+        if not self._axe_first_load_done:
+            try:
+                self.query_one("#axe-dashboard", AxeDashboard).loading = True
+            except Exception:
+                pass
+            try:
+                self.query_one("#axe-info-panel", AxeInfoPanel).set_loading(True)
+            except Exception:
+                pass
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:29:00
-status: wip
+status: done
 ---
 
 # Beautiful Startup Loading Indicators for `sase ace` TUI

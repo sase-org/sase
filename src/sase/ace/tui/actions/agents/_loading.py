@@ -68,6 +68,9 @@ class AgentLoadingMixin:
 
     # Loading guard
     _agents_loading: bool
+    # Startup loading indicator flag: flipped to True once the first async
+    # load completes; remains True forever afterward.
+    _agents_first_load_done: bool
     # Last-request-wins coalescing: set when a refresh is requested while
     # another one is already running. The in-flight refresh re-schedules
     # itself once it finishes so the final UI state reflects disk state
@@ -135,6 +138,27 @@ class AgentLoadingMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
     ) -> None:
         """Apply loaded agent data to app state (main thread only)."""
+        # Clear the startup loading indicators (spinner on list panels,
+        # dim ellipsis on tab label / info panel) on the first completed
+        # load. Safe to call every refresh -- flag stays True and the
+        # widget setters are idempotent.
+        if not self._agents_first_load_done:
+            self._agents_first_load_done = True
+            from ...widgets import AgentInfoPanel, AgentList
+
+            for panel_id in ("#agent-list-panel", "#pinned-list-panel"):
+                try:
+                    self.query_one(panel_id, AgentList).loading = False  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            try:
+                info_panel = self.query_one(  # type: ignore[attr-defined]
+                    "#agent-info-panel", AgentInfoPanel
+                )
+                info_panel.set_loading(False)
+            except Exception:
+                pass
+
         # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {
             raw_suffix

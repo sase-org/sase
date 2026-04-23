@@ -18,6 +18,18 @@ class AgentInfoPanel(Static):
         self._interval = 0
         self._view_mode: str = ""
         self._search_query: str = ""
+        self._loading: bool = False
+
+    def set_loading(self, loading: bool) -> None:
+        """Show or hide the startup-loading ellipsis.
+
+        While True, the count line renders ``Agents: …`` (dim italic) to
+        signal that agent data has not yet loaded, rather than falsely
+        claiming the list is empty.
+        """
+        if self._loading != loading:
+            self._loading = loading
+            self._update_display()
 
     def update_position(self, position: int, total: int) -> None:
         """Update the position display.
@@ -70,6 +82,10 @@ class AgentInfoPanel(Static):
         """Refresh the displayed text."""
         text = Text()
         text.append("Agents: ", style="bold #87D7FF")
+        if self._loading:
+            text.append("…", style="dim italic")
+            self.update(text)
+            return
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
         if self._search_query:
             text.append("   ")

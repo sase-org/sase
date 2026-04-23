@@ -56,6 +56,9 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._agent_custom_order: list[tuple[AgentType, str, str | None]] = []
         self._agent_search_query = ""
         self._agents_loading = False
+        # Pretend the first async load already happened so _apply_loaded_agents
+        # doesn't try to query widgets that aren't mounted in this fake.
+        self._agents_first_load_done = True
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         """Stub — the real finalizer needs tabbar/panel widgets we don't have."""
