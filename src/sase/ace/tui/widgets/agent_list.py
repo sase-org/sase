@@ -228,24 +228,28 @@ class AgentList(OptionList, inherit_bindings=False):
 
             # Emit attempt child rows below the agent row when the agent has
             # prior attempt records. Each is selectable and routes the detail
-            # panel to an attempt-pinned view.
-            for record in agent.attempt_history:
-                is_selected_attempt = (
-                    has_focus
-                    and i == current_idx
-                    and current_attempt_number == record.attempt_number
-                )
-                attempt_option = self._format_attempt_option(
-                    agent,
-                    record,
-                    is_selected=is_selected_attempt,
-                )
-                self.add_option(attempt_option)
-                if is_selected_attempt:
-                    highlighted_row = len(self._row_entries)
-                self._row_entries.append((i, record.attempt_number))
-                width = attempt_option.prompt.cell_len  # type: ignore[union-attr]
-                max_width = max(max_width, width)
+            # panel to an attempt-pinned view. Skip workflow child steps:
+            # attempts belong to the workflow as a whole, so emitting them under
+            # each child would both produce duplicate option IDs and misattribute
+            # attempts to individual steps.
+            if not agent.is_workflow_child:
+                for record in agent.attempt_history:
+                    is_selected_attempt = (
+                        has_focus
+                        and i == current_idx
+                        and current_attempt_number == record.attempt_number
+                    )
+                    attempt_option = self._format_attempt_option(
+                        agent,
+                        record,
+                        is_selected=is_selected_attempt,
+                    )
+                    self.add_option(attempt_option)
+                    if is_selected_attempt:
+                        highlighted_row = len(self._row_entries)
+                    self._row_entries.append((i, record.attempt_number))
+                    width = attempt_option.prompt.cell_len  # type: ignore[union-attr]
+                    max_width = max(max_width, width)
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8

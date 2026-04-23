@@ -121,3 +121,43 @@ def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
         has_focus=True,
     )
     assert widget.highlighted == 0
+
+
+def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
+    """Workflow children share the parent's raw_suffix and attempt_history.
+
+    Emitting attempt rows under each child both misattributes attempts
+    (attempts belong to the workflow, not individual steps) and produces
+    duplicate option IDs (``attempt:<raw_suffix>:<n>``) which crashes the
+    OptionList with ``DuplicateID``.
+    """
+    widget = AgentList()
+    history = [_make_record(1)]
+    raw_suffix = "20260423142806"
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="pat_fix_far_past_1",
+        project_file="/tmp/p.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 23, 14, 28, 6),
+        raw_suffix=raw_suffix,
+        appears_as_agent=True,
+        attempt_history=history,
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file="/tmp/p.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 23, 14, 28, 6),
+        raw_suffix=raw_suffix,
+        parent_workflow="pat_fix_far_past_1",
+        parent_timestamp=raw_suffix,
+        attempt_history=history,
+    )
+
+    widget.update_list([parent, child], current_idx=0)
+
+    # Parent row, one attempt under parent, then the child row — no attempt
+    # row attributed to the child.
+    assert widget._row_entries == [(0, None), (0, 1), (1, None)]
