@@ -163,13 +163,6 @@ class PromptDirectives:
     wait_until: str | None = None
 
 
-# Pattern to match %model(...) or %m(...) with parenthesized arguments.
-_MULTI_MODEL_RE = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%(?:model|m))\(([^)]*)\)",
-    re.MULTILINE,
-)
-
 # Pattern to match %alt( or %( at a directive-valid position.
 _ALT_DIRECTIVE_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
@@ -243,30 +236,144 @@ def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
 
 
 def split_prompt_for_models(prompt: str) -> list[str] | None:
-    """Split a prompt with a multi-model or ``%alt``/``%(`` directive into per-variant prompts.
+    """Split a prompt with multi-model or ``%alt``/``%(`` directives into per-variant prompts.
 
-    Handles two cases:
+    Handles three cases:
 
     1. ``%model(a,b,...)`` / ``%m(a,b,...)`` — rewritten internally to
        ``%alt(%model:a,%model:b,...)`` then split.
-    2. Direct ``%alt(...)`` or ``%(...)`` usage — split as-is.
+    2. Repeated scalar ``%model`` / ``%m`` directives (e.g.
+       ``%model:opus\\n%model:sonnet``) — collected, deduped in document
+       order, and collapsed into a single ``%alt(%model:a,%model:b,...)``
+       before splitting.  Mixing scalar and paren forms is supported.
+    3. Direct ``%alt(...)`` or ``%(...)`` usage — split as-is.
 
-    Returns ``None`` if there is nothing to split (single model, single
-    alt argument, or no splitting directive at all).
+    Multiple model directives that all resolve to the same model yield a
+    single variant (no split); duplicate ``%model`` directives inside
+    fenced code blocks or ``%xprompts_enabled:false`` regions are ignored.
+
+    Returns ``None`` if there is nothing to split (single unique model,
+    single alt argument, or no splitting directive at all).  When only one
+    unique model remains but multiple ``%model`` directives exist, the
+    duplicates are tolerated downstream by :func:`extract_prompt_directives`
+    (last-wins).
     """
-    match = _MULTI_MODEL_RE.search(prompt)
-    if match is not None:
-        inner = match.group(2)
-        positional_args, _ = parse_args(inner)
-        if len(positional_args) > 1:
-            alt_args = ",".join(f"%model:{model}" for model in positional_args)
-            rewritten = (
-                prompt[: match.start(1)] + f"%alt({alt_args})" + prompt[match.end() :]
-            )
-            return _split_prompt_for_alternatives(rewritten)
+    if "%" not in prompt:
+        return None
 
-    # No multi-model found; check for direct %alt usage
-    return _split_prompt_for_alternatives(prompt)
+    # Protect fenced code blocks and disabled regions so %model directives
+    # inside them are neither collected nor rewritten.
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+
+    # Identify inner regions of %alt(...) / %(...) so %model matches
+    # nested inside them are not double-collected (they're handled by
+    # _split_prompt_for_alternatives).
+    alt_inner_regions: list[tuple[int, int]] = []
+    for alt_match in _ALT_DIRECTIVE_RE.finditer(protected):
+        paren_start = alt_match.end() - 1
+        paren_end = find_matching_paren_for_args(protected, paren_start)
+        if paren_end is None:
+            continue
+        alt_inner_regions.append((paren_start + 1, paren_end))
+
+    def _is_inside_alt(pos: int) -> bool:
+        return any(start <= pos < end for start, end in alt_inner_regions)
+
+    # Walk all directive matches and pick out %model / %m occurrences.
+    directive_spans: list[tuple[int, int, list[str]]] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
+        if resolved != "model":
+            continue
+        if _is_inside_alt(match.start()):
+            continue
+
+        has_open_paren = match.group(2) is not None
+        colon_arg = match.group(3)
+        plus_suffix = match.group(4)
+
+        match_end = match.end()
+        args: list[str] = []
+
+        if has_open_paren:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None:
+                paren_content = protected[paren_start + 1 : paren_end]
+                positional_args, _ = parse_args(paren_content)
+                args = [a for a in positional_args if a]
+                match_end = paren_end + 1
+        elif colon_arg is not None:
+            if colon_arg.startswith("`") and colon_arg.endswith("`"):
+                value = colon_arg[1:-1]
+            else:
+                value = colon_arg
+            if value:
+                args = [value]
+        elif plus_suffix is not None:
+            # %model+ is a plus-syntax sentinel with no real model value —
+            # leave it alone for the extractor to handle.
+            continue
+        # Bare %model (no arg) contributes no model but its span is still
+        # eligible for rewrite so the prompt stays clean.
+
+        directive_spans.append((match.start(), match_end, args))
+
+    if not directive_spans:
+        # No collectable %model directives — fall through to alt-only handling
+        # on the original (unprotected) prompt.
+        return _split_prompt_for_alternatives(prompt)
+
+    # Dedupe model args in document order (first occurrence wins).
+    seen_models: set[str] = set()
+    unique_models: list[str] = []
+    for _, _, args in directive_spans:
+        for arg in args:
+            if arg not in seen_models:
+                seen_models.add(arg)
+                unique_models.append(arg)
+
+    if len(unique_models) <= 1:
+        # Zero or one unique model — no split needed.  Any duplicate scalar
+        # %model directives are tolerated by extract_prompt_directives.
+        return _split_prompt_for_alternatives(prompt)
+
+    # Two or more unique models — collapse every collected span into a
+    # single %alt(%model:a,%model:b,...) directive at the first span's
+    # position and remove the others.
+    alt_args = ",".join(f"%model:{m}" for m in unique_models)
+    replacement = f"%alt({alt_args})"
+
+    # Absorb a trailing newline for non-first spans that occupy a whole
+    # line, so the rewrite does not leave behind blank lines.
+    adjusted: list[tuple[int, int, bool]] = []
+    for i, (span_start, span_end, _) in enumerate(directive_spans):
+        is_first = i == 0
+        if (
+            not is_first
+            and span_end < len(protected)
+            and protected[span_end] == "\n"
+            and (span_start == 0 or protected[span_start - 1] == "\n")
+        ):
+            span_end += 1
+        adjusted.append((span_start, span_end, is_first))
+
+    # Splice right-to-left so earlier positions aren't shifted.
+    rewritten = protected
+    for span_start, span_end, is_first in reversed(adjusted):
+        if is_first:
+            rewritten = rewritten[:span_start] + replacement + rewritten[span_end:]
+        else:
+            rewritten = rewritten[:span_start] + rewritten[span_end:]
+
+    rewritten = unprotect_disabled_regions(rewritten, disabled_regions)
+    rewritten = unprotect_fenced_blocks(rewritten, fenced_blocks)
+
+    return _split_prompt_for_alternatives(rewritten)
 
 
 def has_wait_directive(prompt: str) -> bool:
@@ -323,7 +430,10 @@ def extract_prompt_directives(
         Tuple of (cleaned_prompt, directives).
 
     Raises:
-        DirectiveError: If a known directive appears more than once.
+        DirectiveError: If a known non-``%model`` directive appears more
+            than once.  Multiple ``%model`` directives are tolerated with
+            last-wins semantics; multi-model splitting is normally handled
+            upstream by :func:`split_prompt_for_models`.
     """
     if "%" not in prompt:
         return prompt, PromptDirectives()
@@ -358,8 +468,12 @@ def extract_prompt_directives(
         if name not in _KNOWN_DIRECTIVES:
             continue
 
-        # Check for duplicates (multi-value directives are allowed to repeat)
-        if name in _MULTI_VALUE_DIRECTIVES:
+        # Check for duplicates (multi-value directives are allowed to repeat).
+        # `%model` is a soft exception: repeated `%model` directives are
+        # normally collapsed by :func:`split_prompt_for_models` upstream.
+        # If a caller bypasses the splitter, we tolerate duplicates here
+        # with last-wins semantics so the prompt still extracts cleanly.
+        if name in _MULTI_VALUE_DIRECTIVES or name == "model":
             pass  # handled below after arg extraction
         elif name in seen:
             raise DirectiveError(f"Duplicate directive '%{name}' in prompt")

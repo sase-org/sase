@@ -191,6 +191,86 @@ def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
     assert via_m == via_alt
 
 
+# --- split_prompt_for_models: repeated scalar %model tests ---
+
+
+def test_split_prompt_for_models_two_scalar_directives() -> None:
+    """Two %model:X scalars produce two variants, directive lines collapsed."""
+    prompt = "%model:opus\n%model:sonnet\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nReview this code"
+    assert result[1] == "%model:sonnet\nReview this code"
+
+
+def test_split_prompt_for_models_alias_mix() -> None:
+    """%m:opus + %model:sonnet (alias mix) produces two variants."""
+    prompt = "%m:opus\n%model:sonnet\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nReview this code"
+    assert result[1] == "%model:sonnet\nReview this code"
+
+
+def test_split_prompt_for_models_scalar_plus_paren() -> None:
+    """%model:opus + %model(sonnet,haiku) → three variants in order."""
+    prompt = "%model:opus\n%model(sonnet,haiku)\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 3
+    assert result[0] == "%model:opus\nReview this code"
+    assert result[1] == "%model:sonnet\nReview this code"
+    assert result[2] == "%model:haiku\nReview this code"
+
+
+def test_split_prompt_for_models_identical_dupes_return_none() -> None:
+    """Two identical %model:opus dupes yield no split (single unique model)."""
+    prompt = "%model:opus\n%model:opus\nReview this code"
+    assert split_prompt_for_models(prompt) is None
+
+
+def test_split_prompt_for_models_interleaved_duplicates() -> None:
+    """Duplicates spread across non-adjacent lines split correctly."""
+    prompt = "%model:opus\nHeader line\n%model:sonnet\nBody"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nHeader line\nBody"
+    assert result[1] == "%model:sonnet\nHeader line\nBody"
+
+
+def test_split_prompt_for_models_scalar_inside_fenced_block_ignored() -> None:
+    """%model:X inside a fenced code block is neither collected nor stripped."""
+    prompt = "%model:opus\n```\n%model:sonnet\n```\nReview"
+    result = split_prompt_for_models(prompt)
+    # Only the outer %model:opus counts — single unique model, no split.
+    assert result is None
+
+
+def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
+    """Two scalar %model directives Cartesian-product with a user %alt(x,y)."""
+    prompt = "%model:opus\n%model:sonnet %alt(x,y)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 4
+    assert "%model:opus" in result[0] and " x\nReview" in result[0]
+    assert "%model:opus" in result[1] and " y\nReview" in result[1]
+    assert "%model:sonnet" in result[2] and " x\nReview" in result[2]
+    assert "%model:sonnet" in result[3] and " y\nReview" in result[3]
+
+
+def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() -> None:
+    """%alt(%model:a,%model:b) is processed as a single alt, not re-collected."""
+    prompt = "%alt(%model:opus,%model:sonnet)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nReview"
+    assert result[1] == "%model:sonnet\nReview"
+
+
 # --- split_prompt_for_alternatives tests ---
 
 

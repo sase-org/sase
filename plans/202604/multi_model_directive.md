@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 12:43:43
-status: wip
+status: done
 ---
 
 # Allow Multiple `%model` Directives in a Single Prompt

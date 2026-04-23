@@ -86,10 +86,31 @@ def test_unknown_directive_left_in_prompt() -> None:
 # --- Alias / edge case tests ---
 
 
-def test_alias_m_and_model_duplicate_raises() -> None:
-    """%m + %model in the same prompt raises DirectiveError."""
+def test_alias_m_and_model_duplicate_last_wins() -> None:
+    """%m + %model in the same prompt: last-wins, both directive lines stripped.
+
+    Multi-model splitting is handled upstream by split_prompt_for_models; if
+    the extractor is called directly on a prompt with duplicate %model
+    directives, it tolerates them with last-wins semantics.
+    """
     prompt = "%m:opus\n%model:sonnet\nPrompt text"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%model'"):
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Prompt text"
+    assert directives.model == "sonnet"
+
+
+def test_identical_duplicate_model_directives_accepted() -> None:
+    """Two %model:opus directives collapse to a single model, no error."""
+    prompt = "%model:opus\n%model:opus\nPrompt text"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Prompt text"
+    assert directives.model == "opus"
+
+
+def test_duplicate_non_model_directive_still_raises() -> None:
+    """Non-model duplicate directives continue to raise DirectiveError."""
+    prompt = "%plan\n%plan\nPrompt text"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
         extract_prompt_directives(prompt)
 
 
