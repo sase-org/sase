@@ -8,7 +8,11 @@ from collections.abc import Callable
 from datetime import datetime
 
 from sase.ace.changespec import ChangeSpec
-from sase.ace.scheduler.checks_runner import check_pending_checks
+from sase.ace.scheduler.checks_runner import (
+    reap_orphan_check_files,
+    process_pending_checks_for,
+    scan_all_pending_checks,
+)
 from sase.ace.scheduler.comments_handler import check_comment_zombies
 from sase.ace.scheduler.hook_checks import check_hooks
 from sase.ace.scheduler.mentor_checks import check_mentors
@@ -24,6 +28,7 @@ from sase.ace.scheduler.workflows_runner import (
     start_stale_workflows,
 )
 from sase.config.mentor import get_all_mentor_profiles
+from sase.core.paths import make_safe_filename
 from sase.core.time import get_timezone
 
 from .state import AxeMetrics
@@ -153,11 +158,28 @@ class HookJobRunner:
     def run_pending_checks_poll(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Poll for completed background checks.
 
+        Walks ~/.sase/checks/ once per tick (O(M) in file count), dispatches
+        per-ChangeSpec work from the single scan, and reaps orphaned output
+        files left behind by killed or crashed background checks.
+
         Args:
             filtered_changespecs: List of changespecs to check.
         """
-        for changespec in filtered_changespecs:
-            updates = check_pending_checks(changespec, self._log)
+        reap_orphan_check_files(self._log)
+        by_name = scan_all_pending_checks()
+        if not by_name:
+            return
+
+        # Filenames encode ChangeSpec names via make_safe_filename(), which is
+        # lossy (e.g. "foo-bar" and "foo_bar" both map to "foo_bar").  Any
+        # collisions here inherit a pre-existing ambiguity in the filename
+        # format and are not resolved in this poll.
+        safe_to_cs = {make_safe_filename(cs.name): cs for cs in filtered_changespecs}
+        for safe_name, pending in by_name.items():
+            changespec = safe_to_cs.get(safe_name)
+            if changespec is None:
+                continue
+            updates = process_pending_checks_for(changespec, pending, self._log)
             self.metrics.total_updates += len(updates)
 
             for update in updates:

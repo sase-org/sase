@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -232,6 +233,72 @@ def start_reviewer_comments_check(
         return None
 
 
+# Files without a completion marker older than this (seconds) are treated as
+# orphans and deleted.  2x the default chop_timeout (90s) gives a real in-flight
+# check plenty of slack; anything still around after this has already been
+# killed by the scheduler.
+_ORPHAN_AGE_SECONDS = 180
+
+# Parses check output filenames: "<safe_name>-<check_type>-<YYmmdd_HHMMSS>.txt"
+_CHECK_FILENAME_RE = re.compile(
+    r"^(?P<name>.+)-(?P<type>cl_submitted|reviewer_comments)-"
+    r"(?P<timestamp>\d{6}_\d{6})\.txt$"
+)
+
+
+def reap_orphan_check_files(log: LogCallback) -> int:
+    """Delete check files with no completion marker older than _ORPHAN_AGE_SECONDS.
+
+    Called once per poll tick (not per ChangeSpec).  Returns the count reaped.
+    """
+    now = time.time()
+    reaped = 0
+    for path in iter_sharded_files("checks", pattern="*.txt"):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        if now - st.st_mtime < _ORPHAN_AGE_SECONDS:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if CHECK_COMPLETE_MARKER in content:
+            continue
+        try:
+            path.unlink()
+            reaped += 1
+        except OSError:
+            pass
+    if reaped:
+        log(f"Reaped {reaped} orphaned check file(s)", "yellow")
+    return reaped
+
+
+def scan_all_pending_checks() -> dict[str, list[_PendingCheck]]:
+    """Walk ~/.sase/checks/ once and group pending checks by safe ChangeSpec name.
+
+    Keys are the filename-encoded safe_name (see :func:`make_safe_filename`),
+    not the raw ChangeSpec name.  Callers must look up ChangeSpecs by the
+    same transform.
+    """
+    by_name: dict[str, list[_PendingCheck]] = {}
+    for file_path in iter_sharded_files("checks", pattern="*.txt"):
+        m = _CHECK_FILENAME_RE.match(file_path.name)
+        if not m:
+            continue
+        by_name.setdefault(m["name"], []).append(
+            _PendingCheck(
+                changespec_name=m["name"],
+                check_type=m["type"],  # type: ignore[arg-type]
+                timestamp=m["timestamp"],
+                output_path=str(file_path),
+            )
+        )
+    return by_name
+
+
 def _get_pending_checks(changespec: ChangeSpec) -> list[_PendingCheck]:
     """Get all pending background checks for a ChangeSpec.
 
@@ -444,24 +511,17 @@ def _cleanup_check_file(output_path: str) -> None:
         pass
 
 
-def check_pending_checks(
+def process_pending_checks_for(
     changespec: ChangeSpec,
+    pending: list[_PendingCheck],
     log: LogCallback,
 ) -> list[str]:
-    """Poll for completion of pending background checks.
+    """Process a pre-scanned list of pending checks for a single ChangeSpec.
 
-    Scans for pending checks, processes any that have completed,
-    and returns update messages.
-
-    Args:
-        changespec: The ChangeSpec to check.
-        log: Logging callback.
-
-    Returns:
-        List of update messages.
+    Used by :func:`run_pending_checks_poll` after a single directory scan
+    per tick.
     """
     updates: list[str] = []
-    pending = _get_pending_checks(changespec)
 
     for check in pending:
         is_complete, exit_code, content = _parse_check_completion(check.output_path)
@@ -469,7 +529,6 @@ def check_pending_checks(
         if not is_complete:
             continue
 
-        # Handle completion based on check type
         if check.check_type == CHECK_TYPE_CL_SUBMITTED:
             update = _handle_cl_submitted_completion(changespec, exit_code, log)
             if update:
@@ -479,7 +538,6 @@ def check_pending_checks(
                 changespec, exit_code, content, log
             )
             updates.extend(check_updates)
-        # Cleanup the output file
         _cleanup_check_file(check.output_path)
 
     return updates
