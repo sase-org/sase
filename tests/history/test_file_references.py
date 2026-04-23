@@ -56,6 +56,21 @@ class TestExtractRecordableFileRefs:
     def test_tilde_alone_is_not_recorded(self) -> None:
         assert extract_recordable_file_refs("just ~ here") == []
 
+    def test_excludes_at_prefixed_local_sase_paths(self) -> None:
+        text = "look at @.sase/home/foo.md and @.sase/memory/x.md"
+        assert extract_recordable_file_refs(text) == []
+
+    def test_excludes_bare_local_sase_paths(self) -> None:
+        text = "touching .sase/home/foo.md but not recorded"
+        assert extract_recordable_file_refs(text) == []
+
+    def test_keeps_global_sase_tilde_paths(self) -> None:
+        text = "open @~/.sase/projects/foo.gp please"
+        assert extract_recordable_file_refs(text) == ["~/.sase/projects/foo.gp"]
+
+    def test_keeps_at_prefixed_tilde_baseline(self) -> None:
+        assert extract_recordable_file_refs("@~/notes.md") == ["~/notes.md"]
+
 
 class TestFileReferenceStore:
     def test_load_missing_file_returns_empty(self, tmp_path: Path) -> None:
@@ -108,6 +123,26 @@ class TestFileReferenceStore:
         )
         with patch("sase.history.file_references._HISTORY_FILE", store):
             assert load_file_references() == ["/a", "/b"]
+
+    def test_load_filters_local_sase_entries(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        store.write_text(
+            json.dumps({"paths": ["/etc/hosts", ".sase/home/a.md", "~/b.md"]}),
+            encoding="utf-8",
+        )
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            assert load_file_references() == ["/etc/hosts", "~/b.md"]
+
+    def test_record_scrubs_preexisting_local_sase_entries(self, tmp_path: Path) -> None:
+        store = tmp_path / "hist.json"
+        store.write_text(
+            json.dumps({"paths": ["/old", ".sase/home/a.md", "~/keep.md"]}),
+            encoding="utf-8",
+        )
+        with patch("sase.history.file_references._HISTORY_FILE", store):
+            record_file_references(["/new"])
+            on_disk = json.loads(store.read_text(encoding="utf-8"))
+        assert on_disk["paths"] == ["/new", "/old", "~/keep.md"]
 
     def test_ordering_preserved_across_multiple_calls(self, tmp_path: Path) -> None:
         store = tmp_path / "hist.json"

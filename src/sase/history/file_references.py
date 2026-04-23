@@ -33,6 +33,11 @@ _FILE_REF_RE = re.compile(
 )
 
 
+def _is_local_sase_path(path: str) -> bool:
+    """True if *path* points into a project-local ``.sase/`` directory."""
+    return path.startswith(".sase/")
+
+
 def extract_recordable_file_refs(text: str) -> list[str]:
     """Extract file-path references suitable for recording in history.
 
@@ -43,7 +48,9 @@ def extract_recordable_file_refs(text: str) -> list[str]:
 
     Bare relative paths (e.g. ``src/foo.py``) that the display-side regex
     also matches are filtered out — they are typically ambient mentions
-    rather than intentional file references.
+    rather than intentional file references.  Paths pointing into a
+    project-local ``.sase/`` directory are also filtered out — they are
+    agent-managed state the user never re-references.
 
     Paths are returned as the user typed them; ``~`` is not expanded so
     history matches the user's writing style.
@@ -55,6 +62,8 @@ def extract_recordable_file_refs(text: str) -> list[str]:
     for match in _FILE_REF_RE.finditer(text):
         at_prefix = match.group(1)
         path = match.group(2)
+        if _is_local_sase_path(path):
+            continue
         if at_prefix:
             results.append(path)
         elif path.startswith(("/", "~/")):
@@ -75,7 +84,7 @@ def load_file_references() -> list[str]:
         with open(_HISTORY_FILE, encoding="utf-8") as f:
             data = json.load(f)
         paths = data.get("paths", [])
-        return [p for p in paths if isinstance(p, str)]
+        return [p for p in paths if isinstance(p, str) and not _is_local_sase_path(p)]
     except (OSError, json.JSONDecodeError):
         return []
 
