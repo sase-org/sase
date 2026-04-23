@@ -344,8 +344,10 @@ class BaseActionsMixin:
     def action_refresh(self) -> None:
         """Refresh the current tab's content."""
         if self.current_tab == "agents":
-            self._load_agents()  # type: ignore[attr-defined]
-            self._refresh_agent_file()  # type: ignore[attr-defined]
+            # Route through the async path so the UI returns immediately.
+            # _apply_loaded_agents triggers _refresh_agent_file after the
+            # background load completes.
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         else:
             self._reload_and_reposition()  # type: ignore[attr-defined]
         self.notify("Refreshed")  # type: ignore[attr-defined]

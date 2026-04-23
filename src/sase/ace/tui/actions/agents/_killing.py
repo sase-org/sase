@@ -125,7 +125,7 @@ class AgentKillingMixin(AgentDismissingMixin):
 
         # Schedule a full disk-scan refresh for the next event-loop
         # iteration so it runs after the screen transition is complete.
-        self.call_later(self._load_agents)  # type: ignore[attr-defined]
+        self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
 
     def _kill_process_group(self, pid: int) -> bool:
         """Kill a process group by PID.

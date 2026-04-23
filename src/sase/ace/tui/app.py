@@ -248,6 +248,7 @@ class AceApp(
         self._agents_last_idx: int = 0
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
+        self._agents_refresh_pending: bool = False
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
