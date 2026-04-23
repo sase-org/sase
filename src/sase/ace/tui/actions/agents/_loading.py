@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -20,6 +22,8 @@ from ._loading_helpers import (
     is_axe_spawned_agent,
     load_agents_from_disk,
 )
+
+log = logging.getLogger(__name__)
 
 # Per-process cache of artifact dirs already reconciled by the loader's
 # self-healing pass.  First call inspects the dir (and may call
@@ -64,6 +68,11 @@ class AgentLoadingMixin:
 
     # Loading guard
     _agents_loading: bool
+    # Last-request-wins coalescing: set when a refresh is requested while
+    # another one is already running. The in-flight refresh re-schedules
+    # itself once it finishes so the final UI state reflects disk state
+    # after the last trigger.
+    _agents_refresh_pending: bool
 
     # Panel focus and index maps for pinned panel split
     _pinned_panel_focused: Literal["main", "pinned"]
@@ -95,8 +104,16 @@ class AgentLoadingMixin:
         import asyncio
 
         dismissed_snapshot = set(self._dismissed_agents)
+        disk_start = time.perf_counter()
         all_agents, dismissed_from_loader = await asyncio.to_thread(
             load_agents_from_disk, dismissed_snapshot
+        )
+        disk_elapsed = time.perf_counter() - disk_start
+        log.debug(
+            "agents async load: disk=%.3fs agents=%d dismissed=%d",
+            disk_elapsed,
+            len(all_agents),
+            len(dismissed_from_loader),
         )
 
         # Capture current state AFTER the await — the user may have navigated
@@ -257,20 +274,35 @@ class AgentLoadingMixin:
         )
 
     def _schedule_agents_async_refresh(self) -> None:
-        """Schedule an async agent reload without blocking."""
+        """Schedule an async agent reload without blocking.
+
+        If a refresh is already in flight, mark a pending follow-up so the
+        in-flight run re-schedules itself once it finishes. This gives
+        last-request-wins semantics: a stampede of refresh requests
+        produces at most two full loads (the one already running plus one
+        follow-up), and the final UI state reflects whatever was on disk
+        after the last trigger.
+        """
         if self._agents_loading:
+            self._agents_refresh_pending = True
             return
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard."""
         if self._agents_loading:
+            self._agents_refresh_pending = True
             return
         self._agents_loading = True
         try:
             await self._load_agents_async()
         finally:
             self._agents_loading = False
+            # If a refresh was requested while we were running, schedule one
+            # more pass so the UI reflects the latest on-disk state.
+            if self._agents_refresh_pending:
+                self._agents_refresh_pending = False
+                self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     def _refilter_agents(self) -> None:
         """Lightweight agent refresh that skips disk I/O.
@@ -472,3 +504,21 @@ class AgentLoadingMixin:
         # Only refresh display if on agents tab
         if on_agents_tab:
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            # Refresh the file panel for the now-selected agent. Silently
+            # skip when nothing is selected or the agent is dismissable so
+            # auto-refresh doesn't spam notifications.
+            selected_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+            if (
+                selected_agent is not None
+                and selected_agent.status not in DISMISSABLE_STATUSES
+            ):
+                from ...widgets import AgentDetail
+
+                try:
+                    agent_detail = self.query_one(  # type: ignore[attr-defined]
+                        "#agent-detail-panel", AgentDetail
+                    )
+                except Exception:
+                    agent_detail = None
+                if agent_detail is not None:
+                    agent_detail.refresh_current_file(selected_agent)

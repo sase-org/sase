@@ -213,7 +213,7 @@ class AgentLaunchMixin:
             if workflow_result is True:
                 # Full workflow executed successfully
                 self._prompt_context = None
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 return
             elif vcs_ref is None and isinstance(workflow_result, str):
                 # Simple xprompt expanded inline — use as regular prompt
@@ -288,7 +288,7 @@ class AgentLaunchMixin:
                     vcs_ref=vcs_ref,
                     deferred_workspace=has_wait,
                 )
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 msg = f"Agent started for {display_name}"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
             except Exception:
@@ -372,7 +372,7 @@ class AgentLaunchMixin:
                     )
                     launched += 1
 
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 msg = f"Started {launched} agent(s) for {ctx.display_name}"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
             except Exception:
@@ -469,7 +469,7 @@ class AgentLaunchMixin:
                     )
 
                 specs = spawn_repeat_batch(prompt, base_spawn_fn=_spawn_one)
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
             except NameCollisionError as e:
@@ -516,9 +516,11 @@ class AgentLaunchMixin:
                     project_name=ctx.project_name,
                     is_home_mode=ctx.is_home_mode,
                     vcs_ref=vcs_ref,
-                    on_agent_spawned=lambda: self.call_later(self._load_agents),  # type: ignore[attr-defined]
+                    on_agent_spawned=lambda: self.call_later(  # type: ignore[attr-defined]
+                        self._schedule_agents_async_refresh  # type: ignore[attr-defined]
+                    ),
                 )
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
             except Exception:
@@ -534,7 +536,7 @@ class AgentLaunchMixin:
 
         # Immediate feedback while agents launch in background.
         n = len(multi.segments)
-        self.call_later(self._load_agents)  # type: ignore[attr-defined]
+        self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
         self.notify(f"Launching {n} agent(s) for {ctx.display_name}...")  # type: ignore[attr-defined]
 
     def _launch_bulk_agents(self, prompt: str) -> None:
@@ -615,7 +617,7 @@ class AgentLaunchMixin:
                     )
                     launched_count += 1
 
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
 
                 if failed_count > 0:
                     msg = f"Started {launched_count} agent(s), {failed_count} failed"

@@ -129,7 +129,8 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
     if not _DISMISSED_BUNDLES_DIR.is_dir():
         return []
 
-    agents: list[Agent] = []
+    # Collect the list of bundle files to load, then read them in parallel.
+    bundle_paths: list[Path] = []
     if suffixes is not None:
         # Single directory scan → map raw_suffix → list of child filenames.
         # Raw suffixes are 14-digit timestamps that never contain ``__c``;
@@ -153,37 +154,36 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
             return []
 
         for suffix in suffixes:
-            # Load parent bundle
-            filepath = _DISMISSED_BUNDLES_DIR / f"{suffix}.json"
-            agent = _load_bundle_file(filepath)
-            if agent is not None:
-                agents.append(agent)
-            # Load child bundles (e.g. {suffix}__c0.json, {suffix}__c1.json)
+            bundle_paths.append(_DISMISSED_BUNDLES_DIR / f"{suffix}.json")
             for child_name in child_files_by_suffix.get(suffix, []):
-                child = _load_bundle_file(_DISMISSED_BUNDLES_DIR / child_name)
-                if child is not None:
-                    agents.append(child)
+                bundle_paths.append(_DISMISSED_BUNDLES_DIR / child_name)
     else:
-        for filepath in _DISMISSED_BUNDLES_DIR.glob("*.json"):
-            agent = _load_bundle_file(filepath)
-            if agent is not None:
-                agents.append(agent)
-    return agents
+        bundle_paths.extend(_DISMISSED_BUNDLES_DIR.glob("*.json"))
+
+    if not bundle_paths:
+        return []
+
+    from .tui.models._loaders._json_cache import get_loader_executor
+
+    executor = get_loader_executor()
+    results = executor.map(_load_bundle_file, bundle_paths)
+    return [a for a in results if a is not None]
 
 
 def _load_bundle_file(filepath: Path) -> Agent | None:
     """Load a single Agent from a bundle JSON file."""
+    from .tui.models._loaders._json_cache import load_json_cached
     from .tui.models.agent import Agent
 
-    if not filepath.exists():
+    try:
+        data = load_json_cached(filepath)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
         return None
     try:
-        with open(filepath) as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return None
         return Agent.from_bundle_dict(data)
-    except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
+    except (KeyError, ValueError, TypeError):
         return None
 
 

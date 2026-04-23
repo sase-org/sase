@@ -11,6 +11,7 @@ from sase.running_field import get_claimed_workspaces
 from sase.core.time import get_timezone
 
 from ....hooks.processes import is_process_running
+from ._json_cache import load_json_cached
 from .._timestamps import (
     normalize_to_14_digit,
     parse_timestamp_14_digit,
@@ -42,8 +43,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
 
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     try:
-        with open(meta_path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = load_json_cached(meta_path)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return
 
@@ -319,6 +319,77 @@ def _iter_artifact_workflow_dirs(artifacts_dir: Path) -> list[Path]:
     return dirs
 
 
+def _load_done_agent_for_dir(
+    artifact_dir: Path,
+    workflow_dir_name: str,
+    bug_by_cl_name: dict[str, str | None],
+    cl_by_cl_name: dict[str, str | None],
+) -> Agent | None:
+    """Load a single done.json and build an Agent, or None on error/skip."""
+    done_file = artifact_dir / "done.json"
+    if not done_file.exists():
+        return None
+
+    try:
+        data = load_json_cached(done_file)
+
+        # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
+        timestamp_str = artifact_dir.name
+        start_time = parse_timestamp_14_digit(timestamp_str)
+
+        cl_name = data.get("cl_name", "unknown")
+        outcome = data.get("outcome", "completed")
+        if outcome == "noop":
+            return None
+        if outcome == "failed":
+            status = "FAILED"
+            error_message = data.get("error")
+            error_traceback = data.get("traceback")
+        else:
+            status = "DONE"
+            error_message = None
+            error_traceback = None
+        plan_path = data.get("plan_path")
+        extra_files = [plan_path] if plan_path else []
+
+        agent = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=cl_name,
+            project_file=data.get("project_file", ""),
+            status=status,
+            start_time=start_time,
+            workflow=workflow_dir_name,
+            raw_suffix=timestamp_str,
+            response_path=data.get("response_path"),
+            diff_path=data.get("diff_path"),
+            extra_files=extra_files,
+            step_output=data.get("step_output"),
+            workspace_num=data.get("workspace_num"),
+            bug=bug_by_cl_name.get(cl_name),
+            cl_num=cl_by_cl_name.get(cl_name),
+            error_message=error_message,
+            error_traceback=error_traceback,
+            output_path=data.get("output_path"),
+            model=data.get("model"),
+            llm_provider=data.get("llm_provider"),
+            vcs_provider=data.get("vcs_provider"),
+            agent_name=data.get("name"),
+            hidden=bool(data.get("hidden")),
+            approve=bool(data.get("approve")),
+        )
+
+        # Always enrich from agent_meta.json — it may contain
+        # fields not in done.json (e.g. name set via TUI rename
+        # after the agent started, which the runner doesn't know
+        # about when writing done.json).
+        enrich_agent_from_meta(agent, str(artifact_dir))
+        _enrich_agent_from_prompt_markers(agent, str(artifact_dir))
+
+        return agent
+    except Exception:
+        return None
+
+
 def load_done_agents(
     bug_by_cl_name: dict[str, str | None],
     cl_by_cl_name: dict[str, str | None],
@@ -335,12 +406,16 @@ def load_done_agents(
     Returns:
         List of Agent objects with DONE or FAILED status.
     """
-    agents: list[Agent] = []
+    from ._json_cache import get_loader_executor
+
     projects_dir = Path.home() / ".sase" / "projects"
 
     if not projects_dir.exists():
-        return agents
+        return []
 
+    # Collect (artifact_dir, workflow_dir_name) pairs first so we can fan
+    # out the JSON reads across a thread pool.
+    tasks: list[tuple[Path, str]] = []
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
@@ -353,72 +428,17 @@ def load_done_agents(
             for artifact_dir in workflow_dir.iterdir():
                 if not artifact_dir.is_dir():
                     continue
+                tasks.append((artifact_dir, workflow_dir.name))
 
-                done_file = artifact_dir / "done.json"
-                if not done_file.exists():
-                    continue
+    if not tasks:
+        return []
 
-                try:
-                    with open(done_file, encoding="utf-8") as f:
-                        data = json.load(f)
-
-                    # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
-                    timestamp_str = artifact_dir.name
-                    start_time = parse_timestamp_14_digit(timestamp_str)
-
-                    cl_name = data.get("cl_name", "unknown")
-                    outcome = data.get("outcome", "completed")
-                    if outcome == "noop":
-                        continue
-                    if outcome == "failed":
-                        status = "FAILED"
-                        error_message = data.get("error")
-                        error_traceback = data.get("traceback")
-                    else:
-                        status = "DONE"
-                        error_message = None
-                        error_traceback = None
-                    plan_path = data.get("plan_path")
-                    extra_files = [plan_path] if plan_path else []
-
-                    agent = Agent(
-                        agent_type=AgentType.RUNNING,
-                        cl_name=cl_name,
-                        project_file=data.get("project_file", ""),
-                        status=status,
-                        start_time=start_time,
-                        workflow=workflow_dir.name,
-                        raw_suffix=timestamp_str,
-                        response_path=data.get("response_path"),
-                        diff_path=data.get("diff_path"),
-                        extra_files=extra_files,
-                        step_output=data.get("step_output"),
-                        workspace_num=data.get("workspace_num"),
-                        bug=bug_by_cl_name.get(cl_name),
-                        cl_num=cl_by_cl_name.get(cl_name),
-                        error_message=error_message,
-                        error_traceback=error_traceback,
-                        output_path=data.get("output_path"),
-                        model=data.get("model"),
-                        llm_provider=data.get("llm_provider"),
-                        vcs_provider=data.get("vcs_provider"),
-                        agent_name=data.get("name"),
-                        hidden=bool(data.get("hidden")),
-                        approve=bool(data.get("approve")),
-                    )
-
-                    # Always enrich from agent_meta.json — it may contain
-                    # fields not in done.json (e.g. name set via TUI rename
-                    # after the agent started, which the runner doesn't know
-                    # about when writing done.json).
-                    enrich_agent_from_meta(agent, str(artifact_dir))
-                    _enrich_agent_from_prompt_markers(agent, str(artifact_dir))
-
-                    agents.append(agent)
-                except Exception:
-                    continue
-
-    return agents
+    executor = get_loader_executor()
+    results = executor.map(
+        lambda t: _load_done_agent_for_dir(t[0], t[1], bug_by_cl_name, cl_by_cl_name),
+        tasks,
+    )
+    return [agent for agent in results if agent is not None]
 
 
 def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
@@ -432,8 +452,7 @@ def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
     meta_fields: dict[str, str] = {}
     for marker_file in sorted(artifacts_path.glob("prompt_step_*.json")):
         try:
-            with open(marker_file, encoding="utf-8") as f:
-                data = json.load(f)
+            data = load_json_cached(marker_file)
         except (json.JSONDecodeError, OSError):
             continue
         if not isinstance(data, dict):
@@ -475,8 +494,7 @@ def load_running_home_agents() -> list[Agent]:
             continue
 
         try:
-            with open(running_file, encoding="utf-8") as f:
-                data = json.load(f)
+            data = load_json_cached(running_file)
 
             # Verify PID is still running
             pid = data.get("pid")

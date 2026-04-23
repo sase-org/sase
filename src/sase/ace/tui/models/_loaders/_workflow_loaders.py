@@ -8,6 +8,7 @@ from typing import Any
 
 from ....hooks.processes import is_process_running
 from ._artifact_loaders import enrich_agent_from_meta
+from ._json_cache import load_json_cached
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
@@ -97,8 +98,7 @@ def load_workflow_states(
             continue
 
         try:
-            with open(state_file, encoding="utf-8") as f:
-                data = json.load(f)
+            data = load_json_cached(state_file)
 
             # Parse timestamp from directory name
             start_time = parse_timestamp_14_digit(timestamp_dir.name)
@@ -286,8 +286,7 @@ def load_workflow_agents(
         if entry.artifacts_dir:
             plan_path_file = Path(entry.artifacts_dir) / "plan_path.json"
             try:
-                with open(plan_path_file, encoding="utf-8") as f:
-                    plan_data = json.load(f)
+                plan_data = load_json_cached(plan_path_file)
                 plan_path = plan_data.get("plan_path")
                 if plan_path:
                     extra_files = [plan_path]
@@ -319,6 +318,162 @@ def load_workflow_agents(
     return agents
 
 
+def _load_workflow_agent_steps_for_dir(
+    project_dir: Path,
+    timestamp_dir: Path,
+) -> tuple[list[Agent], dict[str, str]]:
+    """Load agent steps and collect meta_* fields for a single timestamp dir.
+
+    Returns:
+        Tuple of (agents_for_dir, meta_dict_for_parent_timestamp).
+        The meta dict is keyed on meta_key -> meta_value; callers attach it
+        to ``meta_by_parent[timestamp_dir.name]``.
+    """
+    dir_agents: list[Agent] = []
+    dir_meta: dict[str, str] = {}
+
+    # Read parent workflow state for status propagation to child steps
+    parent_wf_error: str | None = None
+    parent_wf_traceback: str | None = None
+    parent_wf_failed = False
+    parent_wf_completed = False
+    parent_state_file = timestamp_dir / "workflow_state.json"
+    if parent_state_file.exists():
+        try:
+            parent_state = load_json_cached(parent_state_file)
+            parent_status = parent_state.get("status")
+            if parent_status == "failed":
+                parent_wf_failed = True
+                parent_wf_error = parent_state.get("error")
+                parent_wf_traceback = parent_state.get("traceback")
+            elif parent_status == "completed":
+                parent_wf_completed = True
+        except Exception:
+            pass
+
+    # Find all prompt step marker files
+    for marker_file in timestamp_dir.glob("prompt_step_*.json"):
+        try:
+            data = load_json_cached(marker_file)
+
+            # Parse timestamp from directory name
+            start_time = parse_timestamp_14_digit(timestamp_dir.name)
+
+            # Build project file path
+            project_name = project_dir.name
+            project_file = str(project_dir / f"{project_name}.gp")
+
+            # Map status to display string
+            status = data.get("status", "completed")
+            if status == "waiting_hitl":
+                display_status = "WAITING INPUT"
+            elif status == "completed":
+                display_status = "DONE"
+            elif status == "in_progress":
+                display_status = "RUNNING"
+            elif status == "failed":
+                display_status = "FAILED"
+            else:
+                display_status = status.upper()
+
+            workflow_name = data.get("workflow_name", "unknown")
+            step_name = data.get("step_name", "unknown")
+
+            # Read new fields from marker (with backward compat defaults)
+            step_type = data.get("step_type", "agent")
+            step_source = data.get("step_source")
+            step_output = data.get("output")
+            step_index = data.get("step_index")
+            total_steps = data.get("total_steps")
+            parent_step_index = data.get("parent_step_index")
+            parent_total_steps = data.get("parent_total_steps")
+            is_hidden = data.get("hidden", False)
+            is_pre_prompt_step = data.get("is_pre_prompt_step", False)
+            embedded_workflow_name = data.get("embedded_workflow_name")
+
+            # Pre-prompt steps from embedded workflows are hidden
+            # by default but still loadable at FULLY_EXPANDED level.
+            if is_pre_prompt_step:
+                is_hidden = True
+
+            # Read artifacts_dir, diff_path, error, and traceback from marker
+            artifacts_dir_from_marker = data.get("artifacts_dir")
+            diff_path = data.get("diff_path")
+            error_message = data.get("error")
+            error_traceback = data.get("traceback")
+
+            response_path = data.get("response_path")
+
+            # Also extract diff_path from output_types if not already set
+            if not diff_path:
+                output_types = data.get("output_types") or {}
+                if output_types and isinstance(step_output, dict):
+                    for field_name, field_type in output_types.items():
+                        if field_type == "path":
+                            path_value = step_output.get(field_name)
+                            if path_value:
+                                diff_path = str(path_value)
+                                break
+
+            # Collect meta_* fields for parent workflow enrichment
+            if isinstance(step_output, dict):
+                for k, v in step_output.items():
+                    if k.startswith("meta_") and v:
+                        dir_meta[k] = str(v)
+
+            agent = Agent(
+                agent_type=AgentType.WORKFLOW,
+                cl_name=step_name,
+                project_file=project_file,
+                status=display_status,
+                start_time=start_time,
+                workflow=workflow_name,
+                raw_suffix=timestamp_dir.name,
+                parent_workflow=workflow_name,
+                parent_timestamp=timestamp_dir.name,
+                step_name=step_name,
+                step_type=step_type,
+                step_source=step_source,
+                step_output=step_output,
+                step_index=step_index,
+                total_steps=total_steps,
+                parent_step_index=parent_step_index,
+                parent_total_steps=parent_total_steps,
+                is_hidden_step=is_hidden,
+                artifacts_dir=artifacts_dir_from_marker,
+                diff_path=diff_path,
+                error_message=error_message,
+                error_traceback=error_traceback,
+                response_path=response_path,
+                embedded_workflow_name=embedded_workflow_name,
+                is_pre_prompt_step=is_pre_prompt_step,
+                model=data.get("model"),
+                llm_provider=data.get("llm_provider"),
+            )
+            # If step is still RUNNING but parent workflow failed,
+            # mark step as FAILED and propagate the workflow error
+            if (
+                parent_wf_failed
+                and agent.status == "RUNNING"
+                and not agent.error_message
+            ):
+                agent.status = "FAILED"
+                agent.error_message = parent_wf_error
+                agent.error_traceback = parent_wf_traceback
+
+            # If step is still RUNNING but parent workflow completed,
+            # mark step as DONE (e.g. planner agent killed by sase plan)
+            if parent_wf_completed and agent.status == "RUNNING":
+                agent.status = "DONE"
+
+            enrich_agent_from_meta(agent, artifacts_dir_from_marker)
+            dir_agents.append(agent)
+        except Exception:
+            continue
+
+    return dir_agents, dir_meta
+
+
 def load_workflow_agent_steps(
     *,
     timestamp_dirs: list[tuple[Path, Path]] | None = None,
@@ -339,155 +494,27 @@ def load_workflow_agent_steps(
         - Dict mapping parent_timestamp -> {meta_key: meta_value} for parent
           workflow enrichment.
     """
-    agents: list[Agent] = []
-    meta_by_parent: dict[str, dict[str, str]] = {}
+    from ._json_cache import get_loader_executor
 
     dirs = (
         timestamp_dirs if timestamp_dirs is not None else _get_workflow_timestamp_dirs()
     )
-    for project_dir, timestamp_dir in dirs:
-        # Read parent workflow state for status propagation to child steps
-        parent_wf_error: str | None = None
-        parent_wf_traceback: str | None = None
-        parent_wf_failed = False
-        parent_wf_completed = False
-        parent_state_file = timestamp_dir / "workflow_state.json"
-        if parent_state_file.exists():
-            try:
-                with open(parent_state_file, encoding="utf-8") as f:
-                    parent_state = json.load(f)
-                parent_status = parent_state.get("status")
-                if parent_status == "failed":
-                    parent_wf_failed = True
-                    parent_wf_error = parent_state.get("error")
-                    parent_wf_traceback = parent_state.get("traceback")
-                elif parent_status == "completed":
-                    parent_wf_completed = True
-            except Exception:
-                pass
+    if not dirs:
+        return [], {}
 
-        # Find all prompt step marker files
-        for marker_file in timestamp_dir.glob("prompt_step_*.json"):
-            try:
-                with open(marker_file, encoding="utf-8") as f:
-                    data = json.load(f)
+    executor = get_loader_executor()
+    results = list(
+        executor.map(
+            lambda pair: _load_workflow_agent_steps_for_dir(pair[0], pair[1]),
+            dirs,
+        )
+    )
 
-                # Parse timestamp from directory name
-                start_time = parse_timestamp_14_digit(timestamp_dir.name)
-
-                # Build project file path
-                project_name = project_dir.name
-                project_file = str(project_dir / f"{project_name}.gp")
-
-                # Map status to display string
-                status = data.get("status", "completed")
-                if status == "waiting_hitl":
-                    display_status = "WAITING INPUT"
-                elif status == "completed":
-                    display_status = "DONE"
-                elif status == "in_progress":
-                    display_status = "RUNNING"
-                elif status == "failed":
-                    display_status = "FAILED"
-                else:
-                    display_status = status.upper()
-
-                workflow_name = data.get("workflow_name", "unknown")
-                step_name = data.get("step_name", "unknown")
-
-                # Read new fields from marker (with backward compat defaults)
-                step_type = data.get("step_type", "agent")
-                step_source = data.get("step_source")
-                step_output = data.get("output")
-                step_index = data.get("step_index")
-                total_steps = data.get("total_steps")
-                parent_step_index = data.get("parent_step_index")
-                parent_total_steps = data.get("parent_total_steps")
-                is_hidden = data.get("hidden", False)
-                is_pre_prompt_step = data.get("is_pre_prompt_step", False)
-                embedded_workflow_name = data.get("embedded_workflow_name")
-
-                # Pre-prompt steps from embedded workflows are hidden
-                # by default but still loadable at FULLY_EXPANDED level.
-                if is_pre_prompt_step:
-                    is_hidden = True
-
-                # Read artifacts_dir, diff_path, error, and traceback from marker
-                artifacts_dir_from_marker = data.get("artifacts_dir")
-                diff_path = data.get("diff_path")
-                error_message = data.get("error")
-                error_traceback = data.get("traceback")
-
-                response_path = data.get("response_path")
-
-                # Also extract diff_path from output_types if not already set
-                if not diff_path:
-                    output_types = data.get("output_types") or {}
-                    if output_types and isinstance(step_output, dict):
-                        for field_name, field_type in output_types.items():
-                            if field_type == "path":
-                                path_value = step_output.get(field_name)
-                                if path_value:
-                                    diff_path = str(path_value)
-                                    break
-
-                # Collect meta_* fields for parent workflow enrichment
-                if isinstance(step_output, dict):
-                    ts_name = timestamp_dir.name
-                    for k, v in step_output.items():
-                        if k.startswith("meta_") and v:
-                            if ts_name not in meta_by_parent:
-                                meta_by_parent[ts_name] = {}
-                            meta_by_parent[ts_name][k] = str(v)
-
-                agent = Agent(
-                    agent_type=AgentType.WORKFLOW,
-                    cl_name=step_name,
-                    project_file=project_file,
-                    status=display_status,
-                    start_time=start_time,
-                    workflow=workflow_name,
-                    raw_suffix=timestamp_dir.name,
-                    parent_workflow=workflow_name,
-                    parent_timestamp=timestamp_dir.name,
-                    step_name=step_name,
-                    step_type=step_type,
-                    step_source=step_source,
-                    step_output=step_output,
-                    step_index=step_index,
-                    total_steps=total_steps,
-                    parent_step_index=parent_step_index,
-                    parent_total_steps=parent_total_steps,
-                    is_hidden_step=is_hidden,
-                    artifacts_dir=artifacts_dir_from_marker,
-                    diff_path=diff_path,
-                    error_message=error_message,
-                    error_traceback=error_traceback,
-                    response_path=response_path,
-                    embedded_workflow_name=embedded_workflow_name,
-                    is_pre_prompt_step=is_pre_prompt_step,
-                    model=data.get("model"),
-                    llm_provider=data.get("llm_provider"),
-                )
-                # If step is still RUNNING but parent workflow failed,
-                # mark step as FAILED and propagate the workflow error
-                if (
-                    parent_wf_failed
-                    and agent.status == "RUNNING"
-                    and not agent.error_message
-                ):
-                    agent.status = "FAILED"
-                    agent.error_message = parent_wf_error
-                    agent.error_traceback = parent_wf_traceback
-
-                # If step is still RUNNING but parent workflow completed,
-                # mark step as DONE (e.g. planner agent killed by sase plan)
-                if parent_wf_completed and agent.status == "RUNNING":
-                    agent.status = "DONE"
-
-                enrich_agent_from_meta(agent, artifacts_dir_from_marker)
-                agents.append(agent)
-            except Exception:
-                continue
+    agents: list[Agent] = []
+    meta_by_parent: dict[str, dict[str, str]] = {}
+    for pair, (dir_agents, dir_meta) in zip(dirs, results, strict=True):
+        agents.extend(dir_agents)
+        if dir_meta:
+            meta_by_parent[pair[1].name] = dir_meta
 
     return agents, meta_by_parent

@@ -172,6 +172,6 @@ class AgentWorkflowHITLMixin:
                 self.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
 
             # Refresh agents after a short delay to pick up status change
-            self.call_later(self._load_agents)  # type: ignore[attr-defined]
+            self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
 
         self.push_screen(WorkflowHITLModal(input_data), on_dismiss)  # type: ignore[attr-defined]
