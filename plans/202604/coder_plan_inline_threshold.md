@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-22 16:48:37
-status: done
+status: wip
 ---
 
 # Gate the `@` plan-file prefix on plan length

@@ -160,7 +160,6 @@ axe:
   zombie_timeout_seconds: 7200
   query: ""
   chop_script_dirs: []
-  coder_plan_inline_max_lines: 300
   lumberjacks:
     hooks:
       interval: 5

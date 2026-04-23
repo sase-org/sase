@@ -116,11 +116,6 @@
           },
           "default": []
         },
-        "coder_plan_inline_max_lines": {
-          "type": "integer",
-          "description": "Maximum plan-file line count for which the coder prompt inlines the plan with `@{path}`. Larger plans are referenced by path instead, to avoid \"Prompt is too long\" errors. Set to 0 to always reference by path.",
-          "default": 300
-        },
         "lumberjacks": {
           "type": "object",
           "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
