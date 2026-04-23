@@ -123,6 +123,7 @@ class AcePage:
         size: tuple[int, int] = (120, 40),
         changespecs: list[ChangeSpec] | None = None,
         model_tier_override: Literal["large", "small"] | None = None,
+        skip_splash: bool = True,
     ) -> None:
         self._query = query
         self._size = size
@@ -132,6 +133,7 @@ class AcePage:
         self._model_tier_override: Literal["large", "small"] | None = (
             model_tier_override
         )
+        self._skip_splash = skip_splash
         self._app: AceApp | None = None
         self._pilot: Any = None
         self._patch: Any = None
@@ -148,6 +150,7 @@ class AcePage:
             model_tier_override=self._model_tier_override,
             refresh_interval=0,
         )
+        self._app._suppress_startup_splash = self._skip_splash
         self._pilot_cm = self._app.run_test(size=self._size)
         self._pilot = await self._pilot_cm.__aenter__()
         return self

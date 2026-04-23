@@ -192,6 +192,14 @@ class AceApp(
         # in the TUI's agents and axe surfaces.
         self._agents_first_load_done: bool = False
         self._axe_first_load_done: bool = False
+        # Startup splash screen reference (set in on_mount). ``None`` means
+        # either not yet pushed or already dismissed.
+        from .modals.startup_splash import StartupSplashScreen
+
+        self._startup_splash: StartupSplashScreen | None = None
+        # Set by the test harness (``AcePage(skip_splash=True)``) to suppress
+        # the startup splash screen entirely.
+        self._suppress_startup_splash: bool = False
         self.query_string = query
         self.parsed_query: QueryExpr = parse_query(query)
         self.refresh_interval = refresh_interval
@@ -518,11 +526,24 @@ class AceApp(
             tab_bar = self.query_one("#tab-bar", TabBar)
             tab_bar.set_keymap_registry(self._keymap_registry)
 
+            # Push the startup splash *first* so it covers the partial TUI
+            # while ChangeSpecs/Agents/AXE finish loading in the background.
+            if not self._suppress_startup_splash:
+                from sase.main.startup_timing import get_process_start
+
+                from .modals.startup_splash import StartupSplashScreen
+
+                splash = StartupSplashScreen(process_start=get_process_start())
+                self._startup_splash = splash
+                self.push_screen(splash, self._on_startup_splash_dismissed)
+
             # Initialize agent tracking for completion notifications
             self._initialize_agent_tracking()
 
             # Load initial changespecs with the startup query
             self._load_changespecs()
+            if self._startup_splash is not None:
+                self._startup_splash.mark_changespecs_ready()
 
             # If no results, try saved queries as fallback; if none work, open
             # the Agents tab instead
@@ -587,6 +608,23 @@ class AceApp(
                 )
         finally:
             self._mounting = False
+
+    def _on_startup_splash_dismissed(self, _result: object) -> None:
+        """Clear the splash reference once the modal is removed."""
+        self._startup_splash = None
+
+    def _notify_splash(self, phase: str) -> None:
+        """Forward a milestone-ready signal to the splash, if present."""
+        splash = self._startup_splash
+        if splash is None:
+            return
+        method = getattr(splash, f"mark_{phase}_ready", None)
+        if method is None:
+            return
+        try:
+            method()
+        except Exception:
+            pass
 
     def _apply_startup_loading_state(self) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.

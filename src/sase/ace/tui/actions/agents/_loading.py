@@ -160,6 +160,10 @@ class AgentLoadingMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
+            # Notify the startup splash (if still visible).
+            notify = getattr(self, "_notify_splash", None)
+            if notify is not None:
+                notify("agents")
 
         # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {

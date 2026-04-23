@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 17:29:55
-status: wip
+status: done
 ---
 # `sase ace` Startup Stopwatch Splash Screen
 
