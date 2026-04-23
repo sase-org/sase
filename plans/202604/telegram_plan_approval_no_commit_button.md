@@ -4,7 +4,7 @@ description:
   Replace the Telegram "📦 Commit" button on plan-approval messages with a "🚀 Run" button that approves + runs coder +
   skips the plan-file commit.
 create_time: 2026-04-23 17:01:05
-status: wip
+status: done
 ---
 
 # Replace Telegram "📦 Commit" with "🚀 Run" (approve, no plan commit)
