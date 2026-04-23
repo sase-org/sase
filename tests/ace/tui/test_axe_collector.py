@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.tui.actions.axe_display import _collect_axe_status_data
+from sase.ace.tui.actions.axe_display import collect_axe_status_data
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
 
@@ -63,10 +63,12 @@ def test_collector_populates_all_cache_maps() -> None:
     log_map = {"hooks": "hooks log\n", "checks": "checks log\n"}
 
     with (
-        patch("sase.ace.tui.actions.axe_display.get_axe_process_module") as get_proc,
-        patch("sase.ace.tui.actions.axe_display.read_metrics", return_value=None),
         patch(
-            "sase.ace.tui.actions.axe_display.read_output_log_tail",
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="output\n",
         ),
         patch(
@@ -74,31 +76,31 @@ def test_collector_populates_all_cache_maps() -> None:
             return_value=config,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
             side_effect=lambda name: status_map[name],
         ) as status_reader,
         patch(
-            "sase.ace.tui.actions.axe_display.read_lumberjack_metrics",
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
             side_effect=lambda name: metrics_map[name],
         ) as metrics_reader,
         patch(
-            "sase.ace.tui.actions.axe_display.read_lumberjack_log_tail",
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
             side_effect=lambda name, _n: log_map[name],
         ) as log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display.get_active_slots",
+            "sase.ace.tui.actions.axe_display._data.get_active_slots",
             return_value=[1],
         ),
         patch(
-            "sase.ace.tui.actions.axe_display.get_slot_info",
+            "sase.ace.tui.actions.axe_display._data.get_slot_info",
             return_value=bgcmd_info,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display.is_slot_running",
+            "sase.ace.tui.actions.axe_display._data.is_slot_running",
             return_value=True,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display.read_slot_output_tail",
+            "sase.ace.tui.actions.axe_display._data.read_slot_output_tail",
             return_value="slot output\n",
         ),
     ):
@@ -106,7 +108,7 @@ def test_collector_populates_all_cache_maps() -> None:
         proc.is_axe_running.return_value = False
         proc.get_axe_status.return_value = None
 
-        data = _collect_axe_status_data()
+        data = collect_axe_status_data()
 
     assert data.lumberjack_names == ["checks", "hooks"]
     # Per-lumberjack caches populated for every name

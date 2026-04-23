@@ -112,16 +112,22 @@ def test_navigation_does_not_read_from_disk() -> None:
         raise AssertionError("navigation must not read from disk")
 
     with (
-        patch("sase.ace.tui.actions.axe_display.read_lumberjack_status", _boom),
-        patch("sase.ace.tui.actions.axe_display.read_lumberjack_metrics", _boom),
-        patch("sase.ace.tui.actions.axe_display.read_lumberjack_log_tail", _boom),
-        patch("sase.ace.tui.actions.axe_display.read_slot_output_tail", _boom),
         patch(
-            "sase.ace.tui.actions.axe_display.get_slot_info",
+            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status", _boom
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_metrics", _boom
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_log_tail", _boom
+        ),
+        patch("sase.ace.tui.actions.axe_display._loaders.read_slot_output_tail", _boom),
+        patch(
+            "sase.ace.tui.actions.axe_display._render.get_slot_info",
             side_effect=_boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display.is_slot_running",
+            "sase.ace.tui.actions.axe_display._render.is_slot_running",
             side_effect=_boom,
         ),
     ):
@@ -156,5 +162,7 @@ def test_update_axe_tab_count_does_not_read_from_disk() -> None:
     def _boom(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("tab count must not read from disk")
 
-    with patch("sase.ace.tui.actions.axe_display.read_lumberjack_status", _boom):
+    with patch(
+        "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status", _boom
+    ):
         app._update_axe_tab_count()
