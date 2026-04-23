@@ -160,7 +160,6 @@ class AxeDisplayMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
-            self._maybe_hide_startup_banner()  # type: ignore[attr-defined]
 
         self.axe_running = data.axe_running
 
