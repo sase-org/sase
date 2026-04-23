@@ -348,8 +348,10 @@ class BaseActionsMixin:
             # _apply_loaded_agents triggers _refresh_agent_file after the
             # background load completes.
             self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
-        else:
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+        elif self.current_tab == "changespecs":
+            self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+        else:  # axe
+            self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
         self.notify("Refreshed")  # type: ignore[attr-defined]
 
     def action_edit_query(self) -> None:

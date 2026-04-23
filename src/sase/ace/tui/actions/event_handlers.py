@@ -104,7 +104,7 @@ class EventHandlersMixin:
 
         # Tab-specific refreshes
         if self.current_tab == "changespecs":
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            await self._reload_and_reposition_async()  # type: ignore[attr-defined]
         # No else needed - axe display already refreshed by _load_axe_status()
 
     def _on_countdown_tick(self) -> None:

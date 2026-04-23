@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:36:34
-status: wip
+status: done
 ---
 
 # Plan: Fix `y` keymap blocks TUI navigation during refresh

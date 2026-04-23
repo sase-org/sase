@@ -50,6 +50,8 @@ class ChangeSpecMixin:
     _hidden_submitted_count: int
     _query_submitted_count: int
     _axe_cmds_hidden: bool
+    _changespecs_loading: bool
+    _changespecs_refresh_pending: bool
 
     def _load_changespecs(self) -> None:
         """Load and filter changespecs from disk."""
@@ -134,6 +136,40 @@ class ChangeSpecMixin:
             current_name = self.changespecs[idx].name
 
         all_changespecs = find_all_changespecs()
+        self._apply_reloaded_changespecs(all_changespecs, current_name)
+
+    async def _reload_and_reposition_async(
+        self, current_name: str | None = None
+    ) -> None:
+        """Async variant of _reload_and_reposition.
+
+        Off-loads the disk scan to a background thread and re-captures UI
+        state after the await so the load survives user navigation while
+        the I/O is in flight.
+        """
+        import asyncio
+
+        from ...changespec import find_all_changespecs
+
+        caller_supplied_name = current_name is not None
+
+        all_changespecs = await asyncio.to_thread(find_all_changespecs)
+
+        # Re-capture current selection AFTER the await — user may have
+        # moved with j/k or switched tabs while disk I/O was in flight.
+        # Skip if the caller explicitly pinned us to a specific name.
+        if not caller_supplied_name and self.changespecs:
+            idx = min(self.current_idx, len(self.changespecs) - 1)
+            current_name = self.changespecs[idx].name
+
+        self._apply_reloaded_changespecs(all_changespecs, current_name)
+
+    def _apply_reloaded_changespecs(
+        self,
+        all_changespecs: list[ChangeSpec],
+        current_name: str | None,
+    ) -> None:
+        """Apply a freshly-loaded changespec list and reposition the cursor."""
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         new_changespecs = self._filter_changespecs(all_changespecs)
 
@@ -165,6 +201,32 @@ class ChangeSpecMixin:
         self.current_idx = new_idx
         self._update_cls_tab_count()
         self._refresh_display()
+
+    def _schedule_changespecs_async_refresh(self) -> None:
+        """Schedule an async changespec reload without blocking.
+
+        Mirrors the agents-tab pattern: if a refresh is already in flight,
+        mark a pending follow-up so the in-flight run re-schedules itself
+        once it finishes (last-request-wins, collapses stampedes).
+        """
+        if self._changespecs_loading:
+            self._changespecs_refresh_pending = True
+            return
+        self.call_later(self._run_changespecs_async_refresh)  # type: ignore[attr-defined]
+
+    async def _run_changespecs_async_refresh(self) -> None:
+        """Run the async changespec refresh with loading guard."""
+        if self._changespecs_loading:
+            self._changespecs_refresh_pending = True
+            return
+        self._changespecs_loading = True
+        try:
+            await self._reload_and_reposition_async()
+        finally:
+            self._changespecs_loading = False
+            if self._changespecs_refresh_pending:
+                self._changespecs_refresh_pending = False
+                self.call_later(self._run_changespecs_async_refresh)  # type: ignore[attr-defined]
 
     def _save_current_query(self) -> None:
         """Save the current query as the last used query."""
