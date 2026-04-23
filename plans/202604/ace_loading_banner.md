@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:53:21
-status: done
+status: wip
 ---
 
 # Bold, Beautiful Startup Loading Banner for `sase ace` TUI
