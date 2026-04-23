@@ -17,6 +17,7 @@ from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 from .inactive_indicator import InactiveIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
+from .startup_loading_banner import StartupLoadingBanner
 from .tab_bar import TabBar
 from .task_indicator import TaskIndicator
 
@@ -39,6 +40,7 @@ __all__ = [
     "NotificationIndicator",
     "PromptInputBar",
     "SearchQueryPanel",
+    "StartupLoadingBanner",
     "TabBar",
     "TaskIndicator",
     "ThinkingVisibilityChanged",

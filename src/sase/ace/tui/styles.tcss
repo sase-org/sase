@@ -1,7 +1,42 @@
 /* Textual CSS for the ace TUI */
 
+Screen {
+    layers: base overlay;
+}
+
 /* Hidden class for tab switching */
 .hidden {
+    display: none;
+}
+
+/* Startup loading banner (centered floating overlay) */
+#startup-loading-banner {
+    layer: overlay;
+    dock: top;
+    align-horizontal: center;
+    offset: 0 2;
+    width: auto;
+    height: 3;
+    padding: 0 2;
+    background: $panel;
+    border: round $primary;
+    color: $primary;
+    text-style: bold;
+}
+
+#startup-loading-banner-spinner {
+    width: 3;
+    height: 1;
+    margin-right: 1;
+}
+
+#startup-loading-banner-label {
+    height: 1;
+    color: $primary;
+    text-style: bold;
+}
+
+#startup-loading-banner.-hidden {
     display: none;
 }
 
