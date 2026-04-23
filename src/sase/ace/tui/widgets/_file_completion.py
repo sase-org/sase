@@ -8,6 +8,7 @@ from sase.ace.tui.widgets.file_completion import (
     MAX_VISIBLE,
     CompletionCandidate,
     build_completion_candidates,
+    build_file_history_completion_candidates,
     extract_token_around_cursor,
     is_path_like_token,
 )
@@ -48,6 +49,12 @@ class FileCompletionMixin(_MixinBase):
         row, col = self.cursor_location
         line = self.document.get_line(row)
         return extract_token_around_cursor(line, col)
+
+    def _cursor_at_empty_prefix(self) -> bool:
+        """True when the current line is whitespace-only up to the cursor."""
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        return line[:col].strip() == ""
 
     def _get_path_token_context(self) -> tuple[int, int, int, str] | None:
         """Return (row, start, end, token) for the current path token."""
@@ -133,12 +140,18 @@ class FileCompletionMixin(_MixinBase):
         """Accept currently highlighted completion candidate."""
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
+        selected = self._file_completion_candidates[self._file_completion_index]
+        if self._completion_kind == "file_history":
+            row, col = self.cursor_location
+            self._replace_via_keyboard(selected.insertion, (row, col), (row, col))
+            self.cursor_location = (row, col + len(selected.insertion))
+            self._clear_file_completion()
+            return True
         ctx = self._get_token_context()
         if ctx is None:
             self._clear_file_completion()
             return False
         row, start, end, _token = ctx
-        selected = self._file_completion_candidates[self._file_completion_index]
         self._replace_token_text(row, start, end, selected.insertion)
         # Directory drill-down: open completion for the accepted directory
         # (only applies to file completion, not xprompt)
@@ -155,6 +168,15 @@ class FileCompletionMixin(_MixinBase):
     def _refresh_file_completion_from_cursor(self) -> None:
         """Recompute active completions after edits or cursor movement."""
         if not self._file_completion_active:
+            return
+
+        # file_history mode has no active token — any edit that creates one
+        # (or moves the cursor so the prefix is no longer empty) dismisses.
+        if self._completion_kind == "file_history":
+            if self._extract_token_around_cursor() is not None or not (
+                self._cursor_at_empty_prefix()
+            ):
+                self._clear_file_completion()
             return
 
         ctx = self._get_token_context()
@@ -194,9 +216,11 @@ class FileCompletionMixin(_MixinBase):
         self._update_file_completion_panel(token)
 
     def _try_file_completion_tab(self) -> bool:
-        """Handle Ctrl+T-driven completion for path or xprompt tokens."""
+        """Handle Ctrl+T-driven completion for path, xprompt, or history."""
         token_info = self._extract_token_around_cursor()
         if token_info is None:
+            if self._cursor_at_empty_prefix():
+                return self._try_file_history_completion()
             self._clear_file_completion()
             return False
 
@@ -252,4 +276,18 @@ class FileCompletionMixin(_MixinBase):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(token)
+        return True
+
+    def _try_file_history_completion(self) -> bool:
+        """Show the file-reference history panel at an empty cursor prefix."""
+        candidates, _shared = build_file_history_completion_candidates()
+        if not candidates:
+            self._clear_file_completion()
+            return True
+
+        self._completion_kind = "file_history"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel("")
         return True

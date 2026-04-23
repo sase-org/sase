@@ -19,6 +19,18 @@ if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
 
 
+def _record_prompt_file_references(prompt: str) -> None:
+    """Extract and record file references from *prompt* into history."""
+    from sase.history.file_references import (
+        extract_recordable_file_refs,
+        record_file_references,
+    )
+
+    refs = extract_recordable_file_refs(prompt)
+    if refs:
+        record_file_references(refs)
+
+
 class AgentLaunchMixin:
     """Internal mixin providing agent launching functionality."""
 
@@ -119,6 +131,7 @@ class AgentLaunchMixin:
                 project_name=ctx.project_name,
                 branch_or_workspace=ctx.history_sort_key,
             )
+            _record_prompt_file_references(prompt)
             self._prompt_context = None
             self._launch_multi_prompt_agents(multi, ctx, mp_vcs_ref)
             return
@@ -180,6 +193,7 @@ class AgentLaunchMixin:
             project_name=ctx.project_name,
             branch_or_workspace=ctx.history_sort_key,
         )
+        _record_prompt_file_references(prompt)
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and
         # the embedded workflow must share the same workspace number,

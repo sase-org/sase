@@ -136,3 +136,25 @@ def build_completion_candidates(
             c.insertion = at_prefix + c.insertion
 
     return candidates, shared_extension
+
+
+def build_file_history_completion_candidates() -> tuple[list[CompletionCandidate], str]:
+    """Build candidates from the recency-ordered file-reference history.
+
+    Each history entry becomes one candidate whose ``display`` and
+    ``insertion`` are the raw stored path.  The returned ``shared_extension``
+    is always empty — there is no prefix-based filtering on this list.
+    """
+    from sase.history.file_references import load_file_references
+
+    paths = load_file_references()
+    candidates = [
+        CompletionCandidate(
+            display=path,
+            insertion=path,
+            is_dir=False,
+            name=path,
+        )
+        for path in paths
+    ]
+    return candidates, ""

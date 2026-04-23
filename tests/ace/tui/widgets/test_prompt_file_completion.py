@@ -358,6 +358,167 @@ class TestPromptFileCompletion:
             assert candidates_by_name["link_dir"].display == "link_dir/"
 
 
+class TestFileHistoryCompletion:
+    """Ctrl+T at an empty cursor prefix shows file-reference history."""
+
+    async def test_empty_prompt_with_history_shows_panel(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts", "~/notes/ideas.md"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            bar = app.query_one(PromptInputBar)
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "file_history"
+            names = [c.insertion for c in ta._file_completion_candidates]
+            # Last recorded comes first.
+            assert names == ["~/notes/ideas.md", "/etc/hosts"]
+            panel = bar.query_one("#prompt-completion", Static)
+            assert not panel.has_class("hidden")
+            assert panel.border_title == "recent files"
+
+    async def test_empty_prompt_with_empty_history_is_noop(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        app = _CompletionTestApp()
+        async with app.run_test():
+            bar = app.query_one(PromptInputBar)
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._file_completion_active is False
+            panel = bar.query_one("#prompt-completion", Static)
+            assert panel.has_class("hidden")
+
+    async def test_whitespace_prefix_triggers_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("   ")
+            ta.cursor_location = (0, 3)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._completion_kind == "file_history"
+            assert ta._file_completion_active is True
+
+    async def test_accept_inserts_path_at_cursor(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                await pilot.press("ctrl+l")
+            assert ta.text == "/etc/hosts"
+            assert ta._file_completion_active is False
+            assert ta.cursor_location == (0, len("/etc/hosts"))
+
+    async def test_path_token_still_uses_file_completion(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        (tmp_path / "alpha").mkdir()
+        (tmp_path / "apple").mkdir()
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("~/")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._completion_kind == "file"
+
+    async def test_typing_after_history_trigger_dismisses_panel(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts", "~/a.md"])
+
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("")
+            ta.cursor_location = (0, 0)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                await pilot.press("x")
+            assert ta._file_completion_active is False
+
+
 class TestFileCompletionModule:
     """Tests for the extracted file_completion module functions."""
 

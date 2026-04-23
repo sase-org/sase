@@ -194,6 +194,7 @@ class PromptInputBar(Static):
         visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
 
         is_xprompt = completion_kind == "xprompt"
+        is_history = completion_kind == "file_history"
         content = Text()
         for i, (label, is_dir) in enumerate(visible):
             actual_idx = scroll_offset + i
@@ -221,9 +222,12 @@ class PromptInputBar(Static):
         if remaining > 0:
             content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
 
-        # Border title: "xprompts" for xprompt completion, directory for file
+        # Border title: "xprompts" for xprompt completion, "recent files"
+        # for file-history completion, directory for file.
         if is_xprompt:
             panel.border_title = "xprompts"
+        elif is_history:
+            panel.border_title = "recent files"
         elif "/" in token:
             panel.border_title = token[: token.rindex("/") + 1]
         else:

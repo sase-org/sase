@@ -164,6 +164,15 @@ class PromptBarMixin:
 
             add_or_update_prompt(text, cancelled=True)
 
+        from sase.history.file_references import (
+            extract_recordable_file_refs,
+            record_file_references,
+        )
+
+        refs = extract_recordable_file_refs(text)
+        if refs:
+            record_file_references(refs)
+
     def _unmount_prompt_bar(self) -> None:
         """Unmount the prompt input bar if present, saving any unsaved text."""
         from ...widgets import PromptInputBar

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 14:18:07
-status: wip
+status: done
 ---
 
 # Plan: Ctrl+T File-History Completion at Empty Cursor Context
