@@ -310,14 +310,21 @@ class EventHandlersMixin:
         self, event: ChangeSpecList.WidthChanged
     ) -> None:
         """Handle width change from the list widget."""
+        from textual.css.query import NoMatches
+
         from ..app import _MAX_LIST_WIDTH, _MIN_LIST_WIDTH
 
         width = max(_MIN_LIST_WIDTH, min(_MAX_LIST_WIDTH, event.width))
-        list_container = self.query_one("#list-container")  # type: ignore[attr-defined]
+        try:
+            list_container = self.query_one("#list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
         list_container.styles.width = width
 
     def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
         """Handle width change from the agent list widget."""
+        from textual.css.query import NoMatches
+
         from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 
         # Track per-panel widths and use the max (both panels share the container)
@@ -329,7 +336,10 @@ class EventHandlersMixin:
         pinned_w = getattr(self, "_agent_pinned_panel_width", 0)
         combined = max(main_w, pinned_w)
         width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, combined))
-        agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        try:
+            agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
         agent_list_container.styles.width = width
 
     def on_bg_cmd_list_selection_changed(
