@@ -1,6 +1,6 @@
 """Tests for the ace TUI keybinding footer agent bindings."""
 
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 from sase.ace.tui.widgets import KeybindingFooter
 
 
@@ -52,3 +52,31 @@ def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
 
     assert "x" in binding_keys  # Dismiss is available
     assert "e" in binding_keys  # Edit chat is available
+
+
+def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
+    """V appears only when the agent has prior attempt records."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    no_history_bindings = footer._compute_agent_bindings(agent)
+    assert "V" not in [b[0] for b in no_history_bindings]
+
+    agent.attempt_history = [
+        AttemptRecord(
+            attempt_number=1,
+            status="failed",
+            start_epoch=0.0,
+            end_epoch=1.0,
+            model=None,
+            used_fallback=False,
+            error_snippet="err",
+            error_full="err",
+            live_reply_path="/x",
+            timestamps_path="/y",
+        )
+    ]
+    with_history_bindings = footer._compute_agent_bindings(agent)
+    assert any(
+        key == "V" and label == "attempt view" for key, label in with_history_bindings
+    )

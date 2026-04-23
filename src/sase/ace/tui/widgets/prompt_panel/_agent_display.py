@@ -10,14 +10,56 @@ from ._agent_display_parts import (
     get_phase_label,
     get_prompt_content,
     render_agent_reply_content,
+    render_attempt_divider,
     render_phase_divider,
     render_timestamp_divider,
 )
 from ._helpers import format_output
 
 
+def _should_render_merged(agent: Agent, attempt_view_mode: str) -> bool:
+    """Whether to prepend attempt_history dividers to the reply content."""
+    return attempt_view_mode == "merged" and bool(agent.attempt_history)
+
+
+def _render_merged_attempt_history(agent: Agent) -> list[Text | Syntax]:
+    """Render prior attempts followed by the current attempt divider.
+
+    Emits one divider + reply block for each record in ``agent.attempt_history``
+    followed by a ``CURRENT`` divider. The caller is responsible for appending
+    the current attempt's reply content afterwards.
+    """
+    renderables: list[Text | Syntax] = []
+    for record in agent.attempt_history:
+        renderables.append(render_attempt_divider(record, is_current=False))
+        chunks = record.get_timestamped_reply_chunks()
+        if chunks:
+            for ts, chunk_text in chunks:
+                renderables.append(render_timestamp_divider(ts))
+                content = chunk_text.strip()
+                if content:
+                    renderables.append(
+                        Syntax(content, "markdown", theme="monokai", word_wrap=True)
+                    )
+            continue
+        reply = record.get_reply_content()
+        if reply and reply.strip():
+            renderables.append(
+                Syntax(reply, "markdown", theme="monokai", word_wrap=True)
+            )
+    renderables.append(
+        render_attempt_divider(
+            None, is_current=True, fallback_model=agent.fallback_model
+        )
+    )
+    return renderables
+
+
 class AgentDisplayMixin:
     """Mixin providing agent-specific display methods for AgentPromptPanel."""
+
+    # Reactive-ish field set by AgentDetail before calling update_display.
+    attempt_view_mode: str = "merged"
 
     def update_display(self, agent: Agent) -> None:
         """Update with agent information and prompt.
@@ -137,8 +179,11 @@ class AgentDisplayMixin:
                 renderables.append(prompt_syntax)
 
                 chunks = agent.get_timestamped_reply_chunks()
+                merge_history = _should_render_merged(agent, self.attempt_view_mode)
                 if chunks:
                     renderables.append(reply_header)
+                    if merge_history:
+                        renderables.extend(_render_merged_attempt_history(agent))
                     for ts, chunk_text in chunks:
                         renderables.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
@@ -155,7 +200,10 @@ class AgentDisplayMixin:
                         theme="monokai",
                         word_wrap=True,
                     )
-                    renderables.extend([reply_header, response_syntax])
+                    renderables.append(reply_header)
+                    if merge_history:
+                        renderables.extend(_render_merged_attempt_history(agent))
+                    renderables.append(response_syntax)
                 else:
                     reply_header.append("No response file found.\n", style="dim italic")
                     renderables.append(reply_header)
@@ -177,8 +225,11 @@ class AgentDisplayMixin:
 
                 live_reply = agent.get_live_reply_content()
                 chunks = agent.get_timestamped_reply_chunks()
+                merge_history = _should_render_merged(agent, self.attempt_view_mode)
                 if chunks:
                     renderables_other.append(reply_header)
+                    if merge_history:
+                        renderables_other.extend(_render_merged_attempt_history(agent))
                     for ts, chunk_text in chunks:
                         renderables_other.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
@@ -198,7 +249,10 @@ class AgentDisplayMixin:
                         theme="monokai",
                         word_wrap=True,
                     )
-                    renderables_other.extend([reply_header, reply_syntax])
+                    renderables_other.append(reply_header)
+                    if merge_history:
+                        renderables_other.extend(_render_merged_attempt_history(agent))
+                    renderables_other.append(reply_syntax)
                 else:
                     reply_header.append(
                         "Waiting for agent response...\n",

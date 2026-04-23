@@ -45,6 +45,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._trim_visible_lines: int = 0
         self._trim_total_lines: int = 0
         self._trim_is_trimmed: bool = False
+        self._attempt_view_mode: str = "merged"
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -91,6 +92,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 )
                 thinking_scroll.add_class("hidden")
 
+        prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
 
@@ -313,3 +315,21 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             True if prompt has priority (70/30), False if default (30/70).
         """
         return self._layout_swapped
+
+    @property
+    def attempt_view_mode(self) -> str:
+        """Current mode for rendering the attempt history ("merged" or "current-only")."""
+        return self._attempt_view_mode
+
+    def toggle_attempt_view(self) -> bool:
+        """Cycle between merged / current-only attempt view modes.
+
+        Returns True if the view was re-rendered (an agent is selected).
+        """
+        self._attempt_view_mode = (
+            "current-only" if self._attempt_view_mode == "merged" else "merged"
+        )
+        if self._current_agent is not None:
+            self.update_display(self._current_agent)
+            return True
+        return False

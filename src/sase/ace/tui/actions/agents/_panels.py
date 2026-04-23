@@ -171,6 +171,28 @@ class AgentPanelsMixin:
             return
         agent_detail.show_all_file_lines()
 
+    def action_toggle_attempt_view(self) -> None:
+        """Toggle the attempt history view between merged and current-only."""
+        if self.current_tab != "agents":
+            return
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            return
+        if not agent.attempt_history:
+            self.notify(  # type: ignore[attr-defined]
+                "No prior attempts for this agent", severity="warning"
+            )
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.toggle_attempt_view()
+        mode = agent_detail.attempt_view_mode
+        self.notify(f"Attempt view: {mode}")  # type: ignore[attr-defined]
+        self._refresh_agents_display()  # type: ignore[attr-defined]
+
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
         self._cycle_panel_mode()

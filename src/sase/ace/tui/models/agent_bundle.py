@@ -16,7 +16,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
     """
     result: dict[str, Any] = {}
     for f in dataclasses.fields(agent):
-        if f.name == "followup_agents":
+        if f.name in ("followup_agents", "attempt_history"):
             continue
         value = getattr(agent, f.name)
         if isinstance(value, AgentType):

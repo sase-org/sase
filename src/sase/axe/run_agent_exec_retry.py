@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 
+from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_helpers import append_meta_list_field
 from sase.axe.runner_utils import prepare_workspace, was_killed
 from sase.telemetry.metrics import LLM_RETRIES
@@ -34,6 +35,7 @@ class RetryTracker:
     retry_errors: list[str] = field(default_factory=list)
     retry_count: int = 0
     using_fallback: bool = False
+    attempt_start_epoch: float = field(default_factory=time.time)
 
 
 def _maybe_prepend_continuation(state: LoopState, cfg: ProviderRetryConfig) -> None:
@@ -79,7 +81,25 @@ def handle_workflow_error(
     snippet = truncate_error_snippet(error_str)
     tracker.retry_errors.append(snippet)
 
+    # The attempt that just failed is always attempt (retry_count + 1).
+    attempt_number_of_failed = tracker.retry_count + 1
+    attempt_end_epoch = time.time()
+
+    def _snapshot(status: Literal["failed", "raised"]) -> None:
+        snapshot_attempt(
+            state.current_artifacts_dir or ctx.artifacts_dir,
+            attempt_number_of_failed,
+            status=status,
+            start_epoch=tracker.attempt_start_epoch,
+            end_epoch=attempt_end_epoch,
+            error_full=error_str,
+            error_snippet=snippet,
+            model=ctx.agent_model,
+            used_fallback=tracker.using_fallback,
+        )
+
     if tracker.retry_count < active_retry_cfg.max_retries:
+        _snapshot("failed")
         # Retry with wait
         tracker.retry_count += 1
         LLM_RETRIES.labels(provider=ctx.agent_llm_provider or "unknown").inc()
@@ -128,9 +148,11 @@ def handle_workflow_error(
                 project_basename=ctx.project_name,
             )
         os.chdir(ctx.workspace_dir)
+        tracker.attempt_start_epoch = time.time()
         return "continue"
 
     elif active_retry_cfg.fallback_model and not tracker.using_fallback:
+        _snapshot("failed")
         # Fallback to alternate model
         tracker.using_fallback = True
         os.environ["SASE_MODEL_OVERRIDE"] = active_retry_cfg.fallback_model
@@ -161,6 +183,8 @@ def handle_workflow_error(
                 project_basename=ctx.project_name,
             )
         os.chdir(ctx.workspace_dir)
+        tracker.attempt_start_epoch = time.time()
         return "continue"
 
+    _snapshot("raised")
     return "raise"

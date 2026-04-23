@@ -6,6 +6,7 @@ plan approval, and question-flow handling.
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -281,6 +282,7 @@ def run_execution_loop(
         retry_cfg=get_retry_config(ctx.agent_llm_provider)
         if ctx.agent_llm_provider
         else None,
+        attempt_start_epoch=time.time(),
     )
     state = LoopState(
         current_prompt=prompt,

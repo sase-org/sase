@@ -524,6 +524,10 @@ class KeybindingFooter(Horizontal):
         if can_jump_to_changespec:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
+        # Attempt view toggle (only when prior attempts exist)
+        if agent and agent.attempt_history:
+            bindings.append((self._kd("toggle_attempt_view"), "attempt view"))
+
         # Move up/down (only for top-level agents, not workflow children)
         if agent and not agent.is_workflow_child:
             bindings.append(

@@ -69,6 +69,8 @@ ace:
       # Thinking panel
       toggle_thinking: "right_square_bracket"
       toggle_thinking_reverse: "left_square_bracket"
+      # Attempt history (agents tab)
+      toggle_attempt_view: "V"
       # File trim
       reset_file_trim: "minus"
       show_all_file_lines: "equals_sign"

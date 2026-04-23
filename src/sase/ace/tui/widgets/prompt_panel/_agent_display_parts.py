@@ -6,7 +6,7 @@ from pathlib import Path
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ...models.agent import Agent
+from ...models.agent import Agent, AttemptRecord
 from ._helpers import (
     append_model_field,
     extract_meta_fields,
@@ -44,6 +44,52 @@ def get_phase_label(agent: Agent) -> str:
     if suffix and suffix.startswith(".") and suffix[1:].isdigit():
         return f"PLANNER (round {suffix[1:]})"
     return "AGENT"
+
+
+def render_attempt_divider(
+    attempt: AttemptRecord | None,
+    *,
+    is_current: bool,
+    fallback_model: str | None = None,
+) -> Text:
+    """Create a styled attempt divider.
+
+    ``attempt=None`` with ``is_current=True`` produces the CURRENT/FINAL
+    divider for the root live_reply. A record with ``status="raised"`` is
+    the terminal failure — rendered with the current-attempt color since
+    its content lives at the root.
+    """
+    divider = Text()
+    if attempt is None:
+        label = "ATTEMPT (current)"
+        time_str = "??:??:??"
+        color = "#AF87FF"
+    else:
+        label = f"ATTEMPT {attempt.attempt_number}"
+        if attempt.used_fallback and attempt.model:
+            label += f" via fallback → {attempt.model}"
+        elif is_current and fallback_model:
+            label += f" via fallback → {fallback_model}"
+        try:
+            time_str = attempt.start_hhmmss
+        except (ValueError, OSError):
+            time_str = "??:??:??"
+        if is_current:
+            color = "#AF87FF"
+        else:
+            color = "#FF8700"
+
+    divider.append("─── ", style=f"dim {color}")
+    divider.append(label, style=f"bold {color}")
+    divider.append(f" ─── {time_str} ", style=f"dim {color}")
+    used = 4 + len(label) + 5 + len(time_str) + 1
+    remaining = max(50 - used, 3)
+    divider.append("─" * remaining + "\n", style=f"dim {color}")
+    if attempt is not None and attempt.status == "failed" and attempt.error_snippet:
+        divider.append(f"  ✗ {attempt.error_snippet}\n", style="dim italic #FF5F5F")
+    elif attempt is not None and attempt.status == "raised" and attempt.error_snippet:
+        divider.append(f"  ✗ {attempt.error_snippet}\n", style="dim italic #FF5F5F")
+    return divider
 
 
 def render_phase_divider(label: str, start_time: datetime | None) -> Text:
@@ -257,11 +303,23 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
         header_text.append("\n")
 
     # Retry info (for agents that have retried or are using fallback)
-    if agent.retry_count > 0 or agent.using_fallback:
+    if agent.retry_count > 0 or agent.using_fallback or agent.attempt_history:
         header_text.append("Retries: ", style="bold #87D7FF")
         header_text.append(
             f"{agent.retry_count}/{agent.max_retries}\n", style="#FF8700"
         )
+        for record in agent.attempt_history:
+            try:
+                hhmmss = record.start_hhmmss
+            except (ValueError, OSError):
+                hhmmss = "??:??:??"
+            snippet = record.error_snippet or record.status
+            fb_marker = " (fallback)" if record.used_fallback else ""
+            header_text.append(
+                f"  Attempt {record.attempt_number} · {hhmmss}{fb_marker} · "
+                f"{record.status}: {snippet}\n",
+                style="dim #FF8700",
+            )
         if agent.fallback_model:
             header_text.append("Fallback: ", style="bold #87D7FF")
             if agent.using_fallback:
