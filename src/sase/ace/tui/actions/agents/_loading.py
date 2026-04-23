@@ -158,7 +158,6 @@ class AgentLoadingMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
-            self._maybe_hide_startup_banner()  # type: ignore[attr-defined]
 
         # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {

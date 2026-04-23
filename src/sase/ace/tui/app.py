@@ -59,7 +59,6 @@ from .widgets import (
     KeybindingFooter,
     NotificationIndicator,
     SearchQueryPanel,
-    StartupLoadingBanner,
     TabBar,
     TaskIndicator,
 )
@@ -456,7 +455,6 @@ class AceApp(
             yield TaskIndicator(id="task-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
-        yield StartupLoadingBanner(id="startup-loading-banner")
         with Horizontal(id="main-container"):
             # ChangeSpecs Tab (default visible)
             with Horizontal(id="changespecs-view"):
@@ -570,21 +568,6 @@ class AceApp(
         finally:
             self._mounting = False
 
-    @property
-    def _is_initial_load_pending(self) -> bool:
-        """Whether the first agents and axe loads are both still pending."""
-        return not (self._agents_first_load_done and self._axe_first_load_done)
-
-    def _maybe_hide_startup_banner(self) -> None:
-        """Hide the startup banner once both first loads have completed."""
-        if self._is_initial_load_pending:
-            return
-        try:
-            banner = self.query_one("#startup-loading-banner", StartupLoadingBanner)
-        except Exception:
-            return
-        banner.hide()
-
     def _apply_startup_loading_state(self) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.
 
@@ -593,15 +576,6 @@ class AceApp(
         Agents tab label plus info panels into their dim-ellipsis state.
         The flags are cleared once the first async load completes.
         """
-        # Warm-cache: if both first loads already completed before mount, the
-        # banner should never paint. Otherwise it remains visible by default.
-        if not self._is_initial_load_pending:
-            try:
-                banner = self.query_one("#startup-loading-banner", StartupLoadingBanner)
-                banner.hide()
-            except Exception:
-                pass
-
         if not self._agents_first_load_done:
             try:
                 self.query_one("#agent-list-panel", AgentList).loading = True
