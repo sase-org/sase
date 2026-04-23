@@ -34,6 +34,12 @@ def main() -> NoReturn:
 
         handle_ace_command(args)
 
+    # --- agents ---
+    if args.command == "agents":
+        from .agents_handler import handle_agents_command
+
+        handle_agents_command(args)
+
     # --- axe ---
     if args.command == "axe":
         from .axe_handler import handle_axe_command

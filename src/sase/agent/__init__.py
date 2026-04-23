@@ -25,6 +25,7 @@ from sase.agent.names import (
 )
 from sase.agent.running import (
     kill_named_agent,
+    list_all_agents,
     list_running_agents,
 )
 
@@ -40,6 +41,7 @@ __all__ = [
     "kill_named_agent",
     "launch_agent_from_cwd",
     "launch_multi_prompt_agents",
+    "list_all_agents",
     "list_running_agents",
     "parse_multi_prompt",
     "spawn_agent_subprocess",

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 17:18:19
-status: wip
+status: done
 ---
 # `sase agents` — First-Class CLI for Running-Agent Visibility
 

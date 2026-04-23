@@ -3,6 +3,67 @@
 import argparse
 
 
+def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'agents' subcommand parser."""
+    agents_parser = subparsers.add_parser(
+        "agents",
+        help="Inspect, show, and kill running agents across all projects",
+    )
+    agents_sub = agents_parser.add_subparsers(
+        dest="agents_subcommand", help="Agents subcommands"
+    )
+
+    # sase agents status (default when no subcommand given)
+    status_parser = agents_sub.add_parser(
+        "status",
+        help="List running agents (pretty table by default, JSON with -j)",
+    )
+    status_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help=(
+            "Include recently-completed DONE/FAILED agents"
+            " (capped at 50 most-recent per project)"
+        ),
+    )
+    status_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON array (stable schema)",
+    )
+    status_parser.add_argument(
+        "-p",
+        "--project",
+        help="Only show agents for the given project name",
+    )
+
+    # sase agents kill -n NAME
+    kill_parser = agents_sub.add_parser(
+        "kill",
+        help="SIGTERM a running agent by name",
+    )
+    kill_parser.add_argument(
+        "-n",
+        "--name",
+        required=True,
+        help="Name of the agent to kill",
+    )
+
+    # sase agents show -n NAME
+    show_parser = agents_sub.add_parser(
+        "show",
+        help="Render a full detail panel for one agent",
+    )
+    show_parser.add_argument(
+        "-n",
+        "--name",
+        required=True,
+        help="Name of the agent to show",
+    )
+
+
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""
     comments_parser = subparsers.add_parser(
