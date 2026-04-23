@@ -49,6 +49,13 @@ class AgentLaunchMixin:
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
 
+        Unmounts the prompt bar immediately, then defers the heavy launch
+        work (VCS resolution, history writes, xprompt expansion, subprocess
+        spawn) to the next event-loop tick via ``call_after_refresh``.  This
+        lets queued key events (e.g. ``j``/``k`` pressed right after
+        ``<enter>``) drain to their rightful target before any blocking I/O
+        runs on the event loop.
+
         Args:
             prompt: The user's prompt for the agent.
         """
@@ -63,8 +70,20 @@ class AgentLaunchMixin:
         ctx.timestamp = generate_timestamp()
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
-        # Unmount prompt bar first
+        # Unmount prompt bar first (transfers focus to the active tab's list
+        # widget, see _transfer_focus_off_prompt_bar), then yield to the
+        # event loop before running the heavy launch path.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
+
+        self.call_after_refresh(self._run_agent_launch_body, prompt)  # type: ignore[attr-defined]
+
+    def _run_agent_launch_body(self, prompt: str) -> None:
+        """Heavy body of ``_finish_agent_launch``, deferred via call_after_refresh."""
+        if self._prompt_context is None:
+            # Context was cleared between the submit and the deferred tick
+            # (e.g. another launch path ran); nothing to do.
+            return
+        ctx = self._prompt_context
 
         # Check if this is a bulk run
         if self._bulk_changespecs:

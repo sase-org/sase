@@ -187,6 +187,12 @@ class PromptBarMixin:
         # flows through here, so no prompt text can ever be silently lost.
         self._save_bar_text_as_cancelled(bar)
 
+        # Transfer focus to a live widget *before* the forcible detach below.
+        # Without this, Screen.focused can be left pointing at the PromptTextArea
+        # that is about to be ripped out of the DOM, swallowing the next keys
+        # the user types (e.g. j/k right after <enter>).
+        self._transfer_focus_off_prompt_bar(bar)
+
         # Synchronously detach from parent's node list so the ID is freed
         # immediately. Without this, bar.remove() only schedules async
         # removal and a subsequent mount() would hit DuplicateIds.
@@ -194,6 +200,74 @@ class PromptBarMixin:
         if parent is not None:
             parent._nodes._remove(bar)
         bar.remove()
+
+    def _transfer_focus_off_prompt_bar(self, bar: object) -> None:
+        """Move focus from *bar*'s descendants to the active tab's list widget.
+
+        Must be called *before* the bar is detached from its parent so that
+        Textual's focus-transfer machinery sees a live widget tree.
+        """
+        screen = getattr(self, "screen", None)
+        focused = getattr(screen, "focused", None) if screen is not None else None
+
+        # Only re-target focus if it is currently inside the bar (the common
+        # case — the PromptTextArea owns focus while the bar is mounted).
+        if focused is None or not self._widget_contains(bar, focused):
+            return
+
+        target = self._post_unmount_focus_target()
+        if target is not None:
+            try:
+                target.focus()  # type: ignore[attr-defined]
+                return
+            except Exception:
+                pass
+
+        # Fallback: move focus to the next focusable sibling so we never leave
+        # Screen.focused dangling on the about-to-be-detached text area.
+        try:
+            self.focus_next()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    @staticmethod
+    def _widget_contains(ancestor: object, descendant: object) -> bool:
+        """Return True if *descendant* is *ancestor* or a child of it."""
+        node = descendant
+        while node is not None:
+            if node is ancestor:
+                return True
+            node = getattr(node, "_parent", None)
+        return False
+
+    def _post_unmount_focus_target(self) -> object | None:
+        """Return the widget that should own focus after the bar is unmounted.
+
+        Keyed off the currently active tab (and pinned-panel focus on the
+        Agents tab).  Returns ``None`` if no suitable target can be resolved.
+        """
+        tab = getattr(self, "current_tab", None)
+        candidates: tuple[str, ...]
+        if tab == "agents":
+            pinned_focused = getattr(self, "_pinned_panel_focused", "main")
+            candidates = (
+                ("#pinned-list-panel", "#agent-list-panel")
+                if pinned_focused == "pinned"
+                else ("#agent-list-panel", "#pinned-list-panel")
+            )
+        elif tab == "axe":
+            candidates = ("#bgcmd-list-panel",)
+        else:
+            candidates = ("#list-panel",)
+
+        for selector in candidates:
+            try:
+                widget = self.query_one(selector)  # type: ignore[attr-defined]
+            except Exception:
+                continue
+            if getattr(widget, "display", True) and getattr(widget, "can_focus", True):
+                return widget
+        return None
 
     def _setup_home_prompt_context(
         self,
