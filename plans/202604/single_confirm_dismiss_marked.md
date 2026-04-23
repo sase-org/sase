@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 16:30:05
-status: wip
+status: done
 ---
 
 # Plan: Single-Confirmation Dismiss for Marked Agents When None Are Running

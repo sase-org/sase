@@ -125,7 +125,7 @@ class AgentMarkingMixin:
                 desc_parts.append(f"  {name}{suffix}")
         agent_description = "\n".join(desc_parts)
 
-        from ...modals import ConfirmKillAllModal
+        from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal
 
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
@@ -147,4 +147,7 @@ class AgentMarkingMixin:
             self._marked_agents = set()
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
-        self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+        if killable:
+            self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+        else:
+            self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
