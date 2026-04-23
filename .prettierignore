@@ -1,0 +1,5 @@
+# Planning artifacts — owned by planner/coder agents, not the project's prose style
+plans/
+specs/
+research/
+sase_plan_*.md
