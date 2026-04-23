@@ -110,8 +110,10 @@ def test_get_hook_output_path_special_chars() -> None:
     """Test get_hook_output_path sanitizes special characters."""
     path = get_hook_output_path("my/feature-test", "240601_123456")
     hooks_dir = get_sase_directory("hooks")
-    # Special chars should be replaced with underscore
-    assert path == os.path.join(hooks_dir, "my_feature_test-240601_123456.txt")
+    # Special chars sanitized, path lives under the YYYYMM shard.
+    assert path == os.path.join(
+        hooks_dir, "202406", "my_feature_test-240601_123456.txt"
+    )
 
 
 # Tests for format_timestamp_display

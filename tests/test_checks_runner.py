@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sase.ace.scheduler.checks_runner import (
     CHECK_COMPLETE_MARKER,
     CHECK_TYPE_CL_SUBMITTED,
@@ -16,6 +17,8 @@ from sase.ace.scheduler.checks_runner import (
     has_pending_check,
     start_reviewer_comments_check,
 )
+
+from tests.conftest import redirect_sase_home
 
 
 def test_extract_change_identifier_valid_https() -> None:
@@ -62,61 +65,60 @@ def test_parse_check_completion_malformed_marker() -> None:
         os.unlink(temp_path)
 
 
-def test_get_pending_checks_no_directory() -> None:
+def test_get_pending_checks_no_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that missing checks directory returns empty list."""
     mock_changespec = MagicMock()
     mock_changespec.name = "test_feature"
 
-    with patch(
-        "sase.ace.scheduler.checks_runner._get_checks_directory",
-        return_value="/nonexistent/path",
-    ):
-        result = _get_pending_checks(mock_changespec)
-        assert result == []
+    redirect_sase_home(monkeypatch, tmp_path)
+    result = _get_pending_checks(mock_changespec)
+    assert result == []
 
 
-def test_get_pending_checks_with_matching_files() -> None:
+def test_get_pending_checks_with_matching_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test finding pending checks in the checks directory."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create check output files
-        Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt").touch()
-        Path(temp_dir, "my_feature-reviewer_comments-241227_120001.txt").touch()
-        Path(temp_dir, "other_feature-cl_submitted-241227_120002.txt").touch()
+    redirect_sase_home(monkeypatch, tmp_path)
+    checks_shard = tmp_path / "checks" / "202412"
+    checks_shard.mkdir(parents=True)
+    (checks_shard / "my_feature-cl_submitted-241227_120000.txt").touch()
+    (checks_shard / "my_feature-reviewer_comments-241227_120001.txt").touch()
+    (checks_shard / "other_feature-cl_submitted-241227_120002.txt").touch()
 
-        with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            result = _get_pending_checks(mock_changespec)
+    result = _get_pending_checks(mock_changespec)
 
-        # Should find 2 files matching my_feature
-        assert len(result) == 2
-        check_types = {check.check_type for check in result}
-        assert CHECK_TYPE_CL_SUBMITTED in check_types
-        assert CHECK_TYPE_REVIEWER_COMMENTS in check_types
+    # Should find 2 files matching my_feature
+    assert len(result) == 2
+    check_types = {check.check_type for check in result}
+    assert CHECK_TYPE_CL_SUBMITTED in check_types
+    assert CHECK_TYPE_REVIEWER_COMMENTS in check_types
 
 
-def test_has_pending_check_different_type() -> None:
+def test_has_pending_check_different_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test has_pending_check returns False for different check type."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a cl_submitted check, but look for reviewer_comments
-        Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt").touch()
+    redirect_sase_home(monkeypatch, tmp_path)
+    checks_shard = tmp_path / "checks" / "202412"
+    checks_shard.mkdir(parents=True)
+    (checks_shard / "my_feature-cl_submitted-241227_120000.txt").touch()
 
-        with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            result = has_pending_check(mock_changespec, CHECK_TYPE_REVIEWER_COMMENTS)
-            assert result is False
+    result = has_pending_check(mock_changespec, CHECK_TYPE_REVIEWER_COMMENTS)
+    assert result is False
 
 
-def test_check_pending_checks_processes_completed() -> None:
+def test_check_pending_checks_processes_completed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that completed checks are processed and cleaned up."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
@@ -126,47 +128,43 @@ def test_check_pending_checks_processes_completed() -> None:
     mock_changespec.comments = None
     mock_log = MagicMock()
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a completed check file
-        check_file = Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt")
-        check_file.write_text(f"Output\n{CHECK_COMPLETE_MARKER}EXIT_CODE: 1\n")
+    redirect_sase_home(monkeypatch, tmp_path)
+    checks_shard = tmp_path / "checks" / "202412"
+    checks_shard.mkdir(parents=True)
+    check_file = checks_shard / "my_feature-cl_submitted-241227_120000.txt"
+    check_file.write_text(f"Output\n{CHECK_COMPLETE_MARKER}EXIT_CODE: 1\n")
 
+    with patch("sase.ace.scheduler.checks_runner.update_last_checked"):
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            with patch("sase.ace.scheduler.checks_runner.update_last_checked"):
-                with patch(
-                    "sase.ace.scheduler.checks_runner.is_parent_submitted"
-                ) as mock_parent:
-                    mock_parent.return_value = True
-                    check_pending_checks(mock_changespec, mock_log)
+            "sase.ace.scheduler.checks_runner.is_parent_submitted"
+        ) as mock_parent:
+            mock_parent.return_value = True
+            check_pending_checks(mock_changespec, mock_log)
 
-        # The check file should be cleaned up
-        assert not check_file.exists()
+    # The check file should be cleaned up
+    assert not check_file.exists()
 
 
-def test_check_pending_checks_incomplete_not_processed() -> None:
+def test_check_pending_checks_incomplete_not_processed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that incomplete checks are not processed."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
     mock_log = MagicMock()
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create an incomplete check file (no completion marker)
-        check_file = Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt")
-        check_file.write_text("Still running...\n")
+    redirect_sase_home(monkeypatch, tmp_path)
+    checks_shard = tmp_path / "checks" / "202412"
+    checks_shard.mkdir(parents=True)
+    check_file = checks_shard / "my_feature-cl_submitted-241227_120000.txt"
+    check_file.write_text("Still running...\n")
 
-        with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            result = check_pending_checks(mock_changespec, mock_log)
+    result = check_pending_checks(mock_changespec, mock_log)
 
-        # The check file should still exist
-        assert check_file.exists()
-        # No updates should be returned
-        assert result == []
+    # The check file should still exist
+    assert check_file.exists()
+    # No updates should be returned
+    assert result == []
 
 
 def test_check_type_constants() -> None:

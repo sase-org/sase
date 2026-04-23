@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -11,6 +12,30 @@ from sase.ace.changespec import (
     CommitEntry,
     HookEntry,
 )
+
+
+def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
+    """Redirect all ``~/.sase/...`` Path expansions to ``home``.
+
+    Intended for tests that touch sharded ``~/.sase/`` directories and
+    need writes/reads to land inside a tmp_path without each call site
+    threading module-level constants.
+
+    Returns ``home`` for convenience.
+    """
+    home.mkdir(parents=True, exist_ok=True)
+    original = Path.expanduser
+
+    def _fake(self: Path) -> Path:
+        s = str(self)
+        if s.startswith("~/.sase/"):
+            return home / s[len("~/.sase/") :]
+        if s == "~/.sase":
+            return home
+        return original(self)
+
+    monkeypatch.setattr(Path, "expanduser", _fake)
+    return home
 
 
 @pytest.fixture(autouse=True)

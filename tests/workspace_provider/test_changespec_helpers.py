@@ -81,17 +81,20 @@ def test_save_committed_diff_returns_none_on_empty(tmp_path: object) -> None:
         )
 
 
-def test_save_committed_diff_writes_file(tmp_path: object) -> None:
-    diffs_dir = str(tmp_path)
+def test_save_committed_diff_writes_file(
+    tmp_path,
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    from pathlib import Path
+
+    from tests.conftest import redirect_sase_home
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
     mock_result = MagicMock(returncode=0, stdout="diff --git a/f b/f\n+hello\n")
     with (
         patch(
             "sase.workspace_provider.changespec.subprocess.run",
             return_value=mock_result,
-        ),
-        patch(
-            "sase.workspace_provider.changespec.ensure_sase_directory",
-            return_value=diffs_dir,
         ),
         patch(
             "sase.workspace_provider.changespec.shorten_path", side_effect=lambda p: p
@@ -100,11 +103,18 @@ def test_save_committed_diff_writes_file(tmp_path: object) -> None:
         path = _save_committed_diff("my_cl", "origin/main", "agent_1", "260101_120000")
         assert path is not None
         assert path.endswith(".diff")
+        # Landed under the sharded diffs directory.
+        assert Path(path).parent.parent == tmp_path / ".sase" / "diffs"
 
 
-def test_save_committed_diff_falls_back_to_vcs_provider(tmp_path: object) -> None:
+def test_save_committed_diff_falls_back_to_vcs_provider(
+    tmp_path,
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
     """When git diff fails, falls back to VCS provider's committed_diff()."""
-    diffs_dir = str(tmp_path)
+    from tests.conftest import redirect_sase_home
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
     git_fail = MagicMock(returncode=1, stdout="")
     mock_provider = MagicMock()
     mock_provider.committed_diff.return_value = (True, "diff from provider\n")
@@ -117,10 +127,6 @@ def test_save_committed_diff_falls_back_to_vcs_provider(tmp_path: object) -> Non
         patch(
             "sase.vcs_provider.get_vcs_provider",
             return_value=mock_provider,
-        ),
-        patch(
-            "sase.workspace_provider.changespec.ensure_sase_directory",
-            return_value=diffs_dir,
         ),
         patch(
             "sase.workspace_provider.changespec.shorten_path", side_effect=lambda p: p

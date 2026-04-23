@@ -5,7 +5,35 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.paths import iter_sharded_files
 from sase.core.time import get_timezone
+
+
+# Subdirectories that are YYYYMM-sharded; collectors recurse across shards.
+_SHARDED_SUBDIRS = frozenset(
+    {
+        "chats",
+        "workflows",
+        "checks",
+        "dismissed_bundles",
+        "plans",
+        "plan_approval",
+        "hooks",
+        "diffs",
+        "mentors",
+    }
+)
+
+
+def _subdir_name(directory: str) -> str | None:
+    """Return the subdir name if ``directory`` is a sharded ``~/.sase/<name>`` path."""
+    prefix = "~/.sase/"
+    if not directory.startswith(prefix):
+        return None
+    name = directory[len(prefix) :].strip("/")
+    if name in _SHARDED_SUBDIRS:
+        return name
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -59,17 +87,28 @@ def _in_range(ts: datetime, start: datetime, end: datetime) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _iter_files(directory: str, glob: str = "*") -> list[Path]:
+    """Yield candidate files from ``directory``, recursing into YYYYMM shards.
+
+    For sharded ``~/.sase/<name>`` directories, scans across shards plus
+    legacy top-level files.  For unsharded directories, falls back to a
+    plain ``Path.glob``.
+    """
+    subdir = _subdir_name(directory)
+    if subdir is not None:
+        return [p for p in iter_sharded_files(subdir, pattern=glob) if p.is_file()]
+    d = Path(directory).expanduser()
+    if not d.is_dir():
+        return []
+    return [p for p in d.glob(glob) if p.is_file()]
+
+
 def _collect_by_filename_suffix(
     directory: str, start: datetime, end: datetime, glob: str = "*"
 ) -> list[Path]:
     """Collect files whose filename contains a ``-YYmmdd_HHMMSS`` timestamp in range."""
-    d = Path(directory).expanduser()
-    if not d.is_dir():
-        return []
     results: list[Path] = []
-    for p in d.glob(glob):
-        if not p.is_file():
-            continue
+    for p in _iter_files(directory, glob):
         ts = _ts_from_filename_suffix(p.name)
         if ts and _in_range(ts, start, end):
             results.append(p)
@@ -80,13 +119,8 @@ def _collect_by_mtime(
     directory: str, start: datetime, end: datetime, glob: str = "*"
 ) -> list[Path]:
     """Collect files whose mtime falls within the date range."""
-    d = Path(directory).expanduser()
-    if not d.is_dir():
-        return []
     results: list[Path] = []
-    for p in d.glob(glob):
-        if not p.is_file():
-            continue
+    for p in _iter_files(directory, glob):
         ts = _ts_from_mtime(p)
         if _in_range(ts, start, end):
             results.append(p)

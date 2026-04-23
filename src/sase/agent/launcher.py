@@ -51,7 +51,7 @@ def spawn_agent_subprocess(
             before the error is raised).
     """
     from sase.running_field import claim_workspace
-    from sase.core.paths import ensure_sase_directory
+    from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
     # Write prompt to temp file (runner will read and delete)
@@ -63,10 +63,9 @@ def spawn_agent_subprocess(
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(prompt)
 
-    # Build output file path
-    workflows_dir = ensure_sase_directory("workflows")
+    # Build output file path (sharded by YYYYMM).
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
-    output_path = os.path.join(workflows_dir, f"{safe_name}_ace-run-{timestamp}.txt")
+    output_path = sharded_path("workflows", f"{safe_name}_ace-run-{timestamp}.txt")
 
     # Resolve runner script path without importing the module (its top-level
     # code calls signal.signal() which fails from non-main threads).

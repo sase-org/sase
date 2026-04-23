@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from sase.core.paths import parse_filename_timestamp
 
 if TYPE_CHECKING:
     from .tui.models.agent import Agent, AgentType
@@ -12,6 +16,54 @@ if TYPE_CHECKING:
 _DISMISSED_AGENTS_FILE = Path.home() / ".sase" / "dismissed_agents.json"
 _DISMISSED_BUNDLES_DIR = Path.home() / ".sase" / "dismissed_bundles"
 _OLD_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
+
+_SHARD_DIR_RE = re.compile(r"^\d{6}$")
+
+
+def _bundle_shard_dir(filename: str) -> Path:
+    """Return the YYYYMM shard subdir under ``_DISMISSED_BUNDLES_DIR`` for a bundle.
+
+    Bundle filenames start with a 14-digit timestamp (``raw_suffix``);
+    children append ``__c<idx>`` before ``.json``.  If the timestamp
+    can't be parsed, fall back to ``now()`` so the file still lands in
+    a valid shard.
+    """
+    ts = parse_filename_timestamp(filename) or datetime.now()
+    return _DISMISSED_BUNDLES_DIR / ts.strftime("%Y%m")
+
+
+def _iter_bundle_paths(pattern: str = "*.json") -> list[Path]:
+    """Yield bundle file paths across all shards and the legacy top level."""
+    if not _DISMISSED_BUNDLES_DIR.is_dir():
+        return []
+    results: list[Path] = []
+    for entry in _DISMISSED_BUNDLES_DIR.iterdir():
+        if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
+            results.extend(entry.glob(pattern))
+    # Legacy (pre-migration) files directly in the root.
+    for p in _DISMISSED_BUNDLES_DIR.glob(pattern):
+        if p.is_file():
+            results.append(p)
+    return results
+
+
+def _find_bundle(filename: str) -> Path | None:
+    """Return the on-disk path for ``filename`` — shard fast path, then scan."""
+    ts = parse_filename_timestamp(filename)
+    if ts is not None:
+        candidate = _DISMISSED_BUNDLES_DIR / ts.strftime("%Y%m") / filename
+        if candidate.is_file():
+            return candidate
+    legacy = _DISMISSED_BUNDLES_DIR / filename
+    if legacy.is_file():
+        return legacy
+    if _DISMISSED_BUNDLES_DIR.is_dir():
+        for entry in _DISMISSED_BUNDLES_DIR.iterdir():
+            if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
+                candidate = entry / filename
+                if candidate.is_file():
+                    return candidate
+    return None
 
 
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
@@ -91,8 +143,10 @@ def save_dismissed_bundle(agent: Agent) -> bool:
     if agent.raw_suffix is None:
         return False
     try:
-        _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
-        filepath = _DISMISSED_BUNDLES_DIR / _bundle_filename(agent)
+        filename = _bundle_filename(agent)
+        shard_dir = _bundle_shard_dir(filename)
+        shard_dir.mkdir(parents=True, exist_ok=True)
+        filepath = shard_dir / filename
         with open(filepath, "w") as f:
             json.dump(agent.to_bundle_dict(), f, indent=2)
         return True
@@ -132,33 +186,30 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
     # Collect the list of bundle files to load, then read them in parallel.
     bundle_paths: list[Path] = []
     if suffixes is not None:
-        # Single directory scan → map raw_suffix → list of child filenames.
-        # Raw suffixes are 14-digit timestamps that never contain ``__c``;
-        # child filenames always have the form ``{suffix}__c{index}.json``.
-        child_files_by_suffix: dict[str, list[str]] = {}
-        import os
-
+        # Scan across shards (and legacy top-level) → map raw_suffix → list
+        # of child filenames.  Raw suffixes are 14-digit timestamps that
+        # never contain ``__c``; child filenames always have the form
+        # ``{suffix}__c{index}.json``.
+        child_files_by_suffix: dict[str, list[Path]] = {}
         try:
-            with os.scandir(_DISMISSED_BUNDLES_DIR) as it:
-                for entry in it:
-                    name = entry.name
-                    if not name.endswith(".json"):
-                        continue
-                    stem = name[: -len(".json")]
-                    marker = stem.find("__c")
-                    if marker == -1:
-                        continue
-                    raw_suffix = stem[:marker]
-                    child_files_by_suffix.setdefault(raw_suffix, []).append(name)
+            for path in _iter_bundle_paths():
+                name = path.name
+                stem = name[: -len(".json")]
+                marker = stem.find("__c")
+                if marker == -1:
+                    continue
+                raw_suffix = stem[:marker]
+                child_files_by_suffix.setdefault(raw_suffix, []).append(path)
         except OSError:
             return []
 
         for suffix in suffixes:
-            bundle_paths.append(_DISMISSED_BUNDLES_DIR / f"{suffix}.json")
-            for child_name in child_files_by_suffix.get(suffix, []):
-                bundle_paths.append(_DISMISSED_BUNDLES_DIR / child_name)
+            parent_path = _find_bundle(f"{suffix}.json")
+            if parent_path is not None:
+                bundle_paths.append(parent_path)
+            bundle_paths.extend(child_files_by_suffix.get(suffix, []))
     else:
-        bundle_paths.extend(_DISMISSED_BUNDLES_DIR.glob("*.json"))
+        bundle_paths.extend(_iter_bundle_paths())
 
     if not bundle_paths:
         return []
@@ -203,44 +254,32 @@ def remove_bundle_by_identity(
     removed = False
     _, _, raw_suffix = identity
 
-    if raw_suffix is not None:
-        # Remove parent bundle
-        filepath = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
-        if filepath.exists():
-            try:
-                filepath.unlink()
-                removed = True
-            except OSError:
-                pass
-        # Remove child bundles ({suffix}__c*.json)
-        if _DISMISSED_BUNDLES_DIR.is_dir():
-            for child_path in _DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"):
-                try:
-                    child_path.unlink()
-                    removed = True
-                except OSError:
-                    pass
+    def _unlink(path: Path) -> bool:
+        try:
+            path.unlink()
+            return True
+        except OSError:
+            return False
+
+    def _remove_for_suffix(suffix: str) -> bool:
+        changed = False
+        parent = _find_bundle(f"{suffix}.json")
+        if parent is not None and _unlink(parent):
+            changed = True
+        # Child bundles live under the same shard as the parent; scan all
+        # shards in case of legacy layout mismatches.
+        for path in _iter_bundle_paths(pattern=f"{suffix}__c*.json"):
+            if _unlink(path):
+                changed = True
+        return changed
+
+    if raw_suffix is not None and _remove_for_suffix(raw_suffix):
+        removed = True
 
     if child_raw_suffixes:
         for child_suffix in child_raw_suffixes:
-            # Remove both parent-style and child-style filenames
-            for pattern in (f"{child_suffix}.json", f"{child_suffix}__c*.json"):
-                if "*" in pattern:
-                    if _DISMISSED_BUNDLES_DIR.is_dir():
-                        for p in _DISMISSED_BUNDLES_DIR.glob(pattern):
-                            try:
-                                p.unlink()
-                                removed = True
-                            except OSError:
-                                pass
-                else:
-                    filepath = _DISMISSED_BUNDLES_DIR / pattern
-                    if filepath.exists():
-                        try:
-                            filepath.unlink()
-                            removed = True
-                        except OSError:
-                            pass
+            if _remove_for_suffix(child_suffix):
+                removed = True
 
     return removed
 
@@ -296,7 +335,7 @@ def _maybe_fix_child_collisions() -> None:
         return
 
     try:
-        for filepath in list(_DISMISSED_BUNDLES_DIR.glob("*.json")):
+        for filepath in list(_iter_bundle_paths()):
             # Skip files already using the child naming convention
             if "__c" in filepath.stem:
                 continue
@@ -305,7 +344,8 @@ def _maybe_fix_child_collisions() -> None:
                 continue
             if agent.is_workflow_child:
                 new_name = _bundle_filename(agent)
-                new_path = _DISMISSED_BUNDLES_DIR / new_name
+                # Preserve the file's existing shard (its parent directory).
+                new_path = filepath.parent / new_name
                 if not new_path.exists():
                     filepath.rename(new_path)
     except OSError:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 16:01:42
-status: wip
+status: done
 ---
 
 # Shard high-volume `~/.sase/` directories into `YYYYMM/` subdirectories

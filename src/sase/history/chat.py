@@ -11,7 +11,11 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.core.changespec import strip_reverted_suffix
-from sase.core.paths import ensure_sase_directory, get_sase_directory
+from sase.core.paths import (
+    find_sharded_file,
+    iter_sharded_files,
+    sharded_path,
+)
 from sase.core.time import generate_timestamp, get_timezone
 from sase.core.shell import run_shell_command
 
@@ -58,7 +62,8 @@ def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None
     if xprompt_name == "resume_by_chat":
         path = os.path.expanduser(argument)
         if not path.endswith(".md"):
-            path = get_chat_file_path(path)
+            resolved = _resolve_chat_file_path(path)
+            return resolved
         return path if os.path.exists(path) else None
 
     # resume — resolve via agent name
@@ -174,18 +179,26 @@ def generate_chat_filename(
 
 
 def get_chat_file_path(basename: str) -> str:
-    """Get the full path to a chat history file.
+    """Return the sharded write path for a chat history file.
 
-    Args:
-        basename: The basename of the chat file (with or without .md extension)
-
-    Returns:
-        The full path to the chat file
+    For reads, prefer :func:`_resolve_chat_file_path` which also handles
+    legacy (unsharded) paths and cross-shard lookup.
     """
-    chats_dir = get_sase_directory("chats")
     if not basename.endswith(".md"):
         basename = f"{basename}.md"
-    return os.path.join(chats_dir, basename)
+    return sharded_path("chats", basename, ensure=False)
+
+
+def _resolve_chat_file_path(basename: str) -> str | None:
+    """Find an existing chat history file by basename.
+
+    Checks the expected shard (from the filename timestamp), legacy
+    top-level, and finally scans all shards.  Returns ``None`` if no
+    matching file exists.
+    """
+    if not basename.endswith(".md"):
+        basename = f"{basename}.md"
+    return find_sharded_file("chats", basename)
 
 
 def save_chat_history(
@@ -213,12 +226,14 @@ def save_chat_history(
     Returns:
         The full path to the saved chat history file
     """
-    ensure_sase_directory("chats")
-
     basename = generate_chat_filename(
         workflow, agent, branch_or_workspace=branch_or_workspace, timestamp=timestamp
     )
-    file_path = get_chat_file_path(basename)
+    # get_chat_file_path returns the sharded write location (not ensured).
+    file_path = sharded_path(
+        "chats",
+        basename if basename.endswith(".md") else f"{basename}.md",
+    )
 
     display_timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
 
@@ -383,7 +398,7 @@ def load_chat_for_resume(
     if file_ref.startswith("/") or file_ref.startswith("~"):
         abs_path = os.path.expanduser(file_ref)
     else:
-        abs_path = get_chat_file_path(file_ref)
+        abs_path = _resolve_chat_file_path(file_ref) or get_chat_file_path(file_ref)
     _visited.add(abs_path)
 
     turns = _parse_chat_turns(content)
@@ -433,8 +448,11 @@ def _load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
     if file_ref.startswith("/") or file_ref.startswith("~"):
         file_path = os.path.expanduser(file_ref)
     else:
-        # Treat as basename
-        file_path = get_chat_file_path(file_ref)
+        # Treat as basename — search shards + legacy top-level.
+        resolved = _resolve_chat_file_path(file_ref)
+        if resolved is None:
+            raise FileNotFoundError(f"Chat history file not found: {file_ref}")
+        file_path = resolved
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Chat history file not found: {file_path}")
@@ -453,28 +471,17 @@ def list_chat_histories() -> list[str]:
 
     Returns:
         A list of chat history basenames (without .md extension),
-        sorted by timestamp (most recent first)
+        sorted by modification time (most recent first).
     """
-    chats_dir = get_sase_directory("chats")
-
-    if not os.path.exists(chats_dir):
-        return []
-
-    # Get all .md files
-    files = []
-    for filename in os.listdir(chats_dir):
-        if filename.endswith(".md"):
-            # Remove .md extension for basename
-            basename = filename[:-3]
-            files.append(basename)
-
-    # Sort by modification time (most recent first)
-    files.sort(
-        key=lambda x: os.path.getmtime(get_chat_file_path(x)),
-        reverse=True,
-    )
-
-    return files
+    entries: list[tuple[str, float]] = []
+    for p in iter_sharded_files("chats", pattern="*.md"):
+        try:
+            mtime = p.stat().st_mtime
+        except OSError:
+            continue
+        entries.append((p.name[:-3], mtime))
+    entries.sort(key=lambda e: e[1], reverse=True)
+    return [name for name, _ in entries]
 
 
 def find_chat_by_timestamp(timestamp: str) -> str | None:
@@ -482,11 +489,8 @@ def find_chat_by_timestamp(timestamp: str) -> str | None:
 
     Returns the path (with ~ for home) or None if not found.
     """
-    chats_dir = get_sase_directory("chats")
-    if not os.path.exists(chats_dir):
-        return None
     suffix = f"-{timestamp}.md"
-    for filename in os.listdir(chats_dir):
-        if filename.endswith(suffix):
-            return os.path.join(chats_dir, filename).replace(str(Path.home()), "~")
+    for p in iter_sharded_files("chats", pattern="*.md"):
+        if p.name.endswith(suffix):
+            return str(p).replace(str(Path.home()), "~")
     return None

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from sase.core.changespec import strip_reverted_suffix
-from sase.core.paths import ensure_sase_directory, make_safe_filename
+from sase.core.paths import make_safe_filename, sharded_path
 from sase.core.time import generate_timestamp
 from sase.vcs_provider import get_vcs_provider
 
@@ -26,7 +26,6 @@ def save_diff(
     """
     cwd = target_dir or os.getcwd()
     provider = get_vcs_provider(cwd)
-    diffs_dir = ensure_sase_directory("diffs")
 
     # Run addremove to track new/deleted files before creating diff
     try:
@@ -45,8 +44,8 @@ def save_diff(
         timestamp = generate_timestamp()
     filename = f"{safe_name}-{timestamp}.diff"
 
-    # Save the diff
-    diff_path = os.path.join(diffs_dir, filename)
+    # Save the diff (sharded by YYYYMM).
+    diff_path = sharded_path("diffs", filename)
 
     with open(diff_path, "w", encoding="utf-8") as f:
         f.write(diff_content)

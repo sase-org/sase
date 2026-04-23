@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from sase.llm_provider._plan_utils import (
     PlanApprovalResult,
     add_create_time_frontmatter,
@@ -12,23 +13,26 @@ from sase.llm_provider._plan_utils import (
     save_plan_to_sase,
 )
 
+from tests.conftest import redirect_sase_home
 
-def test_save_plan_to_sase(tmp_path: Path) -> None:
+
+def test_save_plan_to_sase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that save_plan_to_sase copies to ~/.sase/plans/ with dedup counter."""
     src_file = tmp_path / "source_plan.md"
     src_file.write_text("plan content")
 
-    with patch.object(Path, "home", return_value=tmp_path):
-        dest1 = save_plan_to_sase(str(src_file))
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    dest1 = save_plan_to_sase(str(src_file))
 
     assert dest1.exists()
     assert dest1.read_text() == "plan content"
-    assert dest1.parent == tmp_path / ".sase" / "plans"
+    # Plans are sharded by YYYYMM; parent is <sase_home>/plans/<shard>.
+    assert dest1.parent.parent == sase_home / "plans"
     assert dest1.name == "source_plan.md"
 
     # Second copy should get dedup counter
-    with patch.object(Path, "home", return_value=tmp_path):
-        dest2 = save_plan_to_sase(str(src_file))
+    dest2 = save_plan_to_sase(str(src_file))
 
     assert dest2.exists()
     assert dest2.name == "source_plan_1.md"
@@ -82,18 +86,24 @@ def test_handle_plan_approval_auto_approve() -> None:
     assert result == PlanApprovalResult(action="approve", plan_file="/path/to/plan.md")
 
 
-def test_handle_plan_approval_commit(tmp_path: Path) -> None:
+def test_handle_plan_approval_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that handle_plan_approval accepts 'commit' action from response file."""
     import json
 
     plan_file = str(tmp_path / "plan.md")
     Path(plan_file).write_text("# Plan")
     session_id = "test-commit-session"
-    response_dir = tmp_path / ".sase" / "plan_approval" / session_id
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
 
-    def _fake_notify(**_kwargs: object) -> None:
-        # Write the response file after handle_plan_approval has cleared
-        # any stale response and is about to enter the poll loop.
+    captured_response_dir: dict[str, Path] = {}
+
+    def _fake_notify(**kwargs: object) -> None:
+        # handle_plan_approval hands us the exact response_dir it created.
+        response_dir = Path(str(kwargs["response_dir"]))
+        captured_response_dir["dir"] = response_dir
         (response_dir / "plan_response.json").write_text(
             json.dumps({"action": "commit"})
         )
@@ -113,12 +123,15 @@ def test_handle_plan_approval_commit(tmp_path: Path) -> None:
             "sase.main.plan_approve_handler.get_tmux_prefix",
             return_value="",
         ),
-        patch.object(Path, "home", return_value=tmp_path),
     ):
         result = handle_plan_approval(plan_file, session_id)
+
     assert result == PlanApprovalResult(
         action="approve", plan_file=plan_file, run_coder=False
     )
+    # Session directory lives under a YYYYMM shard of plan_approval/.
+    assert captured_response_dir["dir"].parent.parent == sase_home / "plan_approval"
+    assert captured_response_dir["dir"].name == session_id
 
 
 def test_handle_plan_approval_none_plan_file() -> None:
@@ -130,16 +143,19 @@ def test_handle_plan_approval_none_plan_file() -> None:
     assert result is None
 
 
-def test_handle_plan_approval_approve_with_options(tmp_path: Path) -> None:
+def test_handle_plan_approval_approve_with_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test isinstance validation and whitespace trimming of approve-with-options fields."""
     import json
 
     plan_file = str(tmp_path / "plan.md")
     Path(plan_file).write_text("# Plan")
     session_id = "test-options-session"
-    response_dir = tmp_path / ".sase" / "plan_approval" / session_id
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
 
-    def _fake_notify(**_kwargs: object) -> None:
+    def _fake_notify(**kwargs: object) -> None:
+        response_dir = Path(str(kwargs["response_dir"]))
         (response_dir / "plan_response.json").write_text(
             json.dumps(
                 {
@@ -166,7 +182,6 @@ def test_handle_plan_approval_approve_with_options(tmp_path: Path) -> None:
             "sase.main.plan_approve_handler.get_tmux_prefix",
             return_value="",
         ),
-        patch.object(Path, "home", return_value=tmp_path),
     ):
         result = handle_plan_approval(plan_file, session_id)
 

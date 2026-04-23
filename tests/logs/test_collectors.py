@@ -220,6 +220,28 @@ class TestNewCollectors:
         assert "metrics.json" in filenames
         assert "output.log" in filenames
 
+    def test_collect_chats_across_shards(self, tmp_path: Path) -> None:
+        chats_dir = tmp_path / "chats"
+        (chats_dir / "202603").mkdir(parents=True)
+        (chats_dir / "202604").mkdir(parents=True)
+        (chats_dir / "202603" / "cl-run-260315_120000.md").write_text("a")
+        (chats_dir / "202604" / "cl-run-260415_120000.md").write_text("b")
+        # Legacy top-level file (pre-migration straggler).
+        (chats_dir / "cl-run-260316_120000.md").write_text("c")
+
+        start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2026, 5, 1, 0, 0, 0, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_chats(start, end)
+
+        names = sorted(p.name for p in results)
+        assert names == [
+            "cl-run-260315_120000.md",
+            "cl-run-260316_120000.md",
+            "cl-run-260415_120000.md",
+        ]
+
     def test_collect_axe_state_empty(self, tmp_path: Path) -> None:
         start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
         end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())

@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.core.changespec import strip_reverted_suffix
-from sase.core.paths import ensure_sase_directory, make_safe_filename
+from sase.core.paths import make_safe_filename, sharded_path
 from sase.running_field import (
     claim_workspace,
     get_first_available_axe_workspace,
@@ -49,10 +49,9 @@ def get_workflow_output_path(name: str, workflow_type: str, timestamp: str) -> s
     Returns:
         Full path to the workflow output file.
     """
-    workflows_dir = ensure_sase_directory("workflows")
     safe_name = make_safe_filename(strip_reverted_suffix(name))
     filename = f"{safe_name}_{workflow_type}-{timestamp}.txt"
-    return os.path.join(workflows_dir, filename)
+    return sharded_path("workflows", filename)
 
 
 def get_project_basename(changespec: ChangeSpec) -> str:

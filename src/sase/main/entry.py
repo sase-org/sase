@@ -129,6 +129,13 @@ def main() -> NoReturn:
 
         handle_logs_command(args)
 
+    # --- migrate ---
+    if args.command == "migrate":
+        from .migrate_handler import handle_migrate_command
+
+        handle_migrate_command(args)
+        sys.exit(0)
+
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command

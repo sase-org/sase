@@ -1,10 +1,9 @@
 """Hook persistence - reading and writing hooks to ChangeSpec project files."""
 
 import logging
-import os
 
 from sase.core.changespec import strip_reverted_suffix
-from sase.core.paths import ensure_sase_directory, make_safe_filename
+from sase.core.paths import make_safe_filename, sharded_path
 
 from ..changespec import (
     HookEntry,
@@ -26,10 +25,9 @@ def get_hook_output_path(name: str, timestamp: str) -> str:
     Returns:
         Full path to the hook output file.
     """
-    hooks_dir = ensure_sase_directory("hooks")
     safe_name = make_safe_filename(strip_reverted_suffix(name))
     filename = f"{safe_name}-{timestamp}.txt"
-    return os.path.join(hooks_dir, filename)
+    return sharded_path("hooks", filename)
 
 
 def write_hooks_unlocked(

@@ -410,9 +410,9 @@ def test_migration_from_monolithic_file(tmp_path: Path) -> None:
 
         # Old file should be deleted after migration
         assert not old_file.exists()
-        # Individual files should exist
-        assert (bundles_dir / "20250615100000.json").exists()
-        assert (bundles_dir / "20250615110000.json").exists()
+        # Individual files should exist (under YYYYMM shard).
+        assert (bundles_dir / "202506" / "20250615100000.json").exists()
+        assert (bundles_dir / "202506" / "20250615110000.json").exists()
 
 
 def test_migration_skips_when_no_old_file(tmp_path: Path) -> None:

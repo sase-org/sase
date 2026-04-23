@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.core.paths import iter_sharded_files, sharded_path
 from sase.core.time import generate_timestamp
 from sase.status_state_machine import transition_changespec_status
 
@@ -58,17 +59,6 @@ class _PendingCheck:
     output_path: str
 
 
-def _get_checks_directory() -> str:
-    """Get the path to the checks output directory (~/.sase/checks/)."""
-    return os.path.expanduser("~/.sase/checks")
-
-
-def _ensure_checks_directory() -> None:
-    """Ensure the checks directory exists."""
-    checks_dir = _get_checks_directory()
-    Path(checks_dir).mkdir(parents=True, exist_ok=True)
-
-
 def _get_check_output_path(name: str, check_type: CheckType, timestamp: str) -> str:
     """Get the output file path for a check run.
 
@@ -80,12 +70,10 @@ def _get_check_output_path(name: str, check_type: CheckType, timestamp: str) -> 
     Returns:
         Full path to the check output file.
     """
-    _ensure_checks_directory()
-    checks_dir = _get_checks_directory()
     # Replace non-alphanumeric chars with underscore for safe filename
     safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
     filename = f"{safe_name}-{check_type}-{timestamp}.txt"
-    return os.path.join(checks_dir, filename)
+    return sharded_path("checks", filename)
 
 
 def _extract_change_identifier(cl_url: str | None) -> tuple[str, str] | None:
@@ -255,39 +243,32 @@ def _get_pending_checks(changespec: ChangeSpec) -> list[_PendingCheck]:
     Returns:
         List of _PendingCheck objects.
     """
-    checks_dir = _get_checks_directory()
-    if not os.path.exists(checks_dir):
-        return []
-
     # Create safe name pattern
     safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", changespec.name)
     pending: list[_PendingCheck] = []
 
-    for filename in os.listdir(checks_dir):
-        # Parse filename: <safe_name>-<check_type>-<timestamp>.txt
-        if not filename.endswith(".txt"):
+    pattern = rf"^{re.escape(safe_name)}-(\w+)-(\d{{6}}_\d{{6}})\.txt$"
+    for file_path in iter_sharded_files("checks", pattern="*.txt"):
+        match = re.match(pattern, file_path.name)
+        if not match:
             continue
 
-        # Match pattern: <safe_name>-<check_type>-<timestamp>.txt
-        pattern = rf"^{re.escape(safe_name)}-(\w+)-(\d{{6}}_\d{{6}})\.txt$"
-        match = re.match(pattern, filename)
-        if match:
-            check_type_str = match.group(1)
-            timestamp = match.group(2)
+        check_type_str = match.group(1)
+        timestamp = match.group(2)
 
-            # Validate check type
-            if check_type_str in (
-                CHECK_TYPE_CL_SUBMITTED,
-                CHECK_TYPE_REVIEWER_COMMENTS,
-            ):
-                pending.append(
-                    _PendingCheck(
-                        changespec_name=changespec.name,
-                        check_type=check_type_str,  # type: ignore[arg-type]
-                        timestamp=timestamp,
-                        output_path=os.path.join(checks_dir, filename),
-                    )
+        # Validate check type
+        if check_type_str in (
+            CHECK_TYPE_CL_SUBMITTED,
+            CHECK_TYPE_REVIEWER_COMMENTS,
+        ):
+            pending.append(
+                _PendingCheck(
+                    changespec_name=changespec.name,
+                    check_type=check_type_str,  # type: ignore[arg-type]
+                    timestamp=timestamp,
+                    output_path=str(file_path),
                 )
+            )
 
     return pending
 

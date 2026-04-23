@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,8 @@ from sase.history.chat import (
     _load_chat_history,
     save_chat_history,
 )
+
+from tests.conftest import redirect_sase_home
 
 
 def test_get_branch_or_workspace_name_strips_reverted_suffix() -> None:
@@ -65,109 +68,105 @@ def testgenerate_chat_filename_with_explicit_values() -> None:
     assert result == "feature-branch-rerun-251128130000"
 
 
-def testget_chat_file_path_with_extension() -> None:
-    """Test get_chat_file_path when extension is already present."""
-    result = get_chat_file_path("my-branch-run-251128120000.md")
-    assert result == os.path.expanduser("~/.sase/chats/my-branch-run-251128120000.md")
+def testget_chat_file_path_with_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_chat_file_path returns the sharded write location for a basename."""
+    redirect_sase_home(monkeypatch, tmp_path)
+    result = get_chat_file_path("my-branch-run-251128_120000.md")
+    # Sharded into the YYYYMM directory derived from the filename timestamp.
+    assert result == str(
+        tmp_path / "chats" / "202511" / "my-branch-run-251128_120000.md"
+    )
 
 
-def test_save_chat_history_basic() -> None:
+def test_save_chat_history_basic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test save_chat_history creates a file with correct content."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_chats_dir = os.path.join(tmpdir, "chats")
-        os.makedirs(test_chats_dir)
-
-        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
-            with patch(
-                "sase.history.chat._get_branch_or_workspace_name",
-                return_value="test-branch",
-            ):
-                with patch(
-                    "sase.history.chat.generate_timestamp", return_value="251128120000"
-                ):
-                    result = save_chat_history(
-                        prompt="Hello, how are you?",
-                        response="I am fine, thank you!",
-                        workflow="run",
-                    )
-
-                    assert os.path.exists(result)
-                    with open(result) as f:
-                        content = f.read()
-                    assert "Hello, how are you?" in content
-                    assert "I am fine, thank you!" in content
-                    assert "# Chat History - run" in content
-
-
-def test_save_chat_history_with_previous_history() -> None:
-    """Test save_chat_history with previous history prepended."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_chats_dir = os.path.join(tmpdir, "chats")
-        os.makedirs(test_chats_dir)
-
-        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
-            with patch(
-                "sase.history.chat._get_branch_or_workspace_name",
-                return_value="test-branch",
-            ):
-                with patch(
-                    "sase.history.chat.generate_timestamp", return_value="251128120000"
-                ):
-                    result = save_chat_history(
-                        prompt="Follow up question",
-                        response="Follow up answer",
-                        workflow="rerun",
-                        previous_history="Previous conversation content",
-                    )
-
-                    with open(result) as f:
-                        content = f.read()
-                    assert "Previous Conversation" in content
-                    assert "Previous conversation content" in content
-                    assert "Follow up question" in content
-
-
-def test__load_chat_history_not_found() -> None:
-    """Test _load_chat_history with non-existent file."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_chats_dir = os.path.join(tmpdir, "chats")
-        os.makedirs(test_chats_dir)
-
-        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
-            with pytest.raises(FileNotFoundError):
-                _load_chat_history("nonexistent-run-251128120000")
-
-
-def test_list_chat_histories_nonexistent_dir() -> None:
-    """Test list_chat_histories when directory doesn't exist."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        nonexistent_dir = os.path.join(tmpdir, "nonexistent")
-
+    redirect_sase_home(monkeypatch, tmp_path)
+    with patch(
+        "sase.history.chat._get_branch_or_workspace_name",
+        return_value="test-branch",
+    ):
         with patch(
-            "sase.history.chat.get_sase_directory", return_value=nonexistent_dir
+            "sase.history.chat.generate_timestamp", return_value="251128_120000"
         ):
-            result = list_chat_histories()
-            assert result == []
+            result = save_chat_history(
+                prompt="Hello, how are you?",
+                response="I am fine, thank you!",
+                workflow="run",
+            )
+
+    # ``save_chat_history`` returns a ~-prefixed path; expand before reading.
+    actual_path = os.path.expanduser(result)
+    assert os.path.exists(actual_path)
+    with open(actual_path) as f:
+        content = f.read()
+    assert "Hello, how are you?" in content
+    assert "I am fine, thank you!" in content
+    assert "# Chat History - run" in content
 
 
-def test_list_chat_histories_with_files() -> None:
+def test_save_chat_history_with_previous_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test save_chat_history with previous history prepended."""
+    redirect_sase_home(monkeypatch, tmp_path)
+    with patch(
+        "sase.history.chat._get_branch_or_workspace_name",
+        return_value="test-branch",
+    ):
+        with patch(
+            "sase.history.chat.generate_timestamp", return_value="251128_120000"
+        ):
+            result = save_chat_history(
+                prompt="Follow up question",
+                response="Follow up answer",
+                workflow="rerun",
+                previous_history="Previous conversation content",
+            )
+
+    with open(os.path.expanduser(result)) as f:
+        content = f.read()
+    assert "Previous Conversation" in content
+    assert "Previous conversation content" in content
+    assert "Follow up question" in content
+
+
+def test__load_chat_history_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test _load_chat_history with non-existent file."""
+    redirect_sase_home(monkeypatch, tmp_path)
+    with pytest.raises(FileNotFoundError):
+        _load_chat_history("nonexistent-run-251128_120000")
+
+
+def test_list_chat_histories_nonexistent_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test list_chat_histories when directory doesn't exist."""
+    # Redirect ~/.sase/ into an empty tmp_path — no chats/ subdir.
+    redirect_sase_home(monkeypatch, tmp_path)
+    result = list_chat_histories()
+    assert result == []
+
+
+def test_list_chat_histories_with_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test list_chat_histories with multiple files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_chats_dir = os.path.join(tmpdir, "chats")
-        os.makedirs(test_chats_dir)
+    redirect_sase_home(monkeypatch, tmp_path)
+    chats_shard = tmp_path / "chats" / "202511"
+    chats_shard.mkdir(parents=True)
+    (chats_shard / "test-run-251128_120000.md").write_text("content")
+    (chats_shard / "test-run-251128_130000.md").write_text("content")
 
-        # Create test files
-        files = ["test-run-251128120000.md", "test-run-251128130000.md"]
-        for filename in files:
-            filepath = os.path.join(test_chats_dir, filename)
-            with open(filepath, "w") as f:
-                f.write("content")
-
-        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
-            result = list_chat_histories()
-            assert len(result) == 2
-            assert "test-run-251128120000" in result
-            assert "test-run-251128130000" in result
+    result = list_chat_histories()
+    assert len(result) == 2
+    assert "test-run-251128_120000" in result
+    assert "test-run-251128_130000" in result
 
 
 def test__load_chat_history_with_increment_headings() -> None:
@@ -258,39 +257,37 @@ Follow up answer
     assert "---" in result
 
 
-def test_save_chat_history_with_extra_sections() -> None:
+def test_save_chat_history_with_extra_sections(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test save_chat_history inserts extra sections before prompt."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_chats_dir = os.path.join(tmpdir, "chats")
-        os.makedirs(test_chats_dir)
+    redirect_sase_home(monkeypatch, tmp_path)
+    with patch(
+        "sase.history.chat._get_branch_or_workspace_name",
+        return_value="test-branch",
+    ):
+        with patch(
+            "sase.history.chat.generate_timestamp", return_value="251128_120000"
+        ):
+            extra = "## Plan Feedback\n\n### Round 1\n> Fix the bug\n"
+            result = save_chat_history(
+                prompt="Fix login",
+                response="Done!",
+                workflow="run",
+                extra_sections=extra,
+            )
 
-        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
-            with patch(
-                "sase.history.chat._get_branch_or_workspace_name",
-                return_value="test-branch",
-            ):
-                with patch(
-                    "sase.history.chat.generate_timestamp", return_value="251128120000"
-                ):
-                    extra = "## Plan Feedback\n\n### Round 1\n> Fix the bug\n"
-                    result = save_chat_history(
-                        prompt="Fix login",
-                        response="Done!",
-                        workflow="run",
-                        extra_sections=extra,
-                    )
-
-                    with open(result) as f:
-                        content = f.read()
-                    # Extra sections present between timestamp and prompt
-                    assert "## Plan Feedback" in content
-                    assert "### Round 1" in content
-                    assert "> Fix the bug" in content
-                    # Verify ordering: timestamp < extra < prompt
-                    ts_pos = content.index("**Timestamp:**")
-                    extra_pos = content.index("## Plan Feedback")
-                    prompt_pos = content.index("## Prompt")
-                    assert ts_pos < extra_pos < prompt_pos
+    with open(os.path.expanduser(result)) as f:
+        content = f.read()
+    # Extra sections present between timestamp and prompt
+    assert "## Plan Feedback" in content
+    assert "### Round 1" in content
+    assert "> Fix the bug" in content
+    # Verify ordering: timestamp < extra < prompt
+    ts_pos = content.index("**Timestamp:**")
+    extra_pos = content.index("## Plan Feedback")
+    prompt_pos = content.index("## Prompt")
+    assert ts_pos < extra_pos < prompt_pos
 
 
 def test_parse_chat_turns_with_extra_sections() -> None:

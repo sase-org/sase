@@ -76,22 +76,30 @@ def add_create_time_frontmatter(
 
 
 def save_plan_to_sase(plan_file: str) -> Path:
-    """Copy a plan file to ``~/.sase/plans/`` for persistence."""
-    sase_plans_dir = Path.home() / ".sase" / "plans"
-    sase_plans_dir.mkdir(parents=True, exist_ok=True)
+    """Copy a plan file to a sharded ``~/.sase/plans/YYYYMM/`` location."""
+    from sase.core.paths import find_sharded_file, sharded_path
+
     src = Path(plan_file)
     # Strip "sase_plan_" prefix if present
     name = src.name
     if name.startswith("sase_plan_"):
         name = name[len("sase_plan_") :]
-    dest = sase_plans_dir / name
-    if dest.exists():
+    # Plan filenames carry no embedded timestamp; shard by now() at write time.
+    dest = Path(sharded_path("plans", name))
+    if dest.exists() or find_sharded_file("plans", name) is not None:
         dest_path = Path(name)
         stem = dest_path.stem
         suffix = dest_path.suffix
         counter = 1
-        while dest.exists():
-            dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
+        while True:
+            candidate_name = f"{stem}_{counter}{suffix}"
+            candidate = Path(sharded_path("plans", candidate_name))
+            if (
+                not candidate.exists()
+                and find_sharded_file("plans", candidate_name) is None
+            ):
+                dest = candidate
+                break
             counter += 1
     shutil.copy2(src, dest)
     return dest
@@ -133,7 +141,10 @@ def handle_plan_approval(
     if not plan_file:
         return None
 
-    response_dir = Path.home() / ".sase" / "plan_approval" / session_id
+    from sase.core.paths import sharded_path
+
+    # Session IDs carry no timestamp → shard by now() at write time.
+    response_dir = Path(sharded_path("plan_approval", session_id))
     response_dir.mkdir(parents=True, exist_ok=True)
 
     request_path = response_dir / "plan_request.json"

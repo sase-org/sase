@@ -118,10 +118,10 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
 
     # If plan file doesn't exist at the expected path, try the ~/.sase/plans/ archive
     if not os.path.isfile(plan_path):
-        archive_fallback = os.path.join(
-            os.path.expanduser("~"), ".sase", "plans", os.path.basename(plan_path)
-        )
-        if os.path.isfile(archive_fallback):
+        from sase.core.paths import find_sharded_file
+
+        archive_fallback = find_sharded_file("plans", os.path.basename(plan_path))
+        if archive_fallback is not None:
             plan_path = archive_fallback
             in_repo = False
         else:

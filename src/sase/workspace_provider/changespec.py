@@ -8,8 +8,8 @@ from sase.history.chat import save_chat_history
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
 from sase.core.paths import (
-    ensure_sase_directory,
     make_safe_filename,
+    sharded_path,
     shorten_path,
 )
 from sase.core.time import generate_timestamp
@@ -111,10 +111,9 @@ def _save_committed_diff(
     if diff_text is None:
         return None
 
-    diffs_dir = ensure_sase_directory("diffs")
     safe_name = make_safe_filename(cl_name)
     filename = f"{safe_name}-{timestamp}.diff"
-    diff_path = f"{diffs_dir}/{filename}"
+    diff_path = sharded_path("diffs", filename)
 
     with open(diff_path, "w", encoding="utf-8") as f:
         f.write(diff_text)

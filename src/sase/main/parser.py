@@ -11,6 +11,7 @@ from sase.main.parser_commands import (
     register_init_git_parser,
     register_init_skills_parser,
     register_logs_parser,
+    register_migrate_parser,
     register_notify_parser,
     register_path_parser,
     register_plan_parser,
@@ -47,6 +48,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_init_git_parser(top_level_subparsers)
     register_init_skills_parser(top_level_subparsers)
     register_logs_parser(top_level_subparsers)
+    register_migrate_parser(top_level_subparsers)
     register_notify_parser(top_level_subparsers)
     register_path_parser(top_level_subparsers)
     register_plan_parser(top_level_subparsers)

@@ -8,9 +8,8 @@ from collections.abc import Callable
 
 from sase.core.changespec import strip_reverted_suffix
 from sase.core.paths import (
-    ensure_sase_directory,
-    get_sase_directory,
     make_safe_filename,
+    sharded_path,
 )
 from sase.config.mentor import MentorProfileConfig
 
@@ -33,10 +32,9 @@ def _get_mentor_output_path(name: str, mentor_name: str, timestamp: str) -> str:
     Returns:
         Full path to the mentor output file.
     """
-    mentors_dir = ensure_sase_directory("mentors")
     safe_name = make_safe_filename(strip_reverted_suffix(name))
     filename = f"{safe_name}-{mentor_name}-{timestamp}.txt"
-    return os.path.join(mentors_dir, filename)
+    return sharded_path("mentors", filename)
 
 
 def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
@@ -52,7 +50,6 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
     Returns:
         Full path to the chat file (e.g., ~/.sase/chats/{cl_name}-mentor_{mentor_name}-{timestamp}.md)
     """
-    chats_dir = get_sase_directory("chats")
     # Format matches chat_history.generate_chat_filename() with:
     # - branch_or_workspace = cl_name (used as-is, NOT stripped)
     # - workflow = "mentor-{mentor_name}" (normalized to "mentor_{mentor_name}")
@@ -60,7 +57,7 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
     # the branch_or_workspace value as-is when it's explicitly provided (which
     # MentorWorkflow always does). Stripping here would cause a naming mismatch.
     filename = f"{cl_name}-mentor_{mentor_name}-{timestamp}.md"
-    return os.path.join(chats_dir, filename)
+    return sharded_path("chats", filename, ensure=False)
 
 
 def start_single_mentor(
