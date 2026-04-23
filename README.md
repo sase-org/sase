@@ -22,6 +22,7 @@ sase is designed to work with the coding agents you already use:
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported** |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported** |
 | [Codex](https://github.com/openai/codex)                      | **Supported** |
+| Jetski (Google's successor to Gemini CLI)                     | **Supported** |
 
 sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow
 infrastructure that turns individual agent runs into a managed software engineering pipeline.
@@ -81,7 +82,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   and apply workflow
 - **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
-- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini) with pre/post-processing and token usage tracking
+- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Jetski) with pre/post-processing and token usage
+  tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
@@ -101,7 +103,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │    └────────────┘  └────────────┘  └────────────┘      │
 ├───────────────────┬─────────────────┬──────────────────┤
 │   LLM Provider    │  VCS Provider   │ Workspace Prov.  │
-│(Claude,Codex,Gem) │ (pluggy plugins)│ (pluggy plugins) │
+│(Claude,Codex,     │ (pluggy plugins)│ (pluggy plugins) │
+│ Gemini,Jetski)    │                 │                  │
 ├───────────────────┴─────────────────┴──────────────────┤
 │                    Plugin Packages                     │
 │  sase-github · sase-google · sase-telegram · sase-nvim │

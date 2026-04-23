@@ -736,6 +736,11 @@ spawned, so there is no outer loop or TUI affordance ticking through iterations.
 `%name` base (`linter.1`, `linter.2`, `linter.3`); when `%name` is omitted the auto-assigned base is used (e.g. `a.1`,
 `a.2`, `a.3`).
 
+Iterations run **sequentially**: all N agents are spawned up front and register immediately in the TUI, but iteration
+`k+1` is automatically wait-chained behind iteration `k` via an injected `%wait:<prev_name>` directive. This turns
+`%repeat` into a serial iteration primitive — each iteration can observe its predecessor's work — without blocking the
+launcher on any single agent.
+
 Each iteration exposes two iteration-scoped named arguments in the agent's workflow:
 
 | Variable | Meaning                                   | Example with `%repeat:5` |
