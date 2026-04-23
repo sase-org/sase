@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_content_search import AgentContentSearchCache
     from ...models.fold_state import FoldStateManager
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
@@ -65,6 +66,7 @@ class AgentLoadingMixin:
 
     # Agent search/filter query
     _agent_search_query: str
+    _agent_content_search_cache: AgentContentSearchCache
 
     # Loading guard
     _agents_loading: bool
@@ -390,27 +392,33 @@ class AgentLoadingMixin:
         if self._agent_custom_order:
             self._agents = apply_custom_order(self._agents, self._agent_custom_order)
 
-        # Apply agent search filter (case-insensitive substring match)
+        # Apply agent search filter (case-insensitive substring match).
+        # The haystack includes metadata fields plus each agent's cached
+        # prompt/reply content — see ``AgentContentSearchCache``. Content
+        # reads only happen when a query is active.
         if self._agent_search_query:
             query_lower = self._agent_search_query.lower()
+            content_cache = self._agent_content_search_cache
+
+            def _matches(agent: Agent) -> bool:
+                for field in ("cl_name", "display_name", "agent_name", "status"):
+                    value = getattr(agent, field, "") or ""
+                    if query_lower in value.lower():
+                        return True
+                haystack = content_cache.get_haystack(agent)
+                return bool(haystack) and query_lower in haystack
+
             # Collect identities of matching parents so children stay visible
             matching_parent_names: set[str] = set()
             for agent in self._agents:
-                if not agent.is_workflow_child and any(
-                    query_lower in (getattr(agent, field, "") or "").lower()
-                    for field in ("cl_name", "display_name", "agent_name", "status")
-                ):
+                if not agent.is_workflow_child and _matches(agent):
                     matching_parent_names.add(agent.agent_name or agent.cl_name)
 
             self._agents = [
                 a
                 for a in self._agents
                 if (
-                    # Direct match
-                    any(
-                        query_lower in (getattr(a, field, "") or "").lower()
-                        for field in ("cl_name", "display_name", "agent_name", "status")
-                    )
+                    _matches(a)
                     # Or child of a matching parent (preserve hierarchy)
                     or (
                         a.is_workflow_child
@@ -418,6 +426,9 @@ class AgentLoadingMixin:
                     )
                 )
             ]
+            # Release cache entries for agents no longer in the list so
+            # memory stays bounded across many refresh cycles.
+            content_cache.prune(self._agents)
 
         # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
         loaded_identities = {a.identity for a in self._agents}

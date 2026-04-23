@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 17:30:12
-status: wip
+status: done
 ---
 # Plan: Content-Aware `/` Search on `sase ace` Agents Tab
 

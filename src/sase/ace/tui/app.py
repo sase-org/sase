@@ -282,6 +282,12 @@ class AceApp(
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
 
+        # Lazy cache of lowercased prompt/reply content for the `/` filter.
+        # Populated only when a search query is active.
+        from .models.agent_content_search import AgentContentSearchCache
+
+        self._agent_content_search_cache = AgentContentSearchCache()
+
         # Panel focus state for pinned panel split
         from .actions.agents._core import PanelFocus
 
