@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:13:34
-status: wip
+status: done
 ---
 
 # Fast `sase ace` TUI Startup

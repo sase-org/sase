@@ -187,6 +187,14 @@ class AxeDisplayMixin:
         """Schedule an async axe status reload without blocking."""
         self.call_later(self._load_axe_status_async)  # type: ignore[attr-defined]
 
+    async def _run_axe_startup_init(self) -> None:
+        """Load axe status and trigger startup auto-start/restart off the critical path."""
+        await self._load_axe_status_async()
+        if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
+            self._restart_axe_daemon()  # type: ignore[attr-defined]
+        elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
+            self._start_axe()  # type: ignore[attr-defined]
+
     def _load_lumberjack_names(self) -> None:
         """Load lumberjack names from axe config."""
         from sase.axe.config import load_axe_config as load_new_axe_config

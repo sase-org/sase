@@ -165,6 +165,9 @@ class AceApp(
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
+        # Set during on_mount to suppress reactive-watcher cold loads that
+        # would otherwise duplicate work the mount body already performs.
+        self._mounting: bool = False
         self.query_string = query
         self.parsed_query: QueryExpr = parse_query(query)
         self.refresh_interval = refresh_interval
@@ -461,80 +464,78 @@ class AceApp(
 
     def on_mount(self) -> None:
         """Set up the app on mount."""
-        # Wire keymap registry to widgets
-        footer = self.query_one("#keybinding-footer", KeybindingFooter)
-        footer.set_keymap_registry(self._keymap_registry)
-        tab_bar = self.query_one("#tab-bar", TabBar)
-        tab_bar.set_keymap_registry(self._keymap_registry)
+        self._mounting = True
+        try:
+            # Wire keymap registry to widgets
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)
+            footer.set_keymap_registry(self._keymap_registry)
+            tab_bar = self.query_one("#tab-bar", TabBar)
+            tab_bar.set_keymap_registry(self._keymap_registry)
 
-        # Initialize agent tracking for completion notifications
-        self._initialize_agent_tracking()
+            # Initialize agent tracking for completion notifications
+            self._initialize_agent_tracking()
 
-        # Load initial changespecs with the startup query
-        self._load_changespecs()
+            # Load initial changespecs with the startup query
+            self._load_changespecs()
 
-        # If no results, try saved queries as fallback; if none work, open
-        # the Agents tab instead
-        if not self.changespecs:
-            if not self._try_startup_fallback():
-                self.current_tab = "agents"  # type: ignore[assignment]
+            # If no results, try saved queries as fallback; if none work, open
+            # the Agents tab instead
+            if not self.changespecs:
+                if not self._try_startup_fallback():
+                    self.current_tab = "agents"  # type: ignore[assignment]
 
-        self._restore_last_selection()
-        self._save_current_query()
+            self._restore_last_selection()
+            self._save_current_query()
 
-        # Load agents so the tab bar count is populated on startup
-        self._load_agents()
+            # Defer agent load off the critical path so the TUI paints
+            # immediately; agents populate in the background ~3.5s later.
+            self.call_after_refresh(self._run_agents_async_refresh)
 
-        # Initialize axe status
-        self._load_axe_status()
+            # Defer axe status load + auto-start/restart similarly.
+            self.call_after_refresh(self._run_axe_startup_init)
 
-        # Restart axe if requested and currently running
-        if self._restart_axe and self.axe_running:
-            self._restart_axe_daemon()
-        # Auto-start axe if enabled and not already running (skip if restart was triggered)
-        elif self._auto_start_axe and not self.axe_running:
-            self._start_axe()
-
-        # Write initial activity timestamp, idle state, and PID file.
-        # If pinned idle was active in the previous session, restore it.
-        from sase.ace.tui_activity import (
-            read_pinned_idle,
-            write_activity_timestamp,
-            write_idle_state,
-            write_last_keypress,
-            write_tui_pid,
-        )
-
-        from .activity_log import ActivityEventType
-
-        write_tui_pid()
-        self._activity_log.record(ActivityEventType.SESSION_START)
-        if read_pinned_idle():
-            self._pinned_idle = True
-            if hasattr(self, "_last_activity_time"):
-                del self._last_activity_time
-            write_activity_timestamp(0)
-            write_idle_state(True)
-            indicator = self.query_one("#inactive-indicator", InactiveIndicator)
-            indicator.set_idle(True, pinned=True)
-            self._activity_log.record(ActivityEventType.IDLE_RESTORED)
-        else:
-            self._last_activity_time = time.monotonic()
-            self._last_activity_flush = time.monotonic()
-            now = time.time()
-            write_activity_timestamp(now)
-            write_last_keypress(now)
-            write_idle_state(False)
-
-        # Set up auto-refresh timer if enabled
-        if self.refresh_interval > 0:
-            self._countdown_remaining = self.refresh_interval
-            self._countdown_timer = self.set_interval(
-                1, self._on_countdown_tick, name="countdown"
+            # Write initial activity timestamp, idle state, and PID file.
+            # If pinned idle was active in the previous session, restore it.
+            from sase.ace.tui_activity import (
+                read_pinned_idle,
+                write_activity_timestamp,
+                write_idle_state,
+                write_last_keypress,
+                write_tui_pid,
             )
-            self._refresh_timer = self.set_interval(
-                self.refresh_interval, self._on_auto_refresh, name="auto-refresh"
-            )
+
+            from .activity_log import ActivityEventType
+
+            write_tui_pid()
+            self._activity_log.record(ActivityEventType.SESSION_START)
+            if read_pinned_idle():
+                self._pinned_idle = True
+                if hasattr(self, "_last_activity_time"):
+                    del self._last_activity_time
+                write_activity_timestamp(0)
+                write_idle_state(True)
+                indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+                indicator.set_idle(True, pinned=True)
+                self._activity_log.record(ActivityEventType.IDLE_RESTORED)
+            else:
+                self._last_activity_time = time.monotonic()
+                self._last_activity_flush = time.monotonic()
+                now = time.time()
+                write_activity_timestamp(now)
+                write_last_keypress(now)
+                write_idle_state(False)
+
+            # Set up auto-refresh timer if enabled
+            if self.refresh_interval > 0:
+                self._countdown_remaining = self.refresh_interval
+                self._countdown_timer = self.set_interval(
+                    1, self._on_countdown_tick, name="countdown"
+                )
+                self._refresh_timer = self.set_interval(
+                    self.refresh_interval, self._on_auto_refresh, name="auto-refresh"
+                )
+        finally:
+            self._mounting = False
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
@@ -578,8 +579,12 @@ class AceApp(
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
             axe_view.add_class("hidden")
-            # Show cached data immediately if available, then refresh async
-            if getattr(self, "_agents_with_children", None):
+            # During mount, on_mount will schedule the initial async load;
+            # skip here to avoid a redundant synchronous cold load.
+            if self._mounting:
+                pass
+            elif getattr(self, "_agents_with_children", None):
+                # Show cached data immediately, then refresh async
                 self._refilter_agents()
                 self._schedule_agents_async_refresh()
             else:
