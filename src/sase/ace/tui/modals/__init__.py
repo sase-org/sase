@@ -32,7 +32,6 @@ from .runners_modal import (
     RunnersModal,
     get_runner_count,
 )
-from .startup_splash import StartupSplashScreen
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
 from .approve_options_modal import (
@@ -117,7 +116,6 @@ __all__ = [
     "RunnersModal",
     "get_runner_count",
     "SelectionItem",
-    "StartupSplashScreen",
     "StatusModal",
     "TabName",
     "TagInputModal",

@@ -203,10 +203,6 @@ class AxeDisplayMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
-            # Notify the startup splash (if still visible).
-            notify = getattr(self, "_notify_splash", None)
-            if notify is not None:
-                notify("axe")
 
         self.axe_running = data.axe_running
 
