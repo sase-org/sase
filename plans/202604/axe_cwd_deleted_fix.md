@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 17:45:58
-status: wip
+status: done
 ---
 # Plan: Fix `sase axe` chop failures caused by a deleted CWD
 

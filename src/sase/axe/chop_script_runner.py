@@ -55,6 +55,7 @@ def run_chop_script(
     context_file: str,
     timeout: float | None = None,
     env: dict[str, str] | None = None,
+    cwd: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Execute a chop script with the given context file.
 
@@ -63,6 +64,9 @@ def run_chop_script(
         context_file: Path to the JSON context file.
         timeout: Optional timeout in seconds.
         env: Extra environment variables to inject into the subprocess.
+        cwd: Working directory for the subprocess. When ``None``, the child
+            inherits the parent's CWD, which can be dangling if the daemon
+            outlived the directory it was launched from.
 
     Returns:
         The completed process result.
@@ -78,6 +82,7 @@ def run_chop_script(
         text=True,
         timeout=timeout,
         env=subprocess_env,
+        cwd=cwd,
     )
 
 

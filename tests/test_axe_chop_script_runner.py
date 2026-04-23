@@ -2,6 +2,7 @@
 
 import os
 import stat
+from unittest.mock import patch
 
 
 from sase.axe.chop_script_runner import (
@@ -70,6 +71,34 @@ class TestRunChopScript:
         ctx_file.write_text("{}")
         result = run_chop_script(script, str(ctx_file))
         assert "err_msg" in result.stderr
+
+    def test_forwards_cwd_to_subprocess(self, tmp_path):
+        """The cwd= kwarg is forwarded to subprocess.run so the child runs
+        in a stable directory even when the parent's CWD is dangling."""
+        cwd_dir = tmp_path / "stable"
+        cwd_dir.mkdir()
+        script = tmp_path / "my_chop"
+        _make_executable(script)
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+
+        with patch("sase.axe.chop_script_runner.subprocess.run") as mock_run:
+            run_chop_script(script, str(ctx_file), cwd=str(cwd_dir))
+
+        assert mock_run.call_args.kwargs["cwd"] == str(cwd_dir)
+
+    def test_cwd_defaults_to_none(self, tmp_path):
+        """When cwd= is not passed, subprocess.run receives cwd=None
+        (preserving back-compatible inherit-parent-CWD behavior)."""
+        script = tmp_path / "my_chop"
+        _make_executable(script)
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+
+        with patch("sase.axe.chop_script_runner.subprocess.run") as mock_run:
+            run_chop_script(script, str(ctx_file))
+
+        assert mock_run.call_args.kwargs["cwd"] is None
 
 
 class TestListChopScripts:

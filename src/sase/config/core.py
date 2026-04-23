@@ -135,7 +135,15 @@ def _get_local_config_path() -> Path | None:
     """
     if not _include_local_config:
         return None
-    local_path = Path.cwd() / "sase.yml"
+    try:
+        cwd = Path.cwd()
+    except FileNotFoundError:
+        # The axe daemon can outlive its CWD if a workspace it was launched
+        # from is wiped — in that case there cannot be a local override, so
+        # degrade gracefully instead of propagating the error to every caller
+        # of load_merged_config() (including get_timezone()).
+        return None
+    local_path = cwd / "sase.yml"
     if local_path.is_file():
         return local_path
     return None

@@ -100,6 +100,18 @@ def test_get_local_config_path_returns_none_when_missing(tmp_path: Path) -> None
     assert result is None
 
 
+def test_get_local_config_path_returns_none_when_cwd_missing() -> None:
+    """Returns None (instead of raising) when Path.cwd() raises FileNotFoundError.
+
+    Reproduces the axe-daemon failure mode where the workspace the daemon was
+    launched in gets wiped, leaving a dangling kernel CWD.
+    """
+    with patch("sase.config.core.Path.cwd", side_effect=FileNotFoundError):
+        result = _get_local_config_path()
+
+    assert result is None
+
+
 def test_get_local_config_path_returns_none_when_disabled(tmp_path: Path) -> None:
     """Returns None when _include_local_config is False (e.g. sase ace)."""
     local_config = tmp_path / "sase.yml"

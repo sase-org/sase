@@ -232,7 +232,11 @@ class Lumberjack:
                     error=RuntimeError(f"Chop script not found: {chop.name}"),
                 )
             result = run_chop_script(
-                script, context_file, timeout=resolved_timeout, env=chop.env
+                script,
+                context_file,
+                timeout=resolved_timeout,
+                env=chop.env,
+                cwd=str(self._state_dir),
             )
             if result.stdout:
                 for line in result.stdout.strip().splitlines():
@@ -435,6 +439,12 @@ class Lumberjack:
         Returns:
             True if exited normally.
         """
+        # The daemon can be started from a workspace directory that gets wiped
+        # later in its lifetime, leaving a dangling kernel CWD pointer. Anchor
+        # to $HOME up front so nothing in the daemon (logging, timestamps,
+        # config loads) trips on os.getcwd() afterwards.
+        os.chdir(os.path.expanduser("~"))
+
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         write_lumberjack_pid(self.name)
 
