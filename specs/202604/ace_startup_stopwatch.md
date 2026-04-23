@@ -1,0 +1,2 @@
+ Can you help me improve the TUI startup screen by showing an extra large stopwatch that counts how
+long it takes (with a granularity of a tenth-second) for the TUI to fully startup? I want you to lead the design on this one. Make sure you design this feature so it is intuitive, reliable, and (last but not least) beautiful! Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
