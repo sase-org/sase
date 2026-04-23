@@ -441,6 +441,108 @@ class TestFileHistoryCompletion:
             assert ta._completion_kind == "file_history"
             assert ta._file_completion_active is True
 
+    async def test_trailing_space_at_end_of_line_triggers_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("look at ")
+            ta.cursor_location = (0, 8)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._completion_kind == "file_history"
+            assert ta._file_completion_active is True
+
+    async def test_cursor_between_two_spaces_triggers_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("foo  bar")
+            ta.cursor_location = (0, 4)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._completion_kind == "file_history"
+            assert ta._file_completion_active is True
+
+    async def test_cursor_on_plain_word_still_clears(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("hello")
+            ta.cursor_location = (0, 5)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                ta._try_file_completion_tab()
+            assert ta._file_completion_active is False
+
+    async def test_history_panel_survives_cursor_move_within_whitespace(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("foo   bar")
+            ta.cursor_location = (0, 4)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+                assert ta._completion_kind == "file_history"
+                ta.cursor_location = (0, 5)
+                ta._refresh_file_completion_from_cursor()
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "file_history"
+
     async def test_accept_inserts_path_at_cursor(
         self,
         tmp_path: Path,

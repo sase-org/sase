@@ -50,12 +50,6 @@ class FileCompletionMixin(_MixinBase):
         line = self.document.get_line(row)
         return extract_token_around_cursor(line, col)
 
-    def _cursor_at_empty_prefix(self) -> bool:
-        """True when the current line is whitespace-only up to the cursor."""
-        row, col = self.cursor_location
-        line = self.document.get_line(row)
-        return line[:col].strip() == ""
-
     def _get_path_token_context(self) -> tuple[int, int, int, str] | None:
         """Return (row, start, end, token) for the current path token."""
         token_info = self._extract_token_around_cursor()
@@ -200,11 +194,9 @@ class FileCompletionMixin(_MixinBase):
             return
 
         # file_history mode has no active token — any edit that creates one
-        # (or moves the cursor so the prefix is no longer empty) dismisses.
+        # at the cursor dismisses. Cursor movement within whitespace is fine.
         if self._completion_kind == "file_history":
-            if self._extract_token_around_cursor() is not None or not (
-                self._cursor_at_empty_prefix()
-            ):
+            if self._extract_token_around_cursor() is not None:
                 self._clear_file_completion()
             return
 
@@ -248,10 +240,7 @@ class FileCompletionMixin(_MixinBase):
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
         token_info = self._extract_token_around_cursor()
         if token_info is None:
-            if self._cursor_at_empty_prefix():
-                return self._try_file_history_completion()
-            self._clear_file_completion()
-            return False
+            return self._try_file_history_completion()
 
         _start, _end, raw_token = token_info
 

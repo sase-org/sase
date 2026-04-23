@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 15:00:55
-status: wip
+status: done
 ---
 
 # Plan: Loosen Ctrl+T File-History Trigger to Any Whitespace Cursor Context
