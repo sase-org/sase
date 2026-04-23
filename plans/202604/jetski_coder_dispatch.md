@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 11:44:38
-status: wip
+status: done
 ---
 
 # Fix: Jetski coder invocation incorrectly dispatches to the Gemini provider

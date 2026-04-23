@@ -171,6 +171,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("sonnet") == ("claude", "sonnet")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
     assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
+    assert resolve_model_provider("jetski-default") == ("jetski", "jetski-default")
 
 
 def test_resolve_model_provider_unknown_model() -> None:

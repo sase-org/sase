@@ -32,6 +32,8 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
     "gemini-3.1-pro-preview": "gemini",
     "gemini-3-flash-preview": "gemini",
     "gemini-2.0-flash": "gemini",
+    # Jetski models
+    "jetski-default": "jetski",
 }
 
 # Pattern for explicit provider/model syntax, e.g. "codex/o3"
