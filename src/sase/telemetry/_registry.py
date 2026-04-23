@@ -70,8 +70,14 @@ def _create_real_metrics() -> None:
 
     for attr, kind, name, doc, labelnames, extra in METRIC_DEFS:
         cls = factory[kind]
-        metric = cls(name, doc, labelnames=labelnames, registry=reg, **extra)
-        setattr(m, attr, metric)
+        real = cls(name, doc, labelnames=labelnames, registry=reg, **extra)
+        # Point the pre-existing stub at the real metric so modules that
+        # imported the stub via ``from sase.telemetry.metrics import X``
+        # before init_telemetry() still forward calls to the real object.
+        stub = getattr(m, attr, None)
+        if stub is not None:
+            stub._real = real
+        setattr(m, attr, real)
 
     log.info("Telemetry enabled — %d real metrics created", len(METRIC_DEFS))
 

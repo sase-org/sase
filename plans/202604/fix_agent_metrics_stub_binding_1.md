@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 17:27:27
-status: wip
+status: done
 ---
 # Fix: Agent Lifecycle Metrics Never Reach Pushgateway
 

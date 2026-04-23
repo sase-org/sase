@@ -118,7 +118,7 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "AGENT_KILLS",
         "counter",
         "sase_agent_kills_total",
-        "Total agent kills",
+        "Total agent kills (reason=user for SIGTERM from TUI; reason=error for unhandled exceptions)",
         ["reason"],
         {},
     ),

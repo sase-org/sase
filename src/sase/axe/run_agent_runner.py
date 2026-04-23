@@ -38,8 +38,10 @@ from sase.artifacts import (
 from sase.telemetry import init_telemetry, push_metrics, register_push_on_exit
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
+    AGENT_KILLS,
     AGENT_RUN_DURATION,
     AGENT_RUNS,
+    AGENT_SPAWNS,
     WORKSPACE_ACTIVE,
 )
 
@@ -243,7 +245,12 @@ def main() -> None:
             agent_hidden = info.hidden
             agent_meta = info.meta
 
-            # Track active agent gauge
+            # Track spawn counter + active agent gauge. These live here (not
+            # in launcher.py) because init_telemetry() has already run in this
+            # process and agent_llm_provider is now known from directives.
+            AGENT_SPAWNS.labels(
+                llm_provider=agent_llm_provider or "", project=project_name
+            ).inc()
             AGENT_ACTIVE.labels(
                 llm_provider=agent_llm_provider or "", project=project_name
             ).inc()
@@ -347,6 +354,7 @@ def main() -> None:
             success = False
             error_summary = f"{type(e).__qualname__}: {e}"
             error_traceback_str = traceback.format_exc()
+            AGENT_KILLS.labels(reason="error").inc()
             # Write error done marker so TUI can display the error
             try:
                 error_done = build_done_marker(
