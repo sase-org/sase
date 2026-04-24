@@ -287,6 +287,7 @@ def test_build_raises_when_no_pdf_engine(tmp_path: Path) -> None:
             build_xprompts_catalog(output_dir=tmp_path)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     shutil.which("wkhtmltopdf") is None and shutil.which("pandoc") is None,
     reason="No PDF engine available",

@@ -95,6 +95,11 @@ test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     {{ venv_bin }}/pytest -n auto --dist=loadfile {{ args }}
 
+# Run slow tests (excluded from the default `just test` run)
+test-slow *args: _setup (_header "test-slow")
+    @printf "\n---------- Running slow pytest subset... ----------\n"
+    {{ venv_bin }}/pytest -n auto --dist=loadfile -m slow {{ args }}
+
 # Parallel test run with coverage reports + 50% gate (used by CI)
 test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"

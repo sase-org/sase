@@ -132,8 +132,13 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--durations=20",
+    "-m",
+    "not slow",
 ]
 asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 # --- Coverage ---
 [tool.coverage.run]
