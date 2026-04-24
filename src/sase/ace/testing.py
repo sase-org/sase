@@ -150,20 +150,6 @@ class AcePage:
         )
         self._pilot_cm = self._app.run_test(size=self._size)
         self._pilot = await self._pilot_cm.__aenter__()
-        # ``AceApp.on_mount`` defers the heavy startup I/O to
-        # ``_finish_startup`` via ``call_after_refresh`` so the
-        # ``KeybindingFooter`` startup stopwatch can tick outside
-        # Textual's mount batch. Wait for it to complete here so tests
-        # see a fully-loaded app. The extra pause drains trailing
-        # ``call_after_refresh`` callbacks scheduled by ``_finish_startup``
-        # (e.g. ``_run_agents_async_refresh``, ``_run_axe_startup_init``)
-        # before tests start pressing keys.
-        deadline = asyncio.get_event_loop().time() + 5.0
-        while self._app._mounting:
-            if asyncio.get_event_loop().time() >= deadline:
-                break
-            await self._pilot.pause()
-        await self._pilot.pause()
         return self
 
     async def __aexit__(

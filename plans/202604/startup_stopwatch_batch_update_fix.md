@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 15:19:44
-status: done
+status: wip
 ---
 # Plan: Actually Make the `sase ace` Startup Stopwatch Tick — batch_update Fix
 
