@@ -61,6 +61,12 @@ sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
 sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 sase_xcmd = "sase.scripts:sase_xcmd"
 
+[project.entry-points."sase_llm"]
+claude = "sase.llm_provider.claude:ClaudeCodeProvider"
+codex = "sase.llm_provider.codex:CodexProvider"
+gemini = "sase.llm_provider.gemini:GeminiProvider"
+jetski = "sase.llm_provider.jetski:JetskiProvider"
+
 [project.entry-points."sase_vcs"]
 bare_git = "sase.vcs_provider.plugins.bare_git:BareGitPlugin"
 

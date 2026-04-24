@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.output import gemini_timer
 
+from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
@@ -46,6 +47,29 @@ class ClaudeCodeProvider(LLMProvider):
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Claude model alias for the given tier."""
         return _TIER_TO_MODEL[model_tier]
+
+    @hookimpl
+    def llm_provider_name(self) -> str:
+        return "claude"
+
+    @hookimpl
+    def llm_resolve_model_name(self, model_tier: ModelTier) -> str:
+        return self.resolve_model_name(model_tier)
+
+    @hookimpl
+    def llm_invoke(
+        self,
+        prompt: str,
+        model_tier: ModelTier,
+        suppress_output: bool,
+        model_override: str | None,
+    ) -> InvokeResult:
+        return self.invoke(
+            prompt,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+        )
 
     def invoke(
         self,

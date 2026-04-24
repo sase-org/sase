@@ -1,12 +1,21 @@
-"""Provider registry for LLM backends."""
+"""Provider registry for LLM backends.
 
+Providers are discovered via ``importlib.metadata.entry_points(group="sase_llm")``
+(mirroring the VCS plugin layer in :mod:`sase.vcs_provider._registry`). Each
+entry point resolves to a plugin class that implements the ``sase_llm`` hook
+specifications (see :mod:`sase.llm_provider._hookspec`).
+"""
+
+import importlib.metadata
 import re
 import shutil
 
+import pluggy
+
+from ._hookspec import LLMHookSpec
+from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
 from .config import get_llm_provider_config
-
-_REGISTRY: dict[str, type[LLMProvider]] = {}
 
 # Model name to provider name mapping for automatic provider resolution.
 # When %model specifies a known model name, the correct provider is auto-selected.
@@ -40,14 +49,43 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
 _PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini|jetski)/(.+)$")
 
 
-def register_provider(name: str, provider_class: type[LLMProvider]) -> None:
-    """Register an LLM provider class under a given name.
+def _find_plugin_class(name: str) -> type | None:
+    """Look up an LLM plugin class by name from ``sase_llm`` entry points.
 
     Args:
-        name: The provider name (e.g., "gemini", "claude").
-        provider_class: The provider class to register.
+        name: The entry-point name to find (e.g. ``"claude"``).
+
+    Returns:
+        The plugin class, or ``None`` if no matching entry point exists.
     """
-    _REGISTRY[name] = provider_class
+    for ep in importlib.metadata.entry_points(group="sase_llm"):
+        if ep.name == name:
+            return ep.load()  # type: ignore[no-any-return]
+    return None
+
+
+def _create_provider_for(name: str) -> LLMPluginManager:
+    """Create an :class:`LLMPluginManager` for *name* via entry points.
+
+    Args:
+        name: Provider name (e.g. ``"claude"``, ``"codex"``).
+
+    Raises:
+        KeyError: If no entry point matches *name*.
+    """
+    plugin_class = _find_plugin_class(name)
+    if plugin_class is None:
+        available = sorted(
+            ep.name for ep in importlib.metadata.entry_points(group="sase_llm")
+        )
+        raise KeyError(
+            f"Unknown LLM provider: {name!r}. Registered providers: {available}"
+        )
+
+    pm = pluggy.PluginManager("sase_llm")
+    pm.add_hookspecs(LLMHookSpec)
+    pm.register(plugin_class())
+    return LLMPluginManager(pm)
 
 
 def get_provider(name: str | None = None) -> LLMProvider:
@@ -57,21 +95,14 @@ def get_provider(name: str | None = None) -> LLMProvider:
         name: Provider name. If None, uses the default from config.
 
     Returns:
-        An instance of the requested LLM provider.
+        An :class:`LLMPluginManager` wrapping the requested plugin.
 
     Raises:
-        KeyError: If the provider name is not registered.
+        KeyError: If the provider name is not registered as an entry point.
     """
     if name is None:
         name = get_default_provider_name()
-
-    if name not in _REGISTRY:
-        raise KeyError(
-            f"Unknown LLM provider: {name!r}. "
-            f"Registered providers: {list(_REGISTRY.keys())}"
-        )
-
-    return _REGISTRY[name]()
+    return _create_provider_for(name)
 
 
 def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
@@ -140,20 +171,3 @@ def get_default_provider_name() -> str:
     if shutil.which("jetski-cli"):
         return "jetski"
     return "gemini"
-
-
-def _register_builtin_providers() -> None:
-    """Register the built-in providers."""
-    from .claude import ClaudeCodeProvider
-    from .codex import CodexProvider
-    from .gemini import GeminiProvider
-    from .jetski import JetskiProvider
-
-    register_provider("claude", ClaudeCodeProvider)
-    register_provider("codex", CodexProvider)
-    register_provider("gemini", GeminiProvider)
-    register_provider("jetski", JetskiProvider)
-
-
-# Auto-register built-in providers on module import
-_register_builtin_providers()

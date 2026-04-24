@@ -3,12 +3,10 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sase.llm_provider._plugin_manager import LLMPluginManager
 from sase.llm_provider.base import LLMProvider
-from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.registry import (
-    _REGISTRY,
     get_provider,
-    register_provider,
     resolve_model_provider,
 )
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER, LoggingContext, ModelTier
@@ -100,29 +98,6 @@ def test_llm_provider_subclass() -> None:
 # --- registry.py tests ---
 
 
-def test_register_and_get_provider() -> None:
-    """Test registering and retrieving a provider."""
-
-    class TestProvider(LLMProvider):
-        def invoke(
-            self,
-            prompt: str,
-            *,
-            model_tier: ModelTier,
-            suppress_output: bool = False,
-            model_override: str | None = None,
-        ) -> str:
-            return "test"
-
-    register_provider("test_provider", TestProvider)
-    try:
-        provider = get_provider("test_provider")
-        assert isinstance(provider, TestProvider)
-    finally:
-        # Clean up
-        _REGISTRY.pop("test_provider", None)
-
-
 def test_get_provider_unknown_raises() -> None:
     """Test that requesting an unknown provider raises KeyError."""
     with pytest.raises(KeyError, match="Unknown LLM provider"):
@@ -133,7 +108,8 @@ def test_get_provider_unknown_raises() -> None:
 def test_get_default_provider_falls_back_to_gemini(mock_which: MagicMock) -> None:
     """Test that the default provider is 'gemini' when claude is not on PATH."""
     provider = get_provider()
-    assert isinstance(provider, GeminiProvider)
+    assert isinstance(provider, LLMPluginManager)
+    assert provider.provider_name() == "gemini"
 
 
 @patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
@@ -147,7 +123,8 @@ def test_config_provider_overrides_auto_detection(
 ) -> None:
     """Test that explicit config overrides auto-detection."""
     provider = get_provider()
-    assert isinstance(provider, GeminiProvider)
+    assert isinstance(provider, LLMPluginManager)
+    assert provider.provider_name() == "gemini"
     mock_which.assert_not_called()
 
 

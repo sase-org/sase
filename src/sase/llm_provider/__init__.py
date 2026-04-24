@@ -15,7 +15,7 @@ from .preprocessing import (
     preprocess_prompt_early,
     preprocess_prompt_late,
 )
-from .registry import get_provider, register_provider
+from .registry import get_provider
 from .retry_config import (
     ProviderRetryConfig,
     RetryState,
@@ -43,7 +43,6 @@ __all__ = [
     "preprocess_prompt",
     "preprocess_prompt_early",
     "preprocess_prompt_late",
-    "register_provider",
     "save_prompt_to_file",
     "stream_process_output",
 ]
