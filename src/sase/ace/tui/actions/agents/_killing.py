@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import signal
+import os  # noqa: F401  # kept so tests can patch `_killing.os.killpg`
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -18,32 +16,30 @@ if TYPE_CHECKING:
 # in attribute declarations (not just in function signatures)
 from ....changespec import ChangeSpec
 
-# Re-export for backwards compatibility (_loading.py imports this)
+# Re-export for backwards compatibility (_loading.py imports this, tests patch it)
 from ._killing_utils import delete_agent_artifacts as delete_agent_artifacts
 from ._killing_utils import (
     dismiss_notifications_for_agent,
-    dismiss_notifications_for_agents,
-    find_workflow_workspace_from_running_field,
 )
 
-from ._dismissing import AgentDismissingMixin, persist_dismiss_side_effects
+from ._dismissing import AgentDismissingMixin
+from ._kill_persistence import (
+    AgentIdentity,
+    BulkKillItem,
+    KillKind,
+    persist_bulk_kill_side_effects,
+    persist_kill_side_effects,
+)
+from ._kill_type_handlers import AgentKillTypeHandlersMixin
 
 log = logging.getLogger(__name__)
-KillKind = Literal["running", "hook", "mentor", "crs", "workflow"]
-AgentIdentity = tuple["AgentType", str, str | None]
 
 
-@dataclass(frozen=True)
-class _BulkKillItem:
-    agent: Agent
-    kind: KillKind
-    identities: set[AgentIdentity]
-
-
-class AgentKillingMixin(AgentDismissingMixin):
+class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
     """Mixin providing agent killing methods.
 
-    Inherits dismissal methods from AgentDismissingMixin.
+    Inherits per-type kill methods from AgentKillTypeHandlersMixin and
+    dismissal methods from AgentDismissingMixin.
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
@@ -193,7 +189,7 @@ class AgentKillingMixin(AgentDismissingMixin):
         agents_with_children_snapshot = list(self._agents_with_children)
         live_ids = {a.identity for a in agents_with_children_snapshot}
         seen_ids: set[AgentIdentity] = set()
-        kill_items: list[_BulkKillItem] = []
+        kill_items: list[BulkKillItem] = []
         failed_ids: set[AgentIdentity] = set()
 
         for agent in killable:
@@ -212,7 +208,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             identities = self._collect_immediate_kill_identities(agent)
             seen_ids.update(identities)
             kill_items.append(
-                _BulkKillItem(agent=agent, kind=kind, identities=identities)
+                BulkKillItem(agent=agent, kind=kind, identities=identities)
             )
 
         dismiss_candidates = [
@@ -268,7 +264,7 @@ class AgentKillingMixin(AgentDismissingMixin):
 
     async def _run_bulk_kill_persistence_async(
         self,
-        kill_items: list[_BulkKillItem],
+        kill_items: list[BulkKillItem],
         dismissable: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
@@ -363,224 +359,6 @@ class AgentKillingMixin(AgentDismissingMixin):
             )
             self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
-    def _kill_process_group(self, pid: int) -> bool:
-        """Kill a process group by PID.
-
-        Args:
-            pid: Process ID to kill.
-
-        Returns:
-            True if kill succeeded or process was already dead, False on error.
-        """
-        try:
-            os.killpg(pid, signal.SIGTERM)
-            return True
-        except ProcessLookupError:
-            # Process already dead - still consider success
-            return True
-        except PermissionError:
-            self.notify(  # type: ignore[attr-defined]
-                f"Permission denied killing PID {pid}", severity="error"
-            )
-            return False
-
-    def _kill_running_agent(self, agent: Agent) -> None:
-        """Kill a RUNNING type agent (workspace-based)."""
-        from sase.running_field import release_workspace
-
-        if agent.pid is None:
-            return
-
-        if not self._kill_process_group(agent.pid):
-            return
-
-        self.notify(f"Killed agent (PID {agent.pid})")  # type: ignore[attr-defined]
-
-        # Release the workspace claim
-        if agent.workspace_num is not None:
-            release_workspace(
-                agent.project_file,
-                agent.workspace_num,
-                agent.workflow,
-                agent.cl_name,
-            )
-
-    def _kill_hook_agent(self, agent: Agent) -> None:
-        """Kill a hook agent (fix-hook or summarize-hook)."""
-        from ....changespec import parse_project_file
-        from ....hooks import update_changespec_hooks_field
-        from ....hooks.processes import mark_hook_agents_as_killed
-
-        if agent.pid is None:
-            return
-
-        if not self._kill_process_group(agent.pid):
-            return
-
-        self.notify(f"Killed hook agent (PID {agent.pid})")  # type: ignore[attr-defined]
-
-        # Update hook status to killed_agent
-        changespecs = parse_project_file(agent.project_file)
-        for cs in changespecs:
-            if cs.name == agent.cl_name and cs.hooks:
-                killed_hook_agents = []
-                for hook in cs.hooks:
-                    if hook.status_lines:
-                        for sl in hook.status_lines:
-                            if (
-                                sl.suffix_type == "running_agent"
-                                and sl.suffix == agent.raw_suffix
-                            ):
-                                killed_hook_agents.append((hook, sl, agent.pid))
-
-                if killed_hook_agents:
-                    updated_hooks = mark_hook_agents_as_killed(
-                        cs.hooks, killed_hook_agents
-                    )
-                    update_changespec_hooks_field(
-                        agent.project_file, agent.cl_name, updated_hooks
-                    )
-                break
-
-    def _kill_mentor_agent(self, agent: Agent) -> None:
-        """Kill a mentor agent."""
-        from ....changespec import parse_project_file
-        from ....hooks.processes import mark_mentor_agents_as_killed
-        from ....mentors import update_changespec_mentors_field
-
-        if agent.pid is None:
-            return
-
-        if not self._kill_process_group(agent.pid):
-            return
-
-        self.notify(f"Killed mentor agent (PID {agent.pid})")  # type: ignore[attr-defined]
-
-        # Update mentor status to killed_agent
-        changespecs = parse_project_file(agent.project_file)
-        for cs in changespecs:
-            if cs.name == agent.cl_name and cs.mentors:
-                killed_mentor_agents = []
-                for entry in cs.mentors:
-                    if entry.status_lines:
-                        for sl in entry.status_lines:
-                            if (
-                                sl.suffix_type == "running_agent"
-                                and sl.suffix == agent.raw_suffix
-                            ):
-                                killed_mentor_agents.append((entry, sl, agent.pid))
-
-                if killed_mentor_agents:
-                    updated_mentors = mark_mentor_agents_as_killed(
-                        cs.mentors, killed_mentor_agents
-                    )
-                    update_changespec_mentors_field(
-                        agent.project_file, agent.cl_name, updated_mentors
-                    )
-                break
-
-    def _kill_crs_agent(self, agent: Agent) -> None:
-        """Kill a CRS (comments) agent."""
-        from ....changespec import parse_project_file
-        from ....comments import update_changespec_comments_field
-        from ....comments.operations import mark_comment_agents_as_killed
-
-        if agent.pid is None:
-            return
-
-        if not self._kill_process_group(agent.pid):
-            return
-
-        self.notify(f"Killed CRS agent (PID {agent.pid})")  # type: ignore[attr-defined]
-
-        # Update comment status to killed_agent
-        changespecs = parse_project_file(agent.project_file)
-        for cs in changespecs:
-            if cs.name == agent.cl_name and cs.comments:
-                killed_comment_agents = []
-                for comment in cs.comments:
-                    if (
-                        comment.suffix_type == "running_agent"
-                        and comment.suffix == agent.raw_suffix
-                    ):
-                        killed_comment_agents.append((comment, agent.pid))
-
-                if killed_comment_agents:
-                    updated_comments = mark_comment_agents_as_killed(
-                        cs.comments, killed_comment_agents
-                    )
-                    update_changespec_comments_field(
-                        agent.project_file, agent.cl_name, updated_comments
-                    )
-                break
-
-    def _kill_workflow_agent(self, agent: Agent) -> None:
-        """Kill a workflow agent.
-
-        Args:
-            agent: The workflow agent to kill.
-        """
-        from sase.running_field import release_workspace
-
-        # Kill the workflow process if it has a PID
-        if agent.pid is not None:
-            if not self._kill_process_group(agent.pid):
-                return
-            self.notify(f"Killed workflow (PID {agent.pid})")  # type: ignore[attr-defined]
-
-        # Determine workflow name (steps use parent_workflow)
-        workflow_name = agent.workflow
-        if agent.is_workflow_child and agent.parent_workflow:
-            workflow_name = agent.parent_workflow
-
-        # Release the workspace claim (workflow claims use "workflow(name)" format)
-        if workflow_name is not None:
-            # Try agent's workspace_num first, then look it up from RUNNING field
-            workspace_num = agent.workspace_num
-            if workspace_num is None:
-                # For steps, don't use the decorated cl_name for lookup
-                # Also treat "unknown" as None since it's a placeholder
-                lookup_cl_name = None
-                if not agent.is_workflow_child and agent.cl_name != "unknown":
-                    lookup_cl_name = agent.cl_name
-                workspace_num = find_workflow_workspace_from_running_field(
-                    agent.project_file,
-                    workflow_name,
-                    lookup_cl_name,
-                )
-
-            if workspace_num is not None:
-                release_workspace(
-                    agent.project_file,
-                    workspace_num,
-                    f"workflow({workflow_name})",
-                )
-
-        # Save bundle before deleting artifacts (for revive support)
-        self._save_agent_bundle(agent)
-
-        # Delete artifact files so the agent won't be reloaded on restart
-        delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
-
-        # Track dismissal as safety net (ensures agent is filtered even if
-        # workspace release failed or RUNNING field persists)
-        self._persist_dismissed_agent(agent.identity)
-
-        # Also dismiss child steps (use unfiltered list so children are
-        # found even when the workflow fold is collapsed).
-        if not agent.is_workflow_child:
-            for step in self._agents_with_children:
-                if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                ):
-                    self._dismissed_agents.add(step.identity)
-            # Persist after batching all child dismissals
-            from ....dismissed_agents import save_dismissed_agents
-
-            save_dismissed_agents(self._dismissed_agents)
-
     def _kill_and_dismiss_all_agents(self) -> None:
         """Kill all running agents and dismiss all done agents (double-confirm)."""
         from ._core import DISMISSABLE_STATUSES
@@ -633,192 +411,6 @@ class AgentKillingMixin(AgentDismissingMixin):
                     self._do_kill_agent(agent)
                 # Then dismiss completed agents
                 if dismissable:
-                    self._do_dismiss_all(dismissable)
+                    self._do_dismiss_all(dismissable)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
-
-
-def persist_kill_side_effects(
-    agent: Agent,
-    kind: KillKind,
-    agents_with_children_snapshot: list[Agent],
-) -> None:
-    """Apply filesystem/project-file side effects for a kill operation."""
-    if kind == "running":
-        _persist_running_kill(agent)
-    elif kind == "hook":
-        _persist_hook_kill(agent)
-    elif kind == "mentor":
-        _persist_mentor_kill(agent)
-    elif kind == "crs":
-        _persist_crs_kill(agent)
-    elif kind == "workflow":
-        _persist_workflow_kill(agent, agents_with_children_snapshot)
-
-
-def persist_bulk_kill_side_effects(
-    kill_items: list[_BulkKillItem],
-    dismissable: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
-    agents_with_children_snapshot: list[Agent],
-) -> None:
-    """Apply filesystem/project-file side effects for a bulk kill operation."""
-    from ....dismissed_agents import save_dismissed_agents
-
-    for item in kill_items:
-        persist_kill_side_effects(
-            item.agent,
-            item.kind,
-            agents_with_children_snapshot,
-        )
-    for agent in dismissable:
-        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
-
-    if kill_items or dismissable:
-        dismiss_notifications_for_agents(
-            [item.agent for item in kill_items] + list(dismissable)
-        )
-    save_dismissed_agents(dismissed_snapshot)
-
-
-def _persist_running_kill(agent: Agent) -> None:
-    from sase.running_field import release_workspace
-
-    if agent.workspace_num is not None:
-        release_workspace(
-            agent.project_file,
-            agent.workspace_num,
-            agent.workflow,
-            agent.cl_name,
-        )
-
-
-def _persist_hook_kill(agent: Agent) -> None:
-    if agent.pid is None:
-        return
-    from ....changespec import parse_project_file
-    from ....hooks import update_changespec_hooks_field
-    from ....hooks.processes import mark_hook_agents_as_killed
-
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
-        if cs.name == agent.cl_name and cs.hooks:
-            killed_hook_agents = []
-            for hook in cs.hooks:
-                if hook.status_lines:
-                    for sl in hook.status_lines:
-                        if (
-                            sl.suffix_type == "running_agent"
-                            and sl.suffix == agent.raw_suffix
-                        ):
-                            killed_hook_agents.append((hook, sl, agent.pid))
-
-            if killed_hook_agents:
-                updated_hooks = mark_hook_agents_as_killed(cs.hooks, killed_hook_agents)
-                update_changespec_hooks_field(
-                    agent.project_file, agent.cl_name, updated_hooks
-                )
-            break
-
-
-def _persist_mentor_kill(agent: Agent) -> None:
-    if agent.pid is None:
-        return
-    from ....changespec import parse_project_file
-    from ....hooks.processes import mark_mentor_agents_as_killed
-    from ....mentors import update_changespec_mentors_field
-
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
-        if cs.name == agent.cl_name and cs.mentors:
-            killed_mentor_agents = []
-            for entry in cs.mentors:
-                if entry.status_lines:
-                    for sl in entry.status_lines:
-                        if (
-                            sl.suffix_type == "running_agent"
-                            and sl.suffix == agent.raw_suffix
-                        ):
-                            killed_mentor_agents.append((entry, sl, agent.pid))
-
-            if killed_mentor_agents:
-                updated_mentors = mark_mentor_agents_as_killed(
-                    cs.mentors, killed_mentor_agents
-                )
-                update_changespec_mentors_field(
-                    agent.project_file, agent.cl_name, updated_mentors
-                )
-            break
-
-
-def _persist_crs_kill(agent: Agent) -> None:
-    if agent.pid is None:
-        return
-    from ....changespec import parse_project_file
-    from ....comments import update_changespec_comments_field
-    from ....comments.operations import mark_comment_agents_as_killed
-
-    changespecs = parse_project_file(agent.project_file)
-    for cs in changespecs:
-        if cs.name == agent.cl_name and cs.comments:
-            killed_comment_agents = []
-            for comment in cs.comments:
-                if (
-                    comment.suffix_type == "running_agent"
-                    and comment.suffix == agent.raw_suffix
-                ):
-                    killed_comment_agents.append((comment, agent.pid))
-
-            if killed_comment_agents:
-                updated_comments = mark_comment_agents_as_killed(
-                    cs.comments, killed_comment_agents
-                )
-                update_changespec_comments_field(
-                    agent.project_file, agent.cl_name, updated_comments
-                )
-            break
-
-
-def _persist_workflow_kill(
-    agent: Agent, agents_with_children_snapshot: list[Agent]
-) -> None:
-    from ....dismissed_agents import save_dismissed_bundle
-    from sase.running_field import release_workspace
-
-    workflow_name = agent.workflow
-    if agent.is_workflow_child and agent.parent_workflow:
-        workflow_name = agent.parent_workflow
-
-    if workflow_name is not None:
-        workspace_num = agent.workspace_num
-        if workspace_num is None:
-            lookup_cl_name = None
-            if not agent.is_workflow_child and agent.cl_name != "unknown":
-                lookup_cl_name = agent.cl_name
-            workspace_num = find_workflow_workspace_from_running_field(
-                agent.project_file,
-                workflow_name,
-                lookup_cl_name,
-            )
-
-        if workspace_num is not None:
-            release_workspace(
-                agent.project_file,
-                workspace_num,
-                f"workflow({workflow_name})",
-            )
-
-    # Also remove child artifacts for workflow parents.
-    if not agent._from_changespec:
-        save_dismissed_bundle(agent)
-    delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
-    if not agent.is_workflow_child and agent.raw_suffix:
-        for step in agents_with_children_snapshot:
-            if (
-                step.is_workflow_child
-                and step.parent_timestamp == agent.raw_suffix
-                and step.parent_workflow == agent.workflow
-            ):
-                if not step._from_changespec:
-                    save_dismissed_bundle(step)
-                delete_agent_artifacts(step.artifacts_dir or step.get_artifacts_dir())

@@ -443,7 +443,7 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
         app._do_kill_agent(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._killing._persist_hook_kill"
+        "sase.ace.tui.actions.agents._kill_persistence._persist_hook_kill"
     ) as mock_persist_hook:
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
