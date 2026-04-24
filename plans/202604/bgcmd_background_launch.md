@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 13:22:30
-status: wip
+status: done
 ---
 # Plan: Move AXE bgcmd launch work off the TUI event loop
 

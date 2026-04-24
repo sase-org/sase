@@ -244,6 +244,26 @@ def get_active_slots() -> list[int]:
     return active
 
 
+def _is_slot_pending(slot: int) -> bool:
+    """Check if a slot has been reserved for a launch that's still in flight."""
+    return (_get_slot_dir(slot) / "pending").exists()
+
+
+def mark_slot_pending(slot: int) -> None:
+    """Reserve a slot synchronously before dispatching async launch work."""
+    _ensure_slot_dir(slot)
+    (_get_slot_dir(slot) / "pending").write_text("")
+
+
+def clear_slot_pending(slot: int) -> None:
+    """Clear the pending marker for a slot."""
+    pending_file = _get_slot_dir(slot) / "pending"
+    try:
+        pending_file.unlink()
+    except OSError:
+        pass
+
+
 def clear_slot(slot: int) -> None:
     """Clear all files for a slot (info.json, pid, output.log).
 
@@ -260,15 +280,19 @@ def clear_slot(slot: int) -> None:
 def find_first_available_slot() -> int | None:
     """Find the first available slot for a new background command.
 
-    A slot is available if it has no info.json (i.e., not active).
+    A slot is available if it has no info.json (i.e., not active) and no
+    pending marker (i.e., not reserved for an in-flight launch).
 
     Returns:
         First available slot number (1-9), or None if all slots are in use.
     """
     active_slots = set(get_active_slots())
     for slot in range(1, MAX_SLOTS + 1):
-        if slot not in active_slots:
-            return slot
+        if slot in active_slots:
+            continue
+        if _is_slot_pending(slot):
+            continue
+        return slot
     return None
 
 

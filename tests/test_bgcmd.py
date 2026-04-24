@@ -9,14 +9,17 @@ from sase.ace.tui.bgcmd import (
     MAX_SLOTS,
     BackgroundCommandInfo,
     _is_process_running,
+    _is_slot_pending,
     _read_pid,
     _remove_pid,
     _write_info,
     _write_pid,
     clear_slot_output,
+    clear_slot_pending,
     find_first_available_slot,
     get_slot_info,
     is_slot_running,
+    mark_slot_pending,
     read_slot_output_tail,
 )
 
@@ -192,3 +195,34 @@ def test_bgcmd_state_dir_path() -> None:
     assert BGCMD_STATE_DIR.name == "bgcmd"
     assert "axe" in str(BGCMD_STATE_DIR)
     assert ".sase" in str(BGCMD_STATE_DIR)
+
+
+def test_mark_and_clear_slot_pending_roundtrip() -> None:
+    """mark/is/clear pending behave as a simple disk flag."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
+            assert _is_slot_pending(3) is False
+            mark_slot_pending(3)
+            assert _is_slot_pending(3) is True
+            assert (Path(tmp_dir) / "3" / "pending").exists()
+            clear_slot_pending(3)
+            assert _is_slot_pending(3) is False
+
+
+def test_clear_slot_pending_missing_is_noop() -> None:
+    """clear_slot_pending is safe to call when no marker exists."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
+            clear_slot_pending(7)  # does not raise
+
+
+def test_find_first_available_slot_skips_pending() -> None:
+    """A pending marker makes a slot unavailable even with no info.json."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
+            mark_slot_pending(1)
+            assert find_first_available_slot() == 2
+            mark_slot_pending(2)
+            assert find_first_available_slot() == 3
+            clear_slot_pending(1)
+            assert find_first_available_slot() == 1
