@@ -453,17 +453,3 @@ def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
     target = _get_target_path("claude", "foo", use_chezmoi=True)
     assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
-
-
-def test_get_target_path_jetski_home(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Jetski skills land under ~/.gemini/jetski/, sharing the Gemini parent."""
-    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
-    target = _get_target_path("jetski", "foo", use_chezmoi=False)
-    assert target == Path("/home/u/.gemini/jetski/skills/foo/SKILL.md")
-
-
-def test_get_target_path_jetski_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Jetski under chezmoi: only the first segment is dot-prefixed."""
-    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
-    target = _get_target_path("jetski", "foo", use_chezmoi=True)
-    assert target == Path("/c/home/dot_gemini/jetski/skills/foo/SKILL.md")

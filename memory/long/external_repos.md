@@ -19,7 +19,8 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
 ## Plugin Repos
 
 - The ../sase-github and ../sase-google directories are git repositories that contain plugins for GitHub and Mercurial
-  VCS providers, respectively.
+  VCS providers, respectively. ../sase-google also hosts the Jetski LLM provider plugin
+  (`sase_google.llm_jetski.provider:JetskiProvider`).
 - The ../sase-telegram directory is a git repository that contains a plugin for Telegram integration (implemented using
   chops).
 - The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec

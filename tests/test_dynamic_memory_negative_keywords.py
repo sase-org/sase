@@ -46,7 +46,7 @@ def test_negative_keyword_does_not_exclude_when_positive_matches_outside_mask(
 ) -> None:
     """A negative hit only excludes when it masks away the sole positive hit."""
     monkeypatch.chdir(tmp_path)
-    workflows = _make_negative_keyword_workflows(["skill", "!jetski"])
+    workflows = _make_negative_keyword_workflows(["skill", "!banana"])
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch(
@@ -54,7 +54,7 @@ def test_negative_keyword_does_not_exclude_when_positive_matches_outside_mask(
             side_effect=lambda s: s,
         ),
     ):
-        result = generate_dynamic_memory("deploy a skill via jetski", None)
+        result = generate_dynamic_memory("deploy a skill via banana", None)
 
     assert len(result.matched) == 1
     assert result.matched[0].keywords_matched == ["skill"]
@@ -64,7 +64,7 @@ def test_negative_keyword_ignored_when_absent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    workflows = _make_negative_keyword_workflows(["skill", "!jetski"])
+    workflows = _make_negative_keyword_workflows(["skill", "!banana"])
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch(
@@ -82,7 +82,7 @@ def test_negative_only_keywords_never_match(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    workflows = _make_negative_keyword_workflows(["!jetski", "!deprecated"])
+    workflows = _make_negative_keyword_workflows(["!banana", "!deprecated"])
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch(
@@ -116,11 +116,11 @@ def test_negative_overrides_positive_in_same_list(
 def test_negative_keyword_case_insensitive_mask(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Negative matching is case-insensitive: uppercase JETSKI is still masked."""
+    """Negative matching is case-insensitive: uppercase BANANA is still masked."""
     monkeypatch.chdir(tmp_path)
-    # Positive `jetski` appears only inside the negative span, so after masking
+    # Positive `banana` appears only inside the negative span, so after masking
     # only `skill` remains as a positive hit.
-    workflows = _make_negative_keyword_workflows(["skill", "jetski", "!jetski"])
+    workflows = _make_negative_keyword_workflows(["skill", "banana", "!banana"])
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch(
@@ -128,7 +128,7 @@ def test_negative_keyword_case_insensitive_mask(
             side_effect=lambda s: s,
         ),
     ):
-        result = generate_dynamic_memory("JETSKI skill deploy", None)
+        result = generate_dynamic_memory("BANANA skill deploy", None)
 
     assert len(result.matched) == 1
     assert result.matched[0].keywords_matched == ["skill"]
@@ -162,11 +162,11 @@ def test_negative_keyword_frontmatter_roundtrip(tmp_path: Path) -> None:
 
     md = tmp_path / "test.md"
     md.write_text(
-        '---\ntags: memory\nkeywords: [skill, "!jetski"]\n---\n@memory/long/foo.md\n'
+        '---\ntags: memory\nkeywords: [skill, "!banana"]\n---\n@memory/long/foo.md\n'
     )
     xp = _load_xprompt_from_file(md)
     assert xp is not None
-    assert xp.keywords == ["skill", "!jetski"]
+    assert xp.keywords == ["skill", "!banana"]
 
 
 def test_negative_keyword_config_entry_roundtrip() -> None:
@@ -174,12 +174,12 @@ def test_negative_keyword_config_entry_roundtrip() -> None:
     entries = {
         "memory/foo": {
             "tags": "memory",
-            "keywords": ["skill", "!jetski"],
+            "keywords": ["skill", "!banana"],
             "content": "# body",
         }
     }
     result = parse_xprompt_entries(entries, "test")
-    assert result["memory/foo"].keywords == ["skill", "!jetski"]
+    assert result["memory/foo"].keywords == ["skill", "!banana"]
 
 
 def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
@@ -189,7 +189,7 @@ def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
     mem_dir = tmp_path / "memory" / "long"
     mem_dir.mkdir(parents=True)
     (mem_dir / "foo.md").write_text(
-        '---\nkeywords: [skill, "!jetski"]\n---\n# Foo content\n'
+        '---\nkeywords: [skill, "!banana"]\n---\n# Foo content\n'
     )
 
     with (
@@ -202,7 +202,7 @@ def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
         result = _load_memory_long_xprompts()
 
     assert "memory/long/foo" in result
-    assert result["memory/long/foo"].keywords == ["skill", "!jetski"]
+    assert result["memory/long/foo"].keywords == ["skill", "!banana"]
 
 
 # ── negative keyword masking ─────────────────────────────────────────────

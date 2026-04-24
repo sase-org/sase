@@ -9,9 +9,9 @@
 - By default, the coder agent does NOT inherit the planner's chat transcript (the plan file is the hand-off artifact).
   Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior and prepend `#resume:<planner_name>` to the coder
   prompt.
-- Jetski skills deploy to `~/.gemini/jetski/skills/` (not `~/.jetski/skills/`) by design — Jetski shares the
-  `~/.gemini/` parent with Gemini CLI. The `_SKILL_DEPLOY_SUBPATH` override in `init_skills_handler.py` encodes this;
-  don't "fix" it.
+- Jetski is **not** a built-in sase LLM provider — it ships as part of the `sase-google` plugin. Its
+  `llm_skill_deploy_subpath()` hook returns `.gemini/jetski` so skills land under `~/.gemini/jetski/skills/` (not
+  `~/.jetski/skills/`), sharing the `~/.gemini/` parent with Gemini CLI by design; don't "fix" it.
 - Memory xprompt `keywords` support a `!` prefix for **negative keywords**: each negative keyword masks its matched
   spans out of the prompt before positive-keyword matching runs, so a memory is excluded only when every positive hit
   fell inside a masked region (e.g. `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` via the

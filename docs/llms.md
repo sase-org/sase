@@ -1,8 +1,8 @@
 # LLM Provider Integration
 
-This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends
-(currently Claude Code, Codex, Gemini CLI, and Jetski CLI) behind a shared orchestration layer that handles
-preprocessing, invocation, and postprocessing.
+This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (Claude
+Code, Codex, and Gemini CLI are bundled; Jetski CLI ships as part of the sase-google plugin) behind a shared
+orchestration layer that handles preprocessing, invocation, and postprocessing.
 
 ## Table of Contents
 
@@ -11,7 +11,7 @@ preprocessing, invocation, and postprocessing.
 - [Claude Code Integration](#claude-code-integration)
 - [Gemini CLI Integration](#gemini-cli-integration)
 - [Codex CLI Integration](#codex-cli-integration)
-- [Jetski CLI Integration](#jetski-cli-integration)
+- [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Model Tier System](#model-tier-system)
 - [Environment Variables](#environment-variables)
@@ -49,7 +49,6 @@ Key design principles:
 | `src/sase/llm_provider/_invoke.py`        | `invoke_agent()` orchestrator       |
 | `src/sase/llm_provider/_subprocess.py`    | `stream_process_output()`           |
 | `src/sase/llm_provider/codex.py`          | Codex CLI provider implementation   |
-| `src/sase/llm_provider/jetski.py`         | Jetski CLI provider implementation  |
 | `src/sase/llm_provider/_plan_utils.py`    | Shared plan utilities               |
 | `src/sase/llm_provider/preprocessing.py`  | 6-step preprocessing pipeline       |
 | `src/sase/llm_provider/postprocessing.py` | Logging, chat history, audio        |
@@ -85,12 +84,17 @@ Returns the raw response text. Raises `subprocess.CalledProcessError` on failure
 Providers are registered by name in a global registry (`registry.py`). Built-in providers are auto-registered on module
 import:
 
-```python
-register_provider("claude", ClaudeCodeProvider)
-register_provider("codex", CodexProvider)
-register_provider("gemini", GeminiProvider)
-register_provider("jetski", JetskiProvider)
+Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`. Built-in entries live in
+`pyproject.toml`:
+
+```toml
+[project.entry-points."sase_llm"]
+claude = "sase.llm_provider.claude:ClaudeCodeProvider"
+codex  = "sase.llm_provider.codex:CodexProvider"
+gemini = "sase.llm_provider.gemini:GeminiProvider"
 ```
+
+External plugin packages (e.g. `sase-google`) declare additional entries under the same group.
 
 To get a provider instance:
 
@@ -103,9 +107,10 @@ provider = get_provider("claude")  # Explicit provider name
 
 1. If `provider_name` is passed to `invoke_agent()`, use that.
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
-3. If no config exists (or provider is empty), auto-detect in this order: `claude` → `codex` → `jetski` → `gemini`. The
-   first binary available on PATH (or resolvable via its provider-specific env var) wins. Jetski is preferred over
-   Gemini so hosts with Jetski installed route new agents there without displacing Claude or Codex.
+3. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
+   `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
+   priorities: `claude=0`, `codex=10`, `gemini=30`. External plugins (e.g. sase-google's Jetski at priority 20) slot in
+   by declaring their own priority.
 
 ## Claude Code Integration
 
@@ -220,48 +225,25 @@ While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is s
 `True`). In plan mode, the timer reads "Waiting for Codex (planning)" during Phase 1 and "Implementing plan" during
 Phase 2.
 
-## Jetski CLI Integration
+## External Provider Plugins
 
-The `JetskiProvider` invokes Google's Jetski CLI (the successor to Gemini CLI). It shares the Gemini-style
-prompt-rebuild-on-interrupt semantics and streams stdout in real-time, just like the other providers.
+Additional LLM providers are shipped as external packages that declare `[project.entry-points."sase_llm"]` in their own
+`pyproject.toml`. Plugins carry all their own metadata (model names, skill deploy path, CLI status color, auto-detect
+priority, retry defaults) via pluggy `@hookimpl` methods — sase core has no plugin-specific branching.
 
-### Command Construction
+### Jetski (`sase-google`)
 
-```
-<jetski-bin> -p [extra_args...]
-```
+The `JetskiProvider` in the [`sase-google`](../../sase-google) plugin package invokes Google's Jetski CLI (the successor
+to Gemini CLI). Install the plugin in the same environment as sase to enable it:
 
-The prompt is written to stdin, and output is streamed from stdout in real-time.
+- Auto-detect priority: `20` (between codex and gemini), CLI name `jetski-cli`.
+- Default model: `jetski-default`.
+- Skills for the `jetski` runtime deploy to `~/.gemini/jetski/skills/` — Jetski shares its config parent with Gemini
+  CLI.
+- Binary resolution: `SASE_JETSKI_PATH` env var, then the hardcoded Google-internal install path, then `jetski-cli` on
+  `PATH`.
 
-### Binary Resolution
-
-The Jetski binary is resolved in this order:
-
-1. `SASE_JETSKI_PATH` env var (if set).
-2. The hardcoded Google-internal install path.
-3. `jetski-cli` on `PATH`.
-
-### Default Model
-
-The Jetski provider's default model is `jetski-default`, which also auto-resolves back to the `jetski` provider in the
-`%model` directive (so planner → coder handoffs that forward only the model name still land on Jetski).
-
-### Skill Deploy Path
-
-Jetski shares the `~/.gemini/` parent directory with Gemini CLI. Skills generated by `sase init-skills` for the `jetski`
-runtime deploy to `~/.gemini/jetski/skills/` rather than `~/.jetski/skills/`. This is intentional — see
-`src/sase/main/init_skills_handler.py` for the `_SKILL_DEPLOY_SUBPATH` override.
-
-### Environment Variables
-
-| Variable           | Description                                |
-| ------------------ | ------------------------------------------ |
-| `SASE_JETSKI_PATH` | Path to the Jetski CLI binary (overrides). |
-
-### Timer Display
-
-While waiting for a response, a `gemini_timer("Waiting for Jetski")` spinner is shown (unless `suppress_output` is
-`True`).
+See `../../sase-google/src/sase_google/llm_jetski/provider.py` for the full implementation.
 
 ## Configuration
 
@@ -279,11 +261,11 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects in order: claude → codex → jetski → gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                      |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                      |
+| Field                               | Type   | Default     | Description                                                                                                               |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                     |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                     |
 
 ## Per-Prompt Provider Switching
 
@@ -309,7 +291,9 @@ Known model names are automatically mapped to their provider:
 | `opus`, `sonnet`, `haiku`                                                                                            | claude   |
 | `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini` | codex    |
 | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`         | gemini   |
-| `jetski-default`                                                                                                     | jetski   |
+
+Each installed plugin contributes its own model names via the `llm_known_model_names()` hook (e.g. `jetski-default` from
+`sase-google`).
 
 For unrecognized model names, the default provider is used.
 
@@ -383,11 +367,8 @@ Complete reference of environment variables used by the LLM provider layer.
 | ------------------ | ---------------------------------------------------- |
 | `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
 
-### Jetski-Specific
-
-| Variable           | Description                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| `SASE_JETSKI_PATH` | Path to the Jetski CLI binary (falls back to the hardcoded Google path, then `jetski-cli`). |
+External provider plugins (e.g. `sase-google` for Jetski) document their own environment variables in their respective
+repos.
 
 ### VCS Provider
 
@@ -446,7 +427,8 @@ llm_provider:
 
 ### Default Configuration
 
-Gemini, Claude, and Jetski have retry defaults (defined in `default_config.yml`):
+Gemini and Claude have retry defaults (defined in `default_config.yml`); external provider plugins may declare their own
+via the `llm_default_retry_config()` hook.
 
 **Gemini:**
 
@@ -461,13 +443,6 @@ Gemini, Claude, and Jetski have retry defaults (defined in `default_config.yml`)
 - **error_patterns**: `["API Error: 500", "API Error: 529", "Internal server error", "overloaded_error"]`
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
 - **fallback_model**: `"sonnet"`
-
-**Jetski:**
-
-- **max_retries**: 3
-- **error_patterns**: `["An unexpected critical error occurred:"]`
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
-- **fallback_model**: `""` (unset — canonical Jetski model names not yet confirmed)
 
 ### Built-In "Prompt is too long" Recovery (Claude)
 
