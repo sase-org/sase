@@ -80,3 +80,11 @@ def test_modal_constructor_defaults_provider_and_model_to_none() -> None:
     modal = PlanApprovalModal("/tmp/plan.md")
     assert modal._llm_provider is None
     assert modal._model is None
+
+
+def test_bindings_include_g_scroll_to_top() -> None:
+    assert ("g", "scroll_to_top", "Top") in PlanApprovalModal.BINDINGS
+
+
+def test_bindings_include_capital_g_scroll_to_bottom() -> None:
+    assert ("G", "scroll_to_bottom", "Bottom") in PlanApprovalModal.BINDINGS

@@ -96,6 +96,8 @@ class PlanApprovalModal(
         ("Y", "copy_plan_path", "Copy path"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
+        ("g", "scroll_to_top", "Top"),
+        ("G", "scroll_to_bottom", "Bottom"),
     ]
 
     def __init__(
@@ -141,7 +143,7 @@ class PlanApprovalModal(
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
-            "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
+            "[dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
 
         with Container(id="plan-approval-container"):
@@ -194,6 +196,16 @@ class PlanApprovalModal(
         scroll = self.query_one("#plan-approval-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_scroll_to_top(self) -> None:
+        """Scroll the content to the very top."""
+        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)
+        scroll.scroll_home(animate=False)
+
+    def action_scroll_to_bottom(self) -> None:
+        """Scroll the content to the very bottom."""
+        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)
+        scroll.scroll_end(animate=False)
 
     def action_cancel(self) -> None:
         """Cancel the modal (no response written)."""

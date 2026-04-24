@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 18:06:26
-status: wip
+status: done
 ---
 # Plan: `g` / `G` Scroll-to-Top / Scroll-to-Bottom in the Plan Review Panel
 
