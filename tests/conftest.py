@@ -15,27 +15,67 @@ from sase.ace.changespec import (
 
 
 def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
-    """Redirect all ``~/.sase/...`` Path expansions to ``home``.
+    """Redirect all ``~/.sase/...`` expansions to ``home``.
 
-    Intended for tests that touch sharded ``~/.sase/`` directories and
-    need writes/reads to land inside a tmp_path without each call site
-    threading module-level constants.
+    Intended for tests that touch ``~/.sase/`` state and need
+    writes/reads to land inside a tmp_path without each call site
+    threading module-level constants.  Patches both :meth:`Path.expanduser`
+    and :func:`os.path.expanduser` because different call sites in the
+    codebase use different APIs (``Path.expanduser`` only expands the
+    leading ``~`` segment, so patching it at the Path level is required
+    to redirect multi-segment ``~/.sase/...`` paths).
 
     Returns ``home`` for convenience.
     """
     home.mkdir(parents=True, exist_ok=True)
-    original = Path.expanduser
+    original_path_expanduser = Path.expanduser
+    original_os_expanduser = os.path.expanduser
+    initial_home_env = os.environ.get("HOME")
 
-    def _fake(self: Path) -> Path:
+    def _home_env_overridden() -> bool:
+        """True if a test has set HOME to a different value than at setup time."""
+        return os.environ.get("HOME") != initial_home_env
+
+    def _fake_os(path):  # accepts str or os.PathLike
+        s = os.fspath(path) if hasattr(path, "__fspath__") else path
+        if (
+            isinstance(s, str)
+            and (s.startswith("~/.sase/") or s == "~/.sase")
+            and not _home_env_overridden()
+        ):
+            if s.startswith("~/.sase/"):
+                return str(home / s[len("~/.sase/") :])
+            return str(home)
+        return original_os_expanduser(path)
+
+    def _fake_path(self: Path) -> Path:
+        # Defer when either a test has further patched os.path.expanduser
+        # or a test has redirected HOME itself.
+        if os.path.expanduser is not _fake_os or _home_env_overridden():
+            return original_path_expanduser(self)
         s = str(self)
         if s.startswith("~/.sase/"):
             return home / s[len("~/.sase/") :]
         if s == "~/.sase":
             return home
-        return original(self)
+        return original_path_expanduser(self)
 
-    monkeypatch.setattr(Path, "expanduser", _fake)
+    monkeypatch.setattr(os.path, "expanduser", _fake_os)
+    monkeypatch.setattr(Path, "expanduser", _fake_path)
     return home
+
+
+@pytest.fixture(autouse=True)
+def _isolate_sase_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Redirect ``~/.sase/`` to a per-test tmpdir so tests never touch real state.
+
+    Uses ``tmp_path_factory`` (not ``tmp_path``) so the fake sase home lives
+    in a sibling directory and doesn't pollute tests that iterate over their
+    own ``tmp_path``.
+    """
+    redirect_sase_home(monkeypatch, tmp_path_factory.mktemp("sase_home"))
 
 
 @pytest.fixture(autouse=True)

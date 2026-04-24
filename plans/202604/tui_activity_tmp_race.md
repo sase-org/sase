@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 09:10:26
-status: wip
+status: done
 ---
 # Plan: Fix cross-process race in `tui_activity` atomic writes + isolate TUI tests from `~/.sase/`
 

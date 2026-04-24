@@ -84,16 +84,15 @@ def test_create_artifacts_directory_without_project_name(
     mock_get_name.assert_called_once()
 
     # Check directory format includes the auto-detected project name
-    expanded_home = str(Path.home())
-    expected_prefix = (
-        f"{expanded_home}/.sase/projects/auto-project/artifacts/test-workflow/"
+    expected_prefix = str(
+        Path("~/.sase/projects/auto-project/artifacts/test-workflow/").expanduser()
     )
     assert artifacts_dir.startswith(expected_prefix)
 
     # Cleanup
     import shutil
 
-    project_dir = Path.home() / ".sase" / "projects" / "auto-project"
+    project_dir = Path("~/.sase/projects/auto-project").expanduser()
     if project_dir.exists():
         shutil.rmtree(project_dir)
 
@@ -142,10 +141,11 @@ def test_create_artifacts_directory_with_timestamp() -> None:
     assert artifacts_dir.endswith(expected_suffix)
 
     # Verify format: ~/.sase/projects/<project>/artifacts/<workflow>/<timestamp>
-    expanded_home = str(Path.home())
-    expected_path = (
-        f"{expanded_home}/.sase/projects/{project_name}"
-        f"/artifacts/{workflow_name}/{expected_suffix}"
+    expected_path = str(
+        Path(
+            f"~/.sase/projects/{project_name}"
+            f"/artifacts/{workflow_name}/{expected_suffix}"
+        ).expanduser()
     )
     assert artifacts_dir == expected_path
 
@@ -155,5 +155,5 @@ def test_create_artifacts_directory_with_timestamp() -> None:
     # Cleanup
     import shutil
 
-    project_dir = Path.home() / ".sase" / "projects" / project_name
+    project_dir = Path(f"~/.sase/projects/{project_name}").expanduser()
     shutil.rmtree(project_dir)

@@ -7,6 +7,7 @@ user inactivity and send notifications (e.g. via Telegram).
 from __future__ import annotations
 
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -37,7 +38,7 @@ def write_activity_timestamp(epoch: float) -> None:
     file + ``os.replace()`` so readers never see a partial write.
     """
     ACTIVITY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = ACTIVITY_FILE.with_suffix(".tmp")
+    tmp = ACTIVITY_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(epoch))
     os.replace(tmp, ACTIVITY_FILE)
 
@@ -51,7 +52,7 @@ def write_last_keypress(epoch: float) -> None:
     independently verify that enough time has elapsed.
     """
     LAST_KEYPRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = LAST_KEYPRESS_FILE.with_suffix(".tmp")
+    tmp = LAST_KEYPRESS_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(epoch))
     os.replace(tmp, LAST_KEYPRESS_FILE)
 
@@ -79,7 +80,7 @@ def write_tui_pid() -> None:
     Uses a temporary file + ``os.replace()`` so readers never see a partial write.
     """
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = PID_FILE.with_suffix(".tmp")
+    tmp = PID_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(str(os.getpid()))
     os.replace(tmp, PID_FILE)
 
@@ -100,7 +101,7 @@ def write_idle_state(idle: bool) -> None:
     instead of independently recomputing idle from raw timestamps.
     """
     IDLE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = IDLE_STATE_FILE.with_suffix(".tmp")
+    tmp = IDLE_STATE_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text("1" if idle else "0")
     os.replace(tmp, IDLE_STATE_FILE)
 
@@ -127,7 +128,7 @@ def write_pinned_idle(pinned: bool) -> None:
     Persists the pinned idle flag so the TUI can restore it after a restart.
     """
     PINNED_IDLE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = PINNED_IDLE_FILE.with_suffix(".tmp")
+    tmp = PINNED_IDLE_FILE.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text("1" if pinned else "0")
     os.replace(tmp, PINNED_IDLE_FILE)
 

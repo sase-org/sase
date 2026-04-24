@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -409,3 +410,34 @@ def test_remove_last_keypress_deletes_file(tmp_path: Path) -> None:
 def test_remove_last_keypress_no_error_when_missing(tmp_path: Path) -> None:
     with _patch_last_keypress_file(tmp_path):
         remove_last_keypress()  # should not raise
+
+
+# ── concurrent-writer regression ─────────────────────────────────
+
+
+def test_write_tui_pid_concurrent_writers_no_race(tmp_path: Path) -> None:
+    """Concurrent writers must not collide on a shared tmp filename.
+
+    Why: the original implementation used a fixed ``<final>.tmp`` tmp
+    name, so two writers racing into ``os.replace()`` could surface
+    ``FileNotFoundError`` from the loser. The fix gives each writer a
+    per-process-unique tmp name.
+    """
+    errors: list[BaseException] = []
+
+    def _hammer() -> None:
+        try:
+            for _ in range(200):
+                write_tui_pid()
+        except BaseException as exc:  # noqa: BLE001 - test assertion
+            errors.append(exc)
+
+    with _patch_pid_file(tmp_path):
+        threads = [threading.Thread(target=_hammer) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert errors == []
+    assert (tmp_path / "tui_pid").exists()
