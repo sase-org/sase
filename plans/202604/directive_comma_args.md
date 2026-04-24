@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 17:40:20
-status: wip
+status: done
 ---
 # Plan: Comma-Separated Colon Args for Directives
 

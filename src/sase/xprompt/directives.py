@@ -117,7 +117,7 @@ def _parse_duration(s: str) -> float | None:
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.()-]*[a-zA-Z0-9_#/()-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.,()-]*[a-zA-Z0-9_#/,()-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
 )
 
 # Known directive names
@@ -484,6 +484,8 @@ def extract_prompt_directives(
         plus_suffix = match.group(4)
 
         match_end = match.end()
+        is_multi = name in _MULTI_VALUE_DIRECTIVES
+        raw_args: list[str] = []
 
         if has_open_paren:
             paren_start = match.end() - 1
@@ -491,24 +493,29 @@ def extract_prompt_directives(
             if paren_end is not None:
                 paren_content = prompt[paren_start + 1 : paren_end]
                 positional_args, _ = parse_args(paren_content)
-                raw_arg = positional_args[0] if positional_args else ""
+                if is_multi:
+                    raw_args = list(positional_args)
+                else:
+                    raw_args = [positional_args[0] if positional_args else ""]
                 match_end = paren_end + 1
             else:
-                raw_arg = ""
+                raw_args = [""]
         elif colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                raw_arg = colon_arg[1:-1]
+                raw_args = [colon_arg[1:-1]]
+            elif is_multi:
+                raw_args = [seg for seg in colon_arg.split(",") if seg]
             else:
-                raw_arg = colon_arg
+                raw_args = [colon_arg]
         elif plus_suffix is not None:
-            raw_arg = "true"
+            raw_args = ["true"]
         else:
-            raw_arg = ""
+            raw_args = [""]
 
-        if name in _MULTI_VALUE_DIRECTIVES:
-            seen_multi.setdefault(name, []).append(raw_arg)
+        if is_multi:
+            seen_multi.setdefault(name, []).extend(raw_args)
         else:
-            seen[name] = raw_arg
+            seen[name] = raw_args[0]
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:

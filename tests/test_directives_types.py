@@ -218,6 +218,71 @@ def test_wait_absolute_time_multiple_raises() -> None:
         extract_prompt_directives(prompt)
 
 
+# --- %wait comma-separated colon-arg tests ---
+
+
+def test_wait_comma_two_agents() -> None:
+    """%wait:a,b yields two agent-name waits."""
+    prompt = "%wait:a,b\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a", "b"]
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
+
+
+def test_wait_comma_agents_and_duration() -> None:
+    """%wait:a,b,5m yields two agents plus a duration."""
+    prompt = "%wait:a,b,5m\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a", "b"]
+    assert directives.wait_duration == 300.0
+
+
+def test_wait_comma_agent_and_absolute_time() -> None:
+    """%wait:a,1430 yields an agent plus an absolute-time wait."""
+    prompt = "%wait:a,0000\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a"]
+    assert directives.wait_until is not None
+    assert "T00:00:00" in directives.wait_until
+
+
+def test_wait_comma_backtick_is_single_arg() -> None:
+    """%wait:`a,b` treats the comma as literal (no split)."""
+    prompt = "%wait:`a,b`\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a,b"]
+
+
+def test_wait_comma_empty_segments_filtered() -> None:
+    """%wait:a,,b drops empty segments, yielding ['a', 'b']."""
+    prompt = "%wait:a,,b\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a", "b"]
+
+
+def test_wait_paren_form_matches_colon_form() -> None:
+    """%wait(a, b, 5m) behaves the same as %wait:a,b,5m."""
+    prompt = "%wait(a, b, 5m)\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["a", "b"]
+    assert directives.wait_duration == 300.0
+
+
+def test_model_colon_arg_with_comma_is_single_value() -> None:
+    """Single-value %model:a,b keeps the whole string and leaves no stray text."""
+    prompt = "%model:a,b\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.model == "a,b"
+
+
 # --- %plan directive tests ---
 
 
