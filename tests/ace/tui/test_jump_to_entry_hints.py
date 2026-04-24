@@ -52,8 +52,14 @@ def test_build_jump_hint_maps_truncates_to_hint_alphabet() -> None:
     assert hint_to_index["1"] == 0
     assert hint_to_index["0"] == 9
     assert hint_to_index["a"] == 10
-    assert hint_to_index["z"] == len(JUMP_HINT_CHARS) - 1
+    assert hint_to_index["z"] == 35
+    assert hint_to_index["A"] == 36
+    assert hint_to_index["Z"] == 61
     assert (len(JUMP_HINT_CHARS) + 1) not in index_to_hint
+
+
+def test_jump_hint_alphabet_has_62_chars() -> None:
+    assert len(JUMP_HINT_CHARS) == 62
 
 
 def test_changespec_list_hint_marker_rendered() -> None:

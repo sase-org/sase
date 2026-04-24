@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 13:09:34
-status: wip
+status: done
 ---
 # Plan: Extend Jump-to-Entry Hint Alphabet with A–Z
 

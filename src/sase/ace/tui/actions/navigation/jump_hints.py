@@ -1,6 +1,6 @@
 """Helpers for one-key jump-to-entry hint assignment."""
 
-JUMP_HINT_CHARS = "1234567890abcdefghijklmnopqrstuvwxyz"
+JUMP_HINT_CHARS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def build_jump_hint_maps(indices: list[int]) -> tuple[dict[str, int], dict[int, str]]:
