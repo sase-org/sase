@@ -1,10 +1,12 @@
-"""Tests for the async startup wiring that keeps the stopwatch ticking.
+"""Tests for the two-phase startup wiring that keeps the stopwatch ticking.
 
 These tests lock in the contract used by
-``plans/202604/startup_stopwatch_live_update.md``: ``AceApp.on_mount`` is
-a coroutine (so awaits between disk reads yield to the event loop and
-``KeybindingFooter._on_stopwatch_tick`` fires), and the new split
-helpers are pure disk reads with no Textual widget access.
+``plans/202604/startup_stopwatch_batch_update_fix.md``: ``AceApp.on_mount``
+is **sync** and only wires the in-batch essentials before scheduling
+``_finish_startup`` via ``call_after_refresh``. ``_finish_startup`` is a
+coroutine that runs the actual startup I/O outside Textual's mount batch
+so the ``KeybindingFooter`` stopwatch ticks can paint. The split disk-read
+helpers remain pure functions with no Textual widget access.
 """
 
 from __future__ import annotations
@@ -17,9 +19,26 @@ from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.app import AceApp
 
 
-def test_on_mount_is_coroutine() -> None:
-    """``AceApp.on_mount`` must be async so each disk read can yield."""
-    assert inspect.iscoroutinefunction(AceApp.on_mount)
+def test_on_mount_is_sync() -> None:
+    """``AceApp.on_mount`` must be sync so it returns promptly and lets
+    Textual exit its mount ``batch_update`` to paint the first frame."""
+    assert not inspect.iscoroutinefunction(AceApp.on_mount)
+
+
+def test_finish_startup_is_coroutine() -> None:
+    """``AceApp._finish_startup`` must be async so each disk read can yield
+    outside the mount batch, keeping the stopwatch's paints unblocked."""
+    assert inspect.iscoroutinefunction(AceApp._finish_startup)
+
+
+def test_on_mount_schedules_finish_startup_via_call_after_refresh() -> None:
+    """``on_mount`` must defer the heavy work via ``call_after_refresh``
+    so it runs after the first paint (i.e. outside the mount batch)."""
+    import textwrap
+
+    src = textwrap.dedent(inspect.getsource(AceApp.on_mount))
+    assert "call_after_refresh" in src
+    assert "_finish_startup" in src
 
 
 def test_try_startup_fallback_async_is_coroutine() -> None:

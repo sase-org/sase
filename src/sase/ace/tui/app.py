@@ -508,56 +508,58 @@ class AceApp(
         yield KeybindingFooter(id="keybinding-footer")
         yield Footer()
 
-    async def on_mount(self) -> None:
-        """Set up the app on mount.
+    def on_mount(self) -> None:
+        """Wire keymap registry then defer the rest to ``_finish_startup``.
 
-        Async so each disk read can ``await asyncio.to_thread(...)``
-        between applying to widgets — the event loop stays free between
-        helpers so the ``KeybindingFooter`` startup stopwatch can tick at
-        ~10Hz through the multi-second startup gap.
+        Textual wraps the mount dispatch in ``batch_update()`` which
+        suppresses paints until the mount handler returns. Running the
+        heavy startup I/O inside that batch freezes the
+        ``KeybindingFooter`` startup stopwatch. Doing the minimal
+        in-batch wiring here and deferring the rest via
+        ``call_after_refresh`` moves the disk reads to after the first
+        paint, so the stopwatch ticks live.
+        """
+        self._mounting = True
+        footer = self.query_one("#keybinding-footer", KeybindingFooter)
+        footer.set_keymap_registry(self._keymap_registry)
+        tab_bar = self.query_one("#tab-bar", TabBar)
+        tab_bar.set_keymap_registry(self._keymap_registry)
+        self.call_after_refresh(self._finish_startup)
+
+    async def _finish_startup(self) -> None:
+        """Run the remainder of startup outside Textual's mount batch.
+
+        Each ``await asyncio.to_thread(...)`` yields the event loop so
+        the stopwatch timer's queued ``Static.update(...)`` calls reach
+        ``_display`` and paint. ``asyncio.sleep(0)`` breathers between a
+        disk read and its sync apply step give the loop an explicit turn
+        to drain timer-posted messages before the apply phase blocks.
         """
         import asyncio
 
-        self._mounting = True
         try:
-            # Wire keymap registry to widgets
-            footer = self.query_one("#keybinding-footer", KeybindingFooter)
-            footer.set_keymap_registry(self._keymap_registry)
-            tab_bar = self.query_one("#tab-bar", TabBar)
-            tab_bar.set_keymap_registry(self._keymap_registry)
-
-            # Initialize agent tracking for completion notifications
             unread_ids = await asyncio.to_thread(self._read_unread_notification_ids)
+            await asyncio.sleep(0)
             self._initialize_agent_tracking(unread_ids)
 
-            # Load initial changespecs with the startup query
             all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
+            await asyncio.sleep(0)
             self._apply_changespecs(all_cs)
 
-            # If no results, try saved queries as fallback; if none work, open
-            # the Agents tab instead
             if not self.changespecs:
                 if not await self._try_startup_fallback_async():
                     self.current_tab = "agents"  # type: ignore[assignment]
 
             last_name = await asyncio.to_thread(self._read_last_selection_name)
+            await asyncio.sleep(0)
             self._restore_last_selection(last_name)
             await asyncio.to_thread(self._save_current_query)
 
-            # Show loading indicators on panels that populate asynchronously
-            # so users see pulsing spinners / dim ellipses instead of
-            # "loaded, empty" state during the ~3.5s gap before first data.
             self._apply_startup_loading_state()
 
-            # Defer agent load off the critical path so the TUI paints
-            # immediately; agents populate in the background ~3.5s later.
             self.call_after_refresh(self._run_agents_async_refresh)
-
-            # Defer axe status load + auto-start/restart similarly.
             self.call_after_refresh(self._run_axe_startup_init)
 
-            # Write initial activity timestamp, idle state, and PID file.
-            # If pinned idle was active in the previous session, restore it.
             from sase.ace.tui_activity import (
                 read_pinned_idle,
                 write_activity_timestamp,
@@ -587,7 +589,6 @@ class AceApp(
                 write_last_keypress(now)
                 write_idle_state(False)
 
-            # Set up auto-refresh timer if enabled
             if self.refresh_interval > 0:
                 self._countdown_remaining = self.refresh_interval
                 self._countdown_timer = self.set_interval(
