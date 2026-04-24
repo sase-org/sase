@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 import time
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -276,6 +276,7 @@ class AceApp(
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
+        self._post_mount_background_loads_started: bool = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False
         self._has_always_visible: bool = False
@@ -549,12 +550,10 @@ class AceApp(
             # "loaded, empty" state during the ~3.5s gap before first data.
             self._apply_startup_loading_state()
 
-            # Defer agent load off the critical path so the TUI paints
-            # immediately; agents populate in the background ~3.5s later.
-            self.call_after_refresh(self._run_agents_async_refresh)
-
-            # Defer axe status load + auto-start/restart similarly.
-            self.call_after_refresh(self._run_axe_startup_init)
+            # Defer startup background loads until after first paint.
+            # The launcher schedules agents and axe tasks independently so
+            # the AXE startup path is never blocked by a slow agent load.
+            self.call_after_refresh(self._start_post_mount_background_loads)
 
             # Write initial activity timestamp, idle state, and PID file.
             # If pinned idle was active in the previous session, restore it.
@@ -598,6 +597,30 @@ class AceApp(
                 )
         finally:
             self._mounting = False
+
+    def _start_post_mount_background_loads(self) -> None:
+        """Launch post-mount startup loads once, without serial dependency."""
+        if self._post_mount_background_loads_started:
+            return
+        self._post_mount_background_loads_started = True
+        try:
+            self.run_worker(
+                cast(Any, self._run_agents_async_refresh),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.exception("Failed to schedule startup agent refresh")
+        try:
+            self.run_worker(
+                cast(Any, self._run_axe_startup_init),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.exception("Failed to schedule startup axe init")
 
     def _apply_startup_loading_state(self) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.
