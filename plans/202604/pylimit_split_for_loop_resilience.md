@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 18:36:56
-status: wip
+status: done
 ---
 # Fix `sase_pylimit_split` chop spawning fewer agents than expected per run
 

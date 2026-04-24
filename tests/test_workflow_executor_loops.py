@@ -342,3 +342,151 @@ def test_resolve_for_lists_single_value_as_list() -> None:
     _, resolved_lists = executor._resolve_for_lists({"item": "{{ single }}"})
 
     assert resolved_lists == [["value"]]
+
+
+# ============================================================================
+# TestForLoopResilience - per-iteration failure handling
+# ============================================================================
+
+
+def test_for_agent_step_continues_on_iteration_failure() -> None:
+    """A for: + agent: loop keeps running subsequent iterations when one raises."""
+    attempts: list[str] = []
+
+    def mock_execute_prompt(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: Any,
+    ) -> bool:
+        item = self.context["item"]
+        attempts.append(item)
+        if item == "b":
+            raise RuntimeError("iteration b exploded")
+        step_state.output = {"processed": item}
+        self.context[step.name] = step_state.output
+        self.state.context = dict(self.context)
+        return True
+
+    steps = [
+        WorkflowStep(
+            name="split",
+            agent="process {{ item }}",
+            for_loop={"item": "{{ items }}"},
+        ),
+        WorkflowStep(
+            name="followup",
+            bash="echo after-split",
+        ),
+    ]
+    followup_ran = [False]
+
+    def mock_execute_bash(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: Any,
+    ) -> bool:
+        followup_ran[0] = True
+        step_state.output = {"_raw": "done"}
+        self.context[step.name] = step_state.output
+        self.state.context = dict(self.context)
+        return True
+
+    workflow = _create_workflow("test", steps)
+    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
+
+    with patch.object(WorkflowExecutor, "_execute_prompt_step", mock_execute_prompt):
+        with patch.object(WorkflowExecutor, "_execute_bash_step", mock_execute_bash):
+            success = executor.execute()
+
+    assert success is True
+    assert attempts == ["a", "b", "c"]  # all three iterations attempted
+
+    split_state = executor.state.steps[0]
+    assert split_state.iteration_errors is not None
+    assert len(split_state.iteration_errors) == 1
+    assert split_state.iteration_errors[0]["iteration"] == 2
+    assert split_state.iteration_errors[0]["loop_vars"] == {"item": "b"}
+    assert "iteration b exploded" in split_state.iteration_errors[0]["error"]
+
+    # Successful iterations aggregated into the step output
+    assert executor.context["split"] == [
+        {"processed": "a"},
+        {"processed": "c"},
+    ]
+
+    # Subsequent workflow steps still ran
+    assert followup_ran[0] is True
+
+
+def test_for_agent_step_on_error_stop_aborts() -> None:
+    """With on_error: stop, a for: + agent: loop aborts on the first failure."""
+    attempts: list[str] = []
+
+    def mock_execute_prompt(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: Any,
+    ) -> bool:
+        item = self.context["item"]
+        attempts.append(item)
+        if item == "b":
+            raise RuntimeError("iteration b exploded")
+        step_state.output = {"processed": item}
+        self.context[step.name] = step_state.output
+        self.state.context = dict(self.context)
+        return True
+
+    steps = [
+        WorkflowStep(
+            name="split",
+            agent="process {{ item }}",
+            for_loop={"item": "{{ items }}"},
+            on_error="stop",
+        ),
+    ]
+    workflow = _create_workflow("test", steps)
+    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
+
+    with patch.object(WorkflowExecutor, "_execute_prompt_step", mock_execute_prompt):
+        with pytest.raises(WorkflowExecutionError):
+            executor.execute()
+
+    # Loop aborted after iteration b raised; c was never attempted.
+    assert attempts == ["a", "b"]
+
+
+def test_for_bash_step_default_stops_on_failure() -> None:
+    """Bash for-loops default to stop-on-failure (deliberate asymmetry with agent)."""
+    attempts: list[str] = []
+
+    def mock_execute_bash(
+        self: WorkflowExecutor,
+        step: WorkflowStep,
+        step_state: Any,
+    ) -> bool:
+        item = self.context["item"]
+        attempts.append(item)
+        if item == "b":
+            step_state.error = "bash failure"
+            return False
+        step_state.output = {"_raw": item}
+        self.context[step.name] = step_state.output
+        self.state.context = dict(self.context)
+        return True
+
+    steps = [
+        WorkflowStep(
+            name="pipeline",
+            bash="echo {{ item }}",
+            for_loop={"item": "{{ items }}"},
+        ),
+    ]
+    workflow = _create_workflow("test", steps)
+    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
+
+    with patch.object(WorkflowExecutor, "_execute_bash_step", mock_execute_bash):
+        success = executor.execute()
+
+    assert success is False
+    # Third iteration should not have run: bash for-loops default to stop.
+    assert attempts == ["a", "b"]

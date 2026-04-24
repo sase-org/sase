@@ -158,6 +158,36 @@ class WorkflowOutputHandler:
             f"  [dim]\\[{iteration}/{total_iterations}][/dim] {_esc(vars_str)}"
         )
 
+    def on_step_iteration_complete(
+        self,
+        _step_name: str,
+        iteration: int,
+        total_iterations: int,
+        success: bool,
+        iteration_error: dict[str, Any] | None = None,
+    ) -> None:
+        """Called at the end of each for-loop iteration with its outcome.
+
+        Args:
+            _step_name: Name of the step (unused).
+            iteration: Current iteration (1-based).
+            total_iterations: Total number of iterations.
+            success: Whether the iteration succeeded.
+            iteration_error: Failure details when ``success`` is False.
+        """
+        if success:
+            self.console.print(
+                f"  [dim]\\[{iteration}/{total_iterations}][/dim] [green]ok[/green]"
+            )
+        else:
+            err = (
+                iteration_error.get("error", "unknown error") if iteration_error else ""
+            )
+            self.console.print(
+                f"  [dim]\\[{iteration}/{total_iterations}][/dim] "
+                f"[red]failed[/red] {_esc(str(err))}"
+            )
+
     def on_step_complete(
         self,
         _step_name: str,

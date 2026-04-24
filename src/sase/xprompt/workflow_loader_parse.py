@@ -119,6 +119,19 @@ def _parse_workflow_step(
     hidden = bool(step_data.get("hidden", False))
     finally_ = bool(step_data.get("finally", False))
     artifact = step_data.get("artifact")
+    on_error_raw = step_data.get("on_error")
+    on_error: str | None = None
+    if on_error_raw is not None:
+        on_error = str(on_error_raw)
+        if on_error not in ("stop", "continue"):
+            raise WorkflowValidationError(
+                f"Step '{name}' 'on_error' must be 'stop' or 'continue', "
+                f"got '{on_error}'"
+            )
+        if not for_loop:
+            raise WorkflowValidationError(
+                f"Step '{name}' 'on_error' is only supported on 'for:' loop steps"
+            )
 
     # Validate artifact field
     if artifact is not None:
@@ -297,6 +310,7 @@ def _parse_workflow_step(
         join=str(join) if join else None,
         finally_=finally_,
         artifact=str(artifact) if artifact else None,
+        on_error=on_error,  # type: ignore[arg-type]
     )
 
 

@@ -151,6 +151,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     "hidden": self.workflow.steps[i].hidden
                     or s.name in self._zero_iteration_steps,
                     "output_types": self._get_output_types(i),
+                    "iteration_errors": s.iteration_errors,
                 }
                 for i, s in enumerate(self.state.steps)
             ],

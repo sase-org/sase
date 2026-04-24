@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.xprompt.models import InputArg, OutputSpec, XPrompt
 
@@ -72,6 +72,12 @@ class WorkflowStep:
         join: How to collect iteration results (array, text, object, lastOf).
         finally_: If true, this step runs even when a prior step has failed.
             Maps to ``finally: true`` in YAML. Used for cleanup/teardown steps.
+        on_error: Behavior when an iteration of a ``for:`` loop fails. ``"stop"``
+            aborts the loop on first failure; ``"continue"`` records the failure
+            and proceeds to subsequent iterations. If None, the default depends
+            on the step kind: agent-step for-loops default to ``"continue"``
+            (each iteration is an independent unit of work), bash/python
+            for-loops default to ``"stop"`` (pipeline-stage semantics).
     """
 
     name: str
@@ -90,6 +96,7 @@ class WorkflowStep:
     join: str | None = None
     finally_: bool = False
     artifact: str | None = None
+    on_error: Literal["stop", "continue"] | None = None
 
     def is_agent_step(self) -> bool:
         """Return True if this is an agent step."""
@@ -250,6 +257,10 @@ class StepState:
         status: Current execution status.
         output: Step output data (if completed).
         error: Error message (if failed).
+        iteration_errors: Per-iteration failures captured when a ``for:`` loop
+            runs under ``on_error: continue``. Each entry is a dict with keys
+            ``iteration`` (1-based), ``loop_vars``, ``error``, and optionally
+            ``traceback``.
     """
 
     name: str
@@ -257,6 +268,7 @@ class StepState:
     output: dict[str, Any] | None = None
     error: str | None = None
     traceback: str | None = None
+    iteration_errors: list[dict[str, Any]] | None = None
 
 
 @dataclass

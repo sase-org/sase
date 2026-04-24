@@ -2,6 +2,7 @@
 
 import copy
 import json
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
 
@@ -179,6 +180,16 @@ class LoopMixin:
 
         results: list[dict[str, Any]] = []
         num_iterations = len(lists[0])
+        iteration_errors: list[dict[str, Any]] = []
+
+        # Agent-step for-loops fan out independent units of work, so a single
+        # iteration failing should not abandon the rest.  Deterministic
+        # bash/python loops keep fail-fast semantics by default since they are
+        # typically pipeline stages where a partial result is worse than no
+        # result.  Either default may be overridden per step via `on_error`.
+        effective_on_error = step.on_error or (
+            "continue" if step.is_agent_step() else "stop"
+        )
 
         for iteration_idx in range(num_iterations):
             # Build iteration context with loop variables
@@ -200,6 +211,8 @@ class LoopMixin:
             # Temporarily update context for this iteration
             original_context = self.context
             self.context = iteration_context
+            iteration_error: dict[str, Any] | None = None
+            success = False
 
             try:
                 # Execute the step with iteration context
@@ -209,18 +222,64 @@ class LoopMixin:
                     success = self._execute_python_step(step, step_state)
                 else:
                     success = self._execute_bash_step(step, step_state)
-
-                if not success:
+            except Exception as exc:
+                success = False
+                iteration_error = {
+                    "iteration": iteration_idx + 1,
+                    "loop_vars": loop_vars,
+                    "error": f"{type(exc).__qualname__}: {exc}",
+                    "traceback": traceback.format_exc(),
+                }
+                if effective_on_error == "stop":
                     self.context = original_context
-                    return False
-
-                # Collect this iteration's output
-                if step_state.output:
-                    results.append(step_state.output)
-
+                    raise
             finally:
                 # Restore original context
                 self.context = original_context
+
+            if success:
+                # Collect this iteration's output
+                if step_state.output:
+                    results.append(step_state.output)
+            else:
+                if iteration_error is None:
+                    iteration_error = {
+                        "iteration": iteration_idx + 1,
+                        "loop_vars": loop_vars,
+                        "error": step_state.error or "iteration returned success=False",
+                    }
+                if effective_on_error == "stop":
+                    return False
+                iteration_errors.append(iteration_error)
+                self._log_iteration_failure(
+                    step.name, iteration_idx + 1, num_iterations, iteration_error
+                )
+                # Clear per-iteration error fields so surviving iterations can
+                # still populate step_state cleanly.
+                step_state.error = None
+                step_state.traceback = None
+                step_state.output = None
+
+            # Notify iteration completion outcome for TUI/log
+            if self.output_handler:
+                self.output_handler.on_step_iteration_complete(
+                    step.name,
+                    iteration_idx + 1,
+                    num_iterations,
+                    success,
+                    None if success else iteration_error,
+                )
+
+        # Record any iteration failures on the step state for diagnostics.
+        if iteration_errors:
+            step_state.iteration_errors = iteration_errors
+            summary = "; ".join(
+                f"iteration {e['iteration']}: {e['error']}" for e in iteration_errors
+            )
+            step_state.error = (
+                f"{len(iteration_errors)}/{num_iterations} iterations failed "
+                f"under on_error=continue ({summary})"
+            )
 
         # Combine results and store in context
         combined = self._collect_results(results, step.join)
@@ -228,7 +287,34 @@ class LoopMixin:
         self.context[step.name] = combined
         self.state.context = dict(self.context)
 
+        # If every iteration failed, surface as overall step failure so the
+        # workflow halts; otherwise the step is considered completed with
+        # per-iteration errors captured in iteration_errors.
+        if iteration_errors and not results:
+            return False
+
         return True
+
+    def _log_iteration_failure(
+        self,
+        _step_name: str,
+        iteration: int,
+        total: int,
+        iteration_error: dict[str, Any],
+    ) -> None:
+        """Log a for-loop iteration failure to the output handler if available."""
+        if not self.output_handler:
+            return
+        console = getattr(self.output_handler, "console", None)
+        if console is None:
+            return
+        try:
+            console.print(
+                f"  [red]\\[for-loop iteration {iteration}/{total} failed][/red] "
+                f"{iteration_error['error']}"
+            )
+        except Exception:
+            pass
 
     def _execute_repeat_step(
         self,
