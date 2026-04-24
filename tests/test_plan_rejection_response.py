@@ -165,3 +165,121 @@ def test_approve_with_prompt_writes_prompt_and_sets_approved_status(
     data = json.loads(plan_response_path.read_text())
     assert data["coder_prompt"] == "#review+"
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN APPROVED"
+
+
+def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
+    """The agent-unblocking response write happens before slow plan copy work."""
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    app._agents_with_children = [mock_agent]
+    app.run_worker.side_effect = lambda work, thread=True: work()
+    app.call_from_thread.side_effect = lambda callback: callback()
+
+    plan_response_path = response_dir / "plan_response.json"
+
+    def archive_side_effect(notification: object) -> None:
+        assert plan_response_path.exists()
+        data = json.loads(plan_response_path.read_text())
+        assert data["action"] == "approve"
+        assert app._agent_status_overrides[mock_agent.identity] == "PLAN APPROVED"
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
+            return_value=mock_agent,
+        ),
+        patch("sase.notifications.mark_dismissed"),
+        patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
+        patch(
+            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+            side_effect=archive_side_effect,
+        ) as archive_plan,
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args[0][1]
+        on_dismiss(PlanApprovalResult(action="approve"))
+
+    archive_plan.assert_called_once()
+
+
+def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:
+    """Fast-path status refresh should avoid a synchronous full agent load."""
+    app, notification, _response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    app._agents_with_children = [mock_agent]
+    app.run_worker.side_effect = lambda work, thread=True: work()
+    app.call_from_thread.side_effect = lambda callback: callback()
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
+            return_value=mock_agent,
+        ),
+        patch("sase.notifications.mark_dismissed"),
+        patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
+        patch(
+            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+            return_value=None,
+        ),
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args[0][1]
+        on_dismiss(PlanApprovalResult(action="approve"))
+
+    app._refilter_agents.assert_called_once()
+    app._load_agents.assert_not_called()
+
+
+def test_commit_only_copies_saved_plan_path_after_background_work(
+    tmp_path: Path,
+) -> None:
+    """Commit-only approval still reports the archived path after worker completion."""
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    app._agents_with_children = [mock_agent]
+    app.run_worker.side_effect = lambda work, thread=True: work()
+    app.call_from_thread.side_effect = lambda callback: callback()
+    saved_plan_path = str(Path.home() / "workspace" / ".sase" / "plans" / "plan.md")
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
+            return_value=mock_agent,
+        ),
+        patch("sase.notifications.mark_dismissed"),
+        patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
+        patch(
+            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+            return_value=saved_plan_path,
+        ),
+        patch(
+            "sase.ace.tui.actions.clipboard.copy_to_system_clipboard"
+        ) as copy_to_clipboard,
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args[0][1]
+        on_dismiss(
+            PlanApprovalResult(action="approve", commit_plan=True, run_coder=False)
+        )
+
+    assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
+    copy_to_clipboard.assert_called_once_with("~/workspace/.sase/plans/plan.md")
+    app._refresh_notification_count.assert_called_once()
+    app._schedule_agents_async_refresh.assert_called_once()
+    data = json.loads((response_dir / "plan_response.json").read_text())
+    assert data["saved_plan_path"] == saved_plan_path

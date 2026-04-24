@@ -5,12 +5,18 @@ Dispatches HITL, user question, and plan approval actions that push modal screen
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
     from ...models import Agent
+    from ...modals import PlanApprovalResult
+
+
+log = logging.getLogger(__name__)
 
 
 def handle_hitl(app: object, notification: Notification) -> bool:
@@ -300,53 +306,10 @@ def handle_plan_approval(
                 app.notify("Rejected plan (agent not found)")  # type: ignore[attr-defined]
             return
 
-        # Write response file (for approve and reject with feedback)
+        # Write response file (for approve and reject with feedback). This is
+        # the latency-sensitive part: blocked agent runners watch this file.
         plan_response_path = response_path / "plan_response.json"
-        response_data: dict[str, object] = {
-            "action": result.action,
-        }
-        if result.feedback is not None:
-            response_data["feedback"] = result.feedback
-        # Include approve-with-options fields
-        response_data["commit_plan"] = result.commit_plan
-        response_data["run_coder"] = result.run_coder
-        if result.coder_prompt is not None:
-            response_data["coder_prompt"] = result.coder_prompt
-        if result.coder_model is not None:
-            response_data["coder_model"] = result.coder_model
-
-        # On approval, save plan to workspace .sase/plans/ directory
-        if result.action in ("approve", "epic") and notification.files:
-            project_dir = notification.action_data.get("project_dir")
-            if project_dir:
-                import os
-
-                project_basename = os.path.basename(project_dir)
-                try:
-                    from sase.gemini_wrapper.file_references import (
-                        format_with_prettier,
-                    )
-                    from sase.llm_provider._plan_utils import (
-                        add_create_time_frontmatter,
-                    )
-                    from sase.running_field import get_workspace_directory
-
-                    from sase.sdd.files import get_yyyymm
-
-                    workspace_dir = get_workspace_directory(project_basename, 1)
-                    yyyymm = get_yyyymm()
-                    plans_dir = Path(workspace_dir) / ".sase" / "plans" / yyyymm
-                    plans_dir.mkdir(parents=True, exist_ok=True)
-                    src_plan = Path(notification.files[0])
-                    dest_plan = plans_dir / src_plan.name
-                    content = src_plan.read_text(encoding="utf-8")
-                    content = format_with_prettier(content)
-                    dest_plan.write_text(
-                        add_create_time_frontmatter(content), encoding="utf-8"
-                    )
-                    response_data["saved_plan_path"] = str(dest_plan)
-                except Exception:
-                    pass  # Best effort
+        response_data = _build_plan_approval_response(result)
 
         try:
             with open(plan_response_path, "w", encoding="utf-8") as f:
@@ -356,41 +319,20 @@ def handle_plan_approval(
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Dismiss notification to prevent re-polling
-        from sase.notifications import mark_dismissed
-
-        mark_dismissed(notification.id)
-
-        # Update status override based on action
+        # Update the visible status from cached in-memory data immediately.
         if agent is not None:
-            if result.action == "approve" and result.run_coder:
-                app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent, action="approve")
-            elif (
-                result.action == "approve"
-                and not result.run_coder
-                and result.commit_plan
-            ):
-                app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent, action="commit")
-                # Copy saved plan path to clipboard for easy #plan usage
-                saved_plan = response_data.get("saved_plan_path")
-                if isinstance(saved_plan, str):
-                    from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+            status = _plan_approval_status(result)
+            if status is not None:
+                app._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
+                _refresh_agents_from_cache(app)
 
-                    short_path = saved_plan.replace(str(Path.home()), "~")
-                    copy_to_system_clipboard(short_path)
-                    app.notify(f"Plan committed — path copied: {short_path}")  # type: ignore[attr-defined]
-            elif result.action == "approve" and not result.run_coder:
-                app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent, action="approve")
-            elif result.action == "epic":
-                app._agent_status_overrides[agent.identity] = "EPIC APPROVED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent, action="epic")
-            elif result.feedback is not None:
-                # Reject with feedback: agent is resuming, mark as RUNNING
-                app._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
-            app._load_agents()  # type: ignore[attr-defined]
+        _start_plan_approval_background_worker(
+            app,
+            notification,
+            agent,
+            result,
+            plan_response_path,
+        )
 
     app.push_screen(  # type: ignore[attr-defined]
         PlanApprovalModal(
@@ -402,6 +344,197 @@ def handle_plan_approval(
         on_dismiss,
     )
     return True
+
+
+def _build_plan_approval_response(result: PlanApprovalResult) -> dict[str, object]:
+    """Build the JSON response for a plan approval modal result."""
+    response_data: dict[str, object] = {
+        "action": result.action,
+    }
+    if result.feedback is not None:
+        response_data["feedback"] = result.feedback
+    response_data["commit_plan"] = result.commit_plan
+    response_data["run_coder"] = result.run_coder
+    if result.coder_prompt is not None:
+        response_data["coder_prompt"] = result.coder_prompt
+    if result.coder_model is not None:
+        response_data["coder_model"] = result.coder_model
+    return response_data
+
+
+def _archive_plan_for_approval(notification: Notification) -> str | None:
+    """Best-effort copy of an approved plan into the workspace plan archive."""
+    import os
+
+    project_dir = notification.action_data.get("project_dir")
+    if not project_dir or not notification.files:
+        return None
+
+    try:
+        from sase.gemini_wrapper.file_references import format_with_prettier
+        from sase.llm_provider._plan_utils import add_create_time_frontmatter
+        from sase.running_field import get_workspace_directory
+        from sase.sdd.files import get_yyyymm
+
+        project_basename = os.path.basename(str(project_dir))
+        workspace_dir = get_workspace_directory(project_basename, 1)
+        plans_dir = Path(workspace_dir) / ".sase" / "plans" / get_yyyymm()
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        src_plan = Path(notification.files[0])
+        dest_plan = plans_dir / src_plan.name
+        content = src_plan.read_text(encoding="utf-8")
+        content = format_with_prettier(content)
+        dest_plan.write_text(add_create_time_frontmatter(content), encoding="utf-8")
+        return str(dest_plan)
+    except Exception:
+        log.debug("Failed to archive approved plan", exc_info=True)
+        return None
+
+
+def _plan_approval_status(result: PlanApprovalResult) -> str | None:
+    """Return the immediate status override for a plan approval result."""
+    if result.action == "approve" and not result.run_coder and result.commit_plan:
+        return "PLAN COMMITTED"
+    if result.action == "approve":
+        return "PLAN APPROVED"
+    if result.action == "epic":
+        return "EPIC APPROVED"
+    if result.feedback is not None:
+        return "RUNNING"
+    return None
+
+
+def _plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
+    """Return the persisted plan action marker for a result, if any."""
+    if result.action == "approve" and not result.run_coder and result.commit_plan:
+        return "commit"
+    if result.action == "approve":
+        return "approve"
+    if result.action == "epic":
+        return "epic"
+    return None
+
+
+def _refresh_agents_from_cache(app: object) -> None:
+    """Refresh visible agents without forcing disk I/O on the keypress path."""
+    refilter = getattr(app, "_refilter_agents", None)
+    if callable(refilter) and getattr(app, "_agents_with_children", None):
+        refilter()
+        return
+
+    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
+    if callable(schedule_refresh):
+        schedule_refresh()
+        return
+
+    load_agents = getattr(app, "_load_agents", None)
+    if callable(load_agents):
+        load_agents()
+
+
+def _start_plan_approval_background_worker(
+    app: object,
+    notification: Notification,
+    agent: Agent | None,
+    result: PlanApprovalResult,
+    plan_response_path: Path,
+) -> None:
+    """Run non-critical plan approval side effects off the TUI keypress path."""
+
+    def work() -> str | None:
+        saved_plan_path: str | None = None
+        try:
+            from sase.notifications import mark_dismissed
+
+            mark_dismissed(notification.id)
+        except Exception:
+            log.warning("Failed to dismiss plan approval notification", exc_info=True)
+
+        persist_action = _plan_approval_persist_action(result)
+        if agent is not None and persist_action is not None:
+            try:
+                persist_plan_approved(agent, action=persist_action)
+            except Exception:
+                log.warning("Failed to persist plan approval marker", exc_info=True)
+
+        if result.action in ("approve", "epic"):
+            saved_plan_path = _archive_plan_for_approval(notification)
+            if saved_plan_path is not None:
+                _add_saved_plan_to_response(plan_response_path, saved_plan_path)
+
+        _call_on_app_thread(
+            app,
+            lambda: _finish_plan_approval_background_work(app, result, saved_plan_path),
+        )
+        return saved_plan_path
+
+    run_worker = getattr(app, "run_worker", None)
+    if callable(run_worker):
+        try:
+            run_worker(work, thread=True)
+            return
+        except Exception:
+            log.debug(
+                "Falling back to synchronous plan approval side effects", exc_info=True
+            )
+
+    work()
+
+
+def _add_saved_plan_to_response(plan_response_path: Path, saved_plan_path: str) -> None:
+    """Add the archived path to the response file after the fast write."""
+    import json
+
+    try:
+        with open(plan_response_path, encoding="utf-8") as f:
+            response_data = json.load(f)
+        if not isinstance(response_data, dict):
+            return
+        response_data["saved_plan_path"] = saved_plan_path
+        with open(plan_response_path, "w", encoding="utf-8") as f:
+            json.dump(response_data, f, indent=2)
+    except Exception:
+        log.debug("Failed to update plan response with saved plan path", exc_info=True)
+
+
+def _call_on_app_thread(app: object, callback: object) -> None:
+    """Invoke a UI callback from worker threads when Textual support exists."""
+    call_from_thread = getattr(app, "call_from_thread", None)
+    if callable(call_from_thread):
+        try:
+            call_from_thread(callback)
+            return
+        except Exception:
+            log.debug("Failed to schedule app-thread callback", exc_info=True)
+    if callable(callback):
+        callback()
+
+
+def _finish_plan_approval_background_work(
+    app: object,
+    result: PlanApprovalResult,
+    saved_plan_path: str | None,
+) -> None:
+    """Apply UI-only follow-up after background approval work completes."""
+    if (
+        result.action == "approve"
+        and not result.run_coder
+        and result.commit_plan
+        and saved_plan_path is not None
+    ):
+        from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+
+        short_path = saved_plan_path.replace(str(Path.home()), "~")
+        copy_to_system_clipboard(short_path)
+        app.notify(f"Plan committed — path copied: {short_path}")  # type: ignore[attr-defined]
+
+    refresh_count = getattr(app, "_refresh_notification_count", None)
+    if callable(refresh_count):
+        refresh_count()
+
+    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
+    if callable(schedule_refresh):
+        schedule_refresh()
 
 
 def _restore_pre_question_status(app: object, notification: Notification) -> None:
