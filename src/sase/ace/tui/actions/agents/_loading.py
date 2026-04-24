@@ -528,14 +528,17 @@ class AgentLoadingMixin:
         )
         from ...widgets import TabBar
 
-        tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-        tab_bar.update_agents_count(
-            manual_running,
-            hidden_running,
-            show_hidden=not self.hide_non_run_agents,
-            done_count=done_visible,
-            pinned_count=pinned_visible,
-        )
+        try:
+            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+            tab_bar.update_agents_count(
+                manual_running,
+                hidden_running,
+                show_hidden=not self.hide_non_run_agents,
+                done_count=done_visible,
+                pinned_count=pinned_visible,
+            )
+        except Exception:
+            pass
 
         # Only refresh display if on agents tab
         if on_agents_tab:
