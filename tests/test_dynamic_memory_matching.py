@@ -309,7 +309,8 @@ def test_prompt_with_existing_dynamic_memory_section_stripped(
     prompt = (
         "A clean prompt with no keywords\n\n"
         "### DYNAMIC MEMORY\n"
-        "- @.sase/memory/long-stale-test.md (matched: `stale_keyword`)"
+        "- @.sase/memory/long-stale-test.md"
+        " (memory/long/stale_test, matched: `stale_keyword`)"
     )
     with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
         result = generate_dynamic_memory(prompt, None)

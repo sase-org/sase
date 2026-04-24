@@ -39,7 +39,8 @@ def test_format_dynamic_memory_section_single() -> None:
     result = format_dynamic_memory_section(dr)
     assert result == (
         "### DYNAMIC MEMORY\n"
-        "- @.sase/memory/long-external-repos.md (matched: `chezmoi`)"
+        "- @.sase/memory/long-external-repos.md"
+        " (memory/long/external_repos, matched: `chezmoi`)"
     )
 
 
@@ -65,8 +66,10 @@ def test_format_dynamic_memory_section_multiple() -> None:
     result = format_dynamic_memory_section(dr)
     assert result == (
         "### DYNAMIC MEMORY\n"
-        "- @.sase/memory/long-external-repos.md (matched: `chezmoi`, `plugin`)\n"
-        "- @.sase/memory/long-generated-skills.md (matched: `skill`, `commit workflow`)"
+        "- @.sase/memory/long-external-repos.md"
+        " (memory/long/external_repos, matched: `chezmoi`, `plugin`)\n"
+        "- @.sase/memory/long-generated-skills.md"
+        " (memory/long/generated_skills, matched: `skill`, `commit workflow`)"
     )
 
 

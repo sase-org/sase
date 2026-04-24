@@ -109,11 +109,16 @@ def _memory_filename(xprompt_name: str) -> str:
 
 
 def format_dynamic_memory_section(result: DynamicMemoryResult) -> str:
-    """Format the ``### DYNAMIC MEMORY`` markdown section with keyword annotations."""
+    """Format the ``### DYNAMIC MEMORY`` markdown section with keyword annotations.
+
+    Each line embeds the source xprompt name so the late-phase rewriter
+    (:func:`rewrite_dynamic_memory_for_prompt`) can resolve memories back to
+    their xprompts without inverting the lossy ``_memory_filename`` transform.
+    """
     lines = ["### DYNAMIC MEMORY"]
     for path, mem in zip(result.paths, result.matched, strict=True):
         kw_list = ", ".join(f"`{kw}`" for kw in mem.keywords_matched)
-        lines.append(f"- @{path} (matched: {kw_list})")
+        lines.append(f"- @{path} ({mem.name}, matched: {kw_list})")
     return "\n".join(lines)
 
 
@@ -205,8 +210,20 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     if not matched:
         return DynamicMemoryResult(matched=[])
 
+    paths = _write_memory_files(matched)
+    return DynamicMemoryResult(matched=matched, paths=paths)
+
+
+def _write_memory_files(matched: list[MatchedMemory]) -> list[str]:
+    """Resolve ``$(cat ...)`` substitution and write each matched memory to ``.sase/memory/``.
+
+    Idempotent — overwrites existing files.  Uses the *current* CWD, so callers
+    that want files written into a freshly-cleaned workspace must call this
+    after any chdir/clean has already happened.
+    """
     from sase.gemini_wrapper.file_references import process_command_substitution
 
+    memory_dir = Path(".sase/memory")
     memory_dir.mkdir(parents=True, exist_ok=True)
 
     paths: list[str] = []
@@ -216,5 +233,70 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
         file_path = memory_dir / filename
         file_path.write_text(resolved, encoding="utf-8")
         paths.append(str(file_path))
+    return paths
 
-    return DynamicMemoryResult(matched=matched, paths=paths)
+
+_DYNAMIC_MEMORY_LINE_RE = re.compile(
+    r"^- @(?P<path>\S+) \((?P<name>[^,()]+), matched: (?P<kws>.+)\)\s*$"
+)
+
+
+def _parse_dynamic_memory_section(prompt: str) -> list[tuple[str, str]]:
+    """Extract ``(xprompt_name, file_path)`` pairs from a prompt's DYNAMIC MEMORY section.
+
+    Returns an empty list when the section is absent or contains no parseable
+    lines.  Tolerates extra blank lines but stops at the first non-blank,
+    non-matching line.
+    """
+    marker = "### DYNAMIC MEMORY"
+    idx = prompt.find(marker)
+    if idx == -1:
+        return []
+    body = prompt[idx + len(marker) :]
+    pairs: list[tuple[str, str]] = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = _DYNAMIC_MEMORY_LINE_RE.match(line)
+        if not m:
+            break
+        pairs.append((m.group("name"), m.group("path")))
+    return pairs
+
+
+def rewrite_dynamic_memory_for_prompt(prompt: str) -> None:
+    """Re-write ``.sase/memory/`` files for memories listed in the prompt's section.
+
+    Parses the ``### DYNAMIC MEMORY`` section out of ``prompt``, looks each
+    listed xprompt up via the loader, and writes the resolved content using
+    :func:`_write_memory_files` in the *current* CWD.  Used by
+    :func:`sase.llm_provider.preprocessing.preprocess_prompt_late` so the
+    files exist on disk after any embedded-workflow pre-step that may have
+    cleaned the workspace.
+
+    No-op when the prompt has no DYNAMIC MEMORY section.
+    """
+    pairs = _parse_dynamic_memory_section(prompt)
+    if not pairs:
+        return
+
+    from sase.xprompt.loader import get_all_prompts
+    from sase.xprompt.tags import XPromptTag
+
+    all_prompts = get_all_prompts(project=None)
+    matched: list[MatchedMemory] = []
+    for name, _ in pairs:
+        wf = all_prompts.get(name)
+        if wf is None or XPromptTag.memory not in wf.tags:
+            continue
+        matched.append(
+            MatchedMemory(
+                name=name,
+                keywords_matched=[],
+                content=wf.get_prompt_part_content(),
+            )
+        )
+
+    if matched:
+        _write_memory_files(matched)

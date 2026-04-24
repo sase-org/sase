@@ -149,6 +149,15 @@ def preprocess_prompt_late(
     # 2. Command substitution
     prompt = process_command_substitution(prompt)
 
+    # 2.5 Re-write dynamic memory files after any embedded-workflow pre-steps
+    #     ran.  Pre-steps may chdir and/or wipe the workspace (e.g. hg clean),
+    #     so the early write at agent-runner start is not sufficient — the
+    #     `@.sase/memory/long-*.md` references in the prompt must resolve on
+    #     disk relative to the current CWD at validation time.
+    from sase.memory.dynamic import rewrite_dynamic_memory_for_prompt
+
+    rewrite_dynamic_memory_for_prompt(prompt)
+
     # 3. File references
     if file_ref_mode == "process":
         prompt = process_file_references(prompt, is_home_mode=is_home_mode)

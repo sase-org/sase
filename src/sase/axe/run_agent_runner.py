@@ -203,7 +203,14 @@ def main() -> None:
             # Change to workspace directory
             os.chdir(workspace_dir)
 
-            # Generate dynamic memory before agent starts
+            # Generate dynamic memory before agent starts.  This is the early
+            # pass — it produces the user-visible snapshot, writes the
+            # dynamic_memory.json artifact, and appends the `### DYNAMIC
+            # MEMORY` section to the prompt.  The on-disk files written here
+            # may be wiped by embedded-workflow pre-steps (e.g. `hg clean`)
+            # that run later; preprocess_prompt_late() re-writes them
+            # immediately before file-reference validation via
+            # rewrite_dynamic_memory_for_prompt().
             from sase.memory.dynamic import generate_dynamic_memory
 
             dynamic_result = generate_dynamic_memory(prompt, project_name)
