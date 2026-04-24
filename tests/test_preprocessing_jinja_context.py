@@ -38,3 +38,25 @@ class TestJinjaContextRendering:
                 "Iteration {{ N }}",
                 context={"cl_name": "test"},
             )
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_wait_chats_rendered(self, _mock_xprompt: object) -> None:
+        """{{ wait_chats | join(',') }} renders when context has wait_chats."""
+        result = preprocess_prompt_early(
+            "Transcripts: {{ wait_chats | join(',') }}",
+            context={"wait_chats": ["~/.sase/chats/a.md", "~/.sase/chats/b.md"]},
+        )
+        assert "Transcripts: ~/.sase/chats/a.md,~/.sase/chats/b.md" in result.prompt
+
+    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    def test_wait_chats_not_in_context_raises(self, _mock_xprompt: object) -> None:
+        """{{ wait_chats }} without wait_chats in context raises UndefinedError."""
+        from jinja2 import UndefinedError
+
+        import pytest
+
+        with pytest.raises(UndefinedError):
+            preprocess_prompt_early(
+                "{{ wait_chats }}",
+                context={"cl_name": "test"},
+            )

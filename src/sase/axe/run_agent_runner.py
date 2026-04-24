@@ -22,6 +22,7 @@ from sase.axe.run_agent_phases import (
     extract_directives_and_write_meta,
     record_stop_time,
     resolve_agent_refs_in_prompt,
+    resolve_wait_chat_paths,
     wait_for_dependencies,
 )
 from sase.axe.runner_utils import (
@@ -289,6 +290,7 @@ def main() -> None:
                 or info.wait_duration is not None
                 or info.wait_until is not None
             )
+            wait_chats: list[str] = []
             if has_wait:
                 wait_for_dependencies(
                     info.wait_names,
@@ -299,6 +301,9 @@ def main() -> None:
                     duration=info.wait_duration,
                     wait_until=info.wait_until,
                 )
+
+                if info.wait_names:
+                    wait_chats = resolve_wait_chat_paths(info.wait_names)
 
                 # Allocate real workspace now that dependencies are resolved
                 if os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE") and not is_home_mode:
@@ -337,6 +342,7 @@ def main() -> None:
                 agent_hidden=agent_hidden,
                 agent_meta=agent_meta,
                 local_xprompts=info.local_xprompts,
+                wait_chats=wait_chats,
             )
 
             exec_result = run_execution_loop(ctx, prompt)

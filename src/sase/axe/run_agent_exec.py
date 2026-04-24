@@ -52,6 +52,7 @@ class AgentExecContext:
     agent_hidden: bool
     agent_meta: dict[str, Any]
     local_xprompts: dict[str, Any]
+    wait_chats: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -313,6 +314,8 @@ def run_execution_loop(
                 named_args["N"] = int(_repeat_total_env)
             except ValueError:
                 pass
+        if ctx.wait_chats:
+            named_args["wait_chats"] = ctx.wait_chats
 
         try:
             result = execute_workflow(

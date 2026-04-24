@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 19:57:14
-status: wip
+status: done
 ---
 
 # Plan: Expose `wait_chats` Jinja variable for `%w` / `%wait` directives

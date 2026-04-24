@@ -325,6 +325,48 @@ def wait_for_dependencies(
         json.dump(agent_meta, f, indent=2)
 
 
+def resolve_wait_chat_paths(wait_names: list[str]) -> list[str]:
+    """Resolve each waited-for agent name to its ``~/.sase/chats/`` transcript path.
+
+    Called after :func:`wait_for_dependencies` returns, so each completed
+    agent should have a ``done.json`` with a ``response_path`` field.  Names
+    that can't be resolved or whose agent has no ``response_path`` (e.g. the
+    agent failed or crashed before saving a transcript) are skipped with a
+    warning; order of the remaining names is preserved, including duplicates.
+    """
+    from sase.agent.names import find_named_agent
+    from sase.output import print_status
+
+    resolved: list[str] = []
+    for name in wait_names:
+        agent = find_named_agent(name, only_done=True)
+        if agent is None:
+            print_status(
+                f"wait_chats: no done agent found for '{name}' — skipping",
+                "warning",
+            )
+            continue
+        done_path = os.path.join(agent.artifacts_dir, "done.json")
+        try:
+            with open(done_path, encoding="utf-8") as f:
+                done_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+            print_status(
+                f"wait_chats: cannot read done.json for '{name}' ({exc}) — skipping",
+                "warning",
+            )
+            continue
+        response_path = done_data.get("response_path")
+        if not response_path:
+            print_status(
+                f"wait_chats: agent '{name}' has no response_path — skipping",
+                "warning",
+            )
+            continue
+        resolved.append(str(response_path))
+    return resolved
+
+
 def resolve_agent_refs_in_prompt(prompt: str) -> tuple[str, str | None]:
     """Resolve @name agent references in VCS tags.
 
