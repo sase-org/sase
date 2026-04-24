@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 15:42:04
-status: wip
+status: done
 ---
 # Plan: Keep Startup Stopwatch Visible Until Full Startup Completes
 

@@ -160,6 +160,7 @@ class AgentLoadingMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
+            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
 
         # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {

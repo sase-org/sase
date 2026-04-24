@@ -85,7 +85,7 @@ class AxeDisplayLoadersMixin:
         # Clear startup loading indicators on the first completed axe load.
         if not self._axe_first_load_done:
             self._axe_first_load_done = True
-            from ...widgets import AxeDashboard, AxeInfoPanel, KeybindingFooter
+            from ...widgets import AxeDashboard, AxeInfoPanel
 
             try:
                 self.query_one(  # type: ignore[attr-defined]
@@ -100,13 +100,7 @@ class AxeDisplayLoadersMixin:
                 info_panel.set_loading(False)
             except Exception:
                 pass
-            try:
-                footer = self.query_one(  # type: ignore[attr-defined]
-                    "#keybinding-footer", KeybindingFooter
-                )
-                footer.end_startup_stopwatch()
-            except Exception:
-                pass
+            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
 
         self.axe_running = data.axe_running
 

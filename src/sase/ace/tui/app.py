@@ -622,6 +622,17 @@ class AceApp(
         except Exception:
             log.exception("Failed to schedule startup axe init")
 
+    def _maybe_end_startup_stopwatch(self) -> None:
+        """End startup stopwatch once both async startup surfaces are loaded."""
+        if not (self._agents_first_load_done and self._axe_first_load_done):
+            return
+        try:
+            self.query_one(
+                "#keybinding-footer", KeybindingFooter
+            ).end_startup_stopwatch()
+        except Exception:
+            pass
+
     def _apply_startup_loading_state(self) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.
 

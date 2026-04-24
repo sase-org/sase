@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.actions.changespec import ChangeSpecMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.app import AceApp
@@ -123,3 +124,122 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
 
     harness.agent_release.set()
     await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
+
+
+def test_maybe_end_startup_stopwatch_requires_both_first_load_flags() -> None:
+    """Coordinator should end stopwatch only after both startup loads finish."""
+    app = AceApp()
+    footer = MagicMock()
+
+    with patch.object(app, "query_one", return_value=footer):
+        app._agents_first_load_done = True
+        app._axe_first_load_done = False
+        app._maybe_end_startup_stopwatch()
+
+        app._agents_first_load_done = False
+        app._axe_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+
+        app._agents_first_load_done = True
+        app._axe_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+
+    footer.end_startup_stopwatch.assert_called_once()
+
+
+def test_maybe_end_startup_stopwatch_is_safe_when_called_repeatedly() -> None:
+    """Repeated coordinator calls rely on footer idempotency and stay safe."""
+
+    class _Footer:
+        def __init__(self) -> None:
+            self.active = True
+            self.end_calls = 0
+
+        def end_startup_stopwatch(self) -> None:
+            if not self.active:
+                return
+            self.active = False
+            self.end_calls += 1
+
+    app = AceApp()
+    footer = _Footer()
+
+    with patch.object(app, "query_one", return_value=footer):
+        app._agents_first_load_done = True
+        app._axe_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+        app._maybe_end_startup_stopwatch()
+
+    assert footer.end_calls == 1
+
+
+def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
+    """AXE first-load applies must route through the coordinator (not direct end)."""
+    app = AceApp()
+    app._agents_first_load_done = False
+    app._axe_first_load_done = False
+    footer = MagicMock()
+
+    def _query_one(selector: str, *_args: object, **_kwargs: object) -> object:
+        if selector == "#axe-dashboard":
+            return MagicMock()
+        if selector == "#axe-info-panel":
+            panel = MagicMock()
+            panel.set_loading = MagicMock()
+            return panel
+        if selector == "#keybinding-footer":
+            return footer
+        return MagicMock()
+
+    data = AxeCollectedData(
+        axe_running=False,
+        axe_status=None,
+        axe_metrics=None,
+        axe_output="",
+        lumberjack_names=[],
+        bgcmd_slots=[],
+        lumberjack_statuses={},
+        lumberjack_metrics={},
+        lumberjack_log_tails={},
+        bgcmd_details={},
+    )
+
+    with (
+        patch.object(app, "query_one", side_effect=_query_one),
+        patch.object(app, "_update_bgcmd_count", return_value=None),
+        patch.object(app, "_build_axe_items", return_value=None),
+        patch.object(app, "_update_axe_tab_count", return_value=None),
+        patch.object(app, "_update_axe_keybinding", return_value=None),
+    ):
+        app._apply_axe_status_data(data)
+
+    footer.end_startup_stopwatch.assert_not_called()
+
+
+def test_stopwatch_ends_when_second_startup_surface_finishes() -> None:
+    """Simulate each first-load completion path; second completion ends stopwatch."""
+
+    class _Footer:
+        def __init__(self) -> None:
+            self.active = True
+            self.end_calls = 0
+
+        def end_startup_stopwatch(self) -> None:
+            if not self.active:
+                return
+            self.active = False
+            self.end_calls += 1
+
+    app = AceApp()
+    footer = _Footer()
+
+    with patch.object(app, "query_one", return_value=footer):
+        # Simulate agents first load finishing first.
+        app._agents_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+        assert footer.end_calls == 0
+
+        # Simulate axe first load finishing second.
+        app._axe_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+        assert footer.end_calls == 1
