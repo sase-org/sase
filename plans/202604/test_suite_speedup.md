@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 20:32:20
-status: wip
+status: done
 bead_id: sase-l
 ---
 # Speed up `just test` — Implementation Plan
