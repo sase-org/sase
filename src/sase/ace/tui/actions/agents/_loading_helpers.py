@@ -17,6 +17,7 @@ DISMISSABLE_STATUSES = {
     "FAILED",
     "PLAN COMMITTED",
     "PLAN DONE",
+    "EPIC CREATED",
 }
 
 

@@ -159,6 +159,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
 
     - DONE → PLAN APPROVED: parent has active follow-up children
     - DONE → PLAN DONE: plan workflow where all follow-ups completed
+    - DONE → EPIC CREATED: plan workflow whose latest completed follow-up is `.epic`
     - DONE → PLANNING: plan workflow with no follow-up spawned yet
     - DONE → QUESTION: agent submitted a question that was never answered
     """
@@ -216,6 +217,11 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     # Iterate children in start-time order so that, if multiple are active, the
     # most-recently-started child's role_suffix wins the override.
     followup_override: dict[str, str] = {}
+    # Tracks the most-recently-completed follow-up's override per parent (last
+    # writer wins). When the `.epic` follow-up was the newest to complete we
+    # keep EPIC CREATED; a later non-epic completion overwrites with None so
+    # the default PLAN DONE applies.
+    completed_followup_override: dict[str, str | None] = {}
     ordered_agents = sorted(
         agents, key=lambda a: a.run_start_time or a.start_time or datetime.min
     )
@@ -228,11 +234,13 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             parents_with_followup.add(agent.parent_timestamp)
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
-                # Pick override status based on the active follow-up child's
-                # role_suffix — `.epic`/`.commit` map to EPIC APPROVED /
-                # PLAN COMMITTED; anything else is PLAN APPROVED. Multiple
-                # active children resolve via last-writer-wins on the
-                # start-time-ordered iteration (newest child wins).
+                # Pick override status based on the follow-up child's role_suffix.
+                # Active children: `.epic`/`.commit` map to EPIC APPROVED /
+                # PLAN COMMITTED; anything else is PLAN APPROVED. Completed
+                # children: a DONE `.epic` yields EPIC CREATED once every
+                # follow-up has finished. Both paths resolve multiple children
+                # via last-writer-wins on the start-time-ordered iteration
+                # (newest child wins).
                 if agent.status not in completed_statuses:
                     if agent.role_suffix == ".epic":
                         followup_override[agent.parent_timestamp] = "EPIC APPROVED"
@@ -240,6 +248,13 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                         followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
                     else:
                         followup_override[agent.parent_timestamp] = "PLAN APPROVED"
+                else:
+                    if agent.status == "DONE" and agent.role_suffix == ".epic":
+                        completed_followup_override[agent.parent_timestamp] = (
+                            "EPIC CREATED"
+                        )
+                    else:
+                        completed_followup_override[agent.parent_timestamp] = None
 
                 # Propagate meta_* fields from follow-up child to parent
                 # so the metadata panel shows dynamic variables (e.g. Commit
@@ -272,10 +287,12 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         if parent and parent.status == "DONE":
             parent.status = status
 
-    # Override DONE → PLAN DONE for plan workflows where all follow-ups completed.
-    # If a parent still has status "DONE" at this point and has follow-ups in
-    # parents_with_followup, all follow-ups must be complete (active ones would
-    # have triggered the PLAN APPROVED override above).
+    # Override DONE → PLAN DONE / EPIC CREATED for plan workflows where all
+    # follow-ups completed. If a parent still has status "DONE" at this point
+    # and has follow-ups in parents_with_followup, all follow-ups must be
+    # complete (active ones would have triggered the PLAN APPROVED override
+    # above). When the newest completed follow-up is `.epic` DONE, surface
+    # EPIC CREATED instead of the generic PLAN DONE.
     for agent in agents:
         if (
             agent.agent_type == AgentType.WORKFLOW
@@ -283,7 +300,11 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             and agent.status == "DONE"
             and agent.raw_suffix in parents_with_followup
         ):
-            agent.status = "PLAN DONE"
+            completed_override = completed_followup_override.get(agent.raw_suffix)
+            if completed_override == "EPIC CREATED":
+                agent.status = "EPIC CREATED"
+            else:
+                agent.status = "PLAN DONE"
 
     # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
     # A workflow with role_suffix ".plan" that's still DONE means the plan was

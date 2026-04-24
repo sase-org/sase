@@ -40,6 +40,7 @@ _DISMISSIBLE_STATUSES = (
     "DONE",
     "FAILED",
     "PLAN DONE",
+    "EPIC CREATED",
 )
 
 # Icon for hidden agents (shown when visibility is toggled on)
@@ -387,6 +388,8 @@ class AgentList(OptionList, inherit_bindings=False):
             text.append(agent.status, style="bold #FFD700")  # Gold
         elif agent.status in ("DONE", "PLAN DONE"):
             text.append(agent.status, style="bold #5FD75F")  # Green
+        elif agent.status == "EPIC CREATED":
+            text.append(agent.status, style="bold #5FD7AF")  # Sea-green
         elif agent.status == "FAILED":
             text.append(agent.status, style="bold #FF5F5F")  # Red
         elif agent.status == "PLANNING":

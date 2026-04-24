@@ -374,7 +374,13 @@ class AgentRevivalMixin:
         """Map display statuses to canonical workflow_state statuses."""
         if status in {"completed", "failed", "running", "waiting_hitl"}:
             return status
-        if status in {"DONE", "PLAN DONE", "PLAN COMMITTED", "EPIC APPROVED"}:
+        if status in {
+            "DONE",
+            "PLAN DONE",
+            "PLAN COMMITTED",
+            "EPIC APPROVED",
+            "EPIC CREATED",
+        }:
             return "completed"
         if status == "FAILED":
             return "failed"
@@ -389,7 +395,13 @@ class AgentRevivalMixin:
         """Map display statuses to canonical prompt_step marker statuses."""
         if status in {"completed", "failed", "in_progress", "waiting_hitl"}:
             return status
-        if status in {"DONE", "PLAN DONE", "PLAN COMMITTED", "EPIC APPROVED"}:
+        if status in {
+            "DONE",
+            "PLAN DONE",
+            "PLAN COMMITTED",
+            "EPIC APPROVED",
+            "EPIC CREATED",
+        }:
             return "completed"
         if status == "FAILED":
             return "failed"
@@ -576,6 +588,7 @@ class AgentRevivalMixin:
             "PLAN COMMITTED",
             "PLAN DONE",
             "EPIC APPROVED",
+            "EPIC CREATED",
             "QUESTION",
         }
         if agent.role_suffix == ".plan" or is_plan_like_status:

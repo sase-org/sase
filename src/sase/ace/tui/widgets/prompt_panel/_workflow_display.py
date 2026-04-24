@@ -103,6 +103,7 @@ class WorkflowDisplayMixin:
             "FAILED": "#FF5F5F",
             "PLANNING": "#FF87AF",
             "PLAN APPROVED": "#00D7AF",
+            "EPIC CREATED": "#5FD7AF",
             "QUESTION": "#FFAF00",
         }.get(agent.status, "#D7D7FF")
         header_text.append(f"{agent.status}\n", style=status_style)
