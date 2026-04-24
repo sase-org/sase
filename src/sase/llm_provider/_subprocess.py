@@ -177,6 +177,7 @@ def stream_process_output(
             if process.poll() is not None:
                 # Read any remaining output
                 if process.stdout:
+                    os.set_blocking(process.stdout.fileno(), True)
                     try:
                         for line in process.stdout:
                             if clean_ansi:
@@ -198,6 +199,7 @@ def stream_process_output(
                     except OSError:
                         pass
                 if process.stderr:
+                    os.set_blocking(process.stderr.fileno(), True)
                     for line in process.stderr:
                         stderr_lines.append(line)
                         if not suppress_output:
@@ -286,6 +288,7 @@ def stream_and_parse_json_output(
 
             if process.poll() is not None:
                 if process.stdout:
+                    os.set_blocking(process.stdout.fileno(), True)
                     for line in process.stdout:
                         _process_json_line(
                             line,
@@ -296,6 +299,7 @@ def stream_and_parse_json_output(
                             timestamps_file,
                         )
                 if process.stderr:
+                    os.set_blocking(process.stderr.fileno(), True)
                     for line in process.stderr:
                         stderr_lines.append(line)
                         if not suppress_output:
@@ -404,6 +408,7 @@ def stream_and_parse_codex_json_output(
 
             if process.poll() is not None:
                 if process.stdout:
+                    os.set_blocking(process.stdout.fileno(), True)
                     for line in process.stdout:
                         _process_codex_json_line(
                             line,
@@ -416,6 +421,7 @@ def stream_and_parse_codex_json_output(
                             timestamps_file,
                         )
                 if process.stderr:
+                    os.set_blocking(process.stderr.fileno(), True)
                     for line in process.stderr:
                         stderr_lines.append(line)
                         if not suppress_output:
