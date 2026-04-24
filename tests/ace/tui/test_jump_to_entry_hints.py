@@ -1,5 +1,10 @@
 """Tests for jump-to-entry hint assignment and list hint rendering."""
 
+import json
+from dataclasses import asdict
+from pathlib import Path
+from unittest.mock import patch
+
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.navigation.jump_hints import (
     JUMP_HINT_CHARS,
@@ -9,7 +14,7 @@ from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.jump_all_modal import JumpAllModal, JumpAllResult
 from sase.ace.tui.widgets.agent_list import AgentList
-from sase.ace.tui.widgets.bgcmd_list import BgCmdList
+from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, BgCmdList
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 
 
@@ -108,6 +113,49 @@ def test_jump_all_modal_no_last_position() -> None:
         axe_items=[],
     )
     assert modal._last_position is None
+
+
+def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
+    info = BackgroundCommandInfo(
+        command="rabbit test -c opt",
+        project="myproject",
+        workspace_num=1,
+        workspace_dir="/tmp/ws1",
+        started_at="2026-01-01T12:00:00",
+    )
+    slot_dir = tmp_path / "2"
+    slot_dir.mkdir(parents=True)
+    (slot_dir / "info.json").write_text(json.dumps(asdict(info)))
+
+    with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
+        modal = JumpAllModal(
+            changespecs=[],
+            agents=[],
+            main_panel_indices=[],
+            pinned_panel_indices=[],
+            pinned_panel_idx_map={},
+            axe_items=[BgCmdItem(slot=2)],
+        )
+
+    assert len(modal._entries) == 1
+    assert modal._entries[0].name == "bgcmd #2: rabbit test -c opt"
+
+
+def test_jump_all_modal_bgcmd_entry_falls_back_without_info(
+    tmp_path: Path,
+) -> None:
+    with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
+        modal = JumpAllModal(
+            changespecs=[],
+            agents=[],
+            main_panel_indices=[],
+            pinned_panel_indices=[],
+            pinned_panel_idx_map={},
+            axe_items=[BgCmdItem(slot=3)],
+        )
+
+    assert len(modal._entries) == 1
+    assert modal._entries[0].name == "bgcmd #3"
 
 
 def test_bgcmd_list_hint_marker_rendered() -> None:

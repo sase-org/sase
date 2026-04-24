@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 15:23:58
-status: wip
+status: done
 ---
 # Plan: Show command in bgcmd entries in the "Jump to Entry" panel
 

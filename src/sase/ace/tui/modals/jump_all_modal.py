@@ -19,6 +19,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from ..actions.navigation.jump_hints import JUMP_HINT_CHARS
+from ..bgcmd import get_slot_info
 from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
 
 if TYPE_CHECKING:
@@ -174,11 +175,16 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     _Entry("axe", i, item.name, "", "", name_style=axe_color, indent=1)
                 )
             elif isinstance(item, BgCmdItem):
+                info = get_slot_info(item.slot)
+                if info is not None:
+                    label = f"bgcmd #{item.slot}: {info.command}"
+                else:
+                    label = f"bgcmd #{item.slot}"
                 entries.append(
                     _Entry(
                         "axe",
                         i,
-                        f"bgcmd #{item.slot}",
+                        label,
                         "",
                         "",
                         name_style=axe_color,
