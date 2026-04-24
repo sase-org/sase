@@ -9,20 +9,18 @@ from sase.vcs_provider.config import (
     strip_project_pr_prefix,
 )
 from sase.workflows.commit.workflow import CommitWorkflow
+from tests._commit_workflow_fixtures import (
+    no_precommit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
+)
 
 _VCS_CONFIG_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
 @pytest.fixture(autouse=True)
-def _no_precommit():  # type: ignore[no-untyped-def]
-    with (
-        patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
-        patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
-    ):
-        yield
+def _no_precommit_or_hooks(no_precommit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
+    yield
 
 
 # === get_use_project_pr_prefix ===
