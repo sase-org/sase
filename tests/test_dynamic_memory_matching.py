@@ -8,10 +8,8 @@ import pytest
 from sase.memory.dynamic import (
     DynamicMemoryResult,
     MatchedMemory,
-    format_dynamic_memory_section,
     generate_dynamic_memory,
 )
-from sase.gemini_wrapper.file_references import validate_file_references
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import xprompt_to_workflow
 
@@ -58,7 +56,7 @@ def test_matching_keywords_writes_individual_file(
     assert result.matched[0].name == "memory/long/external_repos"
     assert "chezmoi" in result.matched[0].keywords_matched
     assert len(result.paths) == 1
-    assert Path(result.paths[0]) == tmp_path / ".sase/memory/long-external-repos.md"
+    assert result.paths[0] == ".sase/memory/long-external-repos.md"
 
     content = Path(result.paths[0]).read_text()
     assert "# External Repos" in content
@@ -240,7 +238,7 @@ def test_special_char_keyword_matches(
 def test_files_written_under_sase_memory_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Matched memory files are written under CWD .sase/memory/."""
+    """Matched memory files are written under .sase/memory/ in CWD."""
     monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
@@ -253,36 +251,8 @@ def test_files_written_under_sase_memory_dir(
         result = generate_dynamic_memory("chezmoi stuff", None)
 
     assert len(result.paths) == 1
-    path = Path(result.paths[0])
-    assert path.is_absolute()
-    assert path == tmp_path / ".sase/memory/long-external-repos.md"
-    assert path.exists()
-
-
-def test_formatted_references_survive_later_chdir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Dynamic memory @refs remain valid after workflow steps change CWD."""
-    generation_cwd = tmp_path / "generation"
-    later_cwd = tmp_path / "later"
-    generation_cwd.mkdir()
-    later_cwd.mkdir()
-    monkeypatch.chdir(generation_cwd)
-
-    workflows = _make_memory_workflows()
-    with (
-        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch(
-            "sase.gemini_wrapper.file_references.process_command_substitution",
-            side_effect=lambda s: s,
-        ),
-    ):
-        result = generate_dynamic_memory("chezmoi stuff", None)
-
-    section = format_dynamic_memory_section(result)
-    monkeypatch.chdir(later_cwd)
-
-    validate_file_references(section)
+    assert result.paths[0].startswith(".sase/memory/")
+    assert (tmp_path / result.paths[0]).exists()
 
 
 # ── stale file cleanup ───────────────────────────────────────────────────

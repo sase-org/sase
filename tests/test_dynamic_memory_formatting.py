@@ -34,12 +34,12 @@ def test_format_dynamic_memory_section_single() -> None:
                 content="",
             )
         ],
-        paths=["/workspace/.sase/memory/long-external-repos.md"],
+        paths=[".sase/memory/long-external-repos.md"],
     )
     result = format_dynamic_memory_section(dr)
     assert result == (
         "### DYNAMIC MEMORY\n"
-        "- @/workspace/.sase/memory/long-external-repos.md (matched: `chezmoi`)"
+        "- @.sase/memory/long-external-repos.md (matched: `chezmoi`)"
     )
 
 
@@ -58,17 +58,15 @@ def test_format_dynamic_memory_section_multiple() -> None:
             ),
         ],
         paths=[
-            "/workspace/.sase/memory/long-external-repos.md",
-            "/workspace/.sase/memory/long-generated-skills.md",
+            ".sase/memory/long-external-repos.md",
+            ".sase/memory/long-generated-skills.md",
         ],
     )
     result = format_dynamic_memory_section(dr)
     assert result == (
         "### DYNAMIC MEMORY\n"
-        "- @/workspace/.sase/memory/long-external-repos.md "
-        "(matched: `chezmoi`, `plugin`)\n"
-        "- @/workspace/.sase/memory/long-generated-skills.md "
-        "(matched: `skill`, `commit workflow`)"
+        "- @.sase/memory/long-external-repos.md (matched: `chezmoi`, `plugin`)\n"
+        "- @.sase/memory/long-generated-skills.md (matched: `skill`, `commit workflow`)"
     )
 
 
