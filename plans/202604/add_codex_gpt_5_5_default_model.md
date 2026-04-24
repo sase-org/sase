@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 16:11:59
-status: wip
+status: done
 ---
 # Plan: Add Codex `gpt-5.5` Support and Make It the Default
 

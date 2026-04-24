@@ -197,7 +197,7 @@ events.
 
 | Tier    | Codex Model         |
 | ------- | ------------------- |
-| `large` | `gpt-5.3-codex`     |
+| `large` | `gpt-5.5`           |
 | `small` | `codex-mini-latest` |
 
 ### Plan Mode
@@ -289,11 +289,11 @@ Use `provider/model` to specify both explicitly:
 
 Known model names are automatically mapped to their provider:
 
-| Model Name                                                                                                           | Provider |
-| -------------------------------------------------------------------------------------------------------------------- | -------- |
-| `opus`, `sonnet`, `haiku`                                                                                            | claude   |
-| `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini` | codex    |
-| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`         | gemini   |
+| Model Name                                                                                                                      | Provider |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `opus`, `sonnet`, `haiku`                                                                                                       | claude   |
+| `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini` | codex    |
+| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                    | gemini   |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook (e.g. `jetski-default` from
 `sase-google`).

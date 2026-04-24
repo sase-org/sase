@@ -41,6 +41,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "opus" in ids
     assert "sonnet" in ids
     assert "o3" in ids
+    assert "gpt-5.5" in ids
     assert "gemini-2.5-pro" in ids
 
 

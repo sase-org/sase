@@ -13,7 +13,7 @@ from .types import InvokeResult, ModelTier
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gpt-5.3-codex",
+    "large": "gpt-5.5",
     "small": "codex-mini-latest",
 }
 
@@ -58,6 +58,7 @@ class CodexProvider(LLMProvider):
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
         return [
+            "gpt-5.5",
             "gpt-5.3-codex",
             "codex-mini-latest",
             "o3",

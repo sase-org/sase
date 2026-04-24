@@ -146,6 +146,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("o3") == ("codex", "o3")
     assert resolve_model_provider("opus") == ("claude", "opus")
     assert resolve_model_provider("sonnet") == ("claude", "sonnet")
+    assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
     assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
 
