@@ -12,7 +12,9 @@
 - Jetski skills deploy to `~/.gemini/jetski/skills/` (not `~/.jetski/skills/`) by design — Jetski shares the
   `~/.gemini/` parent with Gemini CLI. The `_SKILL_DEPLOY_SUBPATH` override in `init_skills_handler.py` encodes this;
   don't "fix" it.
-- Memory xprompt `keywords` support a `!` prefix for **negative keywords**: a match on any negative keyword excludes the
-  memory from `### DYNAMIC MEMORY` even if positive keywords also matched (e.g. `keywords: [skill, "!jetski"]`). In
+- Memory xprompt `keywords` support a `!` prefix for **negative keywords**: each negative keyword masks its matched
+  spans out of the prompt before positive-keyword matching runs, so a memory is excluded only when every positive hit
+  fell inside a masked region (e.g. `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` via the
+  standalone `foo` but not `"update /path/to/foo/"`). A negative hit that doesn't cover any positive hit is a no-op. In
   YAML, `!`-prefixed entries MUST be quoted (`"!jetski"`) — an unquoted `!foo` is parsed as a YAML tag directive and
   errors at load time.

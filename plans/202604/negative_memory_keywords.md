@@ -187,3 +187,12 @@ None that block implementation. Candidates the user may want to weigh in on late
 - Should we expose negative-match exclusions in a debug flag (`SASE_DYNAMIC_MEMORY_DEBUG=1` etc.)? Deferred.
 - Should the `### DYNAMIC MEMORY` section note entries that were _considered but excluded_? Deferred — current line
   rejects this.
+
+## Update 2026-04-24 — superseded semantics
+
+The "blanket veto" rule in `## User-facing Semantics` above has been superseded. The refined rule masks each negative
+keyword's matched text out of the prompt before positive-keyword matching runs; a memory is excluded only when every
+positive hit fell inside a masked region. Concretely, under the new rule the `["skill", "!jetski"]` +
+`"deploy a skill via jetski"` example is **included** (the standalone `skill` still matches outside the `jetski` mask),
+reversing the behavior documented above. See `plans/202604/negative_keyword_masking.md` for the full refined design and
+its motivation.

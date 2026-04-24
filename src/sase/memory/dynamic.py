@@ -56,9 +56,43 @@ def _split_keywords(keywords: list[str]) -> tuple[list[str], list[str]]:
     return positives, negatives
 
 
+def _keyword_pattern(keyword: str) -> str:
+    """Build the case-insensitive regex for a keyword.
+
+    Anchors ``\\b`` only at edges whose keyword char is a word character — a
+    ``\\b`` next to a non-word char (e.g. ``/`` in ``/foo/``) requires the
+    *other* side to be a word char, which would prevent keywords like
+    ``/foo/`` from matching inside ``/path/to/foo/``. For word-char-bounded
+    keywords this is identical to ``\\b{kw}\\b``.
+    """
+    pattern = re.escape(keyword)
+    if keyword and (keyword[0].isalnum() or keyword[0] == "_"):
+        pattern = r"\b" + pattern
+    if keyword and (keyword[-1].isalnum() or keyword[-1] == "_"):
+        pattern = pattern + r"\b"
+    return pattern
+
+
 def _keyword_matches(keyword: str, prompt: str) -> bool:
     """Whole-word, case-insensitive match of ``keyword`` in ``prompt``."""
-    return bool(re.search(rf"\b{re.escape(keyword)}\b", prompt, re.IGNORECASE))
+    return bool(re.search(_keyword_pattern(keyword), prompt, re.IGNORECASE))
+
+
+def _mask_negative_spans(prompt: str, negatives: list[str]) -> str:
+    """Return ``prompt`` with every span matched by any negative keyword blanked to spaces.
+
+    Replacing with spaces (rather than removing) preserves offsets and surrounding
+    word boundaries so a positive keyword adjacent to a masked span still sees
+    the same ``\\b`` transitions it would see in the unmasked prompt.
+    """
+    if not negatives:
+        return prompt
+    masked = list(prompt)
+    for neg in negatives:
+        for m in re.finditer(_keyword_pattern(neg), prompt, re.IGNORECASE):
+            for i in range(m.start(), m.end()):
+                masked[i] = " "
+    return "".join(masked)
 
 
 def _memory_filename(xprompt_name: str) -> str:
@@ -122,9 +156,12 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     Loads all xprompts, filters to those with the ``memory`` tag and
     non-empty ``keywords``, then checks each keyword against the prompt
-    (word-boundary regex, case-insensitive).  Matched content uses ``$(cat ...)`` shell
-    substitution which is resolved before writing each match to its own file
-    under ``.sase/memory/`` in the current working directory.
+    (word-boundary regex, case-insensitive). Negative (``!``-prefixed) keywords
+    mask their matched spans out of the prompt before positive matching runs,
+    so a memory is excluded only when every positive hit fell inside a masked
+    region. Matched content uses ``$(cat ...)`` shell substitution which is
+    resolved before writing each match to its own file under ``.sase/memory/``
+    in the current working directory.
 
     Before matching, any existing ``### DYNAMIC MEMORY`` section is stripped
     from the prompt so that stale references don't influence keyword hits.
@@ -154,9 +191,8 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
             continue
 
         positives, negatives = _split_keywords(wf.keywords)
-        if any(_keyword_matches(n, prompt) for n in negatives):
-            continue
-        hits = [kw for kw in positives if _keyword_matches(kw, prompt)]
+        search_prompt = _mask_negative_spans(prompt, negatives)
+        hits = [kw for kw in positives if _keyword_matches(kw, search_prompt)]
         if hits:
             matched.append(
                 MatchedMemory(
