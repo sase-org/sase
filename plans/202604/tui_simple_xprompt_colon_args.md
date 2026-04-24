@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 11:57:09
-status: wip
+status: done
 ---
 # Plan: Fix TUI Agent Launch Failure for Simple Xprompts With Multi-Arg Colon Syntax
 

@@ -21,11 +21,18 @@ class WorkflowExecMixin:
     # Type hint for attribute from AgentLaunchMixin (resolved at runtime via MRO)
     _prompt_context: PromptContext | None
 
-    def _try_execute_workflow(self, prompt: str) -> bool | str:
+    def _try_execute_workflow(
+        self, prompt: str, has_vcs_ref: bool = False
+    ) -> bool | str:
         """Try to execute a workflow reference.
 
         Args:
             prompt: The prompt starting with # (e.g., "#test_workflow" or "#split(arg)").
+            has_vcs_ref: True if the original prompt contained a VCS ref (e.g.,
+                "#hg:ilar"). When True, simple xprompts are not rendered here —
+                the caller will expand them downstream via
+                ``process_xprompt_references`` (which splits colon args on
+                commas), and the rendered value would be discarded anyway.
 
         Returns:
             True if workflow was executed, False if not a valid workflow reference,
@@ -54,8 +61,14 @@ class WorkflowExecMixin:
 
         workflow = prompts[workflow_name]
 
-        # Simple xprompts: expand inline instead of spawning workflow
+        # Simple xprompts: expand inline instead of spawning workflow.
+        # When the caller has a VCS ref, the rendered value is discarded —
+        # defer to process_xprompt_references() downstream, which handles
+        # colon-comma args correctly.
         if workflow.is_simple_xprompt():
+            if has_vcs_ref:
+                return False
+
             from sase.xprompt.models import UNSET
             from sase.xprompt.workflow_executor_utils import render_template
 

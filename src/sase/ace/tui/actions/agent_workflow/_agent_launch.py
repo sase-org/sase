@@ -277,7 +277,9 @@ class AgentLaunchMixin(
             workflow_prompt = strip_all_vcs_refs(workflow_prompt)
 
         if workflow_prompt.startswith("#"):
-            workflow_result = self._try_execute_workflow(workflow_prompt)  # type: ignore[attr-defined]
+            workflow_result = self._try_execute_workflow(  # type: ignore[attr-defined]
+                workflow_prompt, has_vcs_ref=vcs_ref is not None
+            )
             if workflow_result is True:
                 # Full workflow executed successfully
                 self._prompt_context = None
