@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import time
 from typing import TYPE_CHECKING, Literal
 
@@ -31,6 +32,51 @@ log = logging.getLogger(__name__)
 # ``delete_agent_artifacts``); subsequent full reloads skip it, saving the
 # stat/glob syscalls when many dismissed agents accumulate.
 _CLEANED_ARTIFACT_DIRS: set[str] = set()
+
+
+def _compute_loader_cleanup(
+    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    dismissed_from_loader: list[Agent],
+) -> tuple[
+    set[tuple[AgentType, str, str | None]],
+    set[str],
+]:
+    """Compute orphaned-dismissed entries and clean loader-sourced artifacts."""
+    # Self-heal dismissed entries with no in-memory agent and no bundle file.
+    from ....dismissed_agents import _DISMISSED_BUNDLES_DIR
+    from ._killing import delete_agent_artifacts
+
+    found_suffixes = {
+        a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
+    }
+    orphaned: set[tuple[AgentType, str, str | None]] = set()
+    for identity in dismissed_snapshot:
+        _, _, raw_suffix = identity
+        if raw_suffix is None or raw_suffix in found_suffixes:
+            continue
+        parent_path = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
+        has_bundle = (
+            parent_path.exists()
+            or any(_DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"))
+            if _DISMISSED_BUNDLES_DIR.is_dir()
+            else False
+        )
+        if not has_bundle:
+            orphaned.add(identity)
+
+    # Self-healing: clean stale artifacts only for loader-sourced dismissed agents.
+    cleaned_dirs: set[str] = set()
+    for a in dismissed_from_loader:
+        artifacts_dir = a.artifacts_dir or a.get_artifacts_dir()
+        if artifacts_dir is None or artifacts_dir in _CLEANED_ARTIFACT_DIRS:
+            continue
+        if not Path(artifacts_dir).is_dir():
+            cleaned_dirs.add(artifacts_dir)
+            continue
+        delete_agent_artifacts(artifacts_dir)
+        cleaned_dirs.add(artifacts_dir)
+
+    return orphaned, cleaned_dirs
 
 
 class AgentLoadingMixin:
@@ -78,6 +124,7 @@ class AgentLoadingMixin:
     # itself once it finishes so the final UI state reflects disk state
     # after the last trigger.
     _agents_refresh_pending: bool
+    _agents_refresh_scheduled: bool
 
     # Panel focus and index maps for pinned panel split
     _pinned_panel_focused: Literal["main", "pinned"]
@@ -120,6 +167,23 @@ class AgentLoadingMixin:
             len(all_agents),
             len(dismissed_from_loader),
         )
+        cleanup_start = time.perf_counter()
+        orphaned, cleaned_dirs = await asyncio.to_thread(
+            _compute_loader_cleanup, dismissed_snapshot, dismissed_from_loader
+        )
+        if orphaned:
+            from ....dismissed_agents import save_dismissed_agents
+
+            self._dismissed_agents -= orphaned
+            save_dismissed_agents(self._dismissed_agents)
+        if cleaned_dirs:
+            _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
+        log.debug(
+            "agents async load: cleanup=%.3fs orphaned=%d cleaned=%d",
+            time.perf_counter() - cleanup_start,
+            len(orphaned),
+            len(cleaned_dirs),
+        )
 
         # Capture current state AFTER the await — the user may have navigated
         # (j/k) or switched tabs while disk I/O was in flight.
@@ -128,9 +192,11 @@ class AgentLoadingMixin:
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
 
+        apply_start = time.perf_counter()
         self._apply_loaded_agents(
             all_agents, dismissed_from_loader, on_agents_tab, selected_identity
         )
+        log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
 
     def _apply_loaded_agents(
         self,
@@ -175,36 +241,19 @@ class AgentLoadingMixin:
         }
 
         self._dismissed_agent_objects = dismissed_from_loader
-
-        # Self-heal: remove orphaned dismissed entries that have no agent
-        # object AND no bundle file on disk.  These are agents from before
-        # the per-agent bundle system that can never be revived.
-        from ....dismissed_agents import (
-            _DISMISSED_BUNDLES_DIR,
-            save_dismissed_agents,
-        )
-
-        found_suffixes = {
-            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
-        }
-        orphaned = set()
-        for identity in self._dismissed_agents:
-            _, _, raw_suffix = identity
-            if raw_suffix is None or raw_suffix in found_suffixes:
-                continue
-            # Check if a bundle file exists for this suffix
-            parent_path = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
-            has_bundle = (
-                parent_path.exists()
-                or any(_DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"))
-                if _DISMISSED_BUNDLES_DIR.is_dir()
-                else False
+        # Keep sync callers (tests and explicit _load_agents paths) behavior
+        # consistent: run cleanup inline only when no async refresh is in flight.
+        if not self._agents_loading:
+            orphaned, cleaned_dirs = _compute_loader_cleanup(
+                set(self._dismissed_agents), dismissed_from_loader
             )
-            if not has_bundle:
-                orphaned.add(identity)
-        if orphaned:
-            self._dismissed_agents -= orphaned
-            save_dismissed_agents(self._dismissed_agents)
+            if orphaned:
+                from ....dismissed_agents import save_dismissed_agents
+
+                self._dismissed_agents -= orphaned
+                save_dismissed_agents(self._dismissed_agents)
+            if cleaned_dirs:
+                _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
 
         # Filter out dismissed agents.  Non-RUNNING agents use the broad
         # dismissed_suffixes index (suffix-only).  RUNNING agents use the
@@ -233,30 +282,6 @@ class AgentLoadingMixin:
                 )
             )
         ]
-
-        # Self-healing: clean up stale artifacts only for loader-sourced
-        # dismissed agents (bundle-sourced agents have no artifacts to clean)
-        from pathlib import Path
-
-        from ._killing import delete_agent_artifacts
-
-        loader_identities = {a.identity for a in dismissed_from_loader}
-        loader_suffixes = {
-            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
-        }
-        for a in self._dismissed_agent_objects:
-            if a.identity in loader_identities or (
-                a.raw_suffix is not None and a.raw_suffix in loader_suffixes
-            ):
-                artifacts_dir = a.artifacts_dir or a.get_artifacts_dir()
-                if artifacts_dir is None or artifacts_dir in _CLEANED_ARTIFACT_DIRS:
-                    continue
-                if not Path(artifacts_dir).is_dir():
-                    # Directory gone — already cleaned by an earlier dismiss.
-                    _CLEANED_ARTIFACT_DIRS.add(artifacts_dir)
-                    continue
-                delete_agent_artifacts(artifacts_dir)
-                _CLEANED_ARTIFACT_DIRS.add(artifacts_dir)
 
         # Auto-dismiss hidden agents that have completed successfully.
         # Failed agents are kept visible so the user can investigate.
@@ -313,10 +338,15 @@ class AgentLoadingMixin:
         if self._agents_loading:
             self._agents_refresh_pending = True
             return
+        if self._agents_refresh_scheduled:
+            self._agents_refresh_pending = True
+            return
+        self._agents_refresh_scheduled = True
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard."""
+        self._agents_refresh_scheduled = False
         if self._agents_loading:
             self._agents_refresh_pending = True
             return
@@ -329,7 +359,7 @@ class AgentLoadingMixin:
             # more pass so the UI reflects the latest on-disk state.
             if self._agents_refresh_pending:
                 self._agents_refresh_pending = False
-                self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
     def _refilter_agents(self) -> None:
         """Lightweight agent refresh that skips disk I/O.
@@ -542,7 +572,10 @@ class AgentLoadingMixin:
 
         # Only refresh display if on agents tab
         if on_agents_tab:
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True,
+                defer_detail=True,
+            )
             # Refresh the file panel for the now-selected agent. Silently
             # skip when nothing is selected or the agent is dismissable so
             # auto-refresh doesn't spam notifications.

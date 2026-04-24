@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -18,6 +20,7 @@ PanelFocus = Literal["main", "pinned"]
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+log = logging.getLogger(__name__)
 
 
 class AgentDisplayMixin:
@@ -52,7 +55,9 @@ class AgentDisplayMixin:
     # Countdown for refresh
     _countdown_remaining: int
 
-    def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
+    def _refresh_agents_display(
+        self, *, list_changed: bool = False, defer_detail: bool = False
+    ) -> None:
         """Refresh the agents tab display.
 
         Args:
@@ -61,6 +66,8 @@ class AgentDisplayMixin:
                 index moved (j/k navigation) — skip the expensive OptionList
                 clear-and-rebuild.
         """
+        started = time.perf_counter()
+        list_started = started
         # Cancel any pending debounce timer — full refresh supersedes
         if self._detail_update_timer is not None:
             self._detail_update_timer.stop()
@@ -122,6 +129,11 @@ class AgentDisplayMixin:
                 jump_hints=pinned_jump_hints,
                 current_attempt_number=self.current_attempt_number,
             )
+            log.debug(
+                "agents display refresh list phase: elapsed=%.3fs agents=%d",
+                time.perf_counter() - list_started,
+                len(self._agents),
+            )
         else:
             # Update highlight on the focused panel only; clear unfocused
             if self._pinned_panel_focused == "pinned":
@@ -138,9 +150,24 @@ class AgentDisplayMixin:
         # Update focus styling
         self._update_panel_focus_styling()
 
-        self._apply_agent_detail_update(agent_detail, footer_widget)
-
         self._update_agents_info_panel()
+        if defer_detail:
+            self._detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
+                0.15, self._fire_debounced_detail_update
+            )
+            log.debug(
+                "agents display refresh deferred detail: elapsed=%.3fs",
+                time.perf_counter() - started,
+            )
+            return
+
+        detail_started = time.perf_counter()
+        self._apply_agent_detail_update(agent_detail, footer_widget)
+        log.debug(
+            "agents display refresh detail phase: elapsed=%.3fs total=%.3fs",
+            time.perf_counter() - detail_started,
+            time.perf_counter() - started,
+        )
 
     def _refresh_agents_display_debounced(self) -> None:
         """Debounced refresh for j/k navigation on the agents tab.

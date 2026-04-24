@@ -276,6 +276,7 @@ class AceApp(
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
+        self._agents_refresh_scheduled: bool = False
         self._post_mount_background_loads_started: bool = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False
@@ -322,6 +323,7 @@ class AceApp(
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
         ] = {}
+        self._kill_persistence_inflight: set[tuple[AgentType, str, str | None]] = set()
 
         # Plan feedback context (set when user presses 'f' in plan approval modal)
         from sase.ace.tui.actions.agents._types import PlanFeedbackContext

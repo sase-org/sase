@@ -82,6 +82,7 @@ class AgentsMixinCore(
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+    _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
     # Agent search/filter query
     _agent_search_query: str
