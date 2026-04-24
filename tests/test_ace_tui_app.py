@@ -13,10 +13,10 @@ async def test_navigation_next_key() -> None:
         assert page.state["idx"] == 0
 
         await page.press("j")
-        assert page.state["idx"] == 1
+        await page.expect_state("idx", 1)
 
         await page.press("j")
-        assert page.state["idx"] == 2
+        await page.expect_state("idx", 2)
 
 
 async def test_navigation_next_at_end() -> None:
