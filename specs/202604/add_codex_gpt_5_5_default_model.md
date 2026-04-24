@@ -1,0 +1,2 @@
+  Can you help me add support for openai's new gpt5.5 model to codex? Make this the default model that we use. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+ 
