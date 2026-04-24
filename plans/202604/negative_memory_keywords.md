@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 12:28:47
-status: wip
+status: done
 ---
 # Plan: Negative Keyword Matches for Memory XPrompts
 

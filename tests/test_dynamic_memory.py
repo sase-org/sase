@@ -9,6 +9,7 @@ from sase.memory.dynamic import (
     DynamicMemoryResult,
     MatchedMemory,
     _memory_filename,
+    _split_keywords,
     format_dynamic_memory_section,
     generate_dynamic_memory,
     _strip_dynamic_memory_section,
@@ -575,3 +576,186 @@ def test_prompt_with_existing_dynamic_memory_section_stripped(
     assert result.matched == [], (
         "stale_keyword in DYNAMIC MEMORY section should not trigger a match"
     )
+
+
+# ── negative keywords ────────────────────────────────────────────────────
+
+
+def _make_negative_keyword_workflows(keywords: list[str]) -> dict[str, object]:
+    entries = {
+        "memory/long/neg_test": {
+            "tags": "memory",
+            "keywords": keywords,
+            "content": "# Neg test content",
+        }
+    }
+    xprompts = parse_xprompt_entries(entries, "test")
+    return {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
+
+
+def test_split_keywords_basic() -> None:
+    positives, negatives = _split_keywords(["foo", "!bar", "baz", "!qux"])
+    assert positives == ["foo", "baz"]
+    assert negatives == ["bar", "qux"]
+
+
+def test_split_keywords_bare_bang_dropped() -> None:
+    """A bare '!' must not produce an empty-text negative that matches everywhere."""
+    positives, negatives = _split_keywords(["foo", "!"])
+    assert positives == ["foo"]
+    assert negatives == []
+
+
+def test_negative_keyword_excludes_memory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_negative_keyword_workflows(["skill", "!jetski"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("deploy a skill via jetski", None)
+
+    assert result.matched == []
+
+
+def test_negative_keyword_ignored_when_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_negative_keyword_workflows(["skill", "!jetski"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("write a new skill", None)
+
+    assert len(result.matched) == 1
+    assert result.matched[0].keywords_matched == ["skill"]
+
+
+def test_negative_only_keywords_never_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_negative_keyword_workflows(["!jetski", "!deprecated"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("totally unrelated prompt", None)
+
+    assert result.matched == []
+
+
+def test_negative_overrides_positive_in_same_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    # Same keyword appears both positive and negative; negative wins.
+    workflows = _make_negative_keyword_workflows(["skill", "!skill"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("update the skill", None)
+
+    assert result.matched == []
+
+
+def test_negative_keyword_case_insensitive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_negative_keyword_workflows(["skill", "!jetski"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("JETSKI skill deploy", None)
+
+    assert result.matched == []
+
+
+def test_negative_keyword_word_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`!test` must not exclude on `testing` — word boundaries still apply."""
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_negative_keyword_workflows(["skill", "!test"])
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("testing my skill", None)
+
+    assert len(result.matched) == 1
+    assert result.matched[0].keywords_matched == ["skill"]
+
+
+def test_negative_keyword_frontmatter_roundtrip(tmp_path: Path) -> None:
+    """Quoted '!foo' in YAML frontmatter is preserved through the model."""
+    from sase.xprompt.loader import _load_xprompt_from_file
+
+    md = tmp_path / "test.md"
+    md.write_text(
+        '---\ntags: memory\nkeywords: [skill, "!jetski"]\n---\n@memory/long/foo.md\n'
+    )
+    xp = _load_xprompt_from_file(md)
+    assert xp is not None
+    assert xp.keywords == ["skill", "!jetski"]
+
+
+def test_negative_keyword_config_entry_roundtrip() -> None:
+    """Negative keywords survive parse_xprompt_entries."""
+    entries = {
+        "memory/foo": {
+            "tags": "memory",
+            "keywords": ["skill", "!jetski"],
+            "content": "# body",
+        }
+    }
+    result = parse_xprompt_entries(entries, "test")
+    assert result["memory/foo"].keywords == ["skill", "!jetski"]
+
+
+def test_negative_keyword_memory_long_frontmatter(tmp_path: Path) -> None:
+    """Auto-discovered memory/long/*.md files preserve '!'-prefixed keywords."""
+    from sase.xprompt.loader import _load_memory_long_xprompts
+
+    mem_dir = tmp_path / "memory" / "long"
+    mem_dir.mkdir(parents=True)
+    (mem_dir / "foo.md").write_text(
+        '---\nkeywords: [skill, "!jetski"]\n---\n# Foo content\n'
+    )
+
+    with (
+        patch(
+            "sase.xprompt.loader._get_memory_long_search_dirs",
+            return_value=[(mem_dir, True)],
+        ),
+        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+    ):
+        result = _load_memory_long_xprompts()
+
+    assert "memory/long/foo" in result
+    assert result["memory/long/foo"].keywords == ["skill", "!jetski"]

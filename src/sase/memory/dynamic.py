@@ -36,6 +36,31 @@ class DynamicMemoryResult:
     paths: list[str] = field(default_factory=list)
 
 
+def _split_keywords(keywords: list[str]) -> tuple[list[str], list[str]]:
+    """Split raw keyword strings into (positives, negatives) by the ``!`` sigil.
+
+    A keyword is negative iff it starts with ``!``; the remainder (after
+    stripping the ``!``) is the text used for regex matching. Empty
+    post-strip keywords are dropped so a bare ``!`` does not degenerate into
+    an always-matching empty regex.
+    """
+    positives: list[str] = []
+    negatives: list[str] = []
+    for kw in keywords:
+        if kw.startswith("!"):
+            stripped = kw[1:]
+            if stripped:
+                negatives.append(stripped)
+        elif kw:
+            positives.append(kw)
+    return positives, negatives
+
+
+def _keyword_matches(keyword: str, prompt: str) -> bool:
+    """Whole-word, case-insensitive match of ``keyword`` in ``prompt``."""
+    return bool(re.search(rf"\b{re.escape(keyword)}\b", prompt, re.IGNORECASE))
+
+
 def _memory_filename(xprompt_name: str) -> str:
     """Derive a ``.sase/memory/`` filename from an xprompt name.
 
@@ -128,11 +153,10 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
         if not wf.keywords:
             continue
 
-        hits = [
-            kw
-            for kw in wf.keywords
-            if re.search(rf"\b{re.escape(kw)}\b", prompt, re.IGNORECASE)
-        ]
+        positives, negatives = _split_keywords(wf.keywords)
+        if any(_keyword_matches(n, prompt) for n in negatives):
+            continue
+        hits = [kw for kw in positives if _keyword_matches(kw, prompt)]
         if hits:
             matched.append(
                 MatchedMemory(
