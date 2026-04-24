@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 14:02:00
 status: wip
+bead_id: sase-n
 ---
 # LLM Provider Plugin Migration (pluggy)
 
