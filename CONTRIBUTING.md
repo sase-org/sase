@@ -15,7 +15,7 @@ just fmt           # Auto-format code
 just lint          # Run ruff + mypy
 just test          # Fast parallel test run (no coverage)
 just test-cov      # Parallel test run with coverage + 50% gate
-just check         # All checks (fmt-check + lint + test-cov)
+just check         # All checks (fmt-check + lint + test)
 ```
 
 ## Adding Dependencies

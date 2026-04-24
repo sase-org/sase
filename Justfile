@@ -95,7 +95,7 @@ test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     {{ venv_bin }}/pytest -n auto --dist=loadfile {{ args }}
 
-# Parallel test run with coverage reports + 50% gate (used by check and CI)
+# Parallel test run with coverage reports + 50% gate (used by CI)
 test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     {{ venv_bin }}/pytest -n auto --dist=loadfile \
@@ -124,7 +124,7 @@ check: _setup
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
-    @tools/run_silent "test"               just test-cov
+    @tools/run_silent "test"               just test
 
 # Fix code, run linters, and run tests.
 all: fix lint pylimit test

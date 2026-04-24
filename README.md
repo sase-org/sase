@@ -342,7 +342,7 @@ just fmt           # Auto-format code
 just lint          # Run ruff + mypy
 just test          # Fast parallel test run (no coverage)
 just test-cov      # Parallel test run with coverage + 50% gate
-just check         # All checks (fmt-check + lint + test-cov)
+just check         # All checks (fmt-check + lint + test)
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel + sdist
