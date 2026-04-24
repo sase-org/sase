@@ -164,11 +164,17 @@ class WorkflowExecMixin:
 
             thread = threading.Thread(target=run_workflow, daemon=True)
             thread.start()
-            self.notify(f"Workflow '{workflow_name}' started")  # type: ignore[attr-defined]
+            started_msg = f"Workflow '{workflow_name}' started"
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(started_msg)  # type: ignore[attr-defined]
+            )
             return True
         except Exception as e:
             log.exception("Workflow '%s' failed to start", workflow_name)
-            self.notify(f"Workflow error: {e}", severity="error")  # type: ignore[attr-defined]
+            err_msg = f"Workflow error: {e}"
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+            )
             return False
 
     def _launch_workflow_subprocess(
@@ -196,7 +202,11 @@ class WorkflowExecMixin:
 
         ctx = self._prompt_context
         if ctx is None:
-            self.notify("No prompt context", severity="error")  # type: ignore[attr-defined]
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(  # type: ignore[attr-defined]
+                    "No prompt context", severity="error"
+                )
+            )
             return False
 
         # Build artifacts directory using project context
@@ -262,7 +272,10 @@ class WorkflowExecMixin:
                 )
         except Exception as e:
             log.exception("Failed to start workflow subprocess for '%s'", workflow_name)
-            self.notify(f"Failed to start workflow: {e}", severity="error")  # type: ignore[attr-defined]
+            err_msg = f"Failed to start workflow: {e}"
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+            )
             return False
 
         # Claim workspace with subprocess PID
@@ -275,7 +288,11 @@ class WorkflowExecMixin:
             ctx.display_name,
             artifacts_timestamp=timestamp,
         ):
-            self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(  # type: ignore[attr-defined]
+                    "Failed to claim workspace", severity="error"
+                )
+            )
             process.terminate()
             try:
                 process.wait(timeout=5)
@@ -283,5 +300,8 @@ class WorkflowExecMixin:
                 process.kill()
             return False
 
-        self.notify(f"Workflow '{workflow_name}' started")  # type: ignore[attr-defined]
+        started_msg = f"Workflow '{workflow_name}' started"
+        self.call_later(  # type: ignore[attr-defined]
+            lambda: self.notify(started_msg)  # type: ignore[attr-defined]
+        )
         return True

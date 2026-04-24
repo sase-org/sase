@@ -56,12 +56,11 @@ class AgentLaunchMixin(
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
 
-        Unmounts the prompt bar immediately, then defers the heavy launch
+        Unmounts the prompt bar immediately, then runs the heavy launch
         work (VCS resolution, history writes, xprompt expansion, subprocess
-        spawn) to the next event-loop tick via ``call_after_refresh``.  This
-        lets queued key events (e.g. ``j``/``k`` pressed right after
-        ``<enter>``) drain to their rightful target before any blocking I/O
-        runs on the event loop.
+        spawn) in a worker thread via ``asyncio.to_thread`` so the Textual
+        event loop stays responsive to keystrokes (notably ``j``/``k``)
+        during the blocking I/O portion of the launch.
 
         Args:
             prompt: The user's prompt for the agent.
@@ -78,16 +77,40 @@ class AgentLaunchMixin(
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
         # Unmount prompt bar first (transfers focus to the active tab's list
-        # widget, see _transfer_focus_off_prompt_bar), then yield to the
-        # event loop before running the heavy launch path.
+        # widget, see _transfer_focus_off_prompt_bar), then offload the
+        # heavy launch path to a worker thread.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
 
-        self.call_after_refresh(self._run_agent_launch_body, prompt)  # type: ignore[attr-defined]
+        self.call_later(self._run_agent_launch_body_async, prompt)  # type: ignore[attr-defined]
+
+    async def _run_agent_launch_body_async(self, prompt: str) -> None:
+        """Run :meth:`_run_agent_launch_body` in a worker thread.
+
+        Keeps blocking I/O (disk reads, history writes, xprompt expansion)
+        off the Textual event loop so ``j``/``k`` keystrokes entered
+        immediately after submitting the launch are dispatched promptly.
+        """
+        import asyncio
+
+        try:
+            await asyncio.to_thread(self._run_agent_launch_body, prompt)
+        except Exception:
+            log.exception("Agent launch body failed")
+            self.notify(  # type: ignore[attr-defined]
+                "Agent launch failed (see log)", severity="error"
+            )
 
     def _run_agent_launch_body(self, prompt: str) -> None:
-        """Heavy body of ``_finish_agent_launch``, deferred via call_after_refresh."""
+        """Heavy body of ``_finish_agent_launch``, run in a worker thread.
+
+        Executes blocking I/O (VCS resolution, history writes, xprompt
+        expansion, workflow dispatch) off the Textual event-loop thread.
+        UI-touching calls (``self.notify``, sub-launch helpers that mutate
+        widget state) are marshalled back to the main thread via
+        ``self.call_later``.
+        """
         if self._prompt_context is None:
-            # Context was cleared between the submit and the deferred tick
+            # Context was cleared between the submit and the worker tick
             # (e.g. another launch path ran); nothing to do.
             return
         ctx = self._prompt_context
@@ -97,13 +120,16 @@ class AgentLaunchMixin(
             from sase.agent.multi_prompt import is_multi_prompt
 
             if is_multi_prompt(prompt):
-                self.notify(  # type: ignore[attr-defined]
-                    "Multi-prompt is not supported with bulk launch", severity="error"
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        "Multi-prompt is not supported with bulk launch",
+                        severity="error",
+                    )
                 )
                 self._bulk_changespecs = None
                 self._prompt_context = None
                 return
-            self._launch_bulk_agents(prompt)
+            self.call_later(self._launch_bulk_agents, prompt)  # type: ignore[attr-defined]
             return
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
@@ -159,7 +185,9 @@ class AgentLaunchMixin(
             )
             _record_prompt_file_references(prompt)
             self._prompt_context = None
-            self._launch_multi_prompt_agents(multi, ctx, mp_vcs_ref)
+            self.call_later(  # type: ignore[attr-defined]
+                self._launch_multi_prompt_agents, multi, ctx, mp_vcs_ref
+            )
             return
 
         # Detect workspace-managing embedded workflows in home mode
@@ -286,7 +314,13 @@ class AgentLaunchMixin(
 
         model_prompts = split_prompt_for_models(prompt)
         if model_prompts is not None:
-            self._launch_multi_model_agents(model_prompts, ctx, vcs_ref, has_wait)
+            self.call_later(  # type: ignore[attr-defined]
+                self._launch_multi_model_agents,
+                model_prompts,
+                ctx,
+                vcs_ref,
+                has_wait,
+            )
             return
 
         # Check for repeat directive (e.g., %r:3). Fan out into N independent
@@ -295,7 +329,9 @@ class AgentLaunchMixin(
 
         repeat_count, _, _ = extract_repeat_and_name(raw_prompt)
         if repeat_count is not None and repeat_count > 1:
-            self._launch_repeat_agents(raw_prompt, ctx, vcs_ref, has_wait)
+            self.call_later(  # type: ignore[attr-defined]
+                self._launch_repeat_agents, raw_prompt, ctx, vcs_ref, has_wait
+            )
             return
 
         # For agents with %wait directives, override workspace to deferred
@@ -342,7 +378,8 @@ class AgentLaunchMixin(
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
-        self.notify(f"Launching agent for {display_name}...")  # type: ignore[attr-defined]
+        msg = f"Launching agent for {display_name}..."
+        self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
 
     def _launch_background_agent(
         self,
@@ -401,4 +438,7 @@ class AgentLaunchMixin(
             )
         except Exception as e:
             log.exception("Failed to start agent for %s", cl_name)
-            self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
+            err_msg = f"Failed to start agent: {e}"
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
+            )
