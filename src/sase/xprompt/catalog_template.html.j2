@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>xprompts Catalog</title>
+<style>
+{{ css_text | safe }}
+</style>
+</head>
+<body>
+
+<!-- ======================================================================
+     Cover page
+     ====================================================================== -->
+<section class="cover">
+  <h1 class="cover-title">xprompts Catalog</h1>
+  <p class="cover-subtitle">A complete reference for this sase environment</p>
+
+  <div class="cover-counts">
+    <div class="cover-count">
+      <div class="cover-count-number">{{ stats.total }}</div>
+      <div class="cover-count-label">Prompts</div>
+    </div>
+    <div class="cover-count">
+      <div class="cover-count-number">{{ stats.by_project | length }}</div>
+      <div class="cover-count-label">Projects</div>
+    </div>
+    <div class="cover-count">
+      <div class="cover-count-number">
+        {{ (stats.by_source.values() | select | list | length) }}
+      </div>
+      <div class="cover-count-label">Sources</div>
+    </div>
+  </div>
+
+  <div class="cover-accent-block">
+    <div class="cover-footer">
+      <span>sase · xprompts catalog</span>
+      <span>Generated {{ generated_date }}</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================================
+     Table of contents
+     ====================================================================== -->
+<section class="page-break">
+  <h1>Contents</h1>
+  <div class="toc">
+    {% for bucket, groups in sections %}
+      <div class="toc-group">
+        <div class="toc-group-title">{{ bucket | bucket_label }}</div>
+        {% for project, entries in groups %}
+          {% for entry in entries %}
+            <div class="toc-entry">
+              <span class="toc-entry-name">
+                <span style="color: var(--accent);">#</span>{{ entry.xprompt.name }}
+              </span>
+              <span class="toc-entry-dots"></span>
+              {% if project %}
+                <span class="toc-project">{{ project }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ======================================================================
+     Overview / stats dashboard
+     ====================================================================== -->
+<section class="page-break">
+  <h1>At a glance</h1>
+  <p class="coverage-line">
+    {{ stats.with_description }} of {{ stats.total }} prompts
+    ({{ ((stats.with_description * 100 / stats.total) | round | int) if stats.total else 0 }}%)
+    have descriptions ·
+    {{ stats.with_inputs }} accept inputs ·
+    {{ stats.skills }} exposed as skills.
+  </p>
+
+  <div class="dashboard">
+    <div class="dashboard-row">
+
+      <div class="dashboard-card">
+        <h3>By source</h3>
+        {% set src_max = (stats.by_source.values() | list | max) or 1 %}
+        {% for bucket, count in stats.by_source.items() %}
+          {% if count > 0 %}
+            <div class="stat-row">
+              <div class="stat-label">{{ bucket | bucket_label }}</div>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: {{ count | bar_width(src_max) }}%;"></div>
+              </div>
+              <div class="stat-count">{{ count }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="dashboard-card">
+        <h3>By project</h3>
+        {% if stats.by_project %}
+          {% set proj_max = (stats.by_project.values() | list | max) or 1 %}
+          {% for project, count in stats.by_project.items() %}
+            <div class="stat-row">
+              <div class="stat-label">{{ project }}</div>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: {{ count | bar_width(proj_max) }}%;"></div>
+              </div>
+              <div class="stat-count">{{ count }}</div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty-line">No project-local xprompts.</p>
+        {% endif %}
+      </div>
+
+      <div class="dashboard-card">
+        <h3>Top tags</h3>
+        {% if stats.by_tag %}
+          {% set tag_max = (stats.by_tag.values() | list | max) or 1 %}
+          {% for tag, count in (stats.by_tag.items() | list)[:10] %}
+            <div class="stat-row">
+              <div class="stat-label"><span class="pill {{ tag | tag_color_class }}">#{{ tag }}</span></div>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: {{ count | bar_width(tag_max) }}%;"></div>
+              </div>
+              <div class="stat-count">{{ count }}</div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty-line">No tags.</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================================
+     Body: section per source bucket
+     ====================================================================== -->
+{% for bucket, groups in sections %}
+  {% set ns = namespace(count=0) %}
+  {% for _, entries in groups %}{% set ns.count = ns.count + entries | length %}{% endfor %}
+  <section class="section-divider">
+    <h2>{{ bucket | bucket_label }} xprompts</h2>
+    <div class="section-count">
+      {{ ns.count }} prompts
+    </div>
+  </section>
+
+  <section class="page-break">
+    {% for project, entries in groups %}
+      {% if project %}
+        <div class="project-banner">Project: {{ project }}</div>
+      {% endif %}
+
+      {% for entry in entries %}
+        {% set xp = entry.xprompt %}
+        {% set truncated = xp.content | truncate_content(xp.source_path) %}
+        {% set signature = xp.inputs | format_inputs %}
+        <article class="card">
+          <header class="card-header">
+            <h3 class="card-name">
+              <span class="card-name-hash">#</span>{{ xp.name }}
+            </h3>
+            <div class="card-source">{{ bucket | bucket_label }}</div>
+          </header>
+
+          {% if xp.description %}
+            <p class="card-description">{{ xp.description }}</p>
+          {% endif %}
+
+          {% if xp.tags or signature or xp.skill %}
+            <div class="card-meta">
+              {% for tag in xp.tags | sort(attribute='value') %}
+                <span class="pill {{ tag.value | tag_color_class }}">#{{ tag.value }}</span>
+              {% endfor %}
+              {% if signature %}
+                <span class="signature">{{ signature }}</span>
+              {% endif %}
+              {% if xp.skill %}
+                <span class="badge-skill">skill</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if truncated.text %}
+            <pre class="card-content">{{ truncated.text }}</pre>
+            {% if truncated.elided %}
+              <div class="card-content-elided">{{ truncated.elided }}</div>
+            {% endif %}
+          {% endif %}
+
+          {% if xp.keywords %}
+            <div class="card-keywords">keywords: {{ xp.keywords | join(', ') }}</div>
+          {% endif %}
+
+          {% if xp.snippet is sameas false %}
+            <div class="card-footnote">Note: marked <code>snippet: false</code> — not eligible for snippet expansion.</div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    {% endfor %}
+  </section>
+{% endfor %}
+
+</body>
+</html>

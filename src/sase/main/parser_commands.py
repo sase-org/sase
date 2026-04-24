@@ -659,3 +659,16 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List all available xprompts and workflows as JSON",
     )
+
+    # xprompt catalog
+    catalog_parser = xprompt_subparsers.add_parser(
+        "catalog",
+        help="Render every visible xprompt to a beautifully-formatted PDF",
+    )
+    catalog_parser.add_argument(
+        "-o",
+        "--out",
+        dest="out_dir",
+        default=None,
+        help="Directory to write the PDF (defaults to a tempdir).",
+    )

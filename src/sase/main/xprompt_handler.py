@@ -16,8 +16,10 @@ def handle_xprompt_command(args: argparse.Namespace) -> None:
         _handle_graph(args)
     elif subcommand == "list":
         _handle_list()
+    elif subcommand == "catalog":
+        _handle_catalog(args)
     else:
-        print("Usage: sase xprompt {expand,explain,graph,list}")
+        print("Usage: sase xprompt {expand,explain,graph,list,catalog}")
         sys.exit(1)
 
 
@@ -146,6 +148,44 @@ def _handle_graph(args: argparse.Namespace) -> None:
         print(workflow_to_text(workflow))
     else:
         print(workflow_to_mermaid(workflow))
+    sys.exit(0)
+
+
+def _handle_catalog(args: argparse.Namespace) -> None:
+    """Handle 'sase xprompt catalog'."""
+    import json
+    from pathlib import Path
+
+    from sase.xprompt.catalog import (
+        NoXpromptsFound,
+        PdfEngineUnavailable,
+        build_xprompts_catalog,
+    )
+
+    out_dir = Path(args.out_dir).expanduser() if args.out_dir else None
+
+    try:
+        artifact = build_xprompts_catalog(output_dir=out_dir)
+    except NoXpromptsFound as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except PdfEngineUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(3)
+
+    stats = artifact.stats
+    stats_blob = {
+        "total": stats.total,
+        "by_source": stats.by_source,
+        "by_project": stats.by_project,
+        "by_tag": stats.by_tag,
+        "with_description": stats.with_description,
+        "with_inputs": stats.with_inputs,
+        "skills": stats.skills,
+        "generated_at": stats.generated_at.isoformat(),
+    }
+    print(str(artifact.pdf_path))
+    print(json.dumps(stats_blob), file=sys.stderr)
     sys.exit(0)
 
 

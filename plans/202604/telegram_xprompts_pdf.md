@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 20:51:33
-status: wip
+status: done
 ---
 # Telegram `/xprompts` Catalog: Beautiful PDF + Stats
 
