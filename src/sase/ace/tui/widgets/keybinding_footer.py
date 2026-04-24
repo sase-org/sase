@@ -39,6 +39,10 @@ if TYPE_CHECKING:
 
 _STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
 _STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS = 10.0
+_STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
+_STOPWATCH_BG_NORMAL = "rgb(155,89,182)"
+_STOPWATCH_BG_SLOW = "rgb(214,51,132)"
+_STOPWATCH_FG = "bold white"
 
 
 class KeybindingFooter(Horizontal):
@@ -59,6 +63,7 @@ class KeybindingFooter(Horizontal):
         self._startup_start_time: float = time.monotonic()
         self._startup_elapsed: float = 0.0
         self._startup_stopwatch_timer: Timer | None = None
+        self._stopwatch_frame: int = 0
 
     def on_mount(self) -> None:
         """Anchor the startup stopwatch and begin ticking every 0.1s."""
@@ -76,6 +81,7 @@ class KeybindingFooter(Horizontal):
         if not self._startup_stopwatch_active:
             return
         self._startup_elapsed = time.monotonic() - self._startup_start_time
+        self._stopwatch_frame += 1
         if self._startup_elapsed >= _STARTUP_STOPWATCH_TIMEOUT_SECS:
             self.end_startup_stopwatch()
             return
@@ -180,12 +186,17 @@ class KeybindingFooter(Horizontal):
         text = Text()
         if self._startup_stopwatch_active:
             if self._startup_elapsed >= _STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS:
-                bg = "rgb(255,140,0)"
+                bg = _STOPWATCH_BG_SLOW
             else:
-                bg = "rgb(255,215,0)"
+                bg = _STOPWATCH_BG_NORMAL
+            glyph = _STOPWATCH_GLYPH_FRAMES[
+                self._stopwatch_frame % len(_STOPWATCH_GLYPH_FRAMES)
+            ]
+            text.append(f"  {glyph} ", style=f"{_STOPWATCH_FG} on {bg}")
+            text.append("starting ", style=f"white on {bg}")
             text.append(
-                f"  ⏱ starting {self._startup_elapsed:.1f}s  ",
-                style=f"bold black on {bg}",
+                f"{self._startup_elapsed:.1f}s  ",
+                style=f"{_STOPWATCH_FG} on {bg}",
             )
         elif self._axe_restarting:
             text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")

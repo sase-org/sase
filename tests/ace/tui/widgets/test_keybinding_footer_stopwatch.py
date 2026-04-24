@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
+from sase.ace.tui.widgets.keybinding_footer import (
+    _STOPWATCH_BG_NORMAL,
+    _STOPWATCH_BG_SLOW,
+    _STOPWATCH_GLYPH_FRAMES,
+    KeybindingFooter,
+)
+
+
+def _has_any_frame_glyph(plain: str) -> bool:
+    return any(frame in plain for frame in _STOPWATCH_GLYPH_FRAMES)
 
 
 def test_default_state_shows_stopwatch() -> None:
-    """A freshly instantiated footer renders the gold stopwatch badge."""
+    """A freshly instantiated footer renders the purple stopwatch badge."""
     footer = KeybindingFooter()
     assert footer._startup_stopwatch_active is True
     text = footer._get_status_text()
-    assert "⏱" in text.plain
+    assert _has_any_frame_glyph(text.plain)
     assert "starting" in text.plain
-    # Leading spaces before the timer glyph match the padded-badge convention.
-    assert text.plain.startswith("  ⏱ starting")
+    # Leading spaces before the frame glyph match the padded-badge convention.
+    assert text.plain.startswith("  ")
 
 
 def test_elapsed_formatting_one_decimal() -> None:
@@ -30,15 +39,15 @@ def test_elapsed_formatting_one_decimal() -> None:
 
 
 def test_slow_threshold_shifts_color() -> None:
-    """Past the slow threshold the badge uses dark-orange instead of gold."""
+    """Past the slow threshold the badge uses raspberry magenta instead of amethyst."""
     footer = KeybindingFooter()
     footer._startup_elapsed = 1.0
-    gold_spans = footer._get_status_text().spans
-    assert any("rgb(255,215,0)" in str(span.style) for span in gold_spans)
+    normal_spans = footer._get_status_text().spans
+    assert any(_STOPWATCH_BG_NORMAL in str(span.style) for span in normal_spans)
 
     footer._startup_elapsed = 15.0
-    orange_spans = footer._get_status_text().spans
-    assert any("rgb(255,140,0)" in str(span.style) for span in orange_spans)
+    slow_spans = footer._get_status_text().spans
+    assert any(_STOPWATCH_BG_SLOW in str(span.style) for span in slow_spans)
 
 
 def test_end_transitions_to_real_status() -> None:
@@ -48,12 +57,12 @@ def test_end_transitions_to_real_status() -> None:
     assert footer._startup_stopwatch_active is False
 
     stopped = footer._get_status_text().plain
-    assert "⏱" not in stopped
+    assert not _has_any_frame_glyph(stopped)
     assert "STOPPED" in stopped
 
     footer._axe_running = True
     running = footer._get_status_text().plain
-    assert "⏱" not in running
+    assert not _has_any_frame_glyph(running)
     assert "RUNNING" in running
 
 
@@ -71,7 +80,32 @@ def test_bgcmd_badges_appear_alongside_stopwatch() -> None:
     footer._bgcmd_running_count = 2
     footer._bgcmd_done_count = 1
     plain = footer._get_status_text().plain
-    assert "⏱" in plain
+    assert _has_any_frame_glyph(plain)
     assert "starting" in plain
     assert "[*2]" in plain
     assert "[✓1]" in plain
+
+
+def test_frame_rotation_advances_per_tick() -> None:
+    """Each stopwatch tick advances the frame index, cycling through all frames."""
+    footer = KeybindingFooter()
+    start_frame = footer._stopwatch_frame
+    seen: set[int] = set()
+    for _ in range(4):
+        footer._on_stopwatch_tick()
+        seen.add(footer._stopwatch_frame % len(_STOPWATCH_GLYPH_FRAMES))
+    assert footer._stopwatch_frame - start_frame >= 4
+    assert seen == set(range(len(_STOPWATCH_GLYPH_FRAMES)))
+
+
+def test_stopwatch_colors_distinct_from_axe_pills() -> None:
+    """Regression guard: stopwatch bg colors must not collide with any AXE pill bg."""
+    axe_pill_backgrounds = {
+        "rgb(0,191,255)",  # RESTARTING
+        "rgb(255,255,0)",  # STARTING
+        "rgb(255,165,0)",  # STOPPING
+        "green",  # RUNNING
+        "red",  # STOPPED
+    }
+    assert _STOPWATCH_BG_NORMAL not in axe_pill_backgrounds
+    assert _STOPWATCH_BG_SLOW not in axe_pill_backgrounds
