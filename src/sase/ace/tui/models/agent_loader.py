@@ -213,7 +213,13 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                     parent.status = "RUNNING"
 
     parents_with_followup: set[str] = set()
-    for agent in agents:
+    # Iterate children in start-time order so that, if multiple are active, the
+    # most-recently-started child's role_suffix wins the override.
+    followup_override: dict[str, str] = {}
+    ordered_agents = sorted(
+        agents, key=lambda a: a.run_start_time or a.start_time or datetime.min
+    )
+    for agent in ordered_agents:
         if (
             agent.parent_timestamp
             and not agent.parent_workflow  # Follow-up agent, not workflow step
@@ -222,10 +228,18 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             parents_with_followup.add(agent.parent_timestamp)
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
-                # Override DONE → PLAN APPROVED while follow-up is active
+                # Pick override status based on the active follow-up child's
+                # role_suffix — `.epic`/`.commit` map to EPIC CREATED /
+                # PLAN COMMITTED; anything else is PLAN APPROVED. Multiple
+                # active children resolve via last-writer-wins on the
+                # start-time-ordered iteration (newest child wins).
                 if agent.status not in completed_statuses:
-                    if parent.status == "DONE":
-                        parent.status = "PLAN APPROVED"
+                    if agent.role_suffix == ".epic":
+                        followup_override[agent.parent_timestamp] = "EPIC CREATED"
+                    elif agent.role_suffix == ".commit":
+                        followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
+                    else:
+                        followup_override[agent.parent_timestamp] = "PLAN APPROVED"
 
                 # Propagate meta_* fields from follow-up child to parent
                 # so the metadata panel shows dynamic variables (e.g. Commit
@@ -251,6 +265,12 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                 # the planner's own diff).
                 if agent.diff_path:
                     parent.diff_path = agent.diff_path
+
+    # Apply the chosen follow-up override to each parent that is still DONE.
+    for parent_ts, status in followup_override.items():
+        parent = parent_by_suffix.get(parent_ts)
+        if parent and parent.status == "DONE":
+            parent.status = status
 
     # Override DONE → PLAN DONE for plan workflows where all follow-ups completed.
     # If a parent still has status "DONE" at this point and has follow-ups in

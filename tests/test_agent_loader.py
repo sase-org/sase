@@ -470,6 +470,147 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     assert parent.status == "PLAN APPROVED"
 
 
+def test_apply_status_overrides_active_epic_child_sets_epic_created() -> None:
+    """A DONE plan parent with an active .epic follow-up becomes EPIC CREATED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    epic_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".epic",
+    )
+    agents = [parent, epic_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "EPIC CREATED"
+
+
+def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> None:
+    """A DONE plan parent with an active .commit follow-up becomes PLAN COMMITTED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    commit_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".commit",
+    )
+    agents = [parent, commit_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN COMMITTED"
+
+
+def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
+    """A DONE plan parent with an active .code follow-up stays PLAN APPROVED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".code",
+    )
+    agents = [parent, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+
+
+def test_apply_status_overrides_completed_epic_child_does_not_set_epic_created() -> (
+    None
+):
+    """A DONE plan parent with only a completed .epic child does not flip to EPIC CREATED."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    epic_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".epic",
+    )
+    agents = [parent, epic_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN DONE"
+
+
+def test_apply_status_overrides_epic_and_code_active_newest_wins() -> None:
+    """With both an active .epic and .code child, the most-recently-started wins."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 20, 10, 0, 0),
+        raw_suffix="20260420100000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 10, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".code",
+    )
+    epic_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 20, 10, 20, 0),
+        parent_timestamp="20260420100000",
+        role_suffix=".epic",
+    )
+    agents = [parent, code_child, epic_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "EPIC CREATED"
+
+
 def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (
     None
 ):
