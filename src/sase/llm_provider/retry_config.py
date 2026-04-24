@@ -94,15 +94,22 @@ _CONTEXT_OVERFLOW_NUDGE = (
 )
 
 
-_BUILT_IN_DEFAULTS: dict[str, ProviderRetryConfig] = {
-    "claude": ProviderRetryConfig(
-        max_retries=3,
-        error_patterns=["Prompt is too long"],
-        wait_times=[0],
-        continuation_prompt=_CONTEXT_OVERFLOW_NUDGE,
-        preserve_workspace=True,
-    ),
-}
+def _built_in_defaults() -> dict[str, ProviderRetryConfig]:
+    """Aggregate ``llm_default_retry_config()`` values from registered plugins."""
+    from .registry import iter_plugins
+
+    defaults: dict[str, ProviderRetryConfig] = {}
+    for name, plugin in iter_plugins():
+        method = getattr(plugin, "llm_default_retry_config", None)
+        if method is None:
+            continue
+        try:
+            config = method()
+        except Exception:
+            continue
+        if config is not None:
+            defaults[name] = config
+    return defaults
 
 
 def _dedup_ordered(items: list[str]) -> list[str]:
@@ -198,7 +205,7 @@ def get_retry_config(provider_name: str) -> ProviderRetryConfig | None:
     provider.
     """
     user_dict = _load_user_retry_dict(provider_name)
-    built_in = _BUILT_IN_DEFAULTS.get(provider_name)
+    built_in = _built_in_defaults().get(provider_name)
 
     if user_dict is None and built_in is None:
         return None
@@ -240,7 +247,7 @@ def find_retry_config_for_error(error_output: str) -> ProviderRetryConfig | None
         retry_section = {}
 
     checked: set[str] = set()
-    provider_order = list(retry_section.keys()) + list(_BUILT_IN_DEFAULTS.keys())
+    provider_order = list(retry_section.keys()) + list(_built_in_defaults().keys())
     for provider_name in provider_order:
         if provider_name in checked:
             continue

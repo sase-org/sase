@@ -1,9 +1,12 @@
 """Claude Code LLM provider implementation."""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.output import gemini_timer
 
@@ -11,6 +14,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
 from .base import LLMProvider
 from .types import InvokeResult, ModelTier
+
+if TYPE_CHECKING:
+    from .retry_config import ProviderRetryConfig
 
 # Map model tiers to Claude CLI aliases
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -55,6 +61,41 @@ class ClaudeCodeProvider(LLMProvider):
     @hookimpl
     def llm_resolve_model_name(self, model_tier: ModelTier) -> str:
         return self.resolve_model_name(model_tier)
+
+    @hookimpl
+    def llm_known_model_names(self) -> list[str]:
+        return ["opus", "sonnet", "haiku"]
+
+    @hookimpl
+    def llm_skill_template_context(self) -> dict[str, str]:
+        return {
+            "provider_name": "Claude",
+            "provider_tool_name": "Claude Code",
+            "provider_native_ask_tool": "AskUserQuestion",
+        }
+
+    @hookimpl
+    def llm_autodetect_priority(self) -> int:
+        return 0
+
+    @hookimpl
+    def llm_autodetect_cli_name(self) -> str:
+        return "claude"
+
+    @hookimpl
+    def llm_default_retry_config(self) -> ProviderRetryConfig:
+        from .retry_config import (
+            _CONTEXT_OVERFLOW_NUDGE,
+            ProviderRetryConfig,
+        )
+
+        return ProviderRetryConfig(
+            max_retries=3,
+            error_patterns=["Prompt is too long"],
+            wait_times=[0],
+            continuation_prompt=_CONTEXT_OVERFLOW_NUDGE,
+            preserve_workspace=True,
+        )
 
     @hookimpl
     def llm_invoke(

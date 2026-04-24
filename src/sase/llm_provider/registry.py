@@ -4,10 +4,16 @@ Providers are discovered via ``importlib.metadata.entry_points(group="sase_llm")
 (mirroring the VCS plugin layer in :mod:`sase.vcs_provider._registry`). Each
 entry point resolves to a plugin class that implements the ``sase_llm`` hook
 specifications (see :mod:`sase.llm_provider._hookspec`).
+
+Dispatch uses a single-plugin :class:`pluggy.PluginManager` so only the
+selected provider's ``llm_invoke`` hook fires.  Metadata lookups (known
+model names, skill deploy paths, auto-detection, retry defaults, ...)
+share a memoized multi-plugin PM built by :func:`_build_llm_pm`, and
+callers iterate ``pm.list_name_plugin()`` to collect per-plugin values.
 """
 
+import functools
 import importlib.metadata
-import re
 import shutil
 
 import pluggy
@@ -17,36 +23,44 @@ from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
 from .config import get_llm_provider_config
 
-# Model name to provider name mapping for automatic provider resolution.
-# When %model specifies a known model name, the correct provider is auto-selected.
-_MODEL_TO_PROVIDER: dict[str, str] = {
-    # Claude models
-    "opus": "claude",
-    "sonnet": "claude",
-    "haiku": "claude",
-    # Codex / OpenAI models
-    "gpt-5.3-codex": "codex",
-    "codex-mini-latest": "codex",
-    "o3": "codex",
-    "o4-mini": "codex",
-    "gpt-5.4": "codex",
-    "gpt-4.1": "codex",
-    "gpt-4.1-mini": "codex",
-    "gpt-4o": "codex",
-    "gpt-4o-mini": "codex",
-    # Gemini models
-    "gemini-2.5-pro": "gemini",
-    "gemini-2.5-flash": "gemini",
-    "gemini-3.1-pro": "gemini",
-    "gemini-3.1-pro-preview": "gemini",
-    "gemini-3-flash-preview": "gemini",
-    "gemini-2.0-flash": "gemini",
-    # Jetski models
-    "jetski-default": "jetski",
-}
 
-# Pattern for explicit provider/model syntax, e.g. "codex/o3"
-_PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini|jetski)/(.+)$")
+@functools.cache
+def _build_llm_pm() -> pluggy.PluginManager:
+    """Return a shared :class:`pluggy.PluginManager` with every ``sase_llm`` plugin.
+
+    Memoized for the process lifetime: entry-point discovery is walked
+    exactly once.  Tests that mock entry points must clear the cache via
+    ``_build_llm_pm.cache_clear()``.
+    """
+    pm = pluggy.PluginManager("sase_llm")
+    pm.add_hookspecs(LLMHookSpec)
+    for ep in importlib.metadata.entry_points(group="sase_llm"):
+        plugin_class = ep.load()
+        pm.register(plugin_class(), name=ep.name)
+    return pm
+
+
+def iter_plugins() -> list[tuple[str, object]]:
+    """Return registered ``(provider_name, plugin_instance)`` pairs."""
+    return list(_build_llm_pm().list_name_plugin())
+
+
+def model_to_provider_map() -> dict[str, str]:
+    """Build a ``{model_name → provider_name}`` map from plugin metadata."""
+    mapping: dict[str, str] = {}
+    for name, plugin in iter_plugins():
+        method = getattr(plugin, "llm_known_model_names", None)
+        if method is None:
+            continue
+        models = method() or []
+        for model in models:
+            mapping[model] = name
+    return mapping
+
+
+def _provider_names() -> list[str]:
+    """Return all registered provider names (entry-point keys)."""
+    return [name for name, _ in iter_plugins()]
 
 
 def _find_plugin_class(name: str) -> type | None:
@@ -111,7 +125,7 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     Supports two resolution strategies:
 
     1. Explicit provider syntax: ``"codex/o3"`` → ``("codex", "o3")``
-    2. Implicit via mapping: ``"o3"`` → ``("codex", "o3")``
+    2. Implicit via plugin metadata: ``"o3"`` → ``("codex", "o3")``
 
     If neither matches, returns ``(None, model_override)`` so the caller
     falls back to the default provider.
@@ -123,12 +137,13 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
         Tuple of (provider_name_or_none, clean_model_name).
     """
     # 1. Check for explicit provider/model syntax
-    match = _PROVIDER_MODEL_RE.match(model_override)
-    if match:
-        return match.group(1), match.group(2)
+    if "/" in model_override:
+        prefix, rest = model_override.split("/", 1)
+        if prefix in _provider_names():
+            return prefix, rest
 
-    # 2. Check the model-to-provider mapping
-    provider = _MODEL_TO_PROVIDER.get(model_override)
+    # 2. Check the plugin-supplied model-to-provider map
+    provider = model_to_provider_map().get(model_override)
     if provider:
         return provider, model_override
 
@@ -156,18 +171,38 @@ def format_provider_model_label(
 def get_default_provider_name() -> str:
     """Get the default provider name from configuration.
 
-    Returns:
-        The configured default provider name, or auto-detected provider.
-        Auto-detect priority: claude → codex → jetski → gemini.
+    Returns the configured default if set.  Otherwise walks registered
+    plugins in ``llm_autodetect_priority`` order (ascending) and picks
+    the first whose ``llm_autodetect_cli_name`` is on ``PATH``.  A
+    plugin returning ``None`` from ``llm_autodetect_cli_name`` is always
+    eligible (used by gemini as the final fallback).
+
+    Raises:
+        RuntimeError: If no plugin declares an autodetect priority.
     """
     config = get_llm_provider_config()
     provider = config.get("provider")
     if provider:
         return provider
-    if shutil.which("claude"):
-        return "claude"
-    if shutil.which("codex"):
-        return "codex"
-    if shutil.which("jetski-cli"):
-        return "jetski"
-    return "gemini"
+
+    candidates: list[tuple[int, str, str | None]] = []
+    for name, plugin in iter_plugins():
+        prio_method = getattr(plugin, "llm_autodetect_priority", None)
+        if prio_method is None:
+            continue
+        priority = prio_method()
+        if priority is None:
+            continue
+        cli_method = getattr(plugin, "llm_autodetect_cli_name", None)
+        cli_name = cli_method() if cli_method is not None else None
+        candidates.append((priority, name, cli_name))
+
+    candidates.sort()
+    for _, name, cli_name in candidates:
+        if cli_name is None or shutil.which(cli_name):
+            return name
+
+    raise RuntimeError(
+        "No LLM provider is available. Install a provider plugin "
+        "or set llm_provider.provider explicitly."
+    )

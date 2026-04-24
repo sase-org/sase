@@ -59,6 +59,34 @@ class GeminiProvider(LLMProvider):
         return self.resolve_model_name(model_tier)
 
     @hookimpl
+    def llm_known_model_names(self) -> list[str]:
+        return [
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-3.1-pro",
+            "gemini-3.1-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-2.0-flash",
+        ]
+
+    @hookimpl
+    def llm_skill_template_context(self) -> dict[str, str]:
+        return {
+            "provider_name": "Gemini",
+            "provider_tool_name": "Gemini CLI",
+            "provider_native_ask_tool": "ask_user",
+        }
+
+    @hookimpl
+    def llm_autodetect_priority(self) -> int:
+        return 30
+
+    @hookimpl
+    def llm_autodetect_cli_name(self) -> str | None:
+        # Gemini is the always-eligible fallback — no CLI presence check.
+        return None
+
+    @hookimpl
     def llm_invoke(
         self,
         prompt: str,

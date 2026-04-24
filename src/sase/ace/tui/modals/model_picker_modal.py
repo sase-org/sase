@@ -14,11 +14,11 @@ CUSTOM_SENTINEL = "__custom__"
 
 def _build_model_options() -> list[Option | None]:
     """Build the option list items grouped by provider."""
-    from sase.llm_provider.registry import _MODEL_TO_PROVIDER
+    from sase.llm_provider.registry import model_to_provider_map
 
     # Group models by provider, preserving insertion order
     provider_models: dict[str, list[str]] = {}
-    for model, provider in _MODEL_TO_PROVIDER.items():
+    for model, provider in model_to_provider_map().items():
         provider_models.setdefault(provider, []).append(model)
 
     items: list[Option | None] = [

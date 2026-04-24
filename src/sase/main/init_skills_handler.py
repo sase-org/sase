@@ -11,57 +11,60 @@ from pathlib import Path
 import jinja2
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
+from sase.llm_provider.registry import iter_plugins
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 
-ALL_PROVIDERS = ["claude", "gemini", "codex", "jetski"]
 
-PROVIDER_CONTEXT: dict[str, dict[str, str]] = {
-    "claude": {
-        "provider_name": "Claude",
-        "provider_tool_name": "Claude Code",
-        "provider_native_ask_tool": "AskUserQuestion",
-    },
-    "gemini": {
-        "provider_name": "Gemini",
-        "provider_tool_name": "Gemini CLI",
-        "provider_native_ask_tool": "ask_user",
-    },
-    "codex": {
-        "provider_name": "Codex",
-        "provider_tool_name": "Codex",
-        "provider_native_ask_tool": "ask_user",
-    },
-    "jetski": {
-        "provider_name": "Jetski",
-        "provider_tool_name": "Jetski CLI",
-        # TODO: confirm native ask-tool name on Cloudtop (open question 6).
-        "provider_native_ask_tool": "ask_user",
-    },
-}
+def _all_providers() -> list[str]:
+    """Return every registered provider name from ``sase_llm`` entry points."""
+    return [name for name, _ in iter_plugins()]
 
-# Provider → subdirectory under ``~/`` (or under ``CHEZMOI_HOME``) where
-# skills deploy. Providers not listed default to ``f".{provider}"``.
-#
-# Jetski shares the ``~/.gemini/`` parent with Gemini CLI by design — don't
-# "fix" this to ``~/.jetski/``.
-_SKILL_DEPLOY_SUBPATH: dict[str, str] = {
-    "jetski": ".gemini/jetski",
-}
+
+def _provider_context(provider: str) -> dict[str, str]:
+    """Return the Jinja2 rendering context a plugin supplies for its SKILL.md."""
+    for name, plugin in iter_plugins():
+        if name != provider:
+            continue
+        method = getattr(plugin, "llm_skill_template_context", None)
+        if method is None:
+            return {}
+        return method() or {}
+    return {}
+
+
+def _skill_deploy_subpath(provider: str) -> str:
+    """Return the subdirectory (under ``~/`` or ``CHEZMOI_HOME``) for *provider*.
+
+    Plugins may override via :meth:`llm_skill_deploy_subpath`; otherwise
+    the default is ``.{provider}``.
+    """
+    for name, plugin in iter_plugins():
+        if name != provider:
+            continue
+        method = getattr(plugin, "llm_skill_deploy_subpath", None)
+        if method is None:
+            break
+        subpath = method()
+        if subpath:
+            return subpath
+        break
+    return f".{provider}"
 
 
 def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
     """Return the list of providers a skill should be deployed to."""
+    known = _all_providers()
     if skill_field is True:
-        return list(ALL_PROVIDERS)
+        return list(known)
     if isinstance(skill_field, list):
-        return [p for p in skill_field if p in ALL_PROVIDERS]
+        return [p for p in skill_field if p in known]
     return []
 
 
 def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
     """Return the deployment path for a skill file."""
-    subpath = _SKILL_DEPLOY_SUBPATH.get(provider, f".{provider}")
+    subpath = _skill_deploy_subpath(provider)
     if use_chezmoi:
         # Only the first path segment is a dotfile under chezmoi; nested
         # directories keep their plain names.
@@ -307,7 +310,7 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
             target_providers = [p for p in target_providers if p == provider_filter]
 
         for provider in target_providers:
-            context = PROVIDER_CONTEXT[provider]
+            context = _provider_context(provider)
             rendered_body, rendered_desc = _render_skill(body, description, context)
             output = _build_output(name, rendered_desc.strip(), rendered_body)
             target = _get_target_path(provider, name, use_chezmoi)

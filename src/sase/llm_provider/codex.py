@@ -56,6 +56,36 @@ class CodexProvider(LLMProvider):
         return self.resolve_model_name(model_tier)
 
     @hookimpl
+    def llm_known_model_names(self) -> list[str]:
+        return [
+            "gpt-5.3-codex",
+            "codex-mini-latest",
+            "o3",
+            "o4-mini",
+            "gpt-5.4",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4o",
+            "gpt-4o-mini",
+        ]
+
+    @hookimpl
+    def llm_skill_template_context(self) -> dict[str, str]:
+        return {
+            "provider_name": "Codex",
+            "provider_tool_name": "Codex",
+            "provider_native_ask_tool": "ask_user",
+        }
+
+    @hookimpl
+    def llm_autodetect_priority(self) -> int:
+        return 10
+
+    @hookimpl
+    def llm_autodetect_cli_name(self) -> str:
+        return "codex"
+
+    @hookimpl
     def llm_invoke(
         self,
         prompt: str,

@@ -78,6 +78,37 @@ class JetskiProvider(LLMProvider):
         return self.resolve_model_name(model_tier)
 
     @hookimpl
+    def llm_known_model_names(self) -> list[str]:
+        return ["jetski-default"]
+
+    @hookimpl
+    def llm_skill_template_context(self) -> dict[str, str]:
+        return {
+            "provider_name": "Jetski",
+            "provider_tool_name": "Jetski CLI",
+            # TODO: confirm native ask-tool name on Cloudtop (open question 6).
+            "provider_native_ask_tool": "ask_user",
+        }
+
+    @hookimpl
+    def llm_skill_deploy_subpath(self) -> str:
+        # Jetski shares the ``~/.gemini/`` parent with Gemini CLI by design —
+        # don't "fix" this to ``~/.jetski/``.
+        return ".gemini/jetski"
+
+    @hookimpl
+    def llm_cli_status_color(self) -> str:
+        return "magenta"
+
+    @hookimpl
+    def llm_autodetect_priority(self) -> int:
+        return 20
+
+    @hookimpl
+    def llm_autodetect_cli_name(self) -> str:
+        return "jetski-cli"
+
+    @hookimpl
     def llm_invoke(
         self,
         prompt: str,
