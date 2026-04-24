@@ -88,6 +88,11 @@ def _rewrite_notifications(notifications: list[Notification]) -> None:
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def rewrite_notifications(notifications: list[Notification]) -> None:
+    """Rewrite the entire notifications file with exclusive locking."""
+    _rewrite_notifications(notifications)
+
+
 def mark_read(notification_id: str) -> bool:
     """Mark a notification as read. Returns True if found."""
     all_notifications = load_notifications(include_dismissed=True)

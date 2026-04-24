@@ -51,7 +51,9 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
 
-    def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
+    def _refresh_agents_display(
+        self, *, list_changed: bool = False, defer_detail: bool = False
+    ) -> None:
         self.refresh_calls += 1
 
     def _refresh_display(self) -> None:
@@ -78,6 +80,17 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in ids
         ]
+
+    def _do_bulk_kill_agents(
+        self, killable: list[Agent], dismissable: list[Agent] | None = None
+    ) -> None:
+        ids = {a.identity for a in killable}
+        ids.update(a.identity for a in dismissable or [])
+        self._agents = [a for a in self._agents if a.identity not in ids]
+        self._agents_with_children = [
+            a for a in self._agents_with_children if a.identity not in ids
+        ]
+        self._marked_agents = set()
 
 
 def test_toggle_mark_adds_identity() -> None:
@@ -170,7 +183,7 @@ def test_prune_stale_marked_agents_drops_missing() -> None:
 
 
 def test_bulk_kill_partitions_and_clears_marks() -> None:
-    """Bulk kill with confirm: killables go through _do_kill_agent, dismissables through _do_dismiss_all."""
+    """Bulk kill with confirm delegates one batched call."""
     running = _make_agent(raw_suffix="20240101120000", status="RUNNING", pid=111)
     done = _make_agent(
         cl_name="done_cl",
@@ -181,36 +194,13 @@ def test_bulk_kill_partitions_and_clears_marks() -> None:
     app = _FakeMarkApp([running, done])
     app._marked_agents = {running.identity, done.identity}
 
-    captured_kills: list[Agent] = []
-    captured_dismissals: list[list[Agent]] = []
-
-    def fake_kill(agent: Agent) -> None:
-        captured_kills.append(agent)
-        app._agents = [a for a in app._agents if a.identity != agent.identity]
-        app._agents_with_children = [
-            a for a in app._agents_with_children if a.identity != agent.identity
-        ]
-
-    def fake_dismiss(agents: list[Agent]) -> None:
-        captured_dismissals.append(agents)
-        ids = {a.identity for a in agents}
-        app._agents = [a for a in app._agents if a.identity not in ids]
-        app._agents_with_children = [
-            a for a in app._agents_with_children if a.identity not in ids
-        ]
-
-    with (
-        patch.object(app, "_do_kill_agent", side_effect=fake_kill),
-        patch.object(app, "_do_dismiss_all", side_effect=fake_dismiss),
-    ):
+    with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app._bulk_kill_marked_agents()
         assert app.pushed_callbacks, "Modal callback not registered"
         # Simulate user confirming the modal
         app.pushed_callbacks[0](True)
 
-    assert captured_kills == [running]
-    assert captured_dismissals == [[done]]
-    assert app._marked_agents == set()
+    mock_bulk.assert_called_once_with([running], [done])
 
 
 def test_bulk_kill_cancel_preserves_marks() -> None:
@@ -218,12 +208,12 @@ def test_bulk_kill_cancel_preserves_marks() -> None:
     app = _FakeMarkApp([running])
     app._marked_agents = {running.identity}
 
-    with patch.object(app, "_do_kill_agent") as mock_kill:
+    with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app._bulk_kill_marked_agents()
         # Simulate user cancelling the modal
         app.pushed_callbacks[0](False)
 
-    mock_kill.assert_not_called()
+    mock_bulk.assert_not_called()
     assert app._marked_agents == {running.identity}
 
 

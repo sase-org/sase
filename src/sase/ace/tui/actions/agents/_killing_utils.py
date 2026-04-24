@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -61,6 +62,52 @@ def dismiss_notifications_for_agent(agent: Agent) -> None:
                 if normalize_to_14_digit(n_timestamp) != agent.raw_suffix:
                     continue
             mark_dismissed(n.id)
+
+
+def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:
+    """Dismiss notifications that reference any of the given agents.
+
+    Returns the number of notifications newly marked dismissed. The notification
+    file is loaded and rewritten at most once.
+    """
+    from sase.notifications import load_notifications
+    from sase.notifications.store import rewrite_notifications
+
+    agent_keys = {(a.cl_name, a.raw_suffix) for a in agents}
+    if not agent_keys:
+        return 0
+
+    all_notifications = load_notifications(include_dismissed=True)
+    dismissed_count = 0
+    for n in all_notifications:
+        if n.dismissed:
+            continue
+        if n.action == "JumpToAgent":
+            cl_name = n.action_data.get("cl_name")
+            raw_suffix = n.action_data.get("raw_suffix")
+            if raw_suffix is None:
+                match = any(agent_cl == cl_name for agent_cl, _ in agent_keys)
+            else:
+                match = (cl_name, raw_suffix) in agent_keys
+            if match:
+                n.dismissed = True
+                dismissed_count += 1
+        elif n.action in ("PlanApproval", "UserQuestion"):
+            cl_name = n.action_data.get("agent_cl_name")
+            timestamp = n.action_data.get("agent_timestamp")
+            if timestamp is None:
+                match = any(agent_cl == cl_name for agent_cl, _ in agent_keys)
+            else:
+                from ...models._timestamps import normalize_to_14_digit
+
+                match = (cl_name, normalize_to_14_digit(timestamp)) in agent_keys
+            if match:
+                n.dismissed = True
+                dismissed_count += 1
+
+    if dismissed_count:
+        rewrite_notifications(all_notifications)
+    return dismissed_count
 
 
 def find_workflow_workspace_from_running_field(

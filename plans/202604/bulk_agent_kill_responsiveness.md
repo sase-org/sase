@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 16:31:09
-status: wip
+status: done
 ---
 # Plan: Make Bulk Agent Kill Immediate in the Agents Tab
 

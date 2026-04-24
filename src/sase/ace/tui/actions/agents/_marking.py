@@ -130,22 +130,7 @@ class AgentMarkingMixin:
         def on_dismiss(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            # Skip identities removed by earlier cascades (e.g. marking both
-            # a workflow parent and one of its children).
-            for agent in list(killable):
-                live_ids = {a.identity for a in self._agents_with_children}
-                if agent.identity not in live_ids:
-                    continue
-                self._do_kill_agent(agent)  # type: ignore[attr-defined]
-            remaining_dismissable = [
-                a
-                for a in dismissable
-                if a.identity in {b.identity for b in self._agents_with_children}
-            ]
-            if remaining_dismissable:
-                self._do_dismiss_all(remaining_dismissable)  # type: ignore[attr-defined]
-            self._marked_agents = set()
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
 
         if killable:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
