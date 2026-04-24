@@ -22,6 +22,14 @@ class NameCollisionError(ValueError):
     """Raised when an explicit repeat-name base conflicts with existing agents."""
 
 
+# Shape of a child agent name inside a repeat batch: ``<letter-base>.<slot>``.
+# The base is intentionally restricted to ``[a-z]+`` so that only names reachable
+# by the auto-name sequence (``a``, ``b``, ..., ``aa``, ...) are extracted as
+# prefixes by ``_get_active_agent_names``. Multi-segment user bases like
+# ``sase-z`` are already reserved via the ``workflow_name`` path.
+_AUTO_CHILD_NAME_RE = re.compile(r"^([a-z]+)\.\d+$")
+
+
 @dataclass
 class _NamedAgent:
     """A named agent found in the artifacts directory."""
@@ -457,7 +465,8 @@ def _get_active_agent_names() -> set[str]:
 
             # Prefer workflow_name for multi-agent workflows so the
             # base name (e.g. "a") is reserved, not the child name ("a.1").
-            name = data.get("workflow_name") or data.get("name")
+            name_field = data.get("name")
+            name = data.get("workflow_name") or name_field
             if not name:
                 continue
 
@@ -468,11 +477,24 @@ def _get_active_agent_names() -> set[str]:
             if data.get("parent_timestamp"):
                 continue
 
+            # An undismissed child agent (``<letter>.<k>``) from a past
+            # repeat batch reserves its base letter too — otherwise
+            # ``get_next_auto_name()`` hands out a letter whose batch
+            # slots are already claimed, causing the downstream
+            # ``reserve_repeat_name_base`` check to raise a collision.
+            child_base: str | None = None
+            if isinstance(name_field, str):
+                m = _AUTO_CHILD_NAME_RE.match(name_field)
+                if m:
+                    child_base = m.group(1)
+
             # Done agents still hold their name until dismissed
             # (dismissal deletes the artifact directory).
             done_path = artifact_dir / "done.json"
             if done_path.exists():
                 names.add(name)
+                if child_base is not None:
+                    names.add(child_base)
                 continue
 
             # Verify the agent process is actually alive — orphaned agents
@@ -480,6 +502,8 @@ def _get_active_agent_names() -> set[str]:
             # but their process is long dead.
             if is_process_alive(data, artifact_dir):
                 names.add(name)
+                if child_base is not None:
+                    names.add(child_base)
 
     return names
 

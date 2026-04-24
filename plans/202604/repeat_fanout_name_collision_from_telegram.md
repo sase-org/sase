@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-23 20:58:46
-status: wip
+status: done
 ---
 # Plan: Fix `%r:N` Name Collision When Launched via Telegram
 
