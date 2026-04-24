@@ -6,8 +6,17 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from sase.ace.tui.actions.agent_workflow import _launch_repeat
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+
+
+@pytest.fixture(autouse=True)
+def _no_repeat_spawn_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Zero out the 1s inter-spawn sleep so tests don't wait on real time."""
+    monkeypatch.setattr(_launch_repeat, "_REPEAT_SPAWN_SLEEP", 0.0)
 
 
 class _FakeApp(AgentLaunchMixin):

@@ -11,6 +11,8 @@ log = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from ._types import PromptContext
 
+_REPEAT_SPAWN_SLEEP = 1.0
+
 
 class RepeatLaunchMixin:
     """Mixin providing repeat agent launch."""
@@ -95,7 +97,11 @@ class RepeatLaunchMixin:
                         extra_env=extra_env,
                     )
 
-                specs = spawn_repeat_batch(prompt, base_spawn_fn=_spawn_one)
+                specs = spawn_repeat_batch(
+                    prompt,
+                    base_spawn_fn=_spawn_one,
+                    sleep_between=_REPEAT_SPAWN_SLEEP,
+                )
                 self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]

@@ -114,3 +114,33 @@ Do **A + B + C** in that order. These are independent and compounding:
 Skip D, E, F, G, H for now — they are smaller wins and carry more risk/effort. Revisit D (slow markers) once the suite feels fast but we want to tighten CI turnaround further.
 
 **Net expected outcome**: `just test` goes from ~6 minutes to ~15 seconds — a ~24× speedup — with a Justfile edit, a `pyproject.toml` edit, and one test file rewrite.
+
+---
+
+## Outcome (appended 2026-04-23 after Phase 3, bead `sase-l.3`)
+
+### What shipped
+
+- Phase 1 (`sase-l.1`, commit `361257d7`): `-n auto --dist=loadfile` default.
+- Phase 2 (`sase-l.2`, commit `a2bb0bc8`): coverage moved out of `addopts` into a dedicated `just test-cov`; `just check` / CI re-pointed at `test-cov`.
+- Phase 3 (`sase-l.3`, this change): `sleep_between=1.0` in `spawn_repeat_batch` is now injected from `_launch_repeat` via the module-level `_REPEAT_SPAWN_SLEEP` constant, and the three repeat-agent tests zero it out via an autouse `monkeypatch` fixture. Production default unchanged.
+
+### Measured timings (post-Phase-3, 64-core host, Python 3.14, no coverage)
+
+| Command                                                   | Before Phase 3 | After Phase 3 |
+| --------------------------------------------------------- | -------------- | ------------- |
+| `just test tests/test_agent_launch_repeat.py -n 0`        | 3.50 s         | **0.52 s**    |
+| `just test tests/test_agent_launch_repeat.py` (parallel)  | 8.37 s         | ~7 s          |
+| `just test` (full suite, `-n auto --dist=loadfile`)       | 50.34 s        | **50.32 s**   |
+
+`--durations=20` no longer lists any test from `test_agent_launch_repeat.py`. The three tests that used to accumulate 3 s of real `time.sleep` now complete effectively instantly.
+
+### Why the full-suite wall time didn't drop to ~15 s
+
+The research doc's "40 s per test" figure for `test_agent_launch_repeat.py` was stale by the time Phase 3 ran — on the current workspace it was already ~1–2 s per test from the single `sleep_between=1.0` accumulation, not a retry/backoff loop. So fixing it cleanly removes that file from the slow list but recovers only ~3 s of sequential time, not the ~35 s the research doc implied.
+
+The remaining ~50 s floor is dominated by Textual `Pilot`-based tests in `tests/test_ace_tui_app.py`, `tests/test_ace_tui_widgets.py`, `tests/test_ace_testing.py`, and `tests/test_keymaps_e2e.py` — 4–8 s each in the top-20 `--durations` list. These are options D/F/G in the avenues section above and were explicitly deferred for Phase 3; getting past 50 s will require that follow-up work.
+
+### Net
+
+Across Phases 1–3 the dev loop went from ~6 min → ~50 s (~7× faster) with coverage still enforced on `just check` / CI. The further ~3× to reach the ~15 s headline number is a follow-up on Textual `Pilot` test tiering.
