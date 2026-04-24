@@ -11,6 +11,7 @@ from sase.ace.tui.widgets import KeybindingFooter
 def test_keybinding_footer_status_indicator_starting() -> None:
     """Test status indicator shows STARTING when axe is starting."""
     footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
     footer._axe_running = False
     footer._axe_starting = True
     footer._axe_stopping = False
@@ -24,6 +25,7 @@ def test_keybinding_footer_status_indicator_starting() -> None:
 def test_keybinding_footer_status_indicator_stopping() -> None:
     """Test status indicator shows STOPPING when axe is stopping."""
     footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
     footer._axe_running = False
     footer._axe_starting = False
     footer._axe_stopping = True
@@ -68,6 +70,7 @@ def test_keybinding_footer_axe_bindings() -> None:
 def test_keybinding_footer_status_with_bgcmd_running() -> None:
     """Test status indicator shows running badge when bgcmds running."""
     footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
     footer._axe_running = True
     footer._bgcmd_running_count = 2
     footer._bgcmd_done_count = 0
@@ -83,6 +86,7 @@ def test_keybinding_footer_status_with_bgcmd_running() -> None:
 def test_keybinding_footer_status_with_bgcmd_done() -> None:
     """Test status indicator shows done badge when bgcmds done."""
     footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
     footer._axe_running = True
     footer._bgcmd_running_count = 0
     footer._bgcmd_done_count = 3

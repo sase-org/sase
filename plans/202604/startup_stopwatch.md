@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 14:34:50
-status: wip
+status: done
 ---
 # Plan: Startup Stopwatch in `sase ace` Bottom-Right Corner
 

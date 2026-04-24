@@ -19,6 +19,7 @@ Formatting:
     ``<enter>``, ``<space>``.
 """
 
+import time
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -32,7 +33,12 @@ from ...operations import get_available_workflows
 from ..keymaps import KeymapRegistry, footer_key_display, load_keymap_registry
 
 if TYPE_CHECKING:
+    from textual.timer import Timer
+
     from ..models.agent import Agent
+
+_STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
+_STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS = 10.0
 
 
 class KeybindingFooter(Horizontal):
@@ -49,6 +55,45 @@ class KeybindingFooter(Horizontal):
         self._bgcmd_running_count: int = 0
         self._bgcmd_done_count: int = 0
         self._runner_count: int = 0
+        self._startup_stopwatch_active: bool = True
+        self._startup_start_time: float = time.monotonic()
+        self._startup_elapsed: float = 0.0
+        self._startup_stopwatch_timer: Timer | None = None
+
+    def on_mount(self) -> None:
+        """Anchor the startup stopwatch and begin ticking every 0.1s."""
+        if not self._startup_stopwatch_active:
+            return
+        self._startup_start_time = time.monotonic()
+        self._startup_elapsed = 0.0
+        self._startup_stopwatch_timer = self.set_interval(
+            0.1, self._on_stopwatch_tick, name="startup-stopwatch"
+        )
+        self._update_status()
+
+    def _on_stopwatch_tick(self) -> None:
+        """Recompute elapsed time, refresh the status, and enforce the safety timeout."""
+        if not self._startup_stopwatch_active:
+            return
+        self._startup_elapsed = time.monotonic() - self._startup_start_time
+        if self._startup_elapsed >= _STARTUP_STOPWATCH_TIMEOUT_SECS:
+            self.end_startup_stopwatch()
+            return
+        self._update_status()
+
+    def end_startup_stopwatch(self) -> None:
+        """Stop the startup stopwatch and re-render the real AXE status.
+
+        Idempotent — safe to call from both the real-end signal and the
+        safety timeout even if they race.
+        """
+        if not self._startup_stopwatch_active:
+            return
+        self._startup_stopwatch_active = False
+        if self._startup_stopwatch_timer is not None:
+            self._startup_stopwatch_timer.stop()
+            self._startup_stopwatch_timer = None
+        self._update_status()
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Override the keymap registry with user config."""
@@ -133,7 +178,16 @@ class KeybindingFooter(Horizontal):
             Formatted Text object for the status indicator.
         """
         text = Text()
-        if self._axe_restarting:
+        if self._startup_stopwatch_active:
+            if self._startup_elapsed >= _STARTUP_STOPWATCH_SLOW_THRESHOLD_SECS:
+                bg = "rgb(255,140,0)"
+            else:
+                bg = "rgb(255,215,0)"
+            text.append(
+                f"  ⏱ starting {self._startup_elapsed:.1f}s  ",
+                style=f"bold black on {bg}",
+            )
+        elif self._axe_restarting:
             text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")
         elif self._axe_starting:
             text.append(" STARTING ", style="bold black on rgb(255,255,0)")
