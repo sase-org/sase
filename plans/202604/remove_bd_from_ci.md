@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 09:14:06
-status: wip
+status: done
 ---
 # Remove steveyegge/beads (`bd`) install from GitHub Actions CI
 
