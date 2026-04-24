@@ -16,7 +16,9 @@ body runs.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
+from contextlib import ExitStack
 from typing import Any
 from unittest.mock import patch
 
@@ -51,6 +53,46 @@ class _FakeApp(AgentLaunchMixin):
         self.body_calls.append(prompt)
 
 
+class _LaunchBodyApp(AgentLaunchMixin):
+    """Harness that exercises the real launch body without spawning agents."""
+
+    def __init__(self) -> None:
+        self.notifications: list[tuple[str, str | None]] = []
+        self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
+        self.launched: list[dict[str, Any]] = []
+        self.launch_thread_ids: list[int] = []
+        self.refresh_count = 0
+        self._prompt_context: PromptContext | None = _launch_body_context()
+        self._bulk_changespecs = None
+        self._last_custom_agent_selection = None
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
+
+    def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
+        del kwargs
+        self.scheduled.append((fn, args))
+
+    def _try_execute_workflow(
+        self, prompt: str, *, has_vcs_ref: bool = False
+    ) -> bool | str:
+        del prompt, has_vcs_ref
+        return False
+
+    def _resolve_vcs_from_prompt(
+        self, prompt: str, wf_name: str, *, skip_workspace: bool = False
+    ) -> None:
+        del prompt, wf_name, skip_workspace
+        return None
+
+    def _schedule_agents_async_refresh(self) -> None:
+        self.refresh_count += 1
+
+    def _launch_background_agent(self, **kwargs: Any) -> None:
+        self.launch_thread_ids.append(threading.get_ident())
+        self.launched.append(kwargs)
+
+
 def _fake_context() -> PromptContext:
     return PromptContext(
         project_name="test",
@@ -65,6 +107,39 @@ def _fake_context() -> PromptContext:
         update_target="",
         is_home_mode=True,
     )
+
+
+def _launch_body_context() -> PromptContext:
+    ctx = _fake_context()
+    ctx.is_home_mode = False
+    return ctx
+
+
+def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> None:
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+                side_effect=lambda p: (p, None),
+            )
+        )
+        stack.enter_context(
+            patch("sase.workspace_provider.get_ref_patterns", return_value={})
+        )
+        stack.enter_context(
+            patch("sase.workspace_provider.get_workflow_names", return_value=set())
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+        stack.enter_context(
+            patch(
+                "sase.history.file_references.extract_recordable_file_refs",
+                return_value=[],
+            )
+        )
+        stack.enter_context(
+            patch("sase.history.file_references.record_file_references")
+        )
+        app._run_agent_launch_body(prompt)
 
 
 @pytest.mark.asyncio
@@ -142,3 +217,54 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     assert args == ("the prompt",)
     # The body itself was NOT called synchronously.
     assert app.body_calls == []
+    assert app.notifications == [("Launching agent for test...", None)]
+
+
+def test_run_agent_launch_body_skips_xprompt_processing_for_plain_prompt() -> None:
+    app = _LaunchBodyApp()
+    body_thread_id = threading.get_ident()
+
+    with patch("sase.xprompt.processor.process_xprompt_references") as process:
+        _run_launch_body_with_common_patches(app, "plain single-agent prompt")
+
+    process.assert_not_called()
+    assert len(app.launched) == 1
+    assert app.launched[0]["prompt"] == "plain single-agent prompt"
+    assert app.launch_thread_ids == [body_thread_id]
+    refresh_calls = [
+        (fn, args)
+        for fn, args in app.scheduled
+        if fn == app._schedule_agents_async_refresh
+    ]
+    assert len(refresh_calls) == 1
+
+
+def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> None:
+    app = _LaunchBodyApp()
+
+    with patch(
+        "sase.xprompt.processor.process_xprompt_references",
+        return_value="%m(opus,sonnet)\nReview this code",
+    ) as process:
+        _run_launch_body_with_common_patches(app, "Review this with #swarm")
+
+    process.assert_called_once()
+    assert app.launched == []
+    multi_model_calls = [
+        (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents
+    ]
+    assert len(multi_model_calls) == 1
+
+
+def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> None:
+    app = _LaunchBodyApp()
+
+    _run_launch_body_with_common_patches(app, "plain single-agent prompt")
+
+    assert len(app.launched) == 1
+    scheduled_fns = [fn for fn, _ in app.scheduled]
+    assert scheduled_fns.count(app._schedule_agents_async_refresh) == 1
+    assert any(
+        callable(fn) and fn != app._schedule_agents_async_refresh
+        for fn in scheduled_fns
+    )

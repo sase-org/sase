@@ -58,6 +58,53 @@ _XPROMPT_PATTERN = (
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
+_COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "hg", "p4"})
+
+
+def _candidate_name(match: re.Match[str]) -> str:
+    """Return the xprompt name represented by a regex match."""
+    return match.group(1).replace("__", "/")
+
+
+def _is_obvious_vcs_only_reference(match: re.Match[str], prompt: str) -> bool:
+    """Return True for common leading VCS tags that are not xprompt refs."""
+    prefix = prompt[: match.start()].strip()
+    if prefix and not all(part.startswith("%") for part in prefix.split()):
+        return False
+
+    raw_name = match.group(1)
+    if raw_name in _COMMON_VCS_XPROMPT_NAMES:
+        return (
+            match.group(2) is not None
+            or match.group(3) is not None
+            or match.group(4) is not None
+        )
+    return any(raw_name.startswith(f"{name}_") for name in _COMMON_VCS_XPROMPT_NAMES)
+
+
+def prompt_may_reference_xprompt(
+    prompt: str, extra_xprompts: dict[str, XPrompt] | None = None
+) -> bool:
+    """Cheaply detect whether *prompt* might contain an xprompt reference.
+
+    This is intentionally lexical and conservative.  It avoids loading the
+    full xprompt catalog for prompts that clearly cannot expand, while still
+    returning True for ambiguous ``#name`` forms so the normal processor can
+    decide using the real catalog.
+    """
+    if "#" not in prompt:
+        return False
+
+    extra_names = set(extra_xprompts or {})
+    for match in re.finditer(_XPROMPT_PATTERN, prompt, re.MULTILINE):
+        name = _candidate_name(match)
+        if name in extra_names:
+            return True
+        if _is_obvious_vcs_only_reference(match, prompt):
+            continue
+        return True
+    return False
+
 
 def resolve_xprompt_aliases(prompt: str) -> str:
     """Resolve xprompt aliases via raw text substitution.
@@ -67,10 +114,13 @@ def resolve_xprompt_aliases(prompt: str) -> str:
     like ``#gh_sase`` → ``#gh:sase`` where the colon syntax must be present
     in the raw text for VCS directory-switching logic.
     """
+    if "#" not in prompt:
+        return prompt
+
     from sase.config import load_merged_config
 
     aliases: dict[str, str] = load_merged_config().get("xprompt_aliases", {})
-    if not aliases or "#" not in prompt:
+    if not aliases:
         return prompt
 
     for alias_name, target in aliases.items():
@@ -190,7 +240,16 @@ def process_xprompt_references(
     Raises:
         SystemExit: If any xprompt processing error occurs
     """
+    if "#" not in prompt:
+        return prompt
+    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+        return prompt
+
     prompt = resolve_xprompt_aliases(prompt)
+    if "#" not in prompt:
+        return prompt
+    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+        return prompt
 
     xprompts = get_all_xprompts()
     if extra_xprompts:
@@ -393,6 +452,7 @@ def process_xprompt_references(
 
 __all__ = [
     "is_jinja2_template",
+    "prompt_may_reference_xprompt",
     "process_xprompt_references",
     "render_toplevel_jinja2",
     "resolve_xprompt_aliases",

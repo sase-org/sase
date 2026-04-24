@@ -3,7 +3,10 @@
 from unittest.mock import patch
 
 from sase.xprompt.models import XPrompt
-from sase.xprompt.processor import process_xprompt_references
+from sase.xprompt.processor import (
+    process_xprompt_references,
+    prompt_may_reference_xprompt,
+)
 
 
 def _make_xprompts(snippets: dict[str, str]) -> dict[str, XPrompt]:
@@ -14,6 +17,50 @@ def _make_xprompts(snippets: dict[str, str]) -> dict[str, XPrompt]:
 
 
 # Tests for process_xprompt_references
+
+
+def test_prompt_may_reference_xprompt_false_for_plain_prompt() -> None:
+    assert not prompt_may_reference_xprompt("plain text with no refs")
+
+
+def test_prompt_may_reference_xprompt_false_for_vcs_only_tag() -> None:
+    assert not prompt_may_reference_xprompt("#git:master do thing")
+    assert not prompt_may_reference_xprompt("#gh:sase fix issue")
+
+
+def test_prompt_may_reference_xprompt_true_for_local_frontmatter_ref() -> None:
+    xprompts = _make_xprompts({"_ctx": "extra context"})
+
+    assert prompt_may_reference_xprompt("use #_ctx here", extra_xprompts=xprompts)
+
+
+def test_prompt_may_reference_xprompt_true_for_xprompt_candidate_forms() -> None:
+    assert prompt_may_reference_xprompt("#foo")
+    assert prompt_may_reference_xprompt("#foo(arg)")
+    assert prompt_may_reference_xprompt("#foo:arg")
+    assert prompt_may_reference_xprompt("#foo+")
+    assert prompt_may_reference_xprompt("#namespace/foo")
+    assert prompt_may_reference_xprompt("#foo__bar")
+
+
+def test_process_xprompt_references_plain_text_skips_catalog_load() -> None:
+    with patch("sase.xprompt.processor.get_all_xprompts") as get_all:
+        result = process_xprompt_references("plain text with no refs")
+
+    assert result == "plain text with no refs"
+    get_all.assert_not_called()
+
+
+def test_process_xprompt_references_vcs_only_tag_skips_catalog_load() -> None:
+    with (
+        patch("sase.config.load_merged_config") as load_config,
+        patch("sase.xprompt.processor.get_all_xprompts") as get_all,
+    ):
+        result = process_xprompt_references("#git:master do thing")
+
+    assert result == "#git:master do thing"
+    load_config.assert_not_called()
+    get_all.assert_not_called()
 
 
 def test_process_xprompt_references_no_snippets_defined() -> None:

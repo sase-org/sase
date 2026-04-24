@@ -48,6 +48,7 @@ from .output_validation import (
 from ._trace import ExpansionRecord, ExpansionTrace, format_trace, print_trace
 from .processor import (
     is_jinja2_template,
+    prompt_may_reference_xprompt,
     process_xprompt_references,
     render_toplevel_jinja2,
     resolve_xprompt_aliases,
@@ -119,6 +120,7 @@ __all__ = [
     "expand_workflow_for_embedding",
     "is_jinja2_template",
     "is_workflow_reference",
+    "prompt_may_reference_xprompt",
     "process_xprompt_references",
     "render_toplevel_jinja2",
     "resolve_xprompt_aliases",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from typing import TYPE_CHECKING
 
 from ._launch_bulk import BulkLaunchMixin
@@ -80,6 +79,7 @@ class AgentLaunchMixin(
         # widget, see _transfer_focus_off_prompt_bar), then offload the
         # heavy launch path to a worker thread.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
+        self.notify(f"Launching agent for {ctx.display_name}...")  # type: ignore[attr-defined]
 
         self.call_later(self._run_agent_launch_body_async, prompt)  # type: ignore[attr-defined]
 
@@ -297,24 +297,33 @@ class AgentLaunchMixin(
         multi = parse_multi_prompt(prompt)
         local_xprompts = multi.local_xprompts
 
-        # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
-        # so multi-model directives from xprompts are detected below.
-        # Keep the raw prompt (with frontmatter) for the agent runner
-        # to parse again and expand local xprompts in the subprocess.
-        from sase.xprompt.processor import process_xprompt_references
-
         raw_prompt = prompt
-        prompt = process_xprompt_references(
-            "\n---\n".join(multi.segments),
-            extra_xprompts=local_xprompts or None,
-        )
 
         self._prompt_context = None
 
         # Check for multi-model directive (e.g., %m(opus,sonnet))
         from sase.xprompt.directives import split_prompt_for_models
 
-        model_prompts = split_prompt_for_models(prompt)
+        dispatch_prompt = "\n---\n".join(multi.segments)
+        model_prompts = split_prompt_for_models(dispatch_prompt)
+        if model_prompts is None:
+            # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
+            # only when the prompt has a lexical xprompt candidate.  The agent
+            # runner expands xprompts again in the subprocess; this TUI pass is
+            # solely to discover xprompt-injected multi-model directives.
+            from sase.xprompt.processor import (
+                process_xprompt_references,
+                prompt_may_reference_xprompt,
+            )
+
+            if prompt_may_reference_xprompt(
+                dispatch_prompt, extra_xprompts=local_xprompts or None
+            ):
+                expanded_prompt = process_xprompt_references(
+                    dispatch_prompt,
+                    extra_xprompts=local_xprompts or None,
+                )
+                model_prompts = split_prompt_for_models(expanded_prompt)
         if model_prompts is not None:
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_model_agents,
@@ -345,43 +354,36 @@ class AgentLaunchMixin(
             ctx.workspace_num = 0
             ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
 
-        # Launch single background agent in a thread — pass raw (unexpanded)
-        # prompt so the runner saves the original user input as raw_xprompt.md.
+        # Launch single background agent from this worker thread. Pass raw
+        # (unexpanded) prompt so the runner saves the original user input as
+        # raw_xprompt.md.
         display_name = ctx.display_name
-
-        def _run() -> None:
-            try:
-                self._launch_background_agent(
-                    cl_name=ctx.display_name,
-                    project_file=ctx.project_file,
-                    workspace_dir=ctx.workspace_dir,
-                    workspace_num=ctx.workspace_num,
-                    workflow_name=ctx.workflow_name,
-                    prompt=raw_prompt,
-                    timestamp=ctx.timestamp,
-                    update_target=ctx.update_target,
-                    project_name=ctx.project_name,
-                    history_sort_key=ctx.history_sort_key,
-                    is_home_mode=ctx.is_home_mode,
-                    vcs_ref=vcs_ref,
-                    deferred_workspace=has_wait,
+        try:
+            self._launch_background_agent(
+                cl_name=ctx.display_name,
+                project_file=ctx.project_file,
+                workspace_dir=ctx.workspace_dir,
+                workspace_num=ctx.workspace_num,
+                workflow_name=ctx.workflow_name,
+                prompt=raw_prompt,
+                timestamp=ctx.timestamp,
+                update_target=ctx.update_target,
+                project_name=ctx.project_name,
+                history_sort_key=ctx.history_sort_key,
+                is_home_mode=ctx.is_home_mode,
+                vcs_ref=vcs_ref,
+                deferred_workspace=has_wait,
+            )
+            self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
+            msg = f"Agent started for {display_name}"
+            self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+        except Exception:
+            log.exception("Agent launch failed")
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(  # type: ignore[attr-defined]
+                    "Agent launch failed (see log)", severity="error"
                 )
-                self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
-                msg = f"Agent started for {display_name}"
-                self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
-            except Exception:
-                log.exception("Agent launch failed")
-                self.call_later(  # type: ignore[attr-defined]
-                    lambda: self.notify(  # type: ignore[attr-defined]
-                        "Agent launch failed (see log)", severity="error"
-                    )
-                )
-
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
-
-        msg = f"Launching agent for {display_name}..."
-        self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            )
 
     def _launch_background_agent(
         self,
@@ -421,26 +423,19 @@ class AgentLaunchMixin(
         """
         from sase.agent.launcher import spawn_agent_subprocess
 
-        try:
-            spawn_agent_subprocess(
-                cl_name=cl_name,
-                project_file=project_file,
-                workspace_dir=workspace_dir,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                prompt=prompt,
-                timestamp=timestamp,
-                update_target=update_target,
-                project_name=project_name,
-                history_sort_key=history_sort_key,
-                is_home_mode=is_home_mode,
-                vcs_ref=vcs_ref,
-                deferred_workspace=deferred_workspace,
-                extra_env=extra_env,
-            )
-        except Exception as e:
-            log.exception("Failed to start agent for %s", cl_name)
-            err_msg = f"Failed to start agent: {e}"
-            self.call_later(  # type: ignore[attr-defined]
-                lambda: self.notify(err_msg, severity="error")  # type: ignore[attr-defined]
-            )
+        spawn_agent_subprocess(
+            cl_name=cl_name,
+            project_file=project_file,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+            workflow_name=workflow_name,
+            prompt=prompt,
+            timestamp=timestamp,
+            update_target=update_target,
+            project_name=project_name,
+            history_sort_key=history_sort_key,
+            is_home_mode=is_home_mode,
+            vcs_ref=vcs_ref,
+            deferred_workspace=deferred_workspace,
+            extra_env=extra_env,
+        )

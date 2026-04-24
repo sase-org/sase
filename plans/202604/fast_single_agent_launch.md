@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 18:01:12
-status: wip
+status: done
 ---
 # Make Single-Agent Launch Feel Immediate
 
