@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 18:07:41
-status: wip
+status: done
 ---
 # Plan: Keep New Agents at the Top After Manual Reordering
 

@@ -154,14 +154,14 @@ class AgentOrderingMixin:
             if identity == target_identity:
                 target_order_idx = i
 
-        # If either identity is missing from the custom order, add all current
-        # top-level agents to ensure we have a complete ordering
+        # If either identity is missing from the custom order, treat the
+        # currently displayed top-level order as the explicit user order before
+        # applying this move. This keeps a fresh top entry moving one visible
+        # slot instead of being appended after older persisted identities.
         if current_order_idx is None or target_order_idx is None:
-            existing = set(self._agent_custom_order)
-            for a in self._agents:
-                if not a.is_workflow_child and a.identity not in existing:
-                    self._agent_custom_order.append(a.identity)
-                    existing.add(a.identity)
+            self._agent_custom_order = [
+                a.identity for a in self._agents if not a.is_workflow_child
+            ]
             # Re-find positions
             for i, identity in enumerate(self._agent_custom_order):
                 if identity == current_identity:

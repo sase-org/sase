@@ -73,9 +73,9 @@ def apply_custom_order(
 ) -> list[Agent]:
     """Reorder top-level agents according to the user's custom order.
 
-    Agents whose identity appears in *order* are placed at the positions
-    specified by the order list.  New agents (not in the order) keep their
-    default time-sorted position.  Workflow children stay grouped after
+    New agents (not in *order*) stay above persisted entries while preserving
+    their incoming time-sorted order.  Agents whose identity appears in *order*
+    keep the persisted relative order.  Workflow children stay grouped after
     their parent.
     """
     # Build identity -> desired position lookup
@@ -93,12 +93,12 @@ def apply_custom_order(
         else:
             top_level.append(agent)
 
-    # Sort top-level: agents in custom order get their specified position,
-    # agents not in the order get a high position (preserving relative order)
-    max_pos = len(order)
-    top_level.sort(
-        key=lambda a: (order_map.get(a.identity, max_pos + agents.index(a)),)
-    )
+    # Keep newly discovered top-level agents above the persisted custom order.
+    # Their incoming order is already the loader's default newest-first order.
+    unordered_top_level = [a for a in top_level if a.identity not in order_map]
+    ordered_top_level = [a for a in top_level if a.identity in order_map]
+    ordered_top_level.sort(key=lambda a: order_map[a.identity])
+    top_level = unordered_top_level + ordered_top_level
 
     # Reassemble with children after their parents
     result: list[Agent] = []
