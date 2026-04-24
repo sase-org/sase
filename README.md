@@ -340,8 +340,9 @@ are deep-merged on top. A project-local `./sase.yml` in the current working dire
 just install       # Install with dev deps
 just fmt           # Auto-format code
 just lint          # Run ruff + mypy
-just test          # Run tests with coverage
-just check         # All checks (fmt-check + lint + test)
+just test          # Fast parallel test run (no coverage)
+just test-cov      # Parallel test run with coverage + 50% gate
+just check         # All checks (fmt-check + lint + test-cov)
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel + sdist

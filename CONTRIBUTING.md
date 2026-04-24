@@ -13,8 +13,9 @@ just install
 ```bash
 just fmt           # Auto-format code
 just lint          # Run ruff + mypy
-just test          # Run tests with coverage
-just check         # All checks (fmt-check + lint + test)
+just test          # Fast parallel test run (no coverage)
+just test-cov      # Parallel test run with coverage + 50% gate
+just check         # All checks (fmt-check + lint + test-cov)
 ```
 
 ## Adding Dependencies
