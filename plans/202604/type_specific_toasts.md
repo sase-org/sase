@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 14:37:31
-status: wip
+status: done
 ---
 # Plan: Type-Specific Toast Notifications in `sase ace` TUI
 

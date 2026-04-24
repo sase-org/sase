@@ -24,11 +24,11 @@ class LifecycleMixin:
     _changespecs_last_idx: int
     _last_activity_time: float
     _pinned_idle: bool
-    _last_unread_count: int
+    _last_unread_ids: set[str]
     _activity_log: ActivityLog
 
     def _initialize_agent_tracking(self) -> None:
-        """Initialize notification tracking by seeding unread count.
+        """Initialize notification tracking by seeding unread ids.
 
         This ensures we don't trigger bell/toast for notifications that
         were already unread when the TUI started.
@@ -38,11 +38,11 @@ class LifecycleMixin:
         from ..widgets import NotificationIndicator
 
         notifications = load_notifications()
-        unread_count = sum(1 for n in notifications if not n.read)
-        self._last_unread_count = unread_count
+        unread = [n for n in notifications if not n.read and not n.silent]
+        self._last_unread_ids = {n.id for n in unread}
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
-        indicator.set_count(unread_count)
+        indicator.set_count(len(unread))
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""

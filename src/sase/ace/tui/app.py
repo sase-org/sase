@@ -306,7 +306,7 @@ class AceApp(
         from ..dismissed_agents import load_dismissed_agents
         from ..pinned_agents import load_pinned_agents
 
-        self._last_unread_count: int = 0
+        self._last_unread_ids: set[str] = set()
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
         self._pinned_agents = load_pinned_agents()

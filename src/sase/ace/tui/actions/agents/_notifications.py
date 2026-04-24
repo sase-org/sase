@@ -21,7 +21,7 @@ class AgentNotificationMixin:
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
-    _last_unread_count: int
+    _last_unread_ids: set[str]
     current_idx: int
     current_tab: TabName
     hide_non_run_agents: bool
@@ -39,22 +39,27 @@ class AgentNotificationMixin:
         """
         from sase.notifications import load_notifications
 
+        from ._toasts import format_batch_toasts
+
         notifications = load_notifications()
         unread = [n for n in notifications if not n.read and not n.silent]
         unread_count = len(unread)
 
-        # Detect newly arrived notifications
-        if unread_count > self._last_unread_count:
-            self._ring_tmux_bell()
-            # Fire toast for new notifications
-            new_count = unread_count - self._last_unread_count
-            self.notify(  # type: ignore[attr-defined]
-                f"{new_count} new notification{'s' if new_count != 1 else ''}",
-                severity="information",
-                timeout=8,
-            )
+        current_ids = {n.id for n in unread}
+        new_ids = current_ids - self._last_unread_ids
+        new_notifications = [n for n in unread if n.id in new_ids]
 
-        self._last_unread_count = unread_count
+        # Detect newly arrived notifications
+        if new_notifications:
+            self._ring_tmux_bell()
+            for message, severity in format_batch_toasts(new_notifications):
+                self.notify(  # type: ignore[attr-defined]
+                    message,
+                    severity=severity,
+                    timeout=8,
+                )
+
+        self._last_unread_ids = current_ids
 
         # Update persistent notification indicator
         from ...widgets import NotificationIndicator
@@ -229,7 +234,7 @@ class AgentNotificationMixin:
         unread = [n for n in notifications if not n.read and not n.silent]
         unread_count = len(unread)
 
-        self._last_unread_count = unread_count
+        self._last_unread_ids = {n.id for n in unread}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator

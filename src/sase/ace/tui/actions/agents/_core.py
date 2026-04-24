@@ -74,7 +74,7 @@ class AgentsMixinCore(
 
     # Agent completion tracking for notifications
     _pending_attention_count: int
-    _last_unread_count: int
+    _last_unread_ids: set[str]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
