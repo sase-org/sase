@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 09:15:48
-status: wip
+status: done
 ---
 # Fix CI failure: `--inline-snapshot=short-report cannot be combined with xdist`
 
