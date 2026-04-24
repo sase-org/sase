@@ -90,10 +90,10 @@ fmt-md-check:
     @printf "\n---------- Checking Markdown formatting with prettier... ----------\n"
     prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
-# Run tests with coverage
+# Run tests in parallel (coverage still on — see test-cov)
 test *args: _setup (_header "test")
     @printf "\n---------- Running pytest with coverage... ----------\n"
-    {{ venv_bin }}/pytest {{ args }}
+    {{ venv_bin }}/pytest -n auto --dist=loadfile {{ args }}
 
 # Run tests across all Python versions
 test-tox: _setup
