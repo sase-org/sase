@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 10:30:17
-status: wip
+status: done
 bead_id: sase-m
 ---
 # Plan: Speed Up the 20 Slowest Tests
