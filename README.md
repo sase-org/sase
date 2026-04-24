@@ -181,6 +181,7 @@ sase
 | `sase telemetry dashboard`     | Live auto-refreshing TUI dashboard with optional historical charts mode                                        |
 | `sase telemetry health`        | Traffic-light health assessment (OK/WARN/CRITICAL per subsystem)                                               |
 | `sase telemetry export-config` | Export bundled monitoring stack (Docker Compose + Prometheus + Grafana)                                        |
+| `sase xprompt catalog`         | Render every visible xprompt to a formatted PDF catalog                                                        |
 | `sase xprompt expand`          | Expand prompt templates with sase references (supports `--trace`)                                              |
 | `sase xprompt explain`         | Dry-run visualization of a workflow's execution plan                                                           |
 | `sase xprompt graph`           | Generate a DAG visualization of a workflow (Mermaid or text)                                                   |

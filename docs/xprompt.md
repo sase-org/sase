@@ -24,6 +24,7 @@ Use xprompts when you want to:
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
 - [Tags](#tags)
+- [Dynamic Memory (Keywords)](#dynamic-memory-keywords)
 - [Snippet Field](#snippet-field)
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
@@ -37,7 +38,7 @@ Use xprompts when you want to:
 
 ## CLI Subcommands
 
-The `sase xprompt` command provides three subcommands for working with xprompts.
+The `sase xprompt` command provides five subcommands for working with xprompts.
 
 ### `sase xprompt expand`
 
@@ -88,6 +89,18 @@ sase xprompt graph my_workflow --format text  # Plain-text summary
 
 The Mermaid output can be pasted into any Mermaid-compatible renderer. Parallel sub-steps are shown as subgraphs, and
 nodes include type indicators and control flow annotations.
+
+### `sase xprompt catalog`
+
+Renders every visible xprompt to a formatted PDF catalog for browsing and sharing.
+
+```bash
+sase xprompt catalog                # Write the PDF to a tempdir and print its path
+sase xprompt catalog --out /tmp/out # Write the PDF to the specified directory
+```
+
+The command collects all xprompts visible to the current config (same set `sase xprompt list` returns), renders each
+into an HTML section, and produces a single PDF using the bundled `catalog_template.html.j2` and `catalog_style.css`.
 
 ## Discovery Order
 
@@ -144,6 +157,7 @@ Hello, {{ user_name }}! Welcome aboard.
 | `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
 | `description` | No       | Human-readable one-line description of what the xprompt does                   |
 | `skill`       | No       | Marks this xprompt as an agent skill source for `sase init-skills` (see below) |
+| `keywords`    | No       | Trigger terms that append this xprompt as dynamic memory to matching prompts   |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -371,13 +385,14 @@ Hello, {{ user }}.
 
 ### Template Context
 
-| Variable      | Description                                                                |
-| ------------- | -------------------------------------------------------------------------- |
-| `{{ name }}`  | Named argument or input mapped by name                                     |
-| `{{ _1 }}`    | First positional argument (1-indexed)                                      |
-| `{{ _2 }}`    | Second positional argument, etc.                                           |
-| `{{ _args }}` | List of all positional arguments                                           |
-| `{{ root }}`  | Absolute path to the primary workspace directory (omitted if unresolvable) |
+| Variable           | Description                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `{{ name }}`       | Named argument or input mapped by name                                                                |
+| `{{ _1 }}`         | First positional argument (1-indexed)                                                                 |
+| `{{ _2 }}`         | Second positional argument, etc.                                                                      |
+| `{{ _args }}`      | List of all positional arguments                                                                      |
+| `{{ root }}`       | Absolute path to the primary workspace directory (omitted if unresolvable)                            |
+| `{{ wait_chats }}` | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).
@@ -467,6 +482,34 @@ The legacy `wraps_all: true` field on workflows is still supported — it automa
 should use `tags: vcs` instead.
 
 Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
+
+## Dynamic Memory (Keywords)
+
+An xprompt with a `keywords` front-matter field becomes a **dynamic memory**: whenever an agent prompt contains text
+that matches one of the keywords, the memory xprompt is appended to the prompt as additional context. Matched memories
+are listed in a `### DYNAMIC MEMORY` section at the bottom of the prompt (one `@<path>` entry per memory), so the agent
+can load them on demand.
+
+```markdown
+---
+name: memory_long_external_repos
+keywords: [chezmoi, plugin]
+---
+
+Repo-layout notes for cross-repo work...
+```
+
+### Negative Keywords
+
+Any keyword prefixed with `!` is a **negative keyword**. Before positive-keyword matching runs, each negative keyword is
+matched against the prompt and its hit spans are masked out. The memory is then excluded only when every positive
+keyword hit falls inside a masked region. A negative keyword that doesn't cover any positive hit is a no-op.
+
+For example, `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` (via the standalone `foo`) but not
+`"update /path/to/foo/"` (both `foo` occurrences land inside the `/foo/` masked span).
+
+> **YAML gotcha**: `!`-prefixed entries MUST be quoted (`"!jetski"`), otherwise YAML parses the leading `!` as a tag
+> directive and raises an error at load time.
 
 ## Snippet Field
 

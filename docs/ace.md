@@ -317,11 +317,12 @@ skipped silently.
 
 ### Commands
 
-| Key | Action                           |
-| --- | -------------------------------- |
-| `@` | Run agent                        |
-| `x` | Start / stop axe (or kill bgcmd) |
-| `X` | Clear output                     |
+| Key | Action                                                                 |
+| --- | ---------------------------------------------------------------------- |
+| `@` | Run agent                                                              |
+| `r` | Re-run the selected bgcmd (only when a completed bgcmd row is focused) |
+| `x` | Start / stop axe (or kill bgcmd)                                       |
+| `X` | Clear output                                                           |
 
 ### Leader Mode (`,` prefix)
 
@@ -417,6 +418,17 @@ notification action types are supported:
 The `ViewErrorReport` action is created by the axe `error_digest` chop when errors accumulate. The digest file
 summarizing recent errors is stored at `~/.sase/axe/error_digests/digest_<timestamp>.txt`.
 
+### Toast Notifications
+
+Each newly-arrived notification produces a short toast in the TUI. The toast text is derived per-action type (plan,
+question, HITL, axe error, ChangeSpec sync, agent update) so the message previews the actual event rather than a generic
+"N new notification(s)" line. Severity is also picked per type: plans, questions, and HITL render as warnings; axe
+errors (and sync failures) render as errors; everything else renders as information.
+
+When more than 3 notifications arrive in the same poll tick, per-notification toasts are consolidated into one grouped
+toast per severity bucket (e.g., `2 warnings: 1 plan, 1 question`). Ordering is urgency-first: errors, then warnings,
+then information. Silent notifications are excluded from this pipeline entirely.
+
 ## XPrompt Browser
 
 Press `#` on any tab to open the XPrompt Browser modal. It displays all discovered xprompts in a two-panel layout: a
@@ -489,6 +501,9 @@ have been associated with the current CL.
 Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across CLs, Agents, and Axe tabs
 with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab and
 focuses it.
+
+Hint characters are drawn from an extended alphabet — lowercase `a`–`z` first, then uppercase `A`–`Z` — so modals with
+many entries can still fit a unique single-keypress hint per row without resorting to multi-character hints.
 
 | Key         | Action                          |
 | ----------- | ------------------------------- |
@@ -582,15 +597,17 @@ active (the agent is still running or awaiting input) and completed (the agent h
 
 ### Active Statuses
 
-| Status            | Color        | Description                                                       |
-| ----------------- | ------------ | ----------------------------------------------------------------- |
-| **RUNNING**       | Gold         | Agent subprocess is executing                                     |
-| **WAITING**       | Light blue   | Agent is queued, waiting for another agent to complete (`%wait`)  |
-| **WAITING INPUT** | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step             |
-| **PLANNING**      | Pink/magenta | Agent has produced a plan and is waiting for user approval        |
-| **PLAN APPROVED** | Cyan         | Plan was approved; follow-up agent has been spawned               |
-| **QUESTION**      | Amber        | Agent is asking the user a question (via `/sase_questions`)       |
-| **RETRYING**      | Orange       | Agent hit a retryable error and is in a countdown before retrying |
+| Status             | Color        | Description                                                        |
+| ------------------ | ------------ | ------------------------------------------------------------------ |
+| **RUNNING**        | Gold         | Agent subprocess is executing                                      |
+| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to complete (`%wait`)   |
+| **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step              |
+| **PLANNING**       | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
+| **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                |
+| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `.epic` follow-up is running         |
+| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `.commit` follow-up is running |
+| **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)        |
+| **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying  |
 
 The footer also shows axe daemon status indicators:
 
@@ -602,13 +619,19 @@ The footer also shows axe daemon status indicators:
 | **STOPPING**   | Yellow        | Axe daemon is shutting down                                  |
 | **RESTARTING** | Deep sky blue | Axe daemon is restarting (triggered by `--restart-axe` flag) |
 
+During TUI startup the footer slot shows a live **starting** stopwatch with a rotating glyph in place of the daemon
+status, ticking at ~10 Hz until the TUI finishes mounting and the real axe status resolves. The background color turns
+from its normal tone to a slow-startup tone once the elapsed time crosses the slow threshold, giving immediate visual
+feedback on cold-start latency. A safety timeout forcibly retires the stopwatch if the mount signal never fires.
+
 ### Completed Statuses
 
-| Status        | Color | Description                               |
-| ------------- | ----- | ----------------------------------------- |
-| **DONE**      | Green | Agent completed successfully              |
-| **PLAN DONE** | Green | Plan workflow fully completed (all steps) |
-| **FAILED**    | Red   | Agent exited with an error                |
+| Status           | Color | Description                                                                    |
+| ---------------- | ----- | ------------------------------------------------------------------------------ |
+| **DONE**         | Green | Agent completed successfully                                                   |
+| **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                                      |
+| **EPIC CREATED** | Green | Plan workflow completed and its latest `.epic` follow-up finished successfully |
+| **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` (single) or `X` (all completed).
 
