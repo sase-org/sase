@@ -1,44 +1,37 @@
-"""Tests for meta_changespec emission from the commit xprompt report step."""
+"""Tests for meta_changespec and diff_path emission from the commit xprompt report step."""
 
 import json
 import os
 import subprocess
 import tempfile
+from pathlib import Path
+
+import yaml
+
+_COMMIT_YML = (
+    Path(__file__).resolve().parents[1] / "src" / "sase" / "xprompts" / "commit.yml"
+)
+
+
+def _report_python_source() -> str:
+    """Extract the `report` step's python source from commit.yml."""
+    with open(_COMMIT_YML) as f:
+        data = yaml.safe_load(f)
+    for step in data["steps"]:
+        if step["name"] == "report":
+            return str(step["python"])
+    raise AssertionError("report step not found in commit.yml")
 
 
 def _run_report_python(commit_result: dict) -> dict[str, str]:
-    """Run the commit report Python script and return emitted meta_* fields."""
+    """Run the commit report Python script and return emitted fields."""
     with tempfile.TemporaryDirectory() as tmpdir:
         result_path = os.path.join(tmpdir, "commit_result.json")
         with open(result_path, "w") as f:
             json.dump(commit_result, f)
 
-        # Replicate the report step's Python logic
-        script = """\
-import json, os
-artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
-result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-if not result_file or not os.path.isfile(result_file):
-    print("{}")
-else:
-    with open(result_file) as f:
-        d = json.load(f)
-    out = {}
-    result = d.get("result", "") or ""
-    message = d.get("message", "") or ""
-    changespec_name = d.get("changespec_name", "") or ""
-    name = d.get("name", "") or ""
-    if result:
-        out["meta_new_commit"] = result
-    if message:
-        out["meta_commit_message"] = message
-    cs = changespec_name or name
-    if cs:
-        out["meta_changespec"] = cs
-    print(json.dumps(out))
-"""
         proc = subprocess.run(
-            ["python3", "-c", script],
+            ["python3", "-c", _report_python_source()],
             capture_output=True,
             text=True,
             env={**os.environ, "SASE_ARTIFACTS_DIR": tmpdir},
@@ -106,3 +99,36 @@ class TestCommitReportMetaChangespec:
             }
         )
         assert result["meta_commit_message"] == msg
+
+
+class TestCommitReportDiffPath:
+    """Verify diff_path is emitted from commit_result.json."""
+
+    def test_emits_diff_path_when_present(self) -> None:
+        result = _run_report_python(
+            {
+                "result": "abc123",
+                "message": "fix: bug",
+                "diff_path": "/tmp/artifacts/commit_diff.diff",
+            }
+        )
+        assert result["diff_path"] == "/tmp/artifacts/commit_diff.diff"
+
+    def test_no_diff_path_when_absent(self) -> None:
+        result = _run_report_python(
+            {
+                "result": "abc123",
+                "message": "fix: bug",
+            }
+        )
+        assert "diff_path" not in result
+
+    def test_no_diff_path_when_empty(self) -> None:
+        result = _run_report_python(
+            {
+                "result": "abc123",
+                "message": "fix: bug",
+                "diff_path": "",
+            }
+        )
+        assert "diff_path" not in result

@@ -73,6 +73,7 @@ steps:
           message = d.get("message", "") or ""
           changespec_name = d.get("changespec_name", "") or ""
           name = d.get("name", "") or ""
+          diff_path = d.get("diff_path", "") or ""
           if result:
               out["meta_new_commit"] = result
           if message:
@@ -80,8 +81,11 @@ steps:
           cs = changespec_name or name
           if cs:
               out["meta_changespec"] = cs
+          if diff_path:
+              out["diff_path"] = diff_path
           print(json.dumps(out))
     output:
       meta_new_commit: word
       meta_commit_message: text
       meta_changespec: word
+      diff_path: path

@@ -54,24 +54,16 @@ steps:
               d = json.load(f)
           out: dict[str, str] = {}
           message = d.get("message", "") or ""
+          entry_id = d.get("entry_id", "") or ""
+          diff_path = d.get("diff_path", "") or ""
           if message:
               out["meta_commit_message"] = message
+          if entry_id:
+              out["meta_proposal_id"] = entry_id
+          if diff_path:
+              out["diff_path"] = diff_path
           print(json.dumps(out))
     output:
       meta_commit_message: text
-
-  - name: _emit_proposal_id
-    hidden: true
-    if: "{{ propose.success }}"
-    python: |
-      import json, os
-      artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
-      result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-      if result_file and os.path.isfile(result_file):
-          with open(result_file) as f:
-              d = json.load(f)
-          entry_id = d.get("entry_id", "") or ""
-          if entry_id:
-              print(f"meta_proposal_id={entry_id}")
-    output:
       meta_proposal_id: word
+      diff_path: path
