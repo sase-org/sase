@@ -214,6 +214,9 @@ class StartupMixin:
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
         ] = {}
+        self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
+            set()
+        )
         self._kill_persistence_inflight: set[tuple[AgentType, str, str | None]] = set()
 
         # Plan feedback context (set when user presses 'f' in plan approval modal)

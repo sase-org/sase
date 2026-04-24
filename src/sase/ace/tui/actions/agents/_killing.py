@@ -26,7 +26,7 @@ from ._killing_utils import (
     find_workflow_workspace_from_running_field,
 )
 
-from ._dismissing import AgentDismissingMixin
+from ._dismissing import AgentDismissingMixin, persist_dismiss_side_effects
 
 log = logging.getLogger(__name__)
 KillKind = Literal["running", "hook", "mentor", "crs", "workflow"]
@@ -59,6 +59,7 @@ class AgentKillingMixin(AgentDismissingMixin):
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+    _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
     def _classify_kill_kind(self, agent: Agent) -> KillKind | None:
@@ -264,42 +265,6 @@ class AgentKillingMixin(AgentDismissingMixin):
             dismissed_count,
             time.perf_counter() - started,
         )
-
-    def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
-        """Return identities hidden immediately after dismissing agents."""
-        from ...models.agent import AgentType
-
-        identities = {a.identity for a in agents}
-        for agent in agents:
-            if (
-                agent.agent_type == AgentType.WORKFLOW
-                and not agent.is_workflow_child
-                and agent.raw_suffix is not None
-            ):
-                for step in self._agents_with_children:
-                    if (
-                        step.is_workflow_child
-                        and step.parent_timestamp == agent.raw_suffix
-                        and step.parent_workflow == agent.workflow
-                    ):
-                        identities.add(step.identity)
-        return identities
-
-    def _append_dismissed_agent_objects(
-        self, agents: list[Agent], identities: set[AgentIdentity]
-    ) -> None:
-        """Track bulk-dismissed objects for same-session revive."""
-        if not hasattr(self, "_dismissed_agent_objects"):
-            return
-        existing = {a.identity for a in self._dismissed_agent_objects}
-        for agent in self._agents_with_children:
-            if agent.identity in identities and agent.identity not in existing:
-                self._dismissed_agent_objects.append(agent)
-                existing.add(agent.identity)
-        for agent in agents:
-            if agent.identity not in existing:
-                self._dismissed_agent_objects.append(agent)
-                existing.add(agent.identity)
 
     async def _run_bulk_kill_persistence_async(
         self,
@@ -707,72 +672,13 @@ def persist_bulk_kill_side_effects(
             agents_with_children_snapshot,
         )
     for agent in dismissable:
-        _persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
 
     if kill_items or dismissable:
         dismiss_notifications_for_agents(
             [item.agent for item in kill_items] + list(dismissable)
         )
     save_dismissed_agents(dismissed_snapshot)
-
-
-def _persist_dismiss_side_effects(
-    agent: Agent,
-    agents_with_children_snapshot: list[Agent],
-) -> None:
-    """Apply filesystem side effects for one asynchronously dismissed agent."""
-    from ...models.agent import AgentType
-    from ....dismissed_agents import save_dismissed_bundle
-
-    if not agent._from_changespec:
-        save_dismissed_bundle(agent)
-        if not agent.is_workflow_child and agent.raw_suffix:
-            for step in agents_with_children_snapshot:
-                if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                    and not step._from_changespec
-                ):
-                    save_dismissed_bundle(step)
-
-    if agent.agent_type == AgentType.WORKFLOW:
-        from sase.running_field import release_workspace
-
-        workflow_name = agent.workflow
-        if agent.is_workflow_child and agent.parent_workflow:
-            workflow_name = agent.parent_workflow
-        if workflow_name is not None:
-            workspace_num = agent.workspace_num
-            if workspace_num is None:
-                lookup_cl_name = None
-                if not agent.is_workflow_child and agent.cl_name != "unknown":
-                    lookup_cl_name = agent.cl_name
-                workspace_num = find_workflow_workspace_from_running_field(
-                    agent.project_file,
-                    workflow_name,
-                    lookup_cl_name,
-                )
-            if workspace_num is not None:
-                release_workspace(
-                    agent.project_file,
-                    workspace_num,
-                    f"workflow({workflow_name})",
-                )
-
-    delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
-    if (
-        agent.agent_type == AgentType.WORKFLOW
-        and not agent.is_workflow_child
-        and agent.raw_suffix
-    ):
-        for step in agents_with_children_snapshot:
-            if (
-                step.is_workflow_child
-                and step.parent_timestamp == agent.raw_suffix
-                and step.parent_workflow == agent.workflow
-            ):
-                delete_agent_artifacts(step.artifacts_dir or step.get_artifacts_dir())
 
 
 def _persist_running_kill(agent: Agent) -> None:

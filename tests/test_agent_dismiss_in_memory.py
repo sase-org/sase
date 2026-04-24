@@ -7,6 +7,7 @@ cached agent list in-memory and re-runs only the filter pipeline.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from unittest.mock import patch
 
@@ -46,10 +47,15 @@ class FakeDismissApp(AgentDismissingMixin):
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
         ] = {}
+        self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
+            set()
+        )
+        self._scheduled: list[tuple[object, tuple[object, ...]]] = []
         self.notifications: list[tuple[str, str]] = []
         self.load_count = 0
         self.refilter_count = 0
         self.notification_refreshes = 0
+        self.async_refreshes = 0
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -62,6 +68,12 @@ class FakeDismissApp(AgentDismissingMixin):
 
     def _refresh_notification_count(self) -> None:
         self.notification_refreshes += 1
+
+    def _schedule_agents_async_refresh(self) -> None:
+        self.async_refreshes += 1
+
+    def call_later(self, callback: object, *args: object) -> None:
+        self._scheduled.append((callback, args))
 
 
 def test_apply_dismissal_removes_agent_from_cached_list() -> None:
@@ -155,8 +167,8 @@ def test_apply_dismissal_batch_removes_all() -> None:
     }
 
 
-def test_dismiss_done_agent_does_not_full_reload(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Regression guard: _dismiss_done_agent must not trigger _load_agents."""
+def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """_dismiss_done_agent removes the row before persistence callbacks run."""
     app = FakeDismissApp()
     agent = _make_agent(
         raw_suffix="20240101120000",
@@ -168,17 +180,66 @@ def test_dismiss_done_agent_does_not_full_reload(tmp_path) -> None:  # type: ign
     with (
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ),
-        patch("sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"),
-        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        ) as mock_dismiss_one,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"
+        ) as mock_delete,
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(agent)
 
+    mock_dismiss_one.assert_not_called()
+    mock_dismiss_many.assert_not_called()
+    mock_delete.assert_not_called()
+    mock_bundle.assert_not_called()
+    mock_save.assert_not_called()
     assert app.load_count == 0
     assert app.refilter_count == 1
+    assert app.notification_refreshes == 0
     assert agent.identity in app._dismissed_agents
     assert agent in app._dismissed_agent_objects
+    assert app._agents_with_children == []
+    assert len(app._scheduled) == 1
+    callback, args = app._scheduled[0]
+    assert callback == app._run_dismiss_persistence_async
+    assert args[0] == agent
+    assert agent.identity in args[1]
+    assert args[2] == [agent]
+
+
+def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The scheduled dismiss callback performs cleanup and refreshes afterward."""
+    app = FakeDismissApp()
+    agent = _make_agent(
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+    app._agents_with_children = [agent]
+    app._agents = [agent]
+
+    app._dismiss_done_agent(agent)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
+        ) as mock_persist,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
+    mock_persist.assert_called_once_with(agent, [agent])
+    mock_dismiss_many.assert_called_once_with([agent])
+    mock_save.assert_called_once_with({agent.identity})
+    assert app.notification_refreshes == 1
+    assert app.async_refreshes == 1
 
 
 def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -204,23 +265,78 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     with (
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ),
-        patch("sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"),
+        ) as mock_dismiss_one,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"
+        ) as mock_delete,
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "find_workflow_workspace_from_running_field",
             return_value=None,
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(parent)
 
+    mock_dismiss_one.assert_not_called()
+    mock_dismiss_many.assert_not_called()
+    mock_delete.assert_not_called()
+    mock_bundle.assert_not_called()
+    mock_save.assert_not_called()
     assert app.load_count == 0
     assert app.refilter_count == 1
     assert parent.identity in app._dismissed_agents
     assert child.identity in app._dismissed_agents
     assert app._agents_with_children == []
+    assert len(app._scheduled) == 1
+    assert app._scheduled[0][1][2] == [parent, child]
+
+
+def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    """Workflow child rows removed immediately are still available to persistence."""
+    app = FakeDismissApp()
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="feature_a",
+        raw_suffix="20240101120000",
+        workflow="wf",
+        artifacts_dir=str(tmp_path / "parent_artifacts"),
+    )
+    child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="feature_a",
+        raw_suffix="child_suffix_1",
+        parent_workflow="wf",
+        parent_timestamp="20240101120000",
+    )
+    app._agents_with_children = [parent, child]
+    app._agents = [parent, child]
+
+    app._dismiss_done_agent(parent)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
+        ) as mock_persist,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
+    mock_persist.assert_called_once_with(parent, [parent, child])
+    mock_dismiss_many.assert_called_once_with([parent, child])
+    mock_save.assert_called_once_with({parent.identity, child.identity})
+    assert app.notification_refreshes == 1
+    assert app.async_refreshes == 1
 
 
 def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
@@ -236,14 +352,21 @@ def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
     with (
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        ) as mock_dismiss_one,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(agent)
 
+    mock_dismiss_one.assert_not_called()
+    mock_dismiss_many.assert_not_called()
+    mock_save.assert_not_called()
     assert app.load_count == 0
     assert app.refilter_count == 1
     assert agent.identity in app._dismissed_agents
+    assert len(app._scheduled) == 1
 
 
 def test_do_dismiss_all_batch_does_not_full_reload() -> None:

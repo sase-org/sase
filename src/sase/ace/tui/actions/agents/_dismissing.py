@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+import logging
+import time
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -16,8 +19,12 @@ from ....changespec import ChangeSpec
 from ._killing_utils import (
     delete_agent_artifacts,
     dismiss_notifications_for_agent,
+    dismiss_notifications_for_agents,
     find_workflow_workspace_from_running_field,
 )
+
+log = logging.getLogger(__name__)
+AgentIdentity = tuple["AgentType", str, str | None]
 
 
 class AgentDismissingMixin:
@@ -39,6 +46,7 @@ class AgentDismissingMixin:
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+    _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
 
     def _apply_dismissal_in_memory(self, agents: Iterable[Agent]) -> None:
         """Update in-memory agent state after a dismiss without a disk reload.
@@ -127,6 +135,42 @@ class AgentDismissingMixin:
 
         self._dismissed_agents.add(identity)
         save_dismissed_agents(self._dismissed_agents)
+
+    def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
+        """Return identities hidden immediately after dismissing agents."""
+        from ...models.agent import AgentType
+
+        identities = {a.identity for a in agents}
+        for agent in agents:
+            if (
+                agent.agent_type == AgentType.WORKFLOW
+                and not agent.is_workflow_child
+                and agent.raw_suffix is not None
+            ):
+                for step in self._agents_with_children:
+                    if (
+                        step.is_workflow_child
+                        and step.parent_timestamp == agent.raw_suffix
+                        and step.parent_workflow == agent.workflow
+                    ):
+                        identities.add(step.identity)
+        return identities
+
+    def _append_dismissed_agent_objects(
+        self, agents: list[Agent], identities: set[AgentIdentity]
+    ) -> None:
+        """Track dismissed objects for same-session revive."""
+        if not hasattr(self, "_dismissed_agent_objects"):
+            return
+        existing = {a.identity for a in self._dismissed_agent_objects}
+        for agent in self._agents_with_children:
+            if agent.identity in identities and agent.identity not in existing:
+                self._dismissed_agent_objects.append(agent)
+                existing.add(agent.identity)
+        for agent in agents:
+            if agent.identity not in existing:
+                self._dismissed_agent_objects.append(agent)
+                existing.add(agent.identity)
 
     def _dismiss_all_done_agents(self) -> None:
         """Dismiss all done/failed agents after user confirmation."""
@@ -228,9 +272,8 @@ class AgentDismissingMixin:
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
 
-        Deletes artifact files so the agent won't be reloaded on restart,
-        and tracks the agent in the dismissed set as a safety net for the
-        current session.
+        Updates the UI optimistically and schedules filesystem/project-file
+        cleanup in an async worker.
 
         Args:
             agent: The DONE or completed agent to dismiss.
@@ -241,96 +284,154 @@ class AgentDismissingMixin:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
             return
 
-        dismiss_notifications_for_agent(agent)
-        self._agent_status_overrides.pop(agent.identity, None)
-        self._agent_pre_question_status.pop(agent.identity, None)
-        self._refresh_notification_count()  # type: ignore[attr-defined]
+        agents_with_children_snapshot = list(self._agents_with_children)
+        identities = self._collect_dismissal_identities([agent])
+        for identity in identities:
+            self._agent_status_overrides.pop(identity, None)
+            self._agent_pre_question_status.pop(identity, None)
+        self._dismissed_agents.update(identities)
+        self._append_dismissed_agent_objects([agent], identities)
 
-        # Handle workflow agents - preserve artifacts, track dismissal only
         if agent.agent_type == AgentType.WORKFLOW:
-            # Release the workspace claim first (workflow claims use
-            # "workflow(name)" format in RUNNING field)
-            from sase.running_field import release_workspace
-
-            # Determine workflow name (steps use parent_workflow)
-            workflow_name = agent.workflow
-            if agent.is_workflow_child and agent.parent_workflow:
-                workflow_name = agent.parent_workflow
-
-            if workflow_name is not None:
-                # Try agent's workspace_num first, then look it up from RUNNING field
-                workspace_num = agent.workspace_num
-                if workspace_num is None:
-                    # For steps, don't use the decorated cl_name for lookup
-                    # Also treat "unknown" as None since it's a placeholder
-                    lookup_cl_name = None
-                    if not agent.is_workflow_child and agent.cl_name != "unknown":
-                        lookup_cl_name = agent.cl_name
-                    workspace_num = find_workflow_workspace_from_running_field(
-                        agent.project_file,
-                        workflow_name,
-                        lookup_cl_name,
-                    )
-
-                if workspace_num is not None:
-                    release_workspace(
-                        agent.project_file,
-                        workspace_num,
-                        f"workflow({workflow_name})",
-                    )
-
             self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]
-
-            # Save bundle before deleting artifacts (for revive support)
-            self._save_agent_bundle(agent)
-
-            # Delete artifact files so the agent won't be reloaded on restart
-            # (dismissed_agents.json has a size limit and can evict old entries)
-            delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
-
-            # Track dismissal as safety net for current session
-            self._persist_dismissed_agent(agent.identity)
-
-            # If this is a parent workflow (not a child step), also dismiss all
-            # its steps.  Use unfiltered list so children are found even when
-            # the workflow fold is collapsed.
-            if not agent.is_workflow_child:
-                for step in self._agents_with_children:
-                    if (
-                        step.is_workflow_child
-                        and step.parent_timestamp == agent.raw_suffix
-                        and step.parent_workflow == agent.workflow
-                    ):
-                        self._dismissed_agents.add(step.identity)
-                # Persist after batching all child dismissals
-                from ....dismissed_agents import save_dismissed_agents
-
-                save_dismissed_agents(self._dismissed_agents)
-
-            self._apply_dismissal_in_memory([agent])
-            return
-
-        # Handle ChangeSpec-loaded agents (hooks, mentors, CRS)
-        # These don't have a done.json file - they're stored as status lines
-        # in the project file. We track dismissal in _dismissed_agents.
-        if agent._from_changespec:
-            self._persist_dismissed_agent(agent.identity)
-
-            self.notify(  # type: ignore[attr-defined]
-                f"Dismissed agent for {agent.cl_name}"
-            )
-            self._apply_dismissal_in_memory([agent])
-            return
-
-        # Save bundle before deleting artifacts (for revive support)
-        self._save_agent_bundle(agent)
-
-        # Delete artifact files so the agent won't be reloaded on restart
-        delete_agent_artifacts(agent.get_artifacts_dir())
-
-        # Track dismissal as safety net for current session
-        self._persist_dismissed_agent(agent.identity)
-        self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
-
-        # Refresh agents list
+        else:
+            self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory([agent])
+        self.call_later(  # type: ignore[attr-defined]
+            self._run_dismiss_persistence_async,
+            agent,
+            set(self._dismissed_agents),
+            agents_with_children_snapshot,
+        )
+
+    async def _run_dismiss_persistence_async(
+        self,
+        agent: Agent,
+        dismissed_snapshot: set[AgentIdentity],
+        agents_with_children_snapshot: list[Agent],
+    ) -> None:
+        """Persist single-agent dismiss side effects in a worker thread."""
+        identity = agent.identity
+        if identity in self._dismiss_persistence_inflight:
+            return
+        self._dismiss_persistence_inflight.add(identity)
+
+        started = time.perf_counter()
+        try:
+            await asyncio.to_thread(
+                persist_single_dismiss_transaction,
+                agent,
+                dismissed_snapshot,
+                agents_with_children_snapshot,
+            )
+        except Exception as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Dismiss cleanup failed for {agent.display_name}: {exc}",
+                severity="error",
+            )
+        finally:
+            self._dismiss_persistence_inflight.discard(identity)
+            log.debug(
+                "agent dismiss persistence: identity=%s elapsed=%.3fs",
+                identity,
+                time.perf_counter() - started,
+            )
+            self._refresh_notification_count()  # type: ignore[attr-defined]
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+
+
+def persist_single_dismiss_transaction(
+    agent: Agent,
+    dismissed_snapshot: set[AgentIdentity],
+    agents_with_children_snapshot: list[Agent],
+) -> None:
+    """Persist all side effects for one optimistic dismiss operation."""
+    from ....dismissed_agents import save_dismissed_agents
+
+    persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+    dismiss_notifications_for_agents(
+        _agents_related_to_dismissal(agent, agents_with_children_snapshot)
+    )
+    save_dismissed_agents(dismissed_snapshot)
+
+
+def persist_dismiss_side_effects(
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+) -> None:
+    """Apply filesystem side effects for one asynchronously dismissed agent."""
+    from ...models.agent import AgentType
+    from ....dismissed_agents import save_dismissed_bundle
+
+    if not agent._from_changespec:
+        save_dismissed_bundle(agent)
+        if not agent.is_workflow_child and agent.raw_suffix:
+            for step in agents_with_children_snapshot:
+                if (
+                    step.is_workflow_child
+                    and step.parent_timestamp == agent.raw_suffix
+                    and step.parent_workflow == agent.workflow
+                    and not step._from_changespec
+                ):
+                    save_dismissed_bundle(step)
+
+    if agent.agent_type == AgentType.WORKFLOW:
+        from sase.running_field import release_workspace
+
+        workflow_name = agent.workflow
+        if agent.is_workflow_child and agent.parent_workflow:
+            workflow_name = agent.parent_workflow
+        if workflow_name is not None:
+            workspace_num = agent.workspace_num
+            if workspace_num is None:
+                lookup_cl_name = None
+                if not agent.is_workflow_child and agent.cl_name != "unknown":
+                    lookup_cl_name = agent.cl_name
+                workspace_num = find_workflow_workspace_from_running_field(
+                    agent.project_file,
+                    workflow_name,
+                    lookup_cl_name,
+                )
+            if workspace_num is not None:
+                release_workspace(
+                    agent.project_file,
+                    workspace_num,
+                    f"workflow({workflow_name})",
+                )
+
+    delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+    if (
+        agent.agent_type == AgentType.WORKFLOW
+        and not agent.is_workflow_child
+        and agent.raw_suffix
+    ):
+        for step in agents_with_children_snapshot:
+            if (
+                step.is_workflow_child
+                and step.parent_timestamp == agent.raw_suffix
+                and step.parent_workflow == agent.workflow
+            ):
+                delete_agent_artifacts(step.artifacts_dir or step.get_artifacts_dir())
+
+
+def _agents_related_to_dismissal(
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+) -> list[Agent]:
+    """Return the primary agent plus workflow children dismissed with it."""
+    from ...models.agent import AgentType
+
+    agents = [agent]
+    if (
+        agent.agent_type == AgentType.WORKFLOW
+        and not agent.is_workflow_child
+        and agent.raw_suffix
+    ):
+        agents.extend(
+            step
+            for step in agents_with_children_snapshot
+            if step.is_workflow_child
+            and step.parent_timestamp == agent.raw_suffix
+            and step.parent_workflow == agent.workflow
+        )
+    return agents
