@@ -508,8 +508,16 @@ class AceApp(
         yield KeybindingFooter(id="keybinding-footer")
         yield Footer()
 
-    def on_mount(self) -> None:
-        """Set up the app on mount."""
+    async def on_mount(self) -> None:
+        """Set up the app on mount.
+
+        Async so each disk read can ``await asyncio.to_thread(...)``
+        between applying to widgets — the event loop stays free between
+        helpers so the ``KeybindingFooter`` startup stopwatch can tick at
+        ~10Hz through the multi-second startup gap.
+        """
+        import asyncio
+
         self._mounting = True
         try:
             # Wire keymap registry to widgets
@@ -519,19 +527,22 @@ class AceApp(
             tab_bar.set_keymap_registry(self._keymap_registry)
 
             # Initialize agent tracking for completion notifications
-            self._initialize_agent_tracking()
+            unread_ids = await asyncio.to_thread(self._read_unread_notification_ids)
+            self._initialize_agent_tracking(unread_ids)
 
             # Load initial changespecs with the startup query
-            self._load_changespecs()
+            all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
+            self._apply_changespecs(all_cs)
 
             # If no results, try saved queries as fallback; if none work, open
             # the Agents tab instead
             if not self.changespecs:
-                if not self._try_startup_fallback():
+                if not await self._try_startup_fallback_async():
                     self.current_tab = "agents"  # type: ignore[assignment]
 
-            self._restore_last_selection()
-            self._save_current_query()
+            last_name = await asyncio.to_thread(self._read_last_selection_name)
+            self._restore_last_selection(last_name)
+            await asyncio.to_thread(self._save_current_query)
 
             # Show loading indicators on panels that populate asynchronously
             # so users see pulsing spinners / dim ellipses instead of

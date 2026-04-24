@@ -27,22 +27,34 @@ class LifecycleMixin:
     _last_unread_ids: set[str]
     _activity_log: ActivityLog
 
-    def _initialize_agent_tracking(self) -> None:
-        """Initialize notification tracking by seeding unread ids.
+    def _read_unread_notification_ids(self) -> set[str]:
+        """Read unread, non-silent notification ids from disk.
 
-        This ensures we don't trigger bell/toast for notifications that
-        were already unread when the TUI started.
+        Pure disk I/O with no widget access — safe to call from a worker
+        thread (e.g. via ``asyncio.to_thread``) during startup so the
+        Textual event loop stays free for the startup stopwatch to tick.
         """
         from sase.notifications import load_notifications
 
+        notifications = load_notifications()
+        return {n.id for n in notifications if not n.read and not n.silent}
+
+    def _initialize_agent_tracking(self, unread_ids: set[str] | None = None) -> None:
+        """Initialize notification tracking by seeding unread ids.
+
+        This ensures we don't trigger bell/toast for notifications that
+        were already unread when the TUI started. ``unread_ids`` may be
+        pre-loaded off the main thread; if ``None``, we read from disk
+        inline.
+        """
         from ..widgets import NotificationIndicator
 
-        notifications = load_notifications()
-        unread = [n for n in notifications if not n.read and not n.silent]
-        self._last_unread_ids = {n.id for n in unread}
+        if unread_ids is None:
+            unread_ids = self._read_unread_notification_ids()
+        self._last_unread_ids = unread_ids
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
-        indicator.set_count(len(unread))
+        indicator.set_count(len(unread_ids))
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""
@@ -57,11 +69,25 @@ class LifecycleMixin:
             save_last_selection(changespec.name)
             self._save_selection_for_current_query()  # type: ignore[attr-defined]
 
-    def _restore_last_selection(self) -> None:
-        """Restore the previously selected ChangeSpec if it exists."""
+    def _read_last_selection_name(self) -> str | None:
+        """Read the persisted last-selection name from disk.
+
+        Pure disk read. Safe to call from a worker thread. Must NOT grow
+        widget calls — if it does, ``on_mount``'s ``asyncio.to_thread``
+        wrapping becomes unsafe.
+        """
         from ...last_selection import load_last_selection
 
-        last_name = load_last_selection()
+        return load_last_selection()
+
+    def _restore_last_selection(self, last_name: str | None = None) -> None:
+        """Restore the previously selected ChangeSpec if it exists.
+
+        ``last_name`` may be pre-loaded off the main thread; if omitted,
+        the name is read from disk inline.
+        """
+        if last_name is None:
+            last_name = self._read_last_selection_name()
         if last_name is None:
             return
         for idx, cs in enumerate(self.changespecs):

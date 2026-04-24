@@ -53,11 +53,23 @@ class ChangeSpecMixin:
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
 
-    def _load_changespecs(self) -> None:
-        """Load and filter changespecs from disk."""
+    def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
+        """Return the full changespec list freshly read from disk.
+
+        Pure disk I/O with no widget access — safe to call from a worker
+        thread via ``asyncio.to_thread`` so the Textual event loop stays
+        free (e.g. for the startup stopwatch to tick).
+        """
         from ...changespec import find_all_changespecs
 
-        all_changespecs = find_all_changespecs()
+        return find_all_changespecs()
+
+    def _apply_changespecs(self, all_changespecs: list[ChangeSpec]) -> None:
+        """Apply a pre-loaded changespec list to app state.
+
+        Must run on the main thread: touches widgets via
+        ``_update_cls_tab_count`` / ``_refresh_display``.
+        """
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         self.changespecs = self._filter_changespecs(all_changespecs)
 
@@ -73,6 +85,10 @@ class ChangeSpecMixin:
 
         self._update_cls_tab_count()
         self._refresh_display()
+
+    def _load_changespecs(self) -> None:
+        """Load and filter changespecs from disk."""
+        self._apply_changespecs(self._read_changespecs_from_disk())
 
     def _filter_changespecs(self, changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
         """Filter changespecs using the parsed query and hide settings."""
@@ -274,16 +290,21 @@ class ChangeSpecMixin:
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
 
-    def _try_startup_fallback(self) -> bool:
+    async def _try_startup_fallback_async(self) -> bool:
         """Try saved queries as fallback when the startup query has no results.
 
-        Checks slots 1-9 then 0. If a saved query produces results, switches
-        to it and returns True.  Returns False if no saved query has results.
+        Async variant used by ``on_mount`` so the event loop is free between
+        the saved-query load and the changespec re-read — lets the startup
+        stopwatch tick. Checks slots 1-9 then 0. If a saved query produces
+        results, switches to it and returns True. Returns False if no saved
+        query has results.
         """
+        import asyncio
+
         from ...query import parse_query, to_canonical_string
         from ...saved_queries import load_saved_queries
 
-        queries = load_saved_queries()
+        queries = await asyncio.to_thread(load_saved_queries)
         if not queries:
             return False
 
@@ -307,8 +328,10 @@ class ChangeSpecMixin:
                 self.query_string = query
                 filtered = self._filter_changespecs(self._all_changespecs)
                 if filtered:
-                    # Found results – fully load this query
-                    self._load_changespecs()
+                    # Found results – fully load this query (disk read off
+                    # the main thread so the stopwatch keeps ticking).
+                    all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
+                    self._apply_changespecs(all_cs)
                     self._restore_selection_for_current_query()
                     return True
             except Exception:
