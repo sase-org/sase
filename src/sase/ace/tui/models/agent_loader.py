@@ -229,13 +229,13 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 # Pick override status based on the active follow-up child's
-                # role_suffix — `.epic`/`.commit` map to EPIC CREATED /
+                # role_suffix — `.epic`/`.commit` map to EPIC APPROVED /
                 # PLAN COMMITTED; anything else is PLAN APPROVED. Multiple
                 # active children resolve via last-writer-wins on the
                 # start-time-ordered iteration (newest child wins).
                 if agent.status not in completed_statuses:
                     if agent.role_suffix == ".epic":
-                        followup_override[agent.parent_timestamp] = "EPIC CREATED"
+                        followup_override[agent.parent_timestamp] = "EPIC APPROVED"
                     elif agent.role_suffix == ".commit":
                         followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
                     else:

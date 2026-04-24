@@ -470,8 +470,8 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     assert parent.status == "PLAN APPROVED"
 
 
-def test_apply_status_overrides_active_epic_child_sets_epic_created() -> None:
-    """A DONE plan parent with an active .epic follow-up becomes EPIC CREATED."""
+def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
+    """A DONE plan parent with an active .epic follow-up becomes EPIC APPROVED."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -493,7 +493,7 @@ def test_apply_status_overrides_active_epic_child_sets_epic_created() -> None:
     agents = [parent, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC CREATED"
+    assert parent.status == "EPIC APPROVED"
 
 
 def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> None:
@@ -548,10 +548,10 @@ def test_apply_status_overrides_active_code_child_stays_plan_approved() -> None:
     assert parent.status == "PLAN APPROVED"
 
 
-def test_apply_status_overrides_completed_epic_child_does_not_set_epic_created() -> (
+def test_apply_status_overrides_completed_epic_child_does_not_set_epic_approved() -> (
     None
 ):
-    """A DONE plan parent with only a completed .epic child does not flip to EPIC CREATED."""
+    """A DONE plan parent with only a completed .epic child does not flip to EPIC APPROVED."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -608,7 +608,7 @@ def test_apply_status_overrides_epic_and_code_active_newest_wins() -> None:
     agents = [parent, code_child, epic_child]
     _apply_status_overrides(agents)
 
-    assert parent.status == "EPIC CREATED"
+    assert parent.status == "EPIC APPROVED"
 
 
 def test_apply_status_overrides_done_with_unanswered_question_becomes_question() -> (

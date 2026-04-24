@@ -158,7 +158,7 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
         ("DONE", "completed"),
         ("PLAN DONE", "completed"),
         ("PLAN COMMITTED", "completed"),
-        ("EPIC CREATED", "completed"),
+        ("EPIC APPROVED", "completed"),
         ("FAILED", "failed"),
         ("WAITING INPUT", "waiting_hitl"),
         ("RUNNING", "running"),

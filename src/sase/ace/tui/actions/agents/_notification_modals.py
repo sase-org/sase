@@ -385,7 +385,7 @@ def handle_plan_approval(
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="approve")
             elif result.action == "epic":
-                app._agent_status_overrides[agent.identity] = "EPIC CREATED"  # type: ignore[attr-defined]
+                app._agent_status_overrides[agent.identity] = "EPIC APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="epic")
             elif result.feedback is not None:
                 # Reject with feedback: agent is resuming, mark as RUNNING

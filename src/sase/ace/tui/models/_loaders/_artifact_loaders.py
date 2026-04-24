@@ -166,7 +166,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         if isinstance(raw_until, str) and raw_until:
             agent.wait_until = raw_until
 
-    # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC CREATED status
+    # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC APPROVED status
     # for agents launched with %plan directive
     if data.get("plan") and agent.status == "RUNNING":
         if data.get("plan_approved"):
@@ -174,7 +174,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
             if plan_action == "commit":
                 agent.status = "PLAN COMMITTED"
             elif plan_action == "epic":
-                agent.status = "EPIC CREATED"
+                agent.status = "EPIC APPROVED"
             else:
                 agent.status = "PLAN APPROVED"
         else:
