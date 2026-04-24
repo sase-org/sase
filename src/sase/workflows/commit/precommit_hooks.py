@@ -63,12 +63,7 @@ def handle_beads(payload: dict, cwd: str) -> None:
     if bead_id:
         # Close bead (best effort)
         print_status(f"Closing bead {bead_id}...", "progress")
-        subprocess.run(
-            ["sase", "bead", "close", bead_id],
-            cwd=cwd,
-            capture_output=True,
-            check=False,
-        )
+        _run_bead_command(["sase", "bead", "close", bead_id], cwd)
         # Inject bead ID into commit message headline
         message = payload.get("message", "")
         if f"({bead_id})" not in message:
@@ -77,12 +72,20 @@ def handle_beads(payload: dict, cwd: str) -> None:
 
     if bead_id or has_bead_dir:
         # Sync beads (best effort)
+        _run_bead_command(["sase", "bead", "sync"], cwd)
+
+
+def _run_bead_command(args: list[str], cwd: str) -> None:
+    """Run a bead command best-effort, tolerating missing sase binary."""
+    try:
         subprocess.run(
-            ["sase", "bead", "sync"],
+            args,
             cwd=cwd,
             capture_output=True,
             check=False,
         )
+    except FileNotFoundError:
+        print_status("Skipping bead command: `sase` CLI not found.", "warning")
 
 
 def _get_repo_root(cwd: str) -> str:

@@ -11,7 +11,7 @@ from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     write_result_marker,
 )
-from sase.workflows.commit.precommit_hooks import handle_sase_plan
+from sase.workflows.commit.precommit_hooks import handle_beads, handle_sase_plan
 from sase.workflows.commit.pr_operations import build_pr_body
 
 _CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
@@ -316,3 +316,34 @@ class TestHandleSasePlan:
 
         dest = repo_dir / "plans" / "202511" / "my_plan.md"
         assert dest.exists()
+
+
+class TestHandleBeads:
+    """Verify bead hook remains best-effort in test/CI environments."""
+
+    def test_missing_sase_cli_is_non_fatal_and_message_is_still_tagged(
+        self, tmp_path: Path
+    ) -> None:
+        payload = {"message": "Fix bug", "bead_id": "B-123"}
+        with patch(
+            "sase.workflows.commit.precommit_hooks.subprocess.run",
+            side_effect=FileNotFoundError,
+        ):
+            handle_beads(payload, str(tmp_path))
+
+        assert payload["message"] == "Fix bug (B-123)"
+
+    def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
+        (tmp_path / ".sase_beads").mkdir()
+        payload = {"message": "Fix bug"}
+        with patch(
+            "sase.workflows.commit.precommit_hooks.subprocess.run",
+        ) as mock_run:
+            handle_beads(payload, str(tmp_path))
+
+        mock_run.assert_called_once_with(
+            ["sase", "bead", "sync"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=False,
+        )

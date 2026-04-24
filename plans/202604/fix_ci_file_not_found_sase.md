@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 09:49:56
-status: wip
+status: done
 ---
 # Fix CI `FileNotFoundError: 'sase'` in Commit Workflow Tests
 
