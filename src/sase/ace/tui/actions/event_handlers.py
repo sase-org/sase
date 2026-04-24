@@ -57,6 +57,7 @@ class EventHandlersMixin:
     _last_activity_time: float
     _last_activity_flush: float
     _activity_log: ActivityLog
+    _pinned_panel_focused: Literal["main", "pinned"]
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
