@@ -3,8 +3,8 @@
 Scans the user's expanded prompt against keyword-tagged memory xprompts,
 resolves ``$(cat ...)`` shell substitution in matched content, and writes
 each matched memory to its own file under ``.sase/memory/``.  The file
-paths are injected into the agent prompt as a ``### DYNAMIC MEMORY``
-markdown section.
+paths are injected into the agent prompt as stable absolute references in a
+``### DYNAMIC MEMORY`` markdown section.
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def _memory_filename(xprompt_name: str) -> str:
 
 
 def format_dynamic_memory_section(result: DynamicMemoryResult) -> str:
-    """Format the ``### DYNAMIC MEMORY`` markdown section with keyword annotations."""
+    """Format the ``### DYNAMIC MEMORY`` section with stable file references."""
     lines = ["### DYNAMIC MEMORY"]
     for path, mem in zip(result.paths, result.matched, strict=True):
         kw_list = ", ".join(f"`{kw}`" for kw in mem.keywords_matched)
@@ -161,7 +161,7 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     so a memory is excluded only when every positive hit fell inside a masked
     region. Matched content uses ``$(cat ...)`` shell substitution which is
     resolved before writing each match to its own file under ``.sase/memory/``
-    in the current working directory.
+    in the generation working directory.
 
     Before matching, any existing ``### DYNAMIC MEMORY`` section is stripped
     from the prompt so that stale references don't influence keyword hits.
@@ -170,7 +170,8 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     Returns:
         A result containing the list of matched memories and the file paths
-        (empty if no matches).
+        to inject into the prompt. Paths are absolute so later workflow
+        ``chdir`` operations cannot make the generated references invalid.
     """
     from sase.xprompt.loader import get_all_prompts
     from sase.xprompt.tags import XPromptTag
@@ -179,7 +180,7 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     all_prompts = get_all_prompts(project=project)
 
-    memory_dir = Path(".sase/memory")
+    memory_dir = Path.cwd() / ".sase" / "memory"
     _cleanup_stale_memory_files(all_prompts, memory_dir)
 
     matched: list[MatchedMemory] = []

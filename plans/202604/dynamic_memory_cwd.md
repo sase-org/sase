@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 18:30:28
-status: wip
+status: done
 ---
 # Plan: Make Dynamic Memory References Stable Across Workflow `chdir`
 
