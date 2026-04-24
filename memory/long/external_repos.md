@@ -1,5 +1,5 @@
 ---
-keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile]
+keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile, jetski]
 ---
 
 # External Repos
