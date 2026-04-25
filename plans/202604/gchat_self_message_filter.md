@@ -6,7 +6,7 @@ description:
   prompts and self-feed an infinite agent-launch loop. Replace the broken sender-based filter with a sent-message-id
   allowlist recorded centrally inside ``gchat_client``.
 create_time: 2026-04-25 11:00:50
-status: wip
+status: done
 ---
 
 # sase-gchat — Stop Self-Triggering Agent Launches
