@@ -296,7 +296,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.run_workflow), "Revive chat as agent"),
-                (d(a.add_tag), "New agent waiting for this one"),
+                (d(a.add_tag), "Wait for agent (or marked set)"),
                 (d(a.reword), "Edit wait target / run now"),
                 (d(a.kill_agent), "Kill / dismiss agent (or marked)"),
                 (d(a.toggle_mark), "Mark/unmark current agent"),

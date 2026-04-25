@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent import AgentType
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -57,6 +58,8 @@ class AgentWaitResumeMixin:
 
     current_tab: TabName
     _agents: list[Agent]
+    _agents_with_children: list[Agent]
+    _marked_agents: set[tuple[AgentType, str, str | None]]
 
     def action_reword(self) -> None:
         """Reword or wait - behavior depends on current tab."""
@@ -251,11 +254,19 @@ class AgentWaitResumeMixin:
         if self.current_tab != "agents":
             return
 
+        if self._marked_agents:
+            self._bulk_wait_for_marked_agents()
+            return
+
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        self._wait_for_single_agent(agent)
+
+    def _wait_for_single_agent(self, agent: Agent) -> None:
+        """Open the prompt input bar with `%w:<name> ` for a single agent."""
         if not agent.agent_name:
             self.notify("No agent name found", severity="warning")  # type: ignore[attr-defined]
             return
@@ -272,3 +283,46 @@ class AgentWaitResumeMixin:
             display_name=f"wait({name})",
             history_sort_key=agent.cl_name or "wait",
         )
+
+    def _bulk_wait_for_marked_agents(self) -> None:
+        """Open the prompt input bar with `%w:a,b,c ` for the marked agents."""
+        marked: list[Agent] = [
+            a for a in self._agents_with_children if a.identity in self._marked_agents
+        ]
+        named: list[Agent] = [a for a in marked if a.agent_name]
+        skipped = len(marked) - len(named)
+
+        if not named:
+            self.notify("No marked agents have a name", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if len(named) == 1:
+            self._wait_for_single_agent(named[0])
+            if skipped:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Skipped {skipped} marked agent(s) with no name",
+                    severity="warning",
+                )
+            return
+
+        names = [a.agent_name for a in named]
+        prefix = f"%w:{','.join(n for n in names if n)} "
+
+        cursor = self._get_selected_agent()  # type: ignore[attr-defined]
+        tag_source = cursor if cursor is not None and cursor in named else named[0]
+        assert tag_source.agent_name is not None
+        vcs_tag = _resolve_vcs_tag(tag_source, tag_source.agent_name, self._agents)
+        if vcs_tag:
+            prefix = f"{vcs_tag}{prefix}"
+
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=prefix,
+            display_name=f"wait({len(names)} agents)",
+            history_sort_key=(cursor.cl_name if cursor else "wait") or "wait",
+        )
+
+        if skipped:
+            self.notify(  # type: ignore[attr-defined]
+                f"Skipped {skipped} marked agent(s) with no name",
+                severity="warning",
+            )

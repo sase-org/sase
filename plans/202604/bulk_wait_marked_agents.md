@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 15:34:55
-status: wip
+status: done
 ---
 # Bulk-wait support for `W` on the Agents tab
 

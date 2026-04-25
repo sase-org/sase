@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
+from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -250,3 +251,115 @@ def test_clear_marks_dispatches_to_agents_tab_from_action() -> None:
     app.action_clear_marks()
 
     assert app._marked_agents == set()
+
+
+class _FakeWaitApp(AgentWaitResumeMixin, AgentMarkingMixin, MarkingMixin):
+    """Minimal app implementing what action_wait_for_agent touches."""
+
+    def __init__(self, agents: list[Agent]) -> None:
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self._agents: list[Agent] = list(agents)
+        self._agents_with_children: list[Agent] = list(agents)
+        self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._main_panel_indices: list[int] = list(range(len(agents)))
+        self._pinned_panel_indices: list[int] = []
+        self._main_panel_idx_map: dict[int, int] = {i: i for i in range(len(agents))}
+        self._pinned_panel_idx_map: dict[int, int] = {}
+        self._pinned_panel_focused = "main"
+        self.notifications: list[tuple[str, str]] = []
+        self.prompt_bar_calls: list[dict[str, Any]] = []
+
+    def notify(self, message: str, *, severity: str = "information") -> None:
+        self.notifications.append((message, severity))
+
+    def _get_selected_agent(self) -> Agent | None:
+        if 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
+
+    def _show_prompt_input_bar_for_home(
+        self,
+        *,
+        initial_text: str = "",
+        display_name: str | None = None,
+        history_sort_key: str | None = None,
+    ) -> None:
+        self.prompt_bar_calls.append(
+            {
+                "initial_text": initial_text,
+                "display_name": display_name,
+                "history_sort_key": history_sort_key,
+            }
+        )
+
+
+def test_wait_for_agent_no_marks_uses_single_agent_path() -> None:
+    a1 = _make_agent(raw_suffix="20240101120000", agent_name="alice")
+    app = _FakeWaitApp([a1])
+
+    app.action_wait_for_agent()
+
+    assert len(app.prompt_bar_calls) == 1
+    call = app.prompt_bar_calls[0]
+    assert call["initial_text"] == "%w:alice "
+    assert call["display_name"] == "wait(alice)"
+
+
+def test_wait_for_agent_one_mark_falls_through_to_single_agent() -> None:
+    """A single mark behaves identically to single-agent path (cursor irrelevant)."""
+    a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name="alice")
+    a2 = _make_agent(cl_name="cl_b", raw_suffix="20240101130000", agent_name="bob")
+    app = _FakeWaitApp([a1, a2])
+    # Cursor is on a1 but only a2 is marked; we should wait on a2 not a1.
+    app.current_idx = 0
+    app._marked_agents = {a2.identity}
+
+    app.action_wait_for_agent()
+
+    assert len(app.prompt_bar_calls) == 1
+    call = app.prompt_bar_calls[0]
+    assert call["initial_text"] == "%w:bob "
+    assert call["display_name"] == "wait(bob)"
+
+
+def test_wait_for_agent_bulk_marks_joins_with_commas() -> None:
+    a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name="alice")
+    a2 = _make_agent(cl_name="cl_b", raw_suffix="20240101130000", agent_name="bob")
+    app = _FakeWaitApp([a1, a2])
+    app._marked_agents = {a1.identity, a2.identity}
+
+    app.action_wait_for_agent()
+
+    assert len(app.prompt_bar_calls) == 1
+    call = app.prompt_bar_calls[0]
+    # Order follows _agents_with_children iteration: a1, then a2.
+    assert call["initial_text"] == "%w:alice,bob "
+    assert call["display_name"] == "wait(2 agents)"
+
+
+def test_wait_for_agent_bulk_skips_unnamed_and_warns() -> None:
+    a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name="alice")
+    a2 = _make_agent(cl_name="cl_b", raw_suffix="20240101130000", agent_name="bob")
+    a3 = _make_agent(cl_name="cl_c", raw_suffix="20240101140000", agent_name=None)
+    app = _FakeWaitApp([a1, a2, a3])
+    app._marked_agents = {a1.identity, a2.identity, a3.identity}
+
+    app.action_wait_for_agent()
+
+    assert len(app.prompt_bar_calls) == 1
+    assert app.prompt_bar_calls[0]["initial_text"] == "%w:alice,bob "
+    assert ("Skipped 1 marked agent(s) with no name", "warning") in app.notifications
+
+
+def test_wait_for_agent_bulk_all_unnamed_warns_and_skips_prompt() -> None:
+    a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name=None)
+    a2 = _make_agent(cl_name="cl_b", raw_suffix="20240101130000", agent_name=None)
+    app = _FakeWaitApp([a1, a2])
+    app._marked_agents = {a1.identity, a2.identity}
+
+    app.action_wait_for_agent()
+
+    assert app.prompt_bar_calls == []
+    assert ("No marked agents have a name", "warning") in app.notifications
