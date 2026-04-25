@@ -123,6 +123,43 @@ def handle_workflow_error(
             state.loop_outcome = "killed"
             return "break"
 
+        # ----------------------------------------------------------------
+        # Spawn-on-retry path (opt-in via ProviderRetryConfig.spawn_new_agent)
+        # ----------------------------------------------------------------
+        # When the active provider's retry config sets spawn_new_agent=True,
+        # we replace the in-process retry with a fresh detached child agent
+        # (as if `sase run -d` had been invoked).  The child inherits the
+        # workspace claim, chat history, plan path, and continuation nudge
+        # via retry_handoff.json.  On spawn-side failure we fall back to
+        # the legacy in-process retry path so the user is never worse off.
+        if active_retry_cfg.spawn_new_agent and not ctx.is_home_mode:
+            from sase.axe.run_agent_retry_spawn import (
+                mark_parent_retried,
+                spawn_retry_agent,
+            )
+
+            spawn_result = spawn_retry_agent(
+                ctx=ctx,
+                state=state,
+                tracker=tracker,
+                error_snippet=snippet,
+                continuation_prompt=active_retry_cfg.continuation_prompt,
+            )
+            if spawn_result is not None:
+                mark_parent_retried(
+                    artifacts_dir=ctx.artifacts_dir,
+                    child_artifacts_timestamp=spawn_result["child_artifacts_timestamp"],
+                    chain_root_timestamp=spawn_result["chain_root_timestamp"],
+                    handoff_path=spawn_result["handoff_path"],
+                    error_category=spawn_result["error_category"],
+                )
+                # Mark the loop outcome as retried-and-handed-off so the
+                # parent runner exits cleanly with FAILED status, leaving
+                # the child to carry the work forward.
+                state.loop_outcome = "failed_retried"
+                return "break"
+            # Spawn failed — fall through to the in-process retry path.
+
         # Re-prepare workspace
         RetryState(
             status="running_retry",

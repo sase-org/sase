@@ -330,6 +330,13 @@ class AgentList(OptionList, inherit_bindings=False):
         if agent.approve:
             text.append(f"{_APPROVE_ICON} ", style="bold #00FFFF")
 
+        # Indentation for retry-chain attempts: render under the chain
+        # root so the user sees the lineage at a glance.  retry_attempt
+        # tracks chain depth (1 = first retry, 2 = retry-of-retry, …).
+        if agent.retry_attempt > 0 and not agent.is_workflow_child:
+            indent = "  " * agent.retry_attempt + "↳ "
+            text.append(indent, style="dim #808080")
+
         # Indentation for workflow child agents
         if agent.is_workflow_child:
             text.append(_CHILD_INDENT, style="dim #808080")
@@ -366,6 +373,14 @@ class AgentList(OptionList, inherit_bindings=False):
         if agent.status in _DISMISSIBLE_STATUSES and self._panel != "pinned":
             text.append(f"{_DONE_ICON} ", style="bold red")
 
+        # Spawn-on-retry: prefix retry attempts with a small ↻N badge so
+        # the user can pattern-match the chain depth without opening the
+        # detail panel.  retry_attempt == 0 means "not a retry" and is not
+        # rendered.
+        if agent.retry_attempt > 0:
+            badge_color = "#FFAF00"  # warm yellow
+            text.append(f"↻{agent.retry_attempt} ", style=f"bold {badge_color}")
+
         # Agent type indicator with color
         dt = agent.get_display_type(is_expanded=is_expanded)
 
@@ -392,6 +407,13 @@ class AgentList(OptionList, inherit_bindings=False):
             text.append(agent.status, style="bold #5FD7AF")  # Sea-green
         elif agent.status == "FAILED":
             text.append(agent.status, style="bold #FF5F5F")  # Red
+        elif agent.status == "FAILED (RETRIED)":
+            # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
+            # terminal failure that handed off to a downstream retry, as
+            # opposed to a dead-end failure with no recovery attempt.
+            text.append("FAILED ", style="dim #FF5F5F")
+            text.append("↻", style="bold #FFAF00")
+            text.append(" (RETRIED)", style="dim #FF5F5F")
         elif agent.status == "PLANNING":
             text.append(agent.status, style="bold #FF87AF")  # Pink
         elif agent.status == "PLAN APPROVED":

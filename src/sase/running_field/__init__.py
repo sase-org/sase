@@ -20,6 +20,7 @@ from sase.running_field._operations import (
     claim_workspace,
     get_claimed_workspaces,
     release_workspace,
+    transfer_workspace_claim,
     update_running_field_cl_name,
 )
 from sase.running_field._workspace import (
@@ -39,5 +40,6 @@ __all__ = [
     "get_workspace_directory",
     "get_workspace_directory_for_num",
     "release_workspace",
+    "transfer_workspace_claim",
     "update_running_field_cl_name",
 ]

@@ -503,6 +503,9 @@ def build_done_marker(
     error: str | None = None,
     traceback_str: str | None = None,
     retry_metadata: dict[str, Any] | None = None,
+    retried_as_timestamp: str | None = None,
+    retry_chain_root_timestamp: str | None = None,
+    retry_error_category: str | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -537,6 +540,15 @@ def build_done_marker(
         marker["traceback"] = traceback_str
     if retry_metadata:
         marker["retry_metadata"] = retry_metadata
+    # Spawn-on-retry: the failing parent records a forward pointer to its
+    # retry child so the loader can build the retry-chain linkage without
+    # opening agent_meta.json.
+    if retried_as_timestamp:
+        marker["retried_as_timestamp"] = retried_as_timestamp
+    if retry_chain_root_timestamp:
+        marker["retry_chain_root_timestamp"] = retry_chain_root_timestamp
+    if retry_error_category:
+        marker["retry_error_category"] = retry_error_category
     return marker
 
 

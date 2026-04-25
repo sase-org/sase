@@ -57,5 +57,5 @@ def test_default_singletons_are_stubs() -> None:
 
 
 def test_metric_def_count() -> None:
-    """Sanity check: 33 metrics total (30 original + 3 token counters)."""
-    assert len(METRIC_DEFS) == 33
+    """Sanity check: 34 metrics total (30 original + 3 token counters + retry spawns)."""
+    assert len(METRIC_DEFS) == 34

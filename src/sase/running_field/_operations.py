@@ -261,6 +261,83 @@ def release_workspace(
         return False
 
 
+def transfer_workspace_claim(
+    project_file: str,
+    workspace_num: int,
+    *,
+    from_pid: int,
+    to_pid: int,
+    new_workflow: str,
+    new_artifacts_timestamp: str | None,
+    cl_name: str | None = None,
+) -> bool:
+    """Atomically transfer ownership of an existing workspace claim to a new PID.
+
+    Used by the spawn-on-retry flow to hand a workspace claim from a failing
+    parent agent to a fresh detached child without freeing the slot for
+    other agents in between.  Updates the claim row in place under the
+    ProjectSpec lock — the workspace slot stays continuously claimed.
+
+    Returns True iff the matching claim row was found and updated.
+    """
+    if not os.path.exists(project_file):
+        return False
+
+    try:
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                content = f.read()
+                lines = content.split("\n")
+
+            new_lines: list[str] = []
+            in_running_field = False
+            updated = False
+
+            for line in lines:
+                if line.startswith("RUNNING:"):
+                    in_running_field = True
+                    new_lines.append(line)
+                    continue
+
+                if in_running_field and line.startswith("  "):
+                    claim = WorkspaceClaim.from_line(line)
+                    if (
+                        claim
+                        and not updated
+                        and claim.workspace_num == workspace_num
+                        and claim.pid == from_pid
+                        and (cl_name is None or claim.cl_name == cl_name)
+                    ):
+                        replacement = WorkspaceClaim(
+                            workspace_num=claim.workspace_num,
+                            workflow=new_workflow,
+                            cl_name=claim.cl_name,
+                            pid=to_pid,
+                            artifacts_timestamp=new_artifacts_timestamp
+                            or claim.artifacts_timestamp,
+                            pinned=claim.pinned,
+                        )
+                        new_lines.append(replacement.to_line())
+                        updated = True
+                        continue
+                else:
+                    in_running_field = False
+
+                new_lines.append(line)
+
+            if not updated:
+                return False
+
+            write_changespec_atomic(
+                project_file,
+                "\n".join(new_lines),
+                f"Transfer workspace #{workspace_num} from pid {from_pid} to {to_pid}",
+            )
+            return True
+    except Exception:
+        return False
+
+
 def update_running_field_cl_name(
     project_file: str,
     old_cl_name: str,

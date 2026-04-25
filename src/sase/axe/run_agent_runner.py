@@ -184,10 +184,42 @@ def main() -> None:
     # Initialize current_artifacts_dir so it's always defined for cleanup
     current_artifacts_dir = artifacts_dir
 
+    # ----------------------------------------------------------------
+    # Spawn-on-retry: detect the retry handoff env var.  When set, this
+    # process is a retry child whose workspace was transferred from the
+    # failing parent; we must NOT call prepare_workspace (which would
+    # wipe the parent's in-progress file edits) and must record the
+    # retry-chain pointers into agent_meta.json so the TUI loader can
+    # build the chain.
+    # ----------------------------------------------------------------
+    from sase.axe.run_agent_retry_spawn import (
+        ENV_RETRY_ATTEMPT,
+        ENV_RETRY_CHAIN_ROOT_TIMESTAMP,
+        ENV_RETRY_HANDOFF,
+        ENV_RETRY_OF_TIMESTAMP,
+        RetryHandoff,
+    )
+
+    retry_handoff_path = os.environ.get(ENV_RETRY_HANDOFF)
+    retry_handoff: RetryHandoff | None = None
+    if retry_handoff_path:
+        retry_handoff = RetryHandoff.read_from_path(retry_handoff_path)
+        if retry_handoff is not None:
+            print("=== Retry-Spawn Handoff Loaded ===")
+            print(f"  parent: {retry_handoff.parent_timestamp}")
+            print(f"  retry attempt: #{retry_handoff.retry_attempt}")
+            print(f"  chain root: {retry_handoff.chain_root_timestamp}")
+            print(f"  category: {retry_handoff.error_category}")
+            print("==================================")
+            print()
+
     try:
         try:
-            # Prepare workspace before running agent (skip for home mode)
-            if update_target and not is_home_mode:
+            # Prepare workspace before running agent.  Skipped for:
+            # (a) home mode (no real workspace), and
+            # (b) retry spawns — the parent's in-progress edits live in the
+            #     workspace and prepare_workspace would wipe them.
+            if update_target and not is_home_mode and retry_handoff is None:
                 print("=== Preparing Workspace ===")
                 if not prepare_workspace(
                     workspace_dir,
@@ -198,6 +230,12 @@ def main() -> None:
                 ):
                     raise RuntimeError("Failed to prepare workspace")
                 print("===========================")
+                print()
+            elif retry_handoff is not None:
+                print(
+                    "=== Skipping workspace prep (retry-spawn child) — "
+                    "parent's in-progress edits preserved ==="
+                )
                 print()
 
             # Change to workspace directory
@@ -252,6 +290,36 @@ def main() -> None:
             agent_vcs_provider = info.vcs_provider
             agent_hidden = info.hidden
             agent_meta = info.meta
+
+            # If we're a retry spawn child, record the retry-chain backward
+            # pointer + attempt number into agent_meta.json so the TUI
+            # loader can render the chain ancestry.
+            if retry_handoff is not None:
+                agent_meta["retry_of_timestamp"] = retry_handoff.parent_timestamp
+                agent_meta["retry_attempt"] = retry_handoff.retry_attempt
+                agent_meta["retry_chain_root_timestamp"] = (
+                    retry_handoff.chain_root_timestamp
+                )
+                agent_meta["retry_error_category"] = retry_handoff.error_category
+                meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+                with open(meta_path, "w", encoding="utf-8") as _f:
+                    json.dump(agent_meta, _f, indent=2)
+            else:
+                # Honor env var fallback (e.g. for tests) when no handoff file.
+                env_retry_attempt = os.environ.get(ENV_RETRY_ATTEMPT)
+                env_retry_of = os.environ.get(ENV_RETRY_OF_TIMESTAMP)
+                env_retry_root = os.environ.get(ENV_RETRY_CHAIN_ROOT_TIMESTAMP)
+                if env_retry_attempt and env_retry_of:
+                    try:
+                        agent_meta["retry_attempt"] = int(env_retry_attempt)
+                        agent_meta["retry_of_timestamp"] = env_retry_of
+                        if env_retry_root:
+                            agent_meta["retry_chain_root_timestamp"] = env_retry_root
+                        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+                        with open(meta_path, "w", encoding="utf-8") as _f:
+                            json.dump(agent_meta, _f, indent=2)
+                    except ValueError:
+                        pass
 
             # Track spawn counter + active agent gauge. These live here (not
             # in launcher.py) because init_telemetry() has already run in this

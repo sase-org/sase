@@ -38,17 +38,23 @@ def spawn_agent_subprocess(
     deferred_workspace: bool = False,
     local_xprompts_file: str | None = None,
     extra_env: dict[str, str] | None = None,
+    retry_transfer_from_pid: int | None = None,
 ) -> AgentLaunchResult:
     """Spawn a detached background agent process.
 
     This is the low-level entry point: all parameters must already be
     resolved by the caller.  The TUI uses this directly.
 
+    When ``retry_transfer_from_pid`` is set, the function transfers an
+    existing workspace claim (held by the given PID) atomically to the new
+    child instead of attempting a fresh ``claim_workspace`` — used by the
+    spawn-on-retry flow so the workspace slot stays continuously held.
+
     Raises:
-        RuntimeError: If workspace claiming fails (process is terminated
-            before the error is raised).
+        RuntimeError: If workspace claiming/transfer fails (process is
+            terminated before the error is raised).
     """
-    from sase.running_field import claim_workspace
+    from sase.running_field import claim_workspace, transfer_workspace_claim
     from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
@@ -126,10 +132,32 @@ def spawn_agent_subprocess(
     # Claim workspace so agent appears in Agents tab while running.
     # For deferred-workspace agents (%wait), claim with workspace_num=0
     # so the agent appears in the TUI but doesn't reserve a real workspace.
+    # For retry spawns, transfer an existing claim atomically so the slot
+    # stays continuously held across the parent→child handoff.
     if not is_home_mode:
         artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
         claim_num = 0 if deferred_workspace else workspace_num
-        if not claim_workspace(
+        if retry_transfer_from_pid is not None:
+            transferred = transfer_workspace_claim(
+                project_file,
+                claim_num,
+                from_pid=retry_transfer_from_pid,
+                to_pid=process.pid,
+                new_workflow=workflow_name,
+                new_artifacts_timestamp=artifacts_timestamp,
+                cl_name=cl_name,
+            )
+            if not transferred:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                raise RuntimeError(
+                    f"Failed to transfer workspace #{claim_num} from "
+                    f"pid {retry_transfer_from_pid}"
+                )
+        elif not claim_workspace(
             project_file,
             claim_num,
             workflow_name,

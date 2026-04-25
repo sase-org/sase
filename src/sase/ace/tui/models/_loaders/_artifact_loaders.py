@@ -74,6 +74,21 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except (ValueError, TypeError):
             pass
 
+    # Retry-chain lineage (spawn-on-retry)
+    if data.get("retry_of_timestamp"):
+        agent.retry_of_timestamp = data["retry_of_timestamp"]
+    raw_retry_attempt = data.get("retry_attempt")
+    if isinstance(raw_retry_attempt, int):
+        agent.retry_attempt = raw_retry_attempt
+    if data.get("retry_chain_root_timestamp"):
+        agent.retry_chain_root_timestamp = data["retry_chain_root_timestamp"]
+    if data.get("retried_as_timestamp"):
+        agent.retried_as_timestamp = data["retried_as_timestamp"]
+    if data.get("retry_terminal"):
+        agent.retry_terminal = bool(data["retry_terminal"])
+    if data.get("retry_error_category"):
+        agent.retry_error_category = data["retry_error_category"]
+
     def _append_timestamp_field(
         raw_value: object,
         target: list[datetime],
@@ -342,7 +357,13 @@ def _load_done_agent_for_dir(
         if outcome == "noop":
             return None
         if outcome == "failed":
-            status = "FAILED"
+            # Spawn-on-retry: a failed parent that handed off to a child
+            # displays as "FAILED (RETRIED)" so the user can distinguish a
+            # terminal failure with a downstream retry from a dead-end one.
+            if data.get("retried_as_timestamp"):
+                status = "FAILED (RETRIED)"
+            else:
+                status = "FAILED"
             error_message = data.get("error")
             error_traceback = data.get("traceback")
         else:
@@ -377,6 +398,15 @@ def _load_done_agent_for_dir(
             hidden=bool(data.get("hidden")),
             approve=bool(data.get("approve")),
         )
+
+        # Retry-chain lineage from done.json (parent-side: forward pointer
+        # to the spawned retry child).  Mirrors agent_meta.json.
+        if data.get("retried_as_timestamp"):
+            agent.retried_as_timestamp = data["retried_as_timestamp"]
+        if data.get("retry_chain_root_timestamp"):
+            agent.retry_chain_root_timestamp = data["retry_chain_root_timestamp"]
+        if data.get("retry_error_category"):
+            agent.retry_error_category = data["retry_error_category"]
 
         # Always enrich from agent_meta.json — it may contain
         # fields not in done.json (e.g. name set via TUI rename

@@ -323,6 +323,31 @@ class Agent:
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list["Agent"] = field(default_factory=list)
 
+    # ----------------------------------------------------------------
+    # Retry-chain lineage (spawn-on-retry)
+    # ----------------------------------------------------------------
+    # Backward pointer to the immediate parent in the retry chain (the agent
+    # that failed and spawned this retry).  None when this is not a retry.
+    retry_of_timestamp: str | None = None
+    # 0 = chain root (the original failing attempt); 1+ = retry attempt
+    # number, increasing with each spawned retry.
+    retry_attempt: int = 0
+    # Pointer to the chain root, short-circuiting walks for display.
+    retry_chain_root_timestamp: str | None = None
+    # Forward pointer set on a failed-then-retried parent; identifies the
+    # downstream child that took over.  When set the parent's display
+    # status becomes "FAILED (RETRIED)" instead of "FAILED".
+    retried_as_timestamp: str | None = None
+    # Marks the parent as terminal-but-handed-off (no more in-process work
+    # will happen here; downstream child carries the chain forward).
+    retry_terminal: bool = False
+    # One of "context_overflow", "rate_limit", "transient", "other" — the
+    # error class that triggered the retry.
+    retry_error_category: str | None = None
+    # Direct retry children of this agent (populated at load time, not
+    # serialized).  Mirrors followup_agents for the retry-chain dimension.
+    retry_chain_siblings: list["Agent"] = field(default_factory=list)
+
     # When plans were submitted for review (one per proposal; plan agents only)
     plan_times: list[datetime] = field(default_factory=list)
     # When the coder agent was launched after plan approval (plan agents only)
@@ -506,6 +531,16 @@ class Agent:
     def identity(self) -> tuple["AgentType", str, str | None]:
         """Unique identifier for this agent instance."""
         return (self.agent_type, self.cl_name, self.raw_suffix)
+
+    @property
+    def is_retry_attempt(self) -> bool:
+        """True when this agent is a retry of an earlier failed attempt."""
+        return self.retry_attempt > 0
+
+    @property
+    def is_retried_parent(self) -> bool:
+        """True when this agent failed but was retried by a downstream child."""
+        return self.retried_as_timestamp is not None
 
     @property
     def is_workflow_child(self) -> bool:

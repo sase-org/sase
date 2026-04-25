@@ -349,6 +349,25 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         if agent.followup_agents:
             agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
 
+    # Spawn-on-retry: build the retry-chain linkage.  Each retry child has a
+    # backward pointer (retry_of_timestamp) to its immediate parent; we
+    # reverse-index that into the parent's retry_chain_siblings list so the
+    # TUI can render the chain from either direction.
+    by_suffix: dict[str, Agent] = {}
+    for agent in agents:
+        if agent.raw_suffix:
+            by_suffix[agent.raw_suffix] = agent
+    for agent in agents:
+        if agent.retry_of_timestamp:
+            parent = by_suffix.get(agent.retry_of_timestamp)
+            if parent is not None:
+                parent.retry_chain_siblings.append(agent)
+    for agent in agents:
+        if agent.retry_chain_siblings:
+            agent.retry_chain_siblings.sort(
+                key=lambda a: a.retry_attempt or 0,
+            )
+
 
 def _sort_and_reorder(
     agents: list[Agent],

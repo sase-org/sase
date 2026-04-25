@@ -181,6 +181,23 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
     header_text.append("AGENT DETAILS\n", style="bold #D7AF5F underline")
     header_text.append("\n")
 
+    # Spawn-on-retry: render a retry-chain breadcrumb when the agent is
+    # part of one (either a retry attempt or a parent that handed off).
+    if agent.is_retry_attempt or agent.is_retried_parent:
+        header_text.append("Retry chain: ", style="bold #87D7FF")
+        header_text.append("↻ ", style="bold #FFAF00")
+        if agent.is_retry_attempt:
+            header_text.append(f"attempt #{agent.retry_attempt}", style="#FFAF00")
+            if agent.retry_error_category:
+                header_text.append(
+                    f" ({agent.retry_error_category})", style="dim #FFAF00"
+                )
+        if agent.is_retried_parent:
+            if agent.is_retry_attempt:
+                header_text.append(", ", style="dim")
+            header_text.append("handed off to retry", style="dim #FFAF00")
+        header_text.append("\n")
+
     # Extract meta_* overrides from step_output
     meta_project = None
     meta_changespec = None

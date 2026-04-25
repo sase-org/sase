@@ -12,6 +12,11 @@
 - Jetski is **not** a built-in sase LLM provider — it ships as part of the `sase-google` plugin. Its
   `llm_skill_deploy_subpath()` hook returns `.gemini/jetski` so skills land under `~/.gemini/jetski/skills/` (not
   `~/.jetski/skills/`), sharing the `~/.gemini/` parent with Gemini CLI by design; don't "fix" it.
+- Spawn-on-retry is **opt-in** via `ProviderRetryConfig.spawn_new_agent` (default `False`). In legacy in-process retry
+  mode, `prepare_workspace()` runs between attempts and wipes uncommitted file edits unless `preserve_workspace=True`.
+  In spawn mode the workspace is preserved by design — the child skips `prepare_workspace()` and inherits the parent's
+  in-progress edits via the transferred workspace claim. If spawning fails (e.g. workspace transfer fails), the legacy
+  in-process retry runs as a fallback so the user is never worse off.
 - Memory xprompt `keywords` support a `!` prefix for **negative keywords**: each negative keyword masks its matched
   spans out of the prompt before positive-keyword matching runs, so a memory is excluded only when every positive hit
   fell inside a masked region (e.g. `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` via the

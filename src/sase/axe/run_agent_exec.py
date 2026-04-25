@@ -212,7 +212,28 @@ def _finalize_loop(
             json.dump(done_marker, f, indent=2)
         print(f"Done marker written to: {done_path}")
     else:
-        # plan_rejected or killed
+        # plan_rejected, killed, or failed_retried (spawn-on-retry handoff)
+        # For failed_retried, the failing parent has handed off to a fresh
+        # detached child agent; record outcome="failed" + retry-chain forward
+        # pointers so the loader can render the chain.
+        retried_as_timestamp: str | None = None
+        retry_chain_root_timestamp: str | None = None
+        retry_error_category: str | None = None
+        if state.loop_outcome == "failed_retried":
+            actual_outcome = "failed"
+            try:
+                meta_path = os.path.join(ctx.artifacts_dir, "agent_meta.json")
+                with open(meta_path, encoding="utf-8") as _f:
+                    _meta = json.load(_f)
+                if isinstance(_meta, dict):
+                    retried_as_timestamp = _meta.get("retried_as_timestamp")
+                    retry_chain_root_timestamp = _meta.get("retry_chain_root_timestamp")
+                    retry_error_category = _meta.get("retry_error_category")
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                pass
+        else:
+            actual_outcome = state.loop_outcome
+
         done_marker = build_done_marker(
             ctx.cl_name,
             ctx.project_file,
@@ -220,12 +241,15 @@ def _finalize_loop(
             ctx.artifacts_timestamp,
             ctx.workspace_num,
             ctx.output_path,
-            state.loop_outcome,
+            actual_outcome,
             agent_name=_done_agent_name,
             agent_model=ctx.agent_model,
             agent_hidden=ctx.agent_hidden,
             response_path=saved_path,
             retry_metadata=_retry_meta,
+            retried_as_timestamp=retried_as_timestamp,
+            retry_chain_root_timestamp=retry_chain_root_timestamp,
+            retry_error_category=retry_error_category,
         )
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:

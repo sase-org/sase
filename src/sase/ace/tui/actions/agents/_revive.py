@@ -13,12 +13,21 @@ if TYPE_CHECKING:
 
 
 def _is_child_of(child: Agent, parent: Agent) -> bool:
-    """Check if *child* is a workflow step or follow-up agent of *parent*.
+    """Check if *child* is a workflow step, follow-up, or retry of *parent*.
 
-    Matches both workflow step children (``parent_workflow`` set) and
-    follow-up agents like ``.code`` / ``.q`` (``parent_timestamp`` set,
-    ``parent_workflow`` is None).
+    Matches workflow step children (``parent_workflow`` set), follow-up
+    agents like ``.code`` / ``.q`` (``parent_timestamp`` set,
+    ``parent_workflow`` is None), and spawn-on-retry children
+    (``retry_of_timestamp`` set).
     """
+    # Spawn-on-retry: retry children link to the failing parent via
+    # retry_of_timestamp (they are otherwise top-level RUNNING agents).
+    if (
+        child.retry_of_timestamp
+        and parent.raw_suffix
+        and child.retry_of_timestamp == parent.raw_suffix
+    ):
+        return True
     if not child.is_workflow_child or child.parent_timestamp != parent.raw_suffix:
         return False
     # Workflow step children have parent_workflow set; follow-up agents don't.

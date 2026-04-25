@@ -24,6 +24,11 @@ class ProviderRetryConfig:
     fallback_model: str | None = None
     continuation_prompt: str | None = None
     preserve_workspace: bool = False
+    # When True, retry by spawning a fresh detached agent (as if `sase run -d`
+    # had been invoked) instead of re-running in the same process. The fresh
+    # agent inherits the parent's workspace number, chat history, plan file,
+    # and continuation nudge via a retry_handoff.json hand-off file.
+    spawn_new_agent: bool = False
 
 
 @dataclass
@@ -132,6 +137,7 @@ def _clone_config(cfg: ProviderRetryConfig) -> ProviderRetryConfig:
         fallback_model=cfg.fallback_model,
         continuation_prompt=cfg.continuation_prompt,
         preserve_workspace=cfg.preserve_workspace,
+        spawn_new_agent=cfg.spawn_new_agent,
     )
 
 
@@ -159,6 +165,7 @@ def _config_from_user_dict(user_dict: dict[str, Any]) -> ProviderRetryConfig:
         fallback_model=user_dict.get("fallback_model") or None,
         continuation_prompt=user_dict.get("continuation_prompt") or None,
         preserve_workspace=bool(user_dict.get("preserve_workspace", False)),
+        spawn_new_agent=bool(user_dict.get("spawn_new_agent", False)),
     )
 
 
@@ -181,6 +188,11 @@ def _merge_with_built_in(
         if "preserve_workspace" in user_dict
         else built_in.preserve_workspace
     )
+    spawn_new_agent = (
+        bool(user_dict["spawn_new_agent"])
+        if "spawn_new_agent" in user_dict
+        else built_in.spawn_new_agent
+    )
     return ProviderRetryConfig(
         max_retries=max_retries,
         error_patterns=_dedup_ordered(
@@ -190,6 +202,7 @@ def _merge_with_built_in(
         fallback_model=user_dict.get("fallback_model") or built_in.fallback_model,
         continuation_prompt=continuation_prompt,
         preserve_workspace=preserve_workspace,
+        spawn_new_agent=spawn_new_agent,
     )
 
 
