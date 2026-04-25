@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.main.parser_commands import register_commit_parser
+from sase.main.parser_commit import register_commit_parser
 from sase.workflows.commit.workflow import RunResult
 
 

@@ -3,28 +3,32 @@
 import argparse
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
+from sase.main.parser_agents import register_agents_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_commands import (
-    register_agents_parser,
     register_comments_parser,
-    register_commit_parser,
     register_config_parser,
     register_file_history_parser,
     register_file_parser,
-    register_init_git_parser,
-    register_init_skills_parser,
     register_logs_parser,
     register_notify_parser,
     register_path_parser,
     register_plan_parser,
     register_questions_parser,
-    register_restore_parser,
-    register_revert_parser,
     register_run_parser,
     register_search_parser,
-    register_telemetry_parser,
-    register_xprompt_parser,
 )
+from sase.main.parser_commit import (
+    register_commit_parser,
+    register_restore_parser,
+    register_revert_parser,
+)
+from sase.main.parser_init import (
+    register_init_git_parser,
+    register_init_skills_parser,
+)
+from sase.main.parser_telemetry import register_telemetry_parser
+from sase.main.parser_xprompt import register_xprompt_parser
 
 
 def create_parser() -> argparse.ArgumentParser:
