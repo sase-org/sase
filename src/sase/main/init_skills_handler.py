@@ -3,6 +3,7 @@
 import argparse
 import difflib
 import re
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -284,6 +285,23 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
         print("No skill source files found.")
         sys.exit(0)
 
+    from sase.gemini_wrapper.file_references import format_with_prettier
+
+    prettier_warned = False
+
+    def _format(text: str) -> str:
+        nonlocal prettier_warned
+        if shutil.which("prettier") is None:
+            if not prettier_warned:
+                print(
+                    "init-skills: prettier not found on PATH; output may not match "
+                    "chezmoi CI formatting",
+                    file=sys.stderr,
+                )
+                prettier_warned = True
+            return text
+        return format_with_prettier(text)
+
     written = 0
     skipped = 0
     written_paths: list[Path] = []
@@ -313,6 +331,7 @@ def handle_init_skills_command(args: argparse.Namespace) -> None:
             context = _provider_context(provider)
             rendered_body, rendered_desc = _render_skill(body, description, context)
             output = _build_output(name, rendered_desc.strip(), rendered_body)
+            output = _format(output)
             target = _get_target_path(provider, name, use_chezmoi)
 
             if dry_run:

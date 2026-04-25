@@ -1,6 +1,8 @@
 """Tests for the 'sase init-skills' handler, especially the chezmoi auto-deploy."""
 
 import argparse
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -453,3 +455,118 @@ def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
     target = _get_target_path("claude", "foo", use_chezmoi=True)
     assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
+
+
+# === Tests for prettier formatting of init-skills output ===
+
+
+def _stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Write a skill template whose body is hard-wrapped tighter than 120 cols.
+
+    Prettier with --prose-wrap=always --print-width=120 will rejoin these lines.
+    """
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    (skills_dir / "foo.md").write_text(
+        "---\n"
+        "name: foo\n"
+        "description: a test skill\n"
+        "skill: [claude]\n"
+        "---\n"
+        "\n"
+        "Use this skill when you need to do many things. This is a long sentence that\n"
+        "would normally fit on one line just fine in 120 columns.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        init_skills_handler,
+        "get_sase_package_xprompts_dir",
+        lambda: tmp_path,
+    )
+    return skills_dir
+
+
+@pytest.mark.skipif(shutil.which("prettier") is None, reason="prettier not installed")
+def test_handler_output_passes_prettier_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generated SKILL.md must pass `prettier --check` with the chezmoi CI args."""
+    _stub_under_wrapped_skill(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    with pytest.raises(SystemExit):
+        handle_init_skills_command(_make_args())
+
+    written = tmp_path / "home" / ".claude" / "skills" / "foo" / "SKILL.md"
+    assert written.exists()
+
+    result = subprocess.run(
+        [
+            "prettier",
+            "--check",
+            "--prose-wrap=always",
+            "--print-width=120",
+            "--parser=markdown",
+        ],
+        input=written.read_text(encoding="utf-8"),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("prettier") is None, reason="prettier not installed")
+def test_handler_output_is_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Running init-skills twice produces byte-identical output the second time."""
+    _stub_under_wrapped_skill(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    with pytest.raises(SystemExit):
+        handle_init_skills_command(_make_args())
+
+    written = tmp_path / "home" / ".claude" / "skills" / "foo" / "SKILL.md"
+    first = written.read_text(encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        handle_init_skills_command(_make_args())
+
+    second = written.read_text(encoding="utf-8")
+    assert first == second
+
+
+def test_handler_warns_once_when_prettier_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When prettier is absent, emit one warning per invocation, not per skill."""
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    # Two skills so we can verify the warning is emitted at most once.
+    (skills_dir / "foo.md").write_text(
+        "---\nname: foo\ndescription: x\nskill: [claude]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    (skills_dir / "bar.md").write_text(
+        "---\nname: bar\ndescription: y\nskill: [claude]\n---\n\nbody\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        init_skills_handler, "get_sase_package_xprompts_dir", lambda: tmp_path
+    )
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    with pytest.raises(SystemExit):
+        handle_init_skills_command(_make_args())
+
+    err = capsys.readouterr().err
+    assert err.count("prettier not found") == 1

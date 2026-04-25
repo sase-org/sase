@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 21:13:25
-status: wip
+status: done
 ---
 # Plan: Format `sase init-skills` Output With Prettier
 
