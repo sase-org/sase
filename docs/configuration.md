@@ -897,4 +897,4 @@ slows down filesystem walks and makes `ls`-style inspection painful.
 
 New files are automatically written into a `YYYYMM/` shard inside each high-volume directory (keyed by the current
 month). Readers transparently merge sharded and non-sharded files, so the layout is backwards-compatible — existing
-tools keep working whether or not a directory has been migrated.
+unsharded files at the top level are still found and the layout is fully read/write compatible across both forms.

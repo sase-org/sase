@@ -655,6 +655,8 @@ Directives use the same argument syntax as xprompt references:
 %wait:90s                    # Wait for 90 seconds
 %wait:1430                   # Wait until 14:30 today (wraps to tomorrow if past)
 %wait:260415/0900            # Wait until 2026-04-15 at 09:00
+%wait:agent1,agent2,5m       # Multi-value: equivalent to three separate %wait: lines
+%wait(agent1, agent2, 5m)    # Same, paren form
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
 %alt(#review,#test)          # Split into two prompts: one with #review, one with #test
@@ -690,6 +692,10 @@ The `%wait` directive additionally accepts absolute time arguments:
 
 Absolute time waits cannot be combined with duration waits or with each other. They can, however, be combined with
 agent-name waits.
+
+Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated arguments to collapse what would otherwise be
+several lines: `%wait:agent_a,agent_b,5m` is equivalent to three separate `%wait:` directives. Backtick-quoted values
+(e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
 The `%approve`, `%edit`, and `%plan` directives are boolean flags — they take no arguments and are simply present or
 absent.

@@ -702,6 +702,7 @@ omitted when provider/model metadata is absent, leaving the legacy title shape u
 | `y`          | Copy plan content to clipboard                                   |
 | `Y`          | Copy plan file path to clipboard                                 |
 | `Ctrl+D`/`U` | Scroll plan content down / up                                    |
+| `g` / `G`    | Scroll to top / bottom                                           |
 | `q` / `Esc`  | Cancel                                                           |
 
 The question modal also supports `y` to copy questions and selected answers.
