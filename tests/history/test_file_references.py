@@ -15,12 +15,9 @@ from sase.history.file_references import (
 
 
 class TestExtractRecordableFileRefs:
-    def test_keeps_absolute_and_tilde_paths(self) -> None:
+    def test_keeps_tilde_paths_drops_absolute(self) -> None:
         text = "check /etc/hosts and ~/notes/ideas.md please"
-        assert extract_recordable_file_refs(text) == [
-            "/etc/hosts",
-            "~/notes/ideas.md",
-        ]
+        assert extract_recordable_file_refs(text) == ["~/notes/ideas.md"]
 
     def test_strips_at_prefix(self) -> None:
         text = "look at @src/foo.py"
@@ -30,11 +27,10 @@ class TestExtractRecordableFileRefs:
         text = "touching src/foo.py but not recorded"
         assert extract_recordable_file_refs(text) == []
 
-    def test_includes_at_prefixed_tilde_and_absolute(self) -> None:
+    def test_drops_at_prefixed_absolute_keeps_others(self) -> None:
         text = "@~/notes.md @/tmp/a.txt @docs/x.md"
         assert extract_recordable_file_refs(text) == [
             "~/notes.md",
-            "/tmp/a.txt",
             "docs/x.md",
         ]
 
@@ -42,9 +38,18 @@ class TestExtractRecordableFileRefs:
         text = "second ~/b first: /a and @c/d.py last"
         assert extract_recordable_file_refs(text) == [
             "~/b",
-            "/a",
             "c/d.py",
         ]
+
+    def test_drops_bare_absolute_paths(self) -> None:
+        assert extract_recordable_file_refs("see /etc/hosts please") == []
+
+    def test_drops_at_prefixed_absolute_paths(self) -> None:
+        assert extract_recordable_file_refs("see @/etc/hosts please") == []
+
+    def test_keeps_tilde_after_change(self) -> None:
+        assert extract_recordable_file_refs("~/notes.md") == ["~/notes.md"]
+        assert extract_recordable_file_refs("@~/notes.md") == ["~/notes.md"]
 
     def test_ignores_email_addresses(self) -> None:
         text = "mail me at user@domain.com and key@abc"

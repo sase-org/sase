@@ -43,14 +43,18 @@ def extract_recordable_file_refs(text: str) -> list[str]:
 
     Keeps only two kinds of tokens, in prompt order:
 
-    - ``@``-prefixed paths: the ``@`` is stripped from the stored value.
-    - Absolute paths: tokens beginning with ``/`` or ``~/``.
+    - ``@``-prefixed paths whose stored form does not start with ``/``:
+      the ``@`` is stripped from the stored value.
+    - ``~/``-rooted paths.
 
-    Bare relative paths (e.g. ``src/foo.py``) that the display-side regex
-    also matches are filtered out — they are typically ambient mentions
-    rather than intentional file references.  Paths pointing into a
-    project-local ``.sase/`` directory are also filtered out — they are
-    agent-managed state the user never re-references.
+    Bare ``/``-rooted absolute paths (and ``@/...`` tokens that decay to
+    them once the ``@`` is stripped) are filtered out — they tend to be
+    one-off system-ish references the user does not want resurfacing
+    through ``<ctrl+t>`` completion.  Bare relative paths (e.g.
+    ``src/foo.py``) are also dropped — they are typically ambient
+    mentions rather than intentional file references.  Paths pointing
+    into a project-local ``.sase/`` directory are filtered out as well —
+    they are agent-managed state the user never re-references.
 
     Paths are returned as the user typed them; ``~`` is not expanded so
     history matches the user's writing style.
@@ -64,9 +68,11 @@ def extract_recordable_file_refs(text: str) -> list[str]:
         path = match.group(2)
         if _is_local_sase_path(path):
             continue
+        if path.startswith("/"):
+            continue
         if at_prefix:
             results.append(path)
-        elif path.startswith(("/", "~/")):
+        elif path.startswith("~/"):
             results.append(path)
     return results
 
