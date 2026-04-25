@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 21:55:27
-status: wip
+status: done
 ---
 # Plan: Fix Agents-tab revive visibility after dismissed bundle sharding
 

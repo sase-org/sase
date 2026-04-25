@@ -43,7 +43,7 @@ def _compute_loader_cleanup(
 ]:
     """Compute orphaned-dismissed entries and clean loader-sourced artifacts."""
     # Self-heal dismissed entries with no in-memory agent and no bundle file.
-    from ....dismissed_agents import _DISMISSED_BUNDLES_DIR
+    from ....dismissed_agents import has_dismissed_bundle
     from ._killing import delete_agent_artifacts
 
     found_suffixes = {
@@ -54,19 +54,14 @@ def _compute_loader_cleanup(
         _, _, raw_suffix = identity
         if raw_suffix is None or raw_suffix in found_suffixes:
             continue
-        parent_path = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
-        has_bundle = (
-            parent_path.exists()
-            or any(_DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"))
-            if _DISMISSED_BUNDLES_DIR.is_dir()
-            else False
-        )
-        if not has_bundle:
+        if not has_dismissed_bundle(raw_suffix):
             orphaned.add(identity)
 
     # Self-healing: clean stale artifacts only for loader-sourced dismissed agents.
     cleaned_dirs: set[str] = set()
     for a in dismissed_from_loader:
+        if a._loaded_from_dismissed_bundle:
+            continue
         artifacts_dir = a.artifacts_dir or a.get_artifacts_dir()
         if artifacts_dir is None or artifacts_dir in _CLEANED_ARTIFACT_DIRS:
             continue
@@ -227,6 +222,18 @@ class AgentLoadingMixin:
             except Exception:
                 pass
             self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
+
+        recovered_bundle_identities = {
+            a.identity
+            for a in dismissed_from_loader
+            if a._loaded_from_dismissed_bundle
+            and a.identity not in self._dismissed_agents
+        }
+        if recovered_bundle_identities:
+            from ....dismissed_agents import save_dismissed_agents
+
+            self._dismissed_agents.update(recovered_bundle_identities)
+            save_dismissed_agents(self._dismissed_agents)
 
         # Build dismissed indices for filtering
         dismissed_suffixes: set[str] = {

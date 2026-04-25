@@ -176,17 +176,26 @@ def load_agents_from_disk(
         )
     ]
 
-    # Supplement with bundles: load saved bundles for agents whose identity
-    # is in dismissed_agents but not already found by the loader.
+    # Supplement with bundles: the bundle archive is the durable revive source,
+    # so load every saved bundle, including entries whose identity index was
+    # pruned.  Mark them so apply-time self-healing can repair the index while
+    # cleanup still distinguishes them from loader-sourced dismissed artifacts.
     from ....dismissed_agents import load_dismissed_bundles
 
     loader_identities = {a.identity for a in dismissed_from_loader}
     loader_suffixes = {
         a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
     }
-    needed_suffixes = dismissed_suffixes - loader_suffixes
-    for bundled_agent in load_dismissed_bundles(needed_suffixes):
-        if bundled_agent.identity not in loader_identities:
-            dismissed_from_loader.append(bundled_agent)
+    for bundled_agent in load_dismissed_bundles():
+        if bundled_agent.identity in loader_identities:
+            continue
+        if (
+            not bundled_agent.is_workflow_child
+            and bundled_agent.raw_suffix is not None
+            and bundled_agent.raw_suffix in loader_suffixes
+        ):
+            continue
+        bundled_agent._loaded_from_dismissed_bundle = True
+        dismissed_from_loader.append(bundled_agent)
 
     return all_agents, dismissed_from_loader

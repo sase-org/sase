@@ -66,6 +66,21 @@ def _find_bundle(filename: str) -> Path | None:
     return None
 
 
+def has_dismissed_bundle(raw_suffix: str) -> bool:
+    """Return whether any bundle file exists for ``raw_suffix``.
+
+    Checks both parent bundle names (``{suffix}.json``) and child bundle names
+    (``{suffix}__c*.json``) across the current sharded layout and legacy
+    top-level layout.
+    """
+    if _find_bundle(f"{raw_suffix}.json") is not None:
+        return True
+    try:
+        return bool(_iter_bundle_paths(pattern=f"{raw_suffix}__c*.json"))
+    except OSError:
+        return False
+
+
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
     """Load dismissed agent identities from disk.
 

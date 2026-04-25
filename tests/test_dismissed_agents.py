@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.dismissed_agents import (
+    has_dismissed_bundle,
     load_dismissed_agents,
     load_dismissed_bundles,
     remove_bundle_by_identity,
@@ -255,6 +256,25 @@ def test_bundle_load_by_suffixes_child_only(tmp_path: Path) -> None:
         loaded = load_dismissed_bundles({"20250615100000"})
         assert len(loaded) == 1
         assert loaded[0].step_index == 0
+
+
+def test_has_dismissed_bundle_finds_sharded_and_legacy_files(tmp_path: Path) -> None:
+    """Bundle existence checks understand sharded and legacy layouts."""
+    bundles_dir = tmp_path / "bundles"
+    shard_dir = bundles_dir / "202506"
+    shard_dir.mkdir(parents=True)
+    (shard_dir / "20250615100000.json").write_text("{}")
+    (shard_dir / "20250615110000__c0.json").write_text("{}")
+    bundles_dir.mkdir(exist_ok=True)
+    (bundles_dir / "20250615120000.json").write_text("{}")
+    (bundles_dir / "20250615130000__c0.json").write_text("{}")
+
+    with patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir):
+        assert has_dismissed_bundle("20250615100000")
+        assert has_dismissed_bundle("20250615110000")
+        assert has_dismissed_bundle("20250615120000")
+        assert has_dismissed_bundle("20250615130000")
+        assert not has_dismissed_bundle("20250615140000")
 
 
 def test_bundle_load_by_suffixes_ignores_unrelated_files(tmp_path: Path) -> None:

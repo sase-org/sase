@@ -363,6 +363,11 @@ class Agent:
     # load time, not serialized in bundle dicts).
     attempt_history: list[AttemptRecord] = field(default_factory=list)
 
+    # Internal source marker for dismissed bundles loaded only for revive.
+    _loaded_from_dismissed_bundle: bool = field(
+        default=False, compare=False, repr=False
+    )
+
     @property
     def effective_workspace_num(self) -> int | None:
         """Workspace number considering meta_workspace from step_output.

@@ -16,6 +16,7 @@ import pytest
 
 from sase.ace.tui.actions.agents import _loading
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
+from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -136,6 +137,70 @@ def test_self_heal_skips_second_reload_even_for_missing_dir(tmp_path: Path) -> N
         # Second reload: no additional is_dir() checks for this artifacts_dir
         # (the orphan-bundle path may still stat the bundles dir).
         assert mock_is_dir.call_count == first_calls
+
+
+def test_cleanup_keeps_identity_with_sharded_bundle(tmp_path: Path) -> None:
+    """A sharded bundle prevents dismissed-index orphan pruning."""
+    bundles_dir = tmp_path / "bundles"
+    shard_dir = bundles_dir / "202401"
+    shard_dir.mkdir(parents=True)
+    raw_suffix = "20240101120000"
+    (shard_dir / f"{raw_suffix}.json").write_text("{}")
+    identity = (AgentType.WORKFLOW, "archived", raw_suffix)
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.tui.actions.agents._killing.delete_agent_artifacts"),
+    ):
+        orphaned, cleaned_dirs = _loading._compute_loader_cleanup({identity}, [])
+
+    assert orphaned == set()
+    assert cleaned_dirs == set()
+
+
+def test_load_agents_from_disk_includes_bundles_missing_from_index() -> None:
+    """Revive candidates come from all bundle files, not only indexed suffixes."""
+    bundled = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="bundle_only",
+        raw_suffix="20240102120000",
+    )
+
+    with (
+        patch("sase.ace.tui.models.load_all_agents", return_value=[]),
+        patch(
+            "sase.ace.dismissed_agents.load_dismissed_bundles",
+            return_value=[bundled],
+        ) as mock_load_bundles,
+    ):
+        all_agents, dismissed_from_loader = load_agents_from_disk(set())
+
+    assert all_agents == []
+    assert dismissed_from_loader == [bundled]
+    assert bundled._loaded_from_dismissed_bundle is True
+    mock_load_bundles.assert_called_once_with()
+
+
+def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:
+    """Recovered bundle candidates are persisted back into dismissed_agents."""
+    app = FakeLoadingApp()
+    bundled = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="bundle_only",
+        raw_suffix="20240102120000",
+    )
+    bundled._loaded_from_dismissed_bundle = True
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.tui.actions.agents._killing.delete_agent_artifacts"),
+    ):
+        app._apply_loaded_agents(
+            [], [bundled], on_agents_tab=False, selected_identity=None
+        )
+
+    assert bundled.identity in app._dismissed_agents
+    mock_save.assert_called_once_with(app._dismissed_agents)
 
 
 if __name__ == "__main__":
