@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 16:14:26
 status: wip
+bead_id: sase-q
 ---
 # Plan: Nested Agent Groups on the Agents Tab
 
