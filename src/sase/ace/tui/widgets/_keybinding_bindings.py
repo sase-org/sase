@@ -148,7 +148,7 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("rename_cl"), "name"))
 
         # Add/remove agent tag (always available on a focused agent)
-        bindings.append((self._kd("start_tmux_mode"), "tag"))
+        bindings.append((self._kd("start_tmux_mode"), "tag/untag"))
 
         # Open tmux window (only if agent has a workspace)
         if agent.workspace_num is not None and agent.workspace_num > 0:

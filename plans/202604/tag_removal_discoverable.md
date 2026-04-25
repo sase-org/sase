@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 18:11:35
-status: wip
+status: done
 ---
 # Plan: Make agent-tag removal discoverable in `sase ace`
 

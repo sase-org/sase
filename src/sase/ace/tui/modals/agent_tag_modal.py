@@ -83,13 +83,22 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
             )
             yield Label(f"Current: {current_text}", id="agent-tag-current")
             yield Label(
-                "Type a tag name (no '@'). Enter=add, Ctrl+D=remove, Tab=complete.",
+                "[bold]Enter[/] add · [bold]Ctrl+D[/] remove · [bold]Tab[/] complete\n"
+                "Type a tag name without the '@' prefix.",
                 id="agent-tag-hint",
             )
-            yield _TagInput(placeholder="tag-name", id="agent-tag-input")
+            initial = self._current_tags[0] if self._current_tags else ""
+            yield _TagInput(
+                value=initial,
+                placeholder="tag-name",
+                id="agent-tag-input",
+            )
 
     def on_mount(self) -> None:
-        self.query_one("#agent-tag-input", _TagInput).focus()
+        tag_input = self.query_one("#agent-tag-input", _TagInput)
+        tag_input.focus()
+        if tag_input.value:
+            tag_input.select_all()
 
     def _complete_tag(self) -> None:
         """Tab-complete the input against ``known_tags``."""
