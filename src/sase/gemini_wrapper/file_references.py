@@ -22,6 +22,10 @@ from sase.output import (
 #   - After a space or whitespace character
 #   - After a quote character (" or ')
 # This prevents matching things like "foo@bar" or URLs with @ in them
+# Note: parsing further filters tokens that are not file-shaped — URLs (http*),
+# bare identifiers with no `/` and no `.` (e.g. @IgnoreForDiff), and
+# TLD-suffixed domain names (e.g. @google.com) — leaving them in the prompt
+# verbatim rather than reporting them as missing files.
 _FILE_REF_PATTERN = r"(?:^|(?<=\s)|(?<=[\"']))@((?:[^\s,;:()[\]{}\"'`])+)"
 
 # Common TLDs used to skip domain-like patterns
@@ -77,6 +81,11 @@ def _parse_file_refs(prompt: str) -> _ParsedFileRefs:
 
         # Skip if it looks like a URL
         if file_path.startswith("http"):
+            continue
+
+        # Skip bare-word tokens with no path separator and no extension —
+        # these are almost always literal markers (e.g. @IgnoreForDiff), not files.
+        if "/" not in file_path and "." not in file_path:
             continue
 
         # Skip if it looks like a domain name (e.g., @google.com at start of line)

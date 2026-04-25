@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 19:23:11
-status: wip
+status: done
 ---
 # Plan: Skip validation of bare-word `@<word>` references
 
