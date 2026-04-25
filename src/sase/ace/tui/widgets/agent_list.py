@@ -297,7 +297,10 @@ class AgentList(OptionList, inherit_bindings=False):
         self.call_later(self._clear_programmatic_flag)
 
     def update_highlight(
-        self, current_idx: int, current_attempt_number: int | None = None
+        self,
+        current_idx: int,
+        current_attempt_number: int | None = None,
+        group_key: tuple[str, ...] | None = None,
     ) -> None:
         """Move the highlight without clearing/rebuilding options.
 
@@ -308,7 +311,18 @@ class AgentList(OptionList, inherit_bindings=False):
             current_idx: Agent local index to highlight.
             current_attempt_number: When non-None, highlight the attempt child
                 row of ``current_idx`` instead of the agent row.
+            group_key: When non-None, highlight the banner row whose
+                ``GroupRow.group_key`` matches.  Falls back to the agent-row
+                search when no banner matches (defensive against
+                refresh-vs-fold races).
         """
+        if group_key is not None:
+            for row, banner in self._banner_at_row.items():
+                if banner.group_key == group_key:
+                    self._programmatic_update = True
+                    self.highlighted = row
+                    self.call_later(self._clear_programmatic_flag)
+                    return
         if not self._agents or not (0 <= current_idx < len(self._agents)):
             return
         target = (current_idx, current_attempt_number)

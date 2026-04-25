@@ -204,7 +204,11 @@ class AgentDisplayMixin:
             agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             local_idx = self._main_panel_idx_map.get(self.current_idx)
             if local_idx is not None:
-                agent_list.update_highlight(local_idx, self.current_attempt_number)
+                agent_list.update_highlight(
+                    local_idx,
+                    self.current_attempt_number,
+                    group_key=self._current_group_key,  # type: ignore[attr-defined]
+                )
             pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
             pinned_list.highlighted = None
         self._update_agents_info_panel()

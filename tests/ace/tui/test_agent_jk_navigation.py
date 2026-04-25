@@ -196,6 +196,51 @@ def test_unmatched_group_key_lands_on_first_banner() -> None:
     assert app.current_idx == 0
 
 
+def test_jk_at_l1_banner_moves_visible_highlight_to_l2_banner() -> None:
+    """Regression for jk_banner_highlight: at fold level 2, advancing from
+    an L1 (project) banner to the L2 (name-root) banner must move the
+    AgentList's rendered highlight, not just ``_current_group_key``.
+
+    Reproduces the user's snapshot: cursor on `── sase / sase ──`, press
+    `j`, expect highlight to land on `· sase-r ·` rather than visually
+    sticking on the L1 banner.
+    """
+    from sase.ace.tui.widgets.agent_list import AgentList
+
+    agents = [
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.second"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.second"),
+    ]
+    app = _StubApp(agents, level=2)
+    app._current_group_key = ("alpha", "p1", "cl1")  # L1 project banner
+
+    widget = AgentList(panel="main")
+    widget.update_list(
+        agents,
+        current_idx=0,
+        group_fold_level=2,
+        current_group_key=app._current_group_key,
+        has_focus=True,
+    )
+    # Layout at L2: tag (0), project (1), name-root sase-q (2),
+    # name-root sase-r (3).  Starts highlighted on the project banner.
+    assert widget.highlighted == 1
+
+    # Drive the action-level navigation: j moves to the next banner in
+    # tree order — the first L2 name-root.
+    app._navigate_agents_panel(1)
+    assert app._current_group_key == ("alpha", "p1", "cl1", "sase-q")
+
+    # The debounced refresh path then calls update_highlight with the
+    # new group_key.  Before the fix this left the highlight on the L1
+    # banner; after the fix it advances to the L2 banner row.
+    local_idx = app.current_idx
+    widget.update_highlight(local_idx, None, group_key=app._current_group_key)
+    assert widget.highlighted == 2
+
+
 def test_pinned_panel_skips_banner_cycle() -> None:
     """On the pinned panel j/k stays flat even when group level < 3."""
     agents = _l0_roster()

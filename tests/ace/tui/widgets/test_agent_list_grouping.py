@@ -252,6 +252,49 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
     assert all(s.style == _PROJECT_BANNER_STYLE for s in proj_text.spans)  # type: ignore[union-attr]
 
 
+def test_update_highlight_with_group_key_targets_banner_row() -> None:
+    """``update_highlight(group_key=K)`` highlights the matching banner row.
+
+    Regression: at fold level < 3 the j/k debounced refresh path needs to
+    move the visible highlight onto a banner row, not stay on whichever
+    row the previous full refresh chose.  ``current_idx`` should be
+    irrelevant when ``group_key`` matches a banner.
+    """
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [
+            _agent(cl_name="a", tags=("alpha",)),
+            _agent(cl_name="b", tags=("beta",)),
+        ],
+        current_idx=0,
+        group_fold_level=0,
+        current_group_key=("alpha",),
+        has_focus=True,
+    )
+    # Sanity: starts on the alpha banner (row 0).
+    assert widget.highlighted == 0
+    # Move to the beta banner via the highlight-only path.
+    widget.update_highlight(0, group_key=("beta",))
+    assert widget.highlighted == 1
+
+
+def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() -> None:
+    """No matching banner -> fall back to the agent-row search.
+
+    Defensive: covers a refresh-vs-fold race where the caller's
+    ``_current_group_key`` no longer matches any rendered banner.
+    """
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [_agent(cl_name="a"), _agent(cl_name="b")],
+        current_idx=0,
+        has_focus=True,
+    )
+    # Layout: tag, project_a, agent0, project_b, agent1.
+    widget.update_highlight(1, group_key=("ghost",))
+    assert widget.highlighted == 4
+
+
 def test_banner_summary_chips_render_in_text() -> None:
     """Banner labels at any fold level include the summary chip."""
     widget = AgentList(panel="main")
