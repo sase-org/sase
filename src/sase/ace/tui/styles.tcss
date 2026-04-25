@@ -648,8 +648,8 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-list-container {
-    width: 40;  /* Default, will be set programmatically */
-    min-width: 40;
+    width: 60;  /* Default, will be set programmatically */
+    min-width: 60;
     max-width: 80;
     height: 100%;
 }

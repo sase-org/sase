@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 17:58:15
-status: wip
+status: done
 ---
 # Plan: Make the Agents-tab side panel actually render wider
 
