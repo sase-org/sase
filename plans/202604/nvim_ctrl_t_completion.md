@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 21:27:39
 status: wip
+bead_id: sase-o
 ---
 # Plan: `<ctrl+t>` Completion Keymap for sase-nvim
 
