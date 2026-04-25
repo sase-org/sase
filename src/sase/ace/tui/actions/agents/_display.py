@@ -73,12 +73,18 @@ class AgentDisplayMixin:
             self._detail_update_timer.stop()
             self._detail_update_timer = None
 
+        from textual.css.query import NoMatches
+
         from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
-        agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
-        pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        try:
+            agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+            pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        except NoMatches:
+            log.debug("agents display refresh skipped: widget tree unavailable")
+            return
 
         if list_changed:
             # Drop any marks pointing at identities that no longer exist.
