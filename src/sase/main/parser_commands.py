@@ -287,44 +287,6 @@ def register_logs_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def register_migrate_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'migrate' subcommand parser."""
-    migrate_parser = subparsers.add_parser(
-        "migrate",
-        help="One-shot migrations for ~/.sase/ data layout",
-    )
-    migrate_sub = migrate_parser.add_subparsers(
-        dest="migrate_subcommand", required=True
-    )
-
-    shard_parser = migrate_sub.add_parser(
-        "shard-dirs",
-        help="Move files in high-volume ~/.sase/ dirs into YYYYMM/ shards",
-    )
-    shard_parser.add_argument(
-        "-d",
-        "--dry-run",
-        action="store_true",
-        help="Print what would be moved without touching disk",
-    )
-    shard_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Re-run migration even if the .sharded sentinel is present",
-    )
-    shard_parser.add_argument(
-        "-o",
-        "--only",
-        action="append",
-        default=None,
-        help=(
-            "Limit to a specific subdir (repeat for multiple). "
-            "Defaults to all sharded dirs."
-        ),
-    )
-
-
 def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'notify' subcommand parser."""
     notify_parser = subparsers.add_parser(

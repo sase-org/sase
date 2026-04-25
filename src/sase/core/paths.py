@@ -104,8 +104,6 @@ _TS_SUFFIX_RE = re.compile(r"-(\d{6}_\d{6})(?:\.\w+)?$")
 _TS_PREFIX_RE = re.compile(r"^(\d{14})(?:__|\.|$)")
 """Matches ``YYYYmmddHHMMSS`` at start of filename (e.g. dismissed_bundles)."""
 
-_SHARDED_SENTINEL = ".sharded"
-
 
 def _sase_subdir(subdir: str) -> Path:
     """Return the ``~/.sase/<subdir>`` path (expanded, not necessarily existing)."""
@@ -230,15 +228,3 @@ def find_sharded_file(
             if candidate.is_file():
                 return str(candidate)
     return None
-
-
-def shard_is_migrated(subdir: str) -> bool:
-    """Return True if the ``~/.sase/<subdir>/`` has been migrated to shards."""
-    return (_sase_subdir(subdir) / _SHARDED_SENTINEL).exists()
-
-
-def mark_shard_migrated(subdir: str) -> None:
-    """Write the ``.sharded`` sentinel to mark a subdir as migrated."""
-    base = _sase_subdir(subdir)
-    base.mkdir(parents=True, exist_ok=True)
-    (base / _SHARDED_SENTINEL).touch()
