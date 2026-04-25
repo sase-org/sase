@@ -511,6 +511,13 @@ For example, `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"
 > **YAML gotcha**: `!`-prefixed entries MUST be quoted (`"!jetski"`), otherwise YAML parses the leading `!` as a tag
 > directive and raises an error at load time.
 
+### Command Substitution Masking
+
+Keyword matching runs **after** xprompt expansion, which means `$(cmd)` substitutions have already been replaced with
+their stdout. To prevent environment-derived text (e.g. file paths emitted by `$(branch_changes ...)`) from triggering
+spurious matches, every `$(...)` span — including nested parentheses — is masked to spaces before keyword matching runs.
+Escaped `\$(...)` is preserved as literal text and remains eligible for matching.
+
 ## Snippet Field
 
 XPrompts can opt-in to ACE TUI snippet expansion by setting the `snippet` field in their front matter. When set, the

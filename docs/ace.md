@@ -209,33 +209,33 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Agent Actions
 
-| Key                 | Action                                                            |
-| ------------------- | ----------------------------------------------------------------- |
-| `J` / `K`           | Move agent down / up in the list (persisted ordering)             |
-| `R`                 | Revive a previously dismissed agent                               |
-| `@`                 | Run custom agent                                                  |
-| `a`                 | Toggle auto-approve / answer HITL                                 |
-| `n`                 | Name agent                                                        |
-| `r`                 | Resume agent (by name if running, by chat file if completed)      |
-| `v`                 | View files (hint mode)                                            |
-| `V`                 | Toggle prior-attempt view (only shown when the agent has retried) |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                   |
-| `W`                 | New agent waiting for current (populate prompt with `%w`)         |
-| `m`                 | Mark / unmark current agent (auto-advances to next)               |
-| `u`                 | Clear all agent marks                                             |
-| `x`                 | Kill / dismiss agent (or every marked agent when marks exist)     |
-| `X`                 | Dismiss all completed agents (with confirmation)                  |
-| `o`                 | Focus pinned agents panel                                         |
-| `P`                 | Pin / unpin completed agent (protects from dismiss-all)           |
-| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)          |
-| `e`                 | Edit chat in editor                                               |
-| `E`                 | Edit panel content in editor                                      |
-| `t`                 | Open tmux window in agent workspace                               |
-| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)      |
-| `p`                 | Toggle file / prompt layout                                       |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                     |
-| `-`                 | Reset file trim to default                                        |
-| `=`                 | Show all file lines                                               |
+| Key                 | Action                                                                         |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `J` / `K`           | Move agent down / up in the list (persisted ordering)                          |
+| `R`                 | Revive a previously dismissed agent                                            |
+| `@`                 | Run custom agent                                                               |
+| `a`                 | Toggle auto-approve / answer HITL                                              |
+| `n`                 | Name agent                                                                     |
+| `r`                 | Resume agent (by name if running, by chat file if completed)                   |
+| `v`                 | View files (hint mode)                                                         |
+| `V`                 | Toggle prior-attempt view (only shown when the agent has retried)              |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                |
+| `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c` |
+| `m`                 | Mark / unmark current agent (auto-advances to next)                            |
+| `u`                 | Clear all agent marks                                                          |
+| `x`                 | Kill / dismiss agent (or every marked agent when marks exist)                  |
+| `X`                 | Dismiss all completed agents (with confirmation)                               |
+| `o`                 | Focus pinned agents panel                                                      |
+| `P`                 | Pin / unpin completed agent (protects from dismiss-all)                        |
+| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                       |
+| `e`                 | Edit chat in editor                                                            |
+| `E`                 | Edit panel content in editor                                                   |
+| `t`                 | Open tmux window in agent workspace                                            |
+| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)                   |
+| `p`                 | Toggle file / prompt layout                                                    |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                  |
+| `-`                 | Reset file trim to default                                                     |
+| `=`                 | Show all file lines                                                            |
 
 ### Wait Modal
 
@@ -280,6 +280,7 @@ skipped silently.
 | Key        | Action                                                                |
 | ---------- | --------------------------------------------------------------------- |
 | `,h`       | Run agent (home directory)                                            |
+| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)  |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                |
 | `,x`       | Kill agent & edit prompt                                              |
@@ -390,9 +391,8 @@ These work on all tabs:
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
 | `,i`                | Open Activity Dashboard modal                                                     |
-| `i`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
+| `i`                 | Show notifications inbox                                                          |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
-| `N`                 | Show notifications                                                                |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
 | `q`                 | Quit                                                                              |
@@ -475,7 +475,8 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
 than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `i` to manually mark themselves as inactive. Any keypress re-activates the user and hides the badge.
+presses `,I` (leader chord) to manually mark themselves as inactive. Any keypress re-activates the user and hides the
+badge.
 
 Pressing `I` (capital) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
 regardless of keypresses — only pressing `I` again clears it. This is useful when you want to remain marked as idle
@@ -783,7 +784,7 @@ ace:
     app:
       next_changespec: "n" # Remap j → n
       prev_changespec: "p" # Remap k → p
-      show_notifications: "n" # Remap i → n
+      show_notifications: "N" # Remap i → N
 ```
 
 ### Custom Modes
