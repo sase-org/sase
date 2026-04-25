@@ -10,13 +10,37 @@ Example::
     Review this code...
 
 The ``%model`` directive overrides the LLM model used for that prompt.
+
+The implementation is split across a few private sibling modules:
+
+- :mod:`._directive_types` — :class:`PromptDirectives` dataclass and the
+  shared regex/alias tables.
+- :mod:`._directive_time` — duration / absolute-time argument parsing for
+  ``%wait``.
+- :mod:`._directive_alt` — ``%alt(...)`` / ``%(...)`` splitting and the
+  multi-model fan-out used by :func:`split_prompt_for_models`.
+
+This module is the public entry point and owns
+:func:`extract_prompt_directives` plus the cheap ``has_*_directive``
+predicates.  It re-exports the private helpers that existing tests
+import from ``sase.xprompt.directives``.
 """
 
-import itertools
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 
+from ._directive_alt import (
+    has_alt_directive,
+    split_prompt_for_alternatives,
+    split_prompt_for_models,
+)
+from ._directive_time import parse_absolute_time, parse_duration
+from ._directive_types import (
+    _DIRECTIVE_ALIASES,
+    _DIRECTIVE_PATTERN,
+    _KNOWN_DIRECTIVES,
+    _MULTI_VALUE_DIRECTIVES,
+    PromptDirectives,
+)
 from ._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
@@ -27,549 +51,17 @@ from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
 from .processor import process_xprompt_references
 
-_DURATION_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$")
-_HHMM_RE = re.compile(r"^\d{4}$")
-_YYMMDD_HHMM_RE = re.compile(r"^(\d{6})/(\d{4})$")
-
-
-def _parse_absolute_time(s: str) -> str | None:
-    """Parse an absolute time string into an ISO 8601 target datetime.
-
-    Supported formats:
-
-    - **HHMM** — wait until that time today (wraps to tomorrow if past).
-    - **yymmdd/HHMM** — wait until a specific date and time.
-
-    Returns an ISO 8601 string (``YYYY-MM-DDTHH:MM:SS``) or ``None``
-    if *s* does not match either format.
-
-    Raises:
-        DirectiveError: If the time is invalid or a dated target is in the past.
-    """
-    m = _YYMMDD_HHMM_RE.match(s)
-    if m:
-        date_part, time_part = m.group(1), m.group(2)
-        hh, mm = int(time_part[:2]), int(time_part[2:])
-        if hh > 23 or mm > 59:
-            raise DirectiveError(
-                f"Invalid time '{time_part}' in '%wait:{s}'"
-                f" — hours must be 00-23 and minutes 00-59"
-            )
-        yy = int(date_part[:2])
-        mo = int(date_part[2:4])
-        dd = int(date_part[4:6])
-        if mo < 1 or mo > 12:
-            raise DirectiveError(
-                f"Invalid month '{mo:02d}' in '%wait:{s}' — month must be 01-12"
-            )
-        if dd < 1 or dd > 31:
-            raise DirectiveError(
-                f"Invalid day '{dd:02d}' in '%wait:{s}' — day must be 01-31"
-            )
-        try:
-            target = datetime(2000 + yy, mo, dd, hh, mm)
-        except ValueError as exc:
-            raise DirectiveError(f"Invalid date/time in '%wait:{s}' — {exc}") from exc
-        if target <= datetime.now():
-            raise DirectiveError(f"Target time '%wait:{s}' is in the past")
-        return target.isoformat()
-
-    if _HHMM_RE.match(s):
-        hh, mm = int(s[:2]), int(s[2:])
-        if hh > 23 or mm > 59:
-            raise DirectiveError(
-                f"Invalid time '{s}' in '%wait:{s}'"
-                f" — hours must be 00-23 and minutes 00-59"
-            )
-        now = datetime.now()
-        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
-        return target.isoformat()
-
-    return None
-
-
-def _parse_duration(s: str) -> float | None:
-    """Parse a duration string like ``5m``, ``1h30m``, ``1h30m15s`` into seconds.
-
-    Returns total seconds as a float, or ``None`` if *s* does not match the
-    ``XhYmZs`` pattern.  Units must appear in h > m > s order; each unit may
-    appear at most once.
-    """
-    if not s or not s[0].isdigit():
-        return None
-    m = _DURATION_RE.match(s)
-    if not m:
-        return None
-    hours_s, minutes_s, seconds_s = m.groups()
-    if hours_s is None and minutes_s is None and seconds_s is None:
-        return None
-    hours = int(hours_s) if hours_s else 0
-    minutes = int(minutes_s) if minutes_s else 0
-    seconds = int(seconds_s) if seconds_s else 0
-    return float(hours * 3600 + minutes * 60 + seconds)
-
-
-# Pattern to match directive references: %name, %name(, %name:arg, %name:`arg`, %name+
-# Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
-# The colon-arg character class is expanded to include # (for xprompt refs in args).
-_DIRECTIVE_PATTERN = (
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
-    r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.,()-]*[a-zA-Z0-9_#/,()-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
-)
-
-# Known directive names
-_KNOWN_DIRECTIVES = frozenset(
-    {"approve", "edit", "hide", "model", "name", "plan", "repeat", "tag", "wait"}
-)
-
-# Directives that allow multiple occurrences (values are collected into a list)
-_MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
-
-# Short aliases for directives (alias -> canonical name)
-_DIRECTIVE_ALIASES: dict[str, str] = {
-    "a": "approve",
-    "e": "edit",
-    "h": "hide",
-    "m": "model",
-    "n": "name",
-    "r": "repeat",
-    "p": "plan",
-    "t": "tag",
-    "w": "wait",
-}
-
-
-@dataclass
-class PromptDirectives:
-    """Parsed prompt directives that modify runner behavior.
-
-    Attributes:
-        model: Model override string, or None to use the default.
-        name: Agent name assigned via %name directive, or None.
-        wait: List of agent names to wait for via %wait directives.
-    """
-
-    approve: bool = False
-    edit: bool = False
-    hide: bool = False
-    model: str | None = None
-    name: str | None = None
-    plan: bool = False
-    repeat_count: int | None = None
-    tag: str | None = None
-    wait: list[str] = field(default_factory=list)
-    wait_duration: float | None = None
-    wait_until: str | None = None
-
-
-# Pattern to match %alt( or %( at a directive-valid position.
-_ALT_DIRECTIVE_RE = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%(?:alt)?)\(",
-    re.MULTILINE,
-)
-
-
-def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
-    """Split a prompt containing ``%alt(...)`` or ``%(...)`` into per-alternative prompts.
-
-    Each argument becomes a separate prompt with the directive span replaced
-    by that argument's text.  Arguments can be arbitrary text — directives,
-    xprompt references, plain instructions, or ``[[text blocks]]``.
-
-    ``%(...)`` is syntactic sugar for ``%alt(...)``.
-
-    When multiple ``%alt``/``%(`` directives appear, a Cartesian product of
-    all argument lists is computed — e.g. two directives with 2 and 3
-    arguments produce 2 × 3 = 6 prompts.
-
-    Returns ``None`` if there are no ``%alt``/``%(`` directives or all have
-    zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` is treated as
-    having an implicit empty variant, producing two alternatives for that
-    directive.
-
-    Raises:
-        DirectiveError: If an opening parenthesis has no matching close.
-    """
-    matches = list(_ALT_DIRECTIVE_RE.finditer(prompt))
-    if not matches:
-        return None
-
-    # Collect directive spans and their argument lists.
-    directives: list[tuple[int, int, list[str]]] = []
-    for match in matches:
-        paren_start = match.end() - 1  # position of '('
-        paren_end = find_matching_paren_for_args(prompt, paren_start)
-        if paren_end is None:
-            raise DirectiveError(
-                "Unclosed '%alt('/'%(' directive — missing closing ')'"
-            )
-
-        inner = prompt[paren_start + 1 : paren_end]
-        positional_args, _ = parse_args(inner)
-
-        if len(positional_args) == 0:
-            continue
-
-        # Single arg: treat as "with/without" — append an implicit empty variant.
-        if len(positional_args) == 1:
-            positional_args.append("")
-
-        directives.append((match.start(1), paren_end + 1, positional_args))
-
-    if not directives:
-        return None
-
-    # Compute Cartesian product of all argument lists.
-    all_arg_lists = [d[2] for d in directives]
-    result: list[str] = []
-    for combination in itertools.product(*all_arg_lists):
-        # Replace spans right-to-left so earlier positions aren't shifted.
-        replaced = prompt
-        for (span_start, span_end, _), arg in reversed(
-            list(zip(directives, combination, strict=True))
-        ):
-            replaced = replaced[:span_start] + arg + replaced[span_end:]
-        result.append(replaced)
-    return result
-
-
-def split_prompt_for_models(prompt: str) -> list[str] | None:
-    """Split a prompt with multi-model or ``%alt``/``%(`` directives into per-variant prompts.
-
-    Handles three cases:
-
-    1. ``%model(a,b,...)`` / ``%m(a,b,...)`` — rewritten internally to
-       ``%alt(%model:a,%model:b,...)`` then split.
-    2. Repeated scalar ``%model`` / ``%m`` directives (e.g.
-       ``%model:opus\\n%model:sonnet``) — collected, deduped in document
-       order, and collapsed into a single ``%alt(%model:a,%model:b,...)``
-       before splitting.  Mixing scalar and paren forms is supported.
-    3. Direct ``%alt(...)`` or ``%(...)`` usage — split as-is.
-
-    Multiple model directives that all resolve to the same model yield a
-    single variant (no split); duplicate ``%model`` directives inside
-    fenced code blocks or ``%xprompts_enabled:false`` regions are ignored.
-
-    Returns ``None`` if there is nothing to split (single unique model,
-    single alt argument, or no splitting directive at all).  When only one
-    unique model remains but multiple ``%model`` directives exist, the
-    duplicates are tolerated downstream by :func:`extract_prompt_directives`
-    (last-wins).
-    """
-    if "%" not in prompt:
-        return None
-
-    # Protect fenced code blocks and disabled regions so %model directives
-    # inside them are neither collected nor rewritten.
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced_blocks)
-    disabled_regions: list[str] = []
-    protected = protect_disabled_regions(protected, disabled_regions)
-
-    # Identify inner regions of %alt(...) / %(...) so %model matches
-    # nested inside them are not double-collected (they're handled by
-    # _split_prompt_for_alternatives).
-    alt_inner_regions: list[tuple[int, int]] = []
-    for alt_match in _ALT_DIRECTIVE_RE.finditer(protected):
-        paren_start = alt_match.end() - 1
-        paren_end = find_matching_paren_for_args(protected, paren_start)
-        if paren_end is None:
-            continue
-        alt_inner_regions.append((paren_start + 1, paren_end))
-
-    def _is_inside_alt(pos: int) -> bool:
-        return any(start <= pos < end for start, end in alt_inner_regions)
-
-    # Walk all directive matches and pick out %model / %m occurrences.
-    directive_spans: list[tuple[int, int, list[str]]] = []
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-        if resolved != "model":
-            continue
-        if _is_inside_alt(match.start()):
-            continue
-
-        has_open_paren = match.group(2) is not None
-        colon_arg = match.group(3)
-        plus_suffix = match.group(4)
-
-        match_end = match.end()
-        args: list[str] = []
-
-        if has_open_paren:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None:
-                paren_content = protected[paren_start + 1 : paren_end]
-                positional_args, _ = parse_args(paren_content)
-                args = [a for a in positional_args if a]
-                match_end = paren_end + 1
-        elif colon_arg is not None:
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                value = colon_arg[1:-1]
-            else:
-                value = colon_arg
-            if value:
-                args = [value]
-        elif plus_suffix is not None:
-            # %model+ is a plus-syntax sentinel with no real model value —
-            # leave it alone for the extractor to handle.
-            continue
-        # Bare %model (no arg) contributes no model but its span is still
-        # eligible for rewrite so the prompt stays clean.
-
-        directive_spans.append((match.start(), match_end, args))
-
-    if not directive_spans:
-        # No collectable %model directives — fall through to alt-only handling
-        # on the original (unprotected) prompt.
-        sub_prompts = _split_prompt_for_alternatives(prompt)
-        if sub_prompts is None:
-            return None
-        return _apply_multi_model_naming(sub_prompts)
-
-    # Dedupe model args in document order (first occurrence wins).
-    seen_models: set[str] = set()
-    unique_models: list[str] = []
-    for _, _, args in directive_spans:
-        for arg in args:
-            if arg not in seen_models:
-                seen_models.add(arg)
-                unique_models.append(arg)
-
-    if len(unique_models) <= 1:
-        # Zero or one unique model — no split needed.  Any duplicate scalar
-        # %model directives are tolerated by extract_prompt_directives.
-        sub_prompts = _split_prompt_for_alternatives(prompt)
-        if sub_prompts is None:
-            return None
-        return _apply_multi_model_naming(sub_prompts)
-
-    # Two or more unique models — collapse every collected span into a
-    # single %alt(%model:a,%model:b,...) directive at the first span's
-    # position and remove the others.
-    alt_args = ",".join(f"%model:{m}" for m in unique_models)
-    replacement = f"%alt({alt_args})"
-
-    # Absorb a trailing newline for non-first spans that occupy a whole
-    # line, so the rewrite does not leave behind blank lines.
-    adjusted: list[tuple[int, int, bool]] = []
-    for i, (span_start, span_end, _) in enumerate(directive_spans):
-        is_first = i == 0
-        if (
-            not is_first
-            and span_end < len(protected)
-            and protected[span_end] == "\n"
-            and (span_start == 0 or protected[span_start - 1] == "\n")
-        ):
-            span_end += 1
-        adjusted.append((span_start, span_end, is_first))
-
-    # Splice right-to-left so earlier positions aren't shifted.
-    rewritten = protected
-    for span_start, span_end, is_first in reversed(adjusted):
-        if is_first:
-            rewritten = rewritten[:span_start] + replacement + rewritten[span_end:]
-        else:
-            rewritten = rewritten[:span_start] + rewritten[span_end:]
-
-    rewritten = unprotect_disabled_regions(rewritten, disabled_regions)
-    rewritten = unprotect_fenced_blocks(rewritten, fenced_blocks)
-
-    sub_prompts = _split_prompt_for_alternatives(rewritten)
-    if sub_prompts is None:
-        return None
-    return _apply_multi_model_naming(sub_prompts)
-
-
-def _extract_first_model_value(prompt: str) -> str | None:
-    """Return the value of the first ``%model`` / ``%m`` directive in *prompt*.
-
-    Used to identify the model bound to each sub-prompt produced by alt
-    splitting.  Returns ``None`` if no directive is present, ignores
-    fenced/disabled regions, and returns the empty string for a bare
-    directive.
-    """
-    if "%" not in prompt:
-        return None
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-        if resolved != "model":
-            continue
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is None:
-                return None
-            inner = protected[paren_start + 1 : paren_end]
-            args, _ = parse_args(inner)
-            return args[0] if args else None
-        colon_arg = match.group(3)
-        if colon_arg is not None:
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                return colon_arg[1:-1]
-            return colon_arg
-        return None
-    return None
-
-
-def _extract_and_strip_name_directive(
-    prompt: str,
-) -> tuple[str, str | None, bool]:
-    """Strip the first ``%name`` / ``%n`` directive from *prompt*.
-
-    Returns ``(prompt_without_name, raw_value, was_bare)``.  ``raw_value``
-    is ``None`` if no directive existed, an empty string if the directive
-    was bare; ``was_bare`` is ``True`` only in the latter case.
-    Trailing newline is absorbed when the directive owns its line.
-    """
-    if "%" not in prompt:
-        return prompt, None, False
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    raw_value: str | None = None
-    span: tuple[int, int] | None = None
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-        if resolved != "name":
-            continue
-
-        match_end = match.end()
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None:
-                inner = protected[paren_start + 1 : paren_end]
-                args, _ = parse_args(inner)
-                raw_value = args[0] if args else ""
-                match_end = paren_end + 1
-            else:
-                raw_value = ""
-        elif match.group(3) is not None:
-            colon_arg = match.group(3)
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                raw_value = colon_arg[1:-1]
-            else:
-                raw_value = colon_arg
-        else:
-            raw_value = ""
-
-        span_start, span_end = match.start(), match_end
-        if (
-            span_end < len(protected)
-            and protected[span_end] == "\n"
-            and (span_start == 0 or protected[span_start - 1] == "\n")
-        ):
-            span_end += 1
-        span = (span_start, span_end)
-        break
-
-    if span is None:
-        result = unprotect_disabled_regions(protected, disabled)
-        return unprotect_fenced_blocks(result, fenced), None, False
-
-    s, e = span
-    stripped = protected[:s] + protected[e:]
-    stripped = unprotect_disabled_regions(stripped, disabled)
-    stripped = unprotect_fenced_blocks(stripped, fenced)
-    return stripped, raw_value, not raw_value
-
-
-def _runtime_label_for_model(model: str) -> str:
-    """Map a model string to its runtime/provider label (e.g. ``"claude"``).
-
-    Falls back to the configured default provider if the model is unknown
-    — mirrors the resolution used in ``run_agent_phases.py``.
-    """
-    from sase.llm_provider.registry import (
-        get_default_provider_name,
-        resolve_model_provider,
-    )
-
-    provider, _ = resolve_model_provider(model)
-    return provider or get_default_provider_name()
-
-
-def _inject_name_directive(prompt: str, name: str) -> str:
-    """Prepend a ``%name:<name>`` line to *prompt*."""
-    return f"%name:{name}\n{prompt}"
-
-
-def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
-    """Add ``%name:<base>.<runtime>`` to each sub-prompt of a multi-model fan-out.
-
-    Triggers only when the sub-prompts span at least two distinct ``%model``
-    values.  The base name is taken from the first ``%name`` directive found
-    across the sub-prompts; if none, an auto name is generated once and
-    shared.  Same-runtime collisions disambiguate with the model suffix
-    (``foo.claude-opus`` / ``foo.claude-sonnet``).
-    """
-    models_per_sub = [_extract_first_model_value(s) for s in sub_prompts]
-    distinct_models = [m for m in dict.fromkeys(models_per_sub) if m]
-    if len(distinct_models) < 2:
-        return sub_prompts
-
-    base: str | None = None
-    for sub in sub_prompts:
-        _, value, _ = _extract_and_strip_name_directive(sub)
-        if value:
-            base = value
-            break
-    if not base:
-        from sase.agent.names import get_next_auto_name
-
-        base = get_next_auto_name()
-
-    from sase.llm_provider.registry import model_short_alias_map
-
-    aliases = model_short_alias_map()
-    runtime_for = {m: _runtime_label_for_model(m) for m in distinct_models}
-    runtime_count: dict[str, int] = {}
-    for r in runtime_for.values():
-        runtime_count[r] = runtime_count.get(r, 0) + 1
-    suffix_for: dict[str, str] = {}
-    for m in distinct_models:
-        r = runtime_for[m]
-        if runtime_count[r] > 1:
-            short = aliases.get(m, m)
-            suffix_for[m] = f"{r}-{short}"
-        else:
-            suffix_for[m] = r
-    # Aliases can collide (two distinct models mapped to the same short
-    # form); fall back to raw model names for the colliding runtime so
-    # spawned agent names stay distinct.
-    if len(set(suffix_for.values())) != len(suffix_for):
-        for m in distinct_models:
-            r = runtime_for[m]
-            if runtime_count[r] > 1:
-                suffix_for[m] = f"{r}-{m}"
-
-    out: list[str] = []
-    for sub, model in zip(sub_prompts, models_per_sub, strict=True):
-        if model is None or model not in suffix_for:
-            out.append(sub)
-            continue
-        stripped, _, _ = _extract_and_strip_name_directive(sub)
-        out.append(_inject_name_directive(stripped, f"{base}.{suffix_for[model]}"))
-    return out
+__all__ = [
+    "PromptDirectives",
+    "extract_prompt_directives",
+    "has_alt_directive",
+    "has_model_directive",
+    "has_wait_directive",
+    "parse_absolute_time",
+    "parse_duration",
+    "split_prompt_for_alternatives",
+    "split_prompt_for_models",
+]
 
 
 def has_wait_directive(prompt: str) -> bool:
@@ -592,17 +84,6 @@ def has_model_directive(prompt: str) -> bool:
     if "%" not in prompt:
         return False
     return bool(re.search(r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
-
-
-def has_alt_directive(prompt: str) -> bool:
-    """Quick check whether a prompt contains a ``%alt(`` or ``%(`` directive.
-
-    This avoids the overhead of full splitting and is suitable for
-    early detection in the CLI auto-daemon routing.
-    """
-    if "%" not in prompt:
-        return False
-    return bool(re.search(r"(?:^|\s)%(?:alt)?\(", prompt, re.MULTILINE))
 
 
 def extract_prompt_directives(
@@ -746,12 +227,12 @@ def extract_prompt_directives(
                     )
                 resolved_wait.append(prev_name)
             else:
-                dur = _parse_duration(raw_arg)
+                dur = parse_duration(raw_arg)
                 if dur is not None:
                     # Take the max if multiple durations appear
                     wait_duration = max(wait_duration or 0.0, dur)
                 else:
-                    abs_time = _parse_absolute_time(raw_arg)
+                    abs_time = parse_absolute_time(raw_arg)
                     if abs_time is not None:
                         if wait_until is not None:
                             raise DirectiveError(
