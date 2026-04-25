@@ -9,7 +9,13 @@ import sys
 from pathlib import Path
 
 from sase.bead.model import IssueType, Status
-from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
+from sase.bead.project import (
+    BEADS_DIRNAME,
+    BEADS_DIRNAME_NON_VC,
+    AlreadyReadyError,
+    BeadProject,
+    NotAPlanError,
+)
 from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
@@ -326,6 +332,26 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
         print(f"Ready: {len(issues)} issues with no active blockers")
 
 
+def handle_bead_work(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        try:
+            issue = proj.mark_ready_to_work(args.id)
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        except NotAPlanError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        except AlreadyReadyError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+    print(f"✓ Marked epic ready to work: {issue.id} — {issue.title}")
+    print(
+        "Note: agent launch wiring is incoming in a follow-up phase; "
+        "for now this only flips the is_ready_to_work flag."
+    )
+
+
 def handle_bead_update(args: argparse.Namespace) -> None:
     with _get_project() as proj:
         fields: dict[str, str | None] = {}
@@ -447,4 +473,5 @@ Quick Start:
   sase bead blocked                              Show blocked issues
   sase bead sync                                 Commit JSONL to git
   sase bead stats                                Project statistics
-  sase bead doctor                               Health check""")
+  sase bead doctor                               Health check
+  sase bead work <epic>                          Mark an epic plan ready to work""")

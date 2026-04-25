@@ -27,10 +27,12 @@ CREATE TABLE IF NOT EXISTS issues (
     description TEXT,
     notes       TEXT,
     design      TEXT,
+    is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan')
-    )
+    ),
+    CHECK(is_ready_to_work IN (0, 1))
 );
 
 CREATE TABLE IF NOT EXISTS dependencies (
@@ -56,6 +58,19 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _migrate_add_is_ready_to_work(conn: sqlite3.Connection) -> None:
+    """Add is_ready_to_work column to a pre-existing issues table if missing."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    if row is None or "is_ready_to_work" in row["sql"]:
+        return
+    conn.execute(
+        "ALTER TABLE issues ADD COLUMN is_ready_to_work INTEGER NOT NULL DEFAULT 0"
+    )
+    conn.commit()
 
 
 def _migrate_issue_types(conn: sqlite3.Connection) -> None:
@@ -106,6 +121,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     """Create or open the database, ensuring schema exists."""
     conn = _connect(db_path)
     _migrate_issue_types(conn)
+    _migrate_add_is_ready_to_work(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -137,6 +153,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         description=row["description"] or "",
         notes=row["notes"] or "",
         design=row["design"] or "",
+        is_ready_to_work=bool(row["is_ready_to_work"]),
     )
 
 
@@ -165,8 +182,8 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "description, notes, design, is_ready_to_work) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -183,6 +200,7 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.description,
             issue.notes,
             issue.design,
+            int(issue.is_ready_to_work),
         ),
     )
     conn.commit()
@@ -229,7 +247,7 @@ def list_issues(
 
 # pyvision: tests/test_bead/test_db.py
 def update_issue(
-    conn: sqlite3.Connection, issue_id: str, **fields: str | None
+    conn: sqlite3.Connection, issue_id: str, **fields: str | int | None
 ) -> Issue | None:
     """Update specific fields on an issue."""
     allowed = {
@@ -242,8 +260,13 @@ def update_issue(
         "description",
         "notes",
         "design",
+        "is_ready_to_work",
     }
-    to_set = {k: v for k, v in fields.items() if k in allowed}
+    to_set: dict[str, str | int | None] = {
+        k: (int(v) if k == "is_ready_to_work" and v is not None else v)
+        for k, v in fields.items()
+        if k in allowed
+    }
     if not to_set:
         return get_issue(conn, issue_id)
     set_clause = ", ".join(f"{k} = ?" for k in to_set)
@@ -251,6 +274,20 @@ def update_issue(
     conn.execute(
         f"UPDATE issues SET {set_clause} WHERE id = ?",  # noqa: S608
         values,
+    )
+    conn.commit()
+    return get_issue(conn, issue_id)
+
+
+# pyvision: tests/test_bead/test_db.py
+def mark_issue_ready_to_work(
+    conn: sqlite3.Connection, issue_id: str, updated_at: str
+) -> Issue | None:
+    """Set is_ready_to_work=1 on a plan issue."""
+    conn.execute(
+        "UPDATE issues SET is_ready_to_work = 1, updated_at = ? "
+        "WHERE id = ? AND issue_type = 'plan'",
+        (updated_at, issue_id),
     )
     conn.commit()
     return get_issue(conn, issue_id)

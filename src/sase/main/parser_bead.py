@@ -90,6 +90,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "-s", "--status", action="store_true", help="Just check sync status"
     )
 
+    # sase bead work
+    bead_work_parser = bead_subparsers.add_parser(
+        "work", help="Mark an epic plan bead as ready to work"
+    )
+    bead_work_parser.add_argument("id", help="Epic plan bead ID")
+
     # sase bead update
     bead_update_parser = bead_subparsers.add_parser("update", help="Update an issue")
     bead_update_parser.add_argument("id", help="Issue ID")

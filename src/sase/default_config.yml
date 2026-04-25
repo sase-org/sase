@@ -279,6 +279,9 @@ xprompts:
       to a new frontmatter field called `bead_id` in the plan file.
 
       Make sure that each phase bead has the appropriate dependencies set up.
+
+      After committing the bead-creation work, run `sase bead work <epic_id>` (using the new plan bead's ID) to mark
+      the epic as ready to work.
   bd/next:
     input:
       prompt: { type: text, default: "" }

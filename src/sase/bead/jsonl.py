@@ -27,6 +27,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
+        "is_ready_to_work": issue.is_ready_to_work,
         "dependencies": [
             {
                 "issue_id": d.issue_id,
@@ -67,6 +68,7 @@ def dict_to_issue(data: dict[str, object]) -> Issue:
         description=str(data.get("description", "")),
         notes=str(data.get("notes", "")),
         design=str(data.get("design", "")),
+        is_ready_to_work=bool(data.get("is_ready_to_work", False)),
         dependencies=deps,
     )
 
@@ -125,6 +127,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                 description=issue.description,
                 notes=issue.notes,
                 design=issue.design,
+                is_ready_to_work=int(issue.is_ready_to_work),
             )
 
         # Sync dependencies

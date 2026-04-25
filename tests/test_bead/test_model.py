@@ -51,6 +51,30 @@ class TestIssueValidation:
         issue = Issue(id="test-1", title="Test")
         assert issue.issue_type == IssueType.PHASE
 
+    def test_default_is_ready_to_work_false(self) -> None:
+        issue = Issue(id="test-1", title="Test")
+        assert issue.is_ready_to_work is False
+
+    def test_phase_with_is_ready_to_work_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A phase",
+            issue_type=IssueType.PHASE,
+            parent_id="test-0",
+            is_ready_to_work=True,
+        )
+        with pytest.raises(ValueError, match="Only plan issues"):
+            issue.validate()
+
+    def test_plan_with_is_ready_to_work_is_valid(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            is_ready_to_work=True,
+        )
+        issue.validate()  # Should not raise
+
 
 class TestDependency:
     def test_dependency_fields(self) -> None:

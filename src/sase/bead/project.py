@@ -18,6 +18,14 @@ from sase.telemetry.metrics import (
 )
 
 
+class AlreadyReadyError(Exception):
+    """Raised when an epic plan is already marked is_ready_to_work."""
+
+
+class NotAPlanError(Exception):
+    """Raised when mark_ready_to_work is called on a non-plan issue."""
+
+
 BEADS_DIRNAME = ".sase_beads"
 """Default beads subdirectory name (used in version-controlled mode)."""
 
@@ -143,6 +151,11 @@ class BeadProject:
 
     def update(self, issue_id: str, **fields: str | None) -> Issue:
         """Update fields on an issue."""
+        if "is_ready_to_work" in fields:
+            raise ValueError(
+                "is_ready_to_work cannot be set via update(); "
+                "use mark_ready_to_work() instead."
+            )
         old_issue = db_mod.get_issue(self._conn, issue_id)
         fields["updated_at"] = _now()
         issue = db_mod.update_issue(self._conn, issue_id, **fields)
@@ -217,6 +230,31 @@ class BeadProject:
         db_mod.delete_issue(self._conn, issue_id)
         self._export()
         return removed
+
+    def mark_ready_to_work(self, epic_id: str) -> Issue:
+        """Flip the epic plan's is_ready_to_work flag to True.
+
+        Raises KeyError if the issue does not exist, NotAPlanError if it
+        is not a plan, and AlreadyReadyError if the flag is already set.
+        """
+        issue = db_mod.get_issue(self._conn, epic_id)
+        if issue is None:
+            raise KeyError(f"Issue not found: {epic_id}")
+        if issue.issue_type != IssueType.PLAN:
+            raise NotAPlanError(
+                f"is_ready_to_work only applies to plan beads (got "
+                f"{issue.issue_type.value} for {epic_id})"
+            )
+        if issue.is_ready_to_work:
+            raise AlreadyReadyError(
+                f"{epic_id} is already marked is_ready_to_work=True"
+            )
+        updated = db_mod.mark_issue_ready_to_work(self._conn, epic_id, _now())
+        if updated is None:
+            raise KeyError(f"Issue not found: {epic_id}")
+        BEAD_OPERATIONS.labels(operation="mark_ready_to_work").inc()
+        self._export()
+        return updated
 
     def add_dependency(self, issue_id: str, depends_on_id: str) -> Dependency:
         """Add a dependency: issue_id depends on depends_on_id."""

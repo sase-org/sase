@@ -15,6 +15,7 @@ from sase.bead.db import (
     get_issue,
     init_db,
     list_issues,
+    mark_issue_ready_to_work,
     ready_issues,
     stats,
     update_issue,
@@ -244,6 +245,95 @@ class TestDeleteIssue:
         add_dependency(conn, "e-2", "e-1", NOW)
         delete_issue(conn, "e-1")
         assert get_dependencies(conn, "e-2") == []
+
+
+class TestIsReadyToWork:
+    def test_default_is_false(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.is_ready_to_work is False
+
+    def test_mark_ready_to_work(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        result = mark_issue_ready_to_work(conn, "e-1", NOW)
+        assert result is not None
+        assert result.is_ready_to_work is True
+
+    def test_mark_ready_to_work_skips_phase(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        create_issue(conn, _child("c-1"))
+        result = mark_issue_ready_to_work(conn, "c-1", NOW)
+        assert result is not None
+        assert result.is_ready_to_work is False
+
+    def test_jsonl_roundtrip(self, conn: sqlite3.Connection, tmp_path) -> None:
+        from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
+
+        create_issue(conn, _epic())
+        mark_issue_ready_to_work(conn, "e-1", NOW)
+        path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, path)
+        # Re-import into a fresh DB.
+        conn2 = init_db(tmp_path / "second.db")
+        try:
+            import_from_jsonl(path, conn2)
+            issue = get_issue(conn2, "e-1")
+            assert issue is not None
+            assert issue.is_ready_to_work is True
+        finally:
+            conn2.close()
+
+
+class TestMigrationAddsColumn:
+    def test_pre_column_db_gets_migrated(self, tmp_path) -> None:
+        """A database created without is_ready_to_work gains the column."""
+        import sqlite3 as sq
+
+        db_path = tmp_path / "old.db"
+        old = sq.connect(str(db_path))
+        old.execute(
+            "CREATE TABLE issues ("
+            "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+            "  status TEXT NOT NULL DEFAULT 'open'"
+            "    CHECK(status IN ('open','in_progress','closed')),"
+            "  issue_type TEXT NOT NULL DEFAULT 'phase'"
+            "    CHECK(issue_type IN ('plan','phase')),"
+            "  parent_id TEXT, owner TEXT, assignee TEXT,"
+            "  created_at TEXT NOT NULL, created_by TEXT,"
+            "  updated_at TEXT NOT NULL, closed_at TEXT,"
+            "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
+            "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
+            "    OR (issue_type='plan'))"
+            ")"
+        )
+        old.execute(
+            "INSERT INTO issues (id, title, issue_type, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'plan', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        # init_db should add the column without losing data.
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.is_ready_to_work is False
+        finally:
+            conn.close()
+
+
+class TestUpdateIssueRejectsNothingDB:
+    """The internal db.update_issue allows is_ready_to_work for round-tripping;
+    user-facing rejection lives in BeadProject.update."""
+
+    def test_db_update_can_set_is_ready_to_work(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        updated = update_issue(conn, "e-1", is_ready_to_work=1, updated_at=NOW)
+        assert updated is not None
+        assert updated.is_ready_to_work is True
 
 
 class TestStats:

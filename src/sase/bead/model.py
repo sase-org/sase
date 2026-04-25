@@ -42,6 +42,7 @@ class Issue:
     description: str = ""
     notes: str = ""
     design: str = ""
+    is_ready_to_work: bool = False
     dependencies: list[Dependency] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -49,6 +50,9 @@ class Issue:
 
         Raises ValueError if:
         - A phase issue has no parent_id
+        - A phase issue has is_ready_to_work=True (only plans carry the flag)
         """
         if self.issue_type == IssueType.PHASE and self.parent_id is None:
             raise ValueError("Phase issues must have a parent_id")
+        if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
+            raise ValueError("Only plan issues can be marked is_ready_to_work")

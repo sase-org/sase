@@ -63,6 +63,7 @@ def main() -> NoReturn:
             handle_bead_stats,
             handle_bead_sync,
             handle_bead_update,
+            handle_bead_work,
         )
 
         bead_sub = getattr(args, "bead_subcommand", None)
@@ -81,12 +82,13 @@ def main() -> NoReturn:
             "stats": handle_bead_stats,
             "doctor": handle_bead_doctor,
             "onboard": handle_bead_onboard,
+            "work": handle_bead_work,
         }
         handler = _BEAD_HANDLERS.get(bead_sub)  # type: ignore[arg-type]
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {init,create,list,show,ready,update,close,rm,dep,blocked,sync,stats,doctor,onboard}"
+                " {init,create,list,show,ready,update,close,rm,dep,blocked,sync,stats,doctor,onboard,work}"
             )
             sys.exit(1)
         handler(args)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.bead.model import IssueType, Status
-from sase.bead.project import BeadProject
+from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 
 @pytest.fixture
@@ -287,6 +287,52 @@ def test_remove_updates_jsonl(project):
     project.remove(epic.id)
     jsonl = (project.beads_dir / "issues.jsonl").read_text()
     assert jsonl.strip() == ""
+
+
+def test_create_defaults_is_ready_to_work_false(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    assert project.show(epic.id).is_ready_to_work is False
+
+
+def test_mark_ready_to_work_flips_flag(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    updated = project.mark_ready_to_work(epic.id)
+    assert updated.is_ready_to_work is True
+    assert project.show(epic.id).is_ready_to_work is True
+
+
+def test_mark_ready_to_work_rejects_phase(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    with pytest.raises(NotAPlanError):
+        project.mark_ready_to_work(child.id)
+
+
+def test_mark_ready_to_work_idempotency_raises(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    project.mark_ready_to_work(epic.id)
+    with pytest.raises(AlreadyReadyError):
+        project.mark_ready_to_work(epic.id)
+
+
+def test_mark_ready_to_work_unknown_id(project):
+    with pytest.raises(KeyError):
+        project.mark_ready_to_work("nonexistent")
+
+
+def test_update_rejects_is_ready_to_work(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    with pytest.raises(ValueError):
+        project.update(epic.id, is_ready_to_work=True)
+    # Flag is unchanged.
+    assert project.show(epic.id).is_ready_to_work is False
+
+
+def test_mark_ready_to_work_persists_to_jsonl(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    project.mark_ready_to_work(epic.id)
+    jsonl = (project.beads_dir / "issues.jsonl").read_text()
+    assert '"is_ready_to_work":true' in jsonl
 
 
 def test_counter_persists_across_instances(tmp_path):
