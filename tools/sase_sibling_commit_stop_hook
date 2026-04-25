@@ -60,7 +60,8 @@ function emit_block() {
     local details="${2:-}"
 
     if is_codex_runtime; then
-        printf '{"decision":"block","reason":"%s"}\n' "$reason"
+        local msg="${details:-$reason}"
+        printf '%s' "$msg" | python3 -c "import json,sys; print(json.dumps({'decision':'block','reason':sys.stdin.read()}))"
         if [ -n "$details" ]; then
             echo "$details" >&2
         fi
