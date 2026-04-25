@@ -56,7 +56,7 @@ class TreeEntry:
 
 
 @dataclass(frozen=True)
-class BannerSummary:
+class _BannerSummary:
     """Aggregate counts shown next to a group banner."""
 
     count: int
@@ -276,7 +276,7 @@ def _build_collapsed_tree(
 _AWAITING_STATUSES = frozenset({"QUESTION", "PLAN APPROVED"})
 
 
-def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> BannerSummary:
+def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSummary:
     """Aggregate status counts for the agents referenced by *group*.
 
     Only non-workflow-child agents are counted so the summary mirrors
@@ -300,7 +300,9 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> BannerSummar
             failed += 1
         elif status in _AWAITING_STATUSES:
             awaiting += 1
-    return BannerSummary(count=count, running=running, failed=failed, awaiting=awaiting)
+    return _BannerSummary(
+        count=count, running=running, failed=failed, awaiting=awaiting
+    )
 
 
 def banner_label(group: GroupRow) -> str:
@@ -324,7 +326,7 @@ def banner_label(group: GroupRow) -> str:
     return ""
 
 
-def banner_summary_text(summary: BannerSummary) -> str:
+def banner_summary_text(summary: _BannerSummary) -> str:
     """Compact ``"N agents · 2 running · 1 failed"``-style label.
 
     Returns an empty string when the summary is empty (count == 0).
