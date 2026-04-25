@@ -47,7 +47,12 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase \
+        --epic-symbol 'sase-r(BeadXPromptNotFoundError)' \
+        --epic-symbol 'sase-r(resolve_bead_xprompt)' \
+        --epic-symbol 'sase-r(resolve_create_epic_xprompt)' \
+        --epic-symbol 'sase-r(resolve_work_phase_xprompt)' \
+        --epic-symbol 'sase-r(resolve_land_epic_xprompt)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
