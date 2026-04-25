@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 22:41:34
-status: wip
+status: done
 bead_id: sase-p
 ---
 # Plan: `sase-gchat` — Google Chat integration plugin
