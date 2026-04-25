@@ -211,12 +211,19 @@ class AgentDisplayMixin:
 
     def _fire_debounced_detail_update(self) -> None:
         """Timer callback that applies the debounced detail update."""
+        from textual.css.query import NoMatches
+
         from ...widgets import AgentDetail, KeybindingFooter
 
         self._detail_update_timer = None
 
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        except NoMatches:
+            log.debug("debounced detail update skipped: widget tree unavailable")
+            return
+
         self._apply_agent_detail_update(agent_detail, footer_widget)
 
     def _apply_agent_detail_update(

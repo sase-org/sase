@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 22:48:36
-status: wip
+status: done
 ---
 # Fix `test_query_edit_modal_invalid_query` Shutdown Race (Deferred Timer Path)
 
