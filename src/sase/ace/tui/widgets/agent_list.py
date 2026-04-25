@@ -1,117 +1,40 @@
 """Agent list widget for the ace TUI."""
 
-from typing import Any, Literal
+from typing import Any
 
-from rich.text import Text
 from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
-from sase.xprompt.workflow_output import get_substep_suffix
 
-from ..models.agent import Agent, AgentType, AttemptRecord, format_compact_duration
+from ..models.agent import Agent, AgentType, AttemptRecord
 from ..models.agent_groups import (
     GroupRow,
     TreeEntry,
-    banner_label,
-    banner_summary_text,
     build_agent_tree,
-    compute_banner_summary,
+)
+from ._agent_list_helpers import compute_fold_annotation
+from ._agent_list_rendering import (
+    format_agent_option,
+    format_attempt_option,
+    format_banner_option,
+)
+from ._agent_list_styling import (
+    _BANNER_ROW,
+    _MIN_BANNER_WIDTH,
+    PanelId,
 )
 
-# Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
-_BANNER_ROW = -1
+# Re-exported under its historical name for tests that import from
+# ``sase.ace.tui.widgets.agent_list``.
+_compute_fold_annotation = compute_fold_annotation
 
-# Minimum width for group banner rules.
-_MIN_BANNER_WIDTH = 40
-
-# Banner styles per level (rule + accent color).
-_TAG_BANNER_STYLE = "bold #FFAF00"
-_PROJECT_BANNER_STYLE = "bold #5FAFFF"
-_NAME_ROOT_BANNER_STYLE = "dim #AFAFAF"
-
-# Panel identity type
-PanelId = Literal["main", "pinned"]
-
-# Color mapping for agent types
-_AGENT_TYPE_COLORS: dict[AgentType, str] = {
-    AgentType.RUNNING: "#87AFFF",  # Blue
-    AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
-}
-
-# Per-step-type colors for workflow child entries
-_STEP_TYPE_COLORS: dict[str, str] = {
-    "agent": "#5FD7FF",  # Bright cyan — LLM agent steps stand out
-    "bash": "#FFAF5F",  # Warm amber — shell commands
-    "python": "#87D787",  # Soft green — code execution
-    "parallel": "#D7AFFF",  # Soft lavender — parallel orchestration
-}
-
-# Icon for autonomous (%approve) agents
-_APPROVE_ICON = "⚡"
-
-# Icon for pinned agents (protected from dismiss-all)
-_PIN_ICON = "\U0001f4cc"  # 📌
-
-# Icon for dismissible (completed) agents
-_DONE_ICON = "✘"
-_DISMISSIBLE_STATUSES = (
-    "DONE",
-    "FAILED",
-    "PLAN DONE",
-    "EPIC CREATED",
-)
-
-# Icon for hidden agents (shown when visibility is toggled on)
-_HIDDEN_ICON = "◌"
-
-# Indentation prefix for workflow child agents
-_CHILD_INDENT = "  └─ "
-
-
-def _short_model_name(model: str) -> str:
-    """Extract short display name from a model string."""
-    model_lower = model.lower()
-    for keyword in ("flash", "opus", "sonnet", "haiku", "pro"):
-        if keyword in model_lower:
-            return keyword
-    # Fallback: last segment before any date suffix
-    parts = model.split("-")
-    return parts[0] if parts else model
-
-
-def _step_role_suffix(agent: Agent) -> str:
-    """Return role suffix to include in step number, or empty string.
-
-    Shows role_suffix (e.g., ".plan", ".code", ".q") as part of the step number
-    only for agent-type workflow steps and follow-up agents.  Other step types
-    (bash, python) and workflow parents do not display it.
-    """
-    if not agent.role_suffix:
-        return ""
-    # Follow-up agent (has parent_timestamp, no parent_workflow)
-    if not agent.parent_workflow:
-        return agent.role_suffix
-    # Agent-type step within a workflow
-    if agent.step_type == "agent":
-        return agent.role_suffix
-    return ""
-
-
-def _is_foldable_parent(agent: Agent) -> bool:
-    """Check if an agent is a foldable parent (workflow).
-
-    Args:
-        agent: The agent to check.
-
-    Returns:
-        True if this agent is a parent that can be folded.
-    """
-    if agent.is_workflow_child:
-        return False
-    if agent.agent_type == AgentType.WORKFLOW:
-        return True
-    return False
+__all__ = [
+    "AgentList",
+    "PanelId",
+    "_BANNER_ROW",
+    "_compute_fold_annotation",
+]
 
 
 class AgentList(OptionList, inherit_bindings=False):
@@ -245,7 +168,7 @@ class AgentList(OptionList, inherit_bindings=False):
             )
             is_pinned = agent.identity in pinned
             is_marked = agent.identity in marked
-            annotation = _compute_fold_annotation(
+            annotation = compute_fold_annotation(
                 agent,
                 fold_counts,
                 parents_with_visible_children,
@@ -306,8 +229,9 @@ class AgentList(OptionList, inherit_bindings=False):
         banner_seq = 0
         for entry in tree:
             if entry.kind == "group" and entry.group is not None:
-                option = self._format_banner_option(
+                option = format_banner_option(
                     entry.group,
+                    self._agents,
                     width=banner_width,
                     sequence=banner_seq,
                     selectable=banners_selectable,
@@ -410,202 +334,45 @@ class AgentList(OptionList, inherit_bindings=False):
         is_marked: bool = False,
         hint_char: str | None = None,
     ) -> Option:
-        """Format an agent as an option for display.
+        """Format an agent as an option for display."""
+        return format_agent_option(
+            agent,
+            index,
+            panel=self._panel,
+            is_selected=is_selected,
+            fold_annotation=fold_annotation,
+            is_expanded=is_expanded,
+            is_pinned=is_pinned,
+            is_marked=is_marked,
+            hint_char=hint_char,
+        )
 
-        Args:
-            agent: The Agent to format
-            index: Index of the agent in the list
-            is_selected: Whether this is the currently selected item
-            fold_annotation: Fold annotation text to append
-            is_expanded: Whether this agent's fold state is expanded
-            is_pinned: Whether this agent is pinned
-            is_marked: Whether this agent is marked
-            hint_char: Optional jump hint character
+    def _format_banner_option(
+        self,
+        group: GroupRow,
+        *,
+        width: int,
+        sequence: int,
+        selectable: bool = False,
+    ) -> Option:
+        """Render a group banner row Option."""
+        return format_banner_option(
+            group,
+            self._agents,
+            width=width,
+            sequence=sequence,
+            selectable=selectable,
+        )
 
-        Returns:
-            An Option for the OptionList
-        """
-        text = Text()
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        if is_marked:
-            text.append("[✓] ", style="bold #00D700")
-
-        # Approve icon for autonomous agents
-        if agent.approve:
-            text.append(f"{_APPROVE_ICON} ", style="bold #00FFFF")
-
-        # Indentation for retry-chain attempts: render under the chain
-        # root so the user sees the lineage at a glance.  retry_attempt
-        # tracks chain depth (1 = first retry, 2 = retry-of-retry, …).
-        if agent.retry_attempt > 0 and not agent.is_workflow_child:
-            indent = "  " * agent.retry_attempt + "↳ "
-            text.append(indent, style="dim #808080")
-
-        # Indentation for workflow child agents
-        if agent.is_workflow_child:
-            text.append(_CHILD_INDENT, style="dim #808080")
-            # Add step number if available
-            if agent.step_index is not None:
-                if (
-                    agent.parent_step_index is not None
-                    and agent.parent_total_steps is not None
-                ):
-                    # Embedded step: format as "1a/7"
-                    parent_num = agent.parent_step_index + 1
-                    suffix = get_substep_suffix(agent.step_index)
-                    text.append(
-                        f"{parent_num}{suffix}/{agent.parent_total_steps} ",
-                        style="dim #AAAAAA",
-                    )
-                elif agent.total_steps is not None:
-                    # Regular step: format as "1/3" or "1/3.plan"
-                    step_num = agent.step_index + 1
-                    role = _step_role_suffix(agent)
-                    text.append(
-                        f"{step_num}/{agent.total_steps}{role} ", style="dim #AAAAAA"
-                    )
-
-        # Hidden icon for agents that are normally hidden
-        if agent.hidden:
-            text.append(f"{_HIDDEN_ICON} ", style="bold #FF5F87")
-
-        # Pin icon for pinned agents (only in main panel; pinned panel has it in title)
-        if is_pinned and self._panel != "pinned":
-            text.append(f"{_PIN_ICON} ", style="bold #FFD700")
-
-        # Done icon for dismissible agents (skip in pinned panel — redundant)
-        if agent.status in _DISMISSIBLE_STATUSES and self._panel != "pinned":
-            text.append(f"{_DONE_ICON} ", style="bold red")
-
-        # Spawn-on-retry: prefix retry attempts with a small ↻N badge so
-        # the user can pattern-match the chain depth without opening the
-        # detail panel.  retry_attempt == 0 means "not a retry" and is not
-        # rendered.
-        if agent.retry_attempt > 0:
-            badge_color = "#FFAF00"  # warm yellow
-            text.append(f"↻{agent.retry_attempt} ", style=f"bold {badge_color}")
-
-        # Agent type indicator with color
-        dt = agent.get_display_type(is_expanded=is_expanded)
-
-        # Color: RUNNING blue for appears_as_agent, per-step-type for workflow children
-        if agent.appears_as_agent and not (agent.is_anonymous and is_expanded):
-            color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
-        elif agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
-            color = _STEP_TYPE_COLORS[agent.step_type]
-        else:
-            color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
-        text.append(f"[{dt}] ", style=f"bold {color}")
-
-        # Agent display name (workflow name for top-level workflows, CL name otherwise)
-        name_style = "bold #00D7AF" if is_selected else "#00D7AF"
-        text.append(agent.display_name, style=name_style)
-
-        # Status (wrapped in parentheses, parens are dim)
-        text.append(" (", style="dim")
-        if agent.status == "RUNNING":
-            text.append(agent.status, style="bold #FFD700")  # Gold
-        elif agent.status in ("DONE", "PLAN DONE"):
-            text.append(agent.status, style="bold #5FD75F")  # Green
-        elif agent.status == "EPIC CREATED":
-            text.append(agent.status, style="bold #5FD7AF")  # Sea-green
-        elif agent.status == "FAILED":
-            text.append(agent.status, style="bold #FF5F5F")  # Red
-        elif agent.status == "FAILED (RETRIED)":
-            # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
-            # terminal failure that handed off to a downstream retry, as
-            # opposed to a dead-end failure with no recovery attempt.
-            text.append("FAILED ", style="dim #FF5F5F")
-            text.append("↻", style="bold #FFAF00")
-            text.append(" (RETRIED)", style="dim #FF5F5F")
-        elif agent.status == "PLANNING":
-            text.append(agent.status, style="bold #FF87AF")  # Pink
-        elif agent.status == "PLAN APPROVED":
-            text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
-        elif agent.status == "WAITING":
-            text.append(agent.status, style="bold #AF87FF")  # Amethyst
-            # Live countdown for absolute-time waits
-            if agent.wait_until:
-                from datetime import datetime as _dt
-
-                from sase.ace.tui.models.agent import format_wait_until
-
-                target_label = format_wait_until(agent.wait_until)
-                target = _dt.fromisoformat(agent.wait_until)
-                remaining = (target - _dt.now()).total_seconds()
-                if remaining > 0:
-                    text.append(
-                        f" (until {target_label}, {format_compact_duration(remaining)})",
-                        style="#AF87FF",
-                    )
-                else:
-                    text.append(f" (until {target_label})", style="#AF87FF")
-            # Live countdown for duration-based waits
-            elif agent.wait_duration and agent.start_time:
-                from datetime import datetime, timedelta
-
-                target = agent.start_time + timedelta(seconds=agent.wait_duration)
-                remaining = (target - datetime.now()).total_seconds()
-                if remaining > 0:
-                    text.append(
-                        f" ({format_compact_duration(remaining)})",
-                        style="#AF87FF",
-                    )
-        elif agent.status == "QUESTION":
-            text.append(agent.status, style="bold #FFAF00")  # Amber/orange
-        elif agent.status == "RETRYING":
-            # Compute countdown from retry_next_at_epoch
-            countdown = ""
-            if agent.retry_next_at_epoch:
-                import time
-
-                remaining = max(0, int(agent.retry_next_at_epoch - time.time()))
-                countdown = f" ({remaining}s)"
-            text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
-        else:
-            text.append(agent.status, style="dim")
-        text.append(")", style="dim")
-
-        # Retry/fallback annotations for RUNNING agents that have retried
-        if agent.status == "RUNNING" and agent.retry_count > 0:
-            annotation = f" \u21bb{agent.retry_count}"
-            if agent.using_fallback and agent.fallback_model:
-                short_name = _short_model_name(agent.fallback_model)
-                annotation += f"\u25b8{short_name}"
-            text.append(annotation, style="bold #FF8700")  # Orange
-
-        # Fold annotation for workflow parents
-        if fold_annotation:
-            if "hidden" in fold_annotation or "shown" in fold_annotation:
-                # EXPANDED/FULLY_EXPANDED: "(N steps, M hidden/shown)" in dim
-                text.append(fold_annotation, style="dim")
-            else:
-                # COLLAPSED: "(N steps)" in dim cyan
-                text.append(fold_annotation, style="dim #00D7D7")
-
-        # User-managed tag badge (compact: "@first +N" when multiple)
-        if agent.tags:
-            primary = agent.tags[0]
-            extra = len(agent.tags) - 1
-            badge = f" @{primary}" + (f" +{extra}" if extra else "")
-            text.append(badge, style="bold #5FAFFF")  # Sky blue
-
-        # Agent name annotation
-        if agent.agent_name:
-            text.append(f" @{agent.agent_name}", style="#FFD700")  # Gold
-
-        # Embedded workflow annotation for child steps
-        if agent.embedded_workflow_name:
-            text.append("  ", style="")
-            if agent.is_pre_prompt_step:
-                text.append("\u25b2 ", style="bold #5F87AF")
-            else:
-                text.append("\u25bc ", style="bold #D7AF5F")
-            text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
-
-        return Option(text, id=f"{index}:{agent.agent_type.value}:{agent.cl_name}")
+    def _format_attempt_option(
+        self,
+        agent: Agent,
+        record: AttemptRecord,
+        *,
+        is_selected: bool,
+    ) -> Option:
+        """Format a prior-attempt row as a selectable child of ``agent``."""
+        return format_attempt_option(agent, record, is_selected=is_selected)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -668,145 +435,3 @@ class AgentList(OptionList, inherit_bindings=False):
                 return (0, None, None)
             return (entry[0], entry[1], None)
         return (option_index, None, None)
-
-    def _format_banner_option(
-        self,
-        group: GroupRow,
-        *,
-        width: int,
-        sequence: int,
-        selectable: bool = False,
-    ) -> Option:
-        """Render a group banner row Option.
-
-        Banner styling per level:
-
-        - L0 (tag): heavy double rule ``══`` in warm yellow.
-        - L1 (project): single rule ``──`` in sky blue.
-        - L2 (name-root): dim center-dot rule ``· name ·`` in muted gray.
-
-        Banner Options are marked ``disabled`` (Phase 3) so OptionList
-        cursor navigation skips them.  When *selectable* is True (Phase 4
-        fold level < 3) the banner stays in the cursor flow and shows a
-        compact summary chip after the label.
-        """
-        label = banner_label(group)
-        summary = compute_banner_summary(group, self._agents)
-        chip = banner_summary_text(summary)
-        if group.level == 0:
-            rule = "═"
-            style = _TAG_BANNER_STYLE
-            head_text = f"{rule}{rule} {label} "
-        elif group.level == 1:
-            rule = "─"
-            style = _PROJECT_BANNER_STYLE
-            head_text = f"{rule}{rule} {label} "
-        else:
-            rule = " "
-            style = _NAME_ROOT_BANNER_STYLE
-            head_text = f"· {label} ·"
-        chip_text = f"{chip} " if chip else ""
-        # Pad with the rule character to reach the target width, leaving
-        # room for the summary chip rendered before the trailing rule run.
-        pad_len = max(0, width - len(head_text) - len(chip_text))
-        text = Text()
-        text.append(head_text, style=style)
-        if chip_text:
-            text.append(chip_text, style=style)
-        text.append(rule * pad_len, style=style)
-        # Sequence-prefixed id keeps banner Options unique even when the
-        # same group key is split into multiple non-contiguous clusters.
-        key_str = "/".join(group.group_key)
-        return Option(
-            text,
-            id=f"group:{sequence}:{group.level}:{key_str}",
-            disabled=not selectable,
-        )
-
-    def _format_attempt_option(
-        self,
-        agent: Agent,
-        record: AttemptRecord,
-        *,
-        is_selected: bool,
-    ) -> Option:
-        """Format a prior-attempt row as a selectable child of ``agent``."""
-        text = Text()
-        text.append("    ↳ ", style="dim #808080")
-        label_style = "bold #FF8700" if is_selected else "#FF8700"
-        text.append(f"Attempt {record.attempt_number}", style=label_style)
-        try:
-            hhmmss = record.start_hhmmss
-        except (ValueError, OSError):
-            hhmmss = "??:??:??"
-        text.append(f" · {hhmmss}", style="dim #FF8700")
-        if record.used_fallback:
-            text.append(" (fallback)", style="dim #FF8700")
-        text.append(f" · {record.status}", style="dim #FF8700")
-        if record.error_snippet:
-            text.append(f": {record.error_snippet}", style="dim italic #FF5F5F")
-        option_id = f"attempt:{agent.raw_suffix}:{record.attempt_number}"
-        return Option(text, id=option_id)
-
-
-def _compute_fold_annotation(
-    agent: Agent,
-    fold_counts: dict[str, tuple[int, int]] | None,
-    parents_with_visible_children: set[str],
-    fully_expanded_parents: set[str] | None = None,
-) -> str:
-    """Compute fold annotation for a workflow parent.
-
-    Args:
-        agent: The agent to annotate.
-        fold_counts: Fold counts mapping raw_suffix -> (non_hidden, hidden).
-        parents_with_visible_children: Set of parent raw_suffixes that have
-            visible children in the current filtered list.
-        fully_expanded_parents: Set of parent raw_suffixes that are in
-            FULLY_EXPANDED state (hidden children are visible).
-
-    Returns:
-        Annotation string, or empty string if not applicable.
-    """
-    attempts_count = len(agent.attempt_history)
-
-    if _is_foldable_parent(agent) and fold_counts and agent.raw_suffix:
-        counts = fold_counts.get(agent.raw_suffix)
-        if counts:
-            non_hidden, hidden = counts
-            total = non_hidden + hidden
-            if total > 0:
-                has_visible_children = agent.raw_suffix in parents_with_visible_children
-                suffix = _attempt_count_suffix(attempts_count)
-                if not has_visible_children:
-                    if (
-                        agent.is_anonymous
-                        and agent.appears_as_agent
-                        and total == 1
-                        and attempts_count == 0
-                    ):
-                        return ""
-                    return f" ({total} steps{suffix})"
-                is_fully_expanded = (
-                    fully_expanded_parents is not None
-                    and agent.raw_suffix in fully_expanded_parents
-                )
-                if hidden > 0 and is_fully_expanded:
-                    return f" ({total} steps, {hidden} shown{suffix})"
-                if hidden > 0:
-                    return f" ({total} steps, {hidden} hidden{suffix})"
-                if attempts_count > 0:
-                    return f" ({attempts_count} attempts)"
-                return ""
-
-    # Non-workflow agent: annotate attempts alone when present.
-    if attempts_count > 0:
-        return f" ({attempts_count} attempts)"
-    return ""
-
-
-def _attempt_count_suffix(attempts_count: int) -> str:
-    """Return ``, N attempts`` fragment when attempts exist, else empty string."""
-    if attempts_count <= 0:
-        return ""
-    return f", {attempts_count} attempts"
