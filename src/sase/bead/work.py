@@ -7,7 +7,6 @@ to (a) compute a phase-wave schedule from an epic's dependency DAG and
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -54,19 +53,13 @@ class CrossEpicBlockerError(EpicPlanError):
     """Raised when a phase has an out-of-epic blocker that is not closed."""
 
 
-_AGENT_NAME_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]")
-
-
-def _sanitize(s: str) -> str:
-    return _AGENT_NAME_SANITIZE_RE.sub("_", s)
-
-
-def _phase_agent_name(epic_id: str, bead_id: str) -> str:
-    return f"epic_{_sanitize(epic_id)}_p{_sanitize(bead_id)}"
+def _phase_agent_name(bead_id: str) -> str:
+    # Phase bead IDs are <epic_id>.<N> by construction; use as-is.
+    return bead_id
 
 
 def _land_agent_name(epic_id: str) -> str:
-    return f"epic_{_sanitize(epic_id)}_land"
+    return f"{epic_id}.land"
 
 
 def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan:
@@ -139,11 +132,11 @@ def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan
     for wave_index, wave_ids in enumerate(waves):
         assignments = []
         for pid in wave_ids:
-            waits = tuple(_phase_agent_name(epic_id, b) for b in sorted(deps[pid]))
+            waits = tuple(_phase_agent_name(b) for b in sorted(deps[pid]))
             assignments.append(
                 PhaseAssignment(
                     bead_id=pid,
-                    agent_name=_phase_agent_name(epic_id, pid),
+                    agent_name=_phase_agent_name(pid),
                     waits_on=waits,
                     wave=wave_index,
                 )
@@ -159,7 +152,7 @@ def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan
         epic_id=epic_id,
         waves=tuple(assigned_waves),
         land_agent_name=_land_agent_name(epic_id),
-        land_waits_on=tuple(_phase_agent_name(epic_id, b) for b in leaves),
+        land_waits_on=tuple(_phase_agent_name(b) for b in leaves),
     )
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -99,9 +98,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
         for pid in phase_ids:
             phase = proj.show(pid)
             assert phase.status == Status.IN_PROGRESS
-            sanitised_pid = re.sub(r"[^A-Za-z0-9]", "_", pid)
-            sanitised_epic = re.sub(r"[^A-Za-z0-9]", "_", epic_id)
-            assert phase.assignee == f"epic_{sanitised_epic}_p{sanitised_pid}"
+            assert phase.assignee == pid
 
     out = capsys.readouterr().out
     assert "Launched" in out

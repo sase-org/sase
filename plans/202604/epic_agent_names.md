@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 19:06:59
-status: wip
+status: done
 ---
 # Rename epic-launched agents to `<epic_id>.<N>` / `<epic_id>.land`
 

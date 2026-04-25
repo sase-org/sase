@@ -92,11 +92,11 @@ class TestLinearChain:
         assert _wave_bead_ids(plan, 2) == ["p3"]
         # P1 has no waits; P2 waits on P1; P3 waits on P2.
         assert plan.waves[0][0].waits_on == ()
-        assert plan.waves[1][0].waits_on == ("epic_e1_pp1",)
-        assert plan.waves[2][0].waits_on == ("epic_e1_pp2",)
+        assert plan.waves[1][0].waits_on == ("p1",)
+        assert plan.waves[2][0].waits_on == ("p2",)
         # Land waits on the leaf (P3).
-        assert plan.land_waits_on == ("epic_e1_pp3",)
-        assert plan.land_agent_name == "epic_e1_land"
+        assert plan.land_waits_on == ("p3",)
+        assert plan.land_agent_name == "e1.land"
 
 
 class TestDiamond:
@@ -124,10 +124,10 @@ class TestDiamond:
         assert _wave_bead_ids(plan, 0) == ["p1"]
         assert _wave_bead_ids(plan, 1) == ["p2", "p3"]
         assert _wave_bead_ids(plan, 2) == ["p4"]
-        assert plan.waves[1][0].waits_on == ("epic_e1_pp1",)
-        assert plan.waves[1][1].waits_on == ("epic_e1_pp1",)
-        assert plan.waves[2][0].waits_on == ("epic_e1_pp2", "epic_e1_pp3")
-        assert plan.land_waits_on == ("epic_e1_pp4",)
+        assert plan.waves[1][0].waits_on == ("p1",)
+        assert plan.waves[1][1].waits_on == ("p1",)
+        assert plan.waves[2][0].waits_on == ("p2", "p3")
+        assert plan.land_waits_on == ("p4",)
 
     def test_diamond_render_snapshot(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
@@ -140,23 +140,23 @@ class TestDiamond:
         )
 
         expected = (
-            "%name:epic_e1_pp1\n"
+            "%name:p1\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%name:epic_e1_pp2\n"
-            "%w:epic_e1_pp1\n"
+            "%name:p2\n"
+            "%w:p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%name:epic_e1_pp3\n"
-            "%w:epic_e1_pp1\n"
+            "%name:p3\n"
+            "%w:p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
-            "%name:epic_e1_pp4\n"
-            "%w:epic_e1_pp2,epic_e1_pp3\n"
+            "%name:p4\n"
+            "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
-            "%name:epic_e1_land\n"
-            "%w:epic_e1_pp4\n"
+            "%name:e1.land\n"
+            "%w:p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
@@ -178,11 +178,7 @@ class TestIndependentFanOut:
         assert len(plan.waves) == 1
         assert _wave_bead_ids(plan, 0) == ["p1", "p2", "p3"]
         assert all(a.waits_on == () for a in plan.waves[0])
-        assert plan.land_waits_on == (
-            "epic_e1_pp1",
-            "epic_e1_pp2",
-            "epic_e1_pp3",
-        )
+        assert plan.land_waits_on == ("p1", "p2", "p3")
 
 
 class TestClosedBlockers:
@@ -204,7 +200,7 @@ class TestClosedBlockers:
         assert len(plan.waves) == 1
         assert _wave_bead_ids(plan, 0) == ["p2"]
         assert plan.waves[0][0].waits_on == ()
-        assert plan.land_waits_on == ("epic_e1_pp2",)
+        assert plan.land_waits_on == ("p2",)
 
     def test_out_of_epic_closed_blocker_is_accepted(
         self, conn: sqlite3.Connection
@@ -299,7 +295,7 @@ class TestRenderEdgeCases:
         assert "#custom/work_phase:p1" in rendered
         assert "#custom/land:e1" in rendered
 
-    def test_bead_id_with_dot_sanitised(self, conn: sqlite3.Connection) -> None:
+    def test_phase_agent_name_uses_bead_id(self, conn: sqlite3.Connection) -> None:
         _seed(
             conn,
             [
@@ -308,5 +304,5 @@ class TestRenderEdgeCases:
             ],
         )
         plan = build_epic_work_plan(conn, "sase-r")
-        assert plan.waves[0][0].agent_name == "epic_sase_r_psase_r_1"
-        assert plan.land_agent_name == "epic_sase_r_land"
+        assert plan.waves[0][0].agent_name == "sase-r.1"
+        assert plan.land_agent_name == "sase-r.land"
