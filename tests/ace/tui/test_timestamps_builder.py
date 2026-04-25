@@ -63,6 +63,17 @@ class TestCollapsed:
         assert "REWIND" in plain
         assert "(3)" in plain
 
+        digit_offset = plain.index("[folded: 3]") + len("[folded: ")
+        bracket_offset = plain.index("[folded: 3]")
+        spans_at_digit = [
+            span for span in text.spans if span.start <= digit_offset < span.end
+        ]
+        spans_at_bracket = [
+            span for span in text.spans if span.start <= bracket_offset < span.end
+        ]
+        assert any(span.style == "bold #87D7FF" for span in spans_at_digit)
+        assert any(span.style == "italic #808080" for span in spans_at_bracket)
+
     def test_collapsed_no_timestamps_shows_nothing(self) -> None:
         cs = _make_changespec(timestamps=None)
         text = Text()

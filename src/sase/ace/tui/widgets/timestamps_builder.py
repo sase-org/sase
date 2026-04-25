@@ -9,6 +9,7 @@ from .hint_tracker import HintTracker
 
 # Color palette for TIMESTAMPS rendering
 _COLOR_HEADER = "bold #87D7FF"
+_COLOR_FOLD_COUNT = "bold #87D7FF"
 _COLOR_TIMESTAMP = "#AF87D7"
 _COLOR_COMMIT = "bold #00D7AF"
 _COLOR_STATUS = "bold #FFD787"
@@ -80,10 +81,9 @@ def build_timestamps_section(
         hidden = len(changespec.timestamps) - 1
         if hidden > 0:
             text.append("TIMESTAMPS:", style=_COLOR_HEADER)
-            text.append(
-                f"  [folded: {hidden}]\n",
-                style="italic #808080",
-            )
+            text.append("  [folded: ", style="italic #808080")
+            text.append(str(hidden), style=_COLOR_FOLD_COUNT)
+            text.append("]\n", style="italic #808080")
         else:
             text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
         _render_entry(text, changespec.timestamps[-1])
