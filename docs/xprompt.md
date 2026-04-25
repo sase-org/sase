@@ -868,7 +868,9 @@ they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two age
 `foo.codex`. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.claude` / `a.codex`)
 rather than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value
 unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the
-suffix: `foo.claude-opus` and `foo.claude-sonnet`.
+suffix: `foo.claude-opus` and `foo.claude-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a
+short alias (`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gemini-flash3` /
+`foo.gemini-flash25` rather than echoing the full model string.
 
 ### Multi-Value Directives
 

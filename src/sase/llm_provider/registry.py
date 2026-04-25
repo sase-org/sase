@@ -58,6 +58,23 @@ def model_to_provider_map() -> dict[str, str]:
     return mapping
 
 
+def model_short_alias_map() -> dict[str, str]:
+    """Build a ``{model_name → short_alias}`` map from plugin metadata.
+
+    Each provider plugin may declare an ``llm_model_short_aliases`` hook
+    returning a dict of long-form model names to short aliases used in
+    multi-model agent name suffixes.  Last writer wins on duplicates.
+    """
+    mapping: dict[str, str] = {}
+    for _, plugin in iter_plugins():
+        method = getattr(plugin, "llm_model_short_aliases", None)
+        if method is None:
+            continue
+        aliases = method() or {}
+        mapping.update(aliases)
+    return mapping
+
+
 def _provider_names() -> list[str]:
     """Return all registered provider names (entry-point keys)."""
     return [name for name, _ in iter_plugins()]

@@ -57,6 +57,9 @@ class LLMHookSpec:
     def llm_known_model_names(self) -> list[str]: ...
 
     @hookspec(firstresult=True)
+    def llm_model_short_aliases(self) -> dict[str, str]: ...
+
+    @hookspec(firstresult=True)
     def llm_skill_template_context(self) -> dict[str, str]: ...
 
     @hookspec(firstresult=True)

@@ -536,6 +536,9 @@ def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
 
         base = get_next_auto_name()
 
+    from sase.llm_provider.registry import model_short_alias_map
+
+    aliases = model_short_alias_map()
     runtime_for = {m: _runtime_label_for_model(m) for m in distinct_models}
     runtime_count: dict[str, int] = {}
     for r in runtime_for.values():
@@ -543,7 +546,19 @@ def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
     suffix_for: dict[str, str] = {}
     for m in distinct_models:
         r = runtime_for[m]
-        suffix_for[m] = f"{r}-{m}" if runtime_count[r] > 1 else r
+        if runtime_count[r] > 1:
+            short = aliases.get(m, m)
+            suffix_for[m] = f"{r}-{short}"
+        else:
+            suffix_for[m] = r
+    # Aliases can collide (two distinct models mapped to the same short
+    # form); fall back to raw model names for the colliding runtime so
+    # spawned agent names stay distinct.
+    if len(set(suffix_for.values())) != len(suffix_for):
+        for m in distinct_models:
+            r = runtime_for[m]
+            if runtime_count[r] > 1:
+                suffix_for[m] = f"{r}-{m}"
 
     out: list[str] = []
     for sub, model in zip(sub_prompts, models_per_sub, strict=True):

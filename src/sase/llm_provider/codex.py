@@ -71,6 +71,18 @@ class CodexProvider(LLMProvider):
         ]
 
     @hookimpl
+    def llm_model_short_aliases(self) -> dict[str, str]:
+        return {
+            "codex-mini-latest": "mini",
+            "gpt-5.5": "gpt55",
+            "gpt-5.4": "gpt54",
+            "gpt-5.3-codex": "gpt53",
+            "gpt-4.1": "gpt41",
+            "gpt-4.1-mini": "gpt41m",
+            "gpt-4o-mini": "gpt4om",
+        }
+
+    @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
         return {
             "provider_name": "Codex",

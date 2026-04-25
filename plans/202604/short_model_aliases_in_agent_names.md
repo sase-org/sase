@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 16:15:41
-status: wip
+status: done
 ---
 # Plan: Short model aliases in multi-model agent name suffixes
 

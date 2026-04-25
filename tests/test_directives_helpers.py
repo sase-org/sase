@@ -316,6 +316,77 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
         assert result[1] == "%name:foo.claude\n%model:opus\nReview"
 
 
+def test_split_prompt_for_models_gemini_collision_uses_short_alias() -> None:
+    """Same-runtime gemini collision substitutes short aliases for model names."""
+    prompt = "%n:o\n%m(gemini-3-flash-preview,gemini-2.5-flash)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == ("%name:o.gemini-flash3\n%model:gemini-3-flash-preview\nReview")
+    assert result[1] == ("%name:o.gemini-flash25\n%model:gemini-2.5-flash\nReview")
+
+
+def test_split_prompt_for_models_claude_collision_unchanged() -> None:
+    """Claude opus/sonnet keep their raw names (no aliases declared)."""
+    prompt = "%n:o\n%m(opus,sonnet)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.claude-opus\n%model:opus\nReview"
+    assert result[1] == "%name:o.claude-sonnet\n%model:sonnet\nReview"
+
+
+def test_split_prompt_for_models_no_collision_unchanged() -> None:
+    """Distinct-runtime case never embeds the model name (alias irrelevant)."""
+    prompt = "%n:o\n%m(opus,gpt-5.5)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.claude\n%model:opus\nReview"
+    assert result[1] == "%name:o.codex\n%model:gpt-5.5\nReview"
+
+
+def test_split_prompt_for_models_unknown_model_falls_through() -> None:
+    """Unknown model in a same-runtime collision keeps its raw name."""
+    from sase.llm_provider.registry import get_default_provider_name
+
+    if get_default_provider_name() != "gemini":
+        # Test relies on unknown_xyz routing to gemini (the fallback default).
+        # If a different default is configured, skip the assertion path.
+        return
+    prompt = "%n:o\n%m(gemini-3-flash-preview,unknown_xyz)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == ("%name:o.gemini-flash3\n%model:gemini-3-flash-preview\nReview")
+    assert result[1] == "%name:o.gemini-unknown_xyz\n%model:unknown_xyz\nReview"
+
+
+def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
+    """Two models that alias to the same short form fall back to raw names."""
+    from unittest.mock import patch
+
+    fake_aliases = {
+        "gemini-3-flash-preview": "fl",
+        "gemini-2.5-flash": "fl",
+    }
+    with patch(
+        "sase.llm_provider.registry.model_short_alias_map",
+        return_value=fake_aliases,
+    ):
+        result = split_prompt_for_models(
+            "%n:o\n%m(gemini-3-flash-preview,gemini-2.5-flash)\nReview"
+        )
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == (
+        "%name:o.gemini-gemini-3-flash-preview\n%model:gemini-3-flash-preview\nReview"
+    )
+    assert result[1] == (
+        "%name:o.gemini-gemini-2.5-flash\n%model:gemini-2.5-flash\nReview"
+    )
+
+
 def test_split_prompt_for_models_pure_alt_not_renamed() -> None:
     """A %alt(...) with no %model branches is left unchanged (no naming)."""
     prompt = "%n:foo\n%alt(x,y)\nDo work"

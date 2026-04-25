@@ -67,6 +67,10 @@ class ClaudeCodeProvider(LLMProvider):
         return ["opus", "sonnet", "haiku"]
 
     @hookimpl
+    def llm_model_short_aliases(self) -> dict[str, str]:
+        return {}
+
+    @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
         return {
             "provider_name": "Claude",

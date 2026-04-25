@@ -7,6 +7,7 @@ from sase.llm_provider._plugin_manager import LLMPluginManager
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.registry import (
     get_provider,
+    model_short_alias_map,
     resolve_model_provider,
 )
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER, LoggingContext, ModelTier
@@ -161,3 +162,31 @@ def test_resolve_model_provider_explicit_with_unknown_model() -> None:
     """Explicit syntax works with any model name, even unknown ones."""
     assert resolve_model_provider("codex/my-fine-tune") == ("codex", "my-fine-tune")
     assert resolve_model_provider("claude/custom-v2") == ("claude", "custom-v2")
+
+
+# --- model_short_alias_map tests ---
+
+
+def test_model_short_alias_map_contains_gemini_entries() -> None:
+    """The aggregated alias map carries the gemini plugin's entries."""
+    aliases = model_short_alias_map()
+    assert aliases.get("gemini-3-flash-preview") == "flash3"
+    assert aliases.get("gemini-2.5-flash") == "flash25"
+    assert aliases.get("gemini-2.5-pro") == "pro25"
+
+
+def test_model_short_alias_map_contains_codex_entries() -> None:
+    """The aggregated alias map carries the codex plugin's entries."""
+    aliases = model_short_alias_map()
+    assert aliases.get("codex-mini-latest") == "mini"
+    assert aliases.get("gpt-5.5") == "gpt55"
+
+
+def test_model_short_alias_map_omits_short_models() -> None:
+    """Already-short model names (opus/sonnet/o3/gpt-4o) carry no alias."""
+    aliases = model_short_alias_map()
+    assert "opus" not in aliases
+    assert "sonnet" not in aliases
+    assert "haiku" not in aliases
+    assert "o3" not in aliases
+    assert "gpt-4o" not in aliases

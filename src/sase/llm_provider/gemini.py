@@ -70,6 +70,17 @@ class GeminiProvider(LLMProvider):
         ]
 
     @hookimpl
+    def llm_model_short_aliases(self) -> dict[str, str]:
+        return {
+            "gemini-3-flash-preview": "flash3",
+            "gemini-3.1-pro-preview": "pro31p",
+            "gemini-3.1-pro": "pro31",
+            "gemini-2.5-flash": "flash25",
+            "gemini-2.5-pro": "pro25",
+            "gemini-2.0-flash": "flash20",
+        }
+
+    @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
         return {
             "provider_name": "Gemini",
