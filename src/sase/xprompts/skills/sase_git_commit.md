@@ -13,10 +13,8 @@ Commit changes via the `sase commit` command.
 
 <!-- prettier-ignore-start -->
 
-1. **Examine uncommitted changes** — Run `git status` and `git diff` to understand what files have changed and why.
-{%- if provider_name == "Claude" %} Pay
+1. **Examine uncommitted changes** — Run `git status` and `git diff` to understand what files have changed and why. Pay
    attention to **untracked files** (newly created files) shown in `git status` — these must also be staged.
-{%- endif %}
 
 2. **Determine the commit tag** — Pick the correct conventional commit tag:
    - `feat` — New feature, feature improvement, or feature removal
@@ -40,12 +38,8 @@ Commit changes via the `sase commit` command.
    Flags:
    - `-M`: Path to file containing the commit message. The file is deleted after reading.
    - `-m`: Inline commit message string (alternative to `-M`). `-m` and `-M` are mutually exclusive.
-{%- if provider_name == "Claude" %}
    - `-f`: File to stage (repeat for multiple files). **Include both modified AND newly created (untracked) files.**
      Omit to stage all changes (including untracked files).
-{%- else %}
-   - `-f`: File to stage (repeat for multiple files). Omit to stage all changes.
-{%- endif %}
    - `--bead-id`: Include if there's an in-progress bead for your changes.
    - `--name`: Branch name (only needed for `create_pull_request` method).
 
