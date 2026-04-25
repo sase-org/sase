@@ -863,6 +863,13 @@ This launches two agents with identical prompts, each using a different model. E
 the Agents tab. Only the parenthesized syntax triggers multi-model behavior; colon syntax (`%m:opus`) and single-model
 parentheses (`%m(opus)`) always launch a single agent.
 
+When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
+they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.claude` and
+`foo.codex`. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.claude` / `a.codex`)
+rather than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value
+unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the
+suffix: `foo.claude-opus` and `foo.claude-sonnet`.
+
 ### Multi-Value Directives
 
 The `%wait` directive supports multiple occurrences — each adds to the wait list:

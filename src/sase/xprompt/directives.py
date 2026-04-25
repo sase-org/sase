@@ -326,7 +326,10 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
     if not directive_spans:
         # No collectable %model directives — fall through to alt-only handling
         # on the original (unprotected) prompt.
-        return _split_prompt_for_alternatives(prompt)
+        sub_prompts = _split_prompt_for_alternatives(prompt)
+        if sub_prompts is None:
+            return None
+        return _apply_multi_model_naming(sub_prompts)
 
     # Dedupe model args in document order (first occurrence wins).
     seen_models: set[str] = set()
@@ -340,7 +343,10 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
     if len(unique_models) <= 1:
         # Zero or one unique model — no split needed.  Any duplicate scalar
         # %model directives are tolerated by extract_prompt_directives.
-        return _split_prompt_for_alternatives(prompt)
+        sub_prompts = _split_prompt_for_alternatives(prompt)
+        if sub_prompts is None:
+            return None
+        return _apply_multi_model_naming(sub_prompts)
 
     # Two or more unique models — collapse every collected span into a
     # single %alt(%model:a,%model:b,...) directive at the first span's
@@ -373,7 +379,180 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
     rewritten = unprotect_disabled_regions(rewritten, disabled_regions)
     rewritten = unprotect_fenced_blocks(rewritten, fenced_blocks)
 
-    return _split_prompt_for_alternatives(rewritten)
+    sub_prompts = _split_prompt_for_alternatives(rewritten)
+    if sub_prompts is None:
+        return None
+    return _apply_multi_model_naming(sub_prompts)
+
+
+def _extract_first_model_value(prompt: str) -> str | None:
+    """Return the value of the first ``%model`` / ``%m`` directive in *prompt*.
+
+    Used to identify the model bound to each sub-prompt produced by alt
+    splitting.  Returns ``None`` if no directive is present, ignores
+    fenced/disabled regions, and returns the empty string for a bare
+    directive.
+    """
+    if "%" not in prompt:
+        return None
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
+        if resolved != "model":
+            continue
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is None:
+                return None
+            inner = protected[paren_start + 1 : paren_end]
+            args, _ = parse_args(inner)
+            return args[0] if args else None
+        colon_arg = match.group(3)
+        if colon_arg is not None:
+            if colon_arg.startswith("`") and colon_arg.endswith("`"):
+                return colon_arg[1:-1]
+            return colon_arg
+        return None
+    return None
+
+
+def _extract_and_strip_name_directive(
+    prompt: str,
+) -> tuple[str, str | None, bool]:
+    """Strip the first ``%name`` / ``%n`` directive from *prompt*.
+
+    Returns ``(prompt_without_name, raw_value, was_bare)``.  ``raw_value``
+    is ``None`` if no directive existed, an empty string if the directive
+    was bare; ``was_bare`` is ``True`` only in the latter case.
+    Trailing newline is absorbed when the directive owns its line.
+    """
+    if "%" not in prompt:
+        return prompt, None, False
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    raw_value: str | None = None
+    span: tuple[int, int] | None = None
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
+        if resolved != "name":
+            continue
+
+        match_end = match.end()
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None:
+                inner = protected[paren_start + 1 : paren_end]
+                args, _ = parse_args(inner)
+                raw_value = args[0] if args else ""
+                match_end = paren_end + 1
+            else:
+                raw_value = ""
+        elif match.group(3) is not None:
+            colon_arg = match.group(3)
+            if colon_arg.startswith("`") and colon_arg.endswith("`"):
+                raw_value = colon_arg[1:-1]
+            else:
+                raw_value = colon_arg
+        else:
+            raw_value = ""
+
+        span_start, span_end = match.start(), match_end
+        if (
+            span_end < len(protected)
+            and protected[span_end] == "\n"
+            and (span_start == 0 or protected[span_start - 1] == "\n")
+        ):
+            span_end += 1
+        span = (span_start, span_end)
+        break
+
+    if span is None:
+        result = unprotect_disabled_regions(protected, disabled)
+        return unprotect_fenced_blocks(result, fenced), None, False
+
+    s, e = span
+    stripped = protected[:s] + protected[e:]
+    stripped = unprotect_disabled_regions(stripped, disabled)
+    stripped = unprotect_fenced_blocks(stripped, fenced)
+    return stripped, raw_value, not raw_value
+
+
+def _runtime_label_for_model(model: str) -> str:
+    """Map a model string to its runtime/provider label (e.g. ``"claude"``).
+
+    Falls back to the configured default provider if the model is unknown
+    — mirrors the resolution used in ``run_agent_phases.py``.
+    """
+    from sase.llm_provider.registry import (
+        get_default_provider_name,
+        resolve_model_provider,
+    )
+
+    provider, _ = resolve_model_provider(model)
+    return provider or get_default_provider_name()
+
+
+def _inject_name_directive(prompt: str, name: str) -> str:
+    """Prepend a ``%name:<name>`` line to *prompt*."""
+    return f"%name:{name}\n{prompt}"
+
+
+def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
+    """Add ``%name:<base>.<runtime>`` to each sub-prompt of a multi-model fan-out.
+
+    Triggers only when the sub-prompts span at least two distinct ``%model``
+    values.  The base name is taken from the first ``%name`` directive found
+    across the sub-prompts; if none, an auto name is generated once and
+    shared.  Same-runtime collisions disambiguate with the model suffix
+    (``foo.claude-opus`` / ``foo.claude-sonnet``).
+    """
+    models_per_sub = [_extract_first_model_value(s) for s in sub_prompts]
+    distinct_models = [m for m in dict.fromkeys(models_per_sub) if m]
+    if len(distinct_models) < 2:
+        return sub_prompts
+
+    base: str | None = None
+    for sub in sub_prompts:
+        _, value, _ = _extract_and_strip_name_directive(sub)
+        if value:
+            base = value
+            break
+    if not base:
+        from sase.agent.names import get_next_auto_name
+
+        base = get_next_auto_name()
+
+    runtime_for = {m: _runtime_label_for_model(m) for m in distinct_models}
+    runtime_count: dict[str, int] = {}
+    for r in runtime_for.values():
+        runtime_count[r] = runtime_count.get(r, 0) + 1
+    suffix_for: dict[str, str] = {}
+    for m in distinct_models:
+        r = runtime_for[m]
+        suffix_for[m] = f"{r}-{m}" if runtime_count[r] > 1 else r
+
+    out: list[str] = []
+    for sub, model in zip(sub_prompts, models_per_sub, strict=True):
+        if model is None or model not in suffix_for:
+            out.append(sub)
+            continue
+        stripped, _, _ = _extract_and_strip_name_directive(sub)
+        out.append(_inject_name_directive(stripped, f"{base}.{suffix_for[model]}"))
+    return out
 
 
 def has_wait_directive(prompt: str) -> bool:

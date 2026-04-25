@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 15:45:39
-status: wip
+status: done
 ---
 # Plan: Shared base name + `<base>.<llm>` suffix for multi-model agent spawns
 
