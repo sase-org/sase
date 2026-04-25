@@ -479,6 +479,13 @@ class AgentList(OptionList, inherit_bindings=False):
                 # COLLAPSED: "(N steps)" in dim cyan
                 text.append(fold_annotation, style="dim #00D7D7")
 
+        # User-managed tag badge (compact: "@first +N" when multiple)
+        if agent.tags:
+            primary = agent.tags[0]
+            extra = len(agent.tags) - 1
+            badge = f" @{primary}" + (f" +{extra}" if extra else "")
+            text.append(badge, style="bold #5FAFFF")  # Sky blue
+
         # Agent name annotation
         if agent.agent_name:
             text.append(f" @{agent.agent_name}", style="#FFD700")  # Gold

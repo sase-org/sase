@@ -11,6 +11,7 @@ from ._killing import AgentKillingMixin
 from ._marking import AgentMarkingMixin
 from ._ordering import AgentOrderingMixin
 from ._panels import AgentPanelsMixin
+from ._tagging import AgentTaggingMixin
 from ._loading import AgentLoadingMixin
 from ._notifications import AgentNotificationMixin
 from ._revive import AgentRevivalMixin
@@ -40,6 +41,7 @@ class AgentsMixinCore(
     AgentFoldingMixin,
     AgentKillPinMixin,
     AgentMarkingMixin,
+    AgentTaggingMixin,
     AgentWaitResumeMixin,
     AgentPanelsMixin,
     AgentOrderingMixin,

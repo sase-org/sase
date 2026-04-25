@@ -34,6 +34,7 @@ from .runners_modal import (
     get_runner_count,
 )
 from .status_modal import StatusModal
+from .agent_tag_modal import AgentTagModal, AgentTagModalResult
 from .tag_input_modal import TagInputModal
 from .approve_options_modal import (
     ApproveOptionsEditPrompt,
@@ -83,6 +84,8 @@ __all__ = [
     "ApproveOptionsResult",
     "AgentNameModal",
     "AgentRunLogModal",
+    "AgentTagModal",
+    "AgentTagModalResult",
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",

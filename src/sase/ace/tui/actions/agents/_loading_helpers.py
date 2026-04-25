@@ -132,10 +132,14 @@ def load_agents_from_disk(
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
+    from sase.ace.agent_tags import load_agent_tags
     from sase.ace.tui.models.agent import load_attempt_history
     from sase.llm_provider.retry_config import RetryState
 
+    tags_by_identity = load_agent_tags()
+
     for agent in all_agents:
+        agent.tags = tags_by_identity.get(agent.identity, ())
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
             agent.attempt_history = load_attempt_history(artifacts_dir)
