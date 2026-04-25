@@ -76,7 +76,6 @@ def _agent(
     The project banner key is ``(parent_dir_name, cl_name)``, so we put
     the *project* discriminator in the parent directory of project_file.
     """
-    tags = (tag,) if tag else ()
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl,
@@ -84,7 +83,7 @@ def _agent(
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tags=tags,
+        tag=tag or None,
     )
 
 

@@ -1,12 +1,15 @@
-"""Persistent storage of user-managed tags on agent identities.
+"""Persistent storage of the user-managed tag on an agent identity.
 
 Tags are stored under ``~/.sase/agent_tags.json`` as a JSON list of
-``{"id": [agent_type, cl_name, raw_suffix], "tags": [tag1, tag2, ...]}``
-records.  The first tag in the list is the agent's *primary* tag — Phase 3+
-will use it to decide which tag-group an agent renders under.
+``{"id": [agent_type, cl_name, raw_suffix], "tag": "<tag>"}`` records.
+Each agent has at most one tag — the tag drives Agents-tab grouping and
+(in Phase 3) the dynamic side-panel split.
 
 Tag names match ``^[A-Za-z0-9_-]+$`` and are stored *without* the ``@``
 prefix; the prefix is purely a display affordance added by the TUI.
+
+Legacy multi-tag entries (``"tags": [...]``) are silently migrated on
+read by collapsing to the first element.
 """
 
 from __future__ import annotations
@@ -51,12 +54,16 @@ def validate_tag_name(tag: str) -> str:
     return tag
 
 
-def load_agent_tags() -> dict[tuple[AgentType, str, str | None], tuple[str, ...]]:
+def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
     """Load tag assignments from disk.
 
     Returns:
-        A dict mapping ``(AgentType, cl_name, raw_suffix)`` to an ordered
-        tuple of tag names.  Empty dict on missing/malformed file.
+        A dict mapping ``(AgentType, cl_name, raw_suffix)`` to a single
+        tag name.  Untagged agents are simply absent from the dict.
+        Empty dict on missing/malformed file.
+
+    Migration: legacy entries with a list-shaped ``"tags"`` field are
+    accepted and reduced to their first valid element.
     """
     from .tui.models.agent import AgentType
 
@@ -71,15 +78,12 @@ def load_agent_tags() -> dict[tuple[AgentType, str, str | None], tuple[str, ...]
     if not isinstance(data, list):
         return {}
 
-    result: dict[tuple[AgentType, str, str | None], tuple[str, ...]] = {}
+    result: dict[tuple[AgentType, str, str | None], str] = {}
     for entry in data:
         if not isinstance(entry, dict):
             continue
         identity_raw = entry.get("id")
-        tags_raw = entry.get("tags")
         if not isinstance(identity_raw, list) or len(identity_raw) != 3:
-            continue
-        if not isinstance(tags_raw, list):
             continue
         try:
             agent_type = AgentType(identity_raw[0])
@@ -91,30 +95,32 @@ def load_agent_tags() -> dict[tuple[AgentType, str, str | None], tuple[str, ...]
             continue
         if raw_suffix is not None and not isinstance(raw_suffix, str):
             continue
-        clean_tags: list[str] = []
-        seen: set[str] = set()
-        for tag in tags_raw:
-            if not isinstance(tag, str):
-                continue
-            if not TAG_NAME_RE.match(tag):
-                continue
-            if tag in seen:
-                continue
-            seen.add(tag)
-            clean_tags.append(tag)
-        if not clean_tags:
+
+        tag: str | None = None
+        scalar_raw = entry.get("tag")
+        if isinstance(scalar_raw, str) and TAG_NAME_RE.match(scalar_raw):
+            tag = scalar_raw
+        else:
+            list_raw = entry.get("tags")
+            if isinstance(list_raw, list):
+                for candidate in list_raw:
+                    if isinstance(candidate, str) and TAG_NAME_RE.match(candidate):
+                        tag = candidate
+                        break
+
+        if tag is None:
             continue
-        result[(agent_type, cl_name, raw_suffix)] = tuple(clean_tags)
+        result[(agent_type, cl_name, raw_suffix)] = tag
     return result
 
 
 def save_agent_tags(
-    tags_by_identity: dict[tuple[AgentType, str, str | None], tuple[str, ...]],
+    tags_by_identity: dict[tuple[AgentType, str, str | None], str],
 ) -> bool:
     """Persist tag assignments to disk atomically.
 
-    Empty tag lists are dropped from the output so the on-disk file never
-    carries vestigial empty entries.
+    Untagged identities (absent or empty) are dropped from the output so
+    the on-disk file never carries vestigial entries.
 
     Returns:
         True on success, False on I/O failure.
@@ -122,13 +128,13 @@ def save_agent_tags(
     try:
         _AGENT_TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
         entries = []
-        for (agent_type, cl_name, raw_suffix), tags in tags_by_identity.items():
-            if not tags:
+        for (agent_type, cl_name, raw_suffix), tag in tags_by_identity.items():
+            if not tag:
                 continue
             entries.append(
                 {
                     "id": [agent_type.value, cl_name, raw_suffix],
-                    "tags": list(tags),
+                    "tag": tag,
                 }
             )
         # Atomic replace: write to a sibling tempfile, then rename.
@@ -150,56 +156,29 @@ def save_agent_tags(
         return False
 
 
-def add_tags(
-    tags_by_identity: dict[tuple[AgentType, str, str | None], tuple[str, ...]],
+def set_tag(
+    tags_by_identity: dict[tuple[AgentType, str, str | None], str],
     identity: tuple[AgentType, str, str | None],
-    new_tags: list[str],
-) -> tuple[str, ...]:
-    """Append *new_tags* to *identity*'s tags, preserving order.
+    tag: str,
+) -> str:
+    """Set *identity*'s tag to *tag*, replacing any previous value.
 
-    Existing tags keep their relative position (so the primary tag is
-    stable).  New tags are appended in the order given, skipping any that
-    are already present.  Mutates *tags_by_identity* in place and returns
-    the resulting tag tuple.
-
-    Each tag is validated via :func:`validate_tag_name`.
+    Mutates *tags_by_identity* in place and returns the new tag.
+    The tag is validated via :func:`validate_tag_name`.
     """
-    for tag in new_tags:
-        validate_tag_name(tag)
-    current = list(tags_by_identity.get(identity, ()))
-    current_set = set(current)
-    for tag in new_tags:
-        if tag in current_set:
-            continue
-        current.append(tag)
-        current_set.add(tag)
-    result = tuple(current)
-    if result:
-        tags_by_identity[identity] = result
-    return result
+    validate_tag_name(tag)
+    tags_by_identity[identity] = tag
+    return tag
 
 
-def remove_tags(
-    tags_by_identity: dict[tuple[AgentType, str, str | None], tuple[str, ...]],
+def unset_tag(
+    tags_by_identity: dict[tuple[AgentType, str, str | None], str],
     identity: tuple[AgentType, str, str | None],
-    drop_tags: list[str],
-) -> tuple[str, ...]:
-    """Remove each tag in *drop_tags* from *identity*'s tag list.
+) -> None:
+    """Remove *identity*'s tag if present.
 
-    Mutates *tags_by_identity* in place; deletes the identity entry
-    entirely when no tags remain.  Returns the resulting tag tuple
-    (empty when the agent has no tags after removal).
-
-    Tag names are validated for input shape so that callers can't smuggle
-    illegal characters through this path either.
+    Mutates *tags_by_identity* in place; no-op when the identity has no
+    tag.
     """
-    for tag in drop_tags:
-        validate_tag_name(tag)
-    current = list(tags_by_identity.get(identity, ()))
-    drop_set = set(drop_tags)
-    remaining = tuple(t for t in current if t not in drop_set)
-    if remaining:
-        tags_by_identity[identity] = remaining
-    elif identity in tags_by_identity:
+    if identity in tags_by_identity:
         del tags_by_identity[identity]
-    return remaining

@@ -18,7 +18,7 @@ class _TestApp(App[AgentTagModalResult | None]):
         yield from ()
 
 
-async def test_modal_prefill_then_ctrl_d_removes_in_one_keystroke() -> None:
+async def test_modal_prefill_then_ctrl_d_clears_in_one_keystroke() -> None:
     result: AgentTagModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -29,27 +29,27 @@ async def test_modal_prefill_then_ctrl_d_removes_in_one_keystroke() -> None:
 
         modal = AgentTagModal(
             target_label="agent-x",
-            current_tags=("name_level",),
+            current_tag="name_level",
             known_tags=("name_level",),
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        # Prefill is in place; Ctrl+D removes immediately with no typing.
+        # Prefill is in place; Ctrl+D clears immediately with no typing.
         tag_input = modal.query_one("#agent-tag-input", _TagInput)
         assert tag_input.value == "name_level"
 
         await pilot.press("ctrl+d")
         await pilot.pause()
 
-    assert result == AgentTagModalResult(action="remove", tag="name_level")
+    assert result == AgentTagModalResult(action="unset", tag=None)
 
 
 async def test_modal_first_keystroke_replaces_prefill() -> None:
     async with _TestApp().run_test() as pilot:
         modal = AgentTagModal(
             target_label="agent-x",
-            current_tags=("name_level",),
+            current_tag="name_level",
             known_tags=(),
         )
         pilot.app.push_screen(modal)
@@ -65,7 +65,7 @@ async def test_modal_first_keystroke_replaces_prefill() -> None:
         assert tag_input.value == "x"
 
 
-async def test_modal_enter_on_prefill_emits_add_for_existing_tag() -> None:
+async def test_modal_enter_on_prefill_emits_set_for_existing_tag() -> None:
     result: AgentTagModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -76,7 +76,7 @@ async def test_modal_enter_on_prefill_emits_add_for_existing_tag() -> None:
 
         modal = AgentTagModal(
             target_label="agent-x",
-            current_tags=("name_level",),
+            current_tag="name_level",
             known_tags=(),
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
@@ -85,14 +85,14 @@ async def test_modal_enter_on_prefill_emits_add_for_existing_tag() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == AgentTagModalResult(action="add", tag="name_level")
+    assert result == AgentTagModalResult(action="set", tag="name_level")
 
 
 async def test_modal_prefill_empty_for_bulk() -> None:
     async with _TestApp().run_test() as pilot:
         modal = AgentTagModal(
             target_label="2 marked agent(s)",
-            current_tags=(),
+            current_tag=None,
             known_tags=(),
         )
         pilot.app.push_screen(modal)

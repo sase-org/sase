@@ -16,10 +16,10 @@ from sase.ace.agent_tags import InvalidTagError, validate_tag_name
 
 @dataclass(frozen=True)
 class AgentTagModalResult:
-    """Outcome of the modal: add or remove *tag* across the affected agents."""
+    """Outcome of the modal: set the tag to a value or unset it."""
 
-    action: Literal["add", "remove"]
-    tag: str
+    action: Literal["set", "unset"]
+    tag: str | None  # None when action == "unset"
 
 
 class _TagInput(Input):
@@ -40,22 +40,22 @@ class _TagInput(Input):
 
 
 class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
-    """Modal that lets the user add or remove a tag on one or more agents.
+    """Modal that lets the user set or unset the tag on one or more agents.
 
-    Enter on the input adds the typed tag; Ctrl+d removes it.  Tab
+    Enter on the input sets the typed tag; Ctrl+d clears it.  Tab
     completes against ``known_tags``.
     """
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
-        Binding("ctrl+d", "remove_tag", "Remove tag", priority=True),
+        Binding("ctrl+d", "unset_tag", "Clear tag", priority=True),
     ]
 
     def __init__(
         self,
         *,
         target_label: str,
-        current_tags: tuple[str, ...],
+        current_tag: str | None,
         known_tags: tuple[str, ...],
     ) -> None:
         """Initialize the modal.
@@ -63,31 +63,27 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         Args:
             target_label: Description of the affected agent(s) — e.g. the
                 agent's display name or ``"3 marked agents"``.
-            current_tags: Tags already on the focused agent (or ``()`` for
-                bulk operations where current tags vary).
+            current_tag: Tag currently on the focused agent (or ``None``
+                for bulk operations / untagged agents).
             known_tags: Distinct tag names already present in the store —
                 used for tab completion suggestions.
         """
         super().__init__()
         self._target_label = target_label
-        self._current_tags = current_tags
+        self._current_tag = current_tag
         self._known_tags = tuple(sorted(set(known_tags)))
 
     def compose(self) -> ComposeResult:
         with Container():
             yield Label(f"Tag: {self._target_label}", id="modal-title")
-            current_text = (
-                ", ".join(f"@{t}" for t in self._current_tags)
-                if self._current_tags
-                else "(none)"
-            )
+            current_text = f"@{self._current_tag}" if self._current_tag else "(none)"
             yield Label(f"Current: {current_text}", id="agent-tag-current")
             yield Label(
-                "[bold]Enter[/] add · [bold]Ctrl+D[/] remove · [bold]Tab[/] complete\n"
+                "[bold]Enter[/] set · [bold]Ctrl+D[/] clear · [bold]Tab[/] complete\n"
                 "Type a tag name without the '@' prefix.",
                 id="agent-tag-hint",
             )
-            initial = self._current_tags[0] if self._current_tags else ""
+            initial = self._current_tag or ""
             yield _TagInput(
                 value=initial,
                 placeholder="tag-name",
@@ -128,14 +124,14 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         tag_input.cursor_position = len(next_match)
 
     def on_input_submitted(self, _event: Input.Submitted) -> None:
-        """Enter on the input adds the typed tag."""
-        self._submit("add")
+        """Enter on the input sets the typed tag."""
+        self._submit_set()
 
-    def action_remove_tag(self) -> None:
-        """Ctrl+D removes the typed tag."""
-        self._submit("remove")
+    def action_unset_tag(self) -> None:
+        """Ctrl+D clears the agent's tag."""
+        self.dismiss(AgentTagModalResult(action="unset", tag=None))
 
-    def _submit(self, action: Literal["add", "remove"]) -> None:
+    def _submit_set(self) -> None:
         tag_input = self.query_one("#agent-tag-input", _TagInput)
         raw = tag_input.value.strip()
         if not raw:
@@ -146,7 +142,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         except InvalidTagError as exc:
             self.notify(str(exc), severity="error")
             return
-        self.dismiss(AgentTagModalResult(action=action, tag=tag))
+        self.dismiss(AgentTagModalResult(action="set", tag=tag))
 
     def action_cancel(self) -> None:
         self.dismiss(None)

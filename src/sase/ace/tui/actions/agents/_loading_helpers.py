@@ -139,7 +139,7 @@ def load_agents_from_disk(
     tags_by_identity = load_agent_tags()
 
     for agent in all_agents:
-        agent.tags = tags_by_identity.get(agent.identity, ())
+        agent.tag = tags_by_identity.get(agent.identity)
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
             agent.attempt_history = load_attempt_history(artifacts_dir)

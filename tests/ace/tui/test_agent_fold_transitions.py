@@ -56,7 +56,7 @@ def _agent(
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         raw_suffix=raw_suffix,
-        tags=("alpha",),
+        tag="alpha",
     )
 
 

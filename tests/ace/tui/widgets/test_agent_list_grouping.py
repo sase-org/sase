@@ -20,7 +20,7 @@ def _agent(
     *,
     cl_name: str = "demo",
     project_file: str = "/repo/proj.gp",
-    tags: tuple[str, ...] = (),
+    tag: str | None = None,
     agent_name: str | None = None,
 ) -> Agent:
     return Agent(
@@ -30,7 +30,7 @@ def _agent(
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=agent_name,
-        tags=tags,
+        tag=tag,
     )
 
 
@@ -52,8 +52,8 @@ def test_two_agents_with_distinct_tags_get_two_tag_banners() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="demo-a", tags=("alpha",)),
-            _agent(cl_name="demo-b", tags=("beta",)),
+            _agent(cl_name="demo-a", tag="alpha"),
+            _agent(cl_name="demo-b", tag="beta"),
         ],
         current_idx=0,
     )
@@ -120,8 +120,8 @@ def test_resolve_row_routes_banner_clicks_to_first_agent() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="a", tags=("alpha",)),
-            _agent(cl_name="b", tags=("alpha",)),
+            _agent(cl_name="a", tag="alpha"),
+            _agent(cl_name="b", tag="alpha"),
         ],
         current_idx=0,
     )
@@ -159,8 +159,8 @@ def test_fold_level_0_renders_only_tag_banners() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="a", tags=("alpha",)),
-            _agent(cl_name="b", tags=("beta",)),
+            _agent(cl_name="a", tag="alpha"),
+            _agent(cl_name="b", tag="beta"),
         ],
         current_idx=0,
         group_fold_level=0,
@@ -174,7 +174,7 @@ def test_banners_are_selectable_when_fold_level_below_3() -> None:
     """At fold level < 3, banner Options are NOT disabled."""
     widget = AgentList(panel="main")
     widget.update_list(
-        [_agent(cl_name="a", tags=("alpha",))],
+        [_agent(cl_name="a", tag="alpha")],
         current_idx=0,
         group_fold_level=0,
     )
@@ -187,8 +187,8 @@ def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="a", tags=("alpha",)),
-            _agent(cl_name="b", tags=("alpha",)),
+            _agent(cl_name="a", tag="alpha"),
+            _agent(cl_name="b", tag="alpha"),
         ],
         current_idx=0,
         group_fold_level=0,
@@ -204,8 +204,8 @@ def test_current_group_key_drives_banner_highlight() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="a", tags=("alpha",)),
-            _agent(cl_name="b", tags=("beta",)),
+            _agent(cl_name="a", tag="alpha"),
+            _agent(cl_name="b", tag="beta"),
         ],
         current_idx=1,
         group_fold_level=0,
@@ -263,8 +263,8 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
     widget = AgentList(panel="main")
     widget.update_list(
         [
-            _agent(cl_name="a", tags=("alpha",)),
-            _agent(cl_name="b", tags=("beta",)),
+            _agent(cl_name="a", tag="alpha"),
+            _agent(cl_name="b", tag="beta"),
         ],
         current_idx=0,
         group_fold_level=0,
@@ -298,10 +298,10 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
 def test_banner_summary_chips_render_in_text() -> None:
     """Banner labels at any fold level include the summary chip."""
     widget = AgentList(panel="main")
-    a = _agent(cl_name="a", tags=("alpha",))
+    a = _agent(cl_name="a", tag="alpha")
     a_running = a  # status defaults to RUNNING
     widget.update_list(
-        [a_running, _agent(cl_name="b", tags=("alpha",))],
+        [a_running, _agent(cl_name="b", tag="alpha")],
         current_idx=0,
         group_fold_level=0,
     )

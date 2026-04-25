@@ -1,8 +1,8 @@
 """Agent tagging actions for the ace TUI Agents tab.
 
-Wires the ``t`` keymap to a small modal that adds or removes tags on the
-currently focused agent (or, if any agent marks exist, on every marked
-agent — same precedence rule used elsewhere on the Agents tab).
+Wires the ``t`` keymap to a small modal that sets or unsets the tag on
+the currently focused agent (or, if any agent marks exist, on every
+marked agent — same precedence rule used elsewhere on the Agents tab).
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class AgentTaggingMixin:
         from sase.ace.agent_tags import load_agent_tags
 
         store = load_agent_tags()
-        known_tags = sorted({t for tags in store.values() for t in tags})
+        known_tags = sorted(set(store.values()))
 
         # Bulk path: if marks exist, the modal targets every marked agent.
         if self._marked_agents:
@@ -50,7 +50,7 @@ class AgentTaggingMixin:
                 return
             self._open_agent_tag_modal(
                 target_label=f"{len(marked)} marked agent(s)",
-                current_tags=(),
+                current_tag=None,
                 known_tags=tuple(known_tags),
                 affected=marked,
             )
@@ -62,7 +62,7 @@ class AgentTaggingMixin:
             return
         self._open_agent_tag_modal(
             target_label=agent.display_name,
-            current_tags=tuple(agent.tags),
+            current_tag=agent.tag,
             known_tags=tuple(known_tags),
             affected=[agent],
         )
@@ -71,7 +71,7 @@ class AgentTaggingMixin:
         self,
         *,
         target_label: str,
-        current_tags: tuple[str, ...],
+        current_tag: str | None,
         known_tags: tuple[str, ...],
         affected: list[Agent],
     ) -> None:
@@ -85,7 +85,7 @@ class AgentTaggingMixin:
         self.push_screen(  # type: ignore[attr-defined]
             AgentTagModal(
                 target_label=target_label,
-                current_tags=current_tags,
+                current_tag=current_tag,
                 known_tags=known_tags,
             ),
             on_dismiss,
@@ -98,26 +98,29 @@ class AgentTaggingMixin:
     ) -> None:
         """Persist the requested tag change for every agent in *affected*."""
         from sase.ace.agent_tags import (
-            add_tags,
             load_agent_tags,
-            remove_tags,
             save_agent_tags,
+            set_tag,
+            unset_tag,
         )
 
         store = load_agent_tags()
         changed = 0
         for agent in affected:
-            before = store.get(agent.identity, ())
-            if result.action == "add":
-                after = add_tags(store, agent.identity, [result.tag])
+            before = store.get(agent.identity)
+            if result.action == "set":
+                assert result.tag is not None
+                set_tag(store, agent.identity, result.tag)
+                after: str | None = result.tag
             else:
-                after = remove_tags(store, agent.identity, [result.tag])
+                unset_tag(store, agent.identity)
+                after = None
             if after != before:
                 changed += 1
-            agent.tags = after
+            agent.tag = after
 
         if changed == 0:
-            verb = "added" if result.action == "add" else "removed"
+            verb = "set" if result.action == "set" else "unset"
             self.notify(  # type: ignore[attr-defined]
                 f"No tag {verb} (already in target state)",
                 severity="information",
@@ -129,10 +132,15 @@ class AgentTaggingMixin:
                     severity="error",
                 )
                 return
-            verb = "Added" if result.action == "add" else "Removed"
             suffix = "agent" if changed == 1 else "agents"
-            self.notify(  # type: ignore[attr-defined]
-                f"{verb} @{result.tag} on {changed} {suffix}",
-            )
+            if result.action == "set":
+                assert result.tag is not None
+                self.notify(  # type: ignore[attr-defined]
+                    f"Set @{result.tag} on {changed} {suffix}",
+                )
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Cleared tag on {changed} {suffix}",
+                )
 
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]

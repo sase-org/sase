@@ -20,7 +20,7 @@ def _agent(
     *,
     cl_name: str = "demo",
     project_file: str = "/repo/proj.gp",
-    tags: tuple[str, ...] = (),
+    tag: str | None = None,
     agent_name: str | None = None,
     raw_suffix: str | None = None,
     parent_workflow: str | None = None,
@@ -35,7 +35,7 @@ def _agent(
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         raw_suffix=raw_suffix,
         agent_name=agent_name,
-        tags=tags,
+        tag=tag,
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
     )
@@ -92,8 +92,8 @@ def test_two_agents_sharing_name_root_share_one_name_root_banner() -> None:
 
 
 def test_tag_change_emits_new_tag_banner() -> None:
-    a = _agent(cl_name="demo", tags=("alpha",))
-    b = _agent(cl_name="demo", tags=("beta",))
+    a = _agent(cl_name="demo", tag="alpha")
+    b = _agent(cl_name="demo", tag="beta")
     entries = build_agent_tree([a, b])
     levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
     # Two tag banners (one per tag), each with its own project banner.
@@ -121,8 +121,8 @@ def test_workflow_child_inherits_parent_grouping() -> None:
 
 
 def test_group_row_carries_full_agent_indices() -> None:
-    a = _agent(tags=("alpha",))
-    b = _agent(tags=("alpha",))
+    a = _agent(tag="alpha")
+    b = _agent(tag="alpha")
     entries = build_agent_tree([a, b])
     tag_banners = [e for e in entries if e.kind == "group" and e.group.level == 0]  # type: ignore[union-attr]
     assert len(tag_banners) == 1
@@ -137,7 +137,7 @@ def test_no_project_label_when_project_file_missing() -> None:
 
 
 def test_untagged_label_when_no_tags() -> None:
-    a = _agent(tags=())
+    a = _agent(tag=None)
     entries = build_agent_tree([a])
     tag_banner = [e for e in entries if e.kind == "group" and e.group.level == 0][0]  # type: ignore[union-attr]
     assert banner_label(tag_banner.group) == "(untagged)"  # type: ignore[arg-type]
@@ -163,9 +163,9 @@ def test_non_contiguous_same_tag_emits_single_banner() -> None:
     The walk is reordered by grouping key before emission, so every group
     key renders exactly once with all its members contiguous beneath it.
     """
-    a = _agent(tags=("alpha",))
-    b = _agent(tags=("beta",))
-    c = _agent(tags=("alpha",))
+    a = _agent(tag="alpha")
+    b = _agent(tag="beta")
+    c = _agent(tag="alpha")
     entries = build_agent_tree([a, b, c])
     alpha_banners = [
         e
@@ -189,10 +189,10 @@ def test_fold_level_0_emits_one_banner_per_unique_tag() -> None:
     """At L0 only L0 banners appear, one per unique tag, no agents."""
     entries = build_agent_tree(
         [
-            _agent(tags=("alpha",)),
-            _agent(tags=("beta",)),
-            _agent(tags=("alpha",)),
-            _agent(tags=()),
+            _agent(tag="alpha"),
+            _agent(tag="beta"),
+            _agent(tag="alpha"),
+            _agent(tag=None),
         ],
         group_fold_level=0,
     )
@@ -205,9 +205,9 @@ def test_fold_level_0_banner_carries_full_index_set_across_clusters() -> None:
     """Even at L0, banner indices reference every agent in the group."""
     entries = build_agent_tree(
         [
-            _agent(tags=("alpha",)),
-            _agent(tags=("beta",)),
-            _agent(tags=("alpha",)),
+            _agent(tag="alpha"),
+            _agent(tag="beta"),
+            _agent(tag="alpha"),
         ],
         group_fold_level=0,
     )
@@ -223,9 +223,9 @@ def test_fold_level_0_banner_carries_full_index_set_across_clusters() -> None:
 def test_fold_level_1_emits_tag_and_project_banners_only() -> None:
     entries = build_agent_tree(
         [
-            _agent(cl_name="demo-a", project_file="/r/proj.gp", tags=("alpha",)),
-            _agent(cl_name="demo-b", project_file="/r/proj.gp", tags=("alpha",)),
-            _agent(cl_name="demo-a", project_file="/r/other.gp", tags=("beta",)),
+            _agent(cl_name="demo-a", project_file="/r/proj.gp", tag="alpha"),
+            _agent(cl_name="demo-b", project_file="/r/proj.gp", tag="alpha"),
+            _agent(cl_name="demo-a", project_file="/r/other.gp", tag="beta"),
         ],
         group_fold_level=1,
     )
@@ -238,9 +238,9 @@ def test_fold_level_1_emits_tag_and_project_banners_only() -> None:
 def test_fold_level_2_emits_name_root_banners_but_no_agent_rows() -> None:
     entries = build_agent_tree(
         [
-            _agent(cl_name="demo", agent_name="coder.claude", tags=("alpha",)),
-            _agent(cl_name="demo", agent_name="coder.codex", tags=("alpha",)),
-            _agent(cl_name="demo", agent_name="planner.claude", tags=("alpha",)),
+            _agent(cl_name="demo", agent_name="coder.claude", tag="alpha"),
+            _agent(cl_name="demo", agent_name="coder.codex", tag="alpha"),
+            _agent(cl_name="demo", agent_name="planner.claude", tag="alpha"),
         ],
         group_fold_level=2,
     )
@@ -255,10 +255,10 @@ def test_fold_level_2_emits_banner_for_each_multi_entry_name_root() -> None:
     """Two name-roots, each with two entries → two level-2 banners."""
     entries = build_agent_tree(
         [
-            _agent(cl_name="demo", agent_name="coder.claude", tags=("alpha",)),
-            _agent(cl_name="demo", agent_name="coder.codex", tags=("alpha",)),
-            _agent(cl_name="demo", agent_name="planner.claude", tags=("alpha",)),
-            _agent(cl_name="demo", agent_name="planner.codex", tags=("alpha",)),
+            _agent(cl_name="demo", agent_name="coder.claude", tag="alpha"),
+            _agent(cl_name="demo", agent_name="coder.codex", tag="alpha"),
+            _agent(cl_name="demo", agent_name="planner.claude", tag="alpha"),
+            _agent(cl_name="demo", agent_name="planner.codex", tag="alpha"),
         ],
         group_fold_level=2,
     )
@@ -270,7 +270,7 @@ def test_fold_level_2_emits_banner_for_each_multi_entry_name_root() -> None:
 def test_fold_level_2_skips_singleton_name_root_banner() -> None:
     """Collapsed-tree builder also suppresses singleton level-2 banners."""
     entries = build_agent_tree(
-        [_agent(cl_name="demo", agent_name="solo.claude", tags=("alpha",))],
+        [_agent(cl_name="demo", agent_name="solo.claude", tag="alpha")],
         group_fold_level=2,
     )
     # Tag + project banners only — no level-2 banner for the singleton root.
@@ -382,8 +382,8 @@ def test_banner_summary_text_empty_when_count_is_zero() -> None:
 
 def test_find_visible_ancestor_banner_picks_deepest_match() -> None:
     """Snap-to-ancestor focuses the deepest banner containing the agent."""
-    a = _agent(cl_name="demo", agent_name="coder.claude", tags=("alpha",))
-    b = _agent(cl_name="demo", agent_name="coder.codex", tags=("alpha",))
+    a = _agent(cl_name="demo", agent_name="coder.claude", tag="alpha")
+    b = _agent(cl_name="demo", agent_name="coder.codex", tag="alpha")
     entries = build_agent_tree([a, b], group_fold_level=2)
     # At L2 we have tag, project, name-root banners; agents are hidden.
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
@@ -393,7 +393,7 @@ def test_find_visible_ancestor_banner_picks_deepest_match() -> None:
 
 def test_find_visible_ancestor_banner_falls_back_to_higher_level() -> None:
     """When fold hides the deepest level, fall back to the highest visible."""
-    a = _agent(cl_name="demo", agent_name="coder.claude", tags=("alpha",))
+    a = _agent(cl_name="demo", agent_name="coder.claude", tag="alpha")
     entries = build_agent_tree([a], group_fold_level=0)
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
@@ -402,7 +402,7 @@ def test_find_visible_ancestor_banner_falls_back_to_higher_level() -> None:
 
 def test_find_visible_ancestor_banner_falls_back_when_root_singleton() -> None:
     """A singleton-root agent has no level-2 banner; falls back to project."""
-    a = _agent(cl_name="demo", agent_name="solo.claude", tags=("alpha",))
+    a = _agent(cl_name="demo", agent_name="solo.claude", tag="alpha")
     entries = build_agent_tree([a], group_fold_level=2)
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
@@ -412,7 +412,7 @@ def test_find_visible_ancestor_banner_falls_back_when_root_singleton() -> None:
 
 
 def test_find_visible_ancestor_banner_returns_none_when_idx_unknown() -> None:
-    a = _agent(tags=("alpha",))
+    a = _agent(tag="alpha")
     entries = build_agent_tree([a], group_fold_level=0)
     assert find_visible_ancestor_banner(entries, target_agent_idx=42) is None
 
@@ -430,9 +430,9 @@ def _group_keys(entries: list[TreeEntry], level: int) -> list[tuple[str, ...]]:
 
 def test_full_tree_does_not_split_untagged_group() -> None:
     """Members of ``(untagged)`` interleaved with a named tag render once."""
-    a = _agent(tags=())
-    b = _agent(tags=("x",))
-    c = _agent(tags=())
+    a = _agent(tag=None)
+    b = _agent(tag="x")
+    c = _agent(tag=None)
     entries = build_agent_tree([a, b, c])
     tag_keys = _group_keys(entries, level=0)
     # Named tag first, untagged second — each appears once.
@@ -451,9 +451,9 @@ def test_full_tree_does_not_split_untagged_group() -> None:
 
 def test_full_tree_sort_is_deterministic() -> None:
     """Same agents in different orders produce identical tree shapes."""
-    a = _agent(cl_name="a", tags=("alpha",))
-    b = _agent(cl_name="b", tags=("beta",))
-    c = _agent(cl_name="c", tags=())
+    a = _agent(cl_name="a", tag="alpha")
+    b = _agent(cl_name="b", tag="beta")
+    c = _agent(cl_name="c", tag=None)
 
     order1 = build_agent_tree([a, b, c])
     order2 = build_agent_tree([c, b, a])
@@ -476,9 +476,9 @@ def test_full_tree_named_tags_sort_before_untagged() -> None:
     """Named tags sort lex; ``(untagged)`` always sorts last."""
     entries = build_agent_tree(
         [
-            _agent(tags=("beta",)),
-            _agent(tags=()),
-            _agent(tags=("alpha",)),
+            _agent(tag="beta"),
+            _agent(tag=None),
+            _agent(tag="alpha"),
         ]
     )
     assert _group_keys(entries, level=0) == [("alpha",), ("beta",), ("",)]
@@ -493,7 +493,7 @@ def test_full_tree_workflow_children_stay_with_parent_after_sort() -> None:
         parent_workflow="solo",
         parent_timestamp="ts1",
     )
-    other = _agent(cl_name="other", agent_name="other", tags=("x",))
+    other = _agent(cl_name="other", agent_name="other", tag="x")
     child2 = _agent(
         cl_name="step2",
         agent_name="step2",
@@ -545,7 +545,7 @@ def test_full_tree_reproduces_user_snapshot_shape() -> None:
         untagged_agents.append(_agent(cl_name=f"cl{i}", agent_name=f"{root}.plan"))
     for i in range(10):
         untagged_agents.append(_agent(cl_name=f"plain{i}", agent_name="solo"))
-    tagged = _agent(cl_name="lonely", agent_name="lonely", tags=("name_level",))
+    tagged = _agent(cl_name="lonely", agent_name="lonely", tag="name_level")
 
     # Interleave the tagged agent into the middle of the untagged list to
     # mimic the snapshot's ordering.
@@ -567,9 +567,9 @@ def test_full_tree_reproduces_user_snapshot_shape() -> None:
 
 def test_collapsed_tree_order_is_deterministic() -> None:
     """Headers-only fold respects the same deterministic ordering."""
-    a = _agent(cl_name="a", tags=("alpha",))
-    b = _agent(cl_name="b", tags=("beta",))
-    c = _agent(cl_name="c", tags=())
+    a = _agent(cl_name="a", tag="alpha")
+    b = _agent(cl_name="b", tag="beta")
+    c = _agent(cl_name="c", tag=None)
 
     order1 = build_agent_tree([a, b, c], group_fold_level=2)
     order2 = build_agent_tree([c, a, b], group_fold_level=2)

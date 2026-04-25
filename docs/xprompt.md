@@ -629,17 +629,18 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive  | Alias | Description                                        |
-| ---------- | ----- | -------------------------------------------------- |
-| `%model`   | `%m`  | Override the LLM model for this prompt             |
-| `%name`    | `%n`  | Assign a name to the agent                         |
-| `%wait`    | `%w`  | Wait for another agent or a duration (can repeat)  |
-| `%hide`    | `%h`  | Hide the agent from the default Agents tab display |
-| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)   |
-| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
-| `%edit`    | `%e`  | Return editor text to the prompt bar for review    |
-| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)  |
-| `%alt`     | `%(`  | Split prompt into variants with different text     |
+| Directive  | Alias | Description                                               |
+| ---------- | ----- | --------------------------------------------------------- |
+| `%model`   | `%m`  | Override the LLM model for this prompt                    |
+| `%name`    | `%n`  | Assign a name to the agent                                |
+| `%wait`    | `%w`  | Wait for another agent or a duration (can repeat)         |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display        |
+| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)          |
+| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)               |
+| `%edit`    | `%e`  | Return editor text to the prompt bar for review           |
+| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)         |
+| `%tag`     | `%t`  | Assign the agent's user-managed tag (e.g., `%tag:review`) |
+| `%alt`     | `%(`  | Split prompt into variants with different text            |
 
 ### Syntax
 
@@ -676,6 +677,8 @@ Directives use the same argument syntax as xprompt references:
 %e                           # Same, using alias
 %plan                        # Enable plan mode
 %p                           # Same, using alias
+%tag:review                  # Assign the tag "review" to this agent
+%t:review                    # Same, using alias
 ```
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,

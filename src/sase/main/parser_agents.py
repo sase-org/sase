@@ -63,49 +63,39 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to show",
     )
 
-    # sase agents tag {add,remove,list}
+    # sase agents tag {set,unset,list}
     tag_parser = agents_sub.add_parser(
         "tag",
-        help="Manage user-defined tags on agents (used by the Agents tab)",
+        help="Manage the user-defined tag on an agent (used by the Agents tab)",
     )
     tag_sub = tag_parser.add_subparsers(dest="tag_subcommand", help="Tag subcommands")
 
-    tag_add_parser = tag_sub.add_parser(
-        "add",
-        help="Add one or more tags to an agent",
+    tag_set_parser = tag_sub.add_parser(
+        "set",
+        help="Set the tag on an agent (replaces any previous tag)",
     )
-    tag_add_parser.add_argument(
+    tag_set_parser.add_argument(
         "-n",
         "--name",
         required=True,
         help="Name of the agent to tag",
     )
-    tag_add_parser.add_argument(
+    tag_set_parser.add_argument(
         "-t",
         "--tag",
-        action="append",
-        dest="tags",
         required=True,
-        help="Tag name (without '@'); repeat -t to add several at once",
+        help="Tag name (without '@')",
     )
 
-    tag_remove_parser = tag_sub.add_parser(
-        "remove",
-        help="Remove one or more tags from an agent",
+    tag_unset_parser = tag_sub.add_parser(
+        "unset",
+        help="Clear the tag on an agent",
     )
-    tag_remove_parser.add_argument(
+    tag_unset_parser.add_argument(
         "-n",
         "--name",
         required=True,
         help="Name of the agent to untag",
-    )
-    tag_remove_parser.add_argument(
-        "-t",
-        "--tag",
-        action="append",
-        dest="tags",
-        required=True,
-        help="Tag name (without '@'); repeat -t to remove several at once",
     )
 
     tag_list_parser = tag_sub.add_parser(

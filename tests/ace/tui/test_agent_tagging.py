@@ -85,12 +85,13 @@ def test_action_pushes_modal_for_focused_agent(tmp_path: Path) -> None:
     tag_file.write_text(
         json.dumps(
             [
-                {"id": ["run", "fix-bug", "ts-other"], "tags": ["alpha", "beta"]},
+                {"id": ["run", "fix-bug", "ts-other"], "tag": "alpha"},
+                {"id": ["run", "fix-bug", "ts-other2"], "tag": "beta"},
             ]
         )
     )
     agent = _make_agent()
-    agent.tags = ("primary",)
+    agent.tag = "primary"
     app = _FakeApp([agent])
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
         app.action_add_agent_tag()
@@ -98,43 +99,58 @@ def test_action_pushes_modal_for_focused_agent(tmp_path: Path) -> None:
     modal = app.pushed_modals[0]
     assert isinstance(modal, AgentTagModal)
     assert modal._target_label == agent.display_name
-    assert modal._current_tags == ("primary",)
+    assert modal._current_tag == "primary"
     assert modal._known_tags == ("alpha", "beta")
 
 
-def test_apply_add_persists_and_updates_agent(tmp_path: Path) -> None:
+def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     agent = _make_agent()
     app = _FakeApp([agent])
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
-        callback(AgentTagModalResult(action="add", tag="release-blockers"))
-    assert agent.tags == ("release-blockers",)
+        callback(AgentTagModalResult(action="set", tag="release-blockers"))
+    assert agent.tag == "release-blockers"
     persisted = json.loads(tag_file.read_text())
     assert persisted == [
-        {"id": ["run", "fix-bug", "20240101120000"], "tags": ["release-blockers"]}
+        {"id": ["run", "fix-bug", "20240101120000"], "tag": "release-blockers"}
     ]
     assert app.refresh_calls == 1
 
 
-def test_apply_remove_drops_tag(tmp_path: Path) -> None:
+def test_apply_set_replaces_existing_tag(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     tag_file.write_text(
-        json.dumps(
-            [{"id": ["run", "fix-bug", "20240101120000"], "tags": ["foo", "bar"]}]
-        )
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "old"}])
     )
     agent = _make_agent()
-    agent.tags = ("foo", "bar")
+    agent.tag = "old"
     app = _FakeApp([agent])
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
-        callback(AgentTagModalResult(action="remove", tag="foo"))
-    assert agent.tags == ("bar",)
+        callback(AgentTagModalResult(action="set", tag="new"))
+    assert agent.tag == "new"
     persisted = json.loads(tag_file.read_text())
-    assert persisted == [{"id": ["run", "fix-bug", "20240101120000"], "tags": ["bar"]}]
+    assert persisted == [{"id": ["run", "fix-bug", "20240101120000"], "tag": "new"}]
+
+
+def test_apply_unset_drops_tag(tmp_path: Path) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    tag_file.write_text(
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "foo"}])
+    )
+    agent = _make_agent()
+    agent.tag = "foo"
+    app = _FakeApp([agent])
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        app.action_add_agent_tag()
+        callback = app.pushed_callbacks[0]
+        callback(AgentTagModalResult(action="unset", tag=None))
+    assert agent.tag is None
+    persisted = json.loads(tag_file.read_text())
+    assert persisted == []
 
 
 def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
@@ -149,18 +165,18 @@ def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
         modal = app.pushed_modals[0]
         assert isinstance(modal, AgentTagModal)
         assert modal._target_label == "2 marked agent(s)"
-        assert modal._current_tags == ()  # bulk doesn't show per-agent tags
+        assert modal._current_tag is None  # bulk doesn't show per-agent tag
         callback = app.pushed_callbacks[0]
-        callback(AgentTagModalResult(action="add", tag="release-blockers"))
-    assert a1.tags == ("release-blockers",)
-    assert a2.tags == ()  # not marked → not changed
-    assert a3.tags == ("release-blockers",)
+        callback(AgentTagModalResult(action="set", tag="release-blockers"))
+    assert a1.tag == "release-blockers"
+    assert a2.tag is None  # not marked → not changed
+    assert a3.tag == "release-blockers"
     persisted = {
-        tuple(row["id"]): tuple(row["tags"]) for row in json.loads(tag_file.read_text())
+        tuple(row["id"]): row["tag"] for row in json.loads(tag_file.read_text())
     }
     assert persisted == {
-        ("run", "fix-bug", "t1"): ("release-blockers",),
-        ("run", "fix-bug", "t3"): ("release-blockers",),
+        ("run", "fix-bug", "t1"): "release-blockers",
+        ("run", "fix-bug", "t3"): "release-blockers",
     }
 
 
@@ -172,24 +188,24 @@ def test_modal_dismiss_with_none_is_noop(tmp_path: Path) -> None:
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(None)
-    assert agent.tags == ()
+    assert agent.tag is None
     assert not tag_file.exists()
     assert app.refresh_calls == 0
 
 
-def test_apply_add_no_change_does_not_rewrite_file(tmp_path: Path) -> None:
+def test_apply_set_no_change_does_not_rewrite_file(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     tag_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tags": ["already"]}])
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "already"}])
     )
     mtime_before = tag_file.stat().st_mtime_ns
     agent = _make_agent()
-    agent.tags = ("already",)
+    agent.tag = "already"
     app = _FakeApp([agent])
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
-        callback(AgentTagModalResult(action="add", tag="already"))
+        callback(AgentTagModalResult(action="set", tag="already"))
     # Tag was already present — no write occurred.
     assert tag_file.stat().st_mtime_ns == mtime_before
 

@@ -198,12 +198,9 @@ def format_agent_option(
             # COLLAPSED: "(N steps)" in dim cyan
             text.append(fold_annotation, style="dim #00D7D7")
 
-    # User-managed tag badge (compact: "@first +N" when multiple)
-    if agent.tags:
-        primary = agent.tags[0]
-        extra = len(agent.tags) - 1
-        badge = f" @{primary}" + (f" +{extra}" if extra else "")
-        text.append(badge, style="bold #5FAFFF")  # Sky blue
+    # User-managed tag badge.
+    if agent.tag:
+        text.append(f" @{agent.tag}", style="bold #5FAFFF")  # Sky blue
 
     # Agent name annotation
     if agent.agent_name:

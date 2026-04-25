@@ -122,7 +122,7 @@ _DIRECTIVE_PATTERN = (
 
 # Known directive names
 _KNOWN_DIRECTIVES = frozenset(
-    {"approve", "edit", "hide", "model", "name", "plan", "repeat", "wait"}
+    {"approve", "edit", "hide", "model", "name", "plan", "repeat", "tag", "wait"}
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
@@ -137,6 +137,7 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "n": "name",
     "r": "repeat",
     "p": "plan",
+    "t": "tag",
     "w": "wait",
 }
 
@@ -158,6 +159,7 @@ class PromptDirectives:
     name: str | None = None
     plan: bool = False
     repeat_count: int | None = None
+    tag: str | None = None
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
@@ -814,6 +816,21 @@ def extract_prompt_directives(
                 f"Invalid repeat count '{repeat_count}' — must be a positive integer"
             )
 
+    # Validate the %tag directive value, if present.
+    raw_tag = expanded_args.get("tag")
+    parsed_tag: str | None = None
+    if raw_tag:
+        from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+
+        try:
+            parsed_tag = validate_tag_name(raw_tag)
+        except InvalidTagError as exc:
+            raise DirectiveError(f"Invalid '%tag' value: {exc}") from exc
+    elif "tag" in expanded_args:
+        raise DirectiveError(
+            "'%tag' directive requires a tag name argument (e.g., %tag:review)"
+        )
+
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         approve="approve" in expanded_args,
@@ -823,6 +840,7 @@ def extract_prompt_directives(
         name=expanded_args.get("name") or None,
         plan="plan" in expanded_args,
         repeat_count=repeat_count,
+        tag=parsed_tag,
         wait=expanded_multi.get("wait", []),
         wait_duration=wait_duration,
         wait_until=wait_until,

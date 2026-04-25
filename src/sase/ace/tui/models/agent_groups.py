@@ -3,7 +3,7 @@
 Builds a flat sequence of banner + agent entries from a list of agents,
 grouped by:
 
-1. **Primary tag** (``Agent.tags[0]``; empty string for untagged agents).
+1. **Tag** (``Agent.tag``; empty string for untagged agents).
 2. **Project / changespec** (derived from ``Agent.project_file`` and
    ``Agent.cl_name``).
 3. **Name root** — the part of the agent's name before the first ``.``.
@@ -143,7 +143,7 @@ def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _Groupi
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent
-    tag = target.tags[0] if target.tags else UNTAGGED
+    tag = target.tag or UNTAGGED
     return _GroupingKeys(
         tag=tag, project=_project_key(target), name_root=_name_root(target)
     )

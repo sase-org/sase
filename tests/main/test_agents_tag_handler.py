@@ -13,8 +13,8 @@ import pytest
 from sase.ace.tui.models.agent import AgentType
 from sase.agent.names import _NamedAgent
 from sase.agents.cli_tag import (
-    handle_agents_tag,
     _resolve_identity_by_name,
+    handle_agents_tag,
 )
 
 
@@ -102,15 +102,15 @@ def test_resolve_identity_returns_none_when_agent_missing() -> None:
 def _tag_args(**overrides: Any) -> argparse.Namespace:
     defaults: dict[str, Any] = {
         "agents_subcommand": "tag",
-        "tag_subcommand": "add",
+        "tag_subcommand": "set",
         "name": "brisk-otter",
-        "tags": ["release-blockers"],
+        "tag": "release-blockers",
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
 
-def test_tag_add_persists_tags(
+def test_tag_set_persists_tag(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -122,23 +122,21 @@ def test_tag_add_persists_tags(
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tags=["release-blockers", "experiments"]))
+        handle_agents_tag(_tag_args(tag="release-blockers"))
     out = capsys.readouterr().out
-    assert "release-blockers, experiments" in out
+    assert "release-blockers" in out
     persisted = json.loads(test_file.read_text())
     assert persisted == [
         {
             "id": ["run", "fix-bug", "20260425120000"],
-            "tags": ["release-blockers", "experiments"],
+            "tag": "release-blockers",
         }
     ]
 
 
-def test_tag_add_appends_without_duplicating(tmp_path: Path) -> None:
+def test_tag_set_replaces_existing_tag(tmp_path: Path) -> None:
     test_file = tmp_path / "agent_tags.json"
-    test_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "ts"], "tags": ["alpha"]}])
-    )
+    test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
     identity = (AgentType.RUNNING, "fix-bug", "ts")
     with (
         patch(
@@ -147,28 +145,28 @@ def test_tag_add_appends_without_duplicating(tmp_path: Path) -> None:
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tags=["alpha", "beta"]))
+        handle_agents_tag(_tag_args(tag="beta"))
     persisted = json.loads(test_file.read_text())
-    assert persisted == [{"id": ["run", "fix-bug", "ts"], "tags": ["alpha", "beta"]}]
+    assert persisted == [{"id": ["run", "fix-bug", "ts"], "tag": "beta"}]
 
 
-def test_tag_add_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:
+def test_tag_set_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_tag(_tag_args(tags=["@release"]))
+        handle_agents_tag(_tag_args(tag="@release"))
     assert excinfo.value.code == 2
     assert "must not start with '@'" in capsys.readouterr().err
 
 
-def test_tag_add_rejects_invalid_characters(
+def test_tag_set_rejects_invalid_characters(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_tag(_tag_args(tags=["has space"]))
+        handle_agents_tag(_tag_args(tag="has space"))
     assert excinfo.value.code == 2
     assert "must match" in capsys.readouterr().err
 
 
-def test_tag_add_unknown_agent_exits_2(
+def test_tag_set_unknown_agent_exits_2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     with (
@@ -184,13 +182,11 @@ def test_tag_add_unknown_agent_exits_2(
     assert "No agent found" in capsys.readouterr().err
 
 
-def test_tag_remove_clears_then_drops_identity(
+def test_tag_unset_drops_identity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
-    test_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "ts"], "tags": ["alpha", "beta"]}])
-    )
+    test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
     identity = (AgentType.RUNNING, "fix-bug", "ts")
     with (
         patch(
@@ -199,7 +195,7 @@ def test_tag_remove_clears_then_drops_identity(
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tag_subcommand="remove", tags=["alpha", "beta"]))
+        handle_agents_tag(_tag_args(tag_subcommand="unset"))
     out = capsys.readouterr().out
     assert "(none)" in out
     assert json.loads(test_file.read_text()) == []
@@ -214,11 +210,11 @@ def test_tag_list_all_emits_json(
             [
                 {
                     "id": ["run", "fix-bug", "ts1"],
-                    "tags": ["release-blockers"],
+                    "tag": "release-blockers",
                 },
                 {
                     "id": ["workflow", "ship", "ts2"],
-                    "tags": ["experiments"],
+                    "tag": "experiments",
                 },
             ]
         )
@@ -234,7 +230,7 @@ def test_tag_list_all_emits_json(
     rows = json.loads(capsys.readouterr().out)
     assert len(rows) == 2
     by_cl = {row["cl_name"]: row for row in rows}
-    assert by_cl["fix-bug"]["tags"] == ["release-blockers"]
+    assert by_cl["fix-bug"]["tag"] == "release-blockers"
     assert by_cl["ship"]["agent_type"] == "workflow"
 
 
@@ -244,7 +240,7 @@ def test_tag_list_one_agent_emits_object(
     test_file = tmp_path / "agent_tags.json"
     identity = (AgentType.RUNNING, "fix-bug", "ts1")
     test_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "ts1"], "tags": ["release-blockers"]}])
+        json.dumps([{"id": ["run", "fix-bug", "ts1"], "tag": "release-blockers"}])
     )
     with (
         patch(
@@ -266,7 +262,7 @@ def test_tag_list_one_agent_emits_object(
         "agent_type": "run",
         "cl_name": "fix-bug",
         "raw_suffix": "ts1",
-        "tags": ["release-blockers"],
+        "tag": "release-blockers",
     }
 
 

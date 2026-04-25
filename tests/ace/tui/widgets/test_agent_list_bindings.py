@@ -52,33 +52,22 @@ def test_mark_prefix_absent_when_unmarked() -> None:
     assert "[✓]" not in option.prompt.plain  # type: ignore[union-attr]
 
 
-def test_tag_badge_renders_primary_tag() -> None:
-    """A single-tag agent shows ``@tag`` after the status."""
+def test_tag_badge_renders_tag() -> None:
+    """A tagged agent shows ``@tag`` after the status."""
     agent = _make_plain_agent()
-    agent.tags = ("release-blockers",)
+    agent.tag = "release-blockers"
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)
     plain = option.prompt.plain  # type: ignore[union-attr]
     assert " @release-blockers" in plain
 
 
-def test_tag_badge_collapses_extra_tags() -> None:
-    """Multi-tag agents render ``@first +N`` so the row stays compact."""
-    agent = _make_plain_agent()
-    agent.tags = ("release-blockers", "experiments", "audit")
-    widget = AgentList()
-    option = widget._format_agent_option(agent, 0, is_selected=False)
-    plain = option.prompt.plain  # type: ignore[union-attr]
-    assert " @release-blockers +2" in plain
-
-
-def test_tag_badge_omitted_when_no_tags() -> None:
+def test_tag_badge_omitted_when_untagged() -> None:
     agent = _make_plain_agent()
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)
     plain = option.prompt.plain  # type: ignore[union-attr]
-    assert "@" not in plain or "@" in plain.replace("@", "", 0)
-    # A plain agent without an agent_name and without tags must not contain '@'.
+    # A plain agent without an agent_name and without a tag must not contain '@'.
     assert "@" not in plain
 
 

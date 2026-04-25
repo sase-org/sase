@@ -84,17 +84,17 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
     a1 = _make_agent(
         cl_name="fix-bug",
         raw_suffix="20240101120000",
-        tags=("release",),
+        tag="release",
     )
     a2 = _make_agent(
         cl_name="add-test",
         raw_suffix="20240101130000",
-        tags=("release",),
+        tag="release",
     )
     a3 = _make_agent(
         cl_name="other",
         raw_suffix="20240101140000",
-        tags=("experiments",),
+        tag="experiments",
     )
     app = _FakeGroupKillApp([a1, a2, a3], level=0)
     app._current_group_key = ("release",)
@@ -118,8 +118,8 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
 
 def test_group_kill_modal_header_includes_group_label_and_count() -> None:
     """The pushed modal description includes the group banner label."""
-    a1 = _make_agent(raw_suffix="20240101120000", tags=("release",))
-    a2 = _make_agent(raw_suffix="20240101130000", tags=("release",))
+    a1 = _make_agent(raw_suffix="20240101120000", tag="release")
+    a2 = _make_agent(raw_suffix="20240101130000", tag="release")
     app = _FakeGroupKillApp([a1, a2], level=0)
     app._current_group_key = ("release",)
 
@@ -138,14 +138,14 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
         raw_suffix="20240101120000",
         status="RUNNING",
         pid=111,
-        tags=("release",),
+        tag="release",
     )
     done = _make_agent(
         cl_name="add",
         raw_suffix="20240101130000",
         status="DONE",
         pid=None,
-        tags=("release",),
+        tag="release",
     )
     app = _FakeGroupKillApp([running, done], level=0)
     app._current_group_key = ("release",)
@@ -159,8 +159,8 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
 
 def test_group_kill_cancel_leaves_agents_untouched() -> None:
     """Cancelling the modal does not invoke _do_bulk_kill_agents."""
-    a1 = _make_agent(raw_suffix="20240101120000", tags=("release",))
-    a2 = _make_agent(raw_suffix="20240101130000", tags=("release",))
+    a1 = _make_agent(raw_suffix="20240101120000", tag="release")
+    a2 = _make_agent(raw_suffix="20240101130000", tag="release")
     app = _FakeGroupKillApp([a1, a2], level=0)
     app._current_group_key = ("release",)
 
@@ -176,12 +176,12 @@ def test_marks_take_priority_over_focused_group() -> None:
     marked = _make_agent(
         cl_name="marked",
         raw_suffix="20240101110000",
-        tags=("release",),
+        tag="release",
     )
     in_group = _make_agent(
         cl_name="ingroup",
         raw_suffix="20240101120000",
-        tags=("release",),
+        tag="release",
     )
     app = _FakeGroupKillApp([marked, in_group], level=0)
     app._marked_agents = {marked.identity}
@@ -203,13 +203,13 @@ def test_group_kill_skips_workflow_children() -> None:
         cl_name="parent",
         raw_suffix="20240101120000",
         agent_type=AgentType.WORKFLOW,
-        tags=("release",),
+        tag="release",
     )
     child = _make_agent(
         cl_name="child",
         raw_suffix="20240101120100",
         parent_timestamp="20240101120000",
-        tags=(),
+        tag=None,
     )
     app = _FakeGroupKillApp([parent, child], level=0)
     app._current_group_key = ("release",)
@@ -232,7 +232,7 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
         raw_suffix="20240101120000",
         status="DONE",
         pid=None,
-        tags=("release",),
+        tag="release",
     )
     app = _FakeGroupKillApp([a1], level=0)
     app._current_group_key = ("nonexistent",)

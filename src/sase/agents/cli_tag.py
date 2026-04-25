@@ -1,4 +1,4 @@
-"""``sase agents tag`` — add, remove, and list user-managed tags on agents."""
+"""``sase agents tag`` — set, unset, and list the user-managed tag on agents."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 
 from sase.ace.agent_tags import (
     InvalidTagError,
-    add_tags,
     load_agent_tags,
-    remove_tags,
     save_agent_tags,
+    set_tag,
+    unset_tag,
     validate_tag_name,
 )
 from sase.agent.names import find_named_agent
@@ -40,8 +40,8 @@ def _resolve_identity_by_name(
 ) -> tuple[AgentType, str, str | None] | None:
     """Return the ``(AgentType, cl_name, raw_suffix)`` identity for *name*.
 
-    Mirrors the identity scheme used by ``pinned_agents`` and
-    ``dismissed_agents``.  Returns ``None`` when no agent is found.
+    Mirrors the identity scheme used by the rest of the Agents tab.
+    Returns ``None`` when no agent is found.
     """
     from sase.ace.tui.models.agent import AgentType
 
@@ -74,38 +74,29 @@ def _resolve_identity_by_name(
     return (agent_type, cl_name, raw_suffix)
 
 
-def _normalize_tag_input(tag: str) -> str:
-    """Strip a leading ``@`` for friendlier error messages, then validate."""
-    return validate_tag_name(tag)
-
-
 def handle_agents_tag(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agents tag {add,remove,list}``."""
+    """Dispatch ``sase agents tag {set,unset,list}``."""
     sub = getattr(args, "tag_subcommand", None)
-    if sub == "add":
-        _handle_tag_add(args)
+    if sub == "set":
+        _handle_tag_set(args)
         return
-    if sub == "remove":
-        _handle_tag_remove(args)
+    if sub == "unset":
+        _handle_tag_unset(args)
         return
     if sub == "list":
         _handle_tag_list(args)
         return
 
-    print("Usage: sase agents tag {add,remove,list}", file=sys.stderr)
+    print("Usage: sase agents tag {set,unset,list}", file=sys.stderr)
     sys.exit(1)
 
 
-def _validate_tags_or_exit(raw_tags: list[str]) -> list[str]:
-    """Validate every tag in *raw_tags* or exit(2) with a clear message."""
-    cleaned: list[str] = []
-    for tag in raw_tags:
-        try:
-            cleaned.append(_normalize_tag_input(tag))
-        except InvalidTagError as exc:
-            print(f"Invalid tag: {exc}", file=sys.stderr)
-            sys.exit(2)
-    return cleaned
+def _validate_or_exit(raw_tag: str) -> str:
+    try:
+        return validate_tag_name(raw_tag)
+    except InvalidTagError as exc:
+        print(f"Invalid tag: {exc}", file=sys.stderr)
+        sys.exit(2)
 
 
 def _resolve_or_exit(name: str) -> tuple[AgentType, str, str | None]:
@@ -116,38 +107,33 @@ def _resolve_or_exit(name: str) -> tuple[AgentType, str, str | None]:
     return identity
 
 
-def _handle_tag_add(args: argparse.Namespace) -> None:
+def _handle_tag_set(args: argparse.Namespace) -> None:
     name: str = args.name
-    raw_tags: list[str] = list(args.tags or [])
-    if not raw_tags:
-        print("At least one --tag is required", file=sys.stderr)
+    raw_tag: str | None = args.tag
+    if not raw_tag:
+        print("--tag is required", file=sys.stderr)
         sys.exit(2)
-    cleaned = _validate_tags_or_exit(raw_tags)
+    cleaned = _validate_or_exit(raw_tag)
     identity = _resolve_or_exit(name)
 
     store = load_agent_tags()
-    updated = add_tags(store, identity, cleaned)
+    set_tag(store, identity, cleaned)
     if not save_agent_tags(store):
         print("Failed to write agent_tags.json", file=sys.stderr)
         sys.exit(1)
-    print(f"Tags for {name}: {', '.join(updated) if updated else '(none)'}")
+    print(f"Tag for {name}: {cleaned}")
 
 
-def _handle_tag_remove(args: argparse.Namespace) -> None:
+def _handle_tag_unset(args: argparse.Namespace) -> None:
     name: str = args.name
-    raw_tags: list[str] = list(args.tags or [])
-    if not raw_tags:
-        print("At least one --tag is required", file=sys.stderr)
-        sys.exit(2)
-    cleaned = _validate_tags_or_exit(raw_tags)
     identity = _resolve_or_exit(name)
 
     store = load_agent_tags()
-    updated = remove_tags(store, identity, cleaned)
+    unset_tag(store, identity)
     if not save_agent_tags(store):
         print("Failed to write agent_tags.json", file=sys.stderr)
         sys.exit(1)
-    print(f"Tags for {name}: {', '.join(updated) if updated else '(none)'}")
+    print(f"Tag for {name}: (none)")
 
 
 def _handle_tag_list(args: argparse.Namespace) -> None:
@@ -156,7 +142,7 @@ def _handle_tag_list(args: argparse.Namespace) -> None:
 
     if name is not None:
         identity = _resolve_or_exit(name)
-        tags = list(store.get(identity, ()))
+        tag = store.get(identity)
         agent_type, cl_name, raw_suffix = identity
         json.dump(
             {
@@ -164,7 +150,7 @@ def _handle_tag_list(args: argparse.Namespace) -> None:
                 "agent_type": agent_type.value,
                 "cl_name": cl_name,
                 "raw_suffix": raw_suffix,
-                "tags": tags,
+                "tag": tag,
             },
             sys.stdout,
         )
@@ -172,13 +158,13 @@ def _handle_tag_list(args: argparse.Namespace) -> None:
         return
 
     out: list[dict[str, object]] = []
-    for (atype, cl, suffix), tag_tuple in store.items():
+    for (atype, cl, suffix), tag in store.items():
         out.append(
             {
                 "agent_type": atype.value,
                 "cl_name": cl,
                 "raw_suffix": suffix,
-                "tags": list(tag_tuple),
+                "tag": tag,
             }
         )
     json.dump(out, sys.stdout)

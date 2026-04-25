@@ -232,3 +232,52 @@ def test_disabled_region_markers_preserved_when_flag_false() -> None:
     assert "%xprompts_enabled:true" in cleaned
     assert "some @Input content" in cleaned
     assert "Rest of prompt" in cleaned
+
+
+# --- %tag directive ---
+
+
+def test_tag_directive_colon_arg() -> None:
+    """``%tag:<name>`` sets directives.tag and is stripped from the prompt."""
+    prompt = "%tag:review\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.tag == "review"
+
+
+def test_tag_short_alias_t() -> None:
+    """``%t:<name>`` is a short alias for ``%tag:<name>``."""
+    prompt = "%t:exp\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.tag == "exp"
+
+
+def test_tag_directive_paren_arg() -> None:
+    """``%tag(<name>)`` works the same as the colon form."""
+    prompt = "%tag(release)\nFix"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix"
+    assert directives.tag == "release"
+
+
+def test_tag_directive_rejects_at_prefix() -> None:
+    with pytest.raises(DirectiveError, match="must not start with '@'"):
+        extract_prompt_directives("%tag:`@review`\nDo it")
+
+
+def test_tag_directive_rejects_invalid_chars() -> None:
+    with pytest.raises(DirectiveError, match="must match"):
+        extract_prompt_directives("%tag:`has space`\nDo it")
+
+
+def test_tag_directive_bare_is_error() -> None:
+    """``%tag`` with no argument is invalid."""
+    with pytest.raises(DirectiveError, match="requires a tag name"):
+        extract_prompt_directives("%tag\nDo it")
+
+
+def test_tag_directive_default_none() -> None:
+    """When ``%tag`` is not present, directives.tag is None."""
+    _, directives = extract_prompt_directives("Just a prompt")
+    assert directives.tag is None

@@ -282,7 +282,7 @@ def main() -> None:
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
-                prompt, workspace_dir, artifacts_dir
+                prompt, workspace_dir, artifacts_dir, cl_name=cl_name
             )
             agent_name = info.name
             agent_model = info.model

@@ -26,6 +26,7 @@ class _AgentInfo(NamedTuple):
     hidden: bool
     approve: bool
     plan: bool
+    tag: str | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
 
@@ -34,6 +35,7 @@ def extract_directives_and_write_meta(
     prompt: str,
     workspace_dir: str,
     artifacts_dir: str,
+    cl_name: str | None = None,
 ) -> _AgentInfo:
     """Extract prompt directives and write agent_meta.json.
 
@@ -133,6 +135,8 @@ def extract_directives_and_write_meta(
         agent_meta["hidden"] = True
     if directives.plan:
         agent_meta["plan"] = True
+    if directives.tag:
+        agent_meta["tag"] = directives.tag
 
     # Write agent_meta.json
     if agent_meta:
@@ -146,6 +150,24 @@ def extract_directives_and_write_meta(
             claim_agent_name(agent_name, artifacts_dir)
             os.environ["SASE_AGENT_NAME"] = agent_name
 
+    # Persist the %tag directive into ~/.sase/agent_tags.json so the Agents
+    # tab picks it up at load time.  The agent's identity is
+    # (agent_type=WORKFLOW, cl_name, raw_suffix) — matching how run-agents
+    # are loaded via the workflow loader.
+    if directives.tag and cl_name:
+        from sase.ace.agent_tags import (
+            load_agent_tags,
+            save_agent_tags,
+            set_tag,
+        )
+        from sase.ace.tui.models.agent import AgentType
+
+        raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
+        identity = (AgentType.WORKFLOW, cl_name, raw_suffix)
+        store = load_agent_tags()
+        set_tag(store, identity, directives.tag)
+        save_agent_tags(store)
+
     return _AgentInfo(
         name=agent_name,
         wait_names=directives.wait,
@@ -157,6 +179,7 @@ def extract_directives_and_write_meta(
         hidden=bool(directives.hide or auto_dismiss),
         approve=bool(directives.approve),
         plan=bool(directives.plan),
+        tag=directives.tag,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
     )
