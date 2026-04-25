@@ -256,6 +256,24 @@ class BeadProject:
         self._export()
         return updated
 
+    def unmark_ready_to_work(self, epic_id: str) -> Issue:
+        """Reset is_ready_to_work=False on an epic plan bead.
+
+        Used by ``sase bead work`` to roll the flag back when the downstream
+        agent launch fails after the flag has already been flipped. The flip
+        itself stays a one-way mutator via :meth:`mark_ready_to_work` — this
+        is the explicit recovery hatch.
+
+        Raises KeyError if the issue does not exist.
+        """
+        updated = db_mod.update_issue(
+            self._conn, epic_id, is_ready_to_work=0, updated_at=_now()
+        )
+        if updated is None:
+            raise KeyError(f"Issue not found: {epic_id}")
+        self._export()
+        return updated
+
     def add_dependency(self, issue_id: str, depends_on_id: str) -> Dependency:
         """Add a dependency: issue_id depends on depends_on_id."""
         owner = str(self._config.get("owner", ""))

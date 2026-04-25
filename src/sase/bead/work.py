@@ -30,7 +30,6 @@ class PhaseAssignment:
     wave: int
 
 
-# pyvision: tests/test_bead/test_work.py
 @dataclass(frozen=True)
 class EpicWorkPlan:
     """Wave-partitioned plan to work an epic plus its final land agent."""
@@ -41,7 +40,6 @@ class EpicWorkPlan:
     land_waits_on: tuple[str, ...]
 
 
-# pyvision: tests/test_bead/test_work.py
 class EpicPlanError(ValueError):
     """Base error for epic-work-plan construction failures."""
 
@@ -71,7 +69,6 @@ def _land_agent_name(epic_id: str) -> str:
     return f"epic_{_sanitize(epic_id)}_land"
 
 
-# pyvision: tests/test_bead/test_work.py
 def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan:
     """Compute a wave-partitioned plan to work the open phase children of *epic_id*.
 
@@ -166,7 +163,6 @@ def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan
     )
 
 
-# pyvision: tests/test_bead/test_work.py
 def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,

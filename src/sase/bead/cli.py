@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.bead.model import IssueType, Status
 from sase.bead.project import (
@@ -17,6 +18,9 @@ from sase.bead.project import (
     NotAPlanError,
 )
 from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
+
+if TYPE_CHECKING:
+    from sase.bead.work import EpicWorkPlan
 
 
 def _find_beads_location() -> tuple[Path, str]:
@@ -333,23 +337,156 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
+    from sase.bead.work import (
+        EpicPlanError,
+        build_epic_work_plan,
+        render_multi_prompt,
+    )
+    from sase.bead.xprompts import (
+        BeadXPromptNotFoundError,
+        resolve_land_epic_xprompt,
+        resolve_work_phase_xprompt,
+    )
+
+    dry_run = bool(getattr(args, "dry_run", False))
+    yes = bool(getattr(args, "yes", False))
+
     with _get_project() as proj:
         try:
-            issue = proj.mark_ready_to_work(args.id)
+            work_phase_xprompt = resolve_work_phase_xprompt()
+            land_epic_xprompt = resolve_land_epic_xprompt()
+        except (BeadXPromptNotFoundError, ValueError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            issue = proj.show(args.id)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        except NotAPlanError as e:
+        if issue.issue_type != IssueType.PLAN:
+            print(
+                f"Error: is_ready_to_work only applies to plan beads "
+                f"(got {issue.issue_type.value} for {args.id})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if issue.is_ready_to_work:
+            print(
+                f"Error: {args.id} is already marked is_ready_to_work=True",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        try:
+            plan = build_epic_work_plan(proj._conn, args.id)
+        except EpicPlanError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        except AlreadyReadyError as e:
+
+        query = render_multi_prompt(
+            plan,
+            work_phase_xprompt=work_phase_xprompt,
+            land_epic_xprompt=land_epic_xprompt,
+        )
+
+        _print_work_plan_summary(args.id, issue.title, plan)
+
+        if dry_run:
+            print("\n--- Multi-prompt (dry run) ---")
+            print(query)
+            return
+
+        if not yes and not _confirm_launch():
+            print("Aborted.")
+            return
+
+        try:
+            proj.mark_ready_to_work(args.id)
+        except (KeyError, NotAPlanError, AlreadyReadyError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-    print(f"✓ Marked epic ready to work: {issue.id} — {issue.title}")
+
+        claimed: list[tuple[str, str]] = []
+        try:
+            for wave in plan.waves:
+                for assignment in wave:
+                    prior = proj.show(assignment.bead_id)
+                    proj.update(
+                        assignment.bead_id,
+                        status="in_progress",
+                        assignee=assignment.agent_name,
+                    )
+                    claimed.append((assignment.bead_id, prior.assignee or ""))
+        except (KeyError, ValueError) as e:
+            print(f"Error: pre-claim failed for epic {args.id}: {e}", file=sys.stderr)
+            _rollback_work_launch(proj, args.id, claimed)
+            sys.exit(1)
+
+        try:
+            from sase.agent import launcher as _launcher
+
+            result = _launcher.launch_agent_from_cwd(query)
+        except Exception as e:
+            print(
+                f"Error: agent launch failed for epic {args.id}: {e}",
+                file=sys.stderr,
+            )
+            _rollback_work_launch(proj, args.id, claimed)
+            sys.exit(1)
+
+    agent_count = sum(len(w) for w in plan.waves) + 1
     print(
-        "Note: agent launch wiring is incoming in a follow-up phase; "
-        "for now this only flips the is_ready_to_work flag."
+        f"✓ Launched {agent_count} agents for epic {args.id} — {issue.title} "
+        f"(workspace {result.workspace_num})"
     )
+
+
+def _print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
+    phase_count = sum(len(w) for w in plan.waves)
+    wave_count = len(plan.waves)
+    print(
+        f"Epic {epic_id} — {title}: {phase_count} phase agent(s) in "
+        f"{wave_count} wave(s) plus 1 land agent ({plan.land_agent_name})."
+    )
+    for i, wave in enumerate(plan.waves):
+        names = ", ".join(f"{a.bead_id} → {a.agent_name}" for a in wave)
+        print(f"  Wave {i}: {names}")
+    if plan.land_waits_on:
+        print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
+
+
+def _confirm_launch() -> bool:
+    answer = input("Launch these agents? [y/N] ").strip().lower()
+    return answer in ("y", "yes")
+
+
+def _rollback_work_launch(
+    proj: BeadProject,
+    epic_id: str,
+    claimed: list[tuple[str, str]],
+) -> None:
+    """Best-effort: revert pre-claims and the is_ready_to_work flip."""
+    print(
+        "Rolling back pre-claims and is_ready_to_work flag. If rollback also "
+        "fails, fix the affected bead status/assignee fields manually.",
+        file=sys.stderr,
+    )
+    for bead_id, prior_assignee in reversed(claimed):
+        try:
+            proj.update(bead_id, status="open", assignee=prior_assignee)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"Warning: failed to roll back pre-claim on {bead_id}: {exc}",
+                file=sys.stderr,
+            )
+    try:
+        proj.unmark_ready_to_work(epic_id)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Warning: failed to roll back is_ready_to_work on {epic_id}: {exc}",
+            file=sys.stderr,
+        )
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
