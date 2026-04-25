@@ -310,13 +310,25 @@ class AgentDismissingMixin:
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
     ) -> None:
-        """Persist single-agent dismiss side effects in a worker thread."""
+        """Persist single-agent dismiss side effects in a worker thread.
+
+        On success, the optimistic in-memory state is already authoritative —
+        the worker only writes to ``dismissed.json``, deletes artifact dirs,
+        releases the workspace, removes notifications, and saves bundles.
+        None of those mutate ``.gp`` files, so a post-persistence disk reload
+        would only re-derive the state we already have. The reload is skipped
+        and the main thread is freed for the next keystroke; concurrent edits
+        from another sase process are picked up by the next periodic
+        auto-refresh. On failure, the reload is retained as a recovery path
+        so the UI re-syncs with whatever actually landed on disk.
+        """
         identity = agent.identity
         if identity in self._dismiss_persistence_inflight:
             return
         self._dismiss_persistence_inflight.add(identity)
 
         started = time.perf_counter()
+        success = True
         try:
             await asyncio.to_thread(
                 persist_single_dismiss_transaction,
@@ -325,6 +337,7 @@ class AgentDismissingMixin:
                 agents_with_children_snapshot,
             )
         except Exception as exc:
+            success = False
             self.notify(  # type: ignore[attr-defined]
                 f"Dismiss cleanup failed for {agent.display_name}: {exc}",
                 severity="error",
@@ -336,8 +349,11 @@ class AgentDismissingMixin:
                 identity,
                 time.perf_counter() - started,
             )
-            self._refresh_notification_count()  # type: ignore[attr-defined]
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+            if success:
+                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
+            else:
+                self._refresh_notification_count()  # type: ignore[attr-defined]
+                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
 
 def persist_single_dismiss_transaction(

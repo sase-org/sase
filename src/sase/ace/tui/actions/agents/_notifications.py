@@ -241,6 +241,28 @@ class AgentNotificationMixin:
         )
         indicator.set_count(unread_count)
 
+    async def _refresh_notification_count_async(self) -> None:
+        """Async variant that reads the notifications file off the main thread.
+
+        The widget update still runs on the asyncio event loop (main thread).
+        """
+        import asyncio
+
+        from sase.notifications import load_notifications
+
+        from ...widgets import NotificationIndicator
+
+        notifications = await asyncio.to_thread(load_notifications)
+        unread = [n for n in notifications if not n.read and not n.silent]
+        unread_count = len(unread)
+
+        self._last_unread_ids = {n.id for n in unread}
+
+        indicator = self.query_one(  # type: ignore[attr-defined]
+            "#notification-indicator", NotificationIndicator
+        )
+        indicator.set_count(unread_count)
+
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""
         import os

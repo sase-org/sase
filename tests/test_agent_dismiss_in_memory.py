@@ -55,6 +55,7 @@ class FakeDismissApp(AgentDismissingMixin):
         self.load_count = 0
         self.refilter_count = 0
         self.notification_refreshes = 0
+        self.notification_refreshes_async = 0
         self.async_refreshes = 0
 
     def notify(self, message: str, *, severity: str = "information") -> None:
@@ -68,6 +69,9 @@ class FakeDismissApp(AgentDismissingMixin):
 
     def _refresh_notification_count(self) -> None:
         self.notification_refreshes += 1
+
+    async def _refresh_notification_count_async(self) -> None:
+        self.notification_refreshes_async += 1
 
     def _schedule_agents_async_refresh(self) -> None:
         self.async_refreshes += 1
@@ -238,8 +242,34 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
     mock_persist.assert_called_once_with(agent, [agent])
     mock_dismiss_many.assert_called_once_with([agent])
     mock_save.assert_called_once_with({agent.identity})
+    assert app.notification_refreshes_async == 1
+    assert app.notification_refreshes == 0
+    assert app.async_refreshes == 0
+
+
+def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """If the persistence worker raises, the finally schedules a reload."""
+    app = FakeDismissApp()
+    agent = _make_agent(
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+    app._agents_with_children = [agent]
+    app._agents = [agent]
+
+    app._dismiss_done_agent(agent)
+
+    with patch(
+        "sase.ace.tui.actions.agents._dismissing.persist_single_dismiss_transaction",
+        side_effect=RuntimeError("boom"),
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
     assert app.notification_refreshes == 1
+    assert app.notification_refreshes_async == 0
     assert app.async_refreshes == 1
+    assert any(sev == "error" for _, sev in app.notifications)
 
 
 def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -335,8 +365,9 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
     mock_persist.assert_called_once_with(parent, [parent, child])
     mock_dismiss_many.assert_called_once_with([parent, child])
     mock_save.assert_called_once_with({parent.identity, child.identity})
-    assert app.notification_refreshes == 1
-    assert app.async_refreshes == 1
+    assert app.notification_refreshes_async == 1
+    assert app.notification_refreshes == 0
+    assert app.async_refreshes == 0
 
 
 def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
