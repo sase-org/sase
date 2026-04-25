@@ -199,6 +199,60 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def register_file_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'file' subcommand parser."""
+    file_parser = subparsers.add_parser(
+        "file",
+        help="Filesystem completion helpers (consumed by editor integrations)",
+    )
+    file_subparsers = file_parser.add_subparsers(dest="file_subcommand")
+
+    # sase file list
+    list_parser = file_subparsers.add_parser(
+        "list",
+        help="List filesystem completion candidates as JSON",
+    )
+    list_parser.add_argument(
+        "-p",
+        "--path",
+        default=".",
+        help="Directory to anchor relative paths from (default: current dir)",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--token",
+        default="",
+        help="Partial token under cursor (e.g., 'src/foo'); empty lists --path",
+    )
+
+
+def register_file_history_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'file-history' subcommand parser."""
+    fh_parser = subparsers.add_parser(
+        "file-history",
+        help="Inspect and modify the file-reference history",
+    )
+    fh_subparsers = fh_parser.add_subparsers(dest="file_history_subcommand")
+
+    # sase file-history list
+    fh_subparsers.add_parser(
+        "list",
+        help="Print the recency-ordered file-reference history as a JSON array",
+    )
+
+    # sase file-history delete <path>
+    fh_delete_parser = fh_subparsers.add_parser(
+        "delete",
+        help="Remove one entry from the file-reference history",
+    )
+    fh_delete_parser.add_argument(
+        "-p",
+        "--path",
+        required=True,
+        help="Path entry to remove (must exactly match the stored value)",
+    )
+
+
 def register_init_skills_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'init-skills' subcommand parser."""
     init_skills_parser = subparsers.add_parser(

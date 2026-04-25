@@ -108,6 +108,18 @@ def main() -> NoReturn:
 
         handle_config_command(args)
 
+    # --- file ---
+    if args.command == "file":
+        from .file_handler import handle_file_command
+
+        handle_file_command(args)
+
+    # --- file-history ---
+    if args.command == "file-history":
+        from .file_history_handler import handle_file_history_command
+
+        handle_file_history_command(args)
+
     # --- init-git ---
     if args.command == "init-git":
         from sase.workspace_provider.plugins.bare_git_workspace import (
