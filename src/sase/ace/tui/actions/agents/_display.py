@@ -290,6 +290,7 @@ class AgentDisplayMixin:
                 can_jump_to_changespec=can_jump,
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
+                group_focused=self._current_group_key is not None,
             )
 
     def _update_panel_focus_styling(self) -> None:

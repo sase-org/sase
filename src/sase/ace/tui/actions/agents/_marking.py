@@ -82,8 +82,6 @@ class AgentMarkingMixin:
 
     def _bulk_kill_marked_agents(self) -> None:
         """Kill / dismiss every marked agent after a single confirmation."""
-        from ._core import DISMISSABLE_STATUSES
-
         if not self._marked_agents:
             return
 
@@ -95,18 +93,33 @@ class AgentMarkingMixin:
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
+        self._present_bulk_kill_modal(marked_agents)
+
+    def _present_bulk_kill_modal(
+        self, agents: list[Agent], *, header: str | None = None
+    ) -> None:
+        """Show the kill/dismiss confirmation modal for an arbitrary agent set.
+
+        Partitions *agents* into killable (live PID + non-dismissable
+        status) and dismissable buckets, builds the per-agent description,
+        and pushes the matching ``ConfirmKillAllModal`` /
+        ``ConfirmDismissAllModal``.  On confirm, routes through the same
+        ``_do_bulk_kill_agents`` machinery used by the marked-set path.
+        """
+        from ._core import DISMISSABLE_STATUSES
+
         killable: list[Agent] = [
             a
-            for a in marked_agents
+            for a in agents
             if a.pid is not None and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable: list[Agent] = [
-            a
-            for a in marked_agents
-            if a.status in DISMISSABLE_STATUSES or a.pid is None
+            a for a in agents if a.status in DISMISSABLE_STATUSES or a.pid is None
         ]
 
         desc_parts: list[str] = []
+        if header:
+            desc_parts.append(header)
         if killable:
             k_count = len(killable)
             k_s = "s" if k_count != 1 else ""

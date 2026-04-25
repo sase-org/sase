@@ -54,6 +54,23 @@ def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
     assert "e" in binding_keys  # Edit chat is available
 
 
+def test_keybinding_footer_group_focused_overrides_x_label() -> None:
+    """When a group banner is focused (no marks), x reads 'kill/dismiss group'."""
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(None, group_focused=True)
+    assert ("x", "kill/dismiss group") in bindings
+
+
+def test_keybinding_footer_marks_take_priority_over_group_label() -> None:
+    """Marks override the group-focused x label."""
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(None, marked_count=2, group_focused=True)
+    assert ("x", "kill/dismiss group") not in bindings
+    assert any(label == "kill/dismiss (2 marked)" for _, label in bindings)
+
+
 def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
     """V appears only when the agent has prior attempt records."""
     footer = KeybindingFooter()

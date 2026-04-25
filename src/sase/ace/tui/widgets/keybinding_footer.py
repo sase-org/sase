@@ -270,6 +270,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
+        group_focused: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -281,6 +282,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             can_jump_to_changespec=can_jump_to_changespec,
             marked_count=marked_count,
             attempt_pinned=attempt_pinned,
+            group_focused=group_focused,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)

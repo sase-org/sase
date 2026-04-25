@@ -65,6 +65,7 @@ class KeybindingBindingsMixin:
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
+        group_focused: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -79,6 +80,11 @@ class KeybindingBindingsMixin:
         if marked_count > 0:
             bindings.append((x, f"kill/dismiss ({marked_count} marked)"))
             bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
+        elif group_focused:
+            # Phase 5: a focused group banner re-routes ``x`` to bulk-kill
+            # every agent in the group.  Surfaces the affordance so users
+            # know the key changed meaning.
+            bindings.append((x, "kill/dismiss group"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings
