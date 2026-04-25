@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalResult
+from sase.ace.tui.modals.user_question_modal import (
+    UserQuestionResult,
+    _QuestionAnswer,
+)
 from sase.notifications import Notification
 
 
@@ -283,3 +288,73 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
     app._schedule_agents_async_refresh.assert_called_once()
     data = json.loads((response_dir / "plan_response.json").read_text())
     assert data["saved_plan_path"] == saved_plan_path
+
+
+def test_user_question_response_dismisses_notification_and_restores_status(
+    tmp_path: Path,
+) -> None:
+    """Answering a question writes the response and dismisses the source notification."""
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+    (response_dir / "question_request.json").write_text(
+        json.dumps({"questions": [{"question": "Pick one"}]})
+    )
+
+    notification = Notification(
+        id="question-notif",
+        timestamp="2026-04-25T12:00:00-04:00",
+        sender="test",
+        action="UserQuestion",
+        action_data={
+            "response_dir": str(response_dir),
+            "agent_cl_name": "my_cl",
+            "agent_timestamp": "20260425120000",
+        },
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="QUESTION",
+        start_time=None,
+        raw_suffix="20260425120000",
+    )
+    app = MagicMock()
+    app._agents = [agent]
+    app._agent_status_overrides = {agent.identity: "QUESTION"}
+    app._agent_pre_question_status = {agent.identity: "PLAN APPROVED"}
+
+    from sase.ace.tui.actions.agents._notification_modals import handle_user_question
+
+    assert handle_user_question(app, notification) is True
+    on_dismiss = app.push_screen.call_args[0][1]
+
+    with patch("sase.notifications.mark_dismissed") as mark_dismissed:
+        on_dismiss(
+            UserQuestionResult(
+                answers=[
+                    _QuestionAnswer(
+                        question="Pick one",
+                        selected=["A"],
+                        custom_feedback="Use A",
+                    )
+                ],
+                global_note="thanks",
+            )
+        )
+
+    response_data = json.loads((response_dir / "question_response.json").read_text())
+    assert response_data == {
+        "answers": [
+            {
+                "question": "Pick one",
+                "selected": ["A"],
+                "custom_feedback": "Use A",
+            }
+        ],
+        "global_note": "thanks",
+    }
+    mark_dismissed.assert_called_once_with("question-notif")
+    assert app._agent_status_overrides[agent.identity] == "PLAN APPROVED"
+    assert agent.identity not in app._agent_pre_question_status
+    app._load_agents.assert_called_once()

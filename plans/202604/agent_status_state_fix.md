@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 09:57:41
-status: wip
+status: done
 ---
 # Plan: Fix ACE Plan/Question Status Drift
 

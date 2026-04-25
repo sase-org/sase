@@ -154,6 +154,15 @@ def _is_feedback_suffix(suffix: str | None) -> bool:
     return suffix[1:].isdigit()
 
 
+def _is_root_plan_workflow(agent: Agent) -> bool:
+    """Check if an agent is the top-level plan workflow entry."""
+    return (
+        agent.agent_type == AgentType.WORKFLOW
+        and agent.role_suffix == ".plan"
+        and not agent.is_workflow_child
+    )
+
+
 def _apply_status_overrides(agents: list[Agent]) -> None:
     """Override statuses based on workflow relationships (mutates in place).
 
@@ -295,8 +304,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     # EPIC CREATED instead of the generic PLAN DONE.
     for agent in agents:
         if (
-            agent.agent_type == AgentType.WORKFLOW
-            and agent.role_suffix == ".plan"
+            _is_root_plan_workflow(agent)
             and agent.status == "DONE"
             and agent.raw_suffix in parents_with_followup
         ):
@@ -314,8 +322,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     # feedback, so use RUNNING instead of PLANNING.
     for agent in agents:
         if (
-            agent.agent_type == AgentType.WORKFLOW
-            and agent.role_suffix == ".plan"
+            _is_root_plan_workflow(agent)
             and agent.status == "DONE"
             and agent.raw_suffix not in parents_with_followup
         ):

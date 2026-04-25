@@ -148,6 +148,43 @@ def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_appr
     assert parent.status == "PLAN APPROVED"
 
 
+def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> None:
+    """A completed follow-up planner child is not relabeled as PLANNING."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 10, 0, 0),
+        raw_suffix="20260425100000",
+        role_suffix=".plan",
+    )
+    followup_planner = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 10, 5, 0),
+        raw_suffix="20260425100500",
+        parent_timestamp="20260425100000",
+        role_suffix=".plan",
+    )
+    code_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 25, 10, 10, 0),
+        parent_timestamp="20260425100000",
+        role_suffix=".code",
+    )
+    agents = [parent, followup_planner, code_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+    assert followup_planner.status == "DONE"
+
+
 def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
     """A DONE plan parent with an active .epic follow-up becomes EPIC APPROVED."""
     parent = Agent(

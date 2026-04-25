@@ -162,9 +162,13 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         try:
             with open(question_response_path, "w", encoding="utf-8") as f:
                 json.dump(response_data, f, indent=2)
+            from sase.notifications import mark_dismissed
+
+            mark_dismissed(notification.id)
             app.notify("Sent question response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+            return
 
         # Restore agent status override to pre-question value
         _restore_pre_question_status(app, notification)
