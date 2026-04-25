@@ -20,6 +20,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "followup_agents",
             "attempt_history",
             "_loaded_from_dismissed_bundle",
+            "tags",
         ):
             continue
         value = getattr(agent, f.name)

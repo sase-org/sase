@@ -320,6 +320,10 @@ class Agent:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
+    # User-managed tags (no '@' prefix; ordered so [0] is the primary tag).
+    # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.
+    tags: tuple[str, ...] = ()
+
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list["Agent"] = field(default_factory=list)
 
