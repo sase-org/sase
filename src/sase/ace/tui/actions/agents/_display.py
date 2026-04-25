@@ -316,7 +316,12 @@ class AgentDisplayMixin:
             for i in self._pinned_panel_indices
             if not self._agents[i].is_workflow_child
         )
-        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_title_count})"
+        # The pinned panel renders agents flat — no tag/project/name-root
+        # grouping, unlike the main panel.  The "(flat)" hint surfaces this
+        # asymmetry without forcing a follow-up plan to mirror grouping here.
+        pinned_container.border_title = (
+            f"\U0001f4cc Pinned ({pinned_title_count}) · flat"
+        )
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""

@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
-from sase.ace.tui.widgets.agent_list import AgentList, _compute_fold_annotation
+from sase.ace.tui.widgets.agent_list import (
+    _BANNER_ROW,
+    AgentList,
+    _compute_fold_annotation,
+)
+
+_BR = (_BANNER_ROW, None)
 
 
 def _make_record(n: int, *, used_fallback: bool = False) -> AttemptRecord:
@@ -40,27 +46,30 @@ def _make_agent(
 
 
 def test_update_list_emits_attempt_rows_when_history_present() -> None:
-    """An agent with two attempts produces 3 rows: the agent + 2 attempts."""
+    """An agent with two attempts produces 3 agent/attempt rows preceded by banners."""
     widget = AgentList()
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])
     widget.update_list([agent], current_idx=0)
-    # _row_entries: (agent_local_idx, attempt_number | None) per Option
-    assert widget._row_entries == [(0, None), (0, 1), (0, 2)]
+    # Main panel: tag banner + project banner + agent + 2 attempts.
+    assert widget._row_entries == [_BR, _BR, (0, None), (0, 1), (0, 2)]
 
 
-def test_update_list_no_attempts_keeps_single_row_per_agent() -> None:
+def test_update_list_no_attempts_keeps_single_agent_row() -> None:
     widget = AgentList()
     agent = _make_agent()
     widget.update_list([agent], current_idx=0)
-    assert widget._row_entries == [(0, None)]
+    assert widget._row_entries == [_BR, _BR, (0, None)]
 
 
 def test_resolve_row_returns_attempt_number_for_child_rows() -> None:
     widget = AgentList()
     agent = _make_agent(attempt_history=[_make_record(1)])
     widget.update_list([agent], current_idx=0)
-    assert widget._resolve_row(0) == (0, None)
-    assert widget._resolve_row(1) == (0, 1)
+    # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1.
+    assert widget._resolve_row(0) == (0, None)  # banner -> first agent
+    assert widget._resolve_row(1) == (0, None)  # banner -> first agent
+    assert widget._resolve_row(2) == (0, None)
+    assert widget._resolve_row(3) == (0, 1)
 
 
 def test_attempt_option_text_shows_number_and_snippet() -> None:
@@ -107,8 +116,8 @@ def test_highlight_selects_attempt_row_when_attempt_number_passed() -> None:
         current_attempt_number=2,
         has_focus=True,
     )
-    # Row 0 = agent, row 1 = attempt 1, row 2 = attempt 2
-    assert widget.highlighted == 2
+    # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1, 4=attempt 2.
+    assert widget.highlighted == 4
 
 
 def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
@@ -120,7 +129,8 @@ def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
         current_attempt_number=None,
         has_focus=True,
     )
-    assert widget.highlighted == 0
+    # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1.
+    assert widget.highlighted == 2
 
 
 def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
@@ -158,6 +168,6 @@ def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
 
     widget.update_list([parent, child], current_idx=0)
 
-    # Parent row, one attempt under parent, then the child row — no attempt
-    # row attributed to the child.
-    assert widget._row_entries == [(0, None), (0, 1), (1, None)]
+    # Parent and child share grouping (child inherits via parent_timestamp),
+    # so a single tag+project banner pair precedes them both.
+    assert widget._row_entries == [_BR, _BR, (0, None), (0, 1), (1, None)]

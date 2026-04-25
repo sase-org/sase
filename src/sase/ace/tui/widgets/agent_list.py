@@ -10,6 +10,18 @@ from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType, AttemptRecord, format_compact_duration
+from ..models.agent_groups import GroupRow, TreeEntry, banner_label, build_agent_tree
+
+# Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
+_BANNER_ROW = -1
+
+# Minimum width for group banner rules.
+_MIN_BANNER_WIDTH = 40
+
+# Banner styles per level (rule + accent color).
+_TAG_BANNER_STYLE = "bold #FFAF00"
+_PROJECT_BANNER_STYLE = "bold #5FAFFF"
+_NAME_ROOT_BANNER_STYLE = "dim #AFAFAF"
 
 # Panel identity type
 PanelId = Literal["main", "pinned"]
@@ -192,8 +204,12 @@ class AgentList(OptionList, inherit_bindings=False):
                 if agent.is_hidden_step:
                     fully_expanded_parents.add(agent.parent_timestamp)
 
+        # Pre-format agent and attempt rows so we know their widths before
+        # emitting banner rules (banners are stretched to the widest row).
+        # Pinned panel stays flat in Phase 3 and skips banners entirely.
+        agent_options: dict[int, Option] = {}
+        attempt_options: dict[tuple[int, int], Option] = {}
         max_width = 0
-        highlighted_row: int | None = None
         for i, agent in enumerate(agents):
             is_expanded = (
                 agent.raw_suffix is not None
@@ -220,19 +236,8 @@ class AgentList(OptionList, inherit_bindings=False):
                 is_marked=is_marked,
                 hint_char=(jump_hints or {}).get(i),
             )
-            self.add_option(option)
-            if is_selected_agent:
-                highlighted_row = len(self._row_entries)
-            self._row_entries.append((i, None))
-            width = option.prompt.cell_len  # type: ignore[union-attr]
-            max_width = max(max_width, width)
-
-            # Emit attempt child rows below the agent row when the agent has
-            # prior attempt records. Each is selectable and routes the detail
-            # panel to an attempt-pinned view. Skip workflow child steps:
-            # attempts belong to the workflow as a whole, so emitting them under
-            # each child would both produce duplicate option IDs and misattribute
-            # attempts to individual steps.
+            agent_options[i] = option
+            max_width = max(max_width, option.prompt.cell_len)  # type: ignore[union-attr]
             if not agent.is_workflow_child:
                 for record in agent.attempt_history:
                     is_selected_attempt = (
@@ -245,16 +250,63 @@ class AgentList(OptionList, inherit_bindings=False):
                         record,
                         is_selected=is_selected_attempt,
                     )
-                    self.add_option(attempt_option)
-                    if is_selected_attempt:
-                        highlighted_row = len(self._row_entries)
-                    self._row_entries.append((i, record.attempt_number))
-                    width = attempt_option.prompt.cell_len  # type: ignore[union-attr]
-                    max_width = max(max_width, width)
+                    attempt_options[(i, record.attempt_number)] = attempt_option
+                    max_width = max(
+                        max_width,
+                        attempt_option.prompt.cell_len,  # type: ignore[union-attr]
+                    )
+
+        banner_width = max(_MIN_BANNER_WIDTH, max_width)
+
+        # Walk the grouping tree (main panel) or the flat agent list
+        # (pinned panel) and emit Options in display order.
+        if self._panel == "main":
+            tree = build_agent_tree(agents)
+        else:
+            tree = [TreeEntry(kind="agent", agent_idx=i) for i in range(len(agents))]
+
+        highlighted_row: int | None = None
+        banner_seq = 0
+        for entry in tree:
+            if entry.kind == "group" and entry.group is not None:
+                option = self._format_banner_option(
+                    entry.group, width=banner_width, sequence=banner_seq
+                )
+                banner_seq += 1
+                self.add_option(option)
+                self._row_entries.append((_BANNER_ROW, None))
+                continue
+
+            if entry.agent_idx is None:
+                continue
+            i = entry.agent_idx
+            agent = agents[i]
+            option = agent_options[i]
+            self.add_option(option)
+            is_selected_agent = (
+                has_focus and i == current_idx and current_attempt_number is None
+            )
+            if is_selected_agent:
+                highlighted_row = len(self._row_entries)
+            self._row_entries.append((i, None))
+
+            if agent.is_workflow_child:
+                continue
+            for record in agent.attempt_history:
+                attempt_option = attempt_options[(i, record.attempt_number)]
+                self.add_option(attempt_option)
+                is_selected_attempt = (
+                    has_focus
+                    and i == current_idx
+                    and current_attempt_number == record.attempt_number
+                )
+                if is_selected_attempt:
+                    highlighted_row = len(self._row_entries)
+                self._row_entries.append((i, record.attempt_number))
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
-        optimal_width = max_width + _PADDING
+        optimal_width = max(max_width, banner_width) + _PADDING
         self.post_message(self.WidthChanged(optimal_width, panel=self._panel))
 
         # Highlight the current item only if this panel has focus
@@ -525,10 +577,71 @@ class AgentList(OptionList, inherit_bindings=False):
             )
 
     def _resolve_row(self, option_index: int) -> tuple[int, int | None]:
-        """Translate a raw OptionList row index to (agent_local_idx, attempt_number)."""
+        """Translate a raw OptionList row index to (agent_local_idx, attempt_number).
+
+        Banner (group) rows return ``(_BANNER_ROW, None)``; callers route
+        these to the first agent in the group so navigation never lands on a
+        non-selectable banner.
+        """
         if 0 <= option_index < len(self._row_entries):
-            return self._row_entries[option_index]
+            entry = self._row_entries[option_index]
+            if entry[0] == _BANNER_ROW:
+                # Find next agent row (banner rows always precede agents).
+                for j in range(option_index + 1, len(self._row_entries)):
+                    nxt = self._row_entries[j]
+                    if nxt[0] != _BANNER_ROW:
+                        return nxt
+                # Fallback: previous agent row, if any.
+                for j in range(option_index - 1, -1, -1):
+                    prv = self._row_entries[j]
+                    if prv[0] != _BANNER_ROW:
+                        return prv
+                return (0, None)
+            return entry
         return (option_index, None)
+
+    def _format_banner_option(
+        self, group: GroupRow, *, width: int, sequence: int
+    ) -> Option:
+        """Render a group banner row Option.
+
+        Banner styling per level:
+
+        - L0 (tag): heavy double rule ``══`` in warm yellow.
+        - L1 (project): single rule ``──`` in sky blue.
+        - L2 (name-root): dim center-dot rule ``· name ·`` in muted gray.
+
+        Banner Options are marked ``disabled`` so OptionList cursor
+        navigation skips them; mouse clicks are routed to the first agent
+        in the group via :meth:`_resolve_row`.
+        """
+        label = banner_label(group)
+        if group.level == 0:
+            rule = "═"
+            style = _TAG_BANNER_STYLE
+            head, tail = f"{rule}{rule} {label} ", ""
+        elif group.level == 1:
+            rule = "─"
+            style = _PROJECT_BANNER_STYLE
+            head, tail = f"{rule}{rule} {label} ", ""
+        else:
+            rule = " "
+            style = _NAME_ROOT_BANNER_STYLE
+            head, tail = f"· {label} ·", ""
+        # Pad with the rule character to reach the target width.
+        pad_len = max(0, width - len(head) - len(tail))
+        text = Text()
+        text.append(head, style=style)
+        text.append(rule * pad_len, style=style)
+        text.append(tail, style=style)
+        # Sequence-prefixed id keeps banner Options unique even when the
+        # same group key is split into multiple non-contiguous clusters.
+        key_str = "/".join(group.group_key)
+        return Option(
+            text,
+            id=f"group:{sequence}:{group.level}:{key_str}",
+            disabled=True,
+        )
 
     def _format_attempt_option(
         self,
