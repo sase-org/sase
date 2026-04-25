@@ -5,7 +5,7 @@ description:
   sase-telegram's behavior. The message is posted directly via gchat_client.send_message — it is NOT a sase
   notification.
 create_time: 2026-04-25 10:50:54
-status: wip
+status: done
 ---
 
 # Google Chat — Agent Launch Message
