@@ -14,6 +14,7 @@ _MIN_BANNER_WIDTH = 40
 _TAG_BANNER_STYLE = "bold #FFAF00"
 _PROJECT_BANNER_STYLE = "bold #5FAFFF"
 _NAME_ROOT_BANNER_STYLE = "dim #AFAFAF"
+_NAME_ROOT_BANNER_LABEL_STYLE = "bold #87D7AF"
 
 # Panel identity type
 PanelId = Literal["main", "pinned"]

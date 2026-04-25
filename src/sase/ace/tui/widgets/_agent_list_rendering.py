@@ -19,6 +19,7 @@ from ._agent_list_styling import (
     _DISMISSIBLE_STATUSES,
     _DONE_ICON,
     _HIDDEN_ICON,
+    _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BANNER_STYLE,
     _PIN_ICON,
     _PROJECT_BANNER_STYLE,
@@ -244,25 +245,40 @@ def format_banner_option(
     label = banner_label(group)
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
+    chip_text = f"{chip} " if chip else ""
+    text = Text()
     if group.level == 0:
         rule = "═"
         style = _TAG_BANNER_STYLE
         head_text = f"{rule}{rule} {label} "
+        pad_len = max(0, width - len(head_text) - len(chip_text))
+        text.append(head_text, style=style)
+        if chip_text:
+            text.append(chip_text, style=style)
+        text.append(rule * pad_len, style=style)
     elif group.level == 1:
         rule = "─"
         style = _PROJECT_BANNER_STYLE
         head_text = f"{rule}{rule} {label} "
+        pad_len = max(0, width - len(head_text) - len(chip_text))
+        text.append(head_text, style=style)
+        if chip_text:
+            text.append(chip_text, style=style)
+        text.append(rule * pad_len, style=style)
     else:
         rule = " "
-        style = _NAME_ROOT_BANNER_STYLE
-        head_text = f"· {label} ·"
-    chip_text = f"{chip} " if chip else ""
-    pad_len = max(0, width - len(head_text) - len(chip_text))
-    text = Text()
-    text.append(head_text, style=style)
-    if chip_text:
-        text.append(chip_text, style=style)
-    text.append(rule * pad_len, style=style)
+        decor_left = "· "
+        decor_right = " ·"
+        pad_len = max(
+            0,
+            width - len(decor_left) - len(label) - len(decor_right) - len(chip_text),
+        )
+        text.append(decor_left, style=_NAME_ROOT_BANNER_STYLE)
+        text.append(label, style=_NAME_ROOT_BANNER_LABEL_STYLE)
+        text.append(decor_right, style=_NAME_ROOT_BANNER_STYLE)
+        if chip_text:
+            text.append(chip_text, style=_NAME_ROOT_BANNER_STYLE)
+        text.append(rule * pad_len, style=_NAME_ROOT_BANNER_STYLE)
     # Sequence-prefixed id keeps banner Options unique even when the
     # same group key is split into multiple non-contiguous clusters.
     key_str = "/".join(group.group_key)

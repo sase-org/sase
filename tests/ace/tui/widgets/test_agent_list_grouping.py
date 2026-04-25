@@ -5,6 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets._agent_list_styling import (
+    _NAME_ROOT_BANNER_LABEL_STYLE,
+    _NAME_ROOT_BANNER_STYLE,
+    _PROJECT_BANNER_STYLE,
+    _TAG_BANNER_STYLE,
+)
 from sase.ace.tui.widgets.agent_list import _BANNER_ROW, AgentList
 
 _BR = (_BANNER_ROW, None)
@@ -208,6 +214,42 @@ def test_current_group_key_drives_banner_highlight() -> None:
     )
     # Beta tag banner is the second banner row.
     assert widget.highlighted == 1
+
+
+def test_name_root_banner_label_uses_distinct_accent_style() -> None:
+    """L2 name-root label gets its own accent style; decorators/chip/padding stay dim."""
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [
+            _agent(cl_name="demo", agent_name="coder.claude"),
+            _agent(cl_name="demo", agent_name="coder.codex"),
+        ],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    # Layout: tag banner (0), project banner (1), name-root banner (2),
+    # then the two agent rows.
+    text = options[2].prompt
+    plain = text.plain  # type: ignore[union-attr]
+    assert plain.startswith("· coder ·")
+
+    spans_by_range = {(s.start, s.end): s.style for s in text.spans}  # type: ignore[union-attr]
+    label_start = plain.index("coder")
+    label_end = label_start + len("coder")
+    assert spans_by_range[(0, label_start)] == _NAME_ROOT_BANNER_STYLE
+    assert spans_by_range[(label_start, label_end)] == _NAME_ROOT_BANNER_LABEL_STYLE
+    decor_right_end = label_end + len(" ·")
+    assert spans_by_range[(label_end, decor_right_end)] == _NAME_ROOT_BANNER_STYLE
+    # Every remaining span (chip + padding) keeps the dim style.
+    for (start, _), style in spans_by_range.items():
+        if start >= decor_right_end:
+            assert style == _NAME_ROOT_BANNER_STYLE
+
+    # L0 and L1 banners stay single-span at their existing accent styles.
+    tag_text = options[0].prompt
+    assert all(s.style == _TAG_BANNER_STYLE for s in tag_text.spans)  # type: ignore[union-attr]
+    proj_text = options[1].prompt
+    assert all(s.style == _PROJECT_BANNER_STYLE for s in proj_text.spans)  # type: ignore[union-attr]
 
 
 def test_banner_summary_chips_render_in_text() -> None:
