@@ -405,7 +405,7 @@ def handle_questions_flow(
         answers = []
         for q in questions:
             options = q.get("options", [])
-            selected = options[0]["label"] if options else ""
+            selected = [options[0]["label"]] if options else []
             answers.append(
                 {
                     "question": q.get("question", ""),
@@ -467,20 +467,35 @@ def handle_questions_flow(
         time.sleep(0.5)
 
 
-def format_qa_for_prompt(response: dict[str, Any]) -> str:
-    """Format a question response dict as markdown for prompt appending."""
-    lines = ["### Questions and Answers", ""]
-    for answer in response.get("answers", []):
-        q = answer.get("question", "")
-        selected = answer.get("selected", "")
-        custom = answer.get("custom_feedback")
-        line = f"**Q: {q}** A: Selected '{selected}'"
-        if custom:
-            line += f' Custom note: "{custom}"'
-        lines.append(line)
-        lines.append("")
-    global_note = response.get("global_note")
-    if global_note:
-        lines.append(f"**Global note from user:** {global_note}")
-        lines.append("")
-    return "\n".join(lines)
+def format_qa_for_prompt(
+    questions: list[dict[str, Any]],
+    response: dict[str, Any],
+) -> str:
+    """Render Q&A response as markdown for prompt appending.
+
+    Includes every option (with checkbox state) so the follow-up agent
+    can see the full ballot, not just the picked label.
+    """
+    from sase.main.qa_markdown import build_qa_markdown
+
+    response_answers = response.get("answers", []) or []
+
+    # Pair questions with answers by index, falling back to question-text
+    # match if lengths differ (defensive — modal always emits one slot
+    # per question, but auto-approve / future schema drift might not).
+    if len(response_answers) == len(questions):
+        aligned = list(response_answers)
+    else:
+        by_text: dict[str, dict[str, Any]] = {
+            a.get("question", ""): a for a in response_answers if a.get("question")
+        }
+        aligned = []
+        for q in questions:
+            match = by_text.get(q.get("question", ""))
+            aligned.append(match if match is not None else {})
+
+    return build_qa_markdown(
+        questions=questions,
+        answers=aligned,
+        global_note=response.get("global_note") or None,
+    )

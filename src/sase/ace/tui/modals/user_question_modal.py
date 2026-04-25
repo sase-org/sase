@@ -398,60 +398,20 @@ class UserQuestionModal(
 
     def _build_qa_markdown(self) -> str:
         """Build a markdown representation of all questions and answers."""
-        lines: list[str] = ["### Questions and Answers", ""]
+        from sase.main.qa_markdown import build_qa_markdown
 
-        for idx, q in enumerate(self._questions):
-            # Header line
-            header = q.get("header", "")
-            if header:
-                lines.append(f"#### Q{idx + 1}: {header}")
-            else:
-                lines.append(f"#### Q{idx + 1}")
+        answers: list[dict] = []
+        for idx in range(len(self._questions)):
+            ans = self._answers.get(idx)
+            selected = list(ans.selected) if ans else []
+            custom = self._other_text.get(idx, "") if "Other" in selected else None
+            answers.append({"selected": selected, "custom_feedback": custom})
 
-            # Question text as blockquote
-            question_text = q.get("question", "")
-            if question_text:
-                lines.append("")
-                for qline in question_text.splitlines():
-                    lines.append(f"> {qline}" if qline else ">")
-
-            # Options with checkbox state
-            options = q.get("options", [])
-            answer = self._answers.get(idx)
-            selected_labels = set(answer.selected) if answer else set()
-
-            if options:
-                lines.append("")
-                for opt in options:
-                    label = opt.get("label", "")
-                    desc = opt.get("description", "")
-                    checked = "x" if label in selected_labels else " "
-                    display = f"**{label}** \u2014 {desc}" if desc else f"**{label}**"
-                    lines.append(f"- [{checked}] {display}")
-
-                # "Other" with custom feedback
-                has_other = answer is not None and "Other" in selected_labels
-                other_text = self._other_text.get(idx, "")
-                if has_other and other_text:
-                    lines.append(f'- [x] **Other:** "{other_text}"')
-                elif has_other:
-                    lines.append("- [x] **Other**")
-
-            # Multi-select indicator
-            if q.get("multiSelect"):
-                lines.append("")
-                lines.append("*Multi-select*")
-
-            lines.append("")
-
-        # Global note
-        if self._global_note:
-            lines.append("---")
-            lines.append("")
-            lines.append(f"> **Global Note:** {self._global_note}")
-            lines.append("")
-
-        return "\n".join(lines).rstrip() + "\n"
+        return build_qa_markdown(
+            questions=self._questions,
+            answers=answers,
+            global_note=self._global_note,
+        )
 
     # ------------------------------------------------------------------
     # Actions

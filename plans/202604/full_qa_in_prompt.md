@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 09:47:48
-status: wip
+status: done
 ---
 # Plan: Include Full Question Data in Q&A Prompt Section
 

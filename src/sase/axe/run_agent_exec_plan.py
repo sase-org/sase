@@ -457,7 +457,7 @@ def handle_questions_marker(
     _q_extra = format_extra_sections(state.current_artifacts_dir)
     _q_chat = save_chat_history(
         prompt=state.current_prompt,
-        response=format_qa_for_prompt(response),
+        response=format_qa_for_prompt(q_data.get("questions", []), response),
         workflow="ace-run",
         agent=_q_agent,
         timestamp=ctx.timestamp,
@@ -482,7 +482,7 @@ def handle_questions_marker(
         else None,
         workflow_name=ctx.agent_name,
     )
-    qa_text = format_qa_for_prompt(response)
+    qa_text = format_qa_for_prompt(q_data.get("questions", []), response)
     state.qa_sections.append(qa_text)
     state.current_prompt = state.current_prompt + "\n\n" + qa_text
 
