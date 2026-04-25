@@ -42,9 +42,6 @@ class _StubApp(AgentFoldingMixin):
             return self._agents[self.current_idx]
         return None
 
-    def _active_panel_indices(self) -> list[int]:
-        return list(range(len(self._agents)))
-
 
 def _agent(
     *, raw_suffix: str | None = None, agent_type: AgentType = AgentType.RUNNING

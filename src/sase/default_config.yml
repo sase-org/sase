@@ -54,16 +54,12 @@ ace:
       bulk_change_status: "S"
       mark_inactive_pinned: "I"
       # Agent / axe
-      pin_agent: "P"
-      focus_pinned_panel: "o"
       kill_agent: "x"
       toggle_axe: "X"
       stop_axe_and_quit: "Q"
       start_custom_agent: "at"
       start_agent_from_changespec: "space"
       jump_to_agent_changespec: "enter"
-      move_agent_down: "J"
-      move_agent_up: "K"
       edit_panel: "E"
       # Thinking panel
       toggle_thinking: "right_square_bracket"

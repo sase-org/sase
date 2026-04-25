@@ -114,7 +114,6 @@ def test_highlight_selects_attempt_row_when_attempt_number_passed() -> None:
         [agent],
         current_idx=0,
         current_attempt_number=2,
-        has_focus=True,
     )
     # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1, 4=attempt 2.
     assert widget.highlighted == 4
@@ -127,7 +126,6 @@ def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
         [agent],
         current_idx=0,
         current_attempt_number=None,
-        has_focus=True,
     )
     # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1.
     assert widget.highlighted == 2

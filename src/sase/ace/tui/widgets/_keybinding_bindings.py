@@ -59,9 +59,6 @@ class KeybindingBindingsMixin:
         agent: "Agent | None",
         *,
         completed_count: int = 0,
-        is_pinned: bool = False,
-        pinned_count: int = 0,
-        panel_focus: str = "main",
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
@@ -95,17 +92,12 @@ class KeybindingBindingsMixin:
                         f"dismiss all ({completed_count})",
                     )
                 )
-            if pinned_count > 0:
-                label = "list" if panel_focus == "pinned" else "pinned"
-                bindings.append((self._kd("focus_pinned_panel"), label))
             return bindings
 
         # --- Status-dependent actions ---
         if agent.status in ("DONE", "FAILED"):
             if marked_count == 0:
-                bindings.append((x, "unpin" if is_pinned else "dismiss"))
-            pin_label = "unpin" if is_pinned else "pin"
-            bindings.append((self._kd("pin_agent"), pin_label))
+                bindings.append((x, "dismiss"))
             if agent.status != "FAILED":
                 bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
@@ -124,8 +116,6 @@ class KeybindingBindingsMixin:
                     bindings.append((x, "dismiss"))
                 else:
                     bindings.append((x, "kill"))
-            pin_label = "unpin" if is_pinned else "pin"
-            bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status in ("WAITING", "RUNNING"):
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:
@@ -163,15 +153,6 @@ class KeybindingBindingsMixin:
         if agent and agent.attempt_history and not attempt_pinned:
             bindings.append((self._kd("toggle_attempt_view"), "attempt view"))
 
-        # Move up/down (only for top-level agents, not workflow children)
-        if agent and not agent.is_workflow_child:
-            bindings.append(
-                (
-                    f"{self._kd('move_agent_up')} / {self._kd('move_agent_down')}",
-                    "move up / down",
-                )
-            )
-
         # --- App-state bindings ---
 
         # Dismiss all completed (only when completed agents exist)
@@ -179,11 +160,6 @@ class KeybindingBindingsMixin:
             bindings.append(
                 (self._kd("toggle_axe"), f"dismiss all ({completed_count})")
             )
-
-        # Panel switch affordance (only when pinned entries exist)
-        if pinned_count > 0:
-            label = "list" if panel_focus == "pinned" else "pinned"
-            bindings.append((self._kd("focus_pinned_panel"), label))
 
         return bindings
 

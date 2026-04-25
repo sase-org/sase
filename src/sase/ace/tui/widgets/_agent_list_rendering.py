@@ -21,11 +21,9 @@ from ._agent_list_styling import (
     _HIDDEN_ICON,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BANNER_STYLE,
-    _PIN_ICON,
     _PROJECT_BANNER_STYLE,
     _STEP_TYPE_COLORS,
     _TAG_BANNER_STYLE,
-    PanelId,
 )
 
 
@@ -33,11 +31,9 @@ def format_agent_option(
     agent: Agent,
     index: int,
     *,
-    panel: PanelId,
     is_selected: bool,
     fold_annotation: str = "",
     is_expanded: bool = False,
-    is_pinned: bool = False,
     is_marked: bool = False,
     hint_char: str | None = None,
 ) -> Option:
@@ -87,12 +83,8 @@ def format_agent_option(
     if agent.hidden:
         text.append(f"{_HIDDEN_ICON} ", style="bold #FF5F87")
 
-    # Pin icon for pinned agents (only in main panel; pinned panel has it in title)
-    if is_pinned and panel != "pinned":
-        text.append(f"{_PIN_ICON} ", style="bold #FFD700")
-
-    # Done icon for dismissible agents (skip in pinned panel — redundant)
-    if agent.status in _DISMISSIBLE_STATUSES and panel != "pinned":
+    # Done icon for dismissible agents
+    if agent.status in _DISMISSIBLE_STATUSES:
         text.append(f"{_DONE_ICON} ", style="bold red")
 
     # Spawn-on-retry: prefix retry attempts with a small ↻N badge so

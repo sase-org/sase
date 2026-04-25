@@ -51,7 +51,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
     # Agent state
     _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
-    _pinned_agents: set[tuple[AgentType, str, str | None]]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
@@ -113,7 +112,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in identities
         ]
-        self._build_panel_indices()  # type: ignore[attr-defined]
         self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
 
         if refresh and self.current_tab == "agents":  # type: ignore[attr-defined]
@@ -121,13 +119,13 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 list_changed=True, defer_detail=True
             )
 
-    def _clamp_agent_selection_to_active_panel(self) -> None:
+    def _clamp_agent_selection(self) -> None:
         """Clamp current_idx after an in-memory agent-list mutation.
 
         Thin wrapper for callers (revive, hide-toggle) that have no
         pre-mutation visible-row anchor — delegates to
         :meth:`_restore_focus_after_removal` with ``None`` so the unified
-        clamp / panel-empty fallback lives in one place.
+        clamp fallback lives in one place.
         """
         self._restore_focus_after_removal(None)  # type: ignore[attr-defined]
 
@@ -351,16 +349,12 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         killable = [
             a
             for a in self._agents
-            if a.pid is not None
-            and a.status not in DISMISSABLE_STATUSES
-            and a.identity not in self._pinned_agents
+            if a.pid is not None and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable = [
             a
             for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and a.raw_suffix is not None
-            and a.identity not in self._pinned_agents
+            if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
         if not killable and not dismissable:

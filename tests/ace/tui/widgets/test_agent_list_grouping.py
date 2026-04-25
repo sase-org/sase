@@ -36,20 +36,13 @@ def _agent(
 
 def test_main_panel_emits_banner_rows() -> None:
     """Tag + project banners precede every agent on the main panel."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list([_agent()], current_idx=0)
     assert widget._row_entries == [_BR, _BR, (0, None)]
 
 
-def test_pinned_panel_stays_flat() -> None:
-    """The pinned panel skips banner rendering entirely (Phase 3 limitation)."""
-    widget = AgentList(panel="pinned")
-    widget.update_list([_agent(), _agent(cl_name="other")], current_idx=0)
-    assert widget._row_entries == [(0, None), (1, None)]
-
-
 def test_two_agents_with_distinct_tags_get_two_tag_banners() -> None:
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="demo-a", tag="alpha"),
@@ -71,7 +64,7 @@ def test_two_agents_with_distinct_tags_get_two_tag_banners() -> None:
 
 def test_singleton_name_root_emits_no_level2_banner_in_main_panel() -> None:
     """A lone dotted-name agent renders only tag + project banners — no level-2 chrome."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [_agent(cl_name="demo", agent_name="coder.claude")],
         current_idx=0,
@@ -80,7 +73,7 @@ def test_singleton_name_root_emits_no_level2_banner_in_main_panel() -> None:
 
 
 def test_named_agents_share_name_root_banner() -> None:
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="demo", agent_name="coder.claude"),
@@ -94,7 +87,7 @@ def test_named_agents_share_name_root_banner() -> None:
 
 def test_banner_options_are_disabled() -> None:
     """Banner Options are disabled so OptionList cursor navigation skips them."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list([_agent()], current_idx=0)
     # First two Options are banners; the agent row is third.
     options = list(widget._options)  # internal OptionList list
@@ -104,7 +97,7 @@ def test_banner_options_are_disabled() -> None:
 
 
 def test_banner_label_renders_in_option_text() -> None:
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
         current_idx=0,
@@ -117,7 +110,7 @@ def test_banner_label_renders_in_option_text() -> None:
 
 
 def test_resolve_row_routes_banner_clicks_to_first_agent() -> None:
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="a", tag="alpha"),
@@ -136,11 +129,10 @@ def test_resolve_row_routes_banner_clicks_to_first_agent() -> None:
 
 def test_highlighted_row_skips_banner_offset() -> None:
     """Selecting an agent highlights the correct row even with banners ahead."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [_agent(cl_name="a"), _agent(cl_name="b")],
         current_idx=1,
-        has_focus=True,
     )
     # Expected layout:
     #   0 = tag banner
@@ -156,7 +148,7 @@ def test_highlighted_row_skips_banner_offset() -> None:
 
 def test_fold_level_0_renders_only_tag_banners() -> None:
     """At L0 the AgentList shows tag banners only — no agents, no projects."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="a", tag="alpha"),
@@ -172,7 +164,7 @@ def test_fold_level_0_renders_only_tag_banners() -> None:
 
 def test_banners_are_selectable_when_fold_level_below_3() -> None:
     """At fold level < 3, banner Options are NOT disabled."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [_agent(cl_name="a", tag="alpha")],
         current_idx=0,
@@ -184,7 +176,7 @@ def test_banners_are_selectable_when_fold_level_below_3() -> None:
 
 def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
     """Banner clicks at fold level < 3 carry the GroupRow key for Phase 5."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="a", tag="alpha"),
@@ -201,7 +193,7 @@ def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
 
 
 def test_current_group_key_drives_banner_highlight() -> None:
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="a", tag="alpha"),
@@ -210,7 +202,6 @@ def test_current_group_key_drives_banner_highlight() -> None:
         current_idx=1,
         group_fold_level=0,
         current_group_key=("beta",),
-        has_focus=True,
     )
     # Beta tag banner is the second banner row.
     assert widget.highlighted == 1
@@ -218,7 +209,7 @@ def test_current_group_key_drives_banner_highlight() -> None:
 
 def test_name_root_banner_label_uses_distinct_accent_style() -> None:
     """L2 name-root label gets its own accent style; decorators/chip/padding stay dim."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="demo", agent_name="coder.claude"),
@@ -260,7 +251,7 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
     row the previous full refresh chose.  ``current_idx`` should be
     irrelevant when ``group_key`` matches a banner.
     """
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [
             _agent(cl_name="a", tag="alpha"),
@@ -269,7 +260,6 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
         current_idx=0,
         group_fold_level=0,
         current_group_key=("alpha",),
-        has_focus=True,
     )
     # Sanity: starts on the alpha banner (row 0).
     assert widget.highlighted == 0
@@ -284,11 +274,10 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
     Defensive: covers a refresh-vs-fold race where the caller's
     ``_current_group_key`` no longer matches any rendered banner.
     """
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         [_agent(cl_name="a"), _agent(cl_name="b")],
         current_idx=0,
-        has_focus=True,
     )
     # Layout: tag, project_a, agent0, project_b, agent1.
     widget.update_highlight(1, group_key=("ghost",))
@@ -297,7 +286,7 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
 
 def test_banner_summary_chips_render_in_text() -> None:
     """Banner labels at any fold level include the summary chip."""
-    widget = AgentList(panel="main")
+    widget = AgentList()
     a = _agent(cl_name="a", tag="alpha")
     a_running = a  # status defaults to RUNNING
     widget.update_list(

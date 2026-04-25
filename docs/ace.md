@@ -211,7 +211,6 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 | Key                 | Action                                                                         |
 | ------------------- | ------------------------------------------------------------------------------ |
-| `J` / `K`           | Move agent down / up in the list (persisted ordering)                          |
 | `R`                 | Revive a previously dismissed agent                                            |
 | `@`                 | Run custom agent                                                               |
 | `a`                 | Toggle auto-approve / answer HITL                                              |
@@ -225,8 +224,6 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `u`                 | Clear all agent marks                                                          |
 | `x`                 | Kill / dismiss agent (or every marked agent when marks exist)                  |
 | `X`                 | Dismiss all completed agents (with confirmation)                               |
-| `o`                 | Focus pinned agents panel                                                      |
-| `P`                 | Pin / unpin completed agent (protects from dismiss-all)                        |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                       |
 | `e`                 | Edit chat in editor                                                            |
 | `E`                 | Edit panel content in editor                                                   |
@@ -635,15 +632,6 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` (single) or `X` (all completed).
-
-### Pinned Agents
-
-Press `P` on a completed agent to toggle its pinned state. Pinned agents are shown with a 📌 icon and are excluded from
-the `X` (dismiss all) operation. This lets you preserve specific completed agents for reference while bulk-dismissing
-the rest. Pinned state is persisted across TUI sessions in `~/.sase/pinned_agents.json`.
-
-When no agents are pinned, the pinned panel container is fully hidden (`display: none`) rather than reserving empty
-space, keeping the layout compact.
 
 ### Agent Revival
 

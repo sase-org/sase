@@ -14,7 +14,6 @@ under the level-3 grouping walk).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.actions.agents._killing import AgentKillingMixin
@@ -25,8 +24,8 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
     """Minimal harness exercising the kill / dismiss focus-restoration path.
 
     Inherits the real kill / dismiss mixins so the production code paths
-    drive the test, and supplies the shared panel / visible-order helpers
-    inline (mirrors the ``_StubApp`` in ``test_agent_jk_navigation``).
+    drive the test, and supplies the shared visible-order helpers inline
+    (mirrors the ``_StubApp`` in ``test_agent_jk_navigation``).
     """
 
     def __init__(
@@ -34,9 +33,6 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         agents: list[Agent],
         *,
         current_idx: int = 0,
-        focused: Literal["main", "pinned"] = "main",
-        main_indices: list[int] | None = None,
-        pinned_indices: list[int] | None = None,
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = current_idx
@@ -44,7 +40,6 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         self._agents_with_children = list(agents)
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
-        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
@@ -54,19 +49,6 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
             set()
         )
-        self._pinned_panel_focused: Literal["main", "pinned"] = focused
-        if main_indices is None:
-            main_indices = list(range(len(agents)))
-        if pinned_indices is None:
-            pinned_indices = []
-        self._main_panel_indices = list(main_indices)
-        self._pinned_panel_indices = list(pinned_indices)
-        self._main_panel_idx_map = {
-            g: i for i, g in enumerate(self._main_panel_indices)
-        }
-        self._pinned_panel_idx_map = {
-            g: i for i, g in enumerate(self._pinned_panel_indices)
-        }
         self.notifications: list[tuple[str, str]] = []
         self.scheduled: list[tuple[object, tuple[object, ...]]] = []
         self.refresh_calls: list[tuple[bool, bool]] = []
@@ -98,73 +80,30 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         # re-anchor focus.
         self._refilter_called = True
         self._agents = list(self._agents_with_children)
-        self._build_panel_indices()
         self._restore_focus_after_removal(prior_pos)
 
-    # --- Panel / visible-order helpers (same shape as AgentsMixinCore) ---
+    # --- Visible-order helpers ---
 
-    def _build_panel_indices(self) -> None:
-        # Test panels are flat: every agent in `_agents` belongs to the
-        # main panel unless explicitly placed on the pinned panel.
-        pinned_set = set(self._pinned_panel_indices)
-        # Re-derive from the agent list using positional identity in
-        # `_agents`. Tests that need split panels initialize indices and
-        # never mutate `_agents` mid-flight.
-        new_main: list[int] = []
-        new_pinned: list[int] = []
-        for i in range(len(self._agents)):
-            if i in pinned_set:
-                new_pinned.append(i)
-            else:
-                new_main.append(i)
-        self._main_panel_indices = new_main
-        self._pinned_panel_indices = new_pinned
-        self._main_panel_idx_map = {g: i for i, g in enumerate(new_main)}
-        self._pinned_panel_idx_map = {g: i for i, g in enumerate(new_pinned)}
-
-    def _main_panel_visible_order(self) -> list[int]:
+    def _agents_visible_order(self) -> list[int]:
         from sase.ace.tui.models.agent_groups import build_agent_tree
 
-        main_agents = [self._agents[i] for i in self._main_panel_indices]
-        tree = build_agent_tree(main_agents, group_fold_level=3)
+        tree = build_agent_tree(self._agents, group_fold_level=3)
         return [
-            self._main_panel_indices[entry.agent_idx]
+            entry.agent_idx
             for entry in tree
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
 
-    def _active_panel_visible_order(self) -> list[int]:
-        if self._pinned_panel_focused == "pinned":
-            return list(self._pinned_panel_indices)
-        return self._main_panel_visible_order()
-
-    def _active_panel_indices(self) -> list[int]:
-        if self._pinned_panel_focused == "pinned":
-            return self._pinned_panel_indices
-        return self._main_panel_indices
-
     def _capture_focused_visible_pos(self) -> int | None:
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             return None
-        active = self._active_panel_indices()
-        if self.current_idx not in active:
-            return None
-        visible = self._active_panel_visible_order()
+        visible = self._agents_visible_order()
         try:
             return visible.index(self.current_idx)
         except ValueError:
             return None
 
     def _restore_focus_after_removal(self, prior_visible_pos: int | None) -> None:
-        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":
-            self._pinned_panel_focused = "main"
-        elif (
-            not self._main_panel_indices
-            and self._pinned_panel_indices
-            and self._pinned_panel_focused == "main"
-        ):
-            self._pinned_panel_focused = "pinned"
-
         if not self._agents:
             self.current_idx = 0
             return
@@ -175,14 +114,9 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
             self.current_idx = 0
 
         if prior_visible_pos is not None:
-            visible = self._active_panel_visible_order()
+            visible = self._agents_visible_order()
             if visible:
                 self.current_idx = visible[min(prior_visible_pos, len(visible) - 1)]
-                return
-
-        active = self._active_panel_indices()
-        if active and self.current_idx not in active:
-            self.current_idx = active[0]
 
 
 def _agent(
@@ -278,7 +212,7 @@ def test_workflow_parent_kill_lands_on_unrelated_after_cascade() -> None:
 
 
 def test_last_agent_in_panel_killed_falls_back_safely() -> None:
-    """Killing the only main-panel agent leaves the cursor in a valid state."""
+    """Killing the only agent leaves the cursor in a valid state."""
     only_one = _agent(tag="alpha", name="solo")
     app = _StubApp([only_one], current_idx=0)
 
@@ -323,42 +257,16 @@ def test_bulk_kill_lands_on_first_surviving_visible_at_or_below_anchor() -> None
     assert app.current_idx == 0
 
 
-# ---- Pinned panel -------------------------------------------------------
-
-
-def test_pinned_panel_kill_lands_on_next_pinned_agent() -> None:
-    """Pinned panel renders flat; killing focused pinned agent picks next."""
-    agents = [
-        _agent(tag="zeta", name="z1"),
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
-    ]
-    # All three live on the pinned panel (flat order = `_agents` order).
-    app = _StubApp(
-        agents,
-        current_idx=0,  # zeta
-        focused="pinned",
-        main_indices=[],
-        pinned_indices=[0, 1, 2],
-    )
-
-    app._apply_killed_agents_in_memory({agents[0].identity})
-
-    # Survivors flat order: [alpha, beta]; visible position 0 → alpha.
-    assert [ag.agent_name for ag in app._agents] == ["a1", "b1"]
-    assert app._agents[app.current_idx].agent_name == "a1"
-
-
 # ---- Banner focus -------------------------------------------------------
 
 
 def test_banner_focus_kill_does_not_anchor_to_visible_position() -> None:
-    """When ``_current_group_key`` is set, prior_pos is None — clamp fallback runs.
+    """When focus is out-of-range, prior_pos is None — clamp fallback runs.
 
     This guards the no-anchor path used by the group-banner bulk kill flow
     at fold level < 3. We capture by hand to assert the contract that
     ``_capture_focused_visible_pos`` returns ``None`` when selection is
-    not on the active panel.
+    not on a real agent row.
     """
     agents = _scrambled_three()
     app = _StubApp(agents, current_idx=99)  # out-of-range — no anchor
@@ -366,8 +274,6 @@ def test_banner_focus_kill_does_not_anchor_to_visible_position() -> None:
     assert app._capture_focused_visible_pos() is None
     # And `_restore_focus_after_removal(None)` runs the safe fallback.
     app._agents = list(agents)
-    app._build_panel_indices()
     app._restore_focus_after_removal(None)
-    # current_idx clamped into bounds and into the active panel.
+    # current_idx clamped into bounds.
     assert 0 <= app.current_idx < len(app._agents)
-    assert app.current_idx in app._active_panel_indices()

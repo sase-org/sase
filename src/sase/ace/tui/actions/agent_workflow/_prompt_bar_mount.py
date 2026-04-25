@@ -233,18 +233,13 @@ class PromptBarMountMixin:
     def _post_unmount_focus_target(self) -> object | None:
         """Return the widget that should own focus after the bar is unmounted.
 
-        Keyed off the currently active tab (and pinned-panel focus on the
-        Agents tab).  Returns ``None`` if no suitable target can be resolved.
+        Keyed off the currently active tab.  Returns ``None`` if no
+        suitable target can be resolved.
         """
         tab = getattr(self, "current_tab", None)
         candidates: tuple[str, ...]
         if tab == "agents":
-            pinned_focused = getattr(self, "_pinned_panel_focused", "main")
-            candidates = (
-                ("#pinned-list-panel", "#agent-list-panel")
-                if pinned_focused == "pinned"
-                else ("#agent-list-panel", "#pinned-list-panel")
-            )
+            candidates = ("#agent-list-panel",)
         elif tab == "axe":
             candidates = ("#bgcmd-list-panel",)
         else:

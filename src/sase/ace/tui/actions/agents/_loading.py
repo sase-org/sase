@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import time
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -19,7 +19,6 @@ from ....changespec import ChangeSpec
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     TabName,
-    apply_custom_order,
     is_always_visible,
     is_axe_spawned_agent,
     load_agents_from_disk,
@@ -121,17 +120,6 @@ class AgentLoadingMixin:
     _agents_refresh_pending: bool
     _agents_refresh_scheduled: bool
 
-    # Panel focus and index maps for pinned panel split
-    _pinned_panel_focused: Literal["main", "pinned"]
-    _main_panel_indices: list[int]
-    _pinned_panel_indices: list[int]
-
-    # Pinned agents
-    _pinned_agents: set[tuple[AgentType, str, str | None]]
-
-    # Custom agent ordering
-    _agent_custom_order: list[tuple[AgentType, str, str | None]]
-
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         on_agents_tab = self.current_tab == "agents"
@@ -209,11 +197,10 @@ class AgentLoadingMixin:
             self._agents_first_load_done = True
             from ...widgets import AgentInfoPanel, AgentList
 
-            for panel_id in ("#agent-list-panel", "#pinned-list-panel"):
-                try:
-                    self.query_one(panel_id, AgentList).loading = False  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+            try:
+                self.query_one("#agent-list-panel", AgentList).loading = False  # type: ignore[attr-defined]
+            except Exception:
+                pass
             try:
                 info_panel = self.query_one(  # type: ignore[attr-defined]
                     "#agent-info-panel", AgentInfoPanel
@@ -440,10 +427,6 @@ class AgentLoadingMixin:
             self._agents, self._fold_manager
         )
 
-        # Apply custom ordering (user-defined via J/K move)
-        if self._agent_custom_order:
-            self._agents = apply_custom_order(self._agents, self._agent_custom_order)
-
         # Apply agent search filter (case-insensitive substring match).
         # The haystack includes metadata fields plus each agent's cached
         # prompt/reply content — see ``AgentContentSearchCache``. Content
@@ -499,9 +482,6 @@ class AgentLoadingMixin:
                 self._agent_status_overrides.pop(identity, None)
                 self._agent_pre_question_status.pop(identity, None)
 
-        # Build panel index maps (must happen after _agents is finalized)
-        self._build_panel_indices()  # type: ignore[attr-defined]
-
         # Calculate the new index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
@@ -518,7 +498,7 @@ class AgentLoadingMixin:
 
         # When the previously selected identity is gone (kill / dismiss),
         # re-anchor focus to the agent that now occupies the same visible
-        # row the killed one had. Only the on-agents-tab branch needs this
+        # row the killed one had.  Only the on-agents-tab branch needs this
         # — the saved-idx branch is just a stash for tab switches.
         if (
             on_agents_tab
@@ -527,18 +507,6 @@ class AgentLoadingMixin:
             and not identity_restored
         ):
             self.current_idx = saved_idx
-            # Ensure panel focus is valid before reading the visible order.
-            if (
-                not self._pinned_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_focused == "pinned"  # type: ignore[attr-defined]
-            ):
-                self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-            elif (
-                not self._main_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
-            ):
-                self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
             self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
         else:
             # Clamp to valid bounds
@@ -546,25 +514,6 @@ class AgentLoadingMixin:
                 new_idx = min(saved_idx, len(self._agents) - 1)
             else:
                 new_idx = 0
-
-            # Ensure panel focus is valid after refresh
-            if (
-                not self._pinned_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_focused == "pinned"  # type: ignore[attr-defined]
-            ):
-                self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-            elif (
-                not self._main_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_indices  # type: ignore[attr-defined]
-                and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
-            ):
-                self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
-
-            # If selection target is not in focused panel, adjust
-            if self._agents and new_idx not in self._active_panel_indices():  # type: ignore[attr-defined]
-                active = self._active_panel_indices()  # type: ignore[attr-defined]
-                if active:
-                    new_idx = active[0]
 
             # Only modify current_idx if we're on the agents tab
             # Otherwise, update the saved position for when user switches to agents tab
@@ -593,19 +542,10 @@ class AgentLoadingMixin:
             )
         else:
             hidden_running = 0
-        pinned_visible = sum(
-            1
-            for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and not a.is_workflow_child
-            and a.identity in self._pinned_agents
-        )
         done_visible = sum(
             1
             for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and not a.is_workflow_child
-            and a.identity not in self._pinned_agents
+            if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
         )
         from ...widgets import TabBar
 
@@ -616,7 +556,6 @@ class AgentLoadingMixin:
                 hidden_running,
                 show_hidden=not self.hide_non_run_agents,
                 done_count=done_visible,
-                pinned_count=pinned_visible,
             )
         except Exception:
             pass

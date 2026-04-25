@@ -33,7 +33,6 @@ class TabBar(Static):
         self._agents_manual_count: int = 0
         self._agents_hidden_count: int = 0
         self._agents_done_count: int = 0
-        self._agents_pinned_count: int = 0
         self._agents_show_hidden: bool = False
         self._agents_loading: bool = False
         self._axe_main_count: int = 0
@@ -100,7 +99,6 @@ class TabBar(Static):
         *,
         show_hidden: bool,
         done_count: int = 0,
-        pinned_count: int = 0,
         loading: bool = False,
     ) -> None:
         """Update the running agent counts shown on the Agents tab label.
@@ -109,8 +107,7 @@ class TabBar(Static):
             manual_count: Number of running manual (always-visible) agents.
             hidden_count: Number of running hidden agents.
             show_hidden: Whether hidden agents are currently visible.
-            done_count: Number of non-pinned done agents not yet dismissed.
-            pinned_count: Number of pinned done agents.
+            done_count: Number of done agents not yet dismissed.
             loading: If True, render a dim italic ellipsis suffix instead of
                 the counts to signal that the agent list is still loading.
         """
@@ -118,14 +115,12 @@ class TabBar(Static):
             self._agents_manual_count != manual_count
             or self._agents_hidden_count != hidden_count
             or self._agents_done_count != done_count
-            or self._agents_pinned_count != pinned_count
             or self._agents_show_hidden != show_hidden
             or self._agents_loading != loading
         ):
             self._agents_manual_count = manual_count
             self._agents_hidden_count = hidden_count
             self._agents_done_count = done_count
-            self._agents_pinned_count = pinned_count
             self._agents_show_hidden = show_hidden
             self._agents_loading = loading
             self._refresh_content()
@@ -241,7 +236,6 @@ class TabBar(Static):
         # Agents tab
         agents_key_counts: list[tuple[str, int]] = [
             (dismiss_key, self._agents_done_count),
-            ("+", self._agents_pinned_count),
         ]
         if self._agents_show_hidden:
             agents_key_counts.append((hide_key, self._agents_hidden_count))

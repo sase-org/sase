@@ -93,36 +93,16 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
-def test_tab_bar_agents_pinned_only() -> None:
-    """Tab shows +1 when 1 pinned agent exists and no dismissable."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(0, 0, show_hidden=False, pinned_count=1)
-    content = tab_bar._build_content()
-    assert "+1" in content.plain
-    assert "x" not in content.plain.split("Agents")[1].split(")")[0]
-
-
 def test_tab_bar_agents_dismissable_only() -> None:
-    """Tab shows x2 when 2 non-pinned dismissable agents exist."""
+    """Tab shows x2 when 2 dismissable agents exist."""
     tab_bar = TabBar()
     tab_bar.update_agents_count(0, 0, show_hidden=False, done_count=2)
     content = tab_bar._build_content()
     assert "x2" in content.plain
-    assert "+" not in content.plain.split("Agents")[1].split(")")[0]
 
 
-def test_tab_bar_agents_both_dismissable_and_pinned() -> None:
-    """Tab shows x1 +1 when both dismissable and pinned agents exist."""
-    tab_bar = TabBar()
-    tab_bar.update_agents_count(0, 0, show_hidden=False, done_count=1, pinned_count=1)
-    content = tab_bar._build_content()
-    agents_suffix = content.plain.split("Agents")[1].split(")")[0]
-    assert "x1" in agents_suffix
-    assert "+1" in agents_suffix
-
-
-def test_tab_bar_agents_no_pinned_no_dismissable() -> None:
-    """Tab shows no suffix when neither pinned nor dismissable agents exist."""
+def test_tab_bar_agents_no_dismissable() -> None:
+    """Tab shows no suffix when no dismissable agents exist."""
     tab_bar = TabBar()
     tab_bar.update_agents_count(0, 0, show_hidden=False)
     content = tab_bar._build_content()

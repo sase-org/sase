@@ -36,11 +36,6 @@ class NavigationMixinBase:
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     _agents: list[Agent]
-    _main_panel_indices: list[int]
-    _pinned_panel_indices: list[int]
-    _main_panel_idx_map: dict[int, int]
-    _pinned_panel_idx_map: dict[int, int]
-    _pinned_panel_focused: Literal["main", "pinned"]
     _group_fold_state: AgentGroupFoldState
     _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
@@ -56,7 +51,6 @@ class NavigationMixinBase:
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
     _entry_jump_last_index: dict[str, int]
-    _entry_jump_last_panel: dict[str, str | None]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

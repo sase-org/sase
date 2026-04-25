@@ -74,8 +74,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("clear_marks", "Unmark All", False),
     ("bulk_change_status", "Bulk Status", False),
     ("show_notifications", "Notifications", False),
-    ("pin_agent", "Pin", False),
-    ("focus_pinned_panel", "Focus Pinned", False),
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Layout", False),
     ("expand_all_folds", "Expand All", False),
@@ -104,8 +102,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reset_file_trim", "Reset Trim", False),
     ("show_all_file_lines", "Show All", False),
     ("jump_to_agent_changespec", "Go to CL", False),
-    ("move_agent_down", "Move Down", False),
-    ("move_agent_up", "Move Up", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
 ]
 
@@ -229,16 +225,12 @@ class AppKeymaps:
     bulk_change_status: str
     mark_inactive_pinned: str
     # Agent / axe
-    pin_agent: str
-    focus_pinned_panel: str
     kill_agent: str
     toggle_axe: str
     stop_axe_and_quit: str
     start_custom_agent: str
     start_agent_from_changespec: str
     jump_to_agent_changespec: str
-    move_agent_down: str
-    move_agent_up: str
     edit_panel: str
     toggle_attempt_view: str
     # Thinking panel

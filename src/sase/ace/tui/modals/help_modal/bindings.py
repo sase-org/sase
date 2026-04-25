@@ -268,10 +268,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
                     "Move to next / previous agent",
                 ),
-                (
-                    f"{d(a.move_agent_up)} / {d(a.move_agent_down)}",
-                    "Move agent entry up / down",
-                ),
                 (d(a.jump_to_entry), "Jump to entry"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
@@ -286,7 +282,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
                     "Scroll prompt panel down / up",
                 ),
-                (d(a.focus_pinned_panel), "Toggle focus: list / pinned"),
             ],
         ),
         (
@@ -301,7 +296,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.kill_agent), "Kill/dismiss agent/group/marked"),
                 (d(a.toggle_mark), "Mark/unmark current agent"),
                 (d(a.clear_marks), "Clear all agent marks"),
-                (d(a.pin_agent), "Pin / unpin agent"),
                 (d(a.toggle_axe), "Dismiss all completed agents"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),

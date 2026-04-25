@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent import AgentType
+    from ...models.agent import AgentType  # noqa: F401
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -66,53 +66,6 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
             return True
 
     return False
-
-
-def apply_custom_order(
-    agents: list[Agent], order: list[tuple[AgentType, str, str | None]]
-) -> list[Agent]:
-    """Reorder top-level agents according to the user's custom order.
-
-    New agents (not in *order*) stay above persisted entries while preserving
-    their incoming time-sorted order.  Agents whose identity appears in *order*
-    keep the persisted relative order.  Workflow children stay grouped after
-    their parent.
-    """
-    # Build identity -> desired position lookup
-    order_map: dict[tuple[AgentType, str, str | None], int] = {
-        identity: pos for pos, identity in enumerate(order)
-    }
-
-    # Separate top-level agents from workflow children
-    top_level: list[Agent] = []
-    children_by_parent: dict[str, list[Agent]] = {}
-    for agent in agents:
-        if agent.is_workflow_child:
-            parent_ts = agent.parent_timestamp or ""
-            children_by_parent.setdefault(parent_ts, []).append(agent)
-        else:
-            top_level.append(agent)
-
-    # Keep newly discovered top-level agents above the persisted custom order.
-    # Their incoming order is already the loader's default newest-first order.
-    unordered_top_level = [a for a in top_level if a.identity not in order_map]
-    ordered_top_level = [a for a in top_level if a.identity in order_map]
-    ordered_top_level.sort(key=lambda a: order_map[a.identity])
-    top_level = unordered_top_level + ordered_top_level
-
-    # Reassemble with children after their parents
-    result: list[Agent] = []
-    for agent in top_level:
-        result.append(agent)
-        if agent.raw_suffix and agent.raw_suffix in children_by_parent:
-            result.extend(children_by_parent[agent.raw_suffix])
-    # Append any orphaned children (parent not in list)
-    seen_parents = {a.raw_suffix for a in top_level if a.raw_suffix}
-    for parent_ts, children in children_by_parent.items():
-        if parent_ts not in seen_parents:
-            result.extend(children)
-
-    return result
 
 
 def load_agents_from_disk(

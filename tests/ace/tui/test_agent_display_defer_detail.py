@@ -61,13 +61,6 @@ class _FakeApp(AgentDisplayMixin):
         self.current_attempt_number = None
         self.refresh_interval = 10
         self.current_tab = "agents"
-        self._pinned_panel_focused = "main"
-        self._main_panel_indices = [0]
-        self._pinned_panel_indices = []
-        self._main_panel_idx_map = {0: 0}
-        self._pinned_panel_idx_map = {}
-        self._non_child_main_indices = [0]
-        self._pinned_agents = set()
         self._marked_agents = set()
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint = {}
@@ -79,7 +72,6 @@ class _FakeApp(AgentDisplayMixin):
         self._pending_callback = None
         self._widgets = {
             "#agent-list-panel": _ListWidget(),
-            "#pinned-list-panel": _ListWidget(),
             "#agent-detail-panel": _DetailWidget(),
             "#keybinding-footer": _FooterWidget(),
         }
@@ -93,9 +85,6 @@ class _FakeApp(AgentDisplayMixin):
         return _Timer()
 
     def _prune_stale_marked_agents(self) -> None:
-        return
-
-    def _update_panel_focus_styling(self) -> None:
         return
 
     def _update_agents_info_panel(self) -> None:

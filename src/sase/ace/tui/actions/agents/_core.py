@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ._approve import AgentApproveMixin
 from ._display import AgentDisplayMixin
 from ._folding import AgentFoldingMixin
-from ._kill_pin import AgentKillPinMixin
+from ._kill_action import AgentKillMixin
 from ._killing import AgentKillingMixin
-from ._marking import AgentMarkingMixin
-from ._ordering import AgentOrderingMixin
-from ._panels import AgentPanelsMixin
-from ._tagging import AgentTaggingMixin
 from ._loading import AgentLoadingMixin
+from ._marking import AgentMarkingMixin
 from ._notifications import AgentNotificationMixin
+from ._panels import AgentPanelsMixin
 from ._revive import AgentRevivalMixin
+from ._tagging import AgentTaggingMixin
 from ._wait_resume import AgentWaitResumeMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 from ....changespec import ChangeSpec
 
 # Re-export constants for backwards compatibility (imported by other modules)
-from ._display import PanelFocus
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
@@ -39,13 +38,13 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 
 class AgentsMixinCore(
+    AgentApproveMixin,
     AgentFoldingMixin,
-    AgentKillPinMixin,
+    AgentKillMixin,
     AgentMarkingMixin,
     AgentTaggingMixin,
     AgentWaitResumeMixin,
     AgentPanelsMixin,
-    AgentOrderingMixin,
     AgentWorkflowHITLMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
@@ -98,64 +97,8 @@ class AgentsMixinCore(
     # Debounce timer for j/k navigation detail panel updates
     _detail_update_timer: Timer | None
 
-    # Panel focus and index maps for pinned panel split
-    _pinned_panel_focused: PanelFocus
-    _main_panel_indices: list[int]
-    _pinned_panel_indices: list[int]
-    _main_panel_idx_map: dict[int, int]
-    _pinned_panel_idx_map: dict[int, int]
-    _non_child_main_indices: list[int]
-
-    # Custom agent ordering
-    _agent_custom_order: list[tuple[AgentType, str, str | None]]
-
-    # --- Panel index helpers ---
-
-    def _build_panel_indices(self) -> None:
-        """Build derived panel index maps from the canonical _agents list.
-
-        Populates _main_panel_indices (non-pinned agents) and
-        _pinned_panel_indices (pinned + dismissable agents), plus
-        O(1) global-to-local lookup dicts for each panel.
-        """
-        # Pre-pass: collect raw_suffix values of pinned parent workflows
-        # so their children can be routed to the pinned panel too.
-        pinned_parent_suffixes: set[str] = set()
-        for agent in self._agents:
-            if (
-                agent.identity in self._pinned_agents
-                and agent.status in DISMISSABLE_STATUSES
-                and not agent.is_workflow_child
-                and agent.raw_suffix
-            ):
-                pinned_parent_suffixes.add(agent.raw_suffix)
-
-        main: list[int] = []
-        pinned: list[int] = []
-        for i, agent in enumerate(self._agents):
-            if (
-                agent.identity in self._pinned_agents
-                and agent.status in DISMISSABLE_STATUSES
-            ):
-                pinned.append(i)
-            elif (
-                agent.is_workflow_child
-                and agent.parent_timestamp
-                and agent.parent_timestamp in pinned_parent_suffixes
-            ):
-                pinned.append(i)
-            else:
-                main.append(i)
-        self._main_panel_indices = main
-        self._pinned_panel_indices = pinned
-        self._main_panel_idx_map = {g: loc for loc, g in enumerate(main)}
-        self._pinned_panel_idx_map = {g: loc for loc, g in enumerate(pinned)}
-        self._non_child_main_indices = [
-            i for i in main if not self._agents[i].is_workflow_child
-        ]
-
-    def _main_panel_visible_order(self) -> list[int]:
-        """Return global agent indices in the order rendered on the main panel.
+    def _agents_visible_order(self) -> list[int]:
+        """Return global agent indices in the order rendered on the agents panel.
 
         Mirrors :func:`AgentList.update_list`'s tree walk at fold level 3
         so j/k navigation steps through the same sequence the user sees.
@@ -164,46 +107,26 @@ class AgentsMixinCore(
         """
         from ...models.agent_groups import build_agent_tree
 
-        main_agents = [self._agents[i] for i in self._main_panel_indices]
-        tree = build_agent_tree(main_agents, group_fold_level=3)
+        tree = build_agent_tree(self._agents, group_fold_level=3)
         return [
-            self._main_panel_indices[entry.agent_idx]
+            entry.agent_idx
             for entry in tree
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
 
-    def _active_panel_visible_order(self) -> list[int]:
-        """Return the active panel's visible row order as global agent indices.
-
-        The pinned panel renders flat (no grouping tree), so its visible
-        order equals ``_pinned_panel_indices``. The main panel uses the
-        group-tree walk shared with j/k navigation.
-        """
-        if self._pinned_panel_focused == "pinned":
-            return list(self._pinned_panel_indices)
-        return self._main_panel_visible_order()
-
     def _capture_focused_visible_pos(self) -> int | None:
-        """Return the visible-row position of ``current_idx`` on the active panel.
+        """Return the visible-row position of ``current_idx``.
 
-        Returns ``None`` when there is no anchor to capture — selection is
-        out of range, the focused agent lives on the inactive panel, or
-        the required panel-index state is unavailable. A ``None`` result
-        signals callers (kill / dismiss) to fall back to the conservative
-        clamp behavior in :meth:`_restore_focus_after_removal`.
+        Returns ``None`` when there is no anchor to capture — selection
+        is out of range or the focused agent does not appear in the
+        rendered visible order. A ``None`` result signals callers
+        (kill / dismiss) to fall back to the conservative clamp
+        behavior in :meth:`_restore_focus_after_removal`.
         """
         agents = getattr(self, "_agents", None)
         if not agents or not (0 <= self.current_idx < len(agents)):
             return None
-        main_indices = getattr(self, "_main_panel_indices", None)
-        pinned_indices = getattr(self, "_pinned_panel_indices", None)
-        if main_indices is None or pinned_indices is None:
-            return None
-        panel_focus = getattr(self, "_pinned_panel_focused", "main")
-        active = pinned_indices if panel_focus == "pinned" else main_indices
-        if self.current_idx not in active:
-            return None
-        visible = self._active_panel_visible_order()
+        visible = self._agents_visible_order()
         try:
             return visible.index(self.current_idx)
         except ValueError:
@@ -215,23 +138,12 @@ class AgentsMixinCore(
         ``prior_visible_pos`` is the visible-row position of the agent that
         previously held focus, captured *before* the removal via
         :meth:`_capture_focused_visible_pos`. After the removal the same
-        position points at the agent visually below the killed one; if it
-        is past the end of the new visible list we fall back to the last
-        visible row. When the panel is empty, panel focus is shifted and
-        ``current_idx`` is clamped per the existing fallback. When
-        ``prior_visible_pos`` is ``None`` the visible-anchor branch is
-        skipped and only the clamp + first-of-active fallback runs.
+        position points at the agent visually below the killed one; if
+        it is past the end of the new visible list we fall back to the
+        last visible row. When the agent list is empty, ``current_idx``
+        is clamped to 0. When ``prior_visible_pos`` is ``None`` the
+        visible-anchor branch is skipped and only the clamp runs.
         """
-        pinned_indices = getattr(self, "_pinned_panel_indices", [])
-        main_indices = getattr(self, "_main_panel_indices", [])
-        panel_focus = getattr(self, "_pinned_panel_focused", "main")
-        if not pinned_indices and panel_focus == "pinned":
-            self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-            panel_focus = "main"
-        elif not main_indices and pinned_indices and panel_focus == "main":
-            self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
-            panel_focus = "pinned"
-
         if not self._agents:
             self.current_idx = 0
             return
@@ -243,65 +155,12 @@ class AgentsMixinCore(
 
         if prior_visible_pos is not None:
             try:
-                visible = self._active_panel_visible_order()
+                visible = self._agents_visible_order()
             except Exception:
                 visible = []
             if visible:
                 target = visible[min(prior_visible_pos, len(visible) - 1)]
                 self.current_idx = target
-                return
-
-        if hasattr(self, "_active_panel_indices"):
-            try:
-                active = self._active_panel_indices()
-            except AttributeError:
-                active = main_indices or pinned_indices
-        else:
-            active = main_indices or pinned_indices
-        if active and self.current_idx not in active:
-            self.current_idx = active[0]
-
-    def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
-        """Convert a global _agents index to (panel, local_index).
-
-        Returns ("main", local_idx) or ("pinned", local_idx).
-        Raises ValueError if global_idx is not in either panel.
-        """
-        local = self._main_panel_idx_map.get(global_idx)
-        if local is not None:
-            return ("main", local)
-        local = self._pinned_panel_idx_map.get(global_idx)
-        if local is not None:
-            return ("pinned", local)
-        raise ValueError(f"Global index {global_idx} not in any panel")
-
-    def _local_to_global(self, panel: PanelFocus, local_idx: int) -> int:
-        """Convert a (panel, local_index) to a global _agents index."""
-        indices = (
-            self._main_panel_indices if panel == "main" else self._pinned_panel_indices
-        )
-        return indices[local_idx]
-
-    def _active_panel_indices(self) -> list[int]:
-        """Get the index map for the currently focused panel."""
-        if self._pinned_panel_focused == "pinned":
-            return self._pinned_panel_indices
-        return self._main_panel_indices
-
-    def _active_panel_idx_map(self) -> dict[int, int]:
-        """Get the O(1) index lookup map for the currently focused panel."""
-        if self._pinned_panel_focused == "pinned":
-            return self._pinned_panel_idx_map
-        return self._main_panel_idx_map
-
-    def _switch_panel_focus(self, target: PanelFocus) -> None:
-        """Switch panel focus safely, selecting first item if needed."""
-        if self._pinned_panel_focused == target:
-            return
-        self._pinned_panel_focused = target
-        indices = self._active_panel_indices()
-        if indices:
-            self.current_idx = indices[0]
 
     def _get_selected_agent(self) -> Agent | None:
         """Get the currently selected agent, or None if no valid selection."""

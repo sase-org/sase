@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 TabName = Literal["changespecs", "agents", "axe"]
-PanelFocus = Literal["main", "pinned"]
 
 
 class AgentMarkingMixin:
@@ -23,12 +22,6 @@ class AgentMarkingMixin:
     _agents: list[Agent]
     _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
-    _pinned_agents: set[tuple[AgentType, str, str | None]]
-    _main_panel_indices: list[int]
-    _pinned_panel_indices: list[int]
-    _main_panel_idx_map: dict[int, int]
-    _pinned_panel_idx_map: dict[int, int]
-    _pinned_panel_focused: PanelFocus
 
     def _toggle_mark_agent(self) -> None:
         """Toggle the mark on the currently-selected agent."""
@@ -43,19 +36,9 @@ class AgentMarkingMixin:
         else:
             self._marked_agents.add(identity)
 
-        # Auto-advance cursor to the next entry within the same panel (wraparound).
-        if self._pinned_panel_focused == "pinned":
-            indices = self._pinned_panel_indices
-            idx_map = self._pinned_panel_idx_map
-        else:
-            indices = self._main_panel_indices
-            idx_map = self._main_panel_idx_map
-
-        if len(indices) > 1:
-            local = idx_map.get(self.current_idx)
-            if local is not None:
-                next_local = (local + 1) % len(indices)
-                self.current_idx = indices[next_local]
+        # Auto-advance cursor to the next entry (wraparound).
+        if len(self._agents) > 1:
+            self.current_idx = (self.current_idx + 1) % len(self._agents)
 
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import patch
 
-from sase.ace.tui.actions.agents._kill_pin import AgentKillPinMixin
+from sase.ace.tui.actions.agents._kill_action import AgentKillMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
@@ -27,7 +27,7 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _FakeGroupKillApp(AgentKillPinMixin, AgentMarkingMixin):
+class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
     """Minimal app for testing the group-bulk-kill path."""
 
     current_tab: Any  # mixin declares a Literal — relax for the test stub.
@@ -38,12 +38,6 @@ class _FakeGroupKillApp(AgentKillPinMixin, AgentMarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._main_panel_indices: list[int] = list(range(len(agents)))
-        self._pinned_panel_indices: list[int] = []
-        self._main_panel_idx_map: dict[int, int] = {i: i for i in range(len(agents))}
-        self._pinned_panel_idx_map: dict[int, int] = {}
-        self._pinned_panel_focused = "main"
         self._current_group_key: tuple[str, ...] | None = None
         self._group_fold_state = AgentGroupFoldState(level=level)
         self.notifications: list[tuple[str, str]] = []

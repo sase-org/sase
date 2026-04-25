@@ -57,7 +57,6 @@ class EventHandlersMixin:
     _last_activity_time: float
     _last_activity_flush: float
     _activity_log: ActivityLog
-    _pinned_panel_focused: Literal["main", "pinned"]
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -270,32 +269,19 @@ class EventHandlersMixin:
         if self.current_tab != "agents":
             return
 
-        # Convert local panel index to global index
-        panel = event.panel
-        indices = (
-            self._main_panel_indices  # type: ignore[attr-defined]
-            if panel == "main"
-            else self._pinned_panel_indices  # type: ignore[attr-defined]
-        )
-        if 0 <= event.index < len(indices):
-            global_idx = indices[event.index]
-            if 0 <= global_idx < len(self._agents):
-                # Switch panel focus if clicking in a different panel
-                if self._pinned_panel_focused != panel:  # type: ignore[has-type]
-                    self._pinned_panel_focused = panel  # type: ignore[has-type]
-                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-                # Updating current_idx clears _current_attempt_number (setter
-                # in AceApp). Set the attempt number after so attempt-child
-                # selections land on the pinned view.
-                if global_idx == self.current_idx:
-                    self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
-                else:
-                    self.current_idx = global_idx
-                    self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
-                # Phase-4 group banner focus: a banner row carries a
-                # ``group_key`` so banner-aware actions can target the
-                # group; selecting an agent row clears it.
-                self._current_group_key = event.group_key  # type: ignore[attr-defined]
+        if 0 <= event.index < len(self._agents):
+            # Updating current_idx clears _current_attempt_number (setter
+            # in AceApp). Set the attempt number after so attempt-child
+            # selections land on the pinned view.
+            if event.index == self.current_idx:
+                self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+            else:
+                self.current_idx = event.index
+                self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+            # Phase-4 group banner focus: a banner row carries a
+            # ``group_key`` so banner-aware actions can target the
+            # group; selecting an agent row clears it.
+            self._current_group_key = event.group_key  # type: ignore[attr-defined]
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
@@ -332,15 +318,7 @@ class EventHandlersMixin:
 
         from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 
-        # Track per-panel widths and use the max (both panels share the container)
-        if event.panel == "main":
-            self._agent_main_panel_width = event.width  # type: ignore[attr-defined]
-        else:
-            self._agent_pinned_panel_width = event.width  # type: ignore[attr-defined]
-        main_w = getattr(self, "_agent_main_panel_width", 0)
-        pinned_w = getattr(self, "_agent_pinned_panel_width", 0)
-        combined = max(main_w, pinned_w)
-        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, combined))
+        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, event.width))
         try:
             agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
         except NoMatches:

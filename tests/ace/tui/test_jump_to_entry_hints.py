@@ -90,13 +90,10 @@ def test_agent_list_hint_marker_rendered() -> None:
 
 
 def test_jump_all_modal_stores_last_position() -> None:
-    last_pos = JumpAllResult(tab="changespecs", index=2, pinned_panel_focused=None)
+    last_pos = JumpAllResult(tab="changespecs", index=2)
     modal = JumpAllModal(
         changespecs=[],
         agents=[],
-        main_panel_indices=[],
-        pinned_panel_indices=[],
-        pinned_panel_idx_map={},
         axe_items=[],
         last_position=last_pos,
     )
@@ -107,9 +104,6 @@ def test_jump_all_modal_no_last_position() -> None:
     modal = JumpAllModal(
         changespecs=[],
         agents=[],
-        main_panel_indices=[],
-        pinned_panel_indices=[],
-        pinned_panel_idx_map={},
         axe_items=[],
     )
     assert modal._last_position is None
@@ -131,9 +125,6 @@ def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
         modal = JumpAllModal(
             changespecs=[],
             agents=[],
-            main_panel_indices=[],
-            pinned_panel_indices=[],
-            pinned_panel_idx_map={},
             axe_items=[BgCmdItem(slot=2)],
         )
 
@@ -148,9 +139,6 @@ def test_jump_all_modal_bgcmd_entry_falls_back_without_info(
         modal = JumpAllModal(
             changespecs=[],
             agents=[],
-            main_panel_indices=[],
-            pinned_panel_indices=[],
-            pinned_panel_idx_map={},
             axe_items=[BgCmdItem(slot=3)],
         )
 

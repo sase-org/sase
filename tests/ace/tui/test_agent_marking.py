@@ -36,12 +36,6 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._main_panel_indices: list[int] = list(range(len(agents)))
-        self._pinned_panel_indices: list[int] = []
-        self._main_panel_idx_map: dict[int, int] = {i: i for i in range(len(agents))}
-        self._pinned_panel_idx_map: dict[int, int] = {}
-        self._pinned_panel_focused = "main"
         self.refresh_calls: int = 0
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
@@ -262,12 +256,6 @@ class _FakeWaitApp(AgentWaitResumeMixin, AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._main_panel_indices: list[int] = list(range(len(agents)))
-        self._pinned_panel_indices: list[int] = []
-        self._main_panel_idx_map: dict[int, int] = {i: i for i in range(len(agents))}
-        self._pinned_panel_idx_map: dict[int, int] = {}
-        self._pinned_panel_focused = "main"
         self.notifications: list[tuple[str, str]] = []
         self.prompt_bar_calls: list[dict[str, Any]] = []
 

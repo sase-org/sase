@@ -104,7 +104,7 @@ class _EnterPassthroughApp(App[None]):
 
     def on_mount(self) -> None:
         agent_list = self.query_one(AgentList)
-        agent_list.update_list([_make_agent()], current_idx=0, has_focus=True)
+        agent_list.update_list([_make_agent()], current_idx=0)
         agent_list.focus()
 
 

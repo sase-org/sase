@@ -152,7 +152,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             return list(range(len(self.changespecs)))
         if self.current_tab == "agents":
-            return [*self._main_panel_indices, *self._pinned_panel_indices]
+            return list(range(len(self._agents)))
         return list(range(len(self._axe_items)))  # type: ignore[attr-defined]
 
     def _exit_entry_jump_mode(self) -> None:
@@ -176,21 +176,8 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if key == "apostrophe":
             last_idx = self._entry_jump_last_index.get(self.current_tab)
             if last_idx is not None:
-                # Snapshot saved panel before overwriting
-                saved_panel = (
-                    self._entry_jump_last_panel.get(self.current_tab)
-                    if self.current_tab == "agents"
-                    else None
-                )
                 # Save current position before jumping back
                 self._entry_jump_last_index[self.current_tab] = self.current_idx
-                if self.current_tab == "agents":
-                    self._entry_jump_last_panel[self.current_tab] = (
-                        self._pinned_panel_focused
-                    )
-                # Restore from snapshot
-                if self.current_tab == "agents" and saved_panel is not None:
-                    self._pinned_panel_focused = saved_panel  # type: ignore[assignment]
                 self.current_idx = last_idx
             self._exit_entry_jump_mode()
             return True
@@ -200,24 +187,15 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._exit_entry_jump_mode()
             return True
 
+        self._entry_jump_last_index[self.current_tab] = self.current_idx
+        self.current_idx = target
         if self.current_tab == "agents":
-            self._entry_jump_last_index[self.current_tab] = self.current_idx
-            self._entry_jump_last_panel[self.current_tab] = self._pinned_panel_focused
-            if target in self._pinned_panel_idx_map:
-                self._pinned_panel_focused = "pinned"
-            elif target in self._main_panel_idx_map:
-                self._pinned_panel_focused = "main"
-            self.current_idx = target
             self._entry_jump_mode_active = False
             self._entry_jump_hint_to_index = {}
             self._entry_jump_index_to_hint = {}
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
             return True
 
-        self._entry_jump_last_index[self.current_tab] = self.current_idx
-        if self.current_tab == "agents":
-            self._entry_jump_last_panel[self.current_tab] = self._pinned_panel_focused
-        self.current_idx = target
         self._exit_entry_jump_mode()
         return True
 
@@ -242,9 +220,6 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         pre_jump_position = JumpAllResult(
             tab=self.current_tab,  # type: ignore[arg-type]
             index=self.current_idx,
-            pinned_panel_focused=(
-                self._pinned_panel_focused if self.current_tab == "agents" else None
-            ),
         )
 
         def _on_dismiss(result: JumpAllResult | None) -> None:
@@ -253,17 +228,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._jump_all_last_position = pre_jump_position
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = result.tab  # type: ignore[assignment]
-            if result.tab == "agents" and result.pinned_panel_focused is not None:
-                self._pinned_panel_focused = result.pinned_panel_focused
             self.current_idx = result.index
 
         self.push_screen(  # type: ignore[attr-defined]
             JumpAllModal(
                 changespecs=self.changespecs,
                 agents=self._agents,
-                main_panel_indices=self._main_panel_indices,
-                pinned_panel_indices=self._pinned_panel_indices,
-                pinned_panel_idx_map=self._pinned_panel_idx_map,
                 axe_items=self._axe_items,
                 last_position=self._jump_all_last_position,
             ),

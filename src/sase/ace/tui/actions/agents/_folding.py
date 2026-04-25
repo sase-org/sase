@@ -166,16 +166,14 @@ class AgentFoldingMixin:
             self._refilter_agents()  # type: ignore[attr-defined]
 
     def _get_focused_panel_workflow_keys(self) -> list[str]:
-        """Get workflow keys for agents in the currently focused panel.
+        """Get workflow keys for agents currently visible.
 
         Returns:
-            List of unique workflow raw_suffix strings from the focused panel.
+            List of unique workflow raw_suffix strings.
         """
-        indices = self._active_panel_indices()  # type: ignore[attr-defined]
         seen: set[str] = set()
         keys: list[str] = []
-        for i in indices:
-            agent = self._agents[i]
+        for agent in self._agents:
             key = self._get_workflow_key_for_agent(agent)
             if key and key not in seen:
                 seen.add(key)

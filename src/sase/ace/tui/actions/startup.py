@@ -182,15 +182,6 @@ class StartupMixin:
 
         self._agent_content_search_cache = AgentContentSearchCache()
 
-        # Panel focus state for pinned panel split
-        from .agents._core import PanelFocus
-
-        pinned_focus: PanelFocus = "main"
-        self._pinned_panel_focused = pinned_focus
-        self._main_panel_indices: list[int] = []
-        self._pinned_panel_indices: list[int] = []
-        self._non_child_main_indices: list[int] = []
-
         # Fold state for nested workflow steps
         self._fold_manager = FoldStateManager()
         self._fold_counts: dict[str, tuple[int, int]] = {}
@@ -211,17 +202,11 @@ class StartupMixin:
 
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents
-        from ...pinned_agents import load_pinned_agents
 
         self._last_unread_ids: set[str] = set()
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
-        self._pinned_agents = load_pinned_agents()
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
-
-        from ...agent_order import load_agent_order
-
-        self._agent_custom_order = load_agent_order()
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
@@ -501,10 +486,6 @@ class StartupMixin:
         if not self._agents_first_load_done:
             try:
                 self.query_one("#agent-list-panel", AgentList).loading = True  # type: ignore[attr-defined]
-            except Exception:
-                pass
-            try:
-                self.query_one("#pinned-list-panel", AgentList).loading = True  # type: ignore[attr-defined]
             except Exception:
                 pass
             try:

@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from ..widgets.bgcmd_list import AxeItem
 
 TabName = Literal["changespecs", "agents", "axe"]
-PanelFocus = Literal["main", "pinned"]
 
 # ── Visual constants ──────────────────────────────────────────────
 _NAME_MAX = 50
@@ -70,7 +69,6 @@ class JumpAllResult:
 
     tab: TabName
     index: int
-    pinned_panel_focused: PanelFocus | None
 
 
 @dataclass(frozen=True)
@@ -83,9 +81,7 @@ class _Entry:
     status: str
     status_style: str
     name_style: str = ""
-    panel_focus: PanelFocus | None = None
     indent: int = 0
-    is_pinned: bool = False
 
 
 class JumpAllModal(ModalScreen[JumpAllResult | None]):
@@ -99,9 +95,6 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         self,
         changespecs: list[ChangeSpec],
         agents: list[Agent],
-        main_panel_indices: list[int],
-        pinned_panel_indices: list[int],
-        pinned_panel_idx_map: dict[int, int],
         axe_items: list[AxeItem],
         last_position: JumpAllResult | None = None,
     ) -> None:
@@ -109,22 +102,12 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         self._entries: list[_Entry] = []
         self._hint_to_entry: dict[str, _Entry] = {}
         self._last_position = last_position
-        self._build_entries(
-            changespecs,
-            agents,
-            main_panel_indices,
-            pinned_panel_indices,
-            pinned_panel_idx_map,
-            axe_items,
-        )
+        self._build_entries(changespecs, agents, axe_items)
 
     def _build_entries(
         self,
         changespecs: list[ChangeSpec],
         agents: list[Agent],
-        main_panel_indices: list[int],
-        pinned_panel_indices: list[int],
-        pinned_panel_idx_map: dict[int, int],
         axe_items: list[AxeItem],
     ) -> None:
         """Collect all entries and assign hint characters."""
@@ -138,18 +121,13 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                 _Entry("changespecs", i, cs.name, cs.status, style, name_style=cl_color)
             )
 
-        # Agents (main then pinned — matching existing jump order)
+        # Agents
         _, ag_color = _TAB_STYLES["agents"]
-        for idx in [*main_panel_indices, *pinned_panel_indices]:
-            if idx >= len(agents):
-                continue
-            ag = agents[idx]
-            panel: PanelFocus = "pinned" if idx in pinned_panel_idx_map else "main"
+        for idx, ag in enumerate(agents):
             style = _AGENT_STATUS_STYLES.get(ag.status, "")
             name = ag.cl_name
             if ag.raw_suffix:
                 name = f"{name}/{ag.raw_suffix}"
-            pinned = idx in pinned_panel_idx_map
             entries.append(
                 _Entry(
                     "agents",
@@ -158,8 +136,6 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     ag.status,
                     style,
                     name_style=ag_color,
-                    panel_focus=panel,
-                    is_pinned=pinned,
                 )
             )
 
@@ -271,10 +247,6 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     style=entry.status_style or "",
                 )
 
-            # Pinned indicator
-            if entry.is_pinned:
-                text.append("  pin", style="dim")
-
             text.append("\n")
 
         if not self._entries:
@@ -296,13 +268,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         if entry is not None:
             event.prevent_default()
             event.stop()
-            self.dismiss(
-                JumpAllResult(
-                    tab=entry.tab,
-                    index=entry.index,
-                    pinned_panel_focused=entry.panel_focus,
-                )
-            )
+            self.dismiss(JumpAllResult(tab=entry.tab, index=entry.index))
             return
 
         # Hidden backtick hint: jump back to previous position

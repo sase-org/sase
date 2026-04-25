@@ -25,7 +25,6 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
             self._agent_status_overrides = {}
             self._agent_pre_question_status = {}
             self._dismissed_agents = set()
-            self._pinned_agents = set()
             self._agents_with_children = []
             self._agents = []
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
@@ -35,9 +34,6 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
             self._notifications.append((msg, severity))
 
         def _refresh_notification_count(self) -> None:
-            return
-
-        def _build_panel_indices(self) -> None:
             return
 
         def _refresh_agents_display(
@@ -93,7 +89,6 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
             self._agent_status_overrides = {}
             self._agent_pre_question_status = {}
             self._dismissed_agents = set()
-            self._pinned_agents = set()
             self._agents_with_children = []
             self._agents = []
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
@@ -102,9 +97,6 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
             self._notifications.append((msg, severity))
 
         def _refresh_notification_count(self) -> None:
-            return
-
-        def _build_panel_indices(self) -> None:
             return
 
         def _refresh_agents_display(

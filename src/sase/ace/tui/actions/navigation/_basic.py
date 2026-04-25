@@ -13,28 +13,20 @@ class BasicNavigationMixin(NavigationMixinBase):
     # --- Navigation Actions ---
 
     def _navigate_agents_panel(self, direction: int) -> None:
-        """Navigate within the focused agents panel.
+        """Navigate within the agents panel.
 
-        On the main panel, walks the same row sequence the renderer is
-        showing: at fold level < 3 cycles through banner rows (updating
+        Walks the same row sequence the renderer is showing: at fold
+        level < 3 cycles through banner rows (updating
         ``_current_group_key``); at fold level 3 cycles through agents
-        in the active panel. The pinned panel always uses the flat
-        agent list regardless of fold level.
+        in rendered order.
 
         Args:
             direction: +1 for next, -1 for previous.
         """
-        if self._pinned_panel_focused == "pinned":
-            self._navigate_flat(direction)
-            return
-
         level = self._group_fold_state.level
         if level >= 3:
             self._current_group_key = None
-            if self._pinned_panel_focused == "main":
-                self._navigate_main_visible(direction)
-            else:
-                self._navigate_flat(direction)
+            self._navigate_visible(direction)
             return
 
         from ...models.agent_groups import build_agent_tree
@@ -57,27 +49,14 @@ class BasicNavigationMixin(NavigationMixinBase):
         if target.agent_indices:
             self.current_idx = target.agent_indices[0]
 
-    def _navigate_flat(self, direction: int) -> None:
-        """Cycle ``current_idx`` through the active panel's flat index list."""
-        indices = self._active_panel_indices()  # type: ignore[attr-defined]
-        if not indices:
-            return
-        idx_map = self._active_panel_idx_map()  # type: ignore[attr-defined]
-        pos = idx_map.get(self.current_idx)
-        if pos is None:
-            self.current_idx = indices[0]
-            return
-        new_pos = (pos + direction) % len(indices)
-        self.current_idx = indices[new_pos]
-
-    def _navigate_main_visible(self, direction: int) -> None:
-        """Cycle ``current_idx`` through main-panel agents in rendered order.
+    def _navigate_visible(self, direction: int) -> None:
+        """Cycle ``current_idx`` through agents in rendered order.
 
         At fold level 3 the renderer walks the agent tree's grouping order
-        rather than ``_main_panel_indices``' input order, so j/k must step
+        rather than the raw ``_agents`` input order, so j/k must step
         through the same sequence to track the visible row.
         """
-        visible = self._main_panel_visible_order()  # type: ignore[attr-defined]
+        visible = self._agents_visible_order()  # type: ignore[attr-defined]
         if not visible:
             return
         try:

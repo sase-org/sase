@@ -42,7 +42,6 @@ class AgentDismissingMixin:
     _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
-    _pinned_agents: set[tuple[AgentType, str, str | None]]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
@@ -187,9 +186,7 @@ class AgentDismissingMixin:
         dismissable = [
             a
             for a in self._agents
-            if a.status in DISMISSABLE_STATUSES
-            and a.raw_suffix is not None
-            and a.identity not in self._pinned_agents
+            if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
         if not dismissable:

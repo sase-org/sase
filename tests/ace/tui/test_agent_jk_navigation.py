@@ -10,7 +10,6 @@ behavior must still hold.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -26,39 +25,20 @@ class _StubApp(BasicNavigationMixin):
         *,
         current_idx: int = 0,
         level: int = 3,
-        focused: Literal["main", "pinned"] = "main",
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = current_idx
         self._agents = agents
         self._group_fold_state = AgentGroupFoldState(level=level)
         self._current_group_key: tuple[str, ...] | None = None
-        self._pinned_panel_focused = focused
-        # Treat every agent as belonging to the main panel so the flat
-        # path remains stable when level == 3 or pinned panel focus.
-        self._main_panel_indices = list(range(len(agents)))
-        self._pinned_panel_indices: list[int] = []
-        self._main_panel_idx_map = {i: i for i in range(len(agents))}
-        self._pinned_panel_idx_map: dict[int, int] = {}
 
-    def _active_panel_indices(self) -> list[int]:
-        if self._pinned_panel_focused == "pinned":
-            return self._pinned_panel_indices
-        return self._main_panel_indices
-
-    def _active_panel_idx_map(self) -> dict[int, int]:
-        if self._pinned_panel_focused == "pinned":
-            return self._pinned_panel_idx_map
-        return self._main_panel_idx_map
-
-    def _main_panel_visible_order(self) -> list[int]:
-        """Mirror :meth:`AgentsMixinCore._main_panel_visible_order` for tests."""
+    def _agents_visible_order(self) -> list[int]:
+        """Mirror :meth:`AgentsMixinCore._agents_visible_order` for tests."""
         from sase.ace.tui.models.agent_groups import build_agent_tree
 
-        main_agents = [self._agents[i] for i in self._main_panel_indices]
-        tree = build_agent_tree(main_agents, group_fold_level=3)
+        tree = build_agent_tree(self._agents, group_fold_level=3)
         return [
-            self._main_panel_indices[entry.agent_idx]
+            entry.agent_idx
             for entry in tree
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
@@ -273,27 +253,6 @@ def test_l3_interleaved_untagged_walk_keeps_block_contiguous() -> None:
     assert app.current_idx == 0  # wrap
 
 
-def test_l3_pinned_panel_stays_flat_with_scrambled_input() -> None:
-    """Pinned panel uses input order, not the grouping walk."""
-    agents = [
-        _agent(tag="zeta", name="z1"),
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
-    ]
-    app = _StubApp(agents, level=3, focused="pinned", current_idx=0)
-    app._main_panel_indices = []
-    app._main_panel_idx_map = {}
-    app._pinned_panel_indices = [0, 1, 2]
-    app._pinned_panel_idx_map = {0: 0, 1: 1, 2: 2}
-
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 1  # input order, not grouping
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 2
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 0
-
-
 def test_l3_workflow_children_inherit_parent_grouping_in_walk() -> None:
     """Workflow children render contiguous with their parent.
 
@@ -350,13 +309,12 @@ def test_jk_at_l1_banner_moves_visible_highlight_to_l2_banner() -> None:
     app = _StubApp(agents, level=2)
     app._current_group_key = ("alpha", "p1", "cl1")  # L1 project banner
 
-    widget = AgentList(panel="main")
+    widget = AgentList()
     widget.update_list(
         agents,
         current_idx=0,
         group_fold_level=2,
         current_group_key=app._current_group_key,
-        has_focus=True,
     )
     # Layout at L2: tag (0), project (1), name-root sase-q (2),
     # name-root sase-r (3).  Starts highlighted on the project banner.
@@ -373,20 +331,3 @@ def test_jk_at_l1_banner_moves_visible_highlight_to_l2_banner() -> None:
     local_idx = app.current_idx
     widget.update_highlight(local_idx, None, group_key=app._current_group_key)
     assert widget.highlighted == 2
-
-
-def test_pinned_panel_skips_banner_cycle() -> None:
-    """On the pinned panel j/k stays flat even when group level < 3."""
-    agents = _l0_roster()
-    app = _StubApp(agents, level=0, focused="pinned")
-    # Route all three agents into the pinned panel.
-    app._pinned_panel_indices = [0, 1, 2]
-    app._pinned_panel_idx_map = {0: 0, 1: 1, 2: 2}
-
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 1
-    assert app._current_group_key is None
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 2
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 0

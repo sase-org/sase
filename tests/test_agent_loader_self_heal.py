@@ -53,8 +53,6 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
         ] = {}
-        self._pinned_agents: set[tuple[AgentType, str, str | None]] = set()
-        self._agent_custom_order: list[tuple[AgentType, str, str | None]] = []
         self._agent_search_query = ""
         self._agents_loading = False
         # Pretend the first async load already happened so _apply_loaded_agents

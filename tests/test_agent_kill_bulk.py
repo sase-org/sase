@@ -24,13 +24,9 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
             self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
-            self._pinned_agents = set()
             self._marked_agents = set()
             self._agents_with_children = []
             self._agents = []
-            self._main_panel_indices = []
-            self._pinned_panel_indices = []
-            self._pinned_panel_focused = "main"
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_calls: list[tuple[bool, bool]] = []
             self.notification_refreshes = 0
@@ -40,13 +36,6 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
 
         def _refresh_notification_count(self) -> None:
             self.notification_refreshes += 1
-
-        def _build_panel_indices(self) -> None:
-            self._main_panel_indices = list(range(len(self._agents)))
-            self._pinned_panel_indices = []
-
-        def _active_panel_indices(self) -> list[int]:
-            return self._main_panel_indices
 
         def _refresh_agents_display(
             self, *, list_changed: bool = False, defer_detail: bool = False
@@ -115,13 +104,9 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
             self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
-            self._pinned_agents = set()
             self._marked_agents = set()
             self._agents_with_children = []
             self._agents = []
-            self._main_panel_indices = []
-            self._pinned_panel_indices = []
-            self._pinned_panel_focused = "main"
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_calls: list[tuple[bool, bool]] = []
 
@@ -130,13 +115,6 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
 
         def _refresh_notification_count(self) -> None:
             return
-
-        def _build_panel_indices(self) -> None:
-            self._main_panel_indices = list(range(len(self._agents)))
-            self._pinned_panel_indices = []
-
-        def _active_panel_indices(self) -> list[int]:
-            return self._main_panel_indices
 
         def _refresh_agents_display(
             self, *, list_changed: bool = False, defer_detail: bool = False
@@ -199,13 +177,9 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
             self._agent_pre_question_status = {}
             self._dismissed_agents = set()
             self._dismissed_agent_objects = []
-            self._pinned_agents = set()
             self._marked_agents = set()
             self._agents_with_children = []
             self._agents = []
-            self._main_panel_indices = []
-            self._pinned_panel_indices = []
-            self._pinned_panel_focused = "main"
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
             self.refresh_calls: list[tuple[bool, bool]] = []
 
@@ -214,13 +188,6 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
 
         def _refresh_notification_count(self) -> None:
             return
-
-        def _build_panel_indices(self) -> None:
-            self._main_panel_indices = list(range(len(self._agents)))
-            self._pinned_panel_indices = []
-
-        def _active_panel_indices(self) -> list[int]:
-            return self._main_panel_indices
 
         def _refresh_agents_display(
             self, *, list_changed: bool = False, defer_detail: bool = False
