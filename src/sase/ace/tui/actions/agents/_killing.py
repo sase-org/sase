@@ -289,6 +289,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 f"Bulk kill cleanup failed: {exc}",
                 severity="error",
             )
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         finally:
             self._kill_persistence_inflight.difference_update(inflight)
             log.debug(
@@ -297,7 +298,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 len(dismissable),
                 time.perf_counter() - started,
             )
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
     def _notify_killed_agent(self, agent: Agent, kind: KillKind) -> None:
         """Emit kill notification message for an already-signaled process."""
@@ -349,6 +349,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 f"Kill cleanup failed for {agent.display_name}: {exc}",
                 severity="error",
             )
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         finally:
             self._kill_persistence_inflight.discard(identity)
             log.debug(
@@ -357,7 +358,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 identity,
                 time.perf_counter() - started,
             )
-            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
     def _kill_and_dismiss_all_agents(self) -> None:
         """Kill all running agents and dismiss all done agents (double-confirm)."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 09:56:13
-status: wip
+status: done
 ---
 # Plan: Fix Agents Tab Navigation Delay After Killing Agents
 

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -268,3 +271,94 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     assert failed.identity not in app._dismissed_agents
     assert killed.identity in app._dismissed_agents
     assert app.refresh_calls == [(True, True)]
+
+
+def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
+    """Successful bulk cleanup should not schedule a redundant full reload."""
+    from sase.ace.tui.actions.agents import AgentsMixin
+
+    class MockApp(AgentsMixin):
+        def __init__(self) -> None:
+            self._notifications: list[tuple[str, str]] = []
+            self._kill_persistence_inflight = set()
+            self.refresh_schedules = 0
+
+        def notify(self, msg: str, severity: str = "information") -> None:
+            self._notifications.append((msg, severity))
+
+        def _schedule_agents_async_refresh(self) -> None:
+            self.refresh_schedules += 1
+
+    app = MockApp()
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_one",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix-hook",
+        pid=111,
+        raw_suffix="fix_hook-111-251230_151429",
+    )
+    item = BulkKillItem(agent=agent, kind="hook", identities={agent.identity})
+    dismissed_snapshot = {agent.identity}
+
+    with patch(
+        "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects"
+    ) as mock_persist:
+        asyncio.run(
+            app._run_bulk_kill_persistence_async(
+                [item], [], dismissed_snapshot, [agent]
+            )
+        )
+
+    mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
+    assert app.refresh_schedules == 0
+    assert app._notifications == []
+    assert app._kill_persistence_inflight == set()
+
+
+def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
+    """Failed bulk cleanup still schedules a reload to reconcile with disk."""
+    from sase.ace.tui.actions.agents import AgentsMixin
+
+    class MockApp(AgentsMixin):
+        def __init__(self) -> None:
+            self._notifications: list[tuple[str, str]] = []
+            self._kill_persistence_inflight = set()
+            self.refresh_schedules = 0
+
+        def notify(self, msg: str, severity: str = "information") -> None:
+            self._notifications.append((msg, severity))
+
+        def _schedule_agents_async_refresh(self) -> None:
+            self.refresh_schedules += 1
+
+    app = MockApp()
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_one",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix-hook",
+        pid=111,
+        raw_suffix="fix_hook-111-251230_151429",
+    )
+    item = BulkKillItem(agent=agent, kind="hook", identities={agent.identity})
+    dismissed_snapshot = {agent.identity}
+
+    with patch(
+        "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects",
+        side_effect=RuntimeError("boom"),
+    ) as mock_persist:
+        asyncio.run(
+            app._run_bulk_kill_persistence_async(
+                [item], [], dismissed_snapshot, [agent]
+            )
+        )
+
+    mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
+    assert app.refresh_schedules == 1
+    assert app._notifications == [("Bulk kill cleanup failed: boom", "error")]
+    assert app._kill_persistence_inflight == set()
