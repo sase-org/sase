@@ -10,67 +10,6 @@ from sase.core.time import get_timezone
 from sase.telemetry.metrics import NOTIFICATIONS_SENT
 
 
-def notify_agent_launched(
-    *,
-    cl_name: str,
-    prompt: str,
-    workflow_name: str,
-    project_name: str,
-    workspace_num: int,
-    pid: int,
-    agent_name: str | None = None,
-    llm_provider: str | None = None,
-    model: str | None = None,
-    retry_attempt: int | None = None,
-    retry_of_timestamp: str | None = None,
-    silent: bool = False,
-) -> None:
-    """Send a notification when a background agent is successfully spawned.
-
-    Fires once per spawned subprocess at the moment the workspace claim
-    succeeds, before the runner does any work.  ``retry_attempt`` is set
-    when the launch is a spawn-on-retry child so the formatter can render
-    a retry banner instead of a plain launch heading.
-    """
-    action_data: dict[str, str] = {
-        "cl_name": cl_name,
-        "workflow_name": workflow_name,
-        "project_name": project_name,
-        "workspace_num": str(workspace_num),
-        "pid": str(pid),
-        "prompt": prompt,
-    }
-    if agent_name:
-        action_data["agent_name"] = agent_name
-    if llm_provider:
-        action_data["llm_provider"] = llm_provider
-    if model:
-        action_data["model"] = model
-    if retry_attempt is not None:
-        action_data["retry_attempt"] = str(retry_attempt)
-    if retry_of_timestamp:
-        action_data["retry_of_timestamp"] = retry_of_timestamp
-
-    label = f"@{agent_name}" if agent_name else cl_name
-    note = (
-        f"Agent retry #{retry_attempt} launched: {label}"
-        if retry_attempt is not None
-        else f"Agent launched: {label}"
-    )
-    n = Notification(
-        id=str(uuid4()),
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="agent-launch",
-        notes=[note],
-        files=[],
-        action=None,
-        action_data=action_data,
-        silent=silent,
-    )
-    append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="agent_launch", status="ok").inc()
-
-
 def notify_workflow_complete(
     sender: str,
     cl_name: str | None,

@@ -4,7 +4,7 @@ description:
   Add agent-launch Google Chat notifications and prefix every outbound gchat message with a sase identifier emoji
 type: plan
 create_time: 2026-04-25 10:23:02
-status: done
+status: wip
 ---
 
 # Google Chat: Launch Notifications + Sase Identifier Emoji
