@@ -78,6 +78,31 @@ def _keyword_matches(keyword: str, prompt: str) -> bool:
     return bool(re.search(_keyword_pattern(keyword), prompt, re.IGNORECASE))
 
 
+def _mask_command_substitutions(prompt: str) -> str:
+    """Return ``prompt`` with every ``$(...)`` payload blanked to spaces.
+
+    Mirrors :func:`_mask_negative_spans` (replace-with-spaces) so offsets and
+    surrounding word boundaries are preserved for downstream keyword matching.
+    Escaped ``\\$(`` is left intact — its payload is not masked.
+
+    Necessary because :func:`generate_dynamic_memory` runs after
+    :func:`process_xprompt_references`, which eagerly resolves ``$(...)``
+    inside xprompt argument positions and inlines the resulting text into the
+    prompt. That inlined text (e.g. file paths from ``$(branch_changes ...)``)
+    would otherwise pollute keyword matching with environment-derived data.
+    """
+    from sase.gemini_wrapper.file_references import find_command_substitutions
+
+    subs = find_command_substitutions(prompt)
+    if not subs:
+        return prompt
+    masked = list(prompt)
+    for start, end, _ in subs:
+        for i in range(start, end):
+            masked[i] = " "
+    return "".join(masked)
+
+
 def _mask_negative_spans(prompt: str, negatives: list[str]) -> str:
     """Return ``prompt`` with every span matched by any negative keyword blanked to spaces.
 
@@ -169,9 +194,11 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     in the current working directory.
 
     Before matching, any existing ``### DYNAMIC MEMORY`` section is stripped
-    from the prompt so that stale references don't influence keyword hits.
-    After matching, stale ``long-*.md`` cache files whose source xprompts no
-    longer exist are deleted.
+    from the prompt so that stale references don't influence keyword hits, and
+    every ``$(...)`` command-substitution payload is masked to spaces so that
+    environment-derived text inlined by upstream xprompt processing does not
+    pollute keyword matches. After matching, stale ``long-*.md`` cache files
+    whose source xprompts no longer exist are deleted.
 
     Returns:
         A result containing the list of matched memories and the file paths
@@ -181,6 +208,7 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     from sase.xprompt.tags import XPromptTag
 
     prompt = _strip_dynamic_memory_section(prompt)
+    prompt = _mask_command_substitutions(prompt)
 
     all_prompts = get_all_prompts(project=project)
 

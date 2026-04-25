@@ -359,7 +359,7 @@ def _find_matching_paren(text: str, start: int) -> int:
     return -1
 
 
-def _find_command_substitutions(text: str) -> list[tuple[int, int, str]]:
+def find_command_substitutions(text: str) -> list[tuple[int, int, str]]:
     """Find all $(...) command substitutions in text.
 
     Handles:
@@ -428,7 +428,7 @@ def process_command_substitution(prompt: str) -> str:
     prompt = prompt.replace("\\$(", escape_placeholder)
 
     # Find all substitutions (process from end to preserve indices)
-    substitutions = _find_command_substitutions(prompt)
+    substitutions = find_command_substitutions(prompt)
 
     # Process from end to start to preserve string positions
     for start, end, command in reversed(substitutions):

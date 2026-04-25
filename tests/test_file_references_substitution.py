@@ -5,8 +5,8 @@ import tempfile
 
 import pytest
 from sase.gemini_wrapper.file_references import (
-    _find_command_substitutions,
     _find_matching_paren,
+    find_command_substitutions,
     process_command_substitution,
     process_file_references,
 )
@@ -56,7 +56,7 @@ def test_find_matching_paren_nested() -> None:
 def test_find_command_substitutions_escaped() -> None:
     """Test that escaped $( is skipped."""
     text = "\\$(not a command)"
-    result = _find_command_substitutions(text)
+    result = find_command_substitutions(text)
     assert len(result) == 0
 
 
