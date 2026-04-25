@@ -371,6 +371,118 @@ def _check_mentor_completion(
     return updates
 
 
+_TERMINAL_MENTOR_STATUSES: frozenset[str] = frozenset(
+    {"PASSED", "COMMENTED", "FAILED", "DEAD", "KILLED"}
+)
+
+
+def _check_mentor_completion_notifications(
+    changespec: ChangeSpec,
+    log: LogCallback,
+) -> list[str]:
+    """Emit a notification once when mentors finish (or no profiles match).
+
+    Fires exactly once per (project_file, changespec_name, entry_id) using
+    a sidecar JSON marker that survives process restarts. Two terminal
+    classifications trigger a notification:
+
+    1. ``mentors-finished``: every status_line on the latest entry's
+       MentorEntry has reached a terminal status.
+    2. ``no-mentors``: hooks are all ready and no MentorEntry exists for
+       the latest entry, meaning zero mentor profiles will ever match.
+
+    Args:
+        changespec: The ChangeSpec to inspect.
+        log: Logging callback.
+
+    Returns:
+        List of update messages.
+    """
+    from sase.notifications.mentor_completion_marker import (
+        is_notified,
+        mark_notified,
+    )
+    from sase.notifications.senders import notify_mentors_complete
+
+    updates: list[str] = []
+
+    if not changespec.commits:
+        return updates
+
+    latest_entry_id: str | None = None
+    for entry in reversed(changespec.commits):
+        if entry.display_number.isdigit():
+            latest_entry_id = entry.display_number
+            break
+
+    if latest_entry_id is None:
+        return updates
+
+    if not _all_non_skip_hooks_ready(changespec, latest_entry_id):
+        return updates
+
+    if is_notified(changespec.file_path, changespec.name, latest_entry_id):
+        return updates
+
+    matching_entry = None
+    if changespec.mentors:
+        for me in changespec.mentors:
+            if me.entry_id == latest_entry_id:
+                matching_entry = me
+                break
+
+    if matching_entry is None or not matching_entry.profiles:
+        mentor_summary = "no mentor profiles matched"
+        mark_notified(changespec.file_path, changespec.name, latest_entry_id)
+        notify_mentors_complete(
+            cl_name=changespec.name,
+            project_file=changespec.file_path,
+            entry_id=latest_entry_id,
+            mentor_summary=mentor_summary,
+            has_comments=False,
+        )
+        msg = (
+            f"Notified: no mentor profiles matched for {changespec.name} "
+            f"({latest_entry_id})"
+        )
+        updates.append(msg)
+        log(msg, "cyan")
+        return updates
+
+    if not matching_entry.status_lines:
+        return updates
+
+    if not all(
+        sl.status in _TERMINAL_MENTOR_STATUSES for sl in matching_entry.status_lines
+    ):
+        return updates
+
+    counts: dict[str, int] = {}
+    for sl in matching_entry.status_lines:
+        counts[sl.status] = counts.get(sl.status, 0) + 1
+    total = len(matching_entry.status_lines)
+    commented = counts.get("COMMENTED", 0)
+    has_comments = commented > 0
+
+    if has_comments:
+        mentor_summary = f"{total}/{total} mentors finished ({commented} commented)"
+    else:
+        mentor_summary = f"{total}/{total} mentors finished"
+
+    mark_notified(changespec.file_path, changespec.name, latest_entry_id)
+    notify_mentors_complete(
+        cl_name=changespec.name,
+        project_file=changespec.file_path,
+        entry_id=latest_entry_id,
+        mentor_summary=mentor_summary,
+        has_comments=has_comments,
+    )
+    msg = f"Notified: mentors complete for {changespec.name} ({latest_entry_id})"
+    updates.append(msg)
+    log(msg, "cyan")
+    return updates
+
+
 def check_mentors(
     changespec: ChangeSpec,
     log: LogCallback,
@@ -436,6 +548,11 @@ def check_mentors(
         mentor_profiles=all_profiles,
     )
     updates.extend(profile_updates)
+
+    # Phase 2.5: Emit completion notification if all mentors are terminal,
+    # or "no profiles matched" once hooks are ready and no MentorEntry exists.
+    completion_notify_updates = _check_mentor_completion_notifications(changespec, log)
+    updates.extend(completion_notify_updates)
 
     # Phase 3: Start mentors for matching profiles (requires hooks to be ready)
     profiles_to_run = _get_mentor_profiles_to_run(

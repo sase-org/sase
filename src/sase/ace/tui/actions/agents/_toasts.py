@@ -92,6 +92,9 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
             severity = "error"
         return (note or "ChangeSpec update", severity)
 
+    if action == "JumpToMentorReview":
+        return (note or "Mentor review ready", "information")
+
     if action == "JumpToAgent":
         return (note or "Agent update", _severity_from_keywords(note))
 
@@ -155,6 +158,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "HITL": ("HITL", "HITLs"),
     "ViewErrorReport": ("axe error", "axe errors"),
     "JumpToChangeSpec": ("sync", "syncs"),
+    "JumpToMentorReview": ("mentor review", "mentor reviews"),
     "JumpToAgent": ("agent update", "agent updates"),
     "Tmux": ("tmux", "tmux"),
 }

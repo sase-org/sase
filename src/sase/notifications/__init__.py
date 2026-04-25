@@ -4,6 +4,7 @@ from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.senders import (
     notify_axe_error_digest,
     notify_hitl_request,
+    notify_mentors_complete,
     notify_sync_result,
     notify_workflow_complete,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "mark_read",
     "notify_axe_error_digest",
     "notify_hitl_request",
+    "notify_mentors_complete",
     "notify_sync_result",
     "notify_workflow_complete",
 ]

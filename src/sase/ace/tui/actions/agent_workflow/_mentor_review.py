@@ -8,8 +8,22 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from ....changespec import ChangeSpec
+    from ....changespec import ChangeSpec, MentorEntry
     from ...activity_log import ActivityLog
+
+
+_REVIEWABLE_MENTOR_STATUSES = ("COMMENTED", "FAILED", "RUNNING", "PASSED")
+
+
+def has_reviewable_mentors(entry: MentorEntry) -> bool:
+    """Return True if the entry has any mentor in a reviewable status.
+
+    Mirrors the gate used by ``_open_mentor_review`` so notification
+    handlers can decide whether to push the modal.
+    """
+    if not entry.status_lines:
+        return False
+    return any(sl.status in _REVIEWABLE_MENTOR_STATUSES for sl in entry.status_lines)
 
 
 class MentorReviewMixin:
@@ -42,18 +56,23 @@ class MentorReviewMixin:
         # Find the latest mentor entry (highest entry_id)
         latest_entry = max(changespec.mentors, key=lambda e: e.entry_id)
 
-        # Check if any mentor has COMMENTED or FAILED status
-        has_reviewable = False
-        if latest_entry.status_lines:
-            for sl in latest_entry.status_lines:
-                if sl.status in ("COMMENTED", "FAILED", "RUNNING", "PASSED"):
-                    has_reviewable = True
-                    break
-
-        if not has_reviewable:
+        if not has_reviewable_mentors(latest_entry):
             self.notify("No mentor results to review", severity="warning")  # type: ignore[attr-defined]
             return
 
+        self._open_mentor_review_for_entry(changespec, latest_entry)
+
+    def _open_mentor_review_for_entry(
+        self,
+        changespec: ChangeSpec,
+        entry: MentorEntry,
+    ) -> None:
+        """Push the Mentor Review modal for an explicit (changespec, entry).
+
+        Shared by the ``review_mentors`` keymap and the ``JumpToMentorReview``
+        notification handler. Caller is responsible for verifying that the
+        entry has reviewable mentors.
+        """
         from ...modals import (
             MentorApplyResult,
             MentorKillResult,
@@ -83,7 +102,7 @@ class MentorReviewMixin:
             pass
 
         data = build_mentor_review_data(
-            latest_entry,
+            entry,
             changespec.name,
             vcs_provider=provider,
             revision=revision,

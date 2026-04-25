@@ -107,6 +107,63 @@ def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
     return navigate_to_changespec_tab(app, changespec_name, project_file)
 
 
+def handle_jump_to_mentor_review(app: object, notification: Notification) -> bool:
+    """Jump to the changespec and open Mentor Review iff comments exist.
+
+    Navigates to the CLs tab, selects the target ChangeSpec, then — if the
+    referenced entry has reviewable mentors — pushes the Mentor Review modal.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            ``changespec_name``, ``project_file``, and ``entry_id``.
+
+    Returns:
+        True if navigation succeeded (modal push is best-effort).
+    """
+    from ...actions.agent_workflow._mentor_review import has_reviewable_mentors
+    from ._notification_navigation import navigate_to_changespec_tab
+
+    changespec_name = notification.action_data.get("changespec_name")
+    if not changespec_name:
+        app.notify("No changespec_name in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    project_file = notification.action_data.get("project_file", "")
+    entry_id = notification.action_data.get("entry_id")
+
+    if not navigate_to_changespec_tab(app, changespec_name, project_file):
+        return False
+
+    if not entry_id:
+        return True
+
+    # Look up the freshly-selected ChangeSpec and the matching MentorEntry.
+    changespecs = app.changespecs  # type: ignore[attr-defined]
+    current_idx = app.current_idx  # type: ignore[attr-defined]
+    if current_idx is None or current_idx < 0 or current_idx >= len(changespecs):
+        return True
+
+    changespec = changespecs[current_idx]
+    if not changespec.mentors:
+        return True
+
+    target_entry = None
+    for entry in changespec.mentors:
+        if entry.entry_id == entry_id:
+            target_entry = entry
+            break
+
+    if target_entry is None:
+        return True
+
+    if not has_reviewable_mentors(target_entry):
+        return True
+
+    app._open_mentor_review_for_entry(changespec, target_entry)  # type: ignore[attr-defined]
+    return True
+
+
 def handle_tmux(app: object, notification: Notification) -> bool:
     """Open a tmux session for the workspace directory in the notification.
 

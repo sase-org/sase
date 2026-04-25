@@ -372,6 +372,7 @@ class AgentNotificationMixin:
             handle_hitl,
             handle_jump_to_agent,
             handle_jump_to_changespec,
+            handle_jump_to_mentor_review,
             handle_plan_approval,
             handle_tmux,
             handle_user_question,
@@ -399,6 +400,8 @@ class AgentNotificationMixin:
             # Dispatch action
             if result.action == "JumpToChangeSpec":
                 handle_jump_to_changespec(self, result)
+            elif result.action == "JumpToMentorReview":
+                handle_jump_to_mentor_review(self, result)
             elif result.action == "JumpToAgent":
                 handle_jump_to_agent(self, result)
             elif result.action == "Tmux":

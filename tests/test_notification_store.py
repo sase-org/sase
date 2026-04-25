@@ -277,3 +277,47 @@ class TestNotifyWorkflowCompleteSilent:
         loaded = load_notifications()
         assert len(loaded) == 1
         assert loaded[0].silent is False
+
+
+class TestNotifyMentorsComplete:
+    """Tests for notify_mentors_complete()."""
+
+    def test_emits_jump_to_mentor_review_action(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_mentors_complete
+
+        notify_mentors_complete(
+            cl_name="cl-1",
+            project_file="/proj.gp",
+            entry_id="2",
+            mentor_summary="3/3 mentors finished (1 commented)",
+            has_comments=True,
+        )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        n = loaded[0]
+        assert n.action == "JumpToMentorReview"
+        assert n.action_data == {
+            "changespec_name": "cl-1",
+            "project_file": "/proj.gp",
+            "entry_id": "2",
+        }
+        assert n.sender == "mentors"
+        assert n.files == ["/proj.gp"]
+        assert any("cl-1" in note and "entry 2" in note for note in n.notes)
+        assert "3/3 mentors finished (1 commented)" in n.notes
+
+    def test_no_match_summary(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_mentors_complete
+
+        notify_mentors_complete(
+            cl_name="cl-1",
+            project_file="/proj.gp",
+            entry_id="1",
+            mentor_summary="no mentor profiles matched",
+            has_comments=False,
+        )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert "no mentor profiles matched" in loaded[0].notes

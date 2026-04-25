@@ -56,6 +56,49 @@ def notify_sync_result(
     NOTIFICATIONS_SENT.labels(type="sync_result", status="ok").inc()
 
 
+def notify_mentors_complete(
+    cl_name: str,
+    project_file: str,
+    entry_id: str,
+    mentor_summary: str,
+    has_comments: bool,
+    sender: str = "mentors",
+) -> None:
+    """Send a notification when all mentors finish for a ChangeSpec entry.
+
+    Fires once per (ChangeSpec, entry_id) when either every started mentor
+    has reached a terminal status, or no mentor profiles matched.
+
+    Args:
+        cl_name: ChangeSpec name.
+        project_file: Path to the ``.gp`` project file.
+        entry_id: COMMITS entry ID this notification refers to.
+        mentor_summary: Human-readable one-line summary, e.g.
+            ``"3/3 mentors finished (1 commented)"`` or
+            ``"no mentor profiles matched"``.
+        has_comments: Whether at least one mentor produced review comments.
+            Reflected in notes only — the action handler re-reads truth
+            from disk at action time.
+        sender: Notification sender label.
+    """
+    del has_comments  # Reflected in mentor_summary; truth re-read at action time.
+    n = Notification(
+        id=str(uuid4()),
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender=sender,
+        notes=[f"Mentors done for {cl_name} entry {entry_id}", mentor_summary],
+        files=[project_file],
+        action="JumpToMentorReview",
+        action_data={
+            "changespec_name": cl_name,
+            "project_file": project_file,
+            "entry_id": entry_id,
+        },
+    )
+    append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="mentors_complete", status="ok").inc()
+
+
 def notify_axe_error_digest(
     errors: list[dict],
 ) -> None:
