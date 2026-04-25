@@ -157,6 +157,25 @@ class TestFormatNotificationToast:
         assert msg == "Agent update"
         assert sev == "information"
 
+    def test_jump_to_agent_completion_with_agent_name(self) -> None:
+        n = _make(
+            action="JumpToAgent",
+            notes=["CLAUDE(opus) @sase-q.land completed: ace(run)-260425_161716"],
+            action_data={"agent_name": "sase-q.land"},
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "CLAUDE(opus) @sase-q.land completed: ace(run)-260425_161716"
+        assert sev == "information"
+
+    def test_jump_to_agent_completion_without_agent_name(self) -> None:
+        n = _make(
+            action="JumpToAgent",
+            notes=["CLAUDE(opus) completed: ace(run)-260425_161716"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "CLAUDE(opus) completed: ace(run)-260425_161716"
+        assert sev == "information"
+
     def test_tmux(self) -> None:
         n = _make(action="Tmux", notes=["Focus pane"])
         msg, sev = _format_notification_toast(n)

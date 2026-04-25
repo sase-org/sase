@@ -584,8 +584,9 @@ def main() -> None:
             agent_label = format_provider_model_label(agent_llm_provider, agent_model)
 
             # Build notes — include error summary for failures
+            name_part = f" @{agent_name}" if agent_name else ""
             notes = [
-                f"{agent_label} {'completed' if success else 'failed'}: {workflow_name}"
+                f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
             ]
             if not success and error_summary:
                 notes.append(error_summary)
