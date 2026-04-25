@@ -322,15 +322,15 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             ],
         ),
         (
-            "Workflow Folding",
+            "Group / Workflow Folding",
             [
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand / collapse workflow steps",
+                    "Expand / collapse one level (groups, then workflow)",
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Expand / collapse all workflows",
+                    "Jump to fully expanded / fully collapsed",
                 ),
             ],
         ),

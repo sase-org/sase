@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_group_fold import AgentGroupFoldState
     from ...widgets import AgentDetail, KeybindingFooter
 
 from ._loading import DISMISSABLE_STATUSES
@@ -51,6 +52,10 @@ class AgentDisplayMixin:
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
+
+    # Phase-4 group fold: see ``startup.py`` for documentation.
+    _group_fold_state: AgentGroupFoldState
+    _current_group_key: tuple[str, ...] | None
 
     # Countdown for refresh
     _countdown_remaining: int
@@ -115,6 +120,7 @@ class AgentDisplayMixin:
             main_local_idx = self._main_panel_idx_map.get(self.current_idx, 0)
             pinned_local_idx = self._pinned_panel_idx_map.get(self.current_idx, 0)
 
+            group_fold_level = self._group_fold_state.level  # type: ignore[attr-defined]
             agent_list.update_list(
                 main_agents,
                 main_local_idx,
@@ -124,6 +130,8 @@ class AgentDisplayMixin:
                 has_focus=(self._pinned_panel_focused == "main"),
                 jump_hints=main_jump_hints,
                 current_attempt_number=self.current_attempt_number,
+                group_fold_level=group_fold_level,
+                current_group_key=self._current_group_key,  # type: ignore[attr-defined]
             )
             pinned_list.update_list(
                 pinned_agents,

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_group_fold import AgentGroupFoldState
     from ...models.fold_state import FoldStateManager
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
@@ -73,6 +74,10 @@ class AgentsMixinCore(
     # Fold state for workflow steps
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
+
+    # Phase-4 group fold (see startup.py for full documentation).
+    _group_fold_state: AgentGroupFoldState
+    _current_group_key: tuple[str, ...] | None
 
     # Agent completion tracking for notifications
     _pending_attention_count: int

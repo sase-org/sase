@@ -72,6 +72,10 @@ class _FakeApp(AgentDisplayMixin):
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint = {}
         self._countdown_remaining = 0
+        from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
+
+        self._group_fold_state = AgentGroupFoldState()
+        self._current_group_key = None
         self._pending_callback = None
         self._widgets = {
             "#agent-list-panel": _ListWidget(),

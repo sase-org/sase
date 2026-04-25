@@ -110,11 +110,12 @@ def test_resolve_row_routes_banner_clicks_to_first_agent() -> None:
         current_idx=0,
     )
     # Row layout: [tag_banner, project_a_banner, agent0, project_b_banner, agent1]
-    # Banner at row 0 routes to agent at row 2 (index 0).
-    assert widget._resolve_row(0) == (0, None)
-    assert widget._resolve_row(1) == (0, None)
+    # Banner at row 0 routes to agent at row 2 (index 0); group_key is None
+    # because banners at fold level 3 are non-selectable.
+    assert widget._resolve_row(0) == (0, None, None)
+    assert widget._resolve_row(1) == (0, None, None)
     # Project banner before agent 1 routes forward to agent 1.
-    assert widget._resolve_row(3) == (1, None)
+    assert widget._resolve_row(3) == (1, None, None)
 
 
 def test_highlighted_row_skips_banner_offset() -> None:
@@ -132,3 +133,85 @@ def test_highlighted_row_skips_banner_offset() -> None:
     #   3 = project_b banner
     #   4 = agent 1
     assert widget.highlighted == 4
+
+
+# --- Phase 4: collapsed-tree rendering ---
+
+
+def test_fold_level_0_renders_only_tag_banners() -> None:
+    """At L0 the AgentList shows tag banners only — no agents, no projects."""
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [
+            _agent(cl_name="a", tags=("alpha",)),
+            _agent(cl_name="b", tags=("beta",)),
+        ],
+        current_idx=0,
+        group_fold_level=0,
+    )
+    # Only banner rows; no agent rows.
+    assert all(entry == _BR for entry in widget._row_entries)
+    assert len(widget._row_entries) == 2
+
+
+def test_banners_are_selectable_when_fold_level_below_3() -> None:
+    """At fold level < 3, banner Options are NOT disabled."""
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [_agent(cl_name="a", tags=("alpha",))],
+        current_idx=0,
+        group_fold_level=0,
+    )
+    options = list(widget._options)
+    assert options[0].disabled is False
+
+
+def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
+    """Banner clicks at fold level < 3 carry the GroupRow key for Phase 5."""
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [
+            _agent(cl_name="a", tags=("alpha",)),
+            _agent(cl_name="b", tags=("alpha",)),
+        ],
+        current_idx=0,
+        group_fold_level=0,
+    )
+    # One tag banner at row 0 covering both agents.
+    agent_idx, attempt, group_key = widget._resolve_row(0)
+    assert agent_idx == 0
+    assert attempt is None
+    assert group_key == ("alpha",)
+
+
+def test_current_group_key_drives_banner_highlight() -> None:
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [
+            _agent(cl_name="a", tags=("alpha",)),
+            _agent(cl_name="b", tags=("beta",)),
+        ],
+        current_idx=1,
+        group_fold_level=0,
+        current_group_key=("beta",),
+        has_focus=True,
+    )
+    # Beta tag banner is the second banner row.
+    assert widget.highlighted == 1
+
+
+def test_banner_summary_chips_render_in_text() -> None:
+    """Banner labels at any fold level include the summary chip."""
+    widget = AgentList(panel="main")
+    a = _agent(cl_name="a", tags=("alpha",))
+    a_running = a  # status defaults to RUNNING
+    widget.update_list(
+        [a_running, _agent(cl_name="b", tags=("alpha",))],
+        current_idx=0,
+        group_fold_level=0,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    assert "@alpha" in plain
+    assert "2 agents" in plain
+    assert "2 running" in plain

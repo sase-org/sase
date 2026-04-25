@@ -11,8 +11,15 @@ grouped by:
 Workflow children inherit grouping identity from their parent so that
 banners are never emitted between a parent and its child steps.
 
-Phase 3 always renders groups expanded; ``GroupRow.is_collapsed`` is
-present for forward compatibility with Phase 4.
+The tree builder accepts a ``group_fold_level``:
+
+* ``3`` (default) — every banner and agent row is emitted, matching
+  Phase 3 behavior.  Banners at the same level repeat when the same key
+  appears in non-contiguous clusters.
+* ``0``/``1``/``2`` — only banners up to the requested level are
+  emitted.  Each unique group key produces exactly one banner row, in
+  the order it first appears in *agents*.  Agent rows are suppressed
+  entirely so that L0/L1/L2 act as a "headers-only" view.
 """
 
 from __future__ import annotations
@@ -46,6 +53,16 @@ class TreeEntry:
     kind: str  # "group" or "agent"
     group: GroupRow | None = None
     agent_idx: int | None = None
+
+
+@dataclass(frozen=True)
+class BannerSummary:
+    """Aggregate counts shown next to a group banner."""
+
+    count: int
+    running: int
+    failed: int
+    awaiting: int
 
 
 @dataclass(frozen=True)
@@ -90,19 +107,14 @@ def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _Groupi
     )
 
 
-def build_agent_tree(agents: list[Agent]) -> list[TreeEntry]:
+def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[TreeEntry]:
     """Build the grouped tree of banner + agent entries.
 
-    Banners are emitted whenever the active group key changes from the
-    previous row, in the order agents appear in *agents*.  Each
-    :class:`GroupRow` carries the **full** set of agent indices that share
-    its key (across the entire input), so a non-contiguous group (the same
-    primary tag broken up by intervening agents with a different tag) will
-    produce repeated banners that nonetheless reference the complete index
-    set — preserving today's most-recent-activity ordering.
+    See module docstring for level semantics.
 
     Args:
         agents: The flat agent list (as filtered/sorted for display).
+        group_fold_level: Global expansion level (0–3).
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
@@ -122,6 +134,28 @@ def build_agent_tree(agents: list[Agent]) -> list[TreeEntry]:
         if k.name_root:
             root_indices.setdefault((k.tag, k.project, k.name_root), []).append(i)
 
+    if group_fold_level >= 3:
+        return _build_full_tree(keys_per_agent, tag_indices, proj_indices, root_indices)
+    return _build_collapsed_tree(
+        keys_per_agent,
+        group_fold_level,
+        tag_indices,
+        proj_indices,
+        root_indices,
+    )
+
+
+def _build_full_tree(
+    keys_per_agent: list[_GroupingKeys],
+    tag_indices: dict[str, list[int]],
+    proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
+    root_indices: dict[tuple[str, tuple[str, str], str], list[int]],
+) -> list[TreeEntry]:
+    """Phase 3 behavior — full banner + agent rows.
+
+    A non-contiguous group emits repeated banners that nonetheless
+    reference the **full** index set of the group.
+    """
     entries: list[TreeEntry] = []
     cur_tag: str | None = None
     cur_proj: tuple[str, str] | None = None
@@ -175,6 +209,100 @@ def build_agent_tree(agents: list[Agent]) -> list[TreeEntry]:
     return entries
 
 
+def _build_collapsed_tree(
+    keys_per_agent: list[_GroupingKeys],
+    group_fold_level: int,
+    tag_indices: dict[str, list[int]],
+    proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
+    root_indices: dict[tuple[str, tuple[str, str], str], list[int]],
+) -> list[TreeEntry]:
+    """Headers-only tree for fold levels 0/1/2.
+
+    Each unique group at the requested levels appears once, ordered by
+    first appearance among *keys_per_agent*.  Agent rows are suppressed.
+    """
+    entries: list[TreeEntry] = []
+    seen_tags: set[str] = set()
+    seen_projects: set[tuple[str, tuple[str, str]]] = set()
+    seen_roots: set[tuple[str, tuple[str, str], str]] = set()
+
+    for k in keys_per_agent:
+        if k.tag not in seen_tags:
+            seen_tags.add(k.tag)
+            entries.append(
+                TreeEntry(
+                    kind="group",
+                    group=GroupRow(
+                        level=0,
+                        group_key=(k.tag,),
+                        agent_indices=tuple(tag_indices[k.tag]),
+                        is_collapsed=group_fold_level < 1,
+                    ),
+                )
+            )
+        if group_fold_level >= 1:
+            proj_id = (k.tag, k.project)
+            if proj_id not in seen_projects:
+                seen_projects.add(proj_id)
+                entries.append(
+                    TreeEntry(
+                        kind="group",
+                        group=GroupRow(
+                            level=1,
+                            group_key=(k.tag, *k.project),
+                            agent_indices=tuple(proj_indices[proj_id]),
+                            is_collapsed=group_fold_level < 2,
+                        ),
+                    )
+                )
+        if group_fold_level >= 2 and k.name_root:
+            root_id = (k.tag, k.project, k.name_root)
+            if root_id not in seen_roots:
+                seen_roots.add(root_id)
+                entries.append(
+                    TreeEntry(
+                        kind="group",
+                        group=GroupRow(
+                            level=2,
+                            group_key=(k.tag, *k.project, k.name_root),
+                            agent_indices=tuple(root_indices[root_id]),
+                            is_collapsed=True,
+                        ),
+                    )
+                )
+    return entries
+
+
+_AWAITING_STATUSES = frozenset({"QUESTION", "PLAN APPROVED"})
+
+
+def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> BannerSummary:
+    """Aggregate status counts for the agents referenced by *group*.
+
+    Only non-workflow-child agents are counted so the summary mirrors
+    the user's mental model of "agents in this group".
+    """
+    count = 0
+    running = 0
+    failed = 0
+    awaiting = 0
+    for idx in group.agent_indices:
+        if idx < 0 or idx >= len(agents):
+            continue
+        agent = agents[idx]
+        if agent.is_workflow_child:
+            continue
+        count += 1
+        status = agent.status or ""
+        if status == "RUNNING":
+            running += 1
+        elif status.startswith("FAILED"):
+            failed += 1
+        elif status in _AWAITING_STATUSES:
+            awaiting += 1
+    return BannerSummary(count=count, running=running, failed=failed, awaiting=awaiting)
+
+
 def banner_label(group: GroupRow) -> str:
     """Compose the human-readable banner label for *group*.
 
@@ -194,3 +322,41 @@ def banner_label(group: GroupRow) -> str:
     if group.level == 2:
         return group.group_key[-1]
     return ""
+
+
+def banner_summary_text(summary: BannerSummary) -> str:
+    """Compact ``"N agents · 2 running · 1 failed"``-style label.
+
+    Returns an empty string when the summary is empty (count == 0).
+    """
+    if summary.count <= 0:
+        return ""
+    plural = "s" if summary.count != 1 else ""
+    parts = [f"{summary.count} agent{plural}"]
+    if summary.running:
+        parts.append(f"{summary.running} running")
+    if summary.failed:
+        parts.append(f"{summary.failed} failed")
+    if summary.awaiting:
+        parts.append(f"{summary.awaiting} awaiting")
+    return " · ".join(parts)
+
+
+def find_visible_ancestor_banner(
+    entries: list[TreeEntry], target_agent_idx: int
+) -> GroupRow | None:
+    """Return the closest ancestor banner of *target_agent_idx* in *entries*.
+
+    Used to snap focus back to a group banner when a fold change hides
+    the previously focused agent.  Picks the deepest banner whose
+    ``agent_indices`` contains *target_agent_idx*; falls back to the
+    first banner that contains it, or ``None``.
+    """
+    best: GroupRow | None = None
+    for entry in entries:
+        if entry.kind != "group" or entry.group is None:
+            continue
+        if target_agent_idx in entry.group.agent_indices:
+            if best is None or entry.group.level > best.level:
+                best = entry.group
+    return best

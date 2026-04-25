@@ -10,7 +10,14 @@ from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType, AttemptRecord, format_compact_duration
-from ..models.agent_groups import GroupRow, TreeEntry, banner_label, build_agent_tree
+from ..models.agent_groups import (
+    GroupRow,
+    TreeEntry,
+    banner_label,
+    banner_summary_text,
+    build_agent_tree,
+    compute_banner_summary,
+)
 
 # Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
 _BANNER_ROW = -1
@@ -127,6 +134,11 @@ class AgentList(OptionList, inherit_bindings=False):
         ``index`` is the local-panel index of the target agent; ``attempt_number``
         is non-None when a prior-attempt child row is selected (the detail view
         should then pin to that attempt rather than the agent's live state).
+        ``group_key`` is non-None when a banner row is the selection target —
+        the index then points at the first agent in that group, but the
+        ``current_group_key`` state should be updated so banner-aware actions
+        (e.g. Phase 5's bulk ``x``) can target the group rather than that
+        single agent.
         """
 
         def __init__(
@@ -134,10 +146,12 @@ class AgentList(OptionList, inherit_bindings=False):
             index: int,
             panel: PanelId = "main",
             attempt_number: int | None = None,
+            group_key: tuple[str, ...] | None = None,
         ) -> None:
             self.index = index
             self.panel = panel
             self.attempt_number = attempt_number
+            self.group_key = group_key
             super().__init__()
 
     class WidthChanged(Message):
@@ -161,6 +175,10 @@ class AgentList(OptionList, inherit_bindings=False):
         # Each rendered Option maps back to (agent_local_idx, attempt_number).
         # attempt_number is None for an agent row, int for an attempt child.
         self._row_entries: list[tuple[int, int | None]] = []
+        # Sparse map row_index -> GroupRow for selectable banners (group fold
+        # level < 3).  Banner rows at fold level 3 stay disabled and skip the
+        # map entirely so they remain invisible to selection.
+        self._banner_at_row: dict[int, GroupRow] = {}
 
     def update_list(
         self,
@@ -172,6 +190,8 @@ class AgentList(OptionList, inherit_bindings=False):
         has_focus: bool = True,
         jump_hints: dict[int, str] | None = None,
         current_attempt_number: int | None = None,
+        group_fold_level: int = 3,
+        current_group_key: tuple[str, ...] | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -186,11 +206,19 @@ class AgentList(OptionList, inherit_bindings=False):
             jump_hints: Optional local row index -> hint character mapping
             current_attempt_number: When non-None, highlight the corresponding
                 attempt child row of the selected agent instead of the agent row.
+            group_fold_level: Global group-fold level (0–3).  At ``3`` (default)
+                every banner and agent row is shown and banners are
+                non-selectable.  At lower levels only banners up to that level
+                appear, agents are hidden, and banners become selectable.
+                Always ``3`` for the pinned panel (the panel stays flat).
+            current_group_key: When non-None, highlight the banner row whose
+                ``group_key`` matches.  Takes precedence over agent highlight.
         """
         self._programmatic_update = True
         self._agents = agents
         self.clear_options()
         self._row_entries = []
+        self._banner_at_row = {}
 
         pinned = pinned_agents or set()
         marked = marked_agents or set()
@@ -259,22 +287,44 @@ class AgentList(OptionList, inherit_bindings=False):
         banner_width = max(_MIN_BANNER_WIDTH, max_width)
 
         # Walk the grouping tree (main panel) or the flat agent list
-        # (pinned panel) and emit Options in display order.
+        # (pinned panel) and emit Options in display order.  The pinned
+        # panel stays flat regardless of group_fold_level.
         if self._panel == "main":
-            tree = build_agent_tree(agents)
+            effective_level = group_fold_level
+            tree = build_agent_tree(agents, group_fold_level=effective_level)
         else:
+            effective_level = 3
             tree = [TreeEntry(kind="agent", agent_idx=i) for i in range(len(agents))]
+
+        # Banners are selectable on the main panel whenever the group
+        # fold has hidden the level below them.  At fold level 3 (full
+        # expansion) every banner stays disabled so cursor navigation
+        # skips them and lands on agents — preserving Phase 3 behavior.
+        banners_selectable = self._panel == "main" and effective_level < 3
 
         highlighted_row: int | None = None
         banner_seq = 0
         for entry in tree:
             if entry.kind == "group" and entry.group is not None:
                 option = self._format_banner_option(
-                    entry.group, width=banner_width, sequence=banner_seq
+                    entry.group,
+                    width=banner_width,
+                    sequence=banner_seq,
+                    selectable=banners_selectable,
                 )
                 banner_seq += 1
+                row_index = len(self._row_entries)
                 self.add_option(option)
                 self._row_entries.append((_BANNER_ROW, None))
+                if banners_selectable:
+                    self._banner_at_row[row_index] = entry.group
+                    if (
+                        has_focus
+                        and current_group_key is not None
+                        and entry.group.group_key == current_group_key
+                        and highlighted_row is None
+                    ):
+                        highlighted_row = row_index
                 continue
 
             if entry.agent_idx is None:
@@ -284,7 +334,10 @@ class AgentList(OptionList, inherit_bindings=False):
             option = agent_options[i]
             self.add_option(option)
             is_selected_agent = (
-                has_focus and i == current_idx and current_attempt_number is None
+                has_focus
+                and current_group_key is None
+                and i == current_idx
+                and current_attempt_number is None
             )
             if is_selected_agent:
                 highlighted_row = len(self._row_entries)
@@ -297,6 +350,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 self.add_option(attempt_option)
                 is_selected_attempt = (
                     has_focus
+                    and current_group_key is None
                     and i == current_idx
                     and current_attempt_number == record.attempt_number
                 )
@@ -559,49 +613,69 @@ class AgentList(OptionList, inherit_bindings=False):
         """Handle option highlight (keyboard navigation)."""
         # Only post message for user-initiated navigation, not programmatic updates
         if event.option_index is not None and not self._programmatic_update:
-            agent_idx, attempt_number = self._resolve_row(event.option_index)
+            agent_idx, attempt_number, group_key = self._resolve_row(event.option_index)
             self.post_message(
                 self.SelectionChanged(
-                    agent_idx, panel=self._panel, attempt_number=attempt_number
+                    agent_idx,
+                    panel=self._panel,
+                    attempt_number=attempt_number,
+                    group_key=group_key,
                 )
             )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
-            agent_idx, attempt_number = self._resolve_row(event.option_index)
+            agent_idx, attempt_number, group_key = self._resolve_row(event.option_index)
             self.post_message(
                 self.SelectionChanged(
-                    agent_idx, panel=self._panel, attempt_number=attempt_number
+                    agent_idx,
+                    panel=self._panel,
+                    attempt_number=attempt_number,
+                    group_key=group_key,
                 )
             )
 
-    def _resolve_row(self, option_index: int) -> tuple[int, int | None]:
-        """Translate a raw OptionList row index to (agent_local_idx, attempt_number).
+    def _resolve_row(
+        self, option_index: int
+    ) -> tuple[int, int | None, tuple[str, ...] | None]:
+        """Translate a raw OptionList row index to selection state.
 
-        Banner (group) rows return ``(_BANNER_ROW, None)``; callers route
-        these to the first agent in the group so navigation never lands on a
-        non-selectable banner.
+        Returns ``(agent_local_idx, attempt_number, group_key)``.  When a
+        selectable banner row is hit (group fold level < 3) the
+        ``group_key`` is the banner's :attr:`GroupRow.group_key` and
+        ``agent_local_idx`` points at the first agent in the group so
+        the detail panel still has something to show.  When a banner is
+        non-selectable (group fold level == 3) the row resolves to the
+        next agent row exactly like in Phase 3.
         """
         if 0 <= option_index < len(self._row_entries):
             entry = self._row_entries[option_index]
+            banner = self._banner_at_row.get(option_index)
+            if banner is not None:
+                first = banner.agent_indices[0] if banner.agent_indices else 0
+                return (first, None, banner.group_key)
             if entry[0] == _BANNER_ROW:
-                # Find next agent row (banner rows always precede agents).
+                # Non-selectable banner — route through to a real agent row.
                 for j in range(option_index + 1, len(self._row_entries)):
                     nxt = self._row_entries[j]
                     if nxt[0] != _BANNER_ROW:
-                        return nxt
-                # Fallback: previous agent row, if any.
+                        return (nxt[0], nxt[1], None)
                 for j in range(option_index - 1, -1, -1):
                     prv = self._row_entries[j]
                     if prv[0] != _BANNER_ROW:
-                        return prv
-                return (0, None)
-            return entry
-        return (option_index, None)
+                        return (prv[0], prv[1], None)
+                return (0, None, None)
+            return (entry[0], entry[1], None)
+        return (option_index, None, None)
 
     def _format_banner_option(
-        self, group: GroupRow, *, width: int, sequence: int
+        self,
+        group: GroupRow,
+        *,
+        width: int,
+        sequence: int,
+        selectable: bool = False,
     ) -> Option:
         """Render a group banner row Option.
 
@@ -611,36 +685,42 @@ class AgentList(OptionList, inherit_bindings=False):
         - L1 (project): single rule ``──`` in sky blue.
         - L2 (name-root): dim center-dot rule ``· name ·`` in muted gray.
 
-        Banner Options are marked ``disabled`` so OptionList cursor
-        navigation skips them; mouse clicks are routed to the first agent
-        in the group via :meth:`_resolve_row`.
+        Banner Options are marked ``disabled`` (Phase 3) so OptionList
+        cursor navigation skips them.  When *selectable* is True (Phase 4
+        fold level < 3) the banner stays in the cursor flow and shows a
+        compact summary chip after the label.
         """
         label = banner_label(group)
+        summary = compute_banner_summary(group, self._agents)
+        chip = banner_summary_text(summary)
         if group.level == 0:
             rule = "═"
             style = _TAG_BANNER_STYLE
-            head, tail = f"{rule}{rule} {label} ", ""
+            head_text = f"{rule}{rule} {label} "
         elif group.level == 1:
             rule = "─"
             style = _PROJECT_BANNER_STYLE
-            head, tail = f"{rule}{rule} {label} ", ""
+            head_text = f"{rule}{rule} {label} "
         else:
             rule = " "
             style = _NAME_ROOT_BANNER_STYLE
-            head, tail = f"· {label} ·", ""
-        # Pad with the rule character to reach the target width.
-        pad_len = max(0, width - len(head) - len(tail))
+            head_text = f"· {label} ·"
+        chip_text = f"{chip} " if chip else ""
+        # Pad with the rule character to reach the target width, leaving
+        # room for the summary chip rendered before the trailing rule run.
+        pad_len = max(0, width - len(head_text) - len(chip_text))
         text = Text()
-        text.append(head, style=style)
+        text.append(head_text, style=style)
+        if chip_text:
+            text.append(chip_text, style=style)
         text.append(rule * pad_len, style=style)
-        text.append(tail, style=style)
         # Sequence-prefixed id keeps banner Options unique even when the
         # same group key is split into multiple non-contiguous clusters.
         key_str = "/".join(group.group_key)
         return Option(
             text,
             id=f"group:{sequence}:{group.level}:{key_str}",
-            disabled=True,
+            disabled=not selectable,
         )
 
     def _format_attempt_option(

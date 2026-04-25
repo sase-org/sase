@@ -66,10 +66,10 @@ def test_resolve_row_returns_attempt_number_for_child_rows() -> None:
     agent = _make_agent(attempt_history=[_make_record(1)])
     widget.update_list([agent], current_idx=0)
     # Rows: 0=tag banner, 1=project banner, 2=agent, 3=attempt 1.
-    assert widget._resolve_row(0) == (0, None)  # banner -> first agent
-    assert widget._resolve_row(1) == (0, None)  # banner -> first agent
-    assert widget._resolve_row(2) == (0, None)
-    assert widget._resolve_row(3) == (0, 1)
+    assert widget._resolve_row(0) == (0, None, None)  # banner -> first agent
+    assert widget._resolve_row(1) == (0, None, None)  # banner -> first agent
+    assert widget._resolve_row(2) == (0, None, None)
+    assert widget._resolve_row(3) == (0, 1, None)
 
 
 def test_attempt_option_text_shows_number_and_snippet() -> None:

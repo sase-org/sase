@@ -292,6 +292,10 @@ class EventHandlersMixin:
                 else:
                     self.current_idx = global_idx
                     self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+                # Phase-4 group banner focus: a banner row carries a
+                # ``group_key`` so banner-aware actions can target the
+                # group; selecting an agent row clears it.
+                self._current_group_key = event.group_key  # type: ignore[attr-defined]
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
