@@ -18,7 +18,7 @@ class BeadXPromptNotFoundError(LookupError):
     """Raised when no xprompt is tagged with a required bead-automation tag."""
 
 
-def resolve_bead_xprompt(tag: XPromptTag, project: str | None = None) -> Workflow:
+def _resolve_bead_xprompt(tag: XPromptTag, project: str | None = None) -> Workflow:
     """Return the xprompt tagged with *tag*.
 
     Raises:
@@ -35,16 +35,11 @@ def resolve_bead_xprompt(tag: XPromptTag, project: str | None = None) -> Workflo
     return wf
 
 
-def resolve_create_epic_xprompt(project: str | None = None) -> Workflow:
-    """Resolve the xprompt tagged ``create_epic_bead``."""
-    return resolve_bead_xprompt(XPromptTag.create_epic_bead, project=project)
-
-
 def resolve_work_phase_xprompt(project: str | None = None) -> Workflow:
     """Resolve the xprompt tagged ``work_phase_bead``."""
-    return resolve_bead_xprompt(XPromptTag.work_phase_bead, project=project)
+    return _resolve_bead_xprompt(XPromptTag.work_phase_bead, project=project)
 
 
 def resolve_land_epic_xprompt(project: str | None = None) -> Workflow:
     """Resolve the xprompt tagged ``land_epic``."""
-    return resolve_bead_xprompt(XPromptTag.land_epic, project=project)
+    return _resolve_bead_xprompt(XPromptTag.land_epic, project=project)

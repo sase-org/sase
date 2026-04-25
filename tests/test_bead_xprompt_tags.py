@@ -8,8 +8,7 @@ import pytest
 
 from sase.bead.xprompts import (
     BeadXPromptNotFoundError,
-    resolve_bead_xprompt,
-    resolve_create_epic_xprompt,
+    _resolve_bead_xprompt,
     resolve_land_epic_xprompt,
     resolve_work_phase_xprompt,
 )
@@ -33,12 +32,6 @@ def test_new_tags_parse_from_list() -> None:
 
 
 # ── Built-ins resolvable by tag ────────────────────────────────────────
-
-
-def test_builtin_create_epic_resolves() -> None:
-    wf = resolve_create_epic_xprompt()
-    assert wf.name == "bd/new_epic"
-    assert XPromptTag.create_epic_bead in wf.tags
 
 
 def test_builtin_work_phase_resolves() -> None:
@@ -106,4 +99,4 @@ def test_missing_tag_raises_clear_error() -> None:
     """No xprompt with the tag → BeadXPromptNotFoundError."""
     with patch("sase.xprompt.loader.get_all_prompts", return_value={}):
         with pytest.raises(BeadXPromptNotFoundError, match="create_epic_bead"):
-            resolve_bead_xprompt(XPromptTag.create_epic_bead)
+            _resolve_bead_xprompt(XPromptTag.create_epic_bead)
