@@ -783,7 +783,7 @@ ace:
     app:
       next_changespec: "n" # Remap j → n
       prev_changespec: "p" # Remap k → p
-      mark_inactive: "I" # Remap i → I
+      show_notifications: "n" # Remap i → n
 ```
 
 ### Custom Modes

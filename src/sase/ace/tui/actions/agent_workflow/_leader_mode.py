@@ -119,6 +119,11 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["mark_inactive"]:
+            self.action_mark_inactive()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["clear_comments"]:
             if self.current_tab == "changespecs":
                 self._clear_changespec_comments()  # type: ignore[attr-defined]

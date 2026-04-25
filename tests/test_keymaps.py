@@ -174,9 +174,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 76 configurable + 10 digit = 86 bindings."""
+    """build_app_bindings produces 75 configurable + 10 digit = 85 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 86
+    assert len(bindings) == 85
 
 
 def test_build_app_bindings_priority() -> None:
@@ -249,6 +249,12 @@ def test_registry_default_modes_always_present() -> None:
     assert "copy_mode" in reg.modes
     assert "leader_mode" in reg.modes
     assert "bang_mode" in reg.modes
+
+
+def test_leader_mode_includes_mark_inactive() -> None:
+    """LeaderModeKeymaps default includes mark_inactive bound to ``I``."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["mark_inactive"] == "I"
 
 
 # --- Source-of-truth consistency ---

@@ -52,7 +52,6 @@ ace:
       toggle_mark: "m"
       clear_marks: "u"
       bulk_change_status: "S"
-      mark_inactive: "i"
       mark_inactive_pinned: "I"
       # Agent / axe
       pin_agent: "P"
@@ -81,7 +80,7 @@ ace:
       # Display / misc
       toggle_hide_reverted: "full_stop"
       toggle_hide_submitted: "x"
-      show_notifications: "N"
+      show_notifications: "i"
       show_help: "question_mark"
       browse_xprompts: "number_sign"
       # Workspace mode prefixes
@@ -143,6 +142,7 @@ ace:
           agent_from_cl: "space"
           kill_and_edit: "x"
           kill_all: "X"
+          mark_inactive: "I"
           retry_edit: "r"
           activity_info: "i"
           clear_comments: "c"

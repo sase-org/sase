@@ -385,6 +385,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("task_queue"), "task queue"))
         bindings.append((k("activity_info"), "activity"))
+        bindings.append((k("mark_inactive"), "mark idle"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
         prefix = Text()

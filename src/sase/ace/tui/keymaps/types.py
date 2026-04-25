@@ -82,7 +82,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_layout", "Layout", False),
     ("toggle_thinking", "Thinking", False),
     ("toggle_thinking_reverse", "Thinking Rev", False),
-    ("mark_inactive", "Mark Inactive", False),
     ("mark_inactive_pinned", "Pin Inactive", False),
     ("copy_tab_content", "Copy", False),
     ("scroll_to_top", "Top", False),
@@ -228,7 +227,6 @@ class AppKeymaps:
     toggle_mark: str
     clear_marks: str
     bulk_change_status: str
-    mark_inactive: str
     mark_inactive_pinned: str
     # Agent / axe
     pin_agent: str
@@ -350,6 +348,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_from_cl": "space",
             "kill_and_edit": "x",
             "kill_all": "X",
+            "mark_inactive": "I",
             "retry_edit": "r",
             "activity_info": "i",
             "clear_comments": "c",

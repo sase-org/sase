@@ -64,7 +64,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("n", "rename_cl", "Rename", show=False),
     Binding("u", "clear_marks", "Unmark All", show=False),
     Binding("S", "bulk_change_status", "Bulk Status", show=False),
-    Binding("N", "show_notifications", "Notifications", show=False),
+    Binding("i", "show_notifications", "Notifications", show=False),
     Binding("x", "kill_agent", "Kill", show=False),
     Binding("l", "expand_or_layout", "Expand / Layout", show=False),
     Binding("L", "expand_all_folds", "Expand All", show=False),
@@ -74,7 +74,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
     ),
     Binding("V", "toggle_attempt_view", "Attempt View", show=False),
-    Binding("i", "mark_inactive", "Mark Inactive", show=False),
     # Copy to clipboard (changespecs tab - % followed by key)
     Binding("percent_sign", "copy_tab_content", "Copy", show=False),
     # Scroll to top/bottom (Axe tab)
