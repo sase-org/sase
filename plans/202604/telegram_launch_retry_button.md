@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-24 21:42:27
-status: wip
+status: done
 ---
 # Add Retry Copy Button to Telegram Agent Launch Message
 
