@@ -1,6 +1,7 @@
 ---
 status: draft
 create_time: 2026-04-25 17:20:05
+bead_id: sase-r
 ---
 
 # Epic Work Automation: `sase bead work <epic>` → auto-launch phase + land agents
