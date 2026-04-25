@@ -13,13 +13,20 @@ banners are never emitted between a parent and its child steps.
 
 The tree builder accepts a ``group_fold_level``:
 
-* ``3`` (default) — every banner and agent row is emitted, matching
-  Phase 3 behavior.  Banners at the same level repeat when the same key
-  appears in non-contiguous clusters.
+* ``3`` (default) — every banner and agent row is emitted.  Each group
+  key renders exactly once, with all of its members contiguous beneath
+  the banner.
 * ``0``/``1``/``2`` — only banners up to the requested level are
-  emitted.  Each unique group key produces exactly one banner row, in
-  the order it first appears in *agents*.  Agent rows are suppressed
-  entirely so that L0/L1/L2 act as a "headers-only" view.
+  emitted.  Each unique group key produces exactly one banner row.
+  Agent rows are suppressed entirely so that L0/L1/L2 act as a
+  "headers-only" view.
+
+Group ordering is deterministic and independent of the input agent
+list's order: named tags sort before ``(untagged)``; named projects
+sort before ``(no project)``; the empty name-root sorts first within a
+project so dotless agents render directly under the project banner.
+Within each group, members keep their original input order via a
+stable sort.
 
 Level-2 (name-root) banners are only emitted when the name-root group
 contains two or more entries; a singleton root renders its lone agent
@@ -94,6 +101,37 @@ def _name_root(agent: Agent) -> str:
     return ""
 
 
+def _tag_sort_key(tag: str) -> tuple[int, str]:
+    """Sort key for primary tags — named tags first, ``(untagged)`` last."""
+    return (0, tag.lower()) if tag else (1, "")
+
+
+def _project_sort_key(project: tuple[str, str]) -> tuple[int, str, str]:
+    """Sort key for projects — named projects first, ``(no project)`` last."""
+    name, cl = project
+    if name:
+        return (0, name.lower(), cl.lower())
+    return (1, "", cl.lower())
+
+
+def _name_root_sort_key(name_root: str) -> tuple[int, str]:
+    """Sort key for name-roots — empty (dotless) sorts first within project."""
+    return (0, "") if not name_root else (1, name_root.lower())
+
+
+def _walk_order(keys_per_agent: list[_GroupingKeys]) -> list[int]:
+    """Return a stable permutation of agent indices sorted by grouping keys."""
+    return sorted(
+        range(len(keys_per_agent)),
+        key=lambda i: (
+            _tag_sort_key(keys_per_agent[i].tag),
+            _project_sort_key(keys_per_agent[i].project),
+            _name_root_sort_key(keys_per_agent[i].name_root),
+            i,
+        ),
+    )
+
+
 def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _GroupingKeys:
     """Compute (tag, project, name_root) for *agent*.
 
@@ -128,20 +166,25 @@ def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[Tre
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
     keys_per_agent = [_grouping_keys_for(a, parent_lookup) for a in agents]
+    walk_order = _walk_order(keys_per_agent)
 
     tag_indices: dict[str, list[int]] = {}
     proj_indices: dict[tuple[str, tuple[str, str]], list[int]] = {}
     root_indices: dict[tuple[str, tuple[str, str], str], list[int]] = {}
-    for i, k in enumerate(keys_per_agent):
+    for i in walk_order:
+        k = keys_per_agent[i]
         tag_indices.setdefault(k.tag, []).append(i)
         proj_indices.setdefault((k.tag, k.project), []).append(i)
         if k.name_root:
             root_indices.setdefault((k.tag, k.project, k.name_root), []).append(i)
 
     if group_fold_level >= 3:
-        return _build_full_tree(keys_per_agent, tag_indices, proj_indices, root_indices)
+        return _build_full_tree(
+            keys_per_agent, walk_order, tag_indices, proj_indices, root_indices
+        )
     return _build_collapsed_tree(
         keys_per_agent,
+        walk_order,
         group_fold_level,
         tag_indices,
         proj_indices,
@@ -151,21 +194,24 @@ def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[Tre
 
 def _build_full_tree(
     keys_per_agent: list[_GroupingKeys],
+    walk_order: list[int],
     tag_indices: dict[str, list[int]],
     proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
     root_indices: dict[tuple[str, tuple[str, str], str], list[int]],
 ) -> list[TreeEntry]:
-    """Phase 3 behavior — full banner + agent rows.
+    """Full banner + agent rows.
 
-    A non-contiguous group emits repeated banners that nonetheless
-    reference the **full** index set of the group.
+    Members are walked in deterministic grouping order so each group
+    key emits exactly one banner with all of its members contiguous
+    beneath it.
     """
     entries: list[TreeEntry] = []
     cur_tag: str | None = None
     cur_proj: tuple[str, str] | None = None
     cur_root: str = ""
 
-    for i, k in enumerate(keys_per_agent):
+    for i in walk_order:
+        k = keys_per_agent[i]
         if cur_tag is None or k.tag != cur_tag:
             entries.append(
                 TreeEntry(
@@ -215,6 +261,7 @@ def _build_full_tree(
 
 def _build_collapsed_tree(
     keys_per_agent: list[_GroupingKeys],
+    walk_order: list[int],
     group_fold_level: int,
     tag_indices: dict[str, list[int]],
     proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
@@ -222,15 +269,16 @@ def _build_collapsed_tree(
 ) -> list[TreeEntry]:
     """Headers-only tree for fold levels 0/1/2.
 
-    Each unique group at the requested levels appears once, ordered by
-    first appearance among *keys_per_agent*.  Agent rows are suppressed.
+    Each unique group at the requested levels appears once in
+    deterministic grouping order.  Agent rows are suppressed.
     """
     entries: list[TreeEntry] = []
     seen_tags: set[str] = set()
     seen_projects: set[tuple[str, tuple[str, str]]] = set()
     seen_roots: set[tuple[str, tuple[str, str], str]] = set()
 
-    for k in keys_per_agent:
+    for i in walk_order:
+        k = keys_per_agent[i]
         if k.tag not in seen_tags:
             seen_tags.add(k.tag)
             entries.append(

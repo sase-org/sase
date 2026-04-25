@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 18:22:25
-status: wip
+status: done
 ---
 # Plan: Stop splitting `(untagged)` (and other groups) on the Agents tab + sort groups deterministically
 

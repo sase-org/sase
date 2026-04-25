@@ -160,12 +160,13 @@ def test_l2_cycles_all_six_banners() -> None:
     for _ in range(6):
         app._navigate_agents_panel(1)
         keys.append(app._current_group_key)
+    # Name-root banners render in deterministic alpha order within the project.
     assert keys == [
         ("alpha", "p1", "cl1"),
         ("alpha", "p1", "cl1", "d"),
-        ("alpha", "p1", "cl1", "sase-r"),
         ("alpha", "p1", "cl1", "j"),
         ("alpha", "p1", "cl1", "sase-q"),
+        ("alpha", "p1", "cl1", "sase-r"),
         ("alpha",),  # wrap to start
     ]
 

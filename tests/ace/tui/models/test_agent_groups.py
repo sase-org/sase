@@ -157,11 +157,11 @@ def test_project_label_renders_project_and_changespec() -> None:
     assert banner_label(g) == "sase_100 / fix-bug-id"
 
 
-def test_non_contiguous_same_tag_emits_repeated_banners() -> None:
-    """Same primary tag interleaved with another tag produces repeated banners.
+def test_non_contiguous_same_tag_emits_single_banner() -> None:
+    """Interleaved members of the same tag collapse to one banner via sort.
 
-    The repeated banners still reference the *full* agent index set so that
-    Phase 4's group selection can target every member regardless of layout.
+    The walk is reordered by grouping key before emission, so every group
+    key renders exactly once with all its members contiguous beneath it.
     """
     a = _agent(tags=("alpha",))
     b = _agent(tags=("beta",))
@@ -175,9 +175,11 @@ def test_non_contiguous_same_tag_emits_repeated_banners() -> None:
         and e.group.level == 0
         and e.group.group_key == ("alpha",)
     ]
-    assert len(alpha_banners) == 2
-    for b_entry in alpha_banners:
-        assert b_entry.group.agent_indices == (0, 2)  # type: ignore[union-attr]
+    assert len(alpha_banners) == 1
+    assert alpha_banners[0].group.agent_indices == (0, 2)  # type: ignore[union-attr]
+    # The two alpha agents render contiguously, before the beta agent.
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    assert agent_order == [0, 2, 1]
 
 
 # --- Phase 4: fold-level builds ---
@@ -413,3 +415,171 @@ def test_find_visible_ancestor_banner_returns_none_when_idx_unknown() -> None:
     a = _agent(tags=("alpha",))
     entries = build_agent_tree([a], group_fold_level=0)
     assert find_visible_ancestor_banner(entries, target_agent_idx=42) is None
+
+
+# --- Dedupe + deterministic group ordering ---
+
+
+def _group_keys(entries: list[TreeEntry], level: int) -> list[tuple[str, ...]]:
+    return [
+        e.group.group_key  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == level
+    ]
+
+
+def test_full_tree_does_not_split_untagged_group() -> None:
+    """Members of ``(untagged)`` interleaved with a named tag render once."""
+    a = _agent(tags=())
+    b = _agent(tags=("x",))
+    c = _agent(tags=())
+    entries = build_agent_tree([a, b, c])
+    tag_keys = _group_keys(entries, level=0)
+    # Named tag first, untagged second — each appears once.
+    assert tag_keys == [("x",), ("",)]
+    untagged = [
+        e
+        for e in entries
+        if e.kind == "group"
+        and e.group is not None
+        and e.group.level == 0
+        and e.group.group_key == ("",)
+    ]
+    assert len(untagged) == 1
+    assert untagged[0].group.agent_indices == (0, 2)  # type: ignore[union-attr]
+
+
+def test_full_tree_sort_is_deterministic() -> None:
+    """Same agents in different orders produce identical tree shapes."""
+    a = _agent(cl_name="a", tags=("alpha",))
+    b = _agent(cl_name="b", tags=("beta",))
+    c = _agent(cl_name="c", tags=())
+
+    order1 = build_agent_tree([a, b, c])
+    order2 = build_agent_tree([c, b, a])
+    order3 = build_agent_tree([b, c, a])
+
+    def reduce_keys(entries: list[TreeEntry]) -> list[tuple[str, ...] | None]:
+        out: list[tuple[str, ...] | None] = []
+        for e in entries:
+            if e.kind == "group":
+                assert e.group is not None
+                out.append(e.group.group_key)
+            else:
+                out.append(None)
+        return out
+
+    assert reduce_keys(order1) == reduce_keys(order2) == reduce_keys(order3)
+
+
+def test_full_tree_named_tags_sort_before_untagged() -> None:
+    """Named tags sort lex; ``(untagged)`` always sorts last."""
+    entries = build_agent_tree(
+        [
+            _agent(tags=("beta",)),
+            _agent(tags=()),
+            _agent(tags=("alpha",)),
+        ]
+    )
+    assert _group_keys(entries, level=0) == [("alpha",), ("beta",), ("",)]
+
+
+def test_full_tree_workflow_children_stay_with_parent_after_sort() -> None:
+    """Workflow children keep parent-adjacent ordering even with an interloper."""
+    parent = _agent(cl_name="demo", agent_name="solo", raw_suffix="ts1")
+    child1 = _agent(
+        cl_name="step1",
+        agent_name="step1",
+        parent_workflow="solo",
+        parent_timestamp="ts1",
+    )
+    other = _agent(cl_name="other", agent_name="other", tags=("x",))
+    child2 = _agent(
+        cl_name="step2",
+        agent_name="step2",
+        parent_workflow="solo",
+        parent_timestamp="ts1",
+    )
+    # Input order interleaves the workflow steps with the @x agent.
+    entries = build_agent_tree([parent, child1, other, child2])
+
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # @x sorts first (named tag), then untagged parent + both children.
+    assert agent_order == [2, 0, 1, 3]
+
+    # Both groups appear exactly once.
+    assert _group_keys(entries, level=0) == [("x",), ("",)]
+
+
+def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:
+    """Sort-driven walk doesn't regress the singleton name-root suppression."""
+    # Two coder.* (multi-entry root) + one solo.gemini (singleton root),
+    # input order interleaved to force the walk reorder.
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="solo.gemini"),
+            _agent(cl_name="demo", agent_name="coder.claude"),
+            _agent(cl_name="demo", agent_name="coder.codex"),
+        ]
+    )
+    name_root_banners = [
+        e
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 2
+    ]
+    # Only the multi-entry "coder" root has a banner — solo.gemini stays bare.
+    assert len(name_root_banners) == 1
+    assert name_root_banners[0].group.group_key[-1] == "coder"  # type: ignore[union-attr]
+
+
+def test_full_tree_reproduces_user_snapshot_shape() -> None:
+    """Roughly-19 untagged agents + 1 @name_level emit exactly one banner each.
+
+    Mirrors the user-supplied snapshot where ``(untagged)`` was rendered
+    twice, sandwiching the lone ``@name_level`` group.
+    """
+    name_roots = ["q", "p", "i", "j", "k", "l", "n", "o", "r"]
+    untagged_agents = []
+    # 9 dotted agents across distinct name roots + 10 dotless agents.
+    for i, root in enumerate(name_roots):
+        untagged_agents.append(_agent(cl_name=f"cl{i}", agent_name=f"{root}.plan"))
+    for i in range(10):
+        untagged_agents.append(_agent(cl_name=f"plain{i}", agent_name="solo"))
+    tagged = _agent(cl_name="lonely", agent_name="lonely", tags=("name_level",))
+
+    # Interleave the tagged agent into the middle of the untagged list to
+    # mimic the snapshot's ordering.
+    agents = untagged_agents[:5] + [tagged] + untagged_agents[5:]
+    assert len(agents) == 20
+
+    entries = build_agent_tree(agents)
+    tag_banners = [
+        e
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 0
+    ]
+    keys = [b.group.group_key for b in tag_banners]  # type: ignore[union-attr]
+    assert keys.count(("name_level",)) == 1
+    assert keys.count(("",)) == 1
+    # Named tag sorts before (untagged).
+    assert keys == [("name_level",), ("",)]
+
+
+def test_collapsed_tree_order_is_deterministic() -> None:
+    """Headers-only fold respects the same deterministic ordering."""
+    a = _agent(cl_name="a", tags=("alpha",))
+    b = _agent(cl_name="b", tags=("beta",))
+    c = _agent(cl_name="c", tags=())
+
+    order1 = build_agent_tree([a, b, c], group_fold_level=2)
+    order2 = build_agent_tree([c, a, b], group_fold_level=2)
+    order3 = build_agent_tree([b, c, a], group_fold_level=2)
+
+    def banner_keys(entries: list[TreeEntry]) -> list[tuple[int, tuple[str, ...]]]:
+        return [
+            (e.group.level, e.group.group_key)  # type: ignore[union-attr]
+            for e in entries
+            if e.kind == "group" and e.group is not None
+        ]
+
+    assert banner_keys(order1) == banner_keys(order2) == banner_keys(order3)
