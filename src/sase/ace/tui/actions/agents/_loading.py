@@ -368,13 +368,18 @@ class AgentLoadingMixin:
                 self._agents_refresh_pending = False
                 self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
-    def _refilter_agents(self) -> None:
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         """Lightweight agent refresh that skips disk I/O.
 
         Reuses the cached ``_agents_with_children`` list from the last full
         ``_load_agents()`` call and re-applies only the in-memory pipeline:
         fold filtering, ordering, search, status overrides, panel indices,
         selection restoration, tab-bar counts, and display refresh.
+
+        ``prior_pos`` is the active panel's pre-mutation visible-row
+        position of the focused agent — used to restore focus to the agent
+        visually below the removed one when the previously selected
+        identity is gone (kill / dismiss paths).
 
         Falls back to ``_load_agents()`` if no full load has run yet.
         """
@@ -393,7 +398,10 @@ class AgentLoadingMixin:
         self._agents = list(self._agents_with_children)
 
         self._finalize_agent_list(
-            on_agents_tab, selected_identity, save_unfiltered=False
+            on_agents_tab,
+            selected_identity,
+            save_unfiltered=False,
+            prior_pos=prior_pos,
         )
 
     def _finalize_agent_list(
@@ -402,6 +410,7 @@ class AgentLoadingMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         *,
         save_unfiltered: bool,
+        prior_pos: int | None = None,
     ) -> None:
         """Shared post-processing pipeline for agent list finalization.
 
@@ -414,6 +423,11 @@ class AgentLoadingMixin:
             selected_identity: Identity of the previously selected agent.
             save_unfiltered: If True, save ``_agents_with_children`` before
                 fold filtering (used by full load, not refilter).
+            prior_pos: Pre-mutation visible-row position of the previously
+                focused agent on the active panel. Only used when the
+                selected identity is gone (kill / dismiss); routes through
+                :meth:`_restore_focus_after_removal` so focus lands on the
+                agent visually below the removed one.
         """
         # Apply fold-state filtering for workflow children
         from ...models import filter_agents_by_fold_state
@@ -492,42 +506,72 @@ class AgentLoadingMixin:
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
 
+        identity_restored = False
         if selected_identity is not None:
             # Try to restore selection by identity
             for idx, agent in enumerate(self._agents):
                 if agent.identity == selected_identity:
                     saved_idx = idx
+                    identity_restored = True
                     break
             # If agent not found, saved_idx remains at the original position
 
-        # Clamp to valid bounds
-        if self._agents:
-            new_idx = min(saved_idx, len(self._agents) - 1)
-        else:
-            new_idx = 0
-
-        # Ensure panel focus is valid after refresh
-        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":  # type: ignore[attr-defined]
-            self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-        elif (
-            not self._main_panel_indices  # type: ignore[attr-defined]
-            and self._pinned_panel_indices  # type: ignore[attr-defined]
-            and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
+        # When the previously selected identity is gone (kill / dismiss),
+        # re-anchor focus to the agent that now occupies the same visible
+        # row the killed one had. Only the on-agents-tab branch needs this
+        # — the saved-idx branch is just a stash for tab switches.
+        if (
+            on_agents_tab
+            and prior_pos is not None
+            and selected_identity is not None
+            and not identity_restored
         ):
-            self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
-
-        # If selection target is not in focused panel, adjust
-        if self._agents and new_idx not in self._active_panel_indices():  # type: ignore[attr-defined]
-            active = self._active_panel_indices()  # type: ignore[attr-defined]
-            if active:
-                new_idx = active[0]
-
-        # Only modify current_idx if we're on the agents tab
-        # Otherwise, update the saved position for when user switches to agents tab
-        if on_agents_tab:
-            self.current_idx = new_idx
+            self.current_idx = saved_idx
+            # Ensure panel focus is valid before reading the visible order.
+            if (
+                not self._pinned_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_focused == "pinned"  # type: ignore[attr-defined]
+            ):
+                self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
+            elif (
+                not self._main_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
+            ):
+                self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
+            self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
         else:
-            self._agents_last_idx = new_idx
+            # Clamp to valid bounds
+            if self._agents:
+                new_idx = min(saved_idx, len(self._agents) - 1)
+            else:
+                new_idx = 0
+
+            # Ensure panel focus is valid after refresh
+            if (
+                not self._pinned_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_focused == "pinned"  # type: ignore[attr-defined]
+            ):
+                self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
+            elif (
+                not self._main_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_indices  # type: ignore[attr-defined]
+                and self._pinned_panel_focused == "main"  # type: ignore[attr-defined]
+            ):
+                self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
+
+            # If selection target is not in focused panel, adjust
+            if self._agents and new_idx not in self._active_panel_indices():  # type: ignore[attr-defined]
+                active = self._active_panel_indices()  # type: ignore[attr-defined]
+                if active:
+                    new_idx = active[0]
+
+            # Only modify current_idx if we're on the agents tab
+            # Otherwise, update the saved position for when user switches to agents tab
+            if on_agents_tab:
+                self.current_idx = new_idx
+            else:
+                self._agents_last_idx = new_idx
 
         # Update the running agent counts on the tab bar.
         # Exclude workflow children -- they are sub-steps of a parent agent

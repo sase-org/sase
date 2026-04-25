@@ -58,9 +58,17 @@ class AgentDismissingMixin:
         """
         from ...models.agent import AgentType
 
+        # Capture the pre-mutation visible-row anchor so focus lands on the
+        # agent visually below the dismissed one.
+        prior_pos = (
+            self._capture_focused_visible_pos()  # type: ignore[attr-defined]
+            if hasattr(self, "_capture_focused_visible_pos")
+            else None
+        )
+
         agents_list = list(agents)
         if not agents_list:
-            self._refilter_agents()  # type: ignore[attr-defined]
+            self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
             return
 
         removed: list[Agent] = list(agents_list)
@@ -99,7 +107,7 @@ class AgentDismissingMixin:
                 self._dismissed_agent_objects.append(agent)
                 existing_identities.add(agent.identity)
 
-        self._refilter_agents()  # type: ignore[attr-defined]
+        self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
 
     def _save_agent_bundle(self, agent: Agent) -> None:
         """Save a serialized bundle of agent data before artifact deletion.

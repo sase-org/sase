@@ -172,6 +172,95 @@ class AgentsMixinCore(
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
 
+    def _active_panel_visible_order(self) -> list[int]:
+        """Return the active panel's visible row order as global agent indices.
+
+        The pinned panel renders flat (no grouping tree), so its visible
+        order equals ``_pinned_panel_indices``. The main panel uses the
+        group-tree walk shared with j/k navigation.
+        """
+        if self._pinned_panel_focused == "pinned":
+            return list(self._pinned_panel_indices)
+        return self._main_panel_visible_order()
+
+    def _capture_focused_visible_pos(self) -> int | None:
+        """Return the visible-row position of ``current_idx`` on the active panel.
+
+        Returns ``None`` when there is no anchor to capture — selection is
+        out of range, the focused agent lives on the inactive panel, or
+        the required panel-index state is unavailable. A ``None`` result
+        signals callers (kill / dismiss) to fall back to the conservative
+        clamp behavior in :meth:`_restore_focus_after_removal`.
+        """
+        agents = getattr(self, "_agents", None)
+        if not agents or not (0 <= self.current_idx < len(agents)):
+            return None
+        main_indices = getattr(self, "_main_panel_indices", None)
+        pinned_indices = getattr(self, "_pinned_panel_indices", None)
+        if main_indices is None or pinned_indices is None:
+            return None
+        panel_focus = getattr(self, "_pinned_panel_focused", "main")
+        active = pinned_indices if panel_focus == "pinned" else main_indices
+        if self.current_idx not in active:
+            return None
+        visible = self._active_panel_visible_order()
+        try:
+            return visible.index(self.current_idx)
+        except ValueError:
+            return None
+
+    def _restore_focus_after_removal(self, prior_visible_pos: int | None) -> None:
+        """Re-anchor ``current_idx`` after an in-memory removal.
+
+        ``prior_visible_pos`` is the visible-row position of the agent that
+        previously held focus, captured *before* the removal via
+        :meth:`_capture_focused_visible_pos`. After the removal the same
+        position points at the agent visually below the killed one; if it
+        is past the end of the new visible list we fall back to the last
+        visible row. When the panel is empty, panel focus is shifted and
+        ``current_idx`` is clamped per the existing fallback. When
+        ``prior_visible_pos`` is ``None`` the visible-anchor branch is
+        skipped and only the clamp + first-of-active fallback runs.
+        """
+        pinned_indices = getattr(self, "_pinned_panel_indices", [])
+        main_indices = getattr(self, "_main_panel_indices", [])
+        panel_focus = getattr(self, "_pinned_panel_focused", "main")
+        if not pinned_indices and panel_focus == "pinned":
+            self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
+            panel_focus = "main"
+        elif not main_indices and pinned_indices and panel_focus == "main":
+            self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
+            panel_focus = "pinned"
+
+        if not self._agents:
+            self.current_idx = 0
+            return
+
+        if self.current_idx >= len(self._agents):
+            self.current_idx = len(self._agents) - 1
+        if self.current_idx < 0:
+            self.current_idx = 0
+
+        if prior_visible_pos is not None:
+            try:
+                visible = self._active_panel_visible_order()
+            except Exception:
+                visible = []
+            if visible:
+                target = visible[min(prior_visible_pos, len(visible) - 1)]
+                self.current_idx = target
+                return
+
+        if hasattr(self, "_active_panel_indices"):
+            try:
+                active = self._active_panel_indices()
+            except AttributeError:
+                active = main_indices or pinned_indices
+        else:
+            active = main_indices or pinned_indices
+        if active and self.current_idx not in active:
+            self.current_idx = active[0]
+
     def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
         """Convert a global _agents index to (panel, local_index).
 

@@ -64,8 +64,9 @@ class FakeDismissApp(AgentDismissingMixin):
     def _load_agents(self) -> None:
         self.load_count += 1
 
-    def _refilter_agents(self) -> None:
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_count += 1
+        self.last_refilter_prior_pos = prior_pos
 
     def _refresh_notification_count(self) -> None:
         self.notification_refreshes += 1

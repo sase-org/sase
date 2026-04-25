@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 19:34:01
-status: wip
+status: done
 ---
 # `sase ace` Agents tab: `x` (kill / dismiss) jumps focus to a "random" agent instead of the row below the killed one
 

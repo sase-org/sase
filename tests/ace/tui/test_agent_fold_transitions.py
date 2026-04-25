@@ -34,7 +34,7 @@ class _StubApp(AgentFoldingMixin):
         self.refilter_calls = 0
 
     # The mixin calls these via attribute lookups.
-    def _refilter_agents(self) -> None:
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
 
     def _get_selected_agent(self) -> Agent | None:

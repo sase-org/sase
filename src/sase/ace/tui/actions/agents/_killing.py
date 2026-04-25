@@ -100,6 +100,10 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         if not identities:
             return
 
+        # Capture the pre-mutation visible-row anchor so the post-mutation
+        # focus lands on the agent visually below the killed one.
+        prior_pos = self._capture_focused_visible_pos()  # type: ignore[attr-defined]
+
         self._dismissed_agents.update(identities)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
@@ -110,7 +114,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
             a for a in self._agents_with_children if a.identity not in identities
         ]
         self._build_panel_indices()  # type: ignore[attr-defined]
-        self._clamp_agent_selection_to_active_panel()
+        self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
 
         if refresh and self.current_tab == "agents":  # type: ignore[attr-defined]
             self._refresh_agents_display(  # type: ignore[attr-defined]
@@ -118,33 +122,14 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
             )
 
     def _clamp_agent_selection_to_active_panel(self) -> None:
-        """Clamp current_idx after an in-memory agent-list mutation."""
-        if self._agents:  # type: ignore[attr-defined]
-            self.current_idx = min(  # type: ignore[attr-defined]
-                self.current_idx,
-                len(self._agents) - 1,  # type: ignore[attr-defined]
-            )
-        else:
-            self.current_idx = 0  # type: ignore[attr-defined]
+        """Clamp current_idx after an in-memory agent-list mutation.
 
-        pinned_indices = getattr(self, "_pinned_panel_indices", [])
-        main_indices = getattr(self, "_main_panel_indices", [])
-        panel_focus = getattr(self, "_pinned_panel_focused", "main")
-        if not pinned_indices and panel_focus == "pinned":
-            self._pinned_panel_focused = "main"  # type: ignore[attr-defined]
-        elif not main_indices and pinned_indices and panel_focus == "main":
-            self._pinned_panel_focused = "pinned"  # type: ignore[attr-defined]
-
-        if hasattr(self, "_active_panel_indices"):
-            try:
-                active = self._active_panel_indices()  # type: ignore[attr-defined]
-            except AttributeError:
-                active = main_indices or pinned_indices
-        else:
-            active = main_indices or pinned_indices
-        if self._agents and active and self.current_idx not in active:  # type: ignore[attr-defined]
-            if active:
-                self.current_idx = active[0]  # type: ignore[attr-defined]
+        Thin wrapper for callers (revive, hide-toggle) that have no
+        pre-mutation visible-row anchor — delegates to
+        :meth:`_restore_focus_after_removal` with ``None`` so the unified
+        clamp / panel-empty fallback lives in one place.
+        """
+        self._restore_focus_after_removal(None)  # type: ignore[attr-defined]
 
     def _do_kill_agent(self, agent: Agent) -> None:
         """Perform the actual agent kill after confirmation."""
