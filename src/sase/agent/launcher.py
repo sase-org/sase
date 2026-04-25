@@ -180,12 +180,93 @@ def spawn_agent_subprocess(
             with open(home_project_file, "w", encoding="utf-8") as f:
                 f.write("")
 
+    _emit_launch_notification(
+        cl_name=cl_name,
+        prompt=prompt,
+        workflow_name=workflow_name,
+        project_name=project_name,
+        workspace_num=workspace_num,
+        pid=process.pid,
+        extra_env=extra_env,
+        is_retry=retry_transfer_from_pid is not None,
+    )
+
     return AgentLaunchResult(
         pid=process.pid,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
         output_path=output_path,
     )
+
+
+def _emit_launch_notification(
+    *,
+    cl_name: str,
+    prompt: str,
+    workflow_name: str,
+    project_name: str,
+    workspace_num: int,
+    pid: int,
+    extra_env: dict[str, str] | None,
+    is_retry: bool,
+) -> None:
+    """Append an agent-launch notification (best-effort, swallows errors)."""
+    try:
+        from sase.llm_provider.registry import (
+            get_default_provider_name,
+            get_provider,
+            resolve_model_provider,
+        )
+        from sase.notifications.senders import notify_agent_launched
+        from sase.xprompt.directives import extract_prompt_directives
+
+        try:
+            _, directives = extract_prompt_directives(prompt)
+        except Exception:
+            from sase.xprompt.directives import PromptDirectives
+
+            directives = PromptDirectives()
+
+        agent_name = directives.name or (extra_env or {}).get("SASE_REPEAT_NAME")
+
+        if directives.model:
+            resolved_provider, model = resolve_model_provider(directives.model)
+            llm_provider = resolved_provider or get_default_provider_name()
+        else:
+            try:
+                llm_provider = get_default_provider_name()
+                model = get_provider().resolve_model_name()
+            except Exception:
+                llm_provider = None
+                model = None
+
+        retry_attempt: int | None = None
+        retry_of_timestamp: str | None = None
+        if is_retry and extra_env:
+            raw_attempt = extra_env.get("SASE_AGENT_RETRY_ATTEMPT")
+            if raw_attempt is not None:
+                try:
+                    retry_attempt = int(raw_attempt)
+                except ValueError:
+                    retry_attempt = None
+            retry_of_timestamp = extra_env.get("SASE_AGENT_RETRY_OF_TIMESTAMP")
+
+        notify_agent_launched(
+            cl_name=cl_name,
+            prompt=prompt,
+            workflow_name=workflow_name,
+            project_name=project_name,
+            workspace_num=workspace_num,
+            pid=pid,
+            agent_name=agent_name,
+            llm_provider=llm_provider,
+            model=model,
+            retry_attempt=retry_attempt,
+            retry_of_timestamp=retry_of_timestamp,
+        )
+    except Exception:
+        # Notifications are non-critical; never block a launch on them.
+        pass
 
 
 def launch_agent_from_cwd(
