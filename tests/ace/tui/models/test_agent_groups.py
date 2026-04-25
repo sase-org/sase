@@ -59,14 +59,14 @@ def test_single_untagged_agent_emits_tag_and_project_banners() -> None:
     assert _kinds(entries) == [("group", 0), ("group", 1), ("agent", 0)]
 
 
-def test_named_agent_emits_name_root_banner_when_name_has_dot() -> None:
+def test_no_name_root_banner_for_single_dotted_agent() -> None:
+    """A lone dotted-name agent skips the level-2 banner — it would be pure chrome."""
     a = _agent(cl_name="demo", agent_name="coder.claude")
     entries = build_agent_tree([a])
-    # Tag, project, name-root, agent.
+    # Tag, project, agent — no level-2 banner for a singleton root.
     assert _kinds(entries) == [
         ("group", 0),
         ("group", 1),
-        ("group", 2),
         ("agent", 0),
     ]
 
@@ -243,9 +243,65 @@ def test_fold_level_2_emits_name_root_banners_but_no_agent_rows() -> None:
         group_fold_level=2,
     )
     levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
-    # tag + project + 2 name-roots
+    # tag + project + only the multi-entry coder name-root.
+    # The singleton planner root is suppressed.
+    assert levels == [0, 1, 2]
+    assert all(e.kind == "group" for e in entries)
+
+
+def test_fold_level_2_emits_banner_for_each_multi_entry_name_root() -> None:
+    """Two name-roots, each with two entries → two level-2 banners."""
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="coder.claude", tags=("alpha",)),
+            _agent(cl_name="demo", agent_name="coder.codex", tags=("alpha",)),
+            _agent(cl_name="demo", agent_name="planner.claude", tags=("alpha",)),
+            _agent(cl_name="demo", agent_name="planner.codex", tags=("alpha",)),
+        ],
+        group_fold_level=2,
+    )
+    levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
     assert levels == [0, 1, 2, 2]
     assert all(e.kind == "group" for e in entries)
+
+
+def test_fold_level_2_skips_singleton_name_root_banner() -> None:
+    """Collapsed-tree builder also suppresses singleton level-2 banners."""
+    entries = build_agent_tree(
+        [_agent(cl_name="demo", agent_name="solo.claude", tags=("alpha",))],
+        group_fold_level=2,
+    )
+    # Tag + project banners only — no level-2 banner for the singleton root.
+    levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
+    assert levels == [0, 1]
+
+
+def test_singleton_name_root_emits_no_banner_among_other_roots() -> None:
+    """Mixed scenario: multi-entry root keeps its banner, singleton root does not."""
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="coder.claude"),
+            _agent(cl_name="demo", agent_name="coder.codex"),
+            _agent(cl_name="demo", agent_name="solo.gemini"),
+        ]
+    )
+    # tag + project + coder name-root + agent 0 + agent 1 + agent 2
+    # (solo.gemini gets no level-2 banner because it's a singleton root).
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 1),
+        ("agent", 2),
+    ]
+    name_root_banners = [
+        e
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 2
+    ]
+    assert len(name_root_banners) == 1
+    assert name_root_banners[0].group.group_key[-1] == "coder"  # type: ignore[union-attr]
 
 
 def test_fold_level_3_matches_phase_3_behavior() -> None:
@@ -340,6 +396,17 @@ def test_find_visible_ancestor_banner_falls_back_to_higher_level() -> None:
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
     assert ancestor.level == 0
+
+
+def test_find_visible_ancestor_banner_falls_back_when_root_singleton() -> None:
+    """A singleton-root agent has no level-2 banner; falls back to project."""
+    a = _agent(cl_name="demo", agent_name="solo.claude", tags=("alpha",))
+    entries = build_agent_tree([a], group_fold_level=2)
+    ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
+    assert ancestor is not None
+    # No level-2 banner exists for this singleton root, so the project
+    # banner is the deepest match.
+    assert ancestor.level == 1
 
 
 def test_find_visible_ancestor_banner_returns_none_when_idx_unknown() -> None:

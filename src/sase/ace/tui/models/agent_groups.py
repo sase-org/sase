@@ -20,6 +20,10 @@ The tree builder accepts a ``group_fold_level``:
   emitted.  Each unique group key produces exactly one banner row, in
   the order it first appears in *agents*.  Agent rows are suppressed
   entirely so that L0/L1/L2 act as a "headers-only" view.
+
+Level-2 (name-root) banners are only emitted when the name-root group
+contains two or more entries; a singleton root renders its lone agent
+directly under the project banner without an extra header.
 """
 
 from __future__ import annotations
@@ -190,7 +194,7 @@ def _build_full_tree(
             cur_proj = k.project
             cur_root = ""
         if k.name_root != cur_root:
-            if k.name_root:
+            if k.name_root and len(root_indices[(k.tag, k.project, k.name_root)]) >= 2:
                 entries.append(
                     TreeEntry(
                         kind="group",
@@ -257,7 +261,7 @@ def _build_collapsed_tree(
                 )
         if group_fold_level >= 2 and k.name_root:
             root_id = (k.tag, k.project, k.name_root)
-            if root_id not in seen_roots:
+            if root_id not in seen_roots and len(root_indices[root_id]) >= 2:
                 seen_roots.add(root_id)
                 entries.append(
                     TreeEntry(

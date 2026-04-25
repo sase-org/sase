@@ -63,6 +63,16 @@ def test_two_agents_with_distinct_tags_get_two_tag_banners() -> None:
     ]
 
 
+def test_singleton_name_root_emits_no_level2_banner_in_main_panel() -> None:
+    """A lone dotted-name agent renders only tag + project banners — no level-2 chrome."""
+    widget = AgentList(panel="main")
+    widget.update_list(
+        [_agent(cl_name="demo", agent_name="coder.claude")],
+        current_idx=0,
+    )
+    assert widget._row_entries == [_BR, _BR, (0, None)]
+
+
 def test_named_agents_share_name_root_banner() -> None:
     widget = AgentList(panel="main")
     widget.update_list(

@@ -137,12 +137,20 @@ def test_l1_cycles_project_banners() -> None:
 
 
 def test_l2_cycles_all_six_banners() -> None:
-    """L2 fold: tag + project + name-root banners all visible."""
+    """L2 fold: tag + project + name-root banners all visible.
+
+    Each name-root has two entries — singletons would be suppressed at
+    level 2, so duplicating per root keeps every banner in the cycle.
+    """
     agents = [
         _agent(tag="alpha", project="p1", cl="cl1", name="d.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="d.second"),
         _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.second"),
         _agent(tag="alpha", project="p1", cl="cl1", name="j.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="j.second"),
         _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.first"),
+        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.second"),
     ]
     app = _StubApp(agents, level=2)
     app._current_group_key = ("alpha",)
