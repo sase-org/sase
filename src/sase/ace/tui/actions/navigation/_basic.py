@@ -15,16 +15,53 @@ class BasicNavigationMixin(NavigationMixinBase):
     def _navigate_agents_panel(self, direction: int) -> None:
         """Navigate within the focused agents panel.
 
+        On the main panel, walks the same row sequence the renderer is
+        showing: at fold level < 3 cycles through banner rows (updating
+        ``_current_group_key``); at fold level 3 cycles through agents
+        in the active panel. The pinned panel always uses the flat
+        agent list regardless of fold level.
+
         Args:
             direction: +1 for next, -1 for previous.
         """
+        if self._pinned_panel_focused == "pinned":
+            self._navigate_flat(direction)
+            return
+
+        level = self._group_fold_state.level
+        if level >= 3:
+            self._current_group_key = None
+            self._navigate_flat(direction)
+            return
+
+        from ...models.agent_groups import build_agent_tree
+
+        tree = build_agent_tree(self._agents, group_fold_level=level)
+        banners = [e.group for e in tree if e.kind == "group" and e.group is not None]
+        if not banners:
+            return
+
+        current_key = self._current_group_key
+        pos = next(
+            (i for i, b in enumerate(banners) if b.group_key == current_key),
+            None,
+        )
+        if pos is None:
+            target = banners[0]
+        else:
+            target = banners[(pos + direction) % len(banners)]
+        self._current_group_key = target.group_key
+        if target.agent_indices:
+            self.current_idx = target.agent_indices[0]
+
+    def _navigate_flat(self, direction: int) -> None:
+        """Cycle ``current_idx`` through the active panel's flat index list."""
         indices = self._active_panel_indices()  # type: ignore[attr-defined]
         if not indices:
             return
         idx_map = self._active_panel_idx_map()  # type: ignore[attr-defined]
         pos = idx_map.get(self.current_idx)
         if pos is None:
-            # Current idx not in focused panel — snap to first
             self.current_idx = indices[0]
             return
         new_pos = (pos + direction) % len(indices)

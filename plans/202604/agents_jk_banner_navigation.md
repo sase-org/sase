@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 17:46:41
-status: wip
+status: done
 ---
 # Plan: Fix `j`/`k` Navigation Across Banner Rows on the Agents Tab
 

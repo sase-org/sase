@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
     from ...modals import JumpAllResult
     from ...models import Agent
+    from ...models.agent_group_fold import AgentGroupFoldState
     from ...models.fold_state import FoldLevel
     from ...widgets.bgcmd_list import AxeItem
 
@@ -40,6 +41,8 @@ class NavigationMixinBase:
     _main_panel_idx_map: dict[int, int]
     _pinned_panel_idx_map: dict[int, int]
     _pinned_panel_focused: Literal["main", "pinned"]
+    _group_fold_state: AgentGroupFoldState
+    _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
     _changespecs_last_idx: int
     _agents_last_idx: int
