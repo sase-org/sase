@@ -154,6 +154,24 @@ class AgentsMixinCore(
             i for i in main if not self._agents[i].is_workflow_child
         ]
 
+    def _main_panel_visible_order(self) -> list[int]:
+        """Return global agent indices in the order rendered on the main panel.
+
+        Mirrors :func:`AgentList.update_list`'s tree walk at fold level 3
+        so j/k navigation steps through the same sequence the user sees.
+        Workflow children inherit parent grouping (per ``_grouping_keys_for``)
+        and so render contiguous with their parent.
+        """
+        from ...models.agent_groups import build_agent_tree
+
+        main_agents = [self._agents[i] for i in self._main_panel_indices]
+        tree = build_agent_tree(main_agents, group_fold_level=3)
+        return [
+            self._main_panel_indices[entry.agent_idx]
+            for entry in tree
+            if entry.kind == "agent" and entry.agent_idx is not None
+        ]
+
     def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
         """Convert a global _agents index to (panel, local_index).
 

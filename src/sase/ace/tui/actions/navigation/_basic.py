@@ -31,7 +31,10 @@ class BasicNavigationMixin(NavigationMixinBase):
         level = self._group_fold_state.level
         if level >= 3:
             self._current_group_key = None
-            self._navigate_flat(direction)
+            if self._pinned_panel_focused == "main":
+                self._navigate_main_visible(direction)
+            else:
+                self._navigate_flat(direction)
             return
 
         from ...models.agent_groups import build_agent_tree
@@ -66,6 +69,24 @@ class BasicNavigationMixin(NavigationMixinBase):
             return
         new_pos = (pos + direction) % len(indices)
         self.current_idx = indices[new_pos]
+
+    def _navigate_main_visible(self, direction: int) -> None:
+        """Cycle ``current_idx`` through main-panel agents in rendered order.
+
+        At fold level 3 the renderer walks the agent tree's grouping order
+        rather than ``_main_panel_indices``' input order, so j/k must step
+        through the same sequence to track the visible row.
+        """
+        visible = self._main_panel_visible_order()  # type: ignore[attr-defined]
+        if not visible:
+            return
+        try:
+            pos = visible.index(self.current_idx)
+        except ValueError:
+            self.current_idx = visible[0]
+            return
+        new_pos = (pos + direction) % len(visible)
+        self.current_idx = visible[new_pos]
 
     def action_next_changespec(self) -> None:
         """Navigate to the next item, cycling to start if at end."""

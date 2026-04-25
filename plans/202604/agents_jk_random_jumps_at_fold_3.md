@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 18:40:53
-status: wip
+status: done
 ---
 # `sase ace` Agents tab: `j`/`k` jumps to random rows at fold level 3 once nested groups exist
 

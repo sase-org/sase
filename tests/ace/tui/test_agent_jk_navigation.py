@@ -51,6 +51,18 @@ class _StubApp(BasicNavigationMixin):
             return self._pinned_panel_idx_map
         return self._main_panel_idx_map
 
+    def _main_panel_visible_order(self) -> list[int]:
+        """Mirror :meth:`AgentsMixinCore._main_panel_visible_order` for tests."""
+        from sase.ace.tui.models.agent_groups import build_agent_tree
+
+        main_agents = [self._agents[i] for i in self._main_panel_indices]
+        tree = build_agent_tree(main_agents, group_fold_level=3)
+        return [
+            self._main_panel_indices[entry.agent_idx]
+            for entry in tree
+            if entry.kind == "agent" and entry.agent_idx is not None
+        ]
+
 
 def _agent(
     *,
@@ -172,7 +184,11 @@ def test_l2_cycles_all_six_banners() -> None:
 
 
 def test_l3_keeps_flat_agent_navigation() -> None:
-    """Regression guard: at level 3 j/k must still cycle agents."""
+    """Regression guard: at level 3 j/k must still cycle agents.
+
+    Input is already in tag-alphabetical order, so visible order ==
+    input order and the cursor walks 0 -> 1 -> 2 -> 0.
+    """
     agents = _l0_roster()
     app = _StubApp(agents, level=3, current_idx=0)
     app._current_group_key = ("stale",)
@@ -184,6 +200,125 @@ def test_l3_keeps_flat_agent_navigation() -> None:
     assert app.current_idx == 2
     app._navigate_agents_panel(1)
     assert app.current_idx == 0  # wrap
+
+
+def test_l3_walks_visible_grouping_order_not_input_order() -> None:
+    """Regression for agents_jk_random_jumps_at_fold_3.
+
+    Agents in scrambled tag order: input ``[zeta, alpha, beta]`` renders
+    as ``[alpha, beta, zeta]`` after the level-3 grouping walk.  j from
+    the visually-first row (``alpha``, global idx 1) must advance to
+    ``beta`` (idx 2), then ``zeta`` (idx 0), then wrap.
+    """
+    agents = [
+        _agent(tag="zeta", name="z1"),
+        _agent(tag="alpha", name="a1"),
+        _agent(tag="beta", name="b1"),
+    ]
+    app = _StubApp(agents, level=3, current_idx=1)  # alpha — visually first
+
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 2  # beta
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 0  # zeta
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 1  # wrap to alpha
+
+
+def test_l3_k_walks_visible_grouping_order_in_reverse() -> None:
+    """Symmetric reverse walk for the scrambled-tag case."""
+    agents = [
+        _agent(tag="zeta", name="z1"),
+        _agent(tag="alpha", name="a1"),
+        _agent(tag="beta", name="b1"),
+    ]
+    app = _StubApp(agents, level=3, current_idx=1)  # alpha — visually first
+
+    app._navigate_agents_panel(-1)
+    assert app.current_idx == 0  # wraps backward to zeta (visually last)
+    app._navigate_agents_panel(-1)
+    assert app.current_idx == 2  # beta
+    app._navigate_agents_panel(-1)
+    assert app.current_idx == 1  # alpha
+
+
+def test_l3_interleaved_untagged_walk_keeps_block_contiguous() -> None:
+    """Mirrors the user's interleaved-tag report.
+
+    Input order ``[(untagged), (untagged), @name_level, (untagged)]``
+    must render with all three ``(untagged)`` agents contiguous, then
+    the ``@name_level`` agent.  Since ``(untagged)`` sorts after named
+    tags, the visible order is
+    ``[name_level (idx 2), untagged_a (0), untagged_b (1), untagged_c (3)]``.
+    Walking ``j`` from the first ``(untagged)`` must visit the second
+    and third ``(untagged)``s before the ``name_level`` agent — never
+    ping-pong across the banner boundary.
+    """
+    agents = [
+        _agent(tag="", name="u1"),  # 0 untagged
+        _agent(tag="", name="u2"),  # 1 untagged
+        _agent(tag="name_level", name="nl"),  # 2 named tag
+        _agent(tag="", name="u3"),  # 3 untagged
+    ]
+    app = _StubApp(agents, level=3, current_idx=0)  # first untagged
+
+    # Visible order: [2 (name_level), 0, 1, 3].  Starting at idx 0
+    # (visually second), j -> 1 -> 3 -> 2 -> 0.
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 1
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 3
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 2  # crosses to name_level after all untagged
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 0  # wrap
+
+
+def test_l3_pinned_panel_stays_flat_with_scrambled_input() -> None:
+    """Pinned panel uses input order, not the grouping walk."""
+    agents = [
+        _agent(tag="zeta", name="z1"),
+        _agent(tag="alpha", name="a1"),
+        _agent(tag="beta", name="b1"),
+    ]
+    app = _StubApp(agents, level=3, focused="pinned", current_idx=0)
+    app._main_panel_indices = []
+    app._main_panel_idx_map = {}
+    app._pinned_panel_indices = [0, 1, 2]
+    app._pinned_panel_idx_map = {0: 0, 1: 1, 2: 2}
+
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 1  # input order, not grouping
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 2
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 0
+
+
+def test_l3_workflow_children_inherit_parent_grouping_in_walk() -> None:
+    """Workflow children render contiguous with their parent.
+
+    Input ``[parent (tagA), unrelated (tagB), child_of_parent]``: the
+    child inherits ``tagA`` from its parent so the visible order is
+    ``[parent, child, unrelated]``.  Pressing ``j`` from the parent must
+    land on the workflow child, not the unrelated agent.
+    """
+    parent = _agent(tag="alpha", name="parent")
+    parent.raw_suffix = "ts_parent"
+    unrelated = _agent(tag="zeta", name="unrelated")
+    child = _agent(tag="", name="parent.step1")
+    child.parent_timestamp = "ts_parent"
+    child.parent_workflow = "wf"
+    agents = [parent, unrelated, child]
+
+    app = _StubApp(agents, level=3, current_idx=0)  # parent
+
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 2  # workflow child (visually contiguous)
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 1  # unrelated
+    app._navigate_agents_panel(1)
+    assert app.current_idx == 0  # wrap to parent
 
 
 def test_unmatched_group_key_lands_on_first_banner() -> None:
