@@ -57,6 +57,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         target_label: str,
         current_tag: str | None,
         known_tags: tuple[str, ...],
+        default_tag: str | None = None,
     ) -> None:
         """Initialize the modal.
 
@@ -67,11 +68,14 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
                 for bulk operations / untagged agents).
             known_tags: Distinct tag names already present in the store —
                 used for tab completion suggestions.
+            default_tag: Seed value for the input box when the agent has
+                no current tag. Does not affect the ``Current:`` label.
         """
         super().__init__()
         self._target_label = target_label
         self._current_tag = current_tag
         self._known_tags = tuple(sorted(set(known_tags)))
+        self._default_tag = default_tag
 
     def compose(self) -> ComposeResult:
         with Container():
@@ -83,7 +87,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
                 "Type a tag name without the '@' prefix.",
                 id="agent-tag-hint",
             )
-            initial = self._current_tag or ""
+            initial = self._current_tag or self._default_tag or ""
             yield _TagInput(
                 value=initial,
                 placeholder="tag-name",

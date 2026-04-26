@@ -100,3 +100,30 @@ async def test_modal_prefill_empty_for_bulk() -> None:
 
         tag_input = modal.query_one("#agent-tag-input", _TagInput)
         assert tag_input.value == ""
+
+
+async def test_modal_prefill_pinned_when_untagged_with_default() -> None:
+    result: AgentTagModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(r: AgentTagModalResult | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = AgentTagModal(
+            target_label="agent-x",
+            current_tag=None,
+            known_tags=(),
+            default_tag="pinned",
+        )
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        tag_input = modal.query_one("#agent-tag-input", _TagInput)
+        assert tag_input.value == "pinned"
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == AgentTagModalResult(action="set", tag="pinned")

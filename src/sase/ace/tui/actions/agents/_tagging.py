@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Literal
 
 TabName = Literal["changespecs", "agents", "axe"]
 
+DEFAULT_PINNED_TAG = "pinned"
+
 if TYPE_CHECKING:
     from ...modals.agent_tag_modal import AgentTagModalResult
     from ...models import Agent
@@ -65,6 +67,7 @@ class AgentTaggingMixin:
             current_tag=agent.tag,
             known_tags=tuple(known_tags),
             affected=[agent],
+            default_tag=DEFAULT_PINNED_TAG,
         )
 
     def _open_agent_tag_modal(
@@ -74,6 +77,7 @@ class AgentTaggingMixin:
         current_tag: str | None,
         known_tags: tuple[str, ...],
         affected: list[Agent],
+        default_tag: str | None = None,
     ) -> None:
         from ...modals import AgentTagModal
 
@@ -87,6 +91,7 @@ class AgentTaggingMixin:
                 target_label=target_label,
                 current_tag=current_tag,
                 known_tags=known_tags,
+                default_tag=default_tag,
             ),
             on_dismiss,
         )

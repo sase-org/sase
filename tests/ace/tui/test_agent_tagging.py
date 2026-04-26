@@ -103,6 +103,32 @@ def test_action_pushes_modal_for_focused_agent(tmp_path: Path) -> None:
     assert modal._known_tags == ("alpha", "beta")
 
 
+def test_action_seeds_pinned_for_untagged_focused_agent(tmp_path: Path) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    agent = _make_agent()
+    assert agent.tag is None
+    app = _FakeApp([agent])
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        app.action_add_agent_tag()
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, AgentTagModal)
+    assert modal._current_tag is None
+    assert modal._default_tag == "pinned"
+
+
+def test_action_does_not_seed_pinned_for_bulk_path(tmp_path: Path) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    a1 = _make_agent(suffix="t1")
+    a2 = _make_agent(suffix="t2")
+    app = _FakeApp([a1, a2])
+    app._marked_agents = {a1.identity, a2.identity}
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        app.action_add_agent_tag()
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, AgentTagModal)
+    assert modal._default_tag is None
+
+
 def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     agent = _make_agent()
