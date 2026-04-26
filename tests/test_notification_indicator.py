@@ -48,3 +48,11 @@ def test_rest_with_muted_renders_gold_primary_and_secondary() -> None:
 def test_secondary_segment_suppressed_when_muted_zero() -> None:
     text = NotificationIndicator._build_content(2, 1, 0)
     assert "·" not in text.plain
+
+
+def test_snooze_to_unread_transition_changes_buckets() -> None:
+    """A snoozed row (muted=1) flipping to unread (rest=1) renders the swap."""
+    snoozed = NotificationIndicator._build_content(0, 0, 1)
+    expired = NotificationIndicator._build_content(0, 1, 0)
+    assert snoozed.plain == " ✉ 0+0 ·1 "
+    assert expired.plain == " ✉ 0+1 "

@@ -4,6 +4,7 @@ import dataclasses
 import fcntl
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from sase.notifications.models import Notification
@@ -27,6 +28,7 @@ def _notification_from_dict(data: dict) -> Notification | None:
             dismissed=data.get("dismissed", False),
             silent=data.get("silent", False),
             muted=data.get("muted", False),
+            snooze_until=data.get("snooze_until"),
         )
     except (KeyError, TypeError):
         return None
@@ -123,17 +125,83 @@ def mark_dismissed(notification_id: str) -> bool:
 
 
 def mark_muted(notification_id: str, muted: bool = True) -> bool:
-    """Set the muted state of a notification. Returns True if found."""
+    """Set the muted state of a notification. Returns True if found.
+
+    Unmuting (``muted=False``) also clears any pending ``snooze_until`` —
+    snooze is mute-with-a-timer, so unmuting cancels the timer.
+    """
     all_notifications = load_notifications(include_dismissed=True)
     found = False
     for n in all_notifications:
         if n.id == notification_id:
             n.muted = muted
+            if not muted:
+                n.snooze_until = None
             found = True
             break
     if found:
         _rewrite_notifications(all_notifications)
     return found
+
+
+def mark_snoozed(notification_id: str, until: datetime) -> bool:
+    """Snooze a notification until ``until``. Returns True if found.
+
+    Snooze is implemented as ``muted=True`` plus a ``snooze_until`` ISO
+    timestamp; the next expiry pass flips it back to ``muted=False`` and
+    clears the timer.
+    """
+    all_notifications = load_notifications(include_dismissed=True)
+    found = False
+    for n in all_notifications:
+        if n.id == notification_id:
+            n.muted = True
+            n.snooze_until = until.isoformat()
+            found = True
+            break
+    if found:
+        _rewrite_notifications(all_notifications)
+    return found
+
+
+def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
+    """Flip any snoozed notifications whose deadline has passed.
+
+    Walks ``notifications`` (which the caller already loaded), finds rows
+    where ``snooze_until`` is set and at or before now, and sets
+    ``muted=False`` and ``snooze_until=None`` on them — both in-memory
+    and on disk via a single rewrite. Returns the list of rows that just
+    expired (empty if none).
+    """
+    from sase.core.time import get_timezone
+
+    now = datetime.now(get_timezone())
+    expired: list[Notification] = []
+    for n in notifications:
+        if not n.snooze_until:
+            continue
+        try:
+            deadline = datetime.fromisoformat(n.snooze_until)
+        except ValueError:
+            continue
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=get_timezone())
+        if deadline <= now:
+            n.muted = False
+            n.snooze_until = None
+            expired.append(n)
+
+    if not expired:
+        return expired
+
+    expired_ids = {n.id for n in expired}
+    all_notifications = load_notifications(include_dismissed=True)
+    for n in all_notifications:
+        if n.id in expired_ids:
+            n.muted = False
+            n.snooze_until = None
+    _rewrite_notifications(all_notifications)
+    return expired
 
 
 def mark_all_read() -> int:

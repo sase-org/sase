@@ -26,6 +26,8 @@ def _make(
     id: str | None = None,
     read: bool = False,
     silent: bool = False,
+    muted: bool = False,
+    snooze_until: str | None = None,
 ) -> Notification:
     return Notification(
         id=id or str(uuid.uuid4()),
@@ -37,6 +39,8 @@ def _make(
         action_data=action_data or {},
         read=read,
         silent=silent,
+        muted=muted,
+        snooze_until=snooze_until,
     )
 
 
@@ -357,6 +361,96 @@ class TestPollingDelta:
         with _patch_load([first]):
             app._poll_agent_completions()
         assert app.notify.call_count == 1
+
+
+class TestSnoozeExpiry:
+    """Tests for snooze expiration during ``_poll_agent_completions``."""
+
+    def test_expired_snooze_flips_to_unread_and_rings_bell(self) -> None:
+        """A snooze whose deadline passed re-enters unread + triggers the bell."""
+        from datetime import timedelta
+
+        app = _FakeApp()
+        past = (datetime.now(get_timezone()) - timedelta(minutes=1)).isoformat()
+        snoozed = _make(
+            action="JumpToAgent",
+            notes=["resurfaced"],
+            muted=True,
+            snooze_until=past,
+        )
+        with (
+            _patch_load([snoozed]),
+            patch("sase.notifications.store._rewrite_notifications"),
+            patch(
+                "sase.notifications.store.load_notifications",
+                return_value=[snoozed],
+            ),
+        ):
+            app._poll_agent_completions()
+
+        # Row is unmuted in-memory and in the indicator's unread (rest) bucket.
+        assert snoozed.muted is False
+        assert snoozed.snooze_until is None
+        assert app._indicator_rest == 1
+        assert app._indicator_muted == 0
+        assert app._bell_rung == 1
+
+    def test_not_yet_due_snooze_stays_muted(self) -> None:
+        """A snooze with a future deadline stays muted; no bell, no toast."""
+        from datetime import timedelta
+
+        app = _FakeApp()
+        future = (datetime.now(get_timezone()) + timedelta(hours=1)).isoformat()
+        snoozed = _make(
+            action="JumpToAgent",
+            notes=["still snoozed"],
+            muted=True,
+            snooze_until=future,
+        )
+        with (
+            _patch_load([snoozed]),
+            patch("sase.notifications.store._rewrite_notifications"),
+        ):
+            app._poll_agent_completions()
+
+        assert snoozed.muted is True
+        assert snoozed.snooze_until == future
+        assert app._indicator_muted == 1
+        assert app._indicator_rest == 0
+        assert app._bell_rung == 0
+        assert app.notify.call_count == 0
+
+    def test_expired_read_snooze_rings_bell_without_unread_increase(self) -> None:
+        """A snoozed-then-read row rings on expiry but does not become unread."""
+        from datetime import timedelta
+
+        app = _FakeApp()
+        past = (datetime.now(get_timezone()) - timedelta(minutes=1)).isoformat()
+        snoozed_read = _make(
+            action="JumpToAgent",
+            notes=["already read but snoozed"],
+            muted=True,
+            read=True,
+            snooze_until=past,
+        )
+        with (
+            _patch_load([snoozed_read]),
+            patch("sase.notifications.store._rewrite_notifications"),
+            patch(
+                "sase.notifications.store.load_notifications",
+                return_value=[snoozed_read],
+            ),
+        ):
+            app._poll_agent_completions()
+
+        # Row is no longer snoozed, but stays read — so unread bucket is empty.
+        assert snoozed_read.muted is False
+        assert snoozed_read.snooze_until is None
+        assert snoozed_read.read is True
+        assert app._indicator_rest == 0
+        assert app._indicator_muted == 0
+        # The reminder bell still rings — that's the whole point of the snooze.
+        assert app._bell_rung == 1
 
 
 class TestRefreshNotificationCount:

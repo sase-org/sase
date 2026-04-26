@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from rich.syntax import Syntax
@@ -16,15 +17,19 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
+from sase.core.time import get_timezone
 from sase.notifications import (
     Notification,
     format_relative_time,
+    format_relative_until,
     mark_all_read,
     mark_dismissed,
     mark_muted,
+    mark_snoozed,
 )
 
 from .base import OptionListNavigationMixin
+from .snooze_duration_modal import SnoozeDurationModal
 
 
 # Action badge mapping
@@ -58,6 +63,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),  # uppercase R
         ("m", "toggle_mute", "Toggle Mute"),
+        ("s", "snooze", "Snooze"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
         ("ctrl+u", "scroll_file_up", "Scroll up"),
     ]
@@ -98,7 +104,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  x: dismiss  m: mute  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
+                "Enter: select  x: dismiss  m: mute  s: snooze  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
                 id="notification-hints",
             )
 
@@ -271,6 +277,13 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 style="dim",
             )
 
+        # Snooze remaining-time badge
+        if notification.snooze_until:
+            text.append(
+                f"  · in {format_relative_until(notification.snooze_until)}",
+                style="dim",
+            )
+
         return text
 
     def _create_options(self) -> list[Option]:
@@ -380,14 +393,65 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         notification = self._notifications[idx]
         new_muted = not notification.muted
+        was_snoozed = notification.snooze_until is not None
         mark_muted(notification.id, new_muted)
         notification.muted = new_muted
+        if not new_muted:
+            notification.snooze_until = None
 
         # Rebuild list so the new prefix / dim style is reflected. Keep the
         # highlight on the same row so users muting a streak don't lose
         # their place.
         self._rebuild_list(highlight_index=idx)
-        self.notify("Muted" if new_muted else "Unmuted")
+        if new_muted:
+            self.notify("Muted")
+        elif was_snoozed:
+            self.notify("Unmuted (snooze cancelled)")
+        else:
+            self.notify("Unmuted")
+
+    def action_snooze(self) -> None:
+        """Snooze the highlighted notification via the duration picker."""
+        idx = self._get_selected_index()
+        if idx is None or idx >= len(self._notifications):
+            return
+
+        notification = self._notifications[idx]
+
+        def _on_picked(result: timedelta | datetime | None) -> None:
+            if result is None:
+                self.notify("Snooze cancelled")
+                return
+            if isinstance(result, datetime):
+                snooze_until = result
+                description = "until tomorrow morning"
+            else:
+                snooze_until = datetime.now(get_timezone()) + result
+                description = f"for {self._format_delta(result)}"
+
+            mark_snoozed(notification.id, snooze_until)
+            notification.muted = True
+            notification.snooze_until = snooze_until.isoformat()
+
+            self._rebuild_list(highlight_index=idx)
+            self.notify(f"Snoozed {description}")
+
+        self.app.push_screen(SnoozeDurationModal(), callback=_on_picked)
+
+    @staticmethod
+    def _format_delta(delta: timedelta) -> str:
+        """Format a timedelta for the snooze toast (e.g. '15m', '1h30m')."""
+        total = int(delta.total_seconds())
+        hours, remainder = divmod(total, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        parts: list[str] = []
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes:
+            parts.append(f"{minutes}m")
+        if seconds and not hours and not minutes:
+            parts.append(f"{seconds}s")
+        return "".join(parts) or "0s"
 
     def action_read_all(self) -> None:
         """Mark all notifications as read and rebuild the display."""

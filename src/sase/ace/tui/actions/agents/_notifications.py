@@ -37,11 +37,16 @@ class AgentNotificationMixin:
         Detects when unread count increases and triggers bell/toast.
         Called on every auto-refresh regardless of current tab.
         """
-        from sase.notifications import is_priority, load_notifications
+        from sase.notifications import (
+            expire_due_snoozes,
+            is_priority,
+            load_notifications,
+        )
 
         from ._toasts import format_batch_toasts
 
         notifications = load_notifications()
+        expired_snoozes = expire_due_snoozes(notifications)
         unread_priority = [
             n
             for n in notifications
@@ -61,7 +66,9 @@ class AgentNotificationMixin:
         new_ids = current_ids - self._last_unread_ids
         new_notifications = [n for n in unread_active if n.id in new_ids]
 
-        # Detect newly arrived notifications (muted arrivals don't toast/bell)
+        # Detect newly arrived notifications (muted arrivals don't toast/bell).
+        # Snooze expirations also ring once per batch — read-and-snoozed rows
+        # don't re-enter unread, so the bell is the only reminder for them.
         if new_notifications:
             self._ring_tmux_bell()
             for message, severity in format_batch_toasts(new_notifications):
@@ -70,6 +77,8 @@ class AgentNotificationMixin:
                     severity=severity,
                     timeout=8,
                 )
+        elif expired_snoozes:
+            self._ring_tmux_bell()
 
         self._last_unread_ids = current_ids
 

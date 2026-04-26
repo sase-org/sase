@@ -27,6 +27,7 @@ from .query_edit_modal import QueryEditModal
 from .rename_cl_modal import RenameCLModal
 from .wait_modal import WaitModal
 from .revive_agent_modal import DismissedAgentSelectModal
+from .snooze_duration_modal import SnoozeDurationModal
 from .runners_modal import (
     BackgroundTaskEntry,
     RunnerJumpTarget,
@@ -119,6 +120,7 @@ __all__ = [
     "BackgroundTaskEntry",
     "RunnerJumpTarget",
     "RunnersModal",
+    "SnoozeDurationModal",
     "get_runner_count",
     "SelectionItem",
     "StatusModal",

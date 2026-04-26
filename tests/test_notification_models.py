@@ -5,7 +5,11 @@ from unittest.mock import patch
 
 from inline_snapshot import snapshot
 
-from sase.notifications.models import Notification, format_relative_time
+from sase.notifications.models import (
+    Notification,
+    format_relative_time,
+    format_relative_until,
+)
 
 
 class TestNotificationDataclass:
@@ -19,6 +23,7 @@ class TestNotificationDataclass:
         assert n.dismissed is False
         assert n.silent is False
         assert n.muted is False
+        assert n.snooze_until is None
 
     def test_silent_flag(self) -> None:
         n = Notification(
@@ -96,3 +101,57 @@ class TestFormatRelativeTime:
             mock_dt.now.return_value = now
             mock_dt.fromisoformat = datetime.fromisoformat
             assert format_relative_time(ts_naive.isoformat()) == snapshot("2m ago")
+
+
+class TestFormatRelativeUntil:
+    """Tests for format_relative_until (forward-reading remaining time)."""
+
+    def test_under_one_minute(self) -> None:
+        from sase.core.time import get_timezone
+
+        now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
+        target = datetime(2025, 6, 15, 12, 0, 30, tzinfo=get_timezone())
+        with patch("sase.notifications.models.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            assert format_relative_until(target.isoformat()) == snapshot("< 1m")
+
+    def test_minutes(self) -> None:
+        from sase.core.time import get_timezone
+
+        now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
+        target = datetime(2025, 6, 15, 12, 14, 0, tzinfo=get_timezone())
+        with patch("sase.notifications.models.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            assert format_relative_until(target.isoformat()) == snapshot("14m")
+
+    def test_hours(self) -> None:
+        from sase.core.time import get_timezone
+
+        now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
+        target = datetime(2025, 6, 15, 14, 0, 0, tzinfo=get_timezone())
+        with patch("sase.notifications.models.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            assert format_relative_until(target.isoformat()) == snapshot("2h")
+
+    def test_days(self) -> None:
+        from sase.core.time import get_timezone
+
+        now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
+        target = datetime(2025, 6, 16, 12, 0, 0, tzinfo=get_timezone())
+        with patch("sase.notifications.models.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            assert format_relative_until(target.isoformat()) == snapshot("1d")
+
+    def test_past_due(self) -> None:
+        from sase.core.time import get_timezone
+
+        now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
+        target = datetime(2025, 6, 15, 11, 59, 0, tzinfo=get_timezone())
+        with patch("sase.notifications.models.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            assert format_relative_until(target.isoformat()) == snapshot("expiring…")

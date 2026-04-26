@@ -3,7 +3,7 @@
 import json
 import uuid
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 from sase.core.time import get_timezone
@@ -13,11 +13,13 @@ import pytest
 from sase.notifications.models import Notification
 from sase.notifications.store import (
     append_notification,
+    expire_due_snoozes,
     load_notifications,
     mark_all_read,
     mark_dismissed,
     mark_muted,
     mark_read,
+    mark_snoozed,
 )
 
 
@@ -276,6 +278,147 @@ class TestMarkMuted:
         loaded = load_notifications()
         assert len(loaded) == 1
         assert loaded[0].muted is False
+
+    def test_unmute_clears_snooze(self, temp_notifications_dir: Path) -> None:
+        """``mark_muted(id, False)`` clears any pending ``snooze_until``."""
+        n = _make_notification()
+        append_notification(n)
+        deadline = datetime.now(get_timezone()) + timedelta(hours=1)
+        mark_snoozed(n.id, deadline)
+        loaded = load_notifications()
+        assert loaded[0].muted is True
+        assert loaded[0].snooze_until == deadline.isoformat()
+
+        assert mark_muted(n.id, False) is True
+        loaded = load_notifications()
+        assert loaded[0].muted is False
+        assert loaded[0].snooze_until is None
+
+
+class TestMarkSnoozed:
+    """Tests for ``mark_snoozed()``."""
+
+    def test_round_trip(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        deadline = datetime.now(get_timezone()) + timedelta(minutes=15)
+        assert mark_snoozed(n.id, deadline) is True
+        loaded = load_notifications()
+        assert loaded[0].muted is True
+        assert loaded[0].snooze_until == deadline.isoformat()
+
+    def test_nonexistent_id(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        assert mark_snoozed("nonexistent", datetime.now(get_timezone())) is False
+        loaded = load_notifications()
+        assert loaded[0].snooze_until is None
+
+    def test_load_record_without_snooze_until_field(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        """A pre-existing JSONL line without ``snooze_until`` loads as None."""
+        jsonl = temp_notifications_dir / "notifications" / "notifications.jsonl"
+        jsonl.parent.mkdir(parents=True, exist_ok=True)
+        with open(jsonl, "w") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "id": "legacy",
+                        "timestamp": "2025-01-01T00:00:00",
+                        "sender": "test",
+                        "muted": True,
+                    }
+                )
+                + "\n"
+            )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].snooze_until is None
+        assert loaded[0].muted is True
+
+
+class TestExpireDueSnoozes:
+    """Tests for ``expire_due_snoozes()``."""
+
+    def test_flips_ready_rows(self, temp_notifications_dir: Path) -> None:
+        ready = _make_notification()
+        append_notification(ready)
+        past = datetime.now(get_timezone()) - timedelta(seconds=1)
+        mark_snoozed(ready.id, past)
+
+        notifications = load_notifications()
+        expired = expire_due_snoozes(notifications)
+
+        assert len(expired) == 1
+        assert expired[0].id == ready.id
+        # In-memory mutation
+        assert notifications[0].muted is False
+        assert notifications[0].snooze_until is None
+        # Persisted
+        reloaded = load_notifications()
+        assert reloaded[0].muted is False
+        assert reloaded[0].snooze_until is None
+
+    def test_leaves_not_ready_rows(self, temp_notifications_dir: Path) -> None:
+        not_ready = _make_notification()
+        append_notification(not_ready)
+        future = datetime.now(get_timezone()) + timedelta(hours=1)
+        mark_snoozed(not_ready.id, future)
+
+        notifications = load_notifications()
+        expired = expire_due_snoozes(notifications)
+
+        assert expired == []
+        assert notifications[0].muted is True
+        assert notifications[0].snooze_until == future.isoformat()
+        reloaded = load_notifications()
+        assert reloaded[0].muted is True
+        assert reloaded[0].snooze_until == future.isoformat()
+
+    def test_returns_only_flipped_rows(self, temp_notifications_dir: Path) -> None:
+        ready = _make_notification()
+        not_ready = _make_notification()
+        unsnoozed = _make_notification()
+        for n in (ready, not_ready, unsnoozed):
+            append_notification(n)
+        mark_snoozed(ready.id, datetime.now(get_timezone()) - timedelta(minutes=1))
+        mark_snoozed(not_ready.id, datetime.now(get_timezone()) + timedelta(hours=1))
+
+        notifications = load_notifications()
+        expired = expire_due_snoozes(notifications)
+
+        assert {n.id for n in expired} == {ready.id}
+
+    def test_single_rewrite_for_batch(self, temp_notifications_dir: Path) -> None:
+        n1 = _make_notification()
+        n2 = _make_notification()
+        append_notification(n1)
+        append_notification(n2)
+        past = datetime.now(get_timezone()) - timedelta(minutes=1)
+        mark_snoozed(n1.id, past)
+        mark_snoozed(n2.id, past)
+
+        notifications = load_notifications()
+        with patch(
+            "sase.notifications.store._rewrite_notifications",
+            wraps=__import__(
+                "sase.notifications.store", fromlist=["_rewrite_notifications"]
+            )._rewrite_notifications,
+        ) as mock_rewrite:
+            expired = expire_due_snoozes(notifications)
+
+        assert len(expired) == 2
+        assert mock_rewrite.call_count == 1
+
+    def test_empty_when_nothing_snoozed(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        notifications = load_notifications()
+        with patch("sase.notifications.store._rewrite_notifications") as mock_rewrite:
+            expired = expire_due_snoozes(notifications)
+        assert expired == []
+        mock_rewrite.assert_not_called()
 
 
 class TestMarkAllRead:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 23:09:49
-status: wip
+status: done
 ---
 # Plan: Snooze Notifications from the Notification Panel
 
