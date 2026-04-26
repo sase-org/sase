@@ -315,9 +315,10 @@ class AgentDisplayMixin:
 
         Two regimes:
 
-        - **Fits** (Σ natural ≤ container): set each panel to its exact
-          natural height in cells, so no inner scrollbars appear and no
-          space is wasted.
+        - **Fits** (Σ natural ≤ container): every panel except the last is
+          pinned to its exact natural cell height; the last panel grows to
+          fill leftover space via a fractional unit, so no dead zone is left
+          beneath the column.
         - **Overflow** (Σ natural > container): weight each panel by
           ``option_count + 1`` (border allowance keeps tiny panels from
           collapsing to nothing) using fractional units.
@@ -341,8 +342,16 @@ class AgentDisplayMixin:
         from textual.css.scalar import Scalar, Unit
 
         if total_natural <= container_height:
-            for widget, natural in zip(widgets, natural_heights, strict=True):
-                widget.styles.height = Scalar(float(natural), Unit.CELLS, Unit.HEIGHT)
+            last_idx = len(widgets) - 1
+            for idx, (widget, natural) in enumerate(
+                zip(widgets, natural_heights, strict=True)
+            ):
+                if idx == last_idx:
+                    widget.styles.height = Scalar(1.0, Unit.FRACTION, Unit.HEIGHT)
+                else:
+                    widget.styles.height = Scalar(
+                        float(natural), Unit.CELLS, Unit.HEIGHT
+                    )
         else:
             for widget in widgets:
                 # ``option_count + 1`` keeps an empty/tiny panel from

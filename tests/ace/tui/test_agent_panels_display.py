@@ -146,8 +146,10 @@ def test_fits_regime_assigns_natural_cell_heights() -> None:
     assert main.styles.height.value == 4.0
     assert apple.styles.height.unit is Unit.CELLS
     assert apple.styles.height.value == 6.0
-    assert banana.styles.height.unit is Unit.CELLS
-    assert banana.styles.height.value == 8.0
+    # Last panel absorbs leftover space via a fractional unit so no dead
+    # zone is left beneath the column.
+    assert banana.styles.height.unit is Unit.FRACTION
+    assert banana.styles.height.value == 1.0
 
 
 def test_overflow_regime_assigns_proportional_fr_weights() -> None:
@@ -169,16 +171,18 @@ def test_overflow_regime_assigns_proportional_fr_weights() -> None:
     assert banana.styles.height.value == 26.0  # option_count 25 + 1
 
 
-def test_single_panel_fills_container_with_natural_height() -> None:
-    # Only the untagged main pane; option_count 3 → natural 5 ≤ 40.
+def test_single_panel_fills_container() -> None:
+    # Only the untagged main pane: as the last (and only) panel it absorbs
+    # the full column height via a fractional unit, so it extends to the
+    # bottom even when its natural height (5) is smaller than the container.
     agents = [_agent(name="u1", tag=None, suffix="t1")]
     app = _FakeApp(agents, option_counts=[3], container_height=40)
 
     app._refresh_panel_widgets(jump_hints=None)
 
     main = app._panel_widgets["agent-list-panel"]
-    assert main.styles.height.unit is Unit.CELLS
-    assert main.styles.height.value == 5.0
+    assert main.styles.height.unit is Unit.FRACTION
+    assert main.styles.height.value == 1.0
 
 
 def test_pre_mount_zero_height_leaves_styles_alone() -> None:
