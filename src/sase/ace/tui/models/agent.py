@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 def format_wait_until(iso_str: str) -> str:
@@ -682,3 +682,20 @@ class Agent:
         from sase.ace.tui.models.agent_bundle import from_bundle_dict
 
         return from_bundle_dict(data)
+
+
+def agent_source(agent: Agent) -> Literal["axe", "manual"]:
+    """Classify *agent* as ``"axe"`` (workflow-spawned) or ``"manual"``.
+
+    An agent is ``axe`` when it carries any axe lineage marker — either it
+    sits inside a workflow (``workflow is not None``) or it is itself a
+    workflow step (``step_type is not None``). Everything else is
+    classified as ``manual``.
+
+    Edge case: a manually-launched root-of-workflow agent is classified as
+    ``manual`` until a workflow attaches to it. That's the intended
+    behavior — at the moment of evaluation it is still a manual run.
+    """
+    if agent.workflow is not None or agent.step_type is not None:
+        return "axe"
+    return "manual"

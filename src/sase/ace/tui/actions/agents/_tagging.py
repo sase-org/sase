@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ...models.agent_pin import DEFAULT_PINNED_TAG
+
 TabName = Literal["changespecs", "agents", "axe"]
 
-DEFAULT_PINNED_TAG = "pinned"
+__all__ = ["AgentTaggingMixin", "DEFAULT_PINNED_TAG"]
 
 if TYPE_CHECKING:
     from ...modals.agent_tag_modal import AgentTagModalResult

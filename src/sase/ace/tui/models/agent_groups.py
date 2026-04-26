@@ -103,6 +103,13 @@ _NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset(
     {"PLAN DONE", "EPIC CREATED", "QUESTION", "PLAN APPROVED"}
 )
 
+# TODO(@user): confirm needs:input mapping. Initial set drawn from
+# plans/202604/agents_tab_query_filters.md — covers the statuses where the
+# agent is paused awaiting user input rather than running or terminal.
+_NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
+    {"QUESTION", "WAITING INPUT", "PLAN APPROVED"}
+)
+
 
 def _date_bucket_for(agent: Agent, now: datetime) -> str:
     """Map ``agent.start_time`` to one of the date buckets.
