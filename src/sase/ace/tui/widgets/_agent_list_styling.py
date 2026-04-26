@@ -78,23 +78,6 @@ _HIDDEN_ICON = "◌"
 # Indentation prefix for workflow child agents
 _CHILD_INDENT = "  └─ "
 
-# Single- / two-glyph status badges replace the verbose ``(STATUS)`` text.
-# Color mapping is handled separately in the renderer so colors remain
-# unchanged; this table only supplies the glyphs.  Statuses not in the
-# table fall back to rendering the literal status name in parens.
-_STATUS_GLYPHS: dict[str, str] = {
-    "RUNNING": "▶",
-    "DONE": "✓",
-    "PLAN DONE": "✓P",
-    "PLAN APPROVED": "▶P",
-    "EPIC CREATED": "★E",
-    "PLANNING": "✎",
-    "FAILED": "✗",
-    "WAITING": "⏳",
-    "QUESTION": "?",
-    "RETRYING": "↻",
-}
-
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
 # ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color
 # already conveys the type.  Unknown display types fall back to ``[X]``.

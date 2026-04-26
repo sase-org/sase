@@ -398,17 +398,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
         (
             "Agent Row Glyphs",
             [
-                ("▶", "Running"),
-                ("✓", "Done"),
-                ("✓P", "Plan done"),
-                ("▶P", "Plan approved"),
-                ("★E", "Epic created"),
-                ("✎", "Planning"),
-                ("✗", "Failed"),
-                ("✗↻", "Failed (retried)"),
-                ("⏳", "Waiting"),
-                ("?", "Question"),
-                ("↻", "Retrying"),
                 ("×N", "N steps (collapsed)"),
                 ("×N +M / −M", "M shown / hidden steps"),
                 ("↻N", "N attempts / retry depth"),

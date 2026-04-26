@@ -41,7 +41,6 @@ from ._agent_list_styling import (
     _PROJECT_BAR_GLYPH,
     _PROJECT_RULE,
     _STATUS_BUCKET_GLYPHS,
-    _STATUS_GLYPHS,
     _STEP_TYPE_COLORS,
     _TYPE_GLYPHS,
 )
@@ -203,29 +202,29 @@ def format_agent_option(
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(agent.display_name, style=name_style)
 
-    # Compact status badge replaces the verbose ``(STATUS)`` text.
-    # Colors are preserved exactly; glyphs are pulled from ``_STATUS_GLYPHS``.
+    # Status (wrapped in parentheses, parens are dim)
+    text.append(" (", style="dim")
     if agent.status == "RUNNING":
-        text.append(f" {_STATUS_GLYPHS['RUNNING']}", style="bold #FFD700")  # Gold
+        text.append(agent.status, style="bold #FFD700")  # Gold
     elif agent.status in ("DONE", "PLAN DONE"):
-        text.append(f" {_STATUS_GLYPHS[agent.status]}", style="bold #5FD75F")  # Green
+        text.append(agent.status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC CREATED":
-        text.append(
-            f" {_STATUS_GLYPHS['EPIC CREATED']}", style="bold #5FD7AF"
-        )  # Sea-green
+        text.append(agent.status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":
-        text.append(f" {_STATUS_GLYPHS['FAILED']}", style="bold #FF5F5F")  # Red
+        text.append(agent.status, style="bold #FF5F5F")  # Red
     elif agent.status == "FAILED (RETRIED)":
-        # Terminal failure that handed off to a retry: dim ``✗`` + warm
-        # yellow ``↻`` keeps the two-step semantics legible at a glance.
-        text.append(f" {_STATUS_GLYPHS['FAILED']}", style="dim #FF5F5F")
+        # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
+        # terminal failure that handed off to a downstream retry, as
+        # opposed to a dead-end failure with no recovery attempt.
+        text.append("FAILED ", style="dim #FF5F5F")
         text.append("↻", style="bold #FFAF00")
+        text.append(" (RETRIED)", style="dim #FF5F5F")
     elif agent.status == "PLANNING":
-        text.append(f" {_STATUS_GLYPHS['PLANNING']}", style="bold #FF87AF")  # Pink
+        text.append(agent.status, style="bold #FF87AF")  # Pink
     elif agent.status == "PLAN APPROVED":
-        text.append(f" {_STATUS_GLYPHS['PLAN APPROVED']}", style="bold #00D7AF")  # Teal
+        text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
     elif agent.status == "WAITING":
-        text.append(f" {_STATUS_GLYPHS['WAITING']}", style="bold #AF87FF")  # Amethyst
+        text.append(agent.status, style="bold #AF87FF")  # Amethyst
         if agent.wait_until:
             from datetime import datetime as _dt
 
@@ -236,11 +235,11 @@ def format_agent_option(
             remaining = (target - _dt.now()).total_seconds()
             if remaining > 0:
                 text.append(
-                    f" {target_label}·{format_compact_duration(remaining)}",
+                    f" (until {target_label}, {format_compact_duration(remaining)})",
                     style="#AF87FF",
                 )
             else:
-                text.append(f" {target_label}", style="#AF87FF")
+                text.append(f" (until {target_label})", style="#AF87FF")
         elif agent.wait_duration and agent.start_time:
             from datetime import datetime, timedelta
 
@@ -248,24 +247,22 @@ def format_agent_option(
             remaining = (target - datetime.now()).total_seconds()
             if remaining > 0:
                 text.append(
-                    f" {format_compact_duration(remaining)}",
+                    f" ({format_compact_duration(remaining)})",
                     style="#AF87FF",
                 )
     elif agent.status == "QUESTION":
-        text.append(
-            f" {_STATUS_GLYPHS['QUESTION']}", style="bold #FFAF00"
-        )  # Amber/orange
+        text.append(agent.status, style="bold #FFAF00")  # Amber/orange
     elif agent.status == "RETRYING":
         countdown = ""
         if agent.retry_next_at_epoch:
             import time
 
             remaining = max(0, int(agent.retry_next_at_epoch - time.time()))
-            countdown = f"{remaining}s"
-        glyph = _STATUS_GLYPHS["RETRYING"]
-        text.append(f" {glyph}{countdown}", style="bold #FF8700")  # Orange
+            countdown = f" ({remaining}s)"
+        text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
     else:
-        text.append(f" ({agent.status})", style="dim")
+        text.append(agent.status, style="dim")
+    text.append(")", style="dim")
 
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:
