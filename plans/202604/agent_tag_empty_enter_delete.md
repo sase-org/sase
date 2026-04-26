@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 23:24:56
-status: wip
+status: done
 ---
 # Plan: Empty-Enter Deletes Agent Tag (mirror `w` keymap behavior)
 

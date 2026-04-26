@@ -42,8 +42,9 @@ class _TagInput(Input):
 class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
     """Modal that lets the user set or unset the tag on one or more agents.
 
-    Enter on the input sets the typed tag; Ctrl+d clears it.  Tab
-    completes against ``known_tags``.
+    Enter on the input sets the typed tag, or clears it when the input is
+    empty (or whitespace-only); Ctrl+d also clears.  Tab completes against
+    ``known_tags``.
     """
 
     BINDINGS = [
@@ -83,7 +84,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
             current_text = f"@{self._current_tag}" if self._current_tag else "(none)"
             yield Label(f"Current: {current_text}", id="agent-tag-current")
             yield Label(
-                "[bold]Enter[/] set · [bold]Ctrl+D[/] clear · [bold]Tab[/] complete\n"
+                "[bold]Enter[/] set (or clear if empty) · [bold]Ctrl+D[/] clear · [bold]Tab[/] complete\n"
                 "Type a tag name without the '@' prefix.",
                 id="agent-tag-hint",
             )
@@ -139,7 +140,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         tag_input = self.query_one("#agent-tag-input", _TagInput)
         raw = tag_input.value.strip()
         if not raw:
-            self.notify("Tag name cannot be empty", severity="error")
+            self.dismiss(AgentTagModalResult(action="unset", tag=None))
             return
         try:
             tag = validate_tag_name(raw)
