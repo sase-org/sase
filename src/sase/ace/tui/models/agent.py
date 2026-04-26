@@ -40,6 +40,49 @@ def format_compact_duration(seconds: float) -> str:
     return f"{s}s"
 
 
+def _format_finish_timestamp(stop: datetime, now: datetime | None = None) -> str:
+    """Format a finish-time clock for the Agents-tab right-side suffix.
+
+    Same-day finishes show ``HH:MM:SS``; finishes on prior days show
+    ``YYMMDDTHH:MM:SS`` so the date is unambiguous.  ``now`` defaults to
+    the local clock and is only an argument for testability.
+    """
+    reference = now if now is not None else datetime.now()
+    if stop.date() == reference.date():
+        return stop.strftime("%H:%M:%S")
+    return stop.strftime("%y%m%dT%H:%M:%S")
+
+
+def compute_row_runtime(
+    agent: "Agent",
+    now: datetime | None = None,
+) -> tuple[str | None, str | None]:
+    """Compute the right-side ``(timestamp, elapsed)`` suffix pair for a row.
+
+    - ``(None, None)`` when no suffix should render (missing ``start_time``
+      or pre-run ``WAITING`` with no ``run_start_time``).
+    - Active rows: ``(None, "<dur>")``.
+    - Finished rows: ``("<HH:MM:SS|YYMMDDTHH:MM:SS>", "<dur>")``.
+
+    Elapsed uses ``run_start_time`` when set so a long WAIT period doesn't
+    inflate what reads as runtime; falls back to ``start_time``.
+    """
+    if agent.start_time is None:
+        return (None, None)
+    effective_start = agent.run_start_time or agent.start_time
+    if agent.stop_time is not None:
+        elapsed_secs = (agent.stop_time - effective_start).total_seconds()
+        return (
+            _format_finish_timestamp(agent.stop_time, now=now),
+            format_compact_duration(elapsed_secs),
+        )
+    if agent.status == "WAITING" and agent.run_start_time is None:
+        return (None, None)
+    reference = now if now is not None else datetime.now()
+    elapsed_secs = (reference - effective_start).total_seconds()
+    return (None, format_compact_duration(elapsed_secs))
+
+
 class AgentType(Enum):
     """Types of agents that can be tracked."""
 

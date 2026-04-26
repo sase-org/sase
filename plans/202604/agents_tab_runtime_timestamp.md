@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 20:23:52
-status: wip
+status: done
 ---
 # Plan: Right-aligned runtime + finish-timestamp on the Agents tab
 

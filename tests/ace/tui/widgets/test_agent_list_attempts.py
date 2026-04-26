@@ -93,6 +93,19 @@ def test_attempt_option_id_is_stable() -> None:
     assert option.id == "attempt:20260101120000:3"
 
 
+def test_attempt_option_text_includes_duration_tail() -> None:
+    """Attempt rows append the elapsed duration on the right (end - start)."""
+    widget = AgentList()
+    record = _make_record(2)  # 60s duration
+    option = widget._format_attempt_option(
+        _make_agent(),
+        record,
+        is_selected=False,
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert plain.rstrip().endswith("1m")
+
+
 def test_fold_annotation_adds_attempts_count() -> None:
     """Non-workflow agent with attempts shows ``(N attempts)`` annotation."""
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])

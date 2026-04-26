@@ -15,6 +15,7 @@ from ..models.agent_groups import (
 )
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
+    assemble_padded_option,
     format_agent_option,
     format_attempt_option,
     format_banner_option,
@@ -140,10 +141,12 @@ class AgentList(OptionList, inherit_bindings=False):
                     fully_expanded_parents.add(agent.parent_timestamp)
 
         # Pre-format agent and attempt rows so we know their widths before
-        # emitting banner rules (banners are stretched to the widest row).
-        agent_options: dict[int, Option] = {}
-        attempt_options: dict[tuple[int, int], Option] = {}
-        max_width = 0
+        # emitting banner rules (banners are stretched to the widest row,
+        # and the runtime suffix is right-aligned to the same column).
+        agent_parts: dict[int, tuple[Any, Any, str]] = {}
+        attempt_parts: dict[tuple[int, int], tuple[Any, Any, str]] = {}
+        max_left = 0
+        max_suffix = 0
         for i, agent in enumerate(agents):
             is_expanded = (
                 agent.raw_suffix is not None
@@ -157,7 +160,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 fully_expanded_parents,
             )
             is_selected_agent = i == current_idx and current_attempt_number is None
-            option = self._format_agent_option(
+            left, suffix, option_id = format_agent_option(
                 agent,
                 i,
                 is_selected=is_selected_agent,
@@ -166,26 +169,41 @@ class AgentList(OptionList, inherit_bindings=False):
                 is_marked=is_marked,
                 hint_char=(jump_hints or {}).get(i),
             )
-            agent_options[i] = option
-            max_width = max(max_width, option.prompt.cell_len)  # type: ignore[union-attr]
+            agent_parts[i] = (left, suffix, option_id)
+            max_left = max(max_left, left.cell_len)
+            max_suffix = max(max_suffix, suffix.cell_len)
             if not agent.is_workflow_child:
                 for record in agent.attempt_history:
                     is_selected_attempt = (
                         i == current_idx
                         and current_attempt_number == record.attempt_number
                     )
-                    attempt_option = self._format_attempt_option(
+                    a_left, a_suffix, a_id = format_attempt_option(
                         agent,
                         record,
                         is_selected=is_selected_attempt,
                     )
-                    attempt_options[(i, record.attempt_number)] = attempt_option
-                    max_width = max(
-                        max_width,
-                        attempt_option.prompt.cell_len,  # type: ignore[union-attr]
-                    )
+                    attempt_parts[(i, record.attempt_number)] = (a_left, a_suffix, a_id)
+                    max_left = max(max_left, a_left.cell_len)
+                    max_suffix = max(max_suffix, a_suffix.cell_len)
 
-        banner_width = max(_MIN_BANNER_WIDTH, max_width)
+        gap = 2 if max_suffix > 0 else 0
+        target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)
+        banner_width = target_width
+
+        agent_options: dict[int, Option] = {
+            i: assemble_padded_option(
+                left, suffix, width=target_width, option_id=option_id
+            )
+            for i, (left, suffix, option_id) in agent_parts.items()
+        }
+        attempt_options: dict[tuple[int, int], Option] = {
+            key: assemble_padded_option(
+                left, suffix, width=target_width, option_id=option_id
+            )
+            for key, (left, suffix, option_id) in attempt_parts.items()
+        }
+        max_width = target_width
 
         # Walk the grouping tree and emit Options in display order.
         effective_level = group_fold_level
@@ -314,8 +332,8 @@ class AgentList(OptionList, inherit_bindings=False):
         is_marked: bool = False,
         hint_char: str | None = None,
     ) -> Option:
-        """Format an agent as an option for display."""
-        return format_agent_option(
+        """Format an agent as an option for display (single-row, no alignment)."""
+        left, suffix, option_id = format_agent_option(
             agent,
             index,
             is_selected=is_selected,
@@ -323,6 +341,10 @@ class AgentList(OptionList, inherit_bindings=False):
             is_expanded=is_expanded,
             is_marked=is_marked,
             hint_char=hint_char,
+        )
+        natural_width = left.cell_len + (2 if suffix.cell_len else 0) + suffix.cell_len
+        return assemble_padded_option(
+            left, suffix, width=natural_width, option_id=option_id
         )
 
     def _format_banner_option(
@@ -350,7 +372,13 @@ class AgentList(OptionList, inherit_bindings=False):
         is_selected: bool,
     ) -> Option:
         """Format a prior-attempt row as a selectable child of ``agent``."""
-        return format_attempt_option(agent, record, is_selected=is_selected)
+        left, suffix, option_id = format_attempt_option(
+            agent, record, is_selected=is_selected
+        )
+        natural_width = left.cell_len + (2 if suffix.cell_len else 0) + suffix.cell_len
+        return assemble_padded_option(
+            left, suffix, width=natural_width, option_id=option_id
+        )
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted

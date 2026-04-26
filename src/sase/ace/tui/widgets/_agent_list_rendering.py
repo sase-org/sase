@@ -1,10 +1,18 @@
 """Rendering helpers that build Option rows for the agent list widget."""
 
+from datetime import datetime
+
 from rich.text import Text
 from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
-from ..models.agent import Agent, AgentType, AttemptRecord, format_compact_duration
+from ..models.agent import (
+    Agent,
+    AgentType,
+    AttemptRecord,
+    compute_row_runtime,
+    format_compact_duration,
+)
 from ..models.agent_groups import (
     GroupRow,
     banner_label,
@@ -25,6 +33,64 @@ from ._agent_list_styling import (
     _STEP_TYPE_COLORS,
 )
 
+# Style for the timestamp half of the right-side runtime suffix.  Same
+# muted grey already used for retry/workflow indents so the suffix nests
+# naturally with the existing visual hierarchy.
+_RUNTIME_TS_STYLE = "dim #808080"
+# Elapsed half stays color-less so the terminal's default foreground-mute
+# applies and the value is readable on any theme.
+_RUNTIME_ELAPSED_STYLE = "dim"
+
+
+def _build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
+    """Return a Rich ``Text`` for the right-side runtime suffix (may be empty)."""
+    timestamp, elapsed = compute_row_runtime(agent, now=now)
+    suffix = Text()
+    if timestamp is None and elapsed is None:
+        return suffix
+    if timestamp is not None:
+        suffix.append(timestamp, style=_RUNTIME_TS_STYLE)
+        suffix.append(" · ", style=_RUNTIME_TS_STYLE)
+    if elapsed is not None:
+        suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
+    return suffix
+
+
+def _build_attempt_runtime_suffix(record: AttemptRecord) -> Text:
+    """Return a Rich ``Text`` with the attempt's elapsed duration (may be empty)."""
+    suffix = Text()
+    duration_secs = record.end_epoch - record.start_epoch
+    if duration_secs > 0:
+        suffix.append(
+            format_compact_duration(duration_secs), style=_RUNTIME_ELAPSED_STYLE
+        )
+    return suffix
+
+
+def assemble_padded_option(
+    left: Text,
+    suffix: Text,
+    *,
+    width: int,
+    option_id: str,
+    disabled: bool = False,
+) -> Option:
+    """Combine ``left`` and ``suffix`` into a single Option, right-aligned.
+
+    Pads with spaces so the suffix's right edge sits at ``width`` cells,
+    falling back to a 2-cell gap when ``left + suffix`` already meets or
+    exceeds ``width``.  Rows whose suffix is empty render with no padding
+    at all (their column is just left content).
+    """
+    if suffix.cell_len == 0:
+        return Option(left, id=option_id, disabled=disabled)
+    pad_len = max(2, width - left.cell_len - suffix.cell_len)
+    combined = Text()
+    combined.append_text(left)
+    combined.append(" " * pad_len)
+    combined.append_text(suffix)
+    return Option(combined, id=option_id, disabled=disabled)
+
 
 def format_agent_option(
     agent: Agent,
@@ -35,8 +101,9 @@ def format_agent_option(
     is_expanded: bool = False,
     is_marked: bool = False,
     hint_char: str | None = None,
-) -> Option:
-    """Format an agent as an option for display."""
+    now: datetime | None = None,
+) -> tuple[Text, Text, str]:
+    """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = Text()
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
@@ -65,9 +132,9 @@ def format_agent_option(
             ):
                 # Embedded step: format as "1a/7"
                 parent_num = agent.parent_step_index + 1
-                suffix = get_substep_suffix(agent.step_index)
+                substep = get_substep_suffix(agent.step_index)
                 text.append(
-                    f"{parent_num}{suffix}/{agent.parent_total_steps} ",
+                    f"{parent_num}{substep}/{agent.parent_total_steps} ",
                     style="dim #AAAAAA",
                 )
             elif agent.total_steps is not None:
@@ -206,7 +273,9 @@ def format_agent_option(
             text.append("▼ ", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
-    return Option(text, id=f"{index}:{agent.agent_type.value}:{agent.cl_name}")
+    suffix = _build_runtime_suffix(agent, now=now)
+    option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
+    return text, suffix, option_id
 
 
 def format_banner_option(
@@ -272,8 +341,8 @@ def format_attempt_option(
     record: AttemptRecord,
     *,
     is_selected: bool,
-) -> Option:
-    """Format a prior-attempt row as a selectable child of ``agent``."""
+) -> tuple[Text, Text, str]:
+    """Build ``(left_text, suffix_text, option_id)`` parts for a prior-attempt row."""
     text = Text()
     text.append("    ↳ ", style="dim #808080")
     label_style = "bold #FF8700" if is_selected else "#FF8700"
@@ -288,5 +357,6 @@ def format_attempt_option(
     text.append(f" · {record.status}", style="dim #FF8700")
     if record.error_snippet:
         text.append(f": {record.error_snippet}", style="dim italic #FF5F5F")
+    suffix = _build_attempt_runtime_suffix(record)
     option_id = f"attempt:{agent.raw_suffix}:{record.attempt_number}"
-    return Option(text, id=option_id)
+    return text, suffix, option_id
