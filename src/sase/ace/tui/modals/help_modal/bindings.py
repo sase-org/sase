@@ -325,11 +325,11 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             [
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand / collapse one level (groups, then workflow)",
+                    "Expand / collapse focused group",
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Jump to fully expanded / fully collapsed",
+                    "Expand all / collapse all groups",
                 ),
             ],
         ),

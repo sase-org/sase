@@ -9,7 +9,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._kill_action import AgentKillMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -32,14 +32,14 @@ class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
 
     current_tab: Any  # mixin declares a Literal — relax for the test stub.
 
-    def __init__(self, agents: list[Agent], *, level: int = 0) -> None:
+    def __init__(self, agents: list[Agent]) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
         self._current_group_key: tuple[str, ...] | None = None
-        self._group_fold_state = AgentGroupFoldState(level=level)
+        self._group_fold_registry = AgentGroupFoldRegistry()
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
@@ -90,7 +90,7 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
         project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101140000",
     )
-    app = _FakeGroupKillApp([a1, a2, a3], level=0)
+    app = _FakeGroupKillApp([a1, a2, a3])
     app._current_group_key = ("proj_a", "release-fix")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
@@ -123,7 +123,7 @@ def test_group_kill_modal_header_includes_group_label_and_count() -> None:
         project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101130000",
     )
-    app = _FakeGroupKillApp([a1, a2], level=0)
+    app = _FakeGroupKillApp([a1, a2])
     app._current_group_key = ("proj_a", "release-fix")
 
     app.action_kill_agent()
@@ -150,7 +150,7 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
         status="DONE",
         pid=None,
     )
-    app = _FakeGroupKillApp([running, done], level=0)
+    app = _FakeGroupKillApp([running, done])
     app._current_group_key = ("proj_a", "release-fix")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
@@ -164,7 +164,7 @@ def test_group_kill_cancel_leaves_agents_untouched() -> None:
     """Cancelling the modal does not invoke _do_bulk_kill_agents."""
     a1 = _make_agent(raw_suffix="20240101120000")
     a2 = _make_agent(raw_suffix="20240101130000")
-    app = _FakeGroupKillApp([a1, a2], level=0)
+    app = _FakeGroupKillApp([a1, a2])
     app._current_group_key = ("proj_a", "fix-bug")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
@@ -186,7 +186,7 @@ def test_marks_take_priority_over_focused_group() -> None:
         project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120000",
     )
-    app = _FakeGroupKillApp([marked, in_group], level=0)
+    app = _FakeGroupKillApp([marked, in_group])
     app._marked_agents = {marked.identity}
     app._current_group_key = ("proj_a", "fix-bug")
 
@@ -214,7 +214,7 @@ def test_group_kill_skips_workflow_children() -> None:
         raw_suffix="20240101120100",
         parent_timestamp="20240101120000",
     )
-    app = _FakeGroupKillApp([parent, child], level=0)
+    app = _FakeGroupKillApp([parent, child])
     app._current_group_key = ("proj_a", "parent")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
@@ -236,7 +236,7 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
         status="DONE",
         pid=None,
     )
-    app = _FakeGroupKillApp([a1], level=0)
+    app = _FakeGroupKillApp([a1])
     app._current_group_key = ("nonexistent",)
 
     # Falls through to single-agent path (DONE → dismiss without modal).

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...models.agent import AgentType
-    from ...models.agent_group_fold import AgentGroupFoldState
+    from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
@@ -59,7 +59,7 @@ class AgentDisplayMixin:
     _entry_jump_index_to_hint: dict[int, str]
 
     # Group fold + tag-driven panel collection (see startup.py).
-    _group_fold_state: AgentGroupFoldState
+    _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
 
@@ -247,7 +247,7 @@ class AgentDisplayMixin:
 
         keys_per_agent = panel_key_per_agent(self._agents)
         focused_idx = self._panel_group.focused_idx
-        group_fold_level = self._group_fold_state.level
+        fold_registry = self._group_fold_registry
         marked = self._marked_agents
         fold_counts = self._fold_counts
         attempt_number = self.current_attempt_number
@@ -288,7 +288,7 @@ class AgentDisplayMixin:
                 marked_agents=marked,
                 jump_hints=local_jump_hints,
                 current_attempt_number=attempt_number if idx == focused_idx else None,
-                group_fold_level=group_fold_level,
+                fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,
             )
 

@@ -99,8 +99,8 @@ class AgentKillMixin:
 
         if self._current_group_key is None or not self._agents:
             return None
-        level = self._group_fold_state.level  # type: ignore[attr-defined]
-        for entry in build_agent_tree(self._agents, group_fold_level=level):
+        registry = getattr(self, "_group_fold_registry", None)
+        for entry in build_agent_tree(self._agents, fold_registry=registry):
             if entry.kind != "group" or entry.group is None:
                 continue
             if entry.group.group_key == self._current_group_key:

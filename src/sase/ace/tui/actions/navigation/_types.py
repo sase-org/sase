@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
     from ...modals import JumpAllResult
     from ...models import Agent
-    from ...models.agent_group_fold import AgentGroupFoldState
+    from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.fold_state import FoldLevel
     from ...widgets.bgcmd_list import AxeItem
 
@@ -36,7 +36,7 @@ class NavigationMixinBase:
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     _agents: list[Agent]
-    _group_fold_state: AgentGroupFoldState
+    _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
     _changespecs_last_idx: int

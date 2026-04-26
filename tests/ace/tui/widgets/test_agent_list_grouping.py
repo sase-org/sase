@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.widgets._agent_list_styling import (
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
@@ -144,8 +145,11 @@ def test_highlighted_row_skips_banner_offset() -> None:
 # --- Collapsed-tree rendering ---
 
 
-def test_fold_level_0_renders_only_project_banners() -> None:
-    """At L0 the AgentList shows project banners only — no agents, no name-roots."""
+def test_all_collapsed_renders_only_project_banners() -> None:
+    """When every L0 is collapsed only project banners render."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
+    registry.collapse(("projB", "b"))
     widget = AgentList()
     widget.update_list(
         [
@@ -153,27 +157,51 @@ def test_fold_level_0_renders_only_project_banners() -> None:
             _agent(cl_name="b", project_file="/r/projB/proj.gp"),
         ],
         current_idx=0,
-        group_fold_level=0,
+        fold_registry=registry,
     )
     # Two project banners separated by a single spacer row.
     assert all(entry == _BR for entry in widget._row_entries)
     assert len(widget._row_entries) == 3
 
 
-def test_banners_are_selectable_when_fold_level_below_max() -> None:
-    """At fold level < 2, banner Options are NOT disabled."""
+def test_collapsed_banner_is_selectable() -> None:
+    """Collapsed-group banner Options are NOT disabled."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("repo", "a"))
     widget = AgentList()
     widget.update_list(
         [_agent(cl_name="a")],
         current_idx=0,
-        group_fold_level=0,
+        fold_registry=registry,
     )
     options = list(widget._options)
     assert options[0].disabled is False
 
 
+def test_expanded_banner_stays_disabled_when_sibling_is_collapsed() -> None:
+    """Mixed state: an expanded sibling banner remains non-selectable."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            _agent(cl_name="b", project_file="/r/projB/proj.gp"),
+        ],
+        current_idx=1,
+        fold_registry=registry,
+    )
+    # Layout: projA banner (collapsed, selectable), spacer, projB banner
+    # (expanded, disabled), agent (b).
+    options = list(widget._options)
+    assert options[0].disabled is False  # collapsed projA banner
+    assert options[2].disabled is True  # expanded projB banner
+
+
 def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
-    """Banner clicks at fold level < max carry the GroupRow key."""
+    """Banner clicks on a collapsed group carry the GroupRow key."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
     widget = AgentList()
     widget.update_list(
         [
@@ -181,7 +209,7 @@ def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
             _agent(cl_name="b", project_file="/r/projA/proj.gp"),
         ],
         current_idx=0,
-        group_fold_level=0,
+        fold_registry=registry,
     )
     # One project banner at row 0 covering both agents.
     agent_idx, attempt, group_key = widget._resolve_row(0)
@@ -191,6 +219,9 @@ def test_resolve_row_returns_group_key_for_selectable_banner() -> None:
 
 
 def test_current_group_key_drives_banner_highlight() -> None:
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
+    registry.collapse(("projB", "b"))
     widget = AgentList()
     widget.update_list(
         [
@@ -198,7 +229,7 @@ def test_current_group_key_drives_banner_highlight() -> None:
             _agent(cl_name="b", project_file="/r/projB/proj.gp"),
         ],
         current_idx=1,
-        group_fold_level=0,
+        fold_registry=registry,
         current_group_key=("projB", "b"),
     )
     # Layout: projA banner (0), spacer (1), projB banner (2).
@@ -245,11 +276,15 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
 def test_update_highlight_with_group_key_targets_banner_row() -> None:
     """``update_highlight(group_key=K)`` highlights the matching banner row.
 
-    Regression: at fold level < max the j/k debounced refresh path needs to
-    move the visible highlight onto a banner row, not stay on whichever
-    row the previous full refresh chose.  ``current_idx`` should be
-    irrelevant when ``group_key`` matches a banner.
+    Regression: when both groups are collapsed the j/k debounced
+    refresh path needs to move the visible highlight onto a banner
+    row, not stay on whichever row the previous full refresh chose.
+    ``current_idx`` should be irrelevant when ``group_key`` matches a
+    banner.
     """
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
+    registry.collapse(("projB", "b"))
     widget = AgentList()
     widget.update_list(
         [
@@ -257,7 +292,7 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
             _agent(cl_name="b", project_file="/r/projB/proj.gp"),
         ],
         current_idx=0,
-        group_fold_level=0,
+        fold_registry=registry,
         current_group_key=("projA", "a"),
     )
     # Layout: projA banner (0), spacer (1), projB banner (2).
@@ -287,7 +322,9 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
 
 
 def test_banner_summary_chips_render_in_text() -> None:
-    """Banner labels at any fold level include the summary chip."""
+    """Banner labels include the summary chip whether expanded or collapsed."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "shared"))
     widget = AgentList()
     widget.update_list(
         [
@@ -295,7 +332,7 @@ def test_banner_summary_chips_render_in_text() -> None:
             _agent(cl_name="shared", project_file="/r/projA/proj.gp"),
         ],
         current_idx=0,
-        group_fold_level=0,
+        fold_registry=registry,
     )
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]

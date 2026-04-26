@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_content_search import AgentContentSearchCache
+    from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.fold_state import FoldStateManager
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
@@ -95,6 +96,9 @@ class AgentLoadingMixin:
     # Fold state for workflow steps
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
+
+    # Per-group collapse state for the Agents-tab two-level grouping tree.
+    _group_fold_registry: AgentGroupFoldRegistry
 
     # Agent completion tracking for notifications
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
@@ -521,6 +525,13 @@ class AgentLoadingMixin:
                 self.current_idx = new_idx
             else:
                 self._agents_last_idx = new_idx
+
+        # Garbage-collect collapse entries for groups that vanished after
+        # the latest fold/search/filter pipeline so a re-appearing group
+        # key never inherits stale collapse state.
+        from ...models.agent_groups import enumerate_group_keys
+
+        self._group_fold_registry.clear_unknown(enumerate_group_keys(self._agents))
 
         # Update the running agent counts on the tab bar.
         # Exclude workflow children -- they are sub-steps of a parent agent

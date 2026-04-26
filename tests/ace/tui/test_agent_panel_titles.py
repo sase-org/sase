@@ -14,7 +14,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
@@ -63,7 +63,7 @@ class _FakeApp(AgentDisplayMixin):
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._countdown_remaining = 0
-        self._group_fold_state = AgentGroupFoldState()
+        self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
         self._panel_group = AgentPanelGroup.from_agents(agents)
 

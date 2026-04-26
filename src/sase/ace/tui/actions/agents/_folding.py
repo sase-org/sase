@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent_group_fold import AgentGroupFoldState
+    from ...models.agent_group_fold import AgentGroupFoldRegistry, GroupKey
     from ...models.fold_state import FoldStateManager
 
 # Type alias for tab names
@@ -24,7 +24,7 @@ class AgentFoldingMixin:
     _agents: list[Agent]
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
-    _group_fold_state: AgentGroupFoldState
+    _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
 
     def _get_workflow_key_for_agent(self, agent: Agent) -> str | None:
@@ -56,69 +56,174 @@ class AgentFoldingMixin:
         """
         return list(self._fold_counts.keys())
 
+    def _focused_group_keys(self) -> tuple[GroupKey | None, GroupKey | None]:
+        """Return ``(l1_key | None, l0_key | None)`` for the focused agent.
+
+        Uses :func:`grouping_keys_for_agents` to map ``current_idx`` back
+        to its enclosing project / name-root pair, mirroring the same
+        singleton-suppression rule as :func:`build_agent_tree` so an L1
+        key is only returned when the name-root group has 2+ entries.
+        Returns ``(None, None)`` when no agent is focused.
+        """
+        from ...models.agent_groups import grouping_keys_for_agents
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            return (None, None)
+        keys_per_agent = grouping_keys_for_agents(self._agents)
+        focus = keys_per_agent[self.current_idx]
+        l0: GroupKey = focus.project
+        l1: GroupKey | None = None
+        if focus.name_root:
+            sibling_count = sum(
+                1
+                for k in keys_per_agent
+                if k.project == focus.project and k.name_root == focus.name_root
+            )
+            if sibling_count >= 2:
+                l1 = (*focus.project, focus.name_root)
+        return (l1, l0)
+
+    def _all_known_group_keys(self) -> list[GroupKey]:
+        """Every L0 + L1 key the current agent list would render."""
+        from ...models.agent_groups import enumerate_group_keys
+
+        return enumerate_group_keys(self._agents)
+
     def _snap_focus_after_group_fold_change(self) -> None:
         """Reposition ``current_idx`` / ``_current_group_key`` after a fold change.
 
-        At fold level < 2 agents are hidden — focus snaps to the nearest
-        visible ancestor banner of the previously selected agent so the
-        user never loses their place.  At fold level == 2 banners are
-        non-selectable, so any pending banner focus is cleared and
-        focus stays on the underlying agent.
+        After a per-group fold mutation the previously focused agent
+        may no longer be visible.  When the enclosing group(s) are
+        still expanded and the focused agent stays visible, clear the
+        banner key so focus is on the agent.  Otherwise snap to the
+        deepest collapsed ancestor banner via
+        :func:`find_visible_ancestor_banner`.
         """
         from ...models.agent_groups import (
             build_agent_tree,
             find_visible_ancestor_banner,
         )
 
-        level = self._group_fold_state.level
-        if level >= 2:
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self._current_group_key = None
             return
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
-            return
-        entries = build_agent_tree(self._agents, group_fold_level=level)
+        entries = build_agent_tree(
+            self._agents, fold_registry=self._group_fold_registry
+        )
+        # If the focused agent's row is in the tree, focus stays on it.
+        for entry in entries:
+            if entry.kind == "agent" and entry.agent_idx == self.current_idx:
+                self._current_group_key = None
+                return
         ancestor = find_visible_ancestor_banner(entries, self.current_idx)
         if ancestor is not None:
             self._current_group_key = ancestor.group_key
 
     def _expand_fold(self) -> None:
-        """Expand the fold for the selected workflow (one level).
+        """Expand the fold for the focused row (one level).
 
-        At group fold level < 2, ``l`` instead steps the global group
-        fold so the user reaches the agent rows before per-workflow fold
-        logic kicks in.  Once at level 2 the original single-workflow
-        expansion behavior returns.
+        Per-group rules:
+
+        * Banner focus → expand that group.
+        * Agent focus → run the existing per-workflow expansion (the
+          agent must already be inside an expanded group, since
+          collapsed groups hide agents).
+        * Other tabs preserve the original per-workflow behavior.
         """
-        if self.current_tab == "agents" and self._group_fold_state.level < 2:
-            if self._group_fold_state.expand():
-                self._snap_focus_after_group_fold_change()
+        if self.current_tab == "agents":
+            if self._current_group_key is not None:
+                group_key: GroupKey = tuple(self._current_group_key)
+                if self._group_fold_registry.expand(group_key):
+                    # Re-anchor focus on the first visible agent of the
+                    # expanded group (or the first remaining collapsed
+                    # child banner) so the cursor doesn't sit on a row
+                    # that is now disabled.
+                    self._reanchor_after_banner_expansion(group_key)
+                    self._refilter_agents()  # type: ignore[attr-defined]
+                return
+
+            agent = self._get_selected_agent()  # type: ignore[attr-defined]
+            if agent is None:
+                return
+            wf_key = self._get_workflow_key_for_agent(agent)
+            if wf_key is not None and self._fold_manager.expand(wf_key):
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             return
-        key = self._get_workflow_key_for_agent(agent)
-        if key is None:
+        wf_key = self._get_workflow_key_for_agent(agent)
+        if wf_key is None:
             return
 
-        if self._fold_manager.expand(key):
+        if self._fold_manager.expand(wf_key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _collapse_fold(self) -> None:
-        """Collapse the fold for the selected workflow (one level).
+    def _reanchor_after_banner_expansion(self, expanded_key: GroupKey) -> None:
+        """Move focus off a banner that just stopped being selectable.
 
-        ``h`` first tries to collapse the per-workflow fold for the
-        focused agent (Phase 3 behavior).  When the selected workflow is
-        already at ``COLLAPSED`` (or no workflow is focused), the global
-        group fold steps down a level instead, so the user can climb
-        back up the L3 → L2 → L1 → L0 ladder.
+        Picks (in order): the first remaining collapsed child banner of
+        the expanded group, then the first visible agent of the group,
+        then leaves selection alone.
+        """
+        from ...models.agent_groups import build_agent_tree
+
+        entries = build_agent_tree(
+            self._agents, fold_registry=self._group_fold_registry
+        )
+        # Find first collapsed child banner under the expanded group.
+        for entry in entries:
+            if entry.kind != "group" or entry.group is None:
+                continue
+            g = entry.group
+            if (
+                len(g.group_key) > len(expanded_key)
+                and g.group_key[: len(expanded_key)] == expanded_key
+                and g.is_collapsed
+            ):
+                self._current_group_key = g.group_key
+                return
+        # Fall back to the first visible agent inside the group.
+        for entry in entries:
+            if entry.kind == "agent" and entry.agent_idx is not None:
+                if 0 <= entry.agent_idx < len(self._agents):
+                    a = self._agents[entry.agent_idx]
+                    from ...models.agent_groups import grouping_keys_for_agents
+
+                    keys_per_agent = grouping_keys_for_agents(self._agents)
+                    k = keys_per_agent[entry.agent_idx]
+                    proj_key: GroupKey = k.project
+                    if expanded_key == proj_key or (
+                        len(expanded_key) == 3
+                        and proj_key == expanded_key[:2]
+                        and k.name_root == expanded_key[2]
+                    ):
+                        self._current_group_key = None
+                        self.current_idx = entry.agent_idx
+                        _ = a  # keep linter happy
+                        return
+        # Nothing better — clear group focus so j/k can rebind cleanly.
+        self._current_group_key = None
+
+    def _collapse_fold(self) -> None:
+        """Collapse the fold for the focused row (one level).
+
+        Per-group rules:
+
+        * Per-workflow fold first (preserves today's "h collapses my
+          workflow" behaviour for an agent inside an expanded group).
+        * Banner focus → collapse that banner; if it's already collapsed
+          and the banner is an L1, walk up and collapse the parent L0.
+        * Agent focus with no per-workflow fold to step → collapse the
+          enclosing group (L1 if present, else L0) and snap focus to
+          its now-visible banner.
         """
         if self.current_tab == "agents":
             from ...models.fold_state import FoldLevel
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
-            if agent is not None:
+            if agent is not None and self._current_group_key is None:
                 key = self._get_workflow_key_for_agent(agent)
                 if (
                     key is not None
@@ -137,8 +242,27 @@ class AgentFoldingMixin:
                         self._refilter_agents()  # type: ignore[attr-defined]
                     return
 
-            # Fall through to group-level collapse.
-            if self._group_fold_state.collapse():
+            # Banner focus → collapse it (or escalate to parent L0).
+            if self._current_group_key is not None:
+                cur_key: GroupKey = tuple(self._current_group_key)
+                if len(cur_key) == 3 and self._group_fold_registry.is_collapsed(
+                    cur_key
+                ):
+                    parent_key: GroupKey = cur_key[:2]
+                    if self._group_fold_registry.collapse(parent_key):
+                        self._current_group_key = parent_key
+                        self._refilter_agents()  # type: ignore[attr-defined]
+                    return
+                if self._group_fold_registry.collapse(cur_key):
+                    self._refilter_agents()  # type: ignore[attr-defined]
+                return
+
+            # Agent focus, no per-workflow step left → collapse the
+            # enclosing group and snap to its banner.
+            l1_key, l0_key = self._focused_group_keys()
+            target = l1_key or l0_key
+            if target is not None and self._group_fold_registry.collapse(target):
+                self._current_group_key = target
                 self._snap_focus_after_group_fold_change()
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
@@ -183,17 +307,17 @@ class AgentFoldingMixin:
     def _expand_all_folds(self) -> None:
         """Jump to the fully-expanded endpoint (``L`` action).
 
-        On the agents tab this means: snap the global group fold to L2
-        (so all banners + agents are visible) and then advance every
-        per-workflow fold to ``FULLY_EXPANDED``.  A single ``L`` press
-        from any state lands the user at "everything visible".
+        On the agents tab: expand every known L0/L1 group and advance
+        every per-workflow fold to ``FULLY_EXPANDED``.  A single ``L``
+        press from any state lands the user at "everything visible".
         """
         if self.current_tab == "agents":
-            changed = self._group_fold_state.expand_all()
+            changed = self._group_fold_registry.expand_keys(
+                self._all_known_group_keys()
+            )
             if changed:
                 self._current_group_key = None
             keys = self._get_focused_panel_workflow_keys()
-            # Step every workflow fold up to FULLY_EXPANDED.
             for key in keys:
                 while self._fold_manager.expand(key):
                     changed = True
@@ -211,10 +335,10 @@ class AgentFoldingMixin:
     def _collapse_all_folds(self) -> None:
         """Jump to the fully-collapsed endpoint (``H`` action).
 
-        On the agents tab this means: collapse every per-workflow fold
-        to ``COLLAPSED`` and then snap the global group fold to L0 (only
-        project banners visible).  A single ``H`` press always lands the
-        user at "maximally collapsed".
+        On the agents tab: collapse every per-workflow fold then mark
+        every known L0/L1 group collapsed so only project banners
+        remain visible.  A single ``H`` press always lands the user at
+        "maximally collapsed".
         """
         if self.current_tab == "agents":
             keys = self._get_focused_panel_workflow_keys()
@@ -222,7 +346,7 @@ class AgentFoldingMixin:
             for key in keys:
                 while self._fold_manager.collapse(key):
                     changed = True
-            if self._group_fold_state.collapse_all():
+            if self._group_fold_registry.collapse_keys(self._all_known_group_keys()):
                 self._snap_focus_after_group_fold_change()
                 changed = True
             if changed:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 21:24:19
-status: wip
+status: done
 ---
 # Plan: Per-group expand/collapse on the Agents tab
 

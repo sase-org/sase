@@ -186,18 +186,18 @@ class StartupMixin:
         self._fold_manager = FoldStateManager()
         self._fold_counts: dict[str, tuple[int, int]] = {}
 
-        # Group fold: tracks a single global expansion level (L0..L2)
-        # for the agents-tab two-level grouping tree (project →
-        # name-root).  Layers *above* the per-workflow fold manager —
-        # workflow folds only take effect once we have reached L2 (full
-        # expansion).  L2 is the default so first-paint shows everything
-        # visible.
-        from ..models.agent_group_fold import AgentGroupFoldState
+        # Group fold: tracks per-group collapse state for the agents-tab
+        # two-level grouping tree (project → name-root).  Layers *above*
+        # the per-workflow fold manager — workflow folds only take effect
+        # once the enclosing group is expanded.  Empty registry => every
+        # group expanded (first-paint default).
+        from ..models.agent_group_fold import AgentGroupFoldRegistry
 
-        self._group_fold_state = AgentGroupFoldState()
+        self._group_fold_registry = AgentGroupFoldRegistry()
         # When non-None, the user has navigated onto a group banner row
-        # (only possible at fold level < 2).  Banner-aware actions look
-        # at this to target the group instead of the underlying agent.
+        # (only possible when that group is collapsed).  Banner-aware
+        # actions look at this to target the group instead of the
+        # underlying agent.
         self._current_group_key: tuple[str, ...] | None = None
 
         # Tag-driven side-panel collection.  Initialized empty (untagged

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import (
     GroupRow,
     TreeEntry,
@@ -12,6 +13,7 @@ from sase.ace.tui.models.agent_groups import (
     banner_summary_text,
     build_agent_tree,
     compute_banner_summary,
+    enumerate_group_keys,
     find_visible_ancestor_banner,
 )
 
@@ -144,115 +146,116 @@ def test_project_label_renders_project_and_changespec() -> None:
     assert banner_label(g) == "sase_100 / fix-bug-id"
 
 
-# --- Fold-level builds ---
+# --- Per-group fold builds ---
 
 
-def test_fold_level_0_emits_one_banner_per_unique_project() -> None:
-    """At L0 only L0 banners appear, one per unique project, no agents."""
+def test_collapsed_l0_hides_descendants_but_emits_banner() -> None:
+    """A collapsed L0 banner appears with `is_collapsed=True` and no children."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
     entries = build_agent_tree(
         [
             _agent(cl_name="a", project_file="/r/projA/proj.gp"),
             _agent(cl_name="b", project_file="/r/projB/proj.gp"),
-            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
         ],
-        group_fold_level=0,
+        fold_registry=registry,
     )
-    assert _kinds(entries) == [("group", 0), ("group", 0)]
+    # projA banner (collapsed, no children), then projB banner + agent.
+    assert _kinds(entries) == [("group", 0), ("group", 0), ("agent", 1)]
+    proj_a = entries[0]
+    assert proj_a.group is not None and proj_a.group.is_collapsed is True
+    proj_b = entries[1]
+    assert proj_b.group is not None and proj_b.group.is_collapsed is False
 
 
-def test_fold_level_0_banner_carries_full_index_set_across_clusters() -> None:
-    """Even at L0, banner indices reference every agent in the group."""
+def test_collapsing_one_l0_does_not_affect_sibling() -> None:
+    """Collapsing one project leaves the other fully expanded."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("projA", "a"))
     entries = build_agent_tree(
         [
-            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
-            _agent(cl_name="b", project_file="/r/projB/proj.gp"),
-            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            _agent(cl_name="a", project_file="/r/projA/proj.gp", agent_name="x"),
+            _agent(cl_name="a", project_file="/r/projA/proj.gp", agent_name="y"),
+            _agent(cl_name="b", project_file="/r/projB/proj.gp", agent_name="z"),
         ],
-        group_fold_level=0,
+        fold_registry=registry,
     )
-    proj_a = [
-        e
-        for e in entries
-        if e.kind == "group" and e.group is not None and e.group.group_key[0] == "projA"
-    ]
-    assert len(proj_a) == 1
-    assert proj_a[0].group.agent_indices == (0, 2)  # type: ignore[union-attr]
+    # projA: banner only.  projB: banner + its agent.
+    kinds = _kinds(entries)
+    assert kinds.count(("agent", 2)) == 1  # projB agent kept
+    assert ("agent", 0) not in kinds and ("agent", 1) not in kinds
 
 
-def test_fold_level_1_emits_name_root_banners_but_no_agent_rows() -> None:
+def test_collapsed_l1_hides_only_its_agents() -> None:
+    """A collapsed L1 banner suppresses its own agents only."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo", "coder"))
     entries = build_agent_tree(
         [
-            _agent(cl_name="demo", agent_name="coder.claude"),
-            _agent(cl_name="demo", agent_name="coder.codex"),
-            _agent(cl_name="demo", agent_name="planner.claude"),
+            _agent(cl_name="demo", project_file="", agent_name="coder.claude"),
+            _agent(cl_name="demo", project_file="", agent_name="coder.codex"),
+            _agent(cl_name="demo", project_file="", agent_name="planner.claude"),
+            _agent(cl_name="demo", project_file="", agent_name="planner.codex"),
         ],
-        group_fold_level=1,
+        fold_registry=registry,
     )
-    levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
-    # project + only the multi-entry coder name-root.
-    # The singleton planner root is suppressed.
-    assert levels == [0, 1]
-    assert all(e.kind == "group" for e in entries)
-
-
-def test_fold_level_1_emits_banner_for_each_multi_entry_name_root() -> None:
-    """Two name-roots, each with two entries → two level-1 banners."""
-    entries = build_agent_tree(
-        [
-            _agent(cl_name="demo", agent_name="coder.claude"),
-            _agent(cl_name="demo", agent_name="coder.codex"),
-            _agent(cl_name="demo", agent_name="planner.claude"),
-            _agent(cl_name="demo", agent_name="planner.codex"),
-        ],
-        group_fold_level=1,
-    )
+    # L0 + collapsed coder L1 (no children) + planner L1 + 2 planner agents.
     levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
     assert levels == [0, 1, 1]
-    assert all(e.kind == "group" for e in entries)
-
-
-def test_fold_level_1_skips_singleton_name_root_banner() -> None:
-    """Collapsed-tree builder also suppresses singleton level-1 banners."""
-    entries = build_agent_tree(
-        [_agent(cl_name="demo", agent_name="solo.claude")],
-        group_fold_level=1,
-    )
-    # Project banner only — no level-1 banner for the singleton root.
-    levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
-    assert levels == [0]
-
-
-def test_singleton_name_root_emits_no_banner_among_other_roots() -> None:
-    """Mixed scenario: multi-entry root keeps its banner, singleton root does not."""
-    entries = build_agent_tree(
-        [
-            _agent(cl_name="demo", agent_name="coder.claude"),
-            _agent(cl_name="demo", agent_name="coder.codex"),
-            _agent(cl_name="demo", agent_name="solo.gemini"),
-        ]
-    )
-    # project + coder name-root + agent 0 + agent 1 + agent 2
-    assert _kinds(entries) == [
-        ("group", 0),
-        ("group", 1),
-        ("agent", 0),
-        ("agent", 1),
-        ("agent", 2),
-    ]
-    name_root_banners = [
+    coder = next(
         e
         for e in entries
-        if e.kind == "group" and e.group is not None and e.group.level == 1
-    ]
-    assert len(name_root_banners) == 1
-    assert name_root_banners[0].group.group_key[-1] == "coder"  # type: ignore[union-attr]
+        if e.kind == "group" and e.group and e.group.group_key[-1] == "coder"  # type: ignore[union-attr]
+    )
+    planner = next(
+        e
+        for e in entries
+        if e.kind == "group" and e.group and e.group.group_key[-1] == "planner"  # type: ignore[union-attr]
+    )
+    assert coder.group is not None and coder.group.is_collapsed is True
+    assert planner.group is not None and planner.group.is_collapsed is False
+    # Only planner's agents appear.
+    agent_indices = [e.agent_idx for e in entries if e.kind == "agent"]
+    assert agent_indices == [2, 3]
 
 
-def test_fold_level_2_matches_default_behavior() -> None:
+def test_singleton_name_root_still_suppresses_l1_banner_when_collapsed() -> None:
+    """Singleton name-root produces no banner regardless of registry state."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo", "solo"))  # would-be L1 key
+    entries = build_agent_tree(
+        [_agent(cl_name="demo", project_file="", agent_name="solo.claude")],
+        fold_registry=registry,
+    )
+    # No L1 banner — singleton suppression wins.
+    levels = [e.group.level for e in entries if e.kind == "group"]  # type: ignore[union-attr]
+    assert levels == [0]
+    # Agent still emitted because the L0 is expanded.
+    assert any(e.kind == "agent" for e in entries)
+
+
+def test_default_registry_matches_no_registry() -> None:
     a = _agent(cl_name="demo", agent_name="coder.claude")
     entries_default = build_agent_tree([a])
-    entries_l2 = build_agent_tree([a], group_fold_level=2)
-    assert _kinds(entries_default) == _kinds(entries_l2)
+    entries_empty = build_agent_tree([a], fold_registry=AgentGroupFoldRegistry())
+    assert _kinds(entries_default) == _kinds(entries_empty)
+
+
+def test_enumerate_group_keys_returns_l0_and_multi_l1() -> None:
+    """``enumerate_group_keys`` lists every L0 + multi-entry L1 once."""
+    keys = enumerate_group_keys(
+        [
+            _agent(cl_name="a", project_file="/r/projA/proj.gp"),
+            _agent(cl_name="demo", project_file="", agent_name="coder.claude"),
+            _agent(cl_name="demo", project_file="", agent_name="coder.codex"),
+            _agent(cl_name="demo", project_file="", agent_name="solo.claude"),
+        ]
+    )
+    # Two L0s + one L1 ("coder").  "solo" is a singleton root → no L1 key.
+    assert ("projA", "a") in keys
+    assert ("", "demo") in keys
+    assert ("", "demo", "coder") in keys
+    assert ("", "demo", "solo") not in keys
 
 
 # --- Banner summaries ---
@@ -326,16 +329,20 @@ def test_find_visible_ancestor_banner_picks_deepest_match() -> None:
     """Snap-to-ancestor focuses the deepest banner containing the agent."""
     a = _agent(cl_name="demo", agent_name="coder.claude")
     b = _agent(cl_name="demo", agent_name="coder.codex")
-    entries = build_agent_tree([a, b], group_fold_level=1)
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo", "coder"))
+    entries = build_agent_tree([a, b], fold_registry=registry)
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
     assert ancestor.level == 1  # name-root banner is the deepest match
 
 
 def test_find_visible_ancestor_banner_falls_back_to_higher_level() -> None:
-    """When fold hides the deepest level, fall back to the highest visible."""
+    """When the deepest banner is suppressed, fall back to the higher one."""
     a = _agent(cl_name="demo", agent_name="coder.claude")
-    entries = build_agent_tree([a], group_fold_level=0)
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo"))
+    entries = build_agent_tree([a], fold_registry=registry)
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
     assert ancestor.level == 0
@@ -344,7 +351,9 @@ def test_find_visible_ancestor_banner_falls_back_to_higher_level() -> None:
 def test_find_visible_ancestor_banner_falls_back_when_root_singleton() -> None:
     """A singleton-root agent has no level-1 banner; falls back to project."""
     a = _agent(cl_name="demo", agent_name="solo.claude")
-    entries = build_agent_tree([a], group_fold_level=1)
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo"))
+    entries = build_agent_tree([a], fold_registry=registry)
     ancestor = find_visible_ancestor_banner(entries, target_agent_idx=0)
     assert ancestor is not None
     # No level-1 banner exists for this singleton root, so the project
@@ -354,7 +363,9 @@ def test_find_visible_ancestor_banner_falls_back_when_root_singleton() -> None:
 
 def test_find_visible_ancestor_banner_returns_none_when_idx_unknown() -> None:
     a = _agent()
-    entries = build_agent_tree([a], group_fold_level=0)
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("", "demo"))
+    entries = build_agent_tree([a], fold_registry=registry)
     assert find_visible_ancestor_banner(entries, target_agent_idx=42) is None
 
 
@@ -460,14 +471,16 @@ def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:
 
 
 def test_collapsed_tree_order_is_deterministic() -> None:
-    """Headers-only fold respects the same deterministic ordering."""
+    """Banner emission order is stable when groups are collapsed."""
     a = _agent(cl_name="a", project_file="/r/projA/proj.gp")
     b = _agent(cl_name="b", project_file="/r/projB/proj.gp")
     c = _agent(cl_name="c", project_file="")
+    registry = AgentGroupFoldRegistry()
+    registry.collapse_keys([("projA", "a"), ("projB", "b"), ("", "c")])
 
-    order1 = build_agent_tree([a, b, c], group_fold_level=1)
-    order2 = build_agent_tree([c, a, b], group_fold_level=1)
-    order3 = build_agent_tree([b, c, a], group_fold_level=1)
+    order1 = build_agent_tree([a, b, c], fold_registry=registry)
+    order2 = build_agent_tree([c, a, b], fold_registry=registry)
+    order3 = build_agent_tree([b, c, a], fold_registry=registry)
 
     def banner_keys(entries: list[TreeEntry]) -> list[tuple[int, tuple[str, ...]]]:
         return [

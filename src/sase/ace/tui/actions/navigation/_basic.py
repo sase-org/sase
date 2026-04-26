@@ -15,39 +15,43 @@ class BasicNavigationMixin(NavigationMixinBase):
     def _navigate_agents_panel(self, direction: int) -> None:
         """Navigate within the agents panel.
 
-        Walks the same row sequence the renderer is showing: at fold
-        level < 2 cycles through banner rows (updating
-        ``_current_group_key``); at fold level 2 cycles through agents
-        in rendered order.
+        Walks the same row sequence the renderer is showing: cycles
+        through every selectable stop (collapsed banners + visible
+        agents) in tree order so the user can step in and out of
+        collapsed groups with ``j`` / ``k`` regardless of how many
+        groups are folded.
 
         Args:
             direction: +1 for next, -1 for previous.
         """
-        level = self._group_fold_state.level
-        if level >= 2:
-            self._current_group_key = None
-            self._navigate_visible(direction)
+        stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        if not stops:
             return
-
-        from ...models.agent_groups import build_agent_tree
-
-        tree = build_agent_tree(self._agents, group_fold_level=level)
-        banners = [e.group for e in tree if e.kind == "group" and e.group is not None]
-        if not banners:
-            return
-
-        current_key = self._current_group_key
-        pos = next(
-            (i for i, b in enumerate(banners) if b.group_key == current_key),
-            None,
-        )
+        cur_key = self._current_group_key
+        cur_idx = self.current_idx
+        pos: int | None = None
+        # Prefer a banner match when the user is explicitly focused on
+        # one; otherwise fall through to an agent match by current_idx.
+        if cur_key is not None:
+            for i, (kind, payload) in enumerate(stops):
+                if kind == "banner" and payload == cur_key:
+                    pos = i
+                    break
         if pos is None:
-            target = banners[0]
+            for i, (kind, payload) in enumerate(stops):
+                if kind == "agent" and payload == cur_idx:
+                    pos = i
+                    break
+        if pos is None:
+            new_pos = 0 if direction > 0 else len(stops) - 1
         else:
-            target = banners[(pos + direction) % len(banners)]
-        self._current_group_key = target.group_key
-        if target.agent_indices:
-            self.current_idx = target.agent_indices[0]
+            new_pos = (pos + direction) % len(stops)
+        kind, payload = stops[new_pos]
+        if kind == "banner":
+            self._current_group_key = payload
+        else:
+            self._current_group_key = None
+            self.current_idx = payload
 
     def _navigate_visible(self, direction: int) -> None:
         """Cycle ``current_idx`` through agents in rendered order.

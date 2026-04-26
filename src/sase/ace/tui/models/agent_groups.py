@@ -14,14 +14,9 @@ already represents a single tag bucket.
 Workflow children inherit grouping identity from their parent so that
 banners are never emitted between a parent and its child steps.
 
-The tree builder accepts a ``group_fold_level``:
-
-* ``2`` (default) — every banner and agent row is emitted.  Each group
-  key renders exactly once, with all of its members contiguous beneath
-  the banner.
-* ``0``/``1`` — only banners up to the requested level are emitted.
-  Each unique group key produces exactly one banner row.  Agent rows
-  are suppressed entirely so that L0/L1 act as a "headers-only" view.
+Each group has a binary collapsed/expanded state, tracked per-key in an
+:class:`AgentGroupFoldRegistry`.  When a group is collapsed its
+descendants are suppressed; sibling groups remain unaffected.
 
 Group ordering is deterministic and independent of the input agent
 list's order: named projects sort before ``(no project)``; the empty
@@ -40,6 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agent import Agent
+from .agent_group_fold import AgentGroupFoldRegistry, GroupKey
 
 #: Sentinel used as the project key for agents without a ``project_file``.
 NO_PROJECT = ""
@@ -137,19 +133,63 @@ def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _Groupi
     return _GroupingKeys(project=_project_key(target), name_root=_name_root(target))
 
 
-def build_agent_tree(agents: list[Agent], group_fold_level: int = 2) -> list[TreeEntry]:
-    """Build the grouped tree of banner + agent entries.
+def grouping_keys_for_agents(agents: list[Agent]) -> list[_GroupingKeys]:
+    """Public-ish helper exposing per-agent grouping keys.
 
-    See module docstring for level semantics.
+    The mixin uses this to map a focused agent index back to its
+    enclosing (L0, L1) pair without re-implementing the parent-lookup
+    plumbing.
+    """
+    parent_lookup: dict[str, Agent] = {
+        a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
+    }
+    return [_grouping_keys_for(a, parent_lookup) for a in agents]
+
+
+def enumerate_group_keys(agents: list[Agent]) -> list[GroupKey]:
+    """Return the deduplicated list of all L0 + L1 keys present in *agents*.
+
+    L1 keys are only included when the name-root group has 2+ entries
+    (matching the singleton-suppression rule used by :func:`build_agent_tree`).
+    """
+    keys_per_agent = grouping_keys_for_agents(agents)
+    seen: set[GroupKey] = set()
+    out: list[GroupKey] = []
+    root_counts: dict[tuple[tuple[str, str], str], int] = {}
+    for k in keys_per_agent:
+        if k.name_root:
+            root_counts[(k.project, k.name_root)] = (
+                root_counts.get((k.project, k.name_root), 0) + 1
+            )
+    for k in keys_per_agent:
+        l0: GroupKey = k.project
+        if l0 not in seen:
+            seen.add(l0)
+            out.append(l0)
+        if k.name_root and root_counts.get((k.project, k.name_root), 0) >= 2:
+            l1: GroupKey = (*k.project, k.name_root)
+            if l1 not in seen:
+                seen.add(l1)
+                out.append(l1)
+    return out
+
+
+def build_agent_tree(
+    agents: list[Agent],
+    fold_registry: AgentGroupFoldRegistry | None = None,
+) -> list[TreeEntry]:
+    """Build the grouped tree of banner + agent entries.
 
     Args:
         agents: The flat agent list (as filtered/sorted for display).
-        group_fold_level: Global expansion level (0–2).
+        fold_registry: Optional per-group collapse registry.  ``None``
+            (or an empty registry) renders every group expanded.
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
         renderer in order.
     """
+    registry = fold_registry if fold_registry is not None else AgentGroupFoldRegistry()
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
@@ -164,112 +204,55 @@ def build_agent_tree(agents: list[Agent], group_fold_level: int = 2) -> list[Tre
         if k.name_root:
             root_indices.setdefault((k.project, k.name_root), []).append(i)
 
-    if group_fold_level >= 2:
-        return _build_full_tree(keys_per_agent, walk_order, proj_indices, root_indices)
-    return _build_collapsed_tree(
-        keys_per_agent,
-        walk_order,
-        group_fold_level,
-        proj_indices,
-        root_indices,
-    )
-
-
-def _build_full_tree(
-    keys_per_agent: list[_GroupingKeys],
-    walk_order: list[int],
-    proj_indices: dict[tuple[str, str], list[int]],
-    root_indices: dict[tuple[tuple[str, str], str], list[int]],
-) -> list[TreeEntry]:
-    """Full banner + agent rows.
-
-    Members are walked in deterministic grouping order so each group
-    key emits exactly one banner with all of its members contiguous
-    beneath it.
-    """
     entries: list[TreeEntry] = []
     cur_proj: tuple[str, str] | None = None
     cur_root: str = ""
+    cur_proj_collapsed = False
+    cur_root_collapsed = False
 
     for i in walk_order:
         k = keys_per_agent[i]
         if cur_proj is None or k.project != cur_proj:
+            l0_key: GroupKey = k.project
+            cur_proj_collapsed = registry.is_collapsed(l0_key)
             entries.append(
                 TreeEntry(
                     kind="group",
                     group=GroupRow(
                         level=0,
-                        group_key=k.project,
+                        group_key=l0_key,
                         agent_indices=tuple(proj_indices[k.project]),
+                        is_collapsed=cur_proj_collapsed,
                     ),
                 )
             )
             cur_proj = k.project
             cur_root = ""
+            cur_root_collapsed = False
+        if cur_proj_collapsed:
+            # Skip every descendant of a collapsed L0.
+            continue
         if k.name_root != cur_root:
+            cur_root = k.name_root
+            cur_root_collapsed = False
             if k.name_root and len(root_indices[(k.project, k.name_root)]) >= 2:
+                l1_key: GroupKey = (*k.project, k.name_root)
+                cur_root_collapsed = registry.is_collapsed(l1_key)
                 entries.append(
                     TreeEntry(
                         kind="group",
                         group=GroupRow(
                             level=1,
-                            group_key=(*k.project, k.name_root),
+                            group_key=l1_key,
                             agent_indices=tuple(root_indices[(k.project, k.name_root)]),
+                            is_collapsed=cur_root_collapsed,
                         ),
                     )
                 )
-            cur_root = k.name_root
+        if cur_root_collapsed:
+            continue
         entries.append(TreeEntry(kind="agent", agent_idx=i))
 
-    return entries
-
-
-def _build_collapsed_tree(
-    keys_per_agent: list[_GroupingKeys],
-    walk_order: list[int],
-    group_fold_level: int,
-    proj_indices: dict[tuple[str, str], list[int]],
-    root_indices: dict[tuple[tuple[str, str], str], list[int]],
-) -> list[TreeEntry]:
-    """Headers-only tree for fold levels 0/1.
-
-    Each unique group at the requested levels appears once in
-    deterministic grouping order.  Agent rows are suppressed.
-    """
-    entries: list[TreeEntry] = []
-    seen_projects: set[tuple[str, str]] = set()
-    seen_roots: set[tuple[tuple[str, str], str]] = set()
-
-    for i in walk_order:
-        k = keys_per_agent[i]
-        if k.project not in seen_projects:
-            seen_projects.add(k.project)
-            entries.append(
-                TreeEntry(
-                    kind="group",
-                    group=GroupRow(
-                        level=0,
-                        group_key=k.project,
-                        agent_indices=tuple(proj_indices[k.project]),
-                        is_collapsed=group_fold_level < 1,
-                    ),
-                )
-            )
-        if group_fold_level >= 1 and k.name_root:
-            root_id = (k.project, k.name_root)
-            if root_id not in seen_roots and len(root_indices[root_id]) >= 2:
-                seen_roots.add(root_id)
-                entries.append(
-                    TreeEntry(
-                        kind="group",
-                        group=GroupRow(
-                            level=1,
-                            group_key=(*k.project, k.name_root),
-                            agent_indices=tuple(root_indices[root_id]),
-                            is_collapsed=True,
-                        ),
-                    )
-                )
     return entries
 
 

@@ -87,7 +87,7 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
     def _agents_visible_order(self) -> list[int]:
         from sase.ace.tui.models.agent_groups import build_agent_tree
 
-        tree = build_agent_tree(self._agents, group_fold_level=2)
+        tree = build_agent_tree(self._agents)
         return [
             entry.agent_idx
             for entry in tree
