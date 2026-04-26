@@ -4,11 +4,27 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ...models.agent_panels import AgentsLayoutState, PanelSlot
+
 if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+
+
+_LAYOUT_CLASSES: tuple[str, ...] = (
+    "layout-classic",
+    "layout-triptych",
+    "layout-stack",
+    "layout-focus",
+)
+_SLOT_CLASSES: tuple[str, ...] = ("slot-1", "slot-2", "slot-3")
+_SLOT_ID_FOR_PANEL: dict[PanelSlot, str] = {
+    PanelSlot.LIST: "#agent-list-container",
+    PanelSlot.CHAT: "#agent-prompt-scroll",
+    PanelSlot.FILE: "#agent-file-bundle",
+}
 
 
 class AgentPanelsMixin:
@@ -22,6 +38,7 @@ class AgentPanelsMixin:
     current_attempt_number: int | None
     _panel_group: AgentPanelGroup
     _current_group_key: tuple[str, ...] | None
+    _agents_layout_state: AgentsLayoutState
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:
         """Cycle focus between tag-driven side panels with wrap.
@@ -134,23 +151,161 @@ class AgentPanelsMixin:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_prev_file()
 
-    def action_toggle_layout(self) -> None:
-        """Toggle the layout between prompt-priority and file-priority."""
+    def action_cycle_agents_layout(self) -> None:
+        """Cycle the Agents-tab layout forward (CLASSIC -> TRIPTYCH -> STACK -> FOCUS)."""
+        self._cycle_agents_layout(reverse=False)
+
+    def action_cycle_agents_layout_reverse(self) -> None:
+        """Cycle the Agents-tab layout in reverse."""
+        self._cycle_agents_layout(reverse=True)
+
+    def _cycle_agents_layout(self, *, reverse: bool) -> None:
         if self.current_tab != "agents":
             return
+        state = self._agents_layout_state
+        state.cycle_layout(reverse=reverse)
+        self._apply_agents_layout()
+        self.notify(f"Layout: {state.layout.name}")  # type: ignore[attr-defined]
+
+    def action_rotate_agents_panels(self) -> None:
+        """Rotate which logical panel sits in each Agents-tab slot (forward)."""
+        self._rotate_agents_panels(reverse=False)
+
+    def action_rotate_agents_panels_reverse(self) -> None:
+        """Rotate which logical panel sits in each Agents-tab slot (reverse)."""
+        self._rotate_agents_panels(reverse=True)
+
+    def _rotate_agents_panels(self, *, reverse: bool) -> None:
+        if self.current_tab != "agents":
+            return
+        self._agents_layout_state.rotate(reverse=reverse)
+        self._apply_agents_layout()
+
+    def _apply_agents_layout(self) -> None:
+        """Apply the current ``_agents_layout_state`` to the DOM and CSS."""
+        state = self._agents_layout_state
+        panels = self.query_one("#agents-panels")  # type: ignore[attr-defined]
+
+        for cls in _LAYOUT_CLASSES:
+            panels.remove_class(cls)
+        panels.add_class(f"layout-{state.layout.value}")
+
+        ordered_widgets = []
+        for position in (1, 2, 3):
+            slot_enum = state.slot_for_position(position)
+            widget_id = _SLOT_ID_FOR_PANEL[slot_enum]
+            widget = self.query_one(widget_id)  # type: ignore[attr-defined]
+            for cls in _SLOT_CLASSES:
+                widget.remove_class(cls)
+            widget.add_class(f"slot-{position}")
+            ordered_widgets.append(widget)
+
+        for index, widget in enumerate(ordered_widgets):
+            try:
+                panels.move_child(widget, before=index)
+            except Exception:
+                pass
+
+        self._update_layout_breadcrumb()
+
+    def _update_layout_breadcrumb(self) -> None:
+        from ...widgets import AgentInfoPanel
+
+        state = self._agents_layout_state
+        try:
+            info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        info_panel.update_layout_breadcrumb(state.layout, state.primary)
+
+    def on_file_list_changed(self, message: object) -> None:
+        """Forward file-panel list changes to AgentDetail state."""
+        from ...widgets import AgentDetail
+        from ...widgets.file_panel import FileListChanged
+
+        if not isinstance(message, FileListChanged):
+            return
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail._file_count = message.file_count
+        agent_detail._file_index = message.file_index
+        agent_detail._update_panel_indicators()
+
+    def on_file_trim_changed(self, message: object) -> None:
+        """Forward file-panel trim changes to AgentDetail state."""
+        from ...widgets import AgentDetail
+        from ...widgets.file_panel import FileTrimChanged
+
+        if not isinstance(message, FileTrimChanged):
+            return
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail._trim_visible_lines = message.visible_lines
+        agent_detail._trim_total_lines = message.total_lines
+        agent_detail._trim_is_trimmed = message.is_trimmed
+        agent_detail._update_file_scroll_subtitle()
+
+    def on_thinking_visibility_changed(self, message: object) -> None:
+        """Forward thinking-panel visibility changes to AgentDetail state."""
+        from textual.containers import VerticalScroll
 
         from ...widgets import AgentDetail
+        from ...widgets.thinking_panel import ThinkingVisibilityChanged
+        from ...widgets._agent_detail_panels import DetailPanelMode
 
+        if not isinstance(message, ThinkingVisibilityChanged):
+            return
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail._has_thinking_content = message.has_thinking
+        agent_detail._update_panel_indicators()
 
-        if agent_detail.is_info_mode() or (
-            not agent_detail.is_file_visible()
-            and not agent_detail.is_thinking_visible()
-        ):
-            self.notify("No panel to toggle layout", severity="warning")  # type: ignore[attr-defined]
+        if agent_detail._panel_mode != DetailPanelMode.THINKING:
             return
 
-        agent_detail.toggle_layout()
+        thinking_scroll = self.query_one(  # type: ignore[attr-defined]
+            "#agent-thinking-scroll", VerticalScroll
+        )
+        if message.has_thinking:
+            thinking_scroll.remove_class("hidden")
+        else:
+            thinking_scroll.add_class("hidden")
+
+    def on_file_visibility_changed(self, message: object) -> None:
+        """Forward file-panel visibility changes to AgentDetail state."""
+        from textual.containers import VerticalScroll
+
+        from ...widgets import AgentDetail
+        from ...widgets.file_panel import (
+            AgentFilePanel,
+            FileVisibilityChanged,
+        )
+        from ...widgets._agent_detail_panels import DetailPanelMode
+
+        if not isinstance(message, FileVisibilityChanged):
+            return
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail._has_file_content = message.has_file
+        agent_detail._file_count = message.file_count
+        agent_detail._file_index = message.file_index
+        agent_detail._update_panel_indicators()
+
+        if agent_detail._panel_mode in (
+            DetailPanelMode.THINKING,
+            DetailPanelMode.INFO,
+        ):
+            return
+
+        file_scroll = self.query_one(  # type: ignore[attr-defined]
+            "#agent-file-scroll", VerticalScroll
+        )
+        if message.has_file:
+            was_hidden = file_scroll.has_class("hidden")
+            file_scroll.remove_class("hidden")
+            if was_hidden:
+                file_panel = self.query_one(  # type: ignore[attr-defined]
+                    "#agent-file-panel", AgentFilePanel
+                )
+                self.call_after_refresh(file_panel.reset_trim)  # type: ignore[attr-defined]
+        else:
+            agent_detail._expand_prompt_only()
 
     def action_edit_panel(self) -> None:
         """Open the visible panel's content in $EDITOR."""

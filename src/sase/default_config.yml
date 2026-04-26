@@ -47,7 +47,11 @@ ace:
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
       expand_all_folds: "L"
-      toggle_layout: "p"
+      # Agents-tab cyclable layouts and panel rotation
+      cycle_agents_layout: "p"
+      cycle_agents_layout_reverse: "P"
+      rotate_agents_panels: "right_brace"
+      rotate_agents_panels_reverse: "left_brace"
       # Marking
       toggle_mark: "m"
       clear_marks: "u"

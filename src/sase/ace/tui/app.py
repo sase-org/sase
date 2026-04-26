@@ -41,6 +41,7 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
+    AgentThinkingPanel,
     AncestorsChildrenPanel,
     AxeDashboard,
     AxeInfoPanel,
@@ -55,6 +56,8 @@ from .widgets import (
     TabBar,
     TaskIndicator,
 )
+from .widgets.file_panel import AgentFilePanel
+from .widgets.prompt_panel import AgentPromptPanel
 
 log = logging.getLogger(__name__)
 
@@ -232,11 +235,25 @@ class AceApp(
             # Agents Tab (hidden by default)
             with Vertical(id="agents-view", classes="hidden"):
                 yield AgentInfoPanel(id="agent-info-panel")
-                with Horizontal(id="agents-content"):
-                    with Vertical(id="agent-list-container"):
+                with Vertical(id="agents-panels", classes="layout-classic"):
+                    with Vertical(
+                        id="agent-list-container", classes="agents-panel slot-1"
+                    ):
                         yield AgentList(id="agent-list-panel")
-                    with Vertical(id="agent-detail-container"):
-                        yield AgentDetail(id="agent-detail-panel")
+                    with VerticalScroll(
+                        id="agent-prompt-scroll", classes="agents-panel slot-2"
+                    ):
+                        yield AgentPromptPanel(id="agent-prompt-panel")
+                    with Vertical(
+                        id="agent-file-bundle", classes="agents-panel slot-3"
+                    ):
+                        with VerticalScroll(id="agent-file-scroll"):
+                            yield AgentFilePanel(id="agent-file-panel")
+                        with VerticalScroll(
+                            id="agent-thinking-scroll", classes="hidden"
+                        ):
+                            yield AgentThinkingPanel(id="agent-thinking-panel")
+                yield AgentDetail(id="agent-detail-panel", classes="hidden")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab

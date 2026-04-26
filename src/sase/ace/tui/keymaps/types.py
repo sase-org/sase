@@ -77,7 +77,10 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Layout", False),
     ("expand_all_folds", "Expand All", False),
-    ("toggle_layout", "Layout", False),
+    ("cycle_agents_layout", "Cycle Agents Layout", False),
+    ("cycle_agents_layout_reverse", "Cycle Agents Layout Rev", False),
+    ("rotate_agents_panels", "Rotate Agents Panels", False),
+    ("rotate_agents_panels_reverse", "Rotate Agents Panels Rev", False),
     ("toggle_thinking", "Thinking", False),
     ("toggle_thinking_reverse", "Thinking Rev", False),
     ("mark_inactive_pinned", "Pin Inactive", False),
@@ -129,6 +132,8 @@ _KEY_DISPLAY: dict[str, str] = {
     "number_sign": "#",
     "right_square_bracket": "]",
     "left_square_bracket": "[",
+    "right_brace": "}",
+    "left_brace": "{",
     "equals_sign": "=",
     "minus": "-",
     "question_mark": "?",
@@ -221,7 +226,10 @@ class AppKeymaps:
     hooks_or_collapse_all: str
     expand_or_layout: str
     expand_all_folds: str
-    toggle_layout: str
+    cycle_agents_layout: str
+    cycle_agents_layout_reverse: str
+    rotate_agents_panels: str
+    rotate_agents_panels_reverse: str
     # Marking
     toggle_mark: str
     clear_marks: str

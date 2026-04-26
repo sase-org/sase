@@ -290,13 +290,41 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
 
 
 async def test_update_display_expands_prompt_for_done_workflow_without_diff() -> None:
-    """Done top-level workflow (non-agent) without diff_path should expand prompt, not thinking."""
-    from sase.ace.tui.widgets.agent_detail import AgentDetail
+    """Done top-level workflow (non-agent) without diff_path should hide file/thinking."""
+    from sase.ace.tui.widgets import (
+        AgentDetail,
+        AgentInfoPanel,
+        AgentList,
+        AgentThinkingPanel,
+    )
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel
+    from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
     from textual.app import App, ComposeResult
+    from textual.containers import Vertical, VerticalScroll
 
     class _TestApp(App[None]):
         def compose(self) -> ComposeResult:
-            yield AgentDetail(id="agent-detail-panel")
+            with Vertical(id="agents-view"):
+                yield AgentInfoPanel(id="agent-info-panel")
+                with Vertical(id="agents-panels", classes="layout-classic"):
+                    with Vertical(
+                        id="agent-list-container", classes="agents-panel slot-1"
+                    ):
+                        yield AgentList(id="agent-list-panel")
+                    with VerticalScroll(
+                        id="agent-prompt-scroll", classes="agents-panel slot-2"
+                    ):
+                        yield AgentPromptPanel(id="agent-prompt-panel")
+                    with Vertical(
+                        id="agent-file-bundle", classes="agents-panel slot-3"
+                    ):
+                        with VerticalScroll(id="agent-file-scroll"):
+                            yield AgentFilePanel(id="agent-file-panel")
+                        with VerticalScroll(
+                            id="agent-thinking-scroll", classes="hidden"
+                        ):
+                            yield AgentThinkingPanel(id="agent-thinking-panel")
+                yield AgentDetail(id="agent-detail-panel", classes="hidden")
 
     app = _TestApp()
     async with app.run_test():
@@ -317,12 +345,10 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
 
         detail.update_display(agent)
 
-        diff_scroll = detail.query_one("#agent-file-scroll")
-        thinking_scroll = detail.query_one("#agent-thinking-scroll")
-        prompt_scroll = detail.query_one("#agent-prompt-scroll")
+        diff_scroll = app.query_one("#agent-file-scroll")
+        thinking_scroll = app.query_one("#agent-thinking-scroll")
         assert diff_scroll.has_class("hidden")
         assert thinking_scroll.has_class("hidden")
-        assert prompt_scroll.has_class("expanded")
         assert not detail.is_thinking_visible()
 
 

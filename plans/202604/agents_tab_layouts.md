@@ -2,7 +2,7 @@
 name: agents_tab_layouts
 description: Make the Agents tab layout customizable via cyclable layouts and panel rotation
 create_time: 2026-04-25 22:00:39
-status: wip
+status: done
 ---
 
 # Agents tab — cyclable panel layouts + panel rotation

@@ -77,8 +77,8 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mappings = hint_mappings
         self._hint_changespec_name = agent.cl_name
 
-        # Mount the hint input bar in the agent detail container
-        detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
+        # Mount the hint input bar in the agents-panels container
+        detail_container = self.query_one("#agents-panels")  # type: ignore[attr-defined]
         if not detail_container.is_attached:
             return
         hint_bar = HintInputBar(mode="view", id="hint-input-bar")
