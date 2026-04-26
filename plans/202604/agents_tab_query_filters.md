@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 03:29:58
-status: wip
+status: done
 bead_id: sase-v
 ---
 # Agents Tab — Structured Query Filters
