@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.text import Text
 from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
@@ -218,8 +219,25 @@ class AgentList(OptionList, inherit_bindings=False):
 
         highlighted_row: int | None = None
         banner_seq = 0
+        spacer_seq = 0
+        seen_first_l0 = False
         for entry in tree:
             if entry.kind == "group" and entry.group is not None:
+                if entry.group.level == 0:
+                    if seen_first_l0:
+                        # Insert a blank spacer row before each non-first
+                        # L0 banner so adjacent project groups don't read
+                        # as one continuous block.  Disabled so cursor
+                        # navigation skips it.
+                        spacer = Option(
+                            Text(""),
+                            id=f"spacer:{spacer_seq}",
+                            disabled=True,
+                        )
+                        spacer_seq += 1
+                        self.add_option(spacer)
+                        self._row_entries.append((_BANNER_ROW, None))
+                    seen_first_l0 = True
                 option = format_banner_option(
                     entry.group,
                     self._agents,

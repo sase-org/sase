@@ -27,9 +27,15 @@ from ._agent_list_styling import (
     _DISMISSIBLE_STATUSES,
     _DONE_ICON,
     _HIDDEN_ICON,
+    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
-    _NAME_ROOT_BANNER_STYLE,
-    _PROJECT_BANNER_STYLE,
+    _NAME_ROOT_BRANCH_GLYPH,
+    _NAME_ROOT_INDENT,
+    _NAME_ROOT_RULE,
+    _PROJECT_BANNER_BAR_STYLE,
+    _PROJECT_BANNER_RULE_STYLE,
+    _PROJECT_BAR_GLYPH,
+    _PROJECT_RULE,
     _STEP_TYPE_COLORS,
 )
 
@@ -291,44 +297,53 @@ def format_banner_option(
 ) -> Option:
     """Render a group banner row Option.
 
-    Banner styling per level:
+    Both levels share the shape ``<prefix> <label> <rule…>  <chip>`` with
+    the chip right-aligned to ``width`` so banner chips line up with the
+    runtime suffix column on agent rows.  Glyphs and colors differ:
 
-    - L0 (project): single rule ``──`` in sky blue.
-    - L1 (name-root): dim center-dot rule ``· name ·`` in muted gray.
+    - L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue heavy
+      rule ``━`` and chip.
+    - L1 (name-root): 2-space indent + dim-gray ``╭─`` branch glyph,
+      teal label, dim-gray light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` so OptionList cursor
     navigation skips them at full expansion.  When *selectable* is True
-    (fold level < max) the banner stays in the cursor flow and shows a
-    compact summary chip after the label.
+    (fold level < max) the banner stays in the cursor flow.
     """
     label = banner_label(group)
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
-    chip_text = f"{chip} " if chip else ""
-    text = Text()
+
     if group.level == 0:
-        rule = "─"
-        style = _PROJECT_BANNER_STYLE
-        head_text = f"{rule}{rule} {label} "
-        pad_len = max(0, width - len(head_text) - len(chip_text))
-        text.append(head_text, style=style)
-        if chip_text:
-            text.append(chip_text, style=style)
-        text.append(rule * pad_len, style=style)
+        prefix = f"{_PROJECT_BAR_GLYPH} "
+        rule_char = _PROJECT_RULE
+        prefix_style = _PROJECT_BANNER_BAR_STYLE
+        label_style = _PROJECT_BANNER_BAR_STYLE
+        rule_style = _PROJECT_BANNER_RULE_STYLE
     else:
-        rule = " "
-        decor_left = "· "
-        decor_right = " ·"
-        pad_len = max(
-            0,
-            width - len(decor_left) - len(label) - len(decor_right) - len(chip_text),
+        prefix = f"{_NAME_ROOT_INDENT}{_NAME_ROOT_BRANCH_GLYPH} "
+        rule_char = _NAME_ROOT_RULE
+        prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE
+        label_style = _NAME_ROOT_BANNER_LABEL_STYLE
+        rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
+
+    text = Text()
+    text.append(prefix, style=prefix_style)
+    text.append(label, style=label_style)
+    if chip:
+        # ``<prefix><label> <rule…>  <chip>``: 1-cell gap before the rule,
+        # 2-cell gap before the chip.
+        used = len(prefix) + len(label) + 1 + 2 + len(chip)
+        pad_len = max(2, width - used)
+        text.append(
+            " " + rule_char * pad_len + "  " + chip,
+            style=rule_style,
         )
-        text.append(decor_left, style=_NAME_ROOT_BANNER_STYLE)
-        text.append(label, style=_NAME_ROOT_BANNER_LABEL_STYLE)
-        text.append(decor_right, style=_NAME_ROOT_BANNER_STYLE)
-        if chip_text:
-            text.append(chip_text, style=_NAME_ROOT_BANNER_STYLE)
-        text.append(rule * pad_len, style=_NAME_ROOT_BANNER_STYLE)
+    else:
+        used = len(prefix) + len(label) + 1
+        pad_len = max(2, width - used)
+        text.append(" " + rule_char * pad_len, style=rule_style)
+
     # Sequence-prefixed id keeps banner Options unique even when the
     # same group key is split into multiple non-contiguous clusters.
     key_str = "/".join(group.group_key)

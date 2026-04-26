@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 21:10:01
-status: wip
+status: done
 ---
 # Agents Tab — Group Separator Redesign
 

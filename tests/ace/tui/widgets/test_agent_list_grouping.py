@@ -6,9 +6,10 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_styling import (
+    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
-    _NAME_ROOT_BANNER_STYLE,
-    _PROJECT_BANNER_STYLE,
+    _PROJECT_BANNER_BAR_STYLE,
+    _PROJECT_BANNER_RULE_STYLE,
 )
 from sase.ace.tui.widgets.agent_list import _BANNER_ROW, AgentList
 
@@ -50,10 +51,12 @@ def test_two_agents_with_distinct_projects_get_two_project_banners() -> None:
         current_idx=0,
     )
     # projA project banner + agent 0 +
+    # blank spacer +
     # projB project banner + agent 1
     assert widget._row_entries == [
         _BR,
         (0, None),
+        _BR,
         _BR,
         (1, None),
     ]
@@ -132,9 +135,10 @@ def test_highlighted_row_skips_banner_offset() -> None:
     # Expected layout:
     #   0 = projA banner
     #   1 = agent 0
-    #   2 = projB banner
-    #   3 = agent 1
-    assert widget.highlighted == 3
+    #   2 = spacer
+    #   3 = projB banner
+    #   4 = agent 1
+    assert widget.highlighted == 4
 
 
 # --- Collapsed-tree rendering ---
@@ -151,8 +155,9 @@ def test_fold_level_0_renders_only_project_banners() -> None:
         current_idx=0,
         group_fold_level=0,
     )
+    # Two project banners separated by a single spacer row.
     assert all(entry == _BR for entry in widget._row_entries)
-    assert len(widget._row_entries) == 2
+    assert len(widget._row_entries) == 3
 
 
 def test_banners_are_selectable_when_fold_level_below_max() -> None:
@@ -196,12 +201,12 @@ def test_current_group_key_drives_banner_highlight() -> None:
         group_fold_level=0,
         current_group_key=("projB", "b"),
     )
-    # ProjB banner is the second banner row.
-    assert widget.highlighted == 1
+    # Layout: projA banner (0), spacer (1), projB banner (2).
+    assert widget.highlighted == 2
 
 
 def test_name_root_banner_label_uses_distinct_accent_style() -> None:
-    """L1 name-root label gets its own accent style; decorators/chip/padding stay dim."""
+    """L1 name-root label gets its own accent style; branch/rule/chip stay dim."""
     widget = AgentList()
     widget.update_list(
         [
@@ -214,23 +219,27 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
     # Layout: project banner (0), name-root banner (1), then the two agent rows.
     text = options[1].prompt
     plain = text.plain  # type: ignore[union-attr]
-    assert plain.startswith("· coder ·")
+    # Indented branch glyph + label.
+    assert plain.startswith("  ╭─ coder ")
 
     spans_by_range = {(s.start, s.end): s.style for s in text.spans}  # type: ignore[union-attr]
     label_start = plain.index("coder")
     label_end = label_start + len("coder")
-    assert spans_by_range[(0, label_start)] == _NAME_ROOT_BANNER_STYLE
+    assert spans_by_range[(0, label_start)] == _NAME_ROOT_BANNER_BRANCH_STYLE
     assert spans_by_range[(label_start, label_end)] == _NAME_ROOT_BANNER_LABEL_STYLE
-    decor_right_end = label_end + len(" ·")
-    assert spans_by_range[(label_end, decor_right_end)] == _NAME_ROOT_BANNER_STYLE
-    # Every remaining span (chip + padding) keeps the dim style.
+    # Everything after the label (space + rule + chip) is the branch/rule style.
     for (start, _), style in spans_by_range.items():
-        if start >= decor_right_end:
-            assert style == _NAME_ROOT_BANNER_STYLE
+        if start >= label_end:
+            assert style == _NAME_ROOT_BANNER_BRANCH_STYLE
 
-    # L0 banner stays single-span at the project-banner accent style.
+    # L0 banner: bar + label use the bar style; rule + chip use the
+    # dimmer rule style.
     proj_text = options[0].prompt
-    assert all(s.style == _PROJECT_BANNER_STYLE for s in proj_text.spans)  # type: ignore[union-attr]
+    proj_plain = proj_text.plain  # type: ignore[union-attr]
+    assert proj_plain.startswith("▌ ")
+    proj_spans = list(proj_text.spans)  # type: ignore[union-attr]
+    bar_styles = {_PROJECT_BANNER_BAR_STYLE, _PROJECT_BANNER_RULE_STYLE}
+    assert {s.style for s in proj_spans} <= bar_styles
 
 
 def test_update_highlight_with_group_key_targets_banner_row() -> None:
@@ -251,11 +260,11 @@ def test_update_highlight_with_group_key_targets_banner_row() -> None:
         group_fold_level=0,
         current_group_key=("projA", "a"),
     )
-    # Sanity: starts on the projA banner (row 0).
+    # Layout: projA banner (0), spacer (1), projB banner (2).
     assert widget.highlighted == 0
     # Move to the projB banner via the highlight-only path.
     widget.update_highlight(0, group_key=("projB", "b"))
-    assert widget.highlighted == 1
+    assert widget.highlighted == 2
 
 
 def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() -> None:
@@ -272,9 +281,9 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
         ],
         current_idx=0,
     )
-    # Layout: projA banner, agent0, projB banner, agent1.
+    # Layout: projA banner, agent0, spacer, projB banner, agent1.
     widget.update_highlight(1, group_key=("ghost",))
-    assert widget.highlighted == 3
+    assert widget.highlighted == 4
 
 
 def test_banner_summary_chips_render_in_text() -> None:
