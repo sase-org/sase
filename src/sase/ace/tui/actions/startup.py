@@ -203,10 +203,9 @@ class StartupMixin:
         # Tag-driven side-panel collection.  Initialized empty (untagged
         # main pane only); rebuilt by ``_load_agents`` whenever the
         # agent set changes.
-        from ..models.agent_panels import AgentPanelGroup, AgentsLayoutState
+        from ..models.agent_panels import AgentPanelGroup
 
         self._panel_group: AgentPanelGroup = AgentPanelGroup()
-        self._agents_layout_state: AgentsLayoutState = AgentsLayoutState()
 
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents

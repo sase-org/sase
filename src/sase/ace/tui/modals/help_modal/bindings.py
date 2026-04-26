@@ -307,14 +307,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.toggle_thinking)} / {d(a.toggle_thinking_reverse)}",
                     "Cycle panels: file → thinking → metadata",
                 ),
-                (
-                    f"{d(a.cycle_agents_layout)} / {d(a.cycle_agents_layout_reverse)}",
-                    "Cycle layout: classic→triptych→stack→focus",
-                ),
-                (
-                    f"{d(a.rotate_agents_panels_reverse)} / {d(a.rotate_agents_panels)}",
-                    "Rotate panels: list ↔ chat ↔ file",
-                ),
+                (d(a.toggle_layout), "Toggle file/prompt layout"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

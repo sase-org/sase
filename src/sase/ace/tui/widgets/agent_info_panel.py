@@ -1,19 +1,9 @@
 """Agent info panel widget for the ace TUI."""
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.text import Text
 from textual.widgets import Static
-
-if TYPE_CHECKING:
-    from ..models.agent_panels import AgentsLayout, PanelSlot
-
-
-_PANEL_SLOT_LABEL: dict[str, str] = {
-    "list": "L",
-    "chat": "C",
-    "file": "F",
-}
 
 
 class AgentInfoPanel(Static):
@@ -29,8 +19,6 @@ class AgentInfoPanel(Static):
         self._view_mode: str = ""
         self._search_query: str = ""
         self._loading: bool = False
-        self._layout_breadcrumb_layout: str = ""
-        self._layout_breadcrumb_primary: str = ""
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
@@ -84,16 +72,6 @@ class AgentInfoPanel(Static):
         self._search_query = query
         self._update_display()
 
-    def update_layout_breadcrumb(
-        self, layout: "AgentsLayout", primary: "PanelSlot"
-    ) -> None:
-        """Update the trailing layout / primary-panel breadcrumb."""
-        self._layout_breadcrumb_layout = layout.value
-        self._layout_breadcrumb_primary = _PANEL_SLOT_LABEL.get(
-            primary.value, primary.value[:1].upper()
-        )
-        self._update_display()
-
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
         "thinking": "bold #af87d7",
@@ -125,10 +103,4 @@ class AgentInfoPanel(Static):
             text.append("(auto-refresh in ", style="dim")
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
-        if self._layout_breadcrumb_layout:
-            text.append(
-                f" · {self._layout_breadcrumb_layout}"
-                f"[{self._layout_breadcrumb_primary}]",
-                style="dim",
-            )
         self.update(text)

@@ -10,113 +10,13 @@ Each Agents-tab panel renders a tag-bucket of agents:
 
 Workflow children inherit their parent's tag so they appear in the
 parent's panel even if the child has no tag of its own.
-
-Also defines top-level Agents-tab panel slots (LIST / CHAT / FILE) and
-the four cyclable layouts (CLASSIC / TRIPTYCH / STACK / FOCUS) that
-arrange them.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 
 from .agent import Agent
-
-
-class AgentsLayout(Enum):
-    """Top-level geometry for the Agents-tab panels.
-
-    Members are ordered as the cycle that ``p`` walks; ``P`` walks them
-    in reverse.
-    """
-
-    CLASSIC = "classic"
-    TRIPTYCH = "triptych"
-    STACK = "stack"
-    FOCUS = "focus"
-
-
-class PanelSlot(Enum):
-    """Logical content rendered in an Agents-tab panel slot.
-
-    The Agents tab has three slots; rotation reassigns which logical
-    content occupies each slot, so ``{`` / ``}`` work uniformly across
-    layouts.
-    """
-
-    LIST = "list"
-    CHAT = "chat"
-    FILE = "file"
-
-
-_DEFAULT_PANEL_ORDER: tuple[PanelSlot, PanelSlot, PanelSlot] = (
-    PanelSlot.LIST,
-    PanelSlot.CHAT,
-    PanelSlot.FILE,
-)
-
-
-_LAYOUT_CYCLE: tuple[AgentsLayout, ...] = (
-    AgentsLayout.CLASSIC,
-    AgentsLayout.TRIPTYCH,
-    AgentsLayout.STACK,
-    AgentsLayout.FOCUS,
-)
-
-
-@dataclass
-class AgentsLayoutState:
-    """Mutable layout + panel-rotation state for the Agents tab.
-
-    ``layout`` controls geometry (cycled with ``p`` / ``P``).
-    ``order`` is a permutation of ``(LIST, CHAT, FILE)`` that names which
-    logical content sits in each slot — slot 1 is "primary" (largest,
-    focus border, the only one visible in FOCUS).  Rotation (``{`` /
-    ``}``) is a cyclic shift over this triple.
-
-    State is *not* persisted across TUI restarts; it resets to the
-    defaults (CLASSIC, ``[LIST, CHAT, FILE]``) every cold start.
-    """
-
-    layout: AgentsLayout = AgentsLayout.CLASSIC
-    order: tuple[PanelSlot, PanelSlot, PanelSlot] = _DEFAULT_PANEL_ORDER
-
-    def cycle_layout(self, *, reverse: bool = False) -> AgentsLayout:
-        """Advance to the next (or previous) layout and return it."""
-        idx = _LAYOUT_CYCLE.index(self.layout)
-        step = -1 if reverse else 1
-        self.layout = _LAYOUT_CYCLE[(idx + step) % len(_LAYOUT_CYCLE)]
-        return self.layout
-
-    def rotate(self, *, reverse: bool = False) -> tuple[PanelSlot, ...]:
-        """Cyclic-shift the panel order and return the new tuple.
-
-        Forward rotation moves the previous primary to the end:
-        ``[L, C, F] -> [C, F, L] -> [F, L, C] -> [L, C, F]``.  Reverse
-        does the opposite.  Three presses returns to the starting order.
-        """
-        if reverse:
-            self.order = (self.order[-1], *self.order[:-1])
-        else:
-            self.order = (*self.order[1:], self.order[0])
-        return self.order
-
-    def slot_for_position(self, position: int) -> PanelSlot:
-        """Return the logical panel sitting at slot index *position* (1-based)."""
-        if not 1 <= position <= 3:
-            raise ValueError(f"position must be 1, 2, or 3 (got {position})")
-        return self.order[position - 1]
-
-    def position_for_slot(self, slot: PanelSlot) -> int:
-        """Return the 1-based position currently occupied by *slot*."""
-        return self.order.index(slot) + 1
-
-    @property
-    def primary(self) -> PanelSlot:
-        """The logical panel currently in slot #1 ("primary")."""
-        return self.order[0]
-
 
 #: Panel key type — ``None`` for the untagged main panel; a tag string
 #: otherwise.

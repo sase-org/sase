@@ -68,15 +68,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("x", "kill_agent", "Kill", show=False),
     Binding("l", "expand_or_layout", "Expand / Layout", show=False),
     Binding("L", "expand_all_folds", "Expand All", show=False),
-    Binding("p", "cycle_agents_layout", "Cycle Agents Layout", show=False),
-    Binding("P", "cycle_agents_layout_reverse", "Cycle Agents Layout Rev", show=False),
-    Binding("right_brace", "rotate_agents_panels", "Rotate Agents Panels", show=False),
-    Binding(
-        "left_brace",
-        "rotate_agents_panels_reverse",
-        "Rotate Agents Panels Rev",
-        show=False,
-    ),
+    Binding("p", "toggle_layout", "Layout", show=False),
     Binding("right_square_bracket", "toggle_thinking", "Thinking", show=False),
     Binding(
         "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False

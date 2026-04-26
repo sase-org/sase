@@ -341,7 +341,7 @@ class ClipboardMixin:
             self.notify("File panel is not visible", severity="warning")  # type: ignore[attr-defined]
             return
 
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)  # type: ignore[attr-defined]
+        file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
         file_path = file_panel.get_current_file_path()
         if file_path is None:
             self.notify("No file path (showing diff output)", severity="warning")  # type: ignore[attr-defined]

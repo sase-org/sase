@@ -1,4 +1,4 @@
-"""Panel mode cycling and UI indicators for AgentDetail."""
+"""Panel mode cycling, event handling, and UI indicators for AgentDetail."""
 
 from __future__ import annotations
 
@@ -9,8 +9,13 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..models.agent import Agent
-from .file_panel import AgentFilePanel
-from .thinking_panel import AgentThinkingPanel
+from .file_panel import (
+    AgentFilePanel,
+    FileListChanged,
+    FileTrimChanged,
+    FileVisibilityChanged,
+)
+from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
 
 class DetailPanelMode(Enum):
@@ -29,7 +34,14 @@ _MODE_LABELS: dict[DetailPanelMode, str] = {
 
 
 class AgentDetailPanelMixin(Static):
-    """Mixin providing panel-mode cycling and UI indicators for AgentDetail."""
+    """Mixin providing panel-mode cycling, event handling, and UI indicators.
+
+    Mixed into ``AgentDetail`` — references to private attributes and
+    helper methods (``_expand_prompt_only``, ``update_display``, etc.)
+    are provided by that class.  Inherits from ``Static`` so that
+    Textual's ``query_one`` / ``call_after_refresh`` are available to
+    the type checker.
+    """
 
     # ------------------------------------------------------------------
     # Attribute / method declarations for type-checking.  Actual values
@@ -39,6 +51,7 @@ class AgentDetailPanelMixin(Static):
     _has_file_content: bool
     _has_thinking_content: bool
     _current_agent: Agent | None
+    _layout_swapped: bool
     _file_count: int
     _file_index: int
     _trim_visible_lines: int
@@ -50,11 +63,13 @@ class AgentDetailPanelMixin(Static):
     ) -> None: ...
 
     def _expand_prompt_only(self) -> None:
-        """Hide the file and thinking scrolls so the prompt slot fills its area."""
-        file_scroll = self.app.query_one("#agent-file-scroll", VerticalScroll)
-        thinking_scroll = self.app.query_one("#agent-thinking-scroll", VerticalScroll)
+        """Hide the file panel and expand the prompt panel to fill the space."""
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
-        thinking_scroll.add_class("hidden")
+        file_scroll.remove_class("layout-secondary")
+        prompt_scroll.add_class("expanded")
+        prompt_scroll.remove_class("layout-priority")
 
     # ------------------------------------------------------------------
     # Panel mode cycling
@@ -130,32 +145,138 @@ class AgentDetailPanelMixin(Static):
             mode: The target panel mode.
             agent: The currently selected agent.
         """
-        file_scroll = self.app.query_one("#agent-file-scroll", VerticalScroll)
-        thinking_scroll = self.app.query_one("#agent-thinking-scroll", VerticalScroll)
-        thinking_panel = self.app.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
 
         if mode == DetailPanelMode.THINKING:
+            # Show thinking, hide file
             file_scroll.add_class("hidden")
             thinking_scroll.remove_class("hidden")
+            prompt_scroll.remove_class("expanded")
+
+            if self._layout_swapped:
+                thinking_scroll.add_class("layout-secondary")
+                prompt_scroll.add_class("layout-priority")
+            else:
+                thinking_scroll.remove_class("layout-secondary")
+                prompt_scroll.remove_class("layout-priority")
+
             self._panel_mode = DetailPanelMode.THINKING
             thinking_panel.update_display(agent)
 
         elif mode == DetailPanelMode.INFO:
+            # Hide both secondary panels, prompt at 100%
             file_scroll.add_class("hidden")
             thinking_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
+            prompt_scroll.remove_class("layout-priority")
+
             self._panel_mode = DetailPanelMode.INFO
 
         else:
+            # AUTO: re-evaluate what to show
             self._panel_mode = DetailPanelMode.AUTO
+            prompt_scroll.remove_class("expanded")
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
 
+            # If file panel has no content, expand prompt instead of
+            # leaving an empty "No changes detected" panel visible.
             if not self._has_file_content:
                 self._expand_prompt_only()
             else:
-                file_panel = self.app.query_one("#agent-file-panel", AgentFilePanel)
+                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
                 self.call_after_refresh(file_panel.reset_trim)
+
+    # ------------------------------------------------------------------
+    # Event handlers
+    # ------------------------------------------------------------------
+
+    def on_file_list_changed(self, message: FileListChanged) -> None:
+        """Handle file list changes from the file panel.
+
+        Args:
+            message: The file list change message.
+        """
+        self._file_count = message.file_count
+        self._file_index = message.file_index
+        self._update_panel_indicators()
+
+    def on_file_trim_changed(self, message: FileTrimChanged) -> None:
+        """Handle file trim state changes from the file panel.
+
+        Args:
+            message: The trim change message.
+        """
+        self._trim_visible_lines = message.visible_lines
+        self._trim_total_lines = message.total_lines
+        self._trim_is_trimmed = message.is_trimmed
+        self._update_file_scroll_subtitle()
+
+    def on_thinking_visibility_changed(
+        self, message: ThinkingVisibilityChanged
+    ) -> None:
+        """Handle thinking panel visibility changes.
+
+        Args:
+            message: The visibility change message.
+        """
+        self._has_thinking_content = message.has_thinking
+        self._update_panel_indicators()
+
+        if self._panel_mode != DetailPanelMode.THINKING:
+            return
+
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+
+        if message.has_thinking:
+            thinking_scroll.remove_class("hidden")
+            prompt_scroll.remove_class("expanded")
+            if self._layout_swapped:
+                prompt_scroll.add_class("layout-priority")
+                thinking_scroll.add_class("layout-secondary")
+        else:
+            thinking_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
+            prompt_scroll.remove_class("layout-priority")
+            thinking_scroll.remove_class("layout-secondary")
+
+    def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
+        """Handle file panel visibility changes.
+
+        Args:
+            message: The visibility change message.
+        """
+        self._has_file_content = message.has_file
+        self._file_count = message.file_count
+        self._file_index = message.file_index
+        self._update_panel_indicators()
+
+        # Skip file visibility changes in THINKING or INFO modes
+        if self._panel_mode in (DetailPanelMode.THINKING, DetailPanelMode.INFO):
+            return
+
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+
+        if message.has_file:
+            was_hidden = file_scroll.has_class("hidden")
+            # Show file panel
+            file_scroll.remove_class("hidden")
+            prompt_scroll.remove_class("expanded")
+            # Restore layout preference if swapped
+            if self._layout_swapped:
+                prompt_scroll.add_class("layout-priority")
+                file_scroll.add_class("layout-secondary")
+            if was_hidden:
+                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+                self.call_after_refresh(file_panel.reset_trim)
+        else:
+            self._expand_prompt_only()
 
     # ------------------------------------------------------------------
     # UI indicators
@@ -164,7 +285,7 @@ class AgentDetailPanelMixin(Static):
     def _update_file_scroll_subtitle(self) -> None:
         """Update the border subtitle on the file scroll panel to show line counts."""
         try:
-            file_scroll = self.app.query_one("#agent-file-scroll", VerticalScroll)
+            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         except Exception:
             return
 
@@ -184,7 +305,7 @@ class AgentDetailPanelMixin(Static):
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
         try:
-            prompt_scroll = self.app.query_one("#agent-prompt-scroll", VerticalScroll)
+            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         except Exception:
             return
 

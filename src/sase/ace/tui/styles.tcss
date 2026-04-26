@@ -642,9 +642,15 @@ HintInputBar #hint-escape-hint {
     height: 100%;
 }
 
-#agents-panels {
+#agents-content {
     width: 100%;
     height: 1fr;
+}
+
+#agent-list-container {
+    width: 60;
+    height: 100%;
+    layout: vertical;
 }
 
 #agent-info-panel {
@@ -652,10 +658,6 @@ HintInputBar #hint-escape-hint {
     max-height: 1;
     padding: 0 1;
     background: $surface;
-}
-
-#agent-list-container {
-    layout: vertical;
 }
 
 #agent-list-container AgentList {
@@ -669,12 +671,23 @@ HintInputBar #hint-escape-hint {
     border: solid $accent;
 }
 
-#agent-file-bundle {
-    layout: vertical;
+#agent-detail-container {
+    width: 1fr;
+    height: 100%;
+}
+
+#agent-detail-panel {
+    width: 100%;
+    height: 1fr;
+}
+
+#agent-detail-layout {
+    width: 100%;
+    height: 100%;
 }
 
 #agent-prompt-scroll {
-    height: 100%;
+    height: 3fr;
     border: solid $secondary;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -682,7 +695,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-file-scroll {
-    height: 100%;
+    height: 7fr;
     border: solid green;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -693,8 +706,21 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
-#agent-thinking-scroll {
+#agent-prompt-scroll.expanded {
     height: 100%;
+}
+
+/* Swapped layout (prompt gets priority) */
+#agent-prompt-scroll.layout-priority {
+    height: 7fr;
+}
+
+#agent-file-scroll.layout-secondary {
+    height: 3fr;
+}
+
+#agent-thinking-scroll {
+    height: 7fr;
     border: solid #af87d7;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -704,65 +730,8 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
-/* AgentDetail is a hidden coordinator widget — never render. */
-#agent-detail-panel.hidden {
-    display: none;
-}
-
-/* CLASSIC: slot-1 docks left at 60ch; slots 2/3 stack vertically on the right. */
-#agents-panels.layout-classic {
-    layout: vertical;
-}
-#agents-panels.layout-classic > .slot-1 {
-    dock: left;
-    width: 60;
-    height: 100%;
-}
-#agents-panels.layout-classic > .slot-2,
-#agents-panels.layout-classic > .slot-3 {
-    width: 1fr;
-    height: 1fr;
-}
-
-/* TRIPTYCH: three columns, primary slightly larger. */
-#agents-panels.layout-triptych {
-    layout: horizontal;
-}
-#agents-panels.layout-triptych > .slot-1 {
-    width: 7fr;
-    height: 100%;
-}
-#agents-panels.layout-triptych > .slot-2,
-#agents-panels.layout-triptych > .slot-3 {
-    width: 5fr;
-    height: 100%;
-}
-
-/* STACK: three rows, primary slightly larger. */
-#agents-panels.layout-stack {
-    layout: vertical;
-}
-#agents-panels.layout-stack > .slot-1 {
-    width: 100%;
-    height: 8fr;
-}
-#agents-panels.layout-stack > .slot-2,
-#agents-panels.layout-stack > .slot-3 {
-    width: 100%;
-    height: 5fr;
-}
-
-/* FOCUS: only slot-1 visible, full screen. */
-#agents-panels.layout-focus {
-    layout: vertical;
-}
-#agents-panels.layout-focus > .slot-1 {
-    width: 100%;
-    height: 100%;
-}
-#agents-panels.layout-focus > .slot-2,
-#agents-panels.layout-focus > .slot-3 {
-    display: none;
+#agent-thinking-scroll.layout-secondary {
+    height: 3fr;
 }
 
 /* Agent list styling */
