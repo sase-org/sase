@@ -158,6 +158,7 @@ sase
 | `sase bead stats`              | Show project statistics                                                                                        |
 | `sase bead sync`               | Sync bead database with git                                                                                    |
 | `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
+| `sase bead work`               | Launch phase + land agents for an epic plan (pre-claims phases, builds Kahn-wave multi-prompt)                 |
 | `sase comments`                | Preview mentor comments from JSON with syntax-highlighted code context                                         |
 | `sase commit`                  | Create a commit with formatted CL description and metadata                                                     |
 | `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |

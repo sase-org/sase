@@ -222,12 +222,14 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c` |
 | `m`                 | Mark / unmark current agent (auto-advances to next)                            |
 | `u`                 | Clear all agent marks                                                          |
-| `x`                 | Kill / dismiss agent (or every marked agent when marks exist)                  |
+| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group  |
 | `X`                 | Dismiss all completed agents (with confirmation)                               |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                       |
 | `e`                 | Edit chat in editor                                                            |
 | `E`                 | Edit panel content in editor                                                   |
-| `t`                 | Open tmux window in agent workspace                                            |
+| `t`                 | Open tmux window in the focused agent's claimed workspace                      |
+| `T`                 | Open tmux window in the agent's primary (workspace 1) directory                |
+| `N`                 | Open the agent tag/untag modal (set or clear the agent's single tag)           |
 | `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)                   |
 | `p`                 | Toggle file / prompt layout                                                    |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                  |
@@ -257,12 +259,35 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
 
-### Workflow Folding
+### Group Banners and Folding
 
-| Key       | Action                           |
-| --------- | -------------------------------- |
-| `l` / `h` | Expand / collapse workflow steps |
-| `L` / `H` | Expand / collapse all workflows  |
+The Agents tab groups agents into a three-level banner hierarchy: **tag → project → name-root**. Banners are always
+shown between agent rows and carry a summary chip (`N agents · K running · M failed`). Workflow children inherit
+grouping from their parent agent.
+
+A single global fold level controls how much of the hierarchy is visible:
+
+| Level | What's visible                                            |
+| ----- | --------------------------------------------------------- |
+| `L0`  | Tag banners only                                          |
+| `L1`  | Tag + project banners                                     |
+| `L2`  | Tag + project + name-root banners                         |
+| `L3`  | All banners and agent rows (and per-workflow folds apply) |
+
+| Key | Action                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------ |
+| `l` | Step the global group fold one level up (`L0` → `L1` → `L2` → `L3`); at `L3`, expand the focused workflow          |
+| `h` | Collapse the focused workflow; once it's collapsed (or no workflow is focused), step the group fold one level down |
+| `L` | Snap to fully expanded — every banner, every agent row, every workflow step visible                                |
+| `H` | Snap to fully collapsed — every per-workflow fold collapsed, then group fold to `L0` (only tag banners visible)    |
+
+Banners at fold levels `< 3` are selectable rows. When a banner is focused, `x` performs a bulk kill/dismiss on every
+top-level agent in that group (single confirmation modal). Marks take priority over the group, so a non-empty mark set
+always drives the bulk action regardless of banner focus.
+
+When a fold change hides the previously focused agent, focus snaps to the nearest visible ancestor banner so navigation
+context is never lost. Singleton name-root groups suppress their level-2 banner to reduce visual noise; the level-2
+name-root banner uses a distinct accent color from the project-banner level above it.
 
 ### Agent Search
 
@@ -426,6 +451,9 @@ When more than 3 notifications arrive in the same poll tick, per-notification to
 toast per severity bucket (e.g., `2 warnings: 1 plan, 1 question`). Ordering is urgency-first: errors, then warnings,
 then information. Silent notifications are excluded from this pipeline entirely.
 
+Agent completion and failure toasts include the `%name`-set agent name with an `@` prefix when present (e.g.,
+`CLAUDE(opus) @sase-q.land completed: ace(run)-...`); anonymous agents (no `agent_name`) keep the prior format.
+
 ## XPrompt Browser
 
 Press `#` on any tab to open the XPrompt Browser modal. It displays all discovered xprompts in a two-panel layout: a
@@ -509,7 +537,7 @@ many entries can still fit a unique single-keypress hint per row without resorti
 | `Esc` / `q` | Close modal                     |
 
 The modal groups entries by tab (CLs, Agents, Axe) and shows contextual information for each: CL names and statuses,
-agent names with running/pinned indicators, and Axe lumberjack/command labels.
+agent names with running indicators, and Axe lumberjack/command labels.
 
 ### Jump Back
 
@@ -543,8 +571,8 @@ The tab bar shows contextual counts alongside each tab label using the format `(
 Examples:
 
 - **CLs tab**: `CLs (5)` for 5 CLs, or `CLs (5.2)` when 2 hidden (reverted) CLs are visible
-- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1+3)` for 2
-  running + 1 done + 3 pinned, `Agents (2x1.3)` with 3 hidden also visible
+- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1.3)` with 3
+  hidden also visible
 - **AXE tab**: `AXE (3)` for 3 running lumberjacks, `AXE (3x2.1)` for 3 lumberjacks + 2 done bgcmds + 1 hidden command
   visible
 

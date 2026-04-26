@@ -430,6 +430,9 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `propose`             | Propose workflow (appended by mentor review `a` key for propose-style amend)                  |
 | `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                   |
 | `diff_file`           | Injects the CL diff into the mentor prompt                                                    |
+| `create_epic_bead`    | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt             |
+| `work_phase_bead`     | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                            |
+| `land_epic`           | Final land-the-epic agent prompt used by `sase bead work` after all phases complete           |
 
 ### Defining Tags
 

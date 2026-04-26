@@ -8,7 +8,7 @@ to the user through the ACE TUI. Notifications are stored as JSONL and persisted
 
 ## Viewing Notifications
 
-Press `N` on any tab in ACE to open the notifications modal. Notifications display relative timestamps (e.g., "2m ago",
+Press `i` on any tab in ACE to open the notifications modal. Notifications display relative timestamps (e.g., "2m ago",
 "1h ago") and can be marked as read or dismissed.
 
 ### Modal Keybindings
@@ -31,14 +31,31 @@ approvals.
 
 The following events generate notifications:
 
-| Sender     | Event                                                         |
-| ---------- | ------------------------------------------------------------- |
-| `plan`     | A plan file is ready for user review and approval             |
-| `question` | An agent is asking the user a question (via Claude Code hook) |
-| `hitl`     | A workflow HITL step is waiting for user input                |
-| `sync`     | A sync operation completed for a ChangeSpec                   |
-| `axe`      | Hourly error digest summarizing recent axe errors             |
-| (workflow) | Workflow completion (success or failure)                      |
+| Sender             | Event                                                         |
+| ------------------ | ------------------------------------------------------------- |
+| `plan`             | A plan file is ready for user review and approval             |
+| `question`         | An agent is asking the user a question (via Claude Code hook) |
+| `hitl`             | A workflow HITL step is waiting for user input                |
+| `sync`             | A sync operation completed for a ChangeSpec                   |
+| `axe`              | Hourly error digest summarizing recent axe errors             |
+| `mentors_complete` | All mentors finished for a ChangeSpec entry (or none matched) |
+| (workflow)         | Workflow completion (success or failure)                      |
+
+### Mentors-Complete Notification
+
+A `mentors_complete` notification fires once per `(ChangeSpec, COMMITS entry)` under either of two conditions:
+
+- **All mentors terminal** — every mentor that was started for the entry has reached a terminal status (`PASSED`,
+  `COMMENTED`, `FAILED`, `DEAD`, or `KILLED`).
+- **No matching profile** — every hook is ready and no mentor profile matched the ChangeSpec, so no mentors will run.
+
+Selecting the notification jumps to the CLs tab, focuses the target ChangeSpec, and pushes the Mentor Review modal when
+at least one mentor produced reviewable output.
+
+Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed on
+`(project_file, changespec_name, entry_id)` — so the notification survives process restarts and `.gp` archival without
+re-firing. The sender suppresses the notification on the same axe cycle that just wrote the `MENTORS` field for the
+latest entry, preventing premature firing on `Draft → Ready` transitions.
 
 ## Notification Fields
 

@@ -36,6 +36,7 @@ sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Commit JSONL to git
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
+sase bead work beads-001                                # Launch phase + land agents for an epic
 ```
 
 ## Data Model
@@ -192,6 +193,26 @@ Run health checks on the beads database. Checks for:
 ### `sase bead onboard`
 
 Display a quick-start guide with common command examples.
+
+### `sase bead work <epic_id>`
+
+Run an entire epic plan end-to-end by launching one agent per phase plus a final land agent. Concretely, the command:
+
+1. Flips the epic plan bead's `is_ready_to_work` flag to `True`.
+2. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
+3. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
+4. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
+   `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
+   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt.
+
+| Flag            | Description                                                                       |
+| --------------- | --------------------------------------------------------------------------------- |
+| `-n, --dry-run` | Print the wave plan and rendered multi-prompt without mutating state or launching |
+| `-y, --yes`     | Skip the launch confirmation prompt                                               |
+
+Both xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
+matching tag overrides the built-in. If launching the multi-prompt fails, the pre-claims and the `is_ready_to_work` flag
+are rolled back best-effort so the epic can be retried.
 
 ## Multi-Workspace Support
 
