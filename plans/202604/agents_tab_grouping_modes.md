@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 01:12:12
-status: wip
+status: done
 bead_id: sase-t
 ---
 # Agents Tab — Cyclable Grouping/Sorting Modes
