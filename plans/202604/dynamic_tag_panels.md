@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 18:55:08
-status: wip
+status: done
 bead_id: sase-s
 ---
 # Plan: Dynamic Tag Panels on the Agents Tab
