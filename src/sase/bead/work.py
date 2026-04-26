@@ -172,13 +172,13 @@ def render_multi_prompt(
     segments: list[str] = []
     for wave in plan.waves:
         for assignment in wave:
-            lines = [f"%name:{assignment.agent_name}"]
+            lines = [f"%name:{assignment.agent_name}", "%approve"]
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
             segments.append("\n".join(lines))
 
-    land_lines = [f"%name:{plan.land_agent_name}"]
+    land_lines = [f"%name:{plan.land_agent_name}", "%approve"]
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
