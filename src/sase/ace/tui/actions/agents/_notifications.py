@@ -37,18 +37,26 @@ class AgentNotificationMixin:
         Detects when unread count increases and triggers bell/toast.
         Called on every auto-refresh regardless of current tab.
         """
-        from sase.notifications import load_notifications
+        from sase.notifications import is_priority, load_notifications
 
         from ._toasts import format_batch_toasts
 
         notifications = load_notifications()
-        unread_active = [
-            n for n in notifications if not n.read and not n.silent and not n.muted
+        unread_priority = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and is_priority(n)
+        ]
+        unread_rest = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and not is_priority(n)
         ]
         unread_muted = [
             n for n in notifications if not n.read and not n.silent and n.muted
         ]
 
+        unread_active = unread_priority + unread_rest
         current_ids = {n.id for n in unread_active}
         new_ids = current_ids - self._last_unread_ids
         new_notifications = [n for n in unread_active if n.id in new_ids]
@@ -71,7 +79,7 @@ class AgentNotificationMixin:
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_active), len(unread_muted))
+        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
 
         # Status overrides apply regardless of mute — muting quiets the
         # indicator, it shouldn't break the agent's lifecycle.
@@ -231,24 +239,31 @@ class AgentNotificationMixin:
         Called after notifications are dismissed outside the notification modal
         (e.g. when an agent is killed or dismissed-done).
         """
-        from sase.notifications import load_notifications
+        from sase.notifications import is_priority, load_notifications
 
         from ...widgets import NotificationIndicator
 
         notifications = load_notifications()
-        unread_active = [
-            n for n in notifications if not n.read and not n.silent and not n.muted
+        unread_priority = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and is_priority(n)
+        ]
+        unread_rest = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and not is_priority(n)
         ]
         unread_muted = [
             n for n in notifications if not n.read and not n.silent and n.muted
         ]
 
-        self._last_unread_ids = {n.id for n in unread_active}
+        self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_active), len(unread_muted))
+        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
 
     async def _refresh_notification_count_async(self) -> None:
         """Async variant that reads the notifications file off the main thread.
@@ -257,24 +272,31 @@ class AgentNotificationMixin:
         """
         import asyncio
 
-        from sase.notifications import load_notifications
+        from sase.notifications import is_priority, load_notifications
 
         from ...widgets import NotificationIndicator
 
         notifications = await asyncio.to_thread(load_notifications)
-        unread_active = [
-            n for n in notifications if not n.read and not n.silent and not n.muted
+        unread_priority = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and is_priority(n)
+        ]
+        unread_rest = [
+            n
+            for n in notifications
+            if not n.read and not n.silent and not n.muted and not is_priority(n)
         ]
         unread_muted = [
             n for n in notifications if not n.read and not n.silent and n.muted
         ]
 
-        self._last_unread_ids = {n.id for n in unread_active}
+        self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_active), len(unread_muted))
+        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

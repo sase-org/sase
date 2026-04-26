@@ -47,10 +47,10 @@ class LifecycleMixin:
         This ensures we don't trigger bell/toast for notifications that
         were already unread when the TUI started. ``unread_ids`` may be
         pre-loaded off the main thread; if ``None``, we read from disk
-        inline. The muted-count secondary segment is recomputed off disk
-        so the indicator reflects both totals at startup.
+        inline. The priority/rest/muted counts are recomputed off disk
+        so the indicator reflects all totals at startup.
         """
-        from sase.notifications import load_notifications
+        from sase.notifications import is_priority, load_notifications
 
         from ..widgets import NotificationIndicator
 
@@ -59,12 +59,21 @@ class LifecycleMixin:
         self._last_unread_ids = unread_ids
 
         notifications = load_notifications()
-        muted_count = sum(
-            1 for n in notifications if not n.read and not n.silent and n.muted
-        )
+        priority_count = 0
+        rest_count = 0
+        muted_count = 0
+        for n in notifications:
+            if n.read or n.silent:
+                continue
+            if n.muted:
+                muted_count += 1
+            elif is_priority(n):
+                priority_count += 1
+            else:
+                rest_count += 1
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
-        indicator.set_counts(len(unread_ids), muted_count)
+        indicator.set_counts(priority_count, rest_count, muted_count)
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""

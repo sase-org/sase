@@ -7,44 +7,61 @@ from textual.widgets import Static
 
 
 class NotificationIndicator(Static):
-    """Always-visible unread notification count in the top-right."""
+    """Always-visible unread notification count in the top-right.
+
+    The primary segment color signals urgency:
+      * red — at least one unmuted priority-type notification
+      * gold — unmuted non-priority notifications, no priority
+      * dim cyan — only muted notifications remain (acknowledged backlog)
+      * dim — nothing unread
+    """
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(self._build_content(0, 0), **kwargs)
-        self._unread = 0
+        super().__init__(self._build_content(0, 0, 0), **kwargs)
+        self._priority = 0
+        self._rest = 0
         self._muted = 0
 
     def set_count(self, count: int) -> None:
-        """Update the displayed unread count (no muted secondary).
+        """Backward-compatible single-int wrapper.
 
-        Backward-compatible wrapper around :meth:`set_counts`.
+        Treats the value as non-priority unmuted unread.
         """
-        self.set_counts(count, 0)
+        self.set_counts(0, count, 0)
 
-    def set_counts(self, unread: int, muted: int) -> None:
-        """Update both the active-unread and muted-unread counts.
+    def set_counts(self, priority: int, rest: int, muted: int) -> None:
+        """Update the three count segments driving the indicator.
 
         Args:
-            unread: Number of non-muted unread notifications (drives the
-                primary gold/dim envelope segment).
-            muted: Number of muted unread notifications (drives the dim
-                secondary segment, only rendered when ``muted > 0``).
+            priority: Unmuted, unread, priority-type notifications. Drives
+                the red primary segment when greater than zero.
+            rest: Unmuted, unread, non-priority notifications. Drives the
+                gold primary segment when ``priority == 0``.
+            muted: Muted, unread notifications of any type. Renders as the
+                ``·N`` secondary segment, and drives the dim-cyan primary
+                color when both ``priority`` and ``rest`` are zero.
         """
-        if self._unread == unread and self._muted == muted:
+        if self._priority == priority and self._rest == rest and self._muted == muted:
             return
-        self._unread = unread
+        self._priority = priority
+        self._rest = rest
         self._muted = muted
         if self.is_mounted:
-            self.update(self._build_content(unread, muted))
+            self.update(self._build_content(priority, rest, muted))
 
     @staticmethod
-    def _build_content(unread: int, muted: int) -> Text:
+    def _build_content(priority: int, rest: int, muted: int) -> Text:
         """Build the indicator text with primary + optional secondary segments."""
-        primary_label = f" ✉ {unread} "
-        if unread > 0:
+        if priority == 0 and rest == 0 and muted == 0:
+            return Text(" ✉ 0 ", style="dim")
+
+        primary_label = f" ✉ {priority}+{rest} "
+        if priority > 0:
+            text = Text(primary_label, style="bold #1a1a1a on #FF4444")
+        elif rest > 0:
             text = Text(primary_label, style="bold #1a1a1a on #FFD700")
         else:
-            text = Text(primary_label, style="dim")
+            text = Text(primary_label, style="bold #1a1a1a on #5FAFAF")
         if muted > 0:
             text.append(f"·{muted} ", style="dim")
         return text

@@ -1,6 +1,7 @@
 """Notification system: data model, storage, and helpers."""
 
 from sase.notifications.models import Notification, format_relative_time
+from sase.notifications.priority import is_priority
 from sase.notifications.senders import (
     notify_axe_error_digest,
     notify_hitl_request,
@@ -21,6 +22,7 @@ __all__ = [
     "Notification",
     "append_notification",
     "format_relative_time",
+    "is_priority",
     "load_notifications",
     "mark_all_read",
     "mark_dismissed",

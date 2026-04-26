@@ -255,6 +255,8 @@ class _FakeApp(AgentNotificationMixin):
         self._agent_pre_question_status = {}
         self.notify = MagicMock()  # type: ignore[assignment]
         self._bell_rung = 0
+        self._indicator_priority: int | None = None
+        self._indicator_rest: int | None = None
         self._indicator_count: int | None = None
         self._indicator_muted: int | None = None
 
@@ -268,8 +270,10 @@ class _FakeApp(AgentNotificationMixin):
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
 
-        def _set_counts(unread: int, muted: int) -> None:
-            self._indicator_count = unread
+        def _set_counts(priority: int, rest: int, muted: int) -> None:
+            self._indicator_priority = priority
+            self._indicator_rest = rest
+            self._indicator_count = priority + rest
             self._indicator_muted = muted
 
         return SimpleNamespace(
