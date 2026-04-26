@@ -76,7 +76,7 @@ def test_annotation_collapsed_hidden_children_only() -> None:
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (0, 5)}
     result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (5 steps)"
+    assert result == " ×5"
 
 
 def test_annotation_collapsed_shows_total() -> None:
@@ -84,7 +84,7 @@ def test_annotation_collapsed_shows_total() -> None:
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (2, 3)}
     result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (5 steps)"
+    assert result == " ×5"
 
 
 def test_annotation_expanded_hidden_remaining() -> None:
@@ -93,7 +93,7 @@ def test_annotation_expanded_hidden_remaining() -> None:
     fold_counts = {"ts1": (2, 3)}
     visible = {"ts1"}
     result = _compute_fold_annotation(parent, fold_counts, visible)
-    assert result == " (5 steps, 3 hidden)"
+    assert result == " ×5 −3"
 
 
 def test_annotation_expanded_no_hidden() -> None:
@@ -112,7 +112,7 @@ def test_annotation_fully_expanded_shows_hidden_count() -> None:
     visible = {"ts1"}
     fully_expanded = {"ts1"}
     result = _compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
-    assert result == " (5 steps, 3 shown)"
+    assert result == " ×5 +3"
 
 
 def test_annotation_no_fold_counts() -> None:

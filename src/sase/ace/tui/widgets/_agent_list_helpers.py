@@ -39,10 +39,10 @@ def _is_foldable_parent(agent: Agent) -> bool:
 
 
 def _attempt_count_suffix(attempts_count: int) -> str:
-    """Return ``, N attempts`` fragment when attempts exist, else empty string."""
+    """Return `` ↻N`` fragment when attempts exist, else empty string."""
     if attempts_count <= 0:
         return ""
-    return f", {attempts_count} attempts"
+    return f" ↻{attempts_count}"
 
 
 def compute_fold_annotation(
@@ -82,19 +82,19 @@ def compute_fold_annotation(
                         and attempts_count == 0
                     ):
                         return ""
-                    return f" ({total} steps{suffix})"
+                    return f" ×{total}{suffix}"
                 is_fully_expanded = (
                     fully_expanded_parents is not None
                     and agent.raw_suffix in fully_expanded_parents
                 )
                 if hidden > 0 and is_fully_expanded:
-                    return f" ({total} steps, {hidden} shown{suffix})"
+                    return f" ×{total} +{hidden}{suffix}"
                 if hidden > 0:
-                    return f" ({total} steps, {hidden} hidden{suffix})"
+                    return f" ×{total} −{hidden}{suffix}"
                 if attempts_count > 0:
-                    return f" ({attempts_count} attempts)"
+                    return f" ↻{attempts_count}"
                 return ""
 
     if attempts_count > 0:
-        return f" ({attempts_count} attempts)"
+        return f" ↻{attempts_count}"
     return ""

@@ -395,6 +395,30 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.edit_query), "Filter agents by name"),
             ],
         ),
+        (
+            "Agent Row Glyphs",
+            [
+                ("▶", "Running"),
+                ("✓", "Done"),
+                ("✓P", "Plan done"),
+                ("▶P", "Plan approved"),
+                ("★E", "Epic created"),
+                ("✎", "Planning"),
+                ("✗", "Failed"),
+                ("✗↻", "Failed (retried)"),
+                ("⏳", "Waiting"),
+                ("?", "Question"),
+                ("↻", "Retrying"),
+                ("×N", "N steps (collapsed)"),
+                ("×N +M / −M", "M shown / hidden steps"),
+                ("↻N", "N attempts / retry depth"),
+                ("≡", "Workflow row"),
+                ("❑", "ChangeSpec row"),
+                ("⚡", "Auto-approve agent"),
+                ("◌", "Hidden by default"),
+                ("↳", "Retry chain attempt"),
+            ],
+        ),
     ]
     # Insert custom mode sections before "General".
     sections.extend(_custom_mode_sections(km))

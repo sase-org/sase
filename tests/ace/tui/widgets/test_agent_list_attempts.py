@@ -108,10 +108,10 @@ def test_attempt_option_text_includes_duration_tail() -> None:
 
 
 def test_fold_annotation_adds_attempts_count() -> None:
-    """Non-workflow agent with attempts shows ``(N attempts)`` annotation."""
+    """Non-workflow agent with attempts shows `` ↻N`` annotation."""
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])
     annotation = _compute_fold_annotation(agent, {}, set(), set())
-    assert annotation == " (2 attempts)"
+    assert annotation == " ↻2"
 
 
 def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:

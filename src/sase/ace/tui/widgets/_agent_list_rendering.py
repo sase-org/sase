@@ -29,8 +29,6 @@ from ._agent_list_styling import (
     _CHANGESPEC_BAR_GLYPH,
     _CHANGESPEC_INDENT,
     _CHILD_INDENT,
-    _DISMISSIBLE_STATUSES,
-    _DONE_ICON,
     _HIDDEN_ICON,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
@@ -43,7 +41,9 @@ from ._agent_list_styling import (
     _PROJECT_BAR_GLYPH,
     _PROJECT_RULE,
     _STATUS_BUCKET_GLYPHS,
+    _STATUS_GLYPHS,
     _STEP_TYPE_COLORS,
+    _TYPE_GLYPHS,
 )
 
 # Timestamp half: muted lavender-steel.  No `dim` attribute so the color
@@ -165,10 +165,6 @@ def format_agent_option(
     if agent.hidden:
         text.append(f"{_HIDDEN_ICON} ", style="bold #FF5F87")
 
-    # Done icon for dismissible agents
-    if agent.status in _DISMISSIBLE_STATUSES:
-        text.append(f"{_DONE_ICON} ", style="bold red")
-
     # Spawn-on-retry: prefix retry attempts with a small ↻N badge so
     # the user can pattern-match the chain depth without opening the
     # detail panel.  retry_attempt == 0 means "not a retry" and is not
@@ -181,41 +177,55 @@ def format_agent_option(
     dt = agent.get_display_type(is_expanded=is_expanded)
 
     # Color: RUNNING blue for appears_as_agent, per-step-type for workflow children
-    if agent.appears_as_agent and not (agent.is_anonymous and is_expanded):
+    is_appears_as_agent = agent.appears_as_agent and not (
+        agent.is_anonymous and is_expanded
+    )
+    if is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
     elif agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
         color = _STEP_TYPE_COLORS[agent.step_type]
     else:
         color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
-    text.append(f"[{dt}] ", style=f"bold {color}")
+
+    # Compact type prefix: ``agent``-typed rows omit the bracket entirely
+    # (their color already encodes the type and the workflow-child indent
+    # already marks tree depth).  Other top-level types render as a
+    # single-glyph badge; unknown types fall back to ``[X] `` for debug
+    # readability.
+    if not (is_appears_as_agent or agent.is_workflow_child):
+        type_glyph = _TYPE_GLYPHS.get(dt)
+        if type_glyph is not None:
+            text.append(f"{type_glyph} ", style=f"bold {color}")
+        else:
+            text.append(f"[{dt}] ", style=f"bold {color}")
 
     # Agent display name (workflow name for top-level workflows, CL name otherwise)
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(agent.display_name, style=name_style)
 
-    # Status (wrapped in parentheses, parens are dim)
-    text.append(" (", style="dim")
+    # Compact status badge replaces the verbose ``(STATUS)`` text.
+    # Colors are preserved exactly; glyphs are pulled from ``_STATUS_GLYPHS``.
     if agent.status == "RUNNING":
-        text.append(agent.status, style="bold #FFD700")  # Gold
+        text.append(f" {_STATUS_GLYPHS['RUNNING']}", style="bold #FFD700")  # Gold
     elif agent.status in ("DONE", "PLAN DONE"):
-        text.append(agent.status, style="bold #5FD75F")  # Green
+        text.append(f" {_STATUS_GLYPHS[agent.status]}", style="bold #5FD75F")  # Green
     elif agent.status == "EPIC CREATED":
-        text.append(agent.status, style="bold #5FD7AF")  # Sea-green
+        text.append(
+            f" {_STATUS_GLYPHS['EPIC CREATED']}", style="bold #5FD7AF"
+        )  # Sea-green
     elif agent.status == "FAILED":
-        text.append(agent.status, style="bold #FF5F5F")  # Red
+        text.append(f" {_STATUS_GLYPHS['FAILED']}", style="bold #FF5F5F")  # Red
     elif agent.status == "FAILED (RETRIED)":
-        # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
-        # terminal failure that handed off to a downstream retry, as
-        # opposed to a dead-end failure with no recovery attempt.
-        text.append("FAILED ", style="dim #FF5F5F")
+        # Terminal failure that handed off to a retry: dim ``✗`` + warm
+        # yellow ``↻`` keeps the two-step semantics legible at a glance.
+        text.append(f" {_STATUS_GLYPHS['FAILED']}", style="dim #FF5F5F")
         text.append("↻", style="bold #FFAF00")
-        text.append(" (RETRIED)", style="dim #FF5F5F")
     elif agent.status == "PLANNING":
-        text.append(agent.status, style="bold #FF87AF")  # Pink
+        text.append(f" {_STATUS_GLYPHS['PLANNING']}", style="bold #FF87AF")  # Pink
     elif agent.status == "PLAN APPROVED":
-        text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+        text.append(f" {_STATUS_GLYPHS['PLAN APPROVED']}", style="bold #00D7AF")  # Teal
     elif agent.status == "WAITING":
-        text.append(agent.status, style="bold #AF87FF")  # Amethyst
+        text.append(f" {_STATUS_GLYPHS['WAITING']}", style="bold #AF87FF")  # Amethyst
         if agent.wait_until:
             from datetime import datetime as _dt
 
@@ -226,11 +236,11 @@ def format_agent_option(
             remaining = (target - _dt.now()).total_seconds()
             if remaining > 0:
                 text.append(
-                    f" (until {target_label}, {format_compact_duration(remaining)})",
+                    f" {target_label}·{format_compact_duration(remaining)}",
                     style="#AF87FF",
                 )
             else:
-                text.append(f" (until {target_label})", style="#AF87FF")
+                text.append(f" {target_label}", style="#AF87FF")
         elif agent.wait_duration and agent.start_time:
             from datetime import datetime, timedelta
 
@@ -238,22 +248,24 @@ def format_agent_option(
             remaining = (target - datetime.now()).total_seconds()
             if remaining > 0:
                 text.append(
-                    f" ({format_compact_duration(remaining)})",
+                    f" {format_compact_duration(remaining)}",
                     style="#AF87FF",
                 )
     elif agent.status == "QUESTION":
-        text.append(agent.status, style="bold #FFAF00")  # Amber/orange
+        text.append(
+            f" {_STATUS_GLYPHS['QUESTION']}", style="bold #FFAF00"
+        )  # Amber/orange
     elif agent.status == "RETRYING":
         countdown = ""
         if agent.retry_next_at_epoch:
             import time
 
             remaining = max(0, int(agent.retry_next_at_epoch - time.time()))
-            countdown = f" ({remaining}s)"
-        text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
+            countdown = f"{remaining}s"
+        glyph = _STATUS_GLYPHS["RETRYING"]
+        text.append(f" {glyph}{countdown}", style="bold #FF8700")  # Orange
     else:
-        text.append(agent.status, style="dim")
-    text.append(")", style="dim")
+        text.append(f" ({agent.status})", style="dim")
 
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:
@@ -263,13 +275,13 @@ def format_agent_option(
             annotation += f"▸{short_name}"
         text.append(annotation, style="bold #FF8700")  # Orange
 
-    # Fold annotation for workflow parents
+    # Fold annotation for workflow parents.  ``×N +M`` / ``×N −M`` (with
+    # extra hidden/shown info) renders dim; the bare ``×N`` collapsed
+    # form keeps its dim-cyan accent so the count still pops.
     if fold_annotation:
-        if "hidden" in fold_annotation or "shown" in fold_annotation:
-            # EXPANDED/FULLY_EXPANDED: "(N steps, M hidden/shown)" in dim
+        if "+" in fold_annotation or "−" in fold_annotation:
             text.append(fold_annotation, style="dim")
         else:
-            # COLLAPSED: "(N steps)" in dim cyan
             text.append(fold_annotation, style="dim #00D7D7")
 
     # User-managed tag badge.
@@ -282,11 +294,11 @@ def format_agent_option(
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:
-        text.append("  ", style="")
+        text.append(" ", style="")
         if agent.is_pre_prompt_step:
-            text.append("▲ ", style="bold #5F87AF")
+            text.append("▲", style="bold #5F87AF")
         else:
-            text.append("▼ ", style="bold #D7AF5F")
+            text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
     suffix = _build_runtime_suffix(agent, now=now)

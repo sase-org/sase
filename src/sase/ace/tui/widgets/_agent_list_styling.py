@@ -72,17 +72,34 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 # Icon for autonomous (%approve) agents
 _APPROVE_ICON = "⚡"
 
-# Icon for dismissible (completed) agents
-_DONE_ICON = "✘"
-_DISMISSIBLE_STATUSES = (
-    "DONE",
-    "FAILED",
-    "PLAN DONE",
-    "EPIC CREATED",
-)
-
 # Icon for hidden agents (shown when visibility is toggled on)
 _HIDDEN_ICON = "◌"
 
 # Indentation prefix for workflow child agents
 _CHILD_INDENT = "  └─ "
+
+# Single- / two-glyph status badges replace the verbose ``(STATUS)`` text.
+# Color mapping is handled separately in the renderer so colors remain
+# unchanged; this table only supplies the glyphs.  Statuses not in the
+# table fall back to rendering the literal status name in parens.
+_STATUS_GLYPHS: dict[str, str] = {
+    "RUNNING": "▶",
+    "DONE": "✓",
+    "PLAN DONE": "✓P",
+    "PLAN APPROVED": "▶P",
+    "EPIC CREATED": "★E",
+    "PLANNING": "✎",
+    "FAILED": "✗",
+    "WAITING": "⏳",
+    "QUESTION": "?",
+    "RETRYING": "↻",
+}
+
+# Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
+# ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color
+# already conveys the type.  Unknown display types fall back to ``[X]``.
+_TYPE_GLYPHS: dict[str, str] = {
+    "workflow": "≡",
+    "cl": "❑",
+    "changespec": "❑",
+}
