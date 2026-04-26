@@ -263,7 +263,7 @@ class AceApp(
         """React to current_idx changes."""
         if old_idx != new_idx:
             if self.current_tab == "changespecs":
-                self._refresh_display()
+                self._refresh_changespecs_display_debounced()
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
             elif self.current_tab == "axe":
@@ -276,10 +276,15 @@ class AceApp(
         if old_tab == new_tab:
             return
 
-        # Cancel any pending debounce timer when leaving agents tab
-        if old_tab == "agents" and self._detail_update_timer is not None:
-            self._detail_update_timer.stop()
-            self._detail_update_timer = None
+        # Cancel any pending detail-panel debouncer for the tab we're leaving;
+        # the new tab will redraw fresh and the deferred work would land in a
+        # now-hidden view.
+        if old_tab == "agents":
+            self._agent_detail_debouncer.cancel()
+        elif old_tab == "axe":
+            self._axe_detail_debouncer.cancel()
+        elif old_tab == "changespecs":
+            self._changespec_detail_debouncer.cancel()
 
         # Tab changes always cancel one-key jump mode.
         self._entry_jump_mode_active = False

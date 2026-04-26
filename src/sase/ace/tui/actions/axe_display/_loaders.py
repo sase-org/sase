@@ -7,7 +7,7 @@ that the render layer paints from.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sase.axe.state import (
     AxeMetrics,
@@ -38,6 +38,7 @@ from ._data import (
 
 if TYPE_CHECKING:
     from ...models.fold_state import FoldStateManager
+    from ...util.debounce import DetailPanelDebouncer
 
 
 class AxeDisplayLoadersMixin:
@@ -65,8 +66,8 @@ class AxeDisplayLoadersMixin:
     _axe_lumberjack_metrics: dict[str, LumberjackMetrics | None]
     _axe_lumberjack_log_tails: dict[str, str]
     _axe_bgcmd_details: dict[int, BgCmdSnapshot]
-    # Timer for debounced axe detail-panel refresh on j/k navigation.
-    _axe_detail_update_timer: Any  # Timer | None
+    # Debouncer for axe detail-panel refresh on j/k navigation.
+    _axe_detail_debouncer: DetailPanelDebouncer
     _axe_loading_placeholder_shown: bool
     _bang_mode_active: bool
     _entry_jump_mode_active: bool

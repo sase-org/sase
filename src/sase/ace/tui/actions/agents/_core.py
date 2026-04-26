@@ -20,13 +20,12 @@ from ._wait_resume import AgentWaitResumeMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
-    from textual.timer import Timer
-
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldStateManager
+    from ...util.debounce import DetailPanelDebouncer
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
@@ -99,8 +98,8 @@ class AgentsMixinCore(
     # Agent search/filter query
     _agent_search_query: str
 
-    # Debounce timer for j/k navigation detail panel updates
-    _detail_update_timer: Timer | None
+    # Debouncer for j/k navigation detail panel updates
+    _agent_detail_debouncer: DetailPanelDebouncer
 
     def _agents_visible_order(self) -> list[int]:
         """Return global agent indices in the order rendered on the focused panel.

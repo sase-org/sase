@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ...query.types import QueryExpr
     from ...query_history import QueryHistoryStacks
     from ..models.fold_state import FoldLevel
+    from ..util.debounce import DetailPanelDebouncer
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -52,6 +53,9 @@ class ChangeSpecMixin:
     _axe_cmds_hidden: bool
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
+
+    # Debouncer for j/k navigation detail panel updates (changespecs tab).
+    _changespec_detail_debouncer: DetailPanelDebouncer
 
     def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
         """Return the full changespec list freshly read from disk.
@@ -462,8 +466,38 @@ class ChangeSpecMixin:
         except Exception:
             pass
 
+    def _refresh_changespecs_display_debounced(self) -> None:
+        """Debounced refresh for j/k navigation on the changespecs tab.
+
+        Updates the list cursor and info-panel position immediately;
+        debounces the expensive detail panel, ancestors panel, and
+        keybinding-footer rebuild via the shared
+        :class:`~..util.debounce.DetailPanelDebouncer` so a long press
+        produces exactly one final detail-panel paint when the user
+        quiesces.
+        """
+        from textual.css.query import NoMatches
+
+        from ..widgets import ChangeSpecList
+
+        try:
+            list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
+        except NoMatches:
+            # Widget tree not ready yet — fall back to the full refresh path.
+            self._changespec_detail_debouncer.cancel()
+            self._refresh_display()
+            return
+
+        if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
+            list_widget.highlighted = self.current_idx
+        self._update_info_panel()
+        self._changespec_detail_debouncer.schedule(self._refresh_display)
+
     def _refresh_display(self) -> None:
         """Refresh the display with current state."""
+        # Full refresh supersedes any pending debounced detail update.
+        self._changespec_detail_debouncer.cancel()
+
         from ...query import query_explicitly_targets_terminal
         from ..widgets import (
             AncestorsChildrenPanel,

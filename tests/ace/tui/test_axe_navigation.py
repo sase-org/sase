@@ -16,6 +16,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.actions.axe_display import AxeDisplayMixin, BgCmdSnapshot
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.bgcmd_list import (
     AxeParentItem,
     BgCmdItem,
@@ -78,7 +79,7 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_bgcmd_details = {
             1: BgCmdSnapshot(info=None, running=True, output_tail="slot log\n"),
         }
-        self._axe_detail_update_timer = None
+        self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
     # Stubs for attributes / methods AxeDisplayMixin reaches for.
     def query_one(self, *_args: Any, **_kwargs: Any) -> Any:

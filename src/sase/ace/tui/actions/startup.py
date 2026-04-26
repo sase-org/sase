@@ -251,8 +251,10 @@ class StartupMixin:
 
         self._plan_feedback_context: PlanFeedbackContext | None = None
 
-        # Debounce timer for j/k navigation detail panel updates
-        self._detail_update_timer: Timer | None = None
+        # Debouncer for j/k navigation detail panel updates (agents tab)
+        from ..util.debounce import DetailPanelDebouncer
+
+        self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
         # Axe state
         self._axe_status: AxeStatus | None = None
@@ -277,9 +279,12 @@ class StartupMixin:
         self._axe_lumberjack_log_tails: dict[str, str] = {}
         self._axe_bgcmd_details: dict[int, BgCmdSnapshot] = {}
 
-        # Debounce timer for axe j/k navigation detail updates.
-        self._axe_detail_update_timer: Timer | None = None
+        # Debouncer for axe j/k navigation detail updates.
+        self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self._axe_loading_placeholder_shown: bool = False
+
+        # Debouncer for changespecs j/k navigation detail updates.
+        self._changespec_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
         # Lumberjack cycling state (new axe architecture)
         self._axe_lumberjack_names: list[str] = []

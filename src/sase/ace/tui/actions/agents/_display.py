@@ -7,8 +7,6 @@ import time
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from textual.timer import Timer
-
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldRegistry
@@ -16,6 +14,7 @@ if TYPE_CHECKING:
     from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
 from ...models.agent_groups import GroupingMode
+from ...util.debounce import DetailPanelDebouncer
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
@@ -52,8 +51,8 @@ class AgentDisplayMixin:
     _fold_counts: dict[str, tuple[int, int]]
     _agent_search_query: str
 
-    # Debounce timer for j/k navigation detail panel updates
-    _detail_update_timer: Timer | None
+    # Debouncer for j/k navigation detail panel updates
+    _agent_detail_debouncer: DetailPanelDebouncer
 
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
@@ -81,10 +80,8 @@ class AgentDisplayMixin:
         """
         started = time.perf_counter()
         list_started = started
-        # Cancel any pending debounce timer — full refresh supersedes
-        if self._detail_update_timer is not None:
-            self._detail_update_timer.stop()
-            self._detail_update_timer = None
+        # Cancel any pending debounced detail update — full refresh supersedes
+        self._agent_detail_debouncer.cancel()
 
         from textual.css.query import NoMatches
 
@@ -118,9 +115,7 @@ class AgentDisplayMixin:
 
         self._update_agents_info_panel()
         if defer_detail:
-            self._detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
-                0.15, self._fire_debounced_detail_update
-            )
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             log.debug(
                 "agents display refresh deferred detail: elapsed=%.3fs",
                 time.perf_counter() - started,
@@ -144,22 +139,13 @@ class AgentDisplayMixin:
         """
         self._refresh_panel_highlights()
         self._update_agents_info_panel()
-
-        # Cancel any pending debounce timer before scheduling a new one
-        if self._detail_update_timer is not None:
-            self._detail_update_timer.stop()
-
-        self._detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
-            0.15, self._fire_debounced_detail_update
-        )
+        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
 
     def _fire_debounced_detail_update(self) -> None:
-        """Timer callback that applies the debounced detail update."""
+        """Apply the debounced detail update once the j/k burst quiesces."""
         from textual.css.query import NoMatches
 
         from ...widgets import AgentDetail, KeybindingFooter
-
-        self._detail_update_timer = None
 
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

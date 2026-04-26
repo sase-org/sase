@@ -19,8 +19,8 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
         """Debounced refresh for j/k navigation on the axe tab.
 
         Updates the side-panel highlight and info-panel position counter
-        immediately, then schedules the full dashboard/info-panel redraw on
-        a 150 ms timer. Rapid bursts of navigation collapse to a single
+        immediately, then schedules the full dashboard/info-panel redraw
+        through the shared debouncer so rapid bursts collapse to a single
         final render.
         """
         from ...widgets import BgCmdList
@@ -39,19 +39,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
         # "N/M" indicator keeps up with j/k even if the panel redraw is
         # debounced.
         self._update_axe_info_panel()
-
-        # Cancel any pending debounce timer before scheduling a new one.
-        if self._axe_detail_update_timer is not None:
-            self._axe_detail_update_timer.stop()
-
-        self._axe_detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
-            0.15, self._fire_debounced_axe_refresh
-        )
-
-    def _fire_debounced_axe_refresh(self) -> None:
-        """Timer callback for the debounced axe refresh."""
-        self._axe_detail_update_timer = None
-        self._refresh_axe_display()
+        self._axe_detail_debouncer.schedule(self._refresh_axe_display)  # type: ignore[attr-defined]
 
     def _refresh_axe_display(self) -> None:
         """Refresh the axe dashboard display."""

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 
 @dataclass
@@ -86,7 +87,7 @@ class _FakeApp(AgentDisplayMixin):
         self._agents = [agent]
         self._fold_counts = {}
         self._agent_search_query = ""
-        self._detail_update_timer = None
+        self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self.current_idx = 0
         self.current_attempt_number = None
         self.refresh_interval = 10
@@ -146,7 +147,7 @@ def test_refresh_list_with_defer_detail_schedules_timer() -> None:
     app._refresh_agents_display(list_changed=True, defer_detail=True)
 
     assert app.detail_calls == 0
-    assert app._detail_update_timer is not None
+    assert app._agent_detail_debouncer.is_pending
     assert app._pending_callback is not None
 
 
