@@ -18,6 +18,7 @@ from ..mentors import set_mentor_status
 from .mentor_profile_matching import (
     LogCallback,
     add_matching_profiles_upfront,
+    get_matching_profiles_for_entry,
     get_profiles_registered_for_entry,
 )
 
@@ -379,6 +380,8 @@ _TERMINAL_MENTOR_STATUSES: frozenset[str] = frozenset(
 def _check_mentor_completion_notifications(
     changespec: ChangeSpec,
     log: LogCallback,
+    just_matched_for_latest: bool = False,
+    mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[str]:
     """Emit a notification once when mentors finish (or no profiles match).
 
@@ -394,6 +397,14 @@ def _check_mentor_completion_notifications(
     Args:
         changespec: The ChangeSpec to inspect.
         log: Logging callback.
+        just_matched_for_latest: True when ``add_matching_profiles_upfront``
+            wrote one or more MENTORS entries for the latest commit on this
+            same axe cycle. The in-memory ``changespec`` is stale in that
+            case, so the no-match branch must be skipped to avoid a
+            false-positive "no profiles matched" notification.
+        mentor_profiles: Optional preloaded mentor profile list, reused for
+            the cause-B re-evaluation guard so we don't re-load profiles
+            from disk.
 
     Returns:
         List of update messages.
@@ -432,6 +443,23 @@ def _check_mentor_completion_notifications(
                 break
 
     if matching_entry is None or not matching_entry.profiles:
+        # Cause A guard: Phase 2 of this same cycle just wrote MENTORS for
+        # the latest entry, but the in-memory ``changespec`` predates that
+        # write. Defer to the next cycle, when lumberjack has reloaded.
+        if just_matched_for_latest:
+            return updates
+
+        # Cause B guard: profile matching may legitimately return empty in
+        # one cycle (e.g. transient diff unavailability) and non-empty the
+        # next. Re-evaluate against the current on-disk state before we
+        # commit to the no-match notification.
+        rematch = get_matching_profiles_for_entry(
+            changespec,
+            mentor_profiles=mentor_profiles,
+        )
+        if any(entry_id == latest_entry_id for entry_id, _ in rematch):
+            return updates
+
         mentor_summary = "no mentor profiles matched"
         mark_notified(changespec.file_path, changespec.name, latest_entry_id)
         notify_mentors_complete(
@@ -542,16 +570,34 @@ def check_mentors(
         f"Phase 2: {len(all_profiles)} mentor profile(s) loaded from config",
         "dim",
     )
-    profile_updates = add_matching_profiles_upfront(
+    upfront_result = add_matching_profiles_upfront(
         changespec,
         log,
         mentor_profiles=all_profiles,
     )
-    updates.extend(profile_updates)
+    updates.extend(upfront_result.updates)
+
+    # Determine the latest commit entry_id once for use in Phase 2.5.
+    latest_entry_id_for_notify: str | None = None
+    if changespec.commits:
+        for entry in reversed(changespec.commits):
+            if entry.display_number.isdigit():
+                latest_entry_id_for_notify = entry.display_number
+                break
+
+    just_matched_for_latest = latest_entry_id_for_notify is not None and any(
+        entry_id == latest_entry_id_for_notify
+        for entry_id, _ in upfront_result.newly_matched
+    )
 
     # Phase 2.5: Emit completion notification if all mentors are terminal,
     # or "no profiles matched" once hooks are ready and no MentorEntry exists.
-    completion_notify_updates = _check_mentor_completion_notifications(changespec, log)
+    completion_notify_updates = _check_mentor_completion_notifications(
+        changespec,
+        log,
+        just_matched_for_latest=just_matched_for_latest,
+        mentor_profiles=all_profiles,
+    )
     updates.extend(completion_notify_updates)
 
     # Phase 3: Start mentors for matching profiles (requires hooks to be ready)

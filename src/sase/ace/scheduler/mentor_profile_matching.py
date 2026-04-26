@@ -333,7 +333,7 @@ def get_profiles_registered_for_entry(
     return registered
 
 
-def _get_matching_profiles_for_entry(
+def get_matching_profiles_for_entry(
     changespec: ChangeSpec,
     mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[tuple[str, MentorProfileConfig]]:
@@ -417,11 +417,24 @@ def _get_matching_profiles_for_entry(
     return result
 
 
+@dataclass(frozen=True)
+class _UpfrontMatchResult:
+    """Outcome of one ``add_matching_profiles_upfront`` invocation.
+
+    ``newly_matched`` lets callers know which (entry_id, profile) pairs were
+    just written to MENTORS this cycle — important because the in-memory
+    ``ChangeSpec`` is not refreshed until the next axe poll.
+    """
+
+    updates: list[str]
+    newly_matched: list[tuple[str, "MentorProfileConfig"]]
+
+
 def add_matching_profiles_upfront(
     changespec: ChangeSpec,
     log: LogCallback,
     mentor_profiles: list[MentorProfileConfig] | None = None,
-) -> list[str]:
+) -> _UpfrontMatchResult:
     """Add matching profiles to MENTORS entry before mentors are ready to run.
 
     This adds profiles with [0/N] counts as soon as they're detected,
@@ -432,9 +445,12 @@ def add_matching_profiles_upfront(
         log: Logging callback.
 
     Returns:
-        List of update messages.
+        ``UpfrontMatchResult`` with human-readable update messages and the
+        list of (entry_id, profile) pairs that were successfully written to
+        the MENTORS field this cycle.
     """
     updates: list[str] = []
+    newly_matched: list[tuple[str, MentorProfileConfig]] = []
 
     # Don't add profiles for non-review statuses
     if changespec.status in (
@@ -444,7 +460,7 @@ def add_matching_profiles_upfront(
         "Submitted",
         "Archived",
     ):
-        return updates
+        return _UpfrontMatchResult(updates=updates, newly_matched=newly_matched)
 
     all_profiles = (
         mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
@@ -455,7 +471,7 @@ def add_matching_profiles_upfront(
         "dim",
     )
 
-    matching_profiles = _get_matching_profiles_for_entry(
+    matching_profiles = get_matching_profiles_for_entry(
         changespec,
         mentor_profiles=all_profiles,
     )
@@ -464,7 +480,7 @@ def add_matching_profiles_upfront(
             f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
             "dim",
         )
-        return updates
+        return _UpfrontMatchResult(updates=updates, newly_matched=newly_matched)
 
     log(
         f"Mentor matching: {len(matching_profiles)} new profile(s) matched for"
@@ -483,6 +499,7 @@ def add_matching_profiles_upfront(
             [profile.profile_name],
         )
         if success:
+            newly_matched.append((entry_id, profile))
             total = len(profile.mentors)
             updates.append(
                 f"Added profile {profile.profile_name}[0/{total}] to MENTORS ({entry_id})"
@@ -492,7 +509,7 @@ def add_matching_profiles_upfront(
                 "dim",
             )
 
-    return updates
+    return _UpfrontMatchResult(updates=updates, newly_matched=newly_matched)
 
 
 @dataclass

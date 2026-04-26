@@ -422,3 +422,75 @@ def test_completion_notify_summary_includes_commented_count(
     summary_line = next(n for n in notes[0].notes if "mentors finished" in n)
     assert "3/3" in summary_line
     assert "(2 commented)" in summary_line
+
+
+# Cause A: Phase 2 just wrote MENTORS for the latest entry on this cycle, so
+# the in-memory ChangeSpec is stale. The no-match branch must be skipped.
+def test_completion_notify_skipped_when_just_matched_for_latest(
+    isolated_notifications_store: None,
+) -> None:
+    del isolated_notifications_store
+    """just_matched_for_latest=True suppresses the no-match notification."""
+    cs = build_changespec(
+        file_path="/proj.gp",
+        name="cl-1",
+        commits=[_commit(1)],
+        hooks=[_hook_passed("1")],
+        mentors=None,  # in-memory snapshot doesn't yet see the just-written entry
+    )
+
+    updates = _check_mentor_completion_notifications(
+        cs, _noop_log, just_matched_for_latest=True
+    )
+    assert updates == []
+    assert load_notifications() == []
+    assert is_notified("/proj.gp", "cl-1", "1") is False
+
+
+# Cause B: profile matching transiently returned empty (e.g. diff unavailable),
+# but a fresh re-evaluation finds matches. The no-match notification must defer.
+def test_completion_notify_deferred_when_rematch_finds_profiles(
+    isolated_notifications_store: None,
+) -> None:
+    del isolated_notifications_store
+    cs = build_changespec(
+        file_path="/proj.gp",
+        name="cl-1",
+        commits=[_commit(1)],
+        hooks=[_hook_passed("1")],
+        mentors=None,
+    )
+
+    fake_profile = object()  # opaque — only the entry_id is inspected
+    with patch(
+        "sase.ace.scheduler.mentor_checks.get_matching_profiles_for_entry",
+        return_value=[("1", fake_profile)],
+    ):
+        updates = _check_mentor_completion_notifications(cs, _noop_log)
+
+    assert updates == []
+    assert load_notifications() == []
+    assert is_notified("/proj.gp", "cl-1", "1") is False
+
+
+def test_completion_notify_fires_when_rematch_confirms_no_match(
+    isolated_notifications_store: None,
+) -> None:
+    """Re-evaluation also returns empty -> the no-match notification fires."""
+    del isolated_notifications_store
+    cs = build_changespec(
+        file_path="/proj.gp",
+        name="cl-1",
+        commits=[_commit(1)],
+        hooks=[_hook_passed("1")],
+        mentors=None,
+    )
+
+    with patch(
+        "sase.ace.scheduler.mentor_checks.get_matching_profiles_for_entry",
+        return_value=[],
+    ):
+        updates = _check_mentor_completion_notifications(cs, _noop_log)
+
+    assert len(updates) == 1
+    assert is_notified("/proj.gp", "cl-1", "1") is True

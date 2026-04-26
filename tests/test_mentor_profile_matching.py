@@ -8,9 +8,11 @@ from sase.ace.changespec import (
     MentorEntry,
 )
 from sase.ace.scheduler.mentor_profile_matching import (
+    _UpfrontMatchResult,
     _extract_changed_files_from_diff,
     _get_commits_since_last_mentors,
-    _get_matching_profiles_for_entry,
+    get_matching_profiles_for_entry,
+    add_matching_profiles_upfront,
     get_profiles_registered_for_entry,
     profile_matches_any_commit,
 )
@@ -156,10 +158,10 @@ def testget_profiles_registered_for_entry_no_mentors() -> None:
     assert result == set()
 
 
-# Tests for _get_matching_profiles_for_entry
+# Tests for get_matching_profiles_for_entry
 
 
-def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
+def testget_matching_profiles_for_entry_excludes_old_mentored_commits(
     monkeypatch: Any,
 ) -> None:
     """Test that commits with existing MENTORS entries don't trigger new profiles.
@@ -200,13 +202,13 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
     # The bug: without the fix, commit 3 would be included in commits_to_check
     # and the feature profile would match (due to "[mentor:complete]" in note)
     # The fix: commit 3 should be excluded because it has a MENTORS entry
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
 
     # Should return empty - only commits 4 and 5 are checked, neither matches
     assert result == []
 
 
-def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
+def testget_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     monkeypatch: Any,
 ) -> None:
     """Test that latest commit with partial coverage is still checked.
@@ -248,7 +250,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
         ],
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
 
     # Should return feature profile - commit 1 is latest so still checked
     assert len(result) == 1
@@ -256,7 +258,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     assert result[0][1].profile_name == "feature"  # profile
 
 
-def test_get_matching_profiles_for_entry_falls_back_to_vcs_diff(
+def testget_matching_profiles_for_entry_falls_back_to_vcs_diff(
     monkeypatch: Any,
 ) -> None:
     """Test missing DIFF file still matches via VCS fallback for latest commit."""
@@ -300,7 +302,7 @@ def test_get_matching_profiles_for_entry_falls_back_to_vcs_diff(
         ],
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
 
     assert len(result) == 1
     assert result[0][0] == "1"
@@ -415,7 +417,7 @@ def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
         commits=[CommitEntry(number=1, note="Fix something")],
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
     assert result == []
 
 
@@ -441,7 +443,7 @@ def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None
         commits=[CommitEntry(number=1, note="Add feature")],
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
     assert len(result) == 1
     assert result[0][1].profile_name == "gotchas"
 
@@ -467,7 +469,7 @@ def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> No
         commits=[CommitEntry(number=1, note="Fix bug")],
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
     assert len(result) == 1
 
 
@@ -508,7 +510,80 @@ def test_get_matching_profiles_reads_diff_once_per_invocation(
         commits=[CommitEntry(number=1, note="n", diff="~/.sase/diffs/sample.diff")]
     )
 
-    result = _get_matching_profiles_for_entry(cs)
+    result = get_matching_profiles_for_entry(cs)
 
     assert len(result) == 2
     assert read_paths == ["~/.sase/diffs/sample.diff"]
+
+
+# Tests for add_matching_profiles_upfront return shape
+
+
+def _noop_log(_msg: str, _color: str | None = None) -> None:
+    return None
+
+
+def test_add_matching_profiles_upfront_returns_newly_matched(
+    monkeypatch: Any,
+) -> None:
+    """Successful writes are surfaced via _UpfrontMatchResult.newly_matched."""
+    profile = MentorProfileConfig(
+        profile_name="code",
+        mentors=[make_mentor_config(mentor_name="dead_code")],
+        amend_note_regexes=[r"Initial"],
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [profile],
+    )
+    # Stub the disk write — we only care that newly_matched is populated.
+    monkeypatch.setattr(
+        "sase.ace.mentors.add_mentor_entry",
+        lambda _file, _name, _entry, _profiles: True,
+    )
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="Initial commit")],
+    )
+
+    result = add_matching_profiles_upfront(cs, _noop_log)
+
+    assert isinstance(result, _UpfrontMatchResult)
+    assert len(result.newly_matched) == 1
+    entry_id, matched_profile = result.newly_matched[0]
+    assert entry_id == "1"
+    assert matched_profile.profile_name == "code"
+    assert any("Added profile" in msg for msg in result.updates)
+
+
+def test_add_matching_profiles_upfront_no_match_returns_empty(
+    monkeypatch: Any,
+) -> None:
+    """No matching profiles -> newly_matched is empty."""
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [],
+    )
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="Initial commit")],
+    )
+
+    result = add_matching_profiles_upfront(cs, _noop_log)
+
+    assert result.newly_matched == []
+    assert result.updates == []
+
+
+def test_add_matching_profiles_upfront_skips_for_draft_status() -> None:
+    """Draft status short-circuits and yields an empty _UpfrontMatchResult."""
+    cs = build_changespec(
+        status="Draft",
+        commits=[CommitEntry(number=1, note="Initial commit")],
+    )
+
+    result = add_matching_profiles_upfront(cs, _noop_log)
+
+    assert result.newly_matched == []
+    assert result.updates == []

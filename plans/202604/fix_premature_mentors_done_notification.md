@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 20:08:04
-status: wip
+status: done
 ---
 # Fix: Premature "Mentors done" Notification on Draft→Ready Transition
 
