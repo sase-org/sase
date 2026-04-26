@@ -183,9 +183,6 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ) as mock_dismiss_one,
-        patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch(
@@ -196,7 +193,6 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
     ):
         app._dismiss_done_agent(agent)
 
-    mock_dismiss_one.assert_not_called()
     mock_dismiss_many.assert_not_called()
     mock_delete.assert_not_called()
     mock_bundle.assert_not_called()
@@ -294,9 +290,6 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ) as mock_dismiss_one,
-        patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch(
@@ -312,7 +305,6 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     ):
         app._dismiss_done_agent(parent)
 
-    mock_dismiss_one.assert_not_called()
     mock_dismiss_many.assert_not_called()
     mock_delete.assert_not_called()
     mock_bundle.assert_not_called()
@@ -382,16 +374,12 @@ def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ) as mock_dismiss_one,
-        patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(agent)
 
-    mock_dismiss_one.assert_not_called()
     mock_dismiss_many.assert_not_called()
     mock_save.assert_not_called()
     assert app.load_count == 0
@@ -401,28 +389,77 @@ def test_dismiss_done_changespec_agent_does_not_full_reload() -> None:
 
 
 def test_do_dismiss_all_batch_does_not_full_reload() -> None:
-    """Batch dismiss uses the in-memory path, not _load_agents."""
+    """Batch dismiss uses the in-memory path and defers disk I/O."""
     app = FakeDismissApp()
     a1 = _make_agent(cl_name="a", raw_suffix="20240101120000")
     a2 = _make_agent(cl_name="b", raw_suffix="20240101130000")
     app._agents_with_children = [a1, a2]
     app._agents = [a1, a2]
 
-    with (
-        patch(
-            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agent"
-        ),
-        patch("sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"),
-        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
-    ):
-        app._do_dismiss_all([a1, a2])
+    app._do_dismiss_all([a1, a2])
 
     assert app.load_count == 0
     assert app.refilter_count == 1
     assert a1.identity in app._dismissed_agents
     assert a2.identity in app._dismissed_agents
     assert app._agents_with_children == []
+    assert len(app._scheduled) == 1
+    callback, args = app._scheduled[0]
+    assert callback == app._run_bulk_dismiss_persistence_async
+    assert args[0] == [a1, a2]
+    dismissed_ids = args[1]
+    assert isinstance(dismissed_ids, set)
+    assert {a1.identity, a2.identity}.issubset(dismissed_ids)
+
+
+def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
+    """Scheduled bulk dismiss callback persists via worker thread."""
+    app = FakeDismissApp()
+    a1 = _make_agent(cl_name="a", raw_suffix="20240101120000")
+    a2 = _make_agent(cl_name="b", raw_suffix="20240101130000")
+    app._agents_with_children = [a1, a2]
+    app._agents = [a1, a2]
+
+    app._do_dismiss_all([a1, a2])
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
+        ) as mock_persist,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_many,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
+    assert mock_persist.call_count == 2
+    mock_dismiss_many.assert_called_once()
+    related_arg = mock_dismiss_many.call_args[0][0]
+    assert {agent.identity for agent in related_arg} == {a1.identity, a2.identity}
+    mock_save.assert_called_once()
+    assert mock_save.call_args[0][0] == {a1.identity, a2.identity}
+
+
+def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
+    """Worker failure surfaces a toast and triggers an async refresh."""
+    app = FakeDismissApp()
+    a1 = _make_agent(cl_name="a", raw_suffix="20240101120000")
+    app._agents_with_children = [a1]
+    app._agents = [a1]
+
+    app._do_dismiss_all([a1])
+
+    with patch(
+        "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_transaction",
+        side_effect=RuntimeError("boom"),
+    ):
+        callback, args = app._scheduled[0]
+        asyncio.run(callback(*args))  # type: ignore[misc]
+
+    assert app.async_refreshes == 1
+    assert any(sev == "error" for _, sev in app.notifications)
 
 
 if __name__ == "__main__":

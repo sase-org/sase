@@ -18,7 +18,6 @@ from ....changespec import ChangeSpec
 
 from ._killing_utils import (
     delete_agent_artifacts,
-    dismiss_notifications_for_agent,
     dismiss_notifications_for_agents,
     find_workflow_workspace_from_running_field,
 )
@@ -212,52 +211,27 @@ class AgentDismissingMixin:
         self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
     def _do_dismiss_all(self, agents: list[Agent]) -> None:
-        """Perform batch dismissal of done/failed agents."""
+        """Perform batch dismissal of done/failed agents.
+
+        Updates the UI optimistically (in-memory list, dismissed set,
+        notifications) and schedules every disk side effect — bundle saves,
+        artifact deletion, workspace release, ``dismissed.json`` write — on
+        a worker thread. The Textual event loop returns to the user before
+        any persistence runs.
+        """
         from ...models.agent import AgentType
-        from ....dismissed_agents import save_dismissed_agents
+
+        if not agents:
+            return
+
+        agents_with_children_snapshot = list(self._agents_with_children)
 
         for agent in agents:
-            dismiss_notifications_for_agent(agent)
             self._agent_status_overrides.pop(agent.identity, None)
             self._agent_pre_question_status.pop(agent.identity, None)
-
-            # Save bundle before deleting artifacts (for revive support)
-            self._save_agent_bundle(agent)
-
-            # Handle workspace release for workflow agents
-            if agent.agent_type == AgentType.WORKFLOW:
-                from sase.running_field import release_workspace
-
-                workflow_name = agent.workflow
-                if agent.is_workflow_child and agent.parent_workflow:
-                    workflow_name = agent.parent_workflow
-                if workflow_name is not None:
-                    workspace_num = agent.workspace_num
-                    if workspace_num is None:
-                        lookup_cl_name = None
-                        if not agent.is_workflow_child and agent.cl_name != "unknown":
-                            lookup_cl_name = agent.cl_name
-                        workspace_num = find_workflow_workspace_from_running_field(
-                            agent.project_file,
-                            workflow_name,
-                            lookup_cl_name,
-                        )
-                    if workspace_num is not None:
-                        release_workspace(
-                            agent.project_file,
-                            workspace_num,
-                            f"workflow({workflow_name})",
-                        )
-
-            # Delete artifact files
-            delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
-
-            # Track dismissal
             self._dismissed_agents.add(agent.identity)
-
-            # Also dismiss children for workflow parents
             if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
-                for step in self._agents_with_children:
+                for step in agents_with_children_snapshot:
                     if (
                         step.is_workflow_child
                         and step.parent_timestamp == agent.raw_suffix
@@ -265,14 +239,52 @@ class AgentDismissingMixin:
                     ):
                         self._dismissed_agents.add(step.identity)
 
-        # Batch persist and reload
-        save_dismissed_agents(self._dismissed_agents)
-        self._refresh_notification_count()  # type: ignore[attr-defined]
-
         count = len(agents)
         s = "s" if count != 1 else ""
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
+        self._refresh_notification_count()  # type: ignore[attr-defined]
+
+        self.call_later(  # type: ignore[attr-defined]
+            self._run_bulk_dismiss_persistence_async,
+            list(agents),
+            set(self._dismissed_agents),
+            agents_with_children_snapshot,
+        )
+
+    async def _run_bulk_dismiss_persistence_async(
+        self,
+        agents: list[Agent],
+        dismissed_snapshot: set[AgentIdentity],
+        agents_with_children_snapshot: list[Agent],
+    ) -> None:
+        """Persist a batch dismissal's filesystem side effects in a worker."""
+        identities = {a.identity for a in agents}
+        if identities & self._dismiss_persistence_inflight:
+            return
+        self._dismiss_persistence_inflight.update(identities)
+
+        started = time.perf_counter()
+        try:
+            await asyncio.to_thread(
+                persist_bulk_dismiss_transaction,
+                agents,
+                dismissed_snapshot,
+                agents_with_children_snapshot,
+            )
+        except Exception as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Bulk dismiss cleanup failed: {exc}",
+                severity="error",
+            )
+            self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+        finally:
+            self._dismiss_persistence_inflight.difference_update(identities)
+            log.debug(
+                "bulk agent dismiss persistence: count=%d elapsed=%.3fs",
+                len(agents),
+                time.perf_counter() - started,
+            )
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
@@ -373,6 +385,25 @@ def persist_single_dismiss_transaction(
     dismiss_notifications_for_agents(
         _agents_related_to_dismissal(agent, agents_with_children_snapshot)
     )
+    save_dismissed_agents(dismissed_snapshot)
+
+
+def persist_bulk_dismiss_transaction(
+    agents: list[Agent],
+    dismissed_snapshot: set[AgentIdentity],
+    agents_with_children_snapshot: list[Agent],
+) -> None:
+    """Persist all side effects for an optimistic batch dismiss operation."""
+    from ....dismissed_agents import save_dismissed_agents
+
+    related: list[Agent] = []
+    for agent in agents:
+        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+        related.extend(
+            _agents_related_to_dismissal(agent, agents_with_children_snapshot)
+        )
+    if related:
+        dismiss_notifications_for_agents(related)
     save_dismissed_agents(dismissed_snapshot)
 
 
