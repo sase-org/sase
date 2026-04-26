@@ -198,43 +198,48 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                                |
-| ------------------- | --------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous agent                                         |
-| `'`                 | Jump to entry by hint character (current tab)                         |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal)) |
-| `g` / `G`           | Scroll to top / bottom (file, thinking, or metadata panel)            |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                           |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                         |
+| Key                 | Action                                                                     |
+| ------------------- | -------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`) |
+| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                     |
+| `'`                 | Jump to entry by hint character (current tab)                              |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))      |
+| `g`                 | Cycle grouping mode (`STANDARD` → `BY_DATE` → `BY_STATUS`)                 |
+| `G`                 | Scroll to bottom (file, thinking, or metadata panel)                       |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                              |
+
+> **Note:** `g` is a per-tab binding — on the CLs and AXE tabs it scrolls to top as before; only on the Agents tab does
+> it cycle the grouping mode. See [Grouping Modes](#grouping-modes) below.
 
 ### Agent Actions
 
-| Key                 | Action                                                                         |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `R`                 | Revive a previously dismissed agent                                            |
-| `@`                 | Run custom agent                                                               |
-| `a`                 | Toggle auto-approve / answer HITL                                              |
-| `n`                 | Name agent                                                                     |
-| `r`                 | Resume agent (by name if running, by chat file if completed)                   |
-| `v`                 | View files (hint mode)                                                         |
-| `V`                 | Toggle prior-attempt view (only shown when the agent has retried)              |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                |
-| `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c` |
-| `m`                 | Mark / unmark current agent (auto-advances to next)                            |
-| `u`                 | Clear all agent marks                                                          |
-| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group  |
-| `X`                 | Dismiss all completed agents (with confirmation)                               |
-| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                       |
-| `e`                 | Edit chat in editor                                                            |
-| `E`                 | Edit panel content in editor                                                   |
-| `t`                 | Open tmux window in the focused agent's claimed workspace                      |
-| `T`                 | Open tmux window in the agent's primary (workspace 1) directory                |
-| `N`                 | Open the agent tag/untag modal (set or clear the agent's single tag)           |
-| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)                   |
-| `p`                 | Toggle file / prompt layout                                                    |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                  |
-| `-`                 | Reset file trim to default                                                     |
-| `=`                 | Show all file lines                                                            |
+| Key                 | Action                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `R`                 | Revive a previously dismissed agent                                                                           |
+| `@`                 | Run custom agent                                                                                              |
+| `a`                 | Toggle auto-approve / answer HITL                                                                             |
+| `n`                 | Name agent                                                                                                    |
+| `r`                 | Resume agent (by name if running, by chat file if completed)                                                  |
+| `v`                 | View files (hint mode)                                                                                        |
+| `V`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
+| `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
+| `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
+| `u`                 | Clear all agent marks                                                                                         |
+| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
+| `X`                 | Dismiss all completed agents (with confirmation)                                                              |
+| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
+| `e`                 | Edit chat in editor                                                                                           |
+| `E`                 | Edit panel content in editor                                                                                  |
+| `t`                 | Open tmux window in the focused agent's claimed workspace                                                     |
+| `T`                 | Open tmux window in the agent's primary (workspace 1) directory                                               |
+| `N`                 | Open the agent tag/untag modal (input is pre-seeded with `pinned` for untagged agents; submit empty to clear) |
+| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse)                                                  |
+| `p`                 | Toggle file / prompt layout                                                                                   |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
+| `-`                 | Reset file trim to default                                                                                    |
+| `=`                 | Show all file lines                                                                                           |
 
 ### Wait Modal
 
@@ -259,35 +264,101 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
 
+### Tag Side Panels
+
+The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tag**. Untagged agents live in
+their own `(untagged)` panel; each tagged group renders as `@<tag>` with an agent count in the panel title. Panel
+heights are sized to their content (subject to a configurable floor and cap), and the last panel in a column expands to
+fill any leftover vertical space so empty rows don't drift to the bottom.
+
+Use `J` / `K` to move focus across panels (forward / reverse). Per-panel actions (kill, dismiss, expand, etc.) operate
+on whichever panel currently holds focus.
+
+Tags are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an untagged agent the
+input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that default
+makes tag removal discoverable too — opening the modal on a tagged agent and submitting an empty string clears the tag.
+The `%tag <name>` directive in a prompt assigns the tag at launch.
+
 ### Group Banners and Folding
 
-The Agents tab groups agents into a three-level banner hierarchy: **tag → project → name-root**. Banners are always
-shown between agent rows and carry a summary chip (`N agents · K running · M failed`). Workflow children inherit
-grouping from their parent agent.
+Within each tag side panel, agents are grouped into either a 2-level or 3-level banner hierarchy depending on whether
+any agent in the panel targets a ChangeSpec:
+
+- **3-level layout** (panel contains at least one ChangeSpec-scoped agent): **project → ChangeSpec → name-root**.
+  Project-scoped agents and agents with no `cl_name` fall into a synthetic `(no ChangeSpec)` bucket that sorts last.
+- **2-level layout** (no ChangeSpec anywhere in the panel): **project → name-root**.
+
+Banners are rendered between agent rows and carry a summary chip (`N agents · K running · M failed`). Workflow children
+inherit grouping identity from their parent agent so banners never appear between a parent and its workflow steps.
 
 A single global fold level controls how much of the hierarchy is visible:
 
-| Level | What's visible                                            |
-| ----- | --------------------------------------------------------- |
-| `L0`  | Tag banners only                                          |
-| `L1`  | Tag + project banners                                     |
-| `L2`  | Tag + project + name-root banners                         |
-| `L3`  | All banners and agent rows (and per-workflow folds apply) |
+| Level | What's visible (3-level layout)                           | What's visible (2-level layout) |
+| ----- | --------------------------------------------------------- | ------------------------------- |
+| `L0`  | Project banners only                                      | Project banners only            |
+| `L1`  | Project + ChangeSpec banners                              | Project + name-root banners     |
+| `L2`  | Project + ChangeSpec + name-root banners                  | All banners and agent rows      |
+| `L3`  | All banners and agent rows (and per-workflow folds apply) | (same as `L2`)                  |
 
 | Key | Action                                                                                                             |
 | --- | ------------------------------------------------------------------------------------------------------------------ |
-| `l` | Step the global group fold one level up (`L0` → `L1` → `L2` → `L3`); at `L3`, expand the focused workflow          |
+| `l` | Step the focused group's fold one level up (`L0` → `L1` → `L2` → `L3`); at `L3`, expand the focused workflow       |
 | `h` | Collapse the focused workflow; once it's collapsed (or no workflow is focused), step the group fold one level down |
 | `L` | Snap to fully expanded — every banner, every agent row, every workflow step visible                                |
-| `H` | Snap to fully collapsed — every per-workflow fold collapsed, then group fold to `L0` (only tag banners visible)    |
+| `H` | Snap to fully collapsed — every per-workflow fold collapsed, then group fold to `L0` (only top-level banners)      |
 
 Banners at fold levels `< 3` are selectable rows. When a banner is focused, `x` performs a bulk kill/dismiss on every
 top-level agent in that group (single confirmation modal). Marks take priority over the group, so a non-empty mark set
-always drives the bulk action regardless of banner focus.
+always drives the bulk action regardless of banner focus. When a fold change hides the previously focused agent, focus
+snaps to the nearest visible ancestor banner so navigation context is never lost.
 
-When a fold change hides the previously focused agent, focus snaps to the nearest visible ancestor banner so navigation
-context is never lost. Singleton name-root groups suppress their level-2 banner to reduce visual noise; the level-2
-name-root banner uses a distinct accent color from the project-banner level above it.
+Visual treatment: project banners use a sky-blue `▌` left bar and a heavy `━` rule; ChangeSpec banners get a slightly
+cooler accent and a `▎` bar so the project still reads as the dominant header; name-root banners use a `╭─` branch glyph
+with a teal-accented label and a lighter `─` rule. Singleton name-root groups suppress their banner entirely to reduce
+visual noise.
+
+After a kill or dismiss, focus re-anchors on the visually-next row (rather than the next row in input order) so the
+selection always lands somewhere meaningful in the rendered tree.
+
+### Grouping Modes
+
+Press `g` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
+(`Grouping: default` / `by date` / `by status`) on each cycle:
+
+| Mode        | L0 buckets                                        | Notes                                                                                    |
+| ----------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)      | Default. Uses the 2-/3-level layout described above.                                     |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`   | Bucketed by each agent's `start_time`. Project / ChangeSpec levels collapse away.        |
+| `BY_STATUS` | `Needs Attention` / `Running` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage). Project / ChangeSpec levels collapse away. |
+
+In `BY_DATE` and `BY_STATUS` modes the L0 banner is the bucket itself (the project / ChangeSpec levels disappear), L1 is
+the name-root, and the same singleton-suppression rule applies. Each mode keeps its own per-group fold registry, so
+collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are
+prefixed with semantic glyphs (`▲`, `▶`, `✗`, `✓`) so the bucket title still leads visually.
+
+### Agent Row Glyphs
+
+To keep rows compact, agent statuses and types are rendered as one- or two-character badges instead of verbose text:
+
+| Glyph | Meaning                                              |
+| ----- | ---------------------------------------------------- |
+| `▶`   | RUNNING                                              |
+| `✓`   | DONE                                                 |
+| `✓P`  | PLAN DONE                                            |
+| `▶P`  | PLAN APPROVED                                        |
+| `★E`  | EPIC CREATED                                         |
+| `✎`   | PLANNING                                             |
+| `✗`   | FAILED                                               |
+| `⏳`  | WAITING                                              |
+| `?`   | QUESTION                                             |
+| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
+| `≡`   | Workflow row (top-level)                             |
+| `❑`   | ChangeSpec / CL row (top-level)                      |
+| `⚡`  | Autonomous (`%approve`) agent                        |
+| `◌`   | Hidden agent (visible only when `.` toggles them in) |
+
+The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
+panel. Statuses not in the table fall back to `(STATUS)` text for forwards compatibility.
 
 ### Agent Search
 
@@ -425,6 +496,16 @@ These work on all tabs:
 When quitting (`q` or `Q`) while background tasks are still running (task queue workers or background command slots), a
 confirmation dialog appears showing the count of active tasks and asking whether to kill them and quit. Declining the
 dialog cancels the quit and returns to the TUI.
+
+## Notifications Modal
+
+Press `i` (or the `,n` leader chord to jump straight to an agent's notification) to open the notifications modal. See
+[`docs/notifications.md`](notifications.md) for the full keybinding reference, the priority/inbox/muted section
+taxonomy, and the per-notification snooze and mute affordances.
+
+The top-bar notification indicator color reflects the highest-priority unread bucket: red for **PRIORITY** notifications
+(plan approvals, user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for regular
+**INBOX** notifications, and cyan when only **MUTED** notifications remain.
 
 ## Notification Actions
 

@@ -953,6 +953,16 @@ Normal expansion resumes here.
 The markers are stripped from the final output. This is useful for embedding raw xprompt syntax in documentation or for
 passing literal `#name` patterns to downstream consumers.
 
+The closing `%xprompts_enabled:true` marker may appear either on its own line or **inline** at the end of a content
+line. In both forms the marker (and any whitespace immediately preceding an inline marker) is stripped from the final
+output, so prompts authored as natural prose can re-enable expansion mid-line:
+
+```
+%xprompts_enabled:false
+... raw content where #foo and @bar are passed through verbatim. %xprompts_enabled:true
+And expansion resumes here.
+```
+
 ## XPrompt Aliases
 
 XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt processing. They are defined in

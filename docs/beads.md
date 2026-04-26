@@ -211,8 +211,10 @@ Run an entire epic plan end-to-end by launching one agent per phase plus a final
 | `-y, --yes`     | Skip the launch confirmation prompt                                               |
 
 Both xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
-matching tag overrides the built-in. If launching the multi-prompt fails, the pre-claims and the `is_ready_to_work` flag
-are rolled back best-effort so the epic can be retried.
+matching tag overrides the built-in. Each generated phase and land prompt also carries a `%approve` directive, so the
+spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. If launching the
+multi-prompt fails, the pre-claims and the `is_ready_to_work` flag are rolled back best-effort so the epic can be
+retried.
 
 ## Multi-Workspace Support
 
