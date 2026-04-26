@@ -264,6 +264,9 @@ class AgentDisplayMixin:
             panel_agents = agents_for_panel(self._agents, key)
             global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
 
+            label = "(untagged)" if key is None else f"@{key}"
+            widget.border_title = f"{label} · {len(panel_agents)}"
+
             local_idx = -1
             if idx == focused_idx and 0 <= global_idx < len(self._agents):
                 try:

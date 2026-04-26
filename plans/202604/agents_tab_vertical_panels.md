@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 21:14:24
-status: wip
+status: done
 ---
 # Plan: Stack dynamic tag panels vertically on the Agents tab
 
