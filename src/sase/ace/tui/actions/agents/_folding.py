@@ -57,31 +57,47 @@ class AgentFoldingMixin:
         return list(self._fold_counts.keys())
 
     def _focused_group_keys(self) -> tuple[GroupKey | None, GroupKey | None]:
-        """Return ``(l1_key | None, l0_key | None)`` for the focused agent.
+        """Return ``(deep_key | None, l0_key | None)`` for the focused agent.
 
-        Uses :func:`grouping_keys_for_agents` to map ``current_idx`` back
-        to its enclosing project / name-root pair, mirroring the same
-        singleton-suppression rule as :func:`build_agent_tree` so an L1
-        key is only returned when the name-root group has 2+ entries.
-        Returns ``(None, None)`` when no agent is focused.
+        Uses :func:`grouping_keys_for_agents` plus
+        :func:`build_agent_tree` to mirror the same per-panel mode +
+        singleton-suppression rules the renderer applies.  ``deep_key``
+        is the deepest banner that contains the focused agent (a name-
+        root banner if visible, otherwise a ChangeSpec banner in 3-level
+        mode), and ``l0_key`` is its project banner.  Returns
+        ``(None, None)`` when no agent is focused.
         """
-        from ...models.agent_groups import grouping_keys_for_agents
+        from ...models.agent_groups import (
+            build_agent_tree,
+            find_visible_ancestor_banner,
+        )
 
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             return (None, None)
-        keys_per_agent = grouping_keys_for_agents(self._agents)
-        focus = keys_per_agent[self.current_idx]
-        l0: GroupKey = focus.project
-        l1: GroupKey | None = None
-        if focus.name_root:
-            sibling_count = sum(
-                1
-                for k in keys_per_agent
-                if k.project == focus.project and k.name_root == focus.name_root
-            )
-            if sibling_count >= 2:
-                l1 = (*focus.project, focus.name_root)
-        return (l1, l0)
+        # Build with an empty registry so collapsed banners don't
+        # short-circuit the search — we want every enclosing banner
+        # the renderer would emit at full expansion.
+        from ...models.agent_group_fold import AgentGroupFoldRegistry
+
+        entries = build_agent_tree(self._agents, fold_registry=AgentGroupFoldRegistry())
+        l0: GroupKey | None = None
+        deep: GroupKey | None = None
+        for entry in entries:
+            if entry.kind != "group" or entry.group is None:
+                continue
+            if self.current_idx not in entry.group.agent_indices:
+                continue
+            if entry.group.level == 0:
+                l0 = entry.group.group_key
+            if deep is None or entry.group.level > 0:
+                deep = entry.group.group_key
+        if deep == l0:
+            deep = None
+        if l0 is None:
+            ancestor = find_visible_ancestor_banner(entries, self.current_idx)
+            if ancestor is not None:
+                l0 = ancestor.group_key
+        return (deep, l0)
 
     def _all_known_group_keys(self) -> list[GroupKey]:
         """Every L0 + L1 key the current agent list would render."""
@@ -172,6 +188,15 @@ class AgentFoldingMixin:
         entries = build_agent_tree(
             self._agents, fold_registry=self._group_fold_registry
         )
+        # Find the agent_indices the expanded banner covers, so we can
+        # match either by descendant-banner key prefix or by agent
+        # membership without re-deriving the panel mode here.
+        expanded_member_indices: tuple[int, ...] = ()
+        for entry in entries:
+            if entry.kind == "group" and entry.group is not None:
+                if entry.group.group_key == expanded_key:
+                    expanded_member_indices = entry.group.agent_indices
+                    break
         # Find first collapsed child banner under the expanded group.
         for entry in entries:
             if entry.kind != "group" or entry.group is None:
@@ -187,22 +212,10 @@ class AgentFoldingMixin:
         # Fall back to the first visible agent inside the group.
         for entry in entries:
             if entry.kind == "agent" and entry.agent_idx is not None:
-                if 0 <= entry.agent_idx < len(self._agents):
-                    a = self._agents[entry.agent_idx]
-                    from ...models.agent_groups import grouping_keys_for_agents
-
-                    keys_per_agent = grouping_keys_for_agents(self._agents)
-                    k = keys_per_agent[entry.agent_idx]
-                    proj_key: GroupKey = k.project
-                    if expanded_key == proj_key or (
-                        len(expanded_key) == 3
-                        and proj_key == expanded_key[:2]
-                        and k.name_root == expanded_key[2]
-                    ):
-                        self._current_group_key = None
-                        self.current_idx = entry.agent_idx
-                        _ = a  # keep linter happy
-                        return
+                if entry.agent_idx in expanded_member_indices:
+                    self._current_group_key = None
+                    self.current_idx = entry.agent_idx
+                    return
         # Nothing better — clear group focus so j/k can rebind cleanly.
         self._current_group_key = None
 
@@ -242,13 +255,11 @@ class AgentFoldingMixin:
                         self._refilter_agents()  # type: ignore[attr-defined]
                     return
 
-            # Banner focus → collapse it (or escalate to parent L0).
+            # Banner focus → collapse it (or escalate to parent banner).
             if self._current_group_key is not None:
                 cur_key: GroupKey = tuple(self._current_group_key)
-                if len(cur_key) == 3 and self._group_fold_registry.is_collapsed(
-                    cur_key
-                ):
-                    parent_key: GroupKey = cur_key[:2]
+                if len(cur_key) > 1 and self._group_fold_registry.is_collapsed(cur_key):
+                    parent_key: GroupKey = cur_key[:-1]
                     if self._group_fold_registry.collapse(parent_key):
                         self._current_group_key = parent_key
                         self._refilter_agents()  # type: ignore[attr-defined]

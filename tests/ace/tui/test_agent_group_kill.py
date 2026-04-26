@@ -130,7 +130,7 @@ def test_group_kill_modal_header_includes_group_label_and_count() -> None:
 
     assert app.pushed_modals, "Expected a confirmation modal"
     description = app.pushed_modals[0].agent_description
-    assert "proj_a / release-fix" in description
+    assert "release-fix" in description
     assert "2 agent" in description
 
 

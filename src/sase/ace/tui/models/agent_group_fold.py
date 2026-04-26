@@ -1,10 +1,16 @@
-"""Per-group fold registry for the Agents-tab two-level grouping tree.
+"""Per-group fold registry for the Agents-tab grouping tree.
 
-Each group (an L0 project key — a 2-tuple ``(project, cl_name)`` — or an
-L1 name-root key — a 3-tuple ``(project, cl_name, name_root)``) tracks a
-binary collapsed/expanded state.  Groups default to expanded; only the
-collapsed set is stored so first-paint and brand-new groups behave
-identically.
+Each group key is an arbitrary-length ``tuple[str, ...]`` —
+
+* ``(project,)`` for an L0 project banner;
+* ``(project, changespec)`` for an L1 ChangeSpec banner (3-level mode)
+  or ``(project, name_root)`` for an L1 name-root banner (2-level
+  fallback);
+* ``(project, changespec, name_root)`` for an L2 name-root banner in
+  3-level mode.
+
+Groups default to expanded; only the collapsed set is stored so
+first-paint and brand-new groups behave identically.
 
 This registry layers *above* the existing per-workflow
 :class:`FoldStateManager`: workflow-level folds only matter once the

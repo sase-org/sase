@@ -111,17 +111,17 @@ def test_all_collapsed_j_cycles_through_project_banners() -> None:
     ]
     app = _StubApp(
         agents,
-        collapsed=[("p1", "cl1"), ("p2", "cl2"), ("p3", "cl3")],
+        collapsed=[("p1",), ("p2",), ("p3",)],
     )
-    app._current_group_key = ("p1", "cl1")
+    app._current_group_key = ("p1",)
 
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p2", "cl2")
+    assert app._current_group_key == ("p2",)
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p3", "cl3")
+    assert app._current_group_key == ("p3",)
     # Wraps to first.
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p1", "cl1")
+    assert app._current_group_key == ("p1",)
 
 
 def test_all_collapsed_k_reverses_project_banner_cycle() -> None:
@@ -132,14 +132,14 @@ def test_all_collapsed_k_reverses_project_banner_cycle() -> None:
     ]
     app = _StubApp(
         agents,
-        collapsed=[("p1", "cl1"), ("p2", "cl2"), ("p3", "cl3")],
+        collapsed=[("p1",), ("p2",), ("p3",)],
     )
-    app._current_group_key = ("p1", "cl1")
+    app._current_group_key = ("p1",)
 
     app._navigate_agents_panel(-1)
-    assert app._current_group_key == ("p3", "cl3")
+    assert app._current_group_key == ("p3",)
     app._navigate_agents_panel(-1)
-    assert app._current_group_key == ("p2", "cl2")
+    assert app._current_group_key == ("p2",)
 
 
 def test_mixed_state_walks_banners_and_agents() -> None:
@@ -151,7 +151,7 @@ def test_mixed_state_walks_banners_and_agents() -> None:
     ]
     app = _StubApp(
         agents,
-        collapsed=[("p1", "cl1")],
+        collapsed=[("p1",)],
         current_idx=1,
     )
     # Order of stops: banner(p1) -> agent(b1, idx 1) -> agent(c1, idx 2)
@@ -160,7 +160,7 @@ def test_mixed_state_walks_banners_and_agents() -> None:
     assert app.current_idx == 2  # next agent
     app._navigate_agents_panel(1)
     # Wraps onto the collapsed banner.
-    assert app._current_group_key == ("p1", "cl1")
+    assert app._current_group_key == ("p1",)
     app._navigate_agents_panel(1)
     assert app._current_group_key is None
     assert app.current_idx == 1  # back to first agent
@@ -231,17 +231,17 @@ def test_unmatched_group_key_lands_on_first_stop() -> None:
     ]
     app = _StubApp(
         agents,
-        collapsed=[("p1", "cl1"), ("p2", "cl2"), ("p3", "cl3")],
+        collapsed=[("p1",), ("p2",), ("p3",)],
     )
     app._current_group_key = ("ghost",)
 
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p1", "cl1")
+    assert app._current_group_key == ("p1",)
 
 
-def test_jk_at_l0_banner_moves_highlight_to_l1_banner() -> None:
-    """When stepping from a collapsed L0 banner to a collapsed sibling
-    L1 banner, the AgentList's rendered highlight tracks the new
+def test_jk_at_l0_banner_moves_highlight_to_deeper_banner() -> None:
+    """When stepping from a collapsed L0 banner to a collapsed deeper
+    sibling banner, the AgentList's rendered highlight tracks the new
     ``_current_group_key`` via ``update_highlight``.
     """
     from sase.ace.tui.widgets.agent_list import AgentList
@@ -252,16 +252,19 @@ def test_jk_at_l0_banner_moves_highlight_to_l1_banner() -> None:
         _agent(project="p1", cl="cl1", name="sase-q.first"),
         _agent(project="p1", cl="cl1", name="sase-q.second"),
     ]
-    # Collapse the L0 *and* both L1s so every banner is selectable.
+    # Collapse the L0 *and* both L2 name-root banners so every banner is
+    # selectable once L0 expands (the L1 ChangeSpec banner stays
+    # expanded, so its children — the two collapsed L2 banners — become
+    # the only selectable stops).
     app = _StubApp(
         agents,
         collapsed=[
-            ("p1", "cl1"),
+            ("p1",),
             ("p1", "cl1", "sase-q"),
             ("p1", "cl1", "sase-r"),
         ],
     )
-    app._current_group_key = ("p1", "cl1")  # L0 project banner
+    app._current_group_key = ("p1",)  # L0 project banner
 
     widget = AgentList()
     widget.update_list(
@@ -274,8 +277,8 @@ def test_jk_at_l0_banner_moves_highlight_to_l1_banner() -> None:
     # children are hidden, so the highlight is row 0.
     assert widget.highlighted == 0
 
-    # Expand the L0 so the L1 banners become visible & selectable.
-    app._group_fold_registry.expand(("p1", "cl1"))
+    # Expand the L0 so the deeper banners become visible & selectable.
+    app._group_fold_registry.expand(("p1",))
     app._navigate_agents_panel(1)
     assert app._current_group_key == ("p1", "cl1", "sase-q")
 
@@ -286,5 +289,5 @@ def test_jk_at_l0_banner_moves_highlight_to_l1_banner() -> None:
         current_group_key=app._current_group_key,
     )
     widget.update_highlight(app.current_idx, None, group_key=app._current_group_key)
-    # Highlight tracks the L1 banner row.
+    # Highlight tracks the L2 banner row.
     assert widget.highlighted is not None

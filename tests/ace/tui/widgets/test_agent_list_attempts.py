@@ -50,25 +50,26 @@ def test_update_list_emits_attempt_rows_when_history_present() -> None:
     widget = AgentList()
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])
     widget.update_list([agent], current_idx=0)
-    # Main panel: project banner + agent + 2 attempts.
-    assert widget._row_entries == [_BR, (0, None), (0, 1), (0, 2)]
+    # Main panel: project + ChangeSpec banner + agent + 2 attempts.
+    assert widget._row_entries == [_BR, _BR, (0, None), (0, 1), (0, 2)]
 
 
 def test_update_list_no_attempts_keeps_single_agent_row() -> None:
     widget = AgentList()
     agent = _make_agent()
     widget.update_list([agent], current_idx=0)
-    assert widget._row_entries == [_BR, (0, None)]
+    assert widget._row_entries == [_BR, _BR, (0, None)]
 
 
 def test_resolve_row_returns_attempt_number_for_child_rows() -> None:
     widget = AgentList()
     agent = _make_agent(attempt_history=[_make_record(1)])
     widget.update_list([agent], current_idx=0)
-    # Rows: 0=project banner, 1=agent, 2=attempt 1.
+    # Rows: 0=project banner, 1=ChangeSpec banner, 2=agent, 3=attempt 1.
     assert widget._resolve_row(0) == (0, None, None)  # banner -> first agent
     assert widget._resolve_row(1) == (0, None, None)
-    assert widget._resolve_row(2) == (0, 1, None)
+    assert widget._resolve_row(2) == (0, None, None)
+    assert widget._resolve_row(3) == (0, 1, None)
 
 
 def test_attempt_option_text_shows_number_and_snippet() -> None:
@@ -127,8 +128,8 @@ def test_highlight_selects_attempt_row_when_attempt_number_passed() -> None:
         current_idx=0,
         current_attempt_number=2,
     )
-    # Rows: 0=project banner, 1=agent, 2=attempt 1, 3=attempt 2.
-    assert widget.highlighted == 3
+    # Rows: 0=project banner, 1=ChangeSpec banner, 2=agent, 3=attempt 1, 4=attempt 2.
+    assert widget.highlighted == 4
 
 
 def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
@@ -139,8 +140,8 @@ def test_highlight_selects_agent_row_when_attempt_number_is_none() -> None:
         current_idx=0,
         current_attempt_number=None,
     )
-    # Rows: 0=project banner, 1=agent, 2=attempt 1.
-    assert widget.highlighted == 1
+    # Rows: 0=project banner, 1=ChangeSpec banner, 2=agent, 3=attempt 1.
+    assert widget.highlighted == 2
 
 
 def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
@@ -179,5 +180,5 @@ def test_update_list_skips_attempt_rows_for_workflow_children() -> None:
     widget.update_list([parent, child], current_idx=0)
 
     # Parent and child share grouping (child inherits via parent_timestamp),
-    # so a single project banner precedes them both.
-    assert widget._row_entries == [_BR, (0, None), (0, 1), (1, None)]
+    # so a single project + ChangeSpec banner pair precedes them both.
+    assert widget._row_entries == [_BR, _BR, (0, None), (0, 1), (1, None)]

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 00:46:31
-status: wip
+status: done
 ---
 # Split Project (L1) from ChangeSpec (L2) in agents-tab grouping
 

@@ -23,6 +23,10 @@ from ._agent_list_helpers import short_model_name, step_role_suffix
 from ._agent_list_styling import (
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
+    _CHANGESPEC_BANNER_BAR_STYLE,
+    _CHANGESPEC_BANNER_RULE_STYLE,
+    _CHANGESPEC_BAR_GLYPH,
+    _CHANGESPEC_INDENT,
     _CHILD_INDENT,
     _DISMISSIBLE_STATUSES,
     _DONE_ICON,
@@ -30,6 +34,7 @@ from ._agent_list_styling import (
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BRANCH_GLYPH,
+    _NAME_ROOT_DEEP_INDENT,
     _NAME_ROOT_INDENT,
     _NAME_ROOT_RULE,
     _PROJECT_BANNER_BAR_STYLE,
@@ -314,14 +319,25 @@ def format_banner_option(
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
 
+    panel_uses_changespec = any(a.cl_name for a in agents)
+    is_changespec_banner = (
+        group.level == 1 and panel_uses_changespec and len(group.group_key) == 2
+    )
     if group.level == 0:
         prefix = f"{_PROJECT_BAR_GLYPH} "
         rule_char = _PROJECT_RULE
         prefix_style = _PROJECT_BANNER_BAR_STYLE
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
+    elif is_changespec_banner:
+        prefix = f"{_CHANGESPEC_INDENT}{_CHANGESPEC_BAR_GLYPH} "
+        rule_char = _PROJECT_RULE
+        prefix_style = _CHANGESPEC_BANNER_BAR_STYLE
+        label_style = _CHANGESPEC_BANNER_BAR_STYLE
+        rule_style = _CHANGESPEC_BANNER_RULE_STYLE
     else:
-        prefix = f"{_NAME_ROOT_INDENT}{_NAME_ROOT_BRANCH_GLYPH} "
+        indent = _NAME_ROOT_DEEP_INDENT if group.level == 2 else _NAME_ROOT_INDENT
+        prefix = f"{indent}{_NAME_ROOT_BRANCH_GLYPH} "
         rule_char = _NAME_ROOT_RULE
         prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE
         label_style = _NAME_ROOT_BANNER_LABEL_STYLE
