@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 03:22:52
-status: wip
+status: done
 bead_id: sase-u
 ---
 # Plan — Instant `j`/`k` Navigation in the TUI
