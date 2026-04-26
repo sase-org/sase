@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 23:39:41
-status: wip
+status: done
 ---
 # Notification Panel Polish
 

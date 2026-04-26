@@ -55,13 +55,13 @@ class NotificationIndicator(Static):
         if priority == 0 and rest == 0 and muted == 0:
             return Text(" ✉ 0 ", style="dim")
 
-        primary_label = f" ✉ {priority}+{rest} "
         if priority > 0:
-            text = Text(primary_label, style="bold #1a1a1a on #FF4444")
+            text = Text(f" ✉ {priority}+{rest} ", style="bold #1a1a1a on #FF4444")
         elif rest > 0:
-            text = Text(primary_label, style="bold #1a1a1a on #FFD700")
+            text = Text(f" ✉ {rest} ", style="bold #1a1a1a on #FFD700")
         else:
-            text = Text(primary_label, style="bold #1a1a1a on #5FAFAF")
+            # Muted-only collapse: count goes in the primary segment, no secondary.
+            return Text(f" ✉ {muted} ", style="bold #1a1a1a on #5FAFAF")
         if muted > 0:
             text.append(f"·{muted} ", style="dim")
         return text

@@ -252,11 +252,13 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         """Create styled text for a notification option."""
         text = Text()
 
-        # Prefix: ~ for muted (any read state), * for unread non-muted, none otherwise.
+        # Prefix column is always 2 cells wide so [sender] aligns across rows.
         if notification.muted:
             text.append("~ ", style="dim")
         elif not notification.read:
             text.append("* ", style="bold #FFD700")
+        else:
+            text.append("  ", style="")
 
         # Body style: dim everything for muted rows so they read as quieted.
         body_style = "dim" if notification.muted else ""
@@ -295,7 +297,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         # Snooze remaining-time badge
         if notification.snooze_until:
             text.append(
-                f"  · in {format_relative_until(notification.snooze_until)}",
+                f"  ⏰ {format_relative_until(notification.snooze_until)}",
                 style="dim",
             )
 
@@ -319,8 +321,6 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         text.append("▌ ", style=accent)
         text.append(label, style=accent)
         text.append(f" · {count}", style=accent)
-        text.append(" ", style="")
-        text.append("─" * 40, style="dim")
         return text
 
     def _create_sectioned_options(self) -> list[Option]:

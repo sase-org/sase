@@ -241,7 +241,7 @@ def test_unmute_on_snoozed_clears_snooze_and_toasts() -> None:
 
 
 def test_styled_label_includes_snooze_badge_when_snoozed() -> None:
-    """A snoozed row's label appends a '· in {time}' badge."""
+    """A snoozed row's label appends a '⏰ {time}' badge."""
     from datetime import datetime as _datetime
     from datetime import timedelta as _timedelta
 
@@ -254,7 +254,7 @@ def test_styled_label_includes_snooze_badge_when_snoozed() -> None:
 
     modal = NotificationModal([notification])
     label = modal._create_styled_label(notification)
-    assert "· in" in label.plain
+    assert "⏰" in label.plain
 
 
 def test_cancel_dismiss_notification_clears_pending() -> None:

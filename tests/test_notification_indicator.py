@@ -9,9 +9,9 @@ def test_all_zero_renders_dim_collapsed_envelope() -> None:
     assert "dim" in str(text.style)
 
 
-def test_rest_only_renders_gold_split_envelope() -> None:
+def test_rest_only_renders_gold_envelope() -> None:
     text = NotificationIndicator._build_content(0, 3, 0)
-    assert text.plain == " ✉ 0+3 "
+    assert text.plain == " ✉ 3 "
     assert "#FFD700" in str(text.style)
 
 
@@ -27,9 +27,9 @@ def test_priority_dominates_when_both_present() -> None:
     assert "#FF4444" in str(text.style)
 
 
-def test_muted_only_renders_dim_cyan_with_secondary() -> None:
+def test_muted_only_collapses_to_single_count_dim_cyan() -> None:
     text = NotificationIndicator._build_content(0, 0, 4)
-    assert text.plain == " ✉ 0+0 ·4 "
+    assert text.plain == " ✉ 4 "
     assert "#5FAFAF" in str(text.style)
 
 
@@ -41,7 +41,7 @@ def test_priority_with_muted_renders_red_primary_and_secondary() -> None:
 
 def test_rest_with_muted_renders_gold_primary_and_secondary() -> None:
     text = NotificationIndicator._build_content(0, 2, 1)
-    assert text.plain == " ✉ 0+2 ·1 "
+    assert text.plain == " ✉ 2 ·1 "
     assert "#FFD700" in str(text.style)
 
 
@@ -54,5 +54,5 @@ def test_snooze_to_unread_transition_changes_buckets() -> None:
     """A snoozed row (muted=1) flipping to unread (rest=1) renders the swap."""
     snoozed = NotificationIndicator._build_content(0, 0, 1)
     expired = NotificationIndicator._build_content(0, 1, 0)
-    assert snoozed.plain == " ✉ 0+0 ·1 "
-    assert expired.plain == " ✉ 0+1 "
+    assert snoozed.plain == " ✉ 1 "
+    assert expired.plain == " ✉ 1 "
