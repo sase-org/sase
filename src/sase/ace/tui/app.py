@@ -37,6 +37,7 @@ from .actions import (
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
+from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 from .widgets import (
     AgentDetail,
     AgentInfoPanel,
@@ -124,6 +125,7 @@ class AceApp(
 
     _current_idx: int
     _current_attempt_number: int | None
+    _jk_perf: JKPerfTimer | None
 
     @property
     def current_idx(self) -> int:
@@ -137,6 +139,8 @@ class AceApp(
         if old != value:
             # Moving to a different agent clears any selected-attempt view.
             self._current_attempt_number = None
+            if self._jk_perf is not None:
+                self._jk_perf.mark_model_updated()
             self.watch_current_idx(old, value)
 
     @property
@@ -172,6 +176,7 @@ class AceApp(
             restart_axe: Whether to restart the axe daemon on startup
         """
         super().__init__()
+        self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,
             model_tier_override=model_tier_override,
@@ -249,6 +254,11 @@ class AceApp(
         yield KeybindingFooter(id="keybinding-footer")
         yield Footer()
 
+    def _jk_perf_begin(self, action: str) -> None:
+        """Record a key-to-paint sample start, when SASE_TUI_PERF=1."""
+        if self._jk_perf is not None:
+            self._jk_perf.begin(action, self.current_tab)
+
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
         if old_idx != new_idx:
@@ -258,6 +268,8 @@ class AceApp(
                 self._refresh_agents_display_debounced()
             elif self.current_tab == "axe":
                 self._refresh_axe_display_debounced()
+            if self._jk_perf is not None:
+                self.call_after_refresh(self._jk_perf.mark_painted)
 
     def watch_current_tab(self, old_tab: TabName, new_tab: TabName) -> None:
         """React to tab changes by showing/hiding views."""
