@@ -42,6 +42,8 @@ under the parent banner without an extra header.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 
 from .agent import Agent
@@ -54,6 +56,102 @@ NO_PROJECT = ""
 #: Synthetic ChangeSpec bucket label for agents with no ``cl_name`` in a
 #: panel that otherwise has at least one ChangeSpec.
 NO_CHANGESPEC_LABEL = "(no ChangeSpec)"
+
+
+# pyvision: tests/ace/tui/models/test_agent_groups.py
+class GroupingMode(Enum):
+    """How the Agents-tab tree is bucketed at L0.
+
+    - ``STANDARD``: existing behavior — L0 is the project; ChangeSpec
+      level is added per-panel when at least one agent has a ``cl_name``.
+    - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
+      ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
+    - ``BY_STATUS``: L0 is a status bucket (``Needs Attention`` /
+      ``Running`` / ``Failed`` / ``Done``) derived from each agent's
+      ``status`` and retry-chain lineage.
+
+    In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
+    levels disappear: L0 is the bucket, L1 is the name-root, and the
+    same singleton-suppression rule applies as in ``STANDARD`` mode.
+    """
+
+    STANDARD = "standard"
+    BY_DATE = "by_date"
+    BY_STATUS = "by_status"
+
+
+_DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
+_STATUS_BUCKETS: tuple[str, ...] = ("Needs Attention", "Running", "Failed", "Done")
+
+# TODO(grouping-modes): "Needs Attention" mapping is a Phase-1 judgment call
+# pulled from plans/202604/agents_tab_grouping_modes.md and worth confirming
+# before treating as canon. Currently includes:
+#   * ``WAITING`` with no ``wait_until`` (paused on user input, not a timer)
+#   * ``QUESTION`` and ``PLAN APPROVED`` (the existing _AWAITING_STATUSES)
+#   * ``PLAN DONE`` and ``EPIC CREATED`` (terminal-but-actionable states)
+#   * ``FAILED`` without ``retried_as_timestamp`` (terminal failures the
+#     user has not yet retried)
+_NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset(
+    {"PLAN DONE", "EPIC CREATED", "QUESTION", "PLAN APPROVED"}
+)
+
+
+def _date_bucket_for(agent: Agent, now: datetime) -> str:
+    """Map ``agent.start_time`` to one of the date buckets.
+
+    Buckets compare on calendar dates in ``now``'s local frame:
+
+    - ``Today``: same calendar date as ``now``.
+    - ``Yesterday``: the day before ``now``.
+    - ``This Week``: within the prior six days, but not Today/Yesterday.
+    - ``Earlier``: anything older, plus agents with no ``start_time``.
+    """
+    start = agent.start_time
+    if start is None:
+        return "Earlier"
+    today = now.date()
+    start_date = start.date()
+    if start_date == today:
+        return "Today"
+    if start_date == today - timedelta(days=1):
+        return "Yesterday"
+    if start_date > today - timedelta(days=7):
+        return "This Week"
+    return "Earlier"
+
+
+def _status_bucket_for(agent: Agent) -> str:
+    """Map ``agent.status`` (plus retry lineage) to a status bucket.
+
+    See the ``_NEEDS_ATTENTION_STATUSES`` TODO above for the mapping rules.
+    Anything not explicitly bucketed lands in ``Running`` (the agent is in
+    flight from the user's perspective).
+    """
+    status = agent.status or ""
+    if status == "DONE":
+        return "Done"
+    if status in _NEEDS_ATTENTION_STATUSES:
+        return "Needs Attention"
+    if status == "WAITING" and not agent.wait_until:
+        return "Needs Attention"
+    if status.startswith("FAILED"):
+        if not agent.retried_as_timestamp:
+            return "Needs Attention"
+        return "Failed"
+    return "Running"
+
+
+def _bucket_sort_index(mode: GroupingMode, bucket: str) -> int:
+    """Fixed bucket ordering for ``BY_DATE`` / ``BY_STATUS`` L0 keys.
+
+    Unknown bucket names sort last so a stale bucket label can never
+    silently clobber a valid one.
+    """
+    order = _DATE_BUCKETS if mode is GroupingMode.BY_DATE else _STATUS_BUCKETS
+    try:
+        return order.index(bucket)
+    except ValueError:
+        return len(order)
 
 
 @dataclass(frozen=True)
@@ -110,11 +208,17 @@ def _name_root(agent: Agent) -> str:
     return ""
 
 
-def _project_sort_key(project: str) -> tuple[int, str]:
-    """Sort key for projects — named projects first, ``(no project)`` last."""
-    if project:
-        return (0, project.lower())
-    return (1, "")
+def _project_sort_key(mode: GroupingMode, project: str) -> tuple[int, str | int]:
+    """Sort key for L0 banners.
+
+    STANDARD: named projects first, ``(no project)`` last.
+    BY_DATE / BY_STATUS: fixed bucket order (newest-first / priority-first).
+    """
+    if mode is GroupingMode.STANDARD:
+        if project:
+            return (0, project.lower())
+        return (1, "")
+    return (0, _bucket_sort_index(mode, project))
 
 
 def _changespec_sort_key(changespec: str) -> tuple[int, str]:
@@ -129,34 +233,71 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
-def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _GroupingKeys:
-    """Compute (project, changespec, name_root) for *agent*.
+def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
+    """Compute the L0 string value for *agent* under *mode*.
+
+    For STANDARD this is the project name; for BY_DATE / BY_STATUS it's
+    the bucket name.  Stored in :class:`_GroupingKeys.project` so the
+    rest of the tree-building plumbing stays unchanged.
+    """
+    if mode is GroupingMode.STANDARD:
+        return _project_name(agent)
+    if mode is GroupingMode.BY_DATE:
+        return _date_bucket_for(agent, now)
+    return _status_bucket_for(agent)
+
+
+def _grouping_keys_for(
+    agent: Agent,
+    parent_lookup: dict[str, Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+    now: datetime | None = None,
+) -> _GroupingKeys:
+    """Compute (L0, changespec, name_root) for *agent* under *mode*.
 
     Workflow children inherit grouping from their parent so a banner is
-    never inserted between a parent and its workflow steps.
+    never inserted between a parent and its workflow steps.  ``now`` is
+    only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
+    ``changespec`` is always empty in non-STANDARD modes since the
+    ChangeSpec level disappears from the hierarchy.
     """
     target = agent
     if agent.is_workflow_child and agent.parent_timestamp:
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent
+    reference = now if now is not None else datetime.now()
     return _GroupingKeys(
-        project=_project_name(target),
-        changespec=target.cl_name or "",
+        project=_l0_value_for(target, mode, reference),
+        changespec=(target.cl_name or "") if mode is GroupingMode.STANDARD else "",
         name_root=_name_root(target),
     )
 
 
-def _grouping_keys_for_agents(agents: list[Agent]) -> list[_GroupingKeys]:
+def _grouping_keys_for_agents(
+    agents: list[Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+    now: datetime | None = None,
+) -> list[_GroupingKeys]:
     """Public-ish helper exposing per-agent grouping keys."""
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
-    return [_grouping_keys_for(a, parent_lookup) for a in agents]
+    reference = now if now is not None else datetime.now()
+    return [_grouping_keys_for(a, parent_lookup, mode, reference) for a in agents]
 
 
-def _panel_uses_changespec_level(panel_agents: list[Agent]) -> bool:
-    """Whether *panel_agents* should use the 3-level layout."""
+def _panel_uses_changespec_level(
+    panel_agents: list[Agent], mode: GroupingMode = GroupingMode.STANDARD
+) -> bool:
+    """Whether *panel_agents* should use the 3-level layout.
+
+    Only applies to ``STANDARD`` mode — ``BY_DATE`` and ``BY_STATUS``
+    drop the ChangeSpec level entirely, so they always render as
+    bucket → name-root.
+    """
+    if mode is not GroupingMode.STANDARD:
+        return False
     return any(a.cl_name for a in panel_agents)
 
 
@@ -164,6 +305,7 @@ def _walk_order(
     keys_per_agent: list[_GroupingKeys],
     *,
     use_changespec_level: bool,
+    mode: GroupingMode = GroupingMode.STANDARD,
 ) -> list[int]:
     """Return a stable permutation of agent indices sorted by grouping keys."""
     parent_keys: list[tuple[str, str]] = [
@@ -179,7 +321,7 @@ def _walk_order(
     return sorted(
         range(len(keys_per_agent)),
         key=lambda i: (
-            _project_sort_key(keys_per_agent[i].project),
+            _project_sort_key(mode, keys_per_agent[i].project),
             (
                 _changespec_sort_key(keys_per_agent[i].changespec)
                 if use_changespec_level
@@ -196,7 +338,11 @@ def _walk_order(
     )
 
 
-def enumerate_group_keys(agents: list[Agent]) -> list[GroupKey]:
+def enumerate_group_keys(
+    agents: list[Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+    now: datetime | None = None,
+) -> list[GroupKey]:
     """Return the deduplicated list of all banner keys present in *agents*.
 
     Partitions *agents* by panel key so each panel's mode (2- vs 3-level)
@@ -210,12 +356,13 @@ def enumerate_group_keys(agents: list[Agent]) -> list[GroupKey]:
     for i, pk in enumerate(panel_keys):
         panel_to_indices.setdefault(pk, []).append(i)
 
+    reference = now if now is not None else datetime.now()
     seen: set[GroupKey] = set()
     out: list[GroupKey] = []
     for indices in panel_to_indices.values():
         panel_agents = [agents[i] for i in indices]
-        keys_per_agent = _grouping_keys_for_agents(panel_agents)
-        use_cs = _panel_uses_changespec_level(panel_agents)
+        keys_per_agent = _grouping_keys_for_agents(panel_agents, mode, reference)
+        use_cs = _panel_uses_changespec_level(panel_agents, mode)
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
         for k in keys_per_agent:
             parent: tuple[str, ...] = (
@@ -249,6 +396,8 @@ def enumerate_group_keys(agents: list[Agent]) -> list[GroupKey]:
 def build_agent_tree(
     agents: list[Agent],
     fold_registry: AgentGroupFoldRegistry | None = None,
+    mode: GroupingMode = GroupingMode.STANDARD,
+    now: datetime | None = None,
 ) -> list[TreeEntry]:
     """Build the grouped tree of banner + agent entries.
 
@@ -258,6 +407,12 @@ def build_agent_tree(
             layout (2- vs 3-level) is chosen from this list alone.
         fold_registry: Optional per-group collapse registry.  ``None``
             (or an empty registry) renders every group expanded.
+        mode: How to bucket agents at L0.  Defaults to ``STANDARD``
+            (existing project / ChangeSpec hierarchy).  ``BY_DATE`` and
+            ``BY_STATUS`` drop the ChangeSpec level entirely; L0 becomes
+            the bucket and L1 becomes the name-root.
+        now: Reference time for ``BY_DATE`` bucketing.  Defaults to
+            ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
@@ -267,9 +422,12 @@ def build_agent_tree(
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
-    keys_per_agent = [_grouping_keys_for(a, parent_lookup) for a in agents]
-    use_cs = _panel_uses_changespec_level(agents)
-    walk_order = _walk_order(keys_per_agent, use_changespec_level=use_cs)
+    reference = now if now is not None else datetime.now()
+    keys_per_agent = [
+        _grouping_keys_for(a, parent_lookup, mode, reference) for a in agents
+    ]
+    use_cs = _panel_uses_changespec_level(agents, mode)
+    walk_order = _walk_order(keys_per_agent, use_changespec_level=use_cs, mode=mode)
 
     proj_indices: dict[str, list[int]] = {}
     cs_indices: dict[tuple[str, str], list[int]] = {}
