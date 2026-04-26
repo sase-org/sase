@@ -373,6 +373,19 @@ class EventHandlersMixin:
             return
         agent_list_container.styles.width = width
 
+    def on_resize(self, _event: events.Resize) -> None:
+        """Re-apply per-panel heights when geometry changes.
+
+        Layout cycling and terminal resizes change the agent-list
+        container's available height; the panel-sizing decision is
+        height-dependent, so recompute without rebuilding options.
+        """
+        if not hasattr(self, "_panel_group"):
+            return
+        reapply = getattr(self, "_reapply_panel_heights", None)
+        if reapply is not None:
+            reapply()
+
     def on_bg_cmd_list_selection_changed(
         self, event: BgCmdList.SelectionChanged
     ) -> None:

@@ -662,6 +662,10 @@ HintInputBar #hint-escape-hint {
 
 #agent-list-container AgentList {
     width: 100%;
+    /* Fallback only — overridden per-refresh by
+       AgentDisplayMixin._apply_panel_heights, which sets either a
+       cell-unit height (Fits regime) or fr weight (Overflow regime)
+       based on each panel's content. */
     height: 1fr;
     border: solid $primary;
     padding: 0 1;

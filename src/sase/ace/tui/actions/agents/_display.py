@@ -254,12 +254,14 @@ class AgentDisplayMixin:
         current_group_key = self._current_group_key
         global_idx = self.current_idx
 
+        ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
             wid = _panel_widget_id(idx)
             try:
                 widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
             except NoMatches:
                 continue
+            ordered_widgets.append(widget)
 
             panel_agents = agents_for_panel(self._agents, key)
             global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
@@ -297,7 +299,78 @@ class AgentDisplayMixin:
             else:
                 widget.remove_class("-focused-panel")
 
+        self._apply_panel_heights(container, ordered_widgets)
         self._focus_focused_panel_widget()
+
+    # ---------------------------------------------------------------------
+    # Per-panel dynamic heights
+    # ---------------------------------------------------------------------
+
+    def _apply_panel_heights(self, container: object, widgets: list[AgentList]) -> None:
+        """Size each tag panel based on its content.
+
+        Two regimes:
+
+        - **Fits** (Σ natural ≤ container): set each panel to its exact
+          natural height in cells, so no inner scrollbars appear and no
+          space is wasted.
+        - **Overflow** (Σ natural > container): weight each panel by
+          ``option_count + 1`` (border allowance keeps tiny panels from
+          collapsing to nothing) using fractional units.
+        """
+        if not widgets:
+            return
+
+        size = getattr(container, "size", None)
+        container_height = getattr(size, "height", 0) if size is not None else 0
+        if not container_height:
+            # Pre-mount: layout hasn't run yet. The next refresh (after
+            # mount completes) will get a real height; the CSS fallback
+            # ``height: 1fr`` keeps panels visible until then.
+            return
+
+        # Border allowance: ``solid`` borders contribute 2 rows (top + bottom).
+        border_rows = 2
+        natural_heights = [getattr(w, "option_count", 0) + border_rows for w in widgets]
+        total_natural = sum(natural_heights)
+
+        from textual.css.scalar import Scalar, Unit
+
+        if total_natural <= container_height:
+            for widget, natural in zip(widgets, natural_heights, strict=True):
+                widget.styles.height = Scalar(float(natural), Unit.CELLS, Unit.HEIGHT)
+        else:
+            for widget in widgets:
+                # ``option_count + 1`` keeps an empty/tiny panel from
+                # weighting to zero in the overflow regime.
+                weight = float(getattr(widget, "option_count", 0) + 1)
+                widget.styles.height = Scalar(weight, Unit.FRACTION, Unit.HEIGHT)
+
+    def _reapply_panel_heights(self) -> None:
+        """Re-run the panel-height computation without rebuilding options.
+
+        Called from the container's ``on_resize`` handler — the panel set
+        and option counts haven't changed, only the available height has.
+        """
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        try:
+            widgets = list(
+                container.query(AgentList).results(AgentList)  # type: ignore[attr-defined]
+            )
+        except (AttributeError, NoMatches):
+            widgets = [
+                w
+                for w in getattr(container, "children", [])
+                if isinstance(w, AgentList)
+            ]
+        self._apply_panel_heights(container, widgets)
 
     def _refresh_panel_highlights(self) -> None:
         """Update the highlight on the focused panel without rebuilding options.

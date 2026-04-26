@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 01:18:51
-status: wip
+status: done
 ---
 # Plan: Dynamic Heights for Agents-Tab Tag Panels
 
