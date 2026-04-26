@@ -49,6 +49,88 @@ from sase.telemetry.metrics import (
 install_sigterm_handler("agent", soft=True)
 
 
+def _send_completion_notification(
+    *,
+    cl_name: str,
+    artifacts_timestamp: str,
+    workflow_name: str,
+    success: bool,
+    agent_hidden: bool,
+    agent_name: str | None,
+    agent_model: str | None,
+    agent_llm_provider: str | None,
+    error_summary: str | None,
+    error_report_path: str | None,
+    saved_path: str | None,
+    diff_path: str | None,
+    output_path: str,
+    step_output: dict[str, Any] | None,
+    prompt: str,
+) -> None:
+    from sase.llm_provider.registry import format_provider_model_label
+    from sase.notifications.senders import notify_workflow_complete
+
+    extra_files = [p for p in [saved_path, diff_path] if p]
+
+    # For failures: attach error report (first) and output log
+    if not success:
+        if error_report_path:
+            extra_files.insert(0, error_report_path)
+        if os.path.isfile(output_path):
+            extra_files.append(output_path)
+
+    agent_label = format_provider_model_label(agent_llm_provider, agent_model)
+
+    # Build notes — include error summary for failures
+    name_part = f" @{agent_name}" if agent_name else ""
+    notes = [
+        f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
+    ]
+    if not success and error_summary:
+        notes.append(error_summary)
+
+    # For failures with an error report, use ViewErrorReport action
+    # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
+    commit_message = (step_output or {}).get("meta_commit_message")
+    pr_url = (step_output or {}).get("meta_pr_url")
+
+    action: str
+    action_data: dict[str, str]
+    if not success and error_report_path:
+        action = "ViewErrorReport"
+        action_data = {
+            "error_report_path": error_report_path,
+            "cl_name": cl_name,
+            "raw_suffix": artifacts_timestamp,
+            **({"agent_name": agent_name} if agent_name else {}),
+            **({"commit_message": commit_message} if commit_message else {}),
+            **({"pr_url": pr_url} if pr_url else {}),
+        }
+    else:
+        action = "JumpToAgent"
+        action_data = {
+            "cl_name": cl_name,
+            "raw_suffix": artifacts_timestamp,
+            **({"agent_name": agent_name} if agent_name else {}),
+            **({"model": agent_model} if agent_model else {}),
+            **({"llm_provider": agent_llm_provider} if agent_llm_provider else {}),
+            "prompt": prompt,
+            **({"commit_message": commit_message} if commit_message else {}),
+            **({"pr_url": pr_url} if pr_url else {}),
+        }
+
+    notify_workflow_complete(
+        sender="user-agent",
+        cl_name=cl_name,
+        success=success,
+        notes=notes,
+        action=action,
+        action_data=action_data,
+        extra_files=extra_files,
+        silent=agent_hidden,
+    )
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
@@ -568,69 +650,22 @@ def main() -> None:
         # Also skip when every step in the workflow was hidden (e.g. for-loops
         # over empty lists) — there's nothing useful to report.
         if not was_killed() and not all_steps_hidden(current_artifacts_dir):
-            from sase.notifications.senders import notify_workflow_complete
-
-            extra_files = [p for p in [saved_path, diff_path] if p]
-
-            # For failures: attach error report (first) and output log
-            if not success:
-                if error_report_path:
-                    extra_files.insert(0, error_report_path)
-                if os.path.isfile(output_path):
-                    extra_files.append(output_path)
-
-            from sase.llm_provider.registry import format_provider_model_label
-
-            agent_label = format_provider_model_label(agent_llm_provider, agent_model)
-
-            # Build notes — include error summary for failures
-            name_part = f" @{agent_name}" if agent_name else ""
-            notes = [
-                f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
-            ]
-            if not success and error_summary:
-                notes.append(error_summary)
-
-            # For failures with an error report, use ViewErrorReport action
-            # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
-            commit_message = (step_output or {}).get("meta_commit_message")
-            pr_url = (step_output or {}).get("meta_pr_url")
-
-            if not success and error_report_path:
-                action = "ViewErrorReport"
-                action_data: dict[str, str] = {
-                    "error_report_path": error_report_path,
-                    "cl_name": cl_name,
-                    "raw_suffix": artifacts_timestamp,
-                    **({"agent_name": agent_name} if agent_name else {}),
-                    **({"commit_message": commit_message} if commit_message else {}),
-                    **({"pr_url": pr_url} if pr_url else {}),
-                }
-            else:
-                action = "JumpToAgent"
-                action_data = {
-                    "cl_name": cl_name,
-                    "raw_suffix": artifacts_timestamp,
-                    **({"agent_name": agent_name} if agent_name else {}),
-                    **({"model": agent_model} if agent_model else {}),
-                    **(
-                        {"llm_provider": agent_llm_provider}
-                        if agent_llm_provider
-                        else {}
-                    ),
-                    "prompt": prompt,
-                    **({"commit_message": commit_message} if commit_message else {}),
-                    **({"pr_url": pr_url} if pr_url else {}),
-                }
-
-            notify_workflow_complete(
-                sender="user-agent",
+            _send_completion_notification(
                 cl_name=cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+                workflow_name=workflow_name,
                 success=success,
-                notes=notes,
-                action=action,
-                action_data=action_data,
-                extra_files=extra_files,
+                agent_hidden=agent_hidden,
+                agent_name=agent_name,
+                agent_model=agent_model,
+                agent_llm_provider=agent_llm_provider,
+                error_summary=error_summary,
+                error_report_path=error_report_path,
+                saved_path=saved_path,
+                diff_path=diff_path,
+                output_path=output_path,
+                step_output=step_output,
+                prompt=prompt,
             )
 
     sys.exit(0 if success else 1)
