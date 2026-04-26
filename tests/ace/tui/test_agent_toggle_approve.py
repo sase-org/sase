@@ -39,6 +39,17 @@ class FakeApproveApp(AgentApproveMixin):
         self.notifications: list[tuple[str, str]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
         self.refresh_calls: list[bool] = []
+        # Phase 3 (sase-u.3): the approve handler tries selective row
+        # patching first, falling back to a full refresh when the patch
+        # can't land. This fake forces the fallback so the existing
+        # contract (in-memory mutation + refresh + persistence) stays
+        # under test without a real widget tree.
+        self.patch_attempts: int = 0
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        del agent
+        self.patch_attempts += 1
+        return False
 
     def _get_selected_agent(self) -> Agent | None:
         return self._selected

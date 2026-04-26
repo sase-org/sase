@@ -130,6 +130,93 @@ class AgentDisplayMixin:
             time.perf_counter() - started,
         )
 
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        """Patch a single agent's row in place when no group membership changed.
+
+        Returns ``True`` when the patch landed; ``False`` when the caller
+        should fall back to ``_refresh_agents_display(list_changed=True)``.
+        Falls back when:
+
+        - the agents tab isn't active (no widget tree to patch);
+        - the agent's panel key changed (status/tag moved it across panels);
+        - the agent's group key would change under the current grouping
+          (e.g. ``BY_STATUS`` and the status flipped between buckets);
+        - the AgentList widget rejects the patch (alignment width grew,
+          row index drifted, etc.).
+
+        Phase 3 of plans/202604/instant_jk_navigation.md: replaces
+        ``_refresh_agents_display(list_changed=True)`` for true
+        single-row mutations (approve toggle, mark/unmark, single-tag
+        edits) so the OptionList isn't rebuilt for an unchanged shape.
+        """
+        from textual.css.query import NoMatches
+
+        from ...models.agent_panels import panel_key_per_agent
+        from ...widgets import AgentList
+
+        if self.current_tab != "agents":
+            return False
+
+        try:
+            agent_idx = self._agents.index(agent)
+        except ValueError:
+            return False
+
+        keys_per_agent = panel_key_per_agent(self._agents)
+        agent_panel_key = keys_per_agent[agent_idx]
+
+        # Find which panel currently displays this agent, if any.
+        target_panel_idx: int | None = None
+        for idx, key in enumerate(self._panel_group.panel_keys):
+            if key == agent_panel_key:
+                target_panel_idx = idx
+                break
+        if target_panel_idx is None:
+            return False
+
+        wid = _panel_widget_id(target_panel_idx)
+        try:
+            widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+
+        # Translate the global agent index to the panel-local index by
+        # counting agents with the same panel key that come before it.
+        local_idx = sum(1 for k in keys_per_agent[:agent_idx] if k == agent_panel_key)
+
+        # Cross-group safety: under BY_STATUS the same agent set can be
+        # split across different banners when status flips, and banner
+        # chips show per-status counts. The patch path mutates one row's
+        # rendered prompt only — banners are not refreshed. Callers that
+        # only flip approve/mark/tag never change status, so STANDARD
+        # and BY_DATE grouping are always safe; for BY_STATUS we play it
+        # safe and fall back so banner counts can't drift.
+        if (
+            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            is GroupingMode.BY_STATUS
+        ):
+            return False
+
+        # Selection state at format time encodes ``is_selected``; derive
+        # it from the current cursor so a patched row's name styling
+        # matches reality even when the cursor moved between renders.
+        is_selected = (
+            agent_idx == self.current_idx
+            and self.current_attempt_number is None
+            and self._current_group_key is None
+        )
+        ok = widget.patch_agent_row(
+            local_idx,
+            marked_agents=self._marked_agents,
+            is_selected=is_selected,
+            now=None,
+        )
+        if not ok:
+            return False
+
+        self._update_agents_info_panel()
+        return True
+
     def _refresh_agents_display_debounced(self) -> None:
         """Debounced refresh for j/k navigation on the agents tab.
 
@@ -379,10 +466,7 @@ class AgentDisplayMixin:
         """
         from textual.css.query import NoMatches
 
-        from ...models.agent_panels import (
-            agents_for_panel,
-            panel_key_per_agent,
-        )
+        from ...models.agent_panels import panel_key_per_agent
         from ...widgets import AgentList
 
         focused_key = self._panel_group.focused_key

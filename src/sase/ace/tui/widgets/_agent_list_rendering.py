@@ -1,6 +1,8 @@
 """Rendering helpers that build Option rows for the agent list widget."""
 
+from collections import OrderedDict
 from datetime import datetime
+from typing import Any
 
 from rich.text import Text
 from textual.widgets.option_list import Option
@@ -55,6 +57,113 @@ _RUNTIME_TS_STYLE = "#8787AF"
 # ("how long?") a little more weight than the timestamp without using
 # a saturated color.  Readable on dark and light themes alike.
 _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
+
+
+_AGENT_CACHE_MAX = 512
+_BANNER_CACHE_MAX = 128
+
+
+def _bounded_lru_get(cache: "OrderedDict[Any, Any]", key: Any) -> Any:
+    """Move *key* to most-recent if present and return its value, else ``None``.
+
+    LRU eviction happens in :func:`_bounded_lru_put`; ``get`` only touches
+    ordering when the key already exists.
+    """
+    value = cache.get(key)
+    if value is not None:
+        cache.move_to_end(key)
+    return value
+
+
+def _bounded_lru_put(
+    cache: "OrderedDict[Any, Any]", key: Any, value: Any, *, maxsize: int
+) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > maxsize:
+        cache.popitem(last=False)
+
+
+def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] | None:
+    """Quantize *now* to per-second precision so cache keys are hashable + stable.
+
+    Returns ``None`` when *now* is ``None`` so cache entries built with the
+    default clock don't collide with explicit-time renders.
+    """
+    if now is None:
+        return None
+    return (now.year, now.month, now.day, now.hour, now.minute, now.second)
+
+
+def _runtime_signature(agent: Agent, now: datetime | None) -> tuple[Any, ...]:
+    """Return a tuple of agent fields that drive the runtime suffix.
+
+    ``RUNNING`` / ``WAITING`` / ``RETRYING`` agents have a status display
+    that depends on time-of-day; their signature folds in the quantized
+    *now* so a cache hit only happens within the same wall-clock second.
+    Terminal agents have a stable signature regardless of *now*.
+    """
+    time_sensitive = agent.status in ("RUNNING", "WAITING", "RETRYING")
+    return (
+        agent.status,
+        agent.start_time,
+        getattr(agent, "wait_until", None),
+        getattr(agent, "wait_duration", None),
+        getattr(agent, "retry_next_at_epoch", None),
+        agent.retry_count,
+        agent.using_fallback,
+        agent.fallback_model,
+        _quantize_now(now) if time_sensitive else None,
+    )
+
+
+def _agent_render_key(
+    agent: Agent,
+    index: int,
+    *,
+    is_selected: bool,
+    fold_annotation: str,
+    is_expanded: bool,
+    is_marked: bool,
+    hint_char: str | None,
+    now: datetime | None,
+) -> tuple[Any, ...]:
+    """Build the cache key for a single agent row.
+
+    Captures every input that affects ``format_agent_option``'s output —
+    if any of these values changes, the cached entry is no longer valid
+    and the row must be re-rendered. The key is intentionally explicit
+    (no ``vars(agent)``) so adding a new visible field is a deliberate
+    edit here rather than a silent cache desync.
+    """
+    return (
+        agent.identity,
+        index,
+        is_selected,
+        fold_annotation,
+        is_expanded,
+        is_marked,
+        hint_char,
+        agent.approve,
+        agent.tag,
+        agent.agent_name,
+        agent.hidden,
+        agent.retry_attempt,
+        agent.is_workflow_child,
+        agent.appears_as_agent,
+        agent.is_anonymous,
+        agent.step_index,
+        agent.total_steps,
+        agent.parent_step_index,
+        agent.parent_total_steps,
+        agent.step_type,
+        agent.embedded_workflow_name,
+        agent.is_pre_prompt_step,
+        agent.agent_type,
+        agent.display_name,
+        agent.cl_name,
+        _runtime_signature(agent, now),
+    )
 
 
 def _build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
@@ -429,3 +538,159 @@ def format_attempt_option(
     suffix = _build_attempt_runtime_suffix(record)
     option_id = f"attempt:{agent.raw_suffix}:{record.attempt_number}"
     return text, suffix, option_id
+
+
+class AgentRenderCache:
+    """Per-widget LRU cache for agent and banner row rendering.
+
+    Lives on the AgentList instance so each widget owns its own bounded
+    cache (separate widgets render independently and a process-wide
+    cache would let an idle panel pin entries for an active one).
+    """
+
+    def __init__(self) -> None:
+        self._agent: OrderedDict[tuple[Any, ...], tuple[Text, Text, str]] = (
+            OrderedDict()
+        )
+        self._banner: OrderedDict[tuple[Any, ...], Option] = OrderedDict()
+
+    def get_agent(self, key: tuple[Any, ...]) -> tuple[Text, Text, str] | None:
+        return _bounded_lru_get(self._agent, key)
+
+    def put_agent(self, key: tuple[Any, ...], value: tuple[Text, Text, str]) -> None:
+        _bounded_lru_put(self._agent, key, value, maxsize=_AGENT_CACHE_MAX)
+
+    def get_banner(self, key: tuple[Any, ...]) -> Option | None:
+        return _bounded_lru_get(self._banner, key)
+
+    def put_banner(self, key: tuple[Any, ...], value: Option) -> None:
+        _bounded_lru_put(self._banner, key, value, maxsize=_BANNER_CACHE_MAX)
+
+    def invalidate_agent(self, identity: Any) -> None:
+        """Drop every cached entry whose key starts with *identity*.
+
+        Used by ``patch_agent_row`` callers to bust stale renders without
+        flushing the whole cache. Keys are tuples whose first element is
+        ``agent.identity`` (see :func:`_agent_render_key`).
+        """
+        stale = [k for k in self._agent if k and k[0] == identity]
+        for k in stale:
+            self._agent.pop(k, None)
+
+    def clear(self) -> None:
+        self._agent.clear()
+        self._banner.clear()
+
+    def __len__(self) -> int:
+        return len(self._agent) + len(self._banner)
+
+
+def cached_format_agent_option(
+    cache: AgentRenderCache,
+    agent: Agent,
+    index: int,
+    *,
+    is_selected: bool,
+    fold_annotation: str = "",
+    is_expanded: bool = False,
+    is_marked: bool = False,
+    hint_char: str | None = None,
+    now: datetime | None = None,
+) -> tuple[Text, Text, str]:
+    """Memoized wrapper for :func:`format_agent_option`.
+
+    Reuses ``(left, suffix, option_id)`` from *cache* when every input
+    matches a prior call. ``Text`` objects from Rich are immutable for
+    our purposes (we don't mutate them after assemble); returning the
+    cached object avoids rebuilding an O(rows) Text tree on each refresh.
+    """
+    key = _agent_render_key(
+        agent,
+        index,
+        is_selected=is_selected,
+        fold_annotation=fold_annotation,
+        is_expanded=is_expanded,
+        is_marked=is_marked,
+        hint_char=hint_char,
+        now=now,
+    )
+    hit = cache.get_agent(key)
+    if hit is not None:
+        return hit
+    parts = format_agent_option(
+        agent,
+        index,
+        is_selected=is_selected,
+        fold_annotation=fold_annotation,
+        is_expanded=is_expanded,
+        is_marked=is_marked,
+        hint_char=hint_char,
+        now=now,
+    )
+    cache.put_agent(key, parts)
+    return parts
+
+
+def _banner_render_key(
+    group: GroupRow,
+    agents: list[Agent],
+    *,
+    width: int,
+    sequence: int,
+    selectable: bool,
+    mode: GroupingMode,
+) -> tuple[Any, ...]:
+    """Stable cache key for :func:`format_banner_option`.
+
+    The chip portion of a banner reflects the agent set's status
+    distribution, so the key folds in a tuple of ``(identity, status)``
+    pairs for that group's agents. ``width`` and ``sequence`` are part
+    of the key because they affect the rendered Option directly.
+    """
+    member_sig = tuple(
+        (a.identity, a.status, a.hidden, a.is_workflow_child) for a in agents
+    )
+    return (
+        group.group_key,
+        group.level,
+        bool(group.is_collapsed),
+        width,
+        sequence,
+        selectable,
+        mode,
+        member_sig,
+    )
+
+
+def cached_format_banner_option(
+    cache: AgentRenderCache,
+    group: GroupRow,
+    agents: list[Agent],
+    *,
+    width: int,
+    sequence: int,
+    selectable: bool = False,
+    mode: GroupingMode = GroupingMode.STANDARD,
+) -> Option:
+    """Memoized wrapper for :func:`format_banner_option`."""
+    key = _banner_render_key(
+        group,
+        agents,
+        width=width,
+        sequence=sequence,
+        selectable=selectable,
+        mode=mode,
+    )
+    hit = cache.get_banner(key)
+    if hit is not None:
+        return hit
+    option = format_banner_option(
+        group,
+        agents,
+        width=width,
+        sequence=sequence,
+        selectable=selectable,
+        mode=mode,
+    )
+    cache.put_banner(key, option)
+    return option

@@ -37,10 +37,24 @@ class AgentMarkingMixin:
             self._marked_agents.add(identity)
 
         # Auto-advance cursor to the next entry (wraparound).
+        prev_idx = self.current_idx
         if len(self._agents) > 1:
             self.current_idx = (self.current_idx + 1) % len(self._agents)
 
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        # Patch the just-marked row in place; the cursor's new position
+        # is reflected by the per-panel highlight update so we avoid
+        # rebuilding the whole tree for a one-bit mark change.
+        patched = self._try_patch_agent_row(agent)  # type: ignore[attr-defined]
+        if patched and prev_idx != self.current_idx:
+            # Selection moved off prev_idx and onto current_idx — update
+            # the on-screen highlight without a rebuild.
+            self._refresh_panel_highlights()  # type: ignore[attr-defined]
+            # Also patch the now-selected agent so its name styling
+            # reflects the new selection state.
+            new_agent = self._agents[self.current_idx]
+            self._try_patch_agent_row(new_agent)  # type: ignore[attr-defined]
+        if not patched:
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _clear_agent_marks(self) -> None:
         """Clear every agent mark."""

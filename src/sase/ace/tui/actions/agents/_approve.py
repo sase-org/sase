@@ -78,14 +78,19 @@ class AgentApproveMixin:
         prior_approve = agent.approve
         new_approve = not prior_approve
         agent.approve = new_approve
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        # Approve flips one in-memory boolean — try the selective patch
+        # first; fall back to the full rebuild if the row can't be
+        # patched in place (cross-group risk, alignment overflow, etc.).
+        if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         meta_path = Path(artifacts_dir) / "agent_meta.json"
 
         def _rollback(exc: BaseException) -> None:
             del exc
             agent.approve = prior_approve
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         schedule_persist(
             self,  # type: ignore[arg-type]

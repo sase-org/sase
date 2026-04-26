@@ -19,7 +19,10 @@ from ..models.agent_groups import (
 )
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
+    AgentRenderCache,
     assemble_padded_option,
+    cached_format_agent_option,
+    cached_format_banner_option,
     format_agent_option,
     format_attempt_option,
     format_banner_option,
@@ -101,6 +104,16 @@ class AgentList(OptionList, inherit_bindings=False):
         # ``update_list`` call so the test/inspection helpers
         # (``_format_banner_option``) match the most recent render.
         self._grouping_mode: GroupingMode = GroupingMode.STANDARD
+        # Per-widget render cache: reuses Option/Text triples across
+        # refreshes when nothing in the agent's visible state changed.
+        # Phase 3 of plans/202604/instant_jk_navigation.md.
+        self._agent_render_cache: AgentRenderCache = AgentRenderCache()
+        # Per-row render context, populated by ``update_list`` and read by
+        # ``patch_agent_row`` so a single-row update can re-emit an Option
+        # with the same alignment width / mark / fold annotation it had
+        # at full-rebuild time.
+        self._row_render_ctx: dict[int, dict[str, Any]] = {}
+        self._target_width: int = 0
 
     def update_list(
         self,
@@ -147,6 +160,7 @@ class AgentList(OptionList, inherit_bindings=False):
         self.clear_options()
         self._row_entries = []
         self._banner_at_row = {}
+        self._row_render_ctx = {}
 
         marked = marked_agents or set()
 
@@ -179,16 +193,26 @@ class AgentList(OptionList, inherit_bindings=False):
                 fully_expanded_parents,
             )
             is_selected_agent = i == current_idx and current_attempt_number is None
-            left, suffix, option_id = format_agent_option(
+            hint = (jump_hints or {}).get(i)
+            left, suffix, option_id = cached_format_agent_option(
+                self._agent_render_cache,
                 agent,
                 i,
                 is_selected=is_selected_agent,
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_marked=is_marked,
-                hint_char=(jump_hints or {}).get(i),
+                hint_char=hint,
+                now=now,
             )
             agent_parts[i] = (left, suffix, option_id)
+            self._row_render_ctx[i] = {
+                "fold_annotation": annotation,
+                "is_expanded": is_expanded,
+                "is_marked": is_marked,
+                "hint_char": hint,
+                "is_selected": is_selected_agent,
+            }
             max_left = max(max_left, left.cell_len)
             max_suffix = max(max_suffix, suffix.cell_len)
             if not agent.is_workflow_child:
@@ -209,6 +233,7 @@ class AgentList(OptionList, inherit_bindings=False):
         gap = 2 if max_suffix > 0 else 0
         target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)
         banner_width = target_width
+        self._target_width = target_width
 
         agent_options: dict[int, Option] = {
             i: assemble_padded_option(
@@ -252,7 +277,8 @@ class AgentList(OptionList, inherit_bindings=False):
                         self._row_entries.append((_BANNER_ROW, None))
                     seen_first_l0 = True
                 banner_selectable = entry.group.is_collapsed
-                option = format_banner_option(
+                option = cached_format_banner_option(
+                    self._agent_render_cache,
                     entry.group,
                     self._agents,
                     width=banner_width,
@@ -354,6 +380,98 @@ class AgentList(OptionList, inherit_bindings=False):
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False
+
+    # ------------------------------------------------------------------
+    # Selective single-row patching (Phase 3 of instant_jk_navigation)
+    # ------------------------------------------------------------------
+
+    def _row_index_for_agent(self, agent_idx: int) -> int | None:
+        """Locate the OptionList row index showing ``agents[agent_idx]``.
+
+        Returns ``None`` when no row maps to that agent (e.g. it lives in
+        another panel, or the index is stale).
+        """
+        for row, entry in enumerate(self._row_entries):
+            if entry == (agent_idx, None):
+                return row
+        return None
+
+    def patch_agent_row(
+        self,
+        agent_idx: int,
+        *,
+        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        is_selected: bool | None = None,
+        now: datetime | None = None,
+    ) -> bool:
+        """Replace one agent's Option in place when nothing structural changed.
+
+        Returns ``True`` when the patch landed; ``False`` when the caller
+        must fall back to a full ``update_list`` rebuild (e.g. the agent
+        isn't in this panel, the alignment width grew past the cached
+        target, or the per-row context wasn't captured by a previous full
+        render).
+        """
+        if not (0 <= agent_idx < len(self._agents)):
+            return False
+        ctx = self._row_render_ctx.get(agent_idx)
+        if ctx is None:
+            return False
+        row = self._row_index_for_agent(agent_idx)
+        if row is None:
+            return False
+
+        agent = self._agents[agent_idx]
+        marked = marked_agents if marked_agents is not None else set()
+        is_marked = agent.identity in marked
+        sel = ctx["is_selected"] if is_selected is None else is_selected
+
+        # Bust the cached entry for this agent so we re-render from
+        # current field values; the patch path is the only writer of
+        # mid-list mutations and must not return a stale cache hit.
+        self._agent_render_cache.invalidate_agent(agent.identity)
+
+        left, suffix, option_id = cached_format_agent_option(
+            self._agent_render_cache,
+            agent,
+            agent_idx,
+            is_selected=sel,
+            fold_annotation=ctx["fold_annotation"],
+            is_expanded=ctx["is_expanded"],
+            is_marked=is_marked,
+            hint_char=ctx["hint_char"],
+            now=now,
+        )
+
+        # The alignment width was fixed at the last full rebuild. If the
+        # new row's content is wider than the cached width, the patched
+        # row would visually misalign — fall back so update_list can
+        # recompute target_width across all rows.
+        gap = 2 if suffix.cell_len else 0
+        if left.cell_len + gap + suffix.cell_len > self._target_width:
+            return False
+
+        new_option = assemble_padded_option(
+            left, suffix, width=self._target_width, option_id=option_id
+        )
+
+        # Refresh the per-row context (mark / selection may have moved).
+        ctx["is_marked"] = is_marked
+        ctx["is_selected"] = sel
+
+        self._programmatic_update = True
+        try:
+            # Textual's OptionList exposes ``replace_option_prompt_at_index``;
+            # the option_id (and therefore ``_id_to_option`` mapping) is
+            # preserved by ``format_agent_option`` since it derives from
+            # ``(index, agent_type, cl_name)`` which don't change for a
+            # single-row mutation.
+            self.replace_option_prompt_at_index(row, new_option.prompt)
+        except (AttributeError, IndexError):
+            return False
+        finally:
+            self.call_later(self._clear_programmatic_flag)
+        return True
 
     def _format_agent_option(
         self,

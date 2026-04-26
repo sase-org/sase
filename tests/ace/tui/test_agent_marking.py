@@ -51,6 +51,15 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
     ) -> None:
         self.refresh_calls += 1
 
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        # Fall back to the full refresh path so this fake exercises the
+        # same code path it always did. Real-app tests cover patching.
+        del agent
+        return False
+
+    def _refresh_panel_highlights(self) -> None:
+        pass
+
     def _refresh_display(self) -> None:
         pass
 
