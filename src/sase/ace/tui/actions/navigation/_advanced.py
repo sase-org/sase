@@ -152,7 +152,17 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             return list(range(len(self.changespecs)))
         if self.current_tab == "agents":
-            return list(range(len(self._agents)))
+            from ...models.agent_groups import build_agent_tree
+
+            tree = build_agent_tree(
+                self._agents,
+                fold_registry=self._group_fold_registry,
+            )
+            return [
+                e.agent_idx
+                for e in tree
+                if e.kind == "agent" and e.agent_idx is not None
+            ]
         return list(range(len(self._axe_items)))  # type: ignore[attr-defined]
 
     def _exit_entry_jump_mode(self) -> None:
