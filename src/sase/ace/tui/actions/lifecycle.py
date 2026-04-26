@@ -149,6 +149,12 @@ class LifecycleMixin:
     def _do_quit(self) -> None:
         """Run the quit cleanup sequence and exit."""
         self._save_current_selection()
+        # Stop the inotify watcher before exit so its worker thread releases
+        # the fd cleanly and Textual's call_from_thread doesn't fire after
+        # the event loop is gone.
+        stop_watcher = getattr(self, "_stop_artifact_watcher", None)
+        if stop_watcher is not None:
+            stop_watcher()
         from sase.ace.tui_activity import (
             remove_idle_state,
             remove_last_keypress,

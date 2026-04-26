@@ -21,6 +21,8 @@ from ...query import parse_query
 from ...query.types import QueryExpr
 from ..activity_log import ActivityLog
 from ..models.fold_state import FoldStateManager
+from ..util.fs_watcher import ArtifactWatcher
+from ..util.nav_gate import NavigationGate
 
 if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
@@ -57,6 +59,8 @@ class StartupMixin:
     _pinned_idle: bool
     _post_mount_background_loads_started: bool
     _jump_all_last_position: JumpAllResult | None
+    _nav_gate: NavigationGate
+    _fs_watcher: ArtifactWatcher | None
 
     def _init_app_state(
         self,
@@ -92,6 +96,12 @@ class StartupMixin:
         self._refresh_timer = None
         self._countdown_timer = None
         self._countdown_remaining = refresh_interval
+
+        # Phase 5: navigation gate + inotify watcher for event-driven
+        # background refresh.  ``_fs_watcher`` is attached during on_mount
+        # post-load and cleared on quit.
+        self._nav_gate = NavigationGate()
+        self._fs_watcher = None
 
         # Hint mode state
         self._hint_mode_active: bool = False
@@ -486,6 +496,57 @@ class StartupMixin:
             )
         except Exception:
             log.exception("Failed to schedule startup axe init")
+        try:
+            self._start_artifact_watcher()
+        except Exception:
+            log.exception("Failed to start artifact inotify watcher")
+
+    def _start_artifact_watcher(self) -> None:
+        """Spin up an inotify watcher on ``~/.sase/projects/`` if supported.
+
+        Falls back silently when inotify is unavailable; the auto-refresh
+        timer remains the polling safety net in that case.
+        """
+        from pathlib import Path
+
+        if self._fs_watcher is not None:
+            return
+        projects_dir = Path.home() / ".sase" / "projects"
+        if not projects_dir.exists():
+            return
+        # Watch each project's artifacts dir directly.  inotify on a
+        # parent dir only fires for direct-child events, so watching
+        # ``projects/`` would miss writes inside ``projects/<p>/artifacts/``.
+        watch_paths: list[Path] = []
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            artifacts_dir = project_dir / "artifacts"
+            if artifacts_dir.is_dir():
+                watch_paths.append(artifacts_dir)
+            # Project files (.gp) live directly in ``project_dir``;
+            # watching the dir picks up RUNNING-field updates.
+            watch_paths.append(project_dir)
+        if not watch_paths:
+            return
+        watcher = ArtifactWatcher(
+            watch_paths,
+            on_change=self._on_artifact_change,  # type: ignore[attr-defined]
+            schedule_callback=self.call_from_thread,  # type: ignore[attr-defined]
+        )
+        if watcher.start():
+            self._fs_watcher = watcher
+
+    def _stop_artifact_watcher(self) -> None:
+        """Tear down the inotify watcher on quit."""
+        watcher = self._fs_watcher
+        if watcher is None:
+            return
+        self._fs_watcher = None
+        try:
+            watcher.stop()
+        except Exception:
+            log.exception("Failed to stop artifact watcher cleanly")
 
     def _maybe_end_startup_stopwatch(self) -> None:
         """End startup stopwatch once both async startup surfaces are loaded."""

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from textual import events
 
 from ..activity_log import ActivityEventType, ActivityLog
+from ..util.nav_gate import NavigationGate
 from ..widgets import (
     AgentList,
     BgCmdList,
@@ -57,6 +58,7 @@ class EventHandlersMixin:
     _last_activity_time: float
     _last_activity_flush: float
     _activity_log: ActivityLog
+    _nav_gate: NavigationGate
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -71,8 +73,47 @@ class EventHandlersMixin:
         else:  # axe
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
+    def _record_jk_navigation(self) -> None:
+        """Mark the wall-clock of the latest j/k action.
+
+        Background reconcilers consult :class:`NavigationGate` to decide
+        whether to fire now or defer until the user pauses, so the cursor
+        highlight wins during long input bursts.
+        """
+        self._nav_gate.record()
+
+    def _on_artifact_change(self) -> None:
+        """Inotify dispatch: schedule a reconcile when the user is idle.
+
+        Called on the UI thread by :class:`ArtifactWatcher` after coalescing
+        a burst of file-system events.  Defers when the user is mid-burst
+        on j/k so the reconcile lands during a pause rather than spiking
+        latency in the middle of navigation.
+        """
+        if self._nav_gate.is_navigating():
+            delay = self._nav_gate.time_until_idle() + 0.05
+            self.set_timer(delay, self._on_artifact_change)  # type: ignore[attr-defined]
+            return
+        # Existing schedulers already coalesce stampedes via the
+        # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
+        # inotify wakeups still triggers at most one in-flight reload plus
+        # one follow-up.
+        self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+        self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+
     async def _on_auto_refresh(self) -> None:
-        """Auto-refresh handler called by timer."""
+        """Auto-refresh handler called by timer.
+
+        When the user is mid-burst on j/k the refresh defers itself for the
+        remainder of the navigation window plus a small overshoot.  A new
+        ``set_timer`` call schedules a single retry; if the user is *still*
+        navigating when that fires, the same gate will defer it again.
+        """
+        if self._nav_gate.is_navigating():
+            delay = self._nav_gate.time_until_idle() + 0.05
+            self.set_timer(delay, self._on_auto_refresh)  # type: ignore[attr-defined]
+            return
+
         self._countdown_remaining = self.refresh_interval
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING states)

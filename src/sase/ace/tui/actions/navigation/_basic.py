@@ -74,6 +74,7 @@ class BasicNavigationMixin(NavigationMixinBase):
     def action_next_changespec(self) -> None:
         """Navigate to the next item, cycling to start if at end."""
         self._jk_perf_begin("next")  # type: ignore[attr-defined]
+        self._record_jk_navigation()  # type: ignore[attr-defined]
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
                 return
@@ -94,6 +95,7 @@ class BasicNavigationMixin(NavigationMixinBase):
     def action_prev_changespec(self) -> None:
         """Navigate to the previous item, cycling to end if at start."""
         self._jk_perf_begin("prev")  # type: ignore[attr-defined]
+        self._record_jk_navigation()  # type: ignore[attr-defined]
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
                 return
