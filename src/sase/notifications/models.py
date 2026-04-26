@@ -18,6 +18,7 @@ class Notification:
     read: bool = False
     dismissed: bool = False
     silent: bool = False
+    muted: bool = False
 
 
 def format_relative_time(iso_timestamp: str) -> str:

@@ -44,14 +44,15 @@ def test_read_changespecs_from_disk_returns_list() -> None:
 
 
 def test_read_unread_notification_ids_returns_set() -> None:
-    """Pure read helper filters to unread+non-silent and returns ids only."""
+    """Pure read helper filters to unread+non-silent+non-muted and returns ids only."""
     mixin = LifecycleMixin.__new__(LifecycleMixin)
-    n_read = MagicMock(id="a", read=True, silent=False)
-    n_silent = MagicMock(id="b", read=False, silent=True)
-    n_unread = MagicMock(id="c", read=False, silent=False)
+    n_read = MagicMock(id="a", read=True, silent=False, muted=False)
+    n_silent = MagicMock(id="b", read=False, silent=True, muted=False)
+    n_muted = MagicMock(id="d", read=False, silent=False, muted=True)
+    n_unread = MagicMock(id="c", read=False, silent=False, muted=False)
     with patch(
         "sase.notifications.load_notifications",
-        return_value=[n_read, n_silent, n_unread],
+        return_value=[n_read, n_silent, n_muted, n_unread],
     ):
         result = mixin._read_unread_notification_ids()
     assert result == {"c"}

@@ -26,6 +26,7 @@ def _notification_from_dict(data: dict) -> Notification | None:
             read=data.get("read", False),
             dismissed=data.get("dismissed", False),
             silent=data.get("silent", False),
+            muted=data.get("muted", False),
         )
     except (KeyError, TypeError):
         return None
@@ -114,6 +115,20 @@ def mark_dismissed(notification_id: str) -> bool:
     for n in all_notifications:
         if n.id == notification_id:
             n.dismissed = True
+            found = True
+            break
+    if found:
+        _rewrite_notifications(all_notifications)
+    return found
+
+
+def mark_muted(notification_id: str, muted: bool = True) -> bool:
+    """Set the muted state of a notification. Returns True if found."""
+    all_notifications = load_notifications(include_dismissed=True)
+    found = False
+    for n in all_notifications:
+        if n.id == notification_id:
+            n.muted = muted
             found = True
             break
     if found:

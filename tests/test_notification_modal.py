@@ -61,6 +61,57 @@ def test_confirm_dismiss_notification_dismisses_pending_item() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=None)
 
 
+def test_toggle_mute_sets_muted_and_rebuilds() -> None:
+    """m should toggle mute state, persist via mark_muted, and rebuild."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with("n1", True)
+    assert notification.muted is True
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+    modal.notify.assert_called_once_with("Muted")
+
+
+def test_toggle_mute_unmutes_when_already_muted() -> None:
+    """m on an already-muted notification flips it back to unmuted."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    modal = NotificationModal([notification])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_muted") as mock_mark:
+        modal.action_toggle_mute()
+
+    mock_mark.assert_called_once_with("n1", False)
+    assert notification.muted is False
+    modal.notify.assert_called_once_with("Unmuted")
+
+
+def test_styled_label_uses_tilde_prefix_for_muted() -> None:
+    """A muted notification renders with '~ ' prefix instead of '* '."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.muted = True
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+    assert label.plain.startswith("~ ")
+
+
+def test_styled_label_uses_asterisk_for_unread_unmuted() -> None:
+    """An unread non-muted notification keeps the gold '* ' prefix."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+    assert label.plain.startswith("* ")
+
+
 def test_cancel_dismiss_notification_clears_pending() -> None:
     """n should cancel pending dismissal and keep the notification."""
     modal = NotificationModal([_make_notification("n1", action="PlanApproval")])

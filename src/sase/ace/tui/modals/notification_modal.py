@@ -21,6 +21,7 @@ from sase.notifications import (
     format_relative_time,
     mark_all_read,
     mark_dismissed,
+    mark_muted,
 )
 
 from .base import OptionListNavigationMixin
@@ -56,6 +57,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),  # uppercase R
+        ("m", "toggle_mute", "Toggle Mute"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
         ("ctrl+u", "scroll_file_up", "Scroll up"),
     ]
@@ -96,7 +98,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  x: dismiss  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
+                "Enter: select  x: dismiss  m: mute  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
                 id="notification-hints",
             )
 
@@ -229,12 +231,18 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         """Create styled text for a notification option."""
         text = Text()
 
-        # Unread indicator
-        if not notification.read:
+        # Prefix: ~ for muted (any read state), * for unread non-muted, none otherwise.
+        if notification.muted:
+            text.append("~ ", style="dim")
+        elif not notification.read:
             text.append("* ", style="bold #FFD700")
 
+        # Body style: dim everything for muted rows so they read as quieted.
+        body_style = "dim" if notification.muted else ""
+        bold_style = "dim" if notification.muted else "bold"
+
         # Sender
-        text.append(f"[{notification.sender}]", style="bold")
+        text.append(f"[{notification.sender}]", style=bold_style)
         text.append(" ", style="")
 
         # First notes line (truncated)
@@ -242,7 +250,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             note = notification.notes[0]
             if len(note) > 50:
                 note = note[:47] + "..."
-            text.append(note, style="")
+            text.append(note, style=body_style)
         else:
             text.append("(no message)", style="dim italic")
 
@@ -252,7 +260,8 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         # Action badge
         badge = _ACTION_BADGES.get(notification.action, "")
         if badge:
-            text.append(f"  {badge}", style="bold #00D7FF")
+            badge_style = "dim" if notification.muted else "bold #00D7FF"
+            text.append(f"  {badge}", style=badge_style)
 
         # File count
         if notification.files:
@@ -362,6 +371,23 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             min(idx, len(self._notifications) - 1) if self._notifications else None
         )
         self._rebuild_list(highlight_index=highlight)
+
+    def action_toggle_mute(self) -> None:
+        """Toggle mute on the highlighted notification."""
+        idx = self._get_selected_index()
+        if idx is None or idx >= len(self._notifications):
+            return
+
+        notification = self._notifications[idx]
+        new_muted = not notification.muted
+        mark_muted(notification.id, new_muted)
+        notification.muted = new_muted
+
+        # Rebuild list so the new prefix / dim style is reflected. Keep the
+        # highlight on the same row so users muting a streak don't lose
+        # their place.
+        self._rebuild_list(highlight_index=idx)
+        self.notify("Muted" if new_muted else "Unmuted")
 
     def action_read_all(self) -> None:
         """Mark all notifications as read and rebuild the display."""

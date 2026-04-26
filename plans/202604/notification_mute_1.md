@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 22:44:56
-status: wip
+status: done
 ---
 # Plan: Mute / Unmute Notifications in the Notification Panel
 

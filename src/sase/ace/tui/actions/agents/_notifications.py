@@ -42,14 +42,18 @@ class AgentNotificationMixin:
         from ._toasts import format_batch_toasts
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read and not n.silent]
-        unread_count = len(unread)
+        unread_active = [
+            n for n in notifications if not n.read and not n.silent and not n.muted
+        ]
+        unread_muted = [
+            n for n in notifications if not n.read and not n.silent and n.muted
+        ]
 
-        current_ids = {n.id for n in unread}
+        current_ids = {n.id for n in unread_active}
         new_ids = current_ids - self._last_unread_ids
-        new_notifications = [n for n in unread if n.id in new_ids]
+        new_notifications = [n for n in unread_active if n.id in new_ids]
 
-        # Detect newly arrived notifications
+        # Detect newly arrived notifications (muted arrivals don't toast/bell)
         if new_notifications:
             self._ring_tmux_bell()
             for message, severity in format_batch_toasts(new_notifications):
@@ -67,10 +71,11 @@ class AgentNotificationMixin:
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_count(unread_count)
+        indicator.set_counts(len(unread_active), len(unread_muted))
 
-        # Scan unread notifications for PLANNING/QUESTION status overrides
-        self._apply_notification_status_overrides(unread)
+        # Status overrides apply regardless of mute — muting quiets the
+        # indicator, it shouldn't break the agent's lifecycle.
+        self._apply_notification_status_overrides(unread_active + unread_muted)
 
     def _apply_notification_status_overrides(self, unread: list[Notification]) -> None:
         """Scan unread notifications and set PLANNING/QUESTION status overrides.
@@ -231,15 +236,19 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read and not n.silent]
-        unread_count = len(unread)
+        unread_active = [
+            n for n in notifications if not n.read and not n.silent and not n.muted
+        ]
+        unread_muted = [
+            n for n in notifications if not n.read and not n.silent and n.muted
+        ]
 
-        self._last_unread_ids = {n.id for n in unread}
+        self._last_unread_ids = {n.id for n in unread_active}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_count(unread_count)
+        indicator.set_counts(len(unread_active), len(unread_muted))
 
     async def _refresh_notification_count_async(self) -> None:
         """Async variant that reads the notifications file off the main thread.
@@ -253,15 +262,19 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         notifications = await asyncio.to_thread(load_notifications)
-        unread = [n for n in notifications if not n.read and not n.silent]
-        unread_count = len(unread)
+        unread_active = [
+            n for n in notifications if not n.read and not n.silent and not n.muted
+        ]
+        unread_muted = [
+            n for n in notifications if not n.read and not n.silent and n.muted
+        ]
 
-        self._last_unread_ids = {n.id for n in unread}
+        self._last_unread_ids = {n.id for n in unread_active}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_count(unread_count)
+        indicator.set_counts(len(unread_active), len(unread_muted))
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

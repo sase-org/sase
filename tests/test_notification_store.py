@@ -16,6 +16,7 @@ from sase.notifications.store import (
     load_notifications,
     mark_all_read,
     mark_dismissed,
+    mark_muted,
     mark_read,
 )
 
@@ -221,6 +222,60 @@ class TestMarkDismissed:
 # =========================================================================
 # TestMarkAllRead
 # =========================================================================
+
+
+class TestMarkMuted:
+    """Tests for mark_muted()."""
+
+    def test_mute_existing(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        assert mark_muted(n.id, True) is True
+        loaded = load_notifications()
+        assert loaded[0].muted is True
+
+    def test_unmute_existing(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        mark_muted(n.id, True)
+        assert mark_muted(n.id, False) is True
+        loaded = load_notifications()
+        assert loaded[0].muted is False
+
+    def test_default_value_mutes(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        assert mark_muted(n.id) is True
+        loaded = load_notifications()
+        assert loaded[0].muted is True
+
+    def test_nonexistent_id(self, temp_notifications_dir: Path) -> None:
+        n = _make_notification()
+        append_notification(n)
+        assert mark_muted("nonexistent", True) is False
+        loaded = load_notifications()
+        assert loaded[0].muted is False
+
+    def test_load_record_without_muted_field(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        """A pre-existing JSONL line without ``muted`` loads as muted=False."""
+        jsonl = temp_notifications_dir / "notifications" / "notifications.jsonl"
+        jsonl.parent.mkdir(parents=True, exist_ok=True)
+        with open(jsonl, "w") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "id": "legacy",
+                        "timestamp": "2025-01-01T00:00:00",
+                        "sender": "test",
+                    }
+                )
+                + "\n"
+            )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].muted is False
 
 
 class TestMarkAllRead:

@@ -28,7 +28,7 @@ class LifecycleMixin:
     _activity_log: ActivityLog
 
     def _read_unread_notification_ids(self) -> set[str]:
-        """Read unread, non-silent notification ids from disk.
+        """Read active-unread (non-silent, non-muted) notification ids from disk.
 
         Pure disk I/O with no widget access — safe to call from a worker
         thread (e.g. via ``asyncio.to_thread``) during startup so the
@@ -37,7 +37,9 @@ class LifecycleMixin:
         from sase.notifications import load_notifications
 
         notifications = load_notifications()
-        return {n.id for n in notifications if not n.read and not n.silent}
+        return {
+            n.id for n in notifications if not n.read and not n.silent and not n.muted
+        }
 
     def _initialize_agent_tracking(self, unread_ids: set[str] | None = None) -> None:
         """Initialize notification tracking by seeding unread ids.
@@ -45,16 +47,24 @@ class LifecycleMixin:
         This ensures we don't trigger bell/toast for notifications that
         were already unread when the TUI started. ``unread_ids`` may be
         pre-loaded off the main thread; if ``None``, we read from disk
-        inline.
+        inline. The muted-count secondary segment is recomputed off disk
+        so the indicator reflects both totals at startup.
         """
+        from sase.notifications import load_notifications
+
         from ..widgets import NotificationIndicator
 
         if unread_ids is None:
             unread_ids = self._read_unread_notification_ids()
         self._last_unread_ids = unread_ids
 
+        notifications = load_notifications()
+        muted_count = sum(
+            1 for n in notifications if not n.read and not n.silent and n.muted
+        )
+
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
-        indicator.set_count(len(unread_ids))
+        indicator.set_counts(len(unread_ids), muted_count)
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""

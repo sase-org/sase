@@ -18,6 +18,7 @@ class TestNotificationDataclass:
         assert n.read is False
         assert n.dismissed is False
         assert n.silent is False
+        assert n.muted is False
 
     def test_silent_flag(self) -> None:
         n = Notification(

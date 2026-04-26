@@ -13,6 +13,7 @@ from sase.notifications.store import (
     load_notifications,
     mark_all_read,
     mark_dismissed,
+    mark_muted,
     mark_read,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "load_notifications",
     "mark_all_read",
     "mark_dismissed",
+    "mark_muted",
     "mark_read",
     "notify_axe_error_digest",
     "notify_hitl_request",

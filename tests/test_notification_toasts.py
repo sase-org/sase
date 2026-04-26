@@ -256,6 +256,7 @@ class _FakeApp(AgentNotificationMixin):
         self.notify = MagicMock()  # type: ignore[assignment]
         self._bell_rung = 0
         self._indicator_count: int | None = None
+        self._indicator_muted: int | None = None
 
     def _ring_tmux_bell(self) -> None:  # type: ignore[override]
         self._bell_rung += 1
@@ -266,7 +267,15 @@ class _FakeApp(AgentNotificationMixin):
 
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
-        return SimpleNamespace(set_count=lambda c: setattr(self, "_indicator_count", c))
+
+        def _set_counts(unread: int, muted: int) -> None:
+            self._indicator_count = unread
+            self._indicator_muted = muted
+
+        return SimpleNamespace(
+            set_count=lambda c: setattr(self, "_indicator_count", c),
+            set_counts=_set_counts,
+        )
 
 
 def _patch_load(notifications: list[Notification]) -> Any:
