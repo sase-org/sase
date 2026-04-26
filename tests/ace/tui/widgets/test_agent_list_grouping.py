@@ -175,6 +175,36 @@ def test_no_changespec_panel_label_omits_changespec_suffix() -> None:
     assert " / " not in plain_proj
 
 
+def test_project_scoped_agent_renders_single_project_banner() -> None:
+    """A project-scoped agent's cl_name must not become a duplicate L1 banner."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="home", project_file="/repo/home/home.gp")],
+        current_idx=0,
+    )
+    assert widget._row_entries == [_BR, (0, None)]
+    options = list(widget._options)
+    plain_proj = options[0].prompt.plain  # type: ignore[union-attr]
+    assert "home" in plain_proj
+    assert len(options) == 2
+
+
+def test_mixed_project_scoped_agent_uses_no_changespec_bucket() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="fix-bug-id", project_file="/repo/home/home.gp"),
+            _agent(cl_name="home", project_file="/repo/home/home.gp"),
+        ],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    plains = [option.prompt.plain for option in options]  # type: ignore[union-attr]
+    assert widget._row_entries == [_BR, _BR, (0, None), _BR, (1, None)]
+    assert "fix-bug-id" in plains[1]
+    assert "(no ChangeSpec)" in plains[3]
+
+
 # --- Collapsed-tree rendering ---
 
 

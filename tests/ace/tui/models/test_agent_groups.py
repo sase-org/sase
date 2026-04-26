@@ -212,6 +212,49 @@ def test_two_level_project_label_renders_just_project_name() -> None:
     assert banner_label(project_banner.group) == "sase_100"  # type: ignore[arg-type]
 
 
+def test_project_scoped_agent_does_not_emit_duplicate_changespec_banner() -> None:
+    """Project agents have a display cl_name but no real ChangeSpec bucket."""
+    a = _agent(cl_name="home", project_file="/r/home/home.gp")
+    entries = build_agent_tree([a])
+    assert _kinds(entries) == [("group", 0), ("agent", 0)]
+    assert _group_keys(entries, level=0) == [("home",)]
+    assert _group_keys(entries, level=1) == []
+
+
+def test_project_scoped_panel_keeps_name_root_at_level_one() -> None:
+    a = _agent(
+        cl_name="home", project_file="/r/home/home.gp", agent_name="coder.claude"
+    )
+    b = _agent(cl_name="home", project_file="/r/home/home.gp", agent_name="coder.codex")
+    entries = build_agent_tree([a, b])
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 0),
+        ("agent", 1),
+    ]
+    assert _group_keys(entries, level=1) == [("home", "coder")]
+
+
+def test_project_scoped_workflow_child_does_not_force_changespec_level() -> None:
+    parent = _agent(
+        cl_name="home",
+        project_file="/r/home/home.gp",
+        agent_name="coder.claude",
+        raw_suffix="ts1",
+    )
+    child = _agent(
+        cl_name="step",
+        project_file="/r/home/home.gp",
+        agent_name="step.bash",
+        parent_workflow="coder",
+        parent_timestamp="ts1",
+    )
+    entries = build_agent_tree([parent, child])
+    assert _kinds(entries) == [("group", 0), ("group", 1), ("agent", 0), ("agent", 1)]
+    assert _group_keys(entries, level=1) == [("home", "coder")]
+
+
 # --- Mixed-case bucket (some agents have ChangeSpec, some don't) ---
 
 
@@ -232,6 +275,14 @@ def test_mixed_panel_synthesizes_no_changespec_bucket() -> None:
     assert suffixes == ["fix-a", ""]
     # And the synthetic bucket renders with the placeholder label.
     assert banner_label(cs_banners[1].group) == NO_CHANGESPEC_LABEL  # type: ignore[arg-type]
+
+
+def test_mixed_panel_puts_project_scoped_agent_in_synthetic_bucket() -> None:
+    a = _agent(cl_name="fix-a", project_file="/r/home/home.gp")
+    b = _agent(cl_name="home", project_file="/r/home/home.gp")
+    entries = build_agent_tree([a, b])
+    assert _group_keys(entries, level=1) == [("home", "fix-a"), ("home", "")]
+    assert ("home", "home") not in _group_keys(entries, level=1)
 
 
 def test_mixed_panel_synthetic_bucket_is_independently_collapsible() -> None:
@@ -883,6 +934,13 @@ def test_panel_uses_changespec_level_skipped_in_non_standard_modes() -> None:
     assert _panel_uses_changespec_level(agents, GroupingMode.STANDARD) is True
     assert _panel_uses_changespec_level(agents, GroupingMode.BY_DATE) is False
     assert _panel_uses_changespec_level(agents, GroupingMode.BY_STATUS) is False
+
+
+def test_panel_uses_changespec_level_ignores_project_scoped_agents() -> None:
+    from sase.ace.tui.models.agent_groups import _panel_uses_changespec_level
+
+    agents = [_agent(cl_name="sase", project_file="/r/sase/sase.gp")]
+    assert _panel_uses_changespec_level(agents, GroupingMode.STANDARD) is False
 
 
 def test_grouping_keys_for_agents_workflow_child_inherits_bucket() -> None:

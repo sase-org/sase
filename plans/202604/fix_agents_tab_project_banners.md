@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-26 03:06:15
-status: wip
+status: done
 ---
 # Fix Agents Tab Project-Scoped Banner Duplication
 

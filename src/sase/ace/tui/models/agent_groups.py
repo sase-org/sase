@@ -2,17 +2,18 @@
 
 Builds a flat sequence of banner + agent entries from a list of agents.
 Each panel decides independently between two layouts based on whether
-any of its agents targets a ChangeSpec (``cl_name != ""``):
+any of its non-project-scoped agents targets a ChangeSpec
+(``cl_name != ""``):
 
 * **2-level layout** (no ChangeSpec anywhere in the panel):
     1. **Project** — derived from ``Agent.project_file``.
     2. **Name root** — the part of the agent's name before the first ``.``.
 
-* **3-level layout** (at least one agent has a ChangeSpec):
+* **3-level layout** (at least one non-project agent has a ChangeSpec):
     1. **Project**
-    2. **ChangeSpec** (``Agent.cl_name``); agents lacking one fall into a
-       synthetic ``"(no ChangeSpec)"`` bucket sorted last under their
-       project.
+    2. **ChangeSpec** (``Agent.cl_name``); project-scoped agents and
+       agents lacking one fall into a synthetic ``"(no ChangeSpec)"``
+       bucket sorted last under their project.
     3. **Name root**
 
 Tag-level grouping is not part of this tree — tags drive the dynamic
@@ -185,7 +186,7 @@ class _BannerSummary:
 @dataclass(frozen=True)
 class _GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
-    changespec: str  # cl_name (may be "")
+    changespec: str  # real ChangeSpec name (may be "")
     name_root: str
 
 
@@ -205,6 +206,18 @@ def _name_root(agent: Agent) -> str:
     if "." in name:
         return name.split(".", 1)[0]
     return ""
+
+
+def _changespec_name_for_grouping(agent: Agent) -> str:
+    """Return the real ChangeSpec name for grouping, if any.
+
+    Project-scoped agents use their project name in ``Agent.cl_name`` for
+    display/identity, but that value is not a ChangeSpec and should not create
+    a duplicate project-name bucket under the project banner.
+    """
+    if agent.is_project_agent:
+        return ""
+    return agent.cl_name or ""
 
 
 def _project_sort_key(mode: GroupingMode, project: str) -> tuple[int, str | int]:
@@ -268,7 +281,11 @@ def _grouping_keys_for(
     reference = now if now is not None else datetime.now()
     return _GroupingKeys(
         project=_l0_value_for(target, mode, reference),
-        changespec=(target.cl_name or "") if mode is GroupingMode.STANDARD else "",
+        changespec=(
+            _changespec_name_for_grouping(target)
+            if mode is GroupingMode.STANDARD
+            else ""
+        ),
         name_root=_name_root(target),
     )
 
@@ -297,7 +314,18 @@ def _panel_uses_changespec_level(
     """
     if mode is not GroupingMode.STANDARD:
         return False
-    return any(a.cl_name for a in panel_agents)
+    parent_lookup: dict[str, Agent] = {
+        a.raw_suffix: a
+        for a in panel_agents
+        if a.raw_suffix and not a.is_workflow_child
+    }
+    for agent in panel_agents:
+        target = agent
+        if agent.is_workflow_child and agent.parent_timestamp:
+            target = parent_lookup.get(agent.parent_timestamp, agent)
+        if _changespec_name_for_grouping(target):
+            return True
+    return False
 
 
 def _walk_order(
