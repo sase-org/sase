@@ -71,6 +71,8 @@ ace:
       # Tag-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
+      # Grouping mode cycle (agents tab)
+      cycle_grouping_mode: "g"
       # File trim
       reset_file_trim: "minus"
       show_all_file_lines: "equals_sign"

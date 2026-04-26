@@ -61,6 +61,7 @@ class AgentDisplayMixin:
 
     # Group fold + tag-driven panel collection (see startup.py).
     _group_fold_registry: AgentGroupFoldRegistry
+    _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
 
@@ -254,6 +255,7 @@ class AgentDisplayMixin:
         attempt_number = self.current_attempt_number
         current_group_key = self._current_group_key
         global_idx = self.current_idx
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -293,7 +295,7 @@ class AgentDisplayMixin:
                 current_attempt_number=attempt_number if idx == focused_idx else None,
                 fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,
-                grouping_mode=GroupingMode.STANDARD,
+                grouping_mode=grouping_mode,
             )
 
             if idx == focused_idx:

@@ -82,6 +82,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_thinking_reverse", "Thinking Rev", False),
     ("mark_inactive_pinned", "Pin Inactive", False),
     ("copy_tab_content", "Copy", False),
+    ("cycle_grouping_mode", "Cycle Grouping", False),
     ("scroll_to_top", "Top", False),
     ("scroll_to_bottom", "Bottom", False),
     ("show_help", "Help", False),
@@ -239,6 +240,8 @@ class AppKeymaps:
     add_agent_tag: str
     focus_next_agent_panel: str
     focus_prev_agent_panel: str
+    # Grouping mode cycle (agents tab)
+    cycle_grouping_mode: str
     # Thinking panel
     toggle_thinking: str
     toggle_thinking_reverse: str

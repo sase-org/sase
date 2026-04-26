@@ -95,12 +95,13 @@ class AgentKillMixin:
         banner is focused or the key no longer maps to a visible group
         (e.g. the underlying agents have all been dismissed).
         """
-        from ...models.agent_groups import build_agent_tree
+        from ...models.agent_groups import GroupingMode, build_agent_tree
 
         if self._current_group_key is None or not self._agents:
             return None
         registry = getattr(self, "_group_fold_registry", None)
-        for entry in build_agent_tree(self._agents, fold_registry=registry):
+        mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        for entry in build_agent_tree(self._agents, fold_registry=registry, mode=mode):
             if entry.kind != "group" or entry.group is None:
                 continue
             if entry.group.group_key == self._current_group_key:

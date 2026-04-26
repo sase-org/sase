@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 from ._approve import AgentApproveMixin
 from ._display import AgentDisplayMixin
 from ._folding import AgentFoldingMixin
+from ._grouping import AgentGroupingMixin
 from ._kill_action import AgentKillMixin
 from ._killing import AgentKillingMixin
 from ._loading import AgentLoadingMixin
@@ -41,6 +42,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 class AgentsMixinCore(
     AgentApproveMixin,
     AgentFoldingMixin,
+    AgentGroupingMixin,
     AgentKillMixin,
     AgentMarkingMixin,
     AgentTaggingMixin,
@@ -117,10 +119,13 @@ class AgentsMixinCore(
             panel_key_per_agent,
         )
 
+        from ...models.agent_groups import GroupingMode
+
         registry = getattr(self, "_group_fold_registry", None)
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
-            tree = build_agent_tree(self._agents, fold_registry=registry)
+            tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
             return [
                 entry.agent_idx
                 for entry in tree
@@ -130,7 +135,7 @@ class AgentsMixinCore(
         keys_per_agent = panel_key_per_agent(self._agents)
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
         panel_agents = agents_for_panel(self._agents, focused_key)
-        tree = build_agent_tree(panel_agents, fold_registry=registry)
+        tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         return [
             global_indices[entry.agent_idx]
             for entry in tree
@@ -153,10 +158,13 @@ class AgentsMixinCore(
             panel_key_per_agent,
         )
 
+        from ...models.agent_groups import GroupingMode
+
         registry = getattr(self, "_group_fold_registry", None)
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
-            tree = build_agent_tree(self._agents, fold_registry=registry)
+            tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
             stops: list[tuple[str, int | tuple[str, ...]]] = []
             for entry in tree:
                 if entry.kind == "group" and entry.group is not None:
@@ -169,7 +177,7 @@ class AgentsMixinCore(
         keys_per_agent = panel_key_per_agent(self._agents)
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
         panel_agents = agents_for_panel(self._agents, focused_key)
-        tree = build_agent_tree(panel_agents, fold_registry=registry)
+        tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         stops = []
         for entry in tree:
             if entry.kind == "group" and entry.group is not None:

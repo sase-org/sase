@@ -98,6 +98,8 @@ class AgentLoadingMixin:
     _fold_counts: dict[str, tuple[int, int]]
 
     # Per-group collapse state for the Agents-tab two-level grouping tree.
+    # Always points to the active mode's slot in
+    # ``_group_fold_registries`` (see startup.py).
     _group_fold_registry: AgentGroupFoldRegistry
 
     # Agent completion tracking for notifications
@@ -528,10 +530,19 @@ class AgentLoadingMixin:
 
         # Garbage-collect collapse entries for groups that vanished after
         # the latest fold/search/filter pipeline so a re-appearing group
-        # key never inherits stale collapse state.
+        # key never inherits stale collapse state.  ``_grouping_mode`` is
+        # the active L0 layout — keys for inactive modes live in their
+        # own registry slot and stay untouched.
         from ...models.agent_groups import enumerate_group_keys
 
-        self._group_fold_registry.clear_unknown(enumerate_group_keys(self._agents))
+        grouping_mode = getattr(self, "_grouping_mode", None)
+        if grouping_mode is None:
+            from ...models.agent_groups import GroupingMode
+
+            grouping_mode = GroupingMode.STANDARD
+        self._group_fold_registry.clear_unknown(
+            enumerate_group_keys(self._agents, mode=grouping_mode)
+        )
 
         # Update the running agent counts on the tab bar.
         # Exclude workflow children -- they are sub-steps of a parent agent

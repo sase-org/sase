@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_group_fold import AgentGroupFoldRegistry, GroupKey
+    from ...models.agent_groups import GroupingMode
     from ...models.fold_state import FoldStateManager
 
 # Type alias for tab names
@@ -25,6 +26,7 @@ class AgentFoldingMixin:
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
     _group_fold_registry: AgentGroupFoldRegistry
+    _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
 
     def _get_workflow_key_for_agent(self, agent: Agent) -> str | None:
@@ -56,6 +58,18 @@ class AgentFoldingMixin:
         """
         return list(self._fold_counts.keys())
 
+    def _active_grouping_mode(self) -> GroupingMode:
+        """Return the active grouping mode, defaulting to STANDARD.
+
+        Most call sites read ``self._grouping_mode`` directly; this
+        helper exists so legacy tests that exercise the folding mixin
+        without going through ``StartupMixin._init_app_state`` (and so
+        never set the attribute) still get sensible behavior.
+        """
+        from ...models.agent_groups import GroupingMode
+
+        return getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+
     def _focused_group_keys(self) -> tuple[GroupKey | None, GroupKey | None]:
         """Return ``(deep_key | None, l0_key | None)`` for the focused agent.
 
@@ -79,7 +93,11 @@ class AgentFoldingMixin:
         # the renderer would emit at full expansion.
         from ...models.agent_group_fold import AgentGroupFoldRegistry
 
-        entries = build_agent_tree(self._agents, fold_registry=AgentGroupFoldRegistry())
+        entries = build_agent_tree(
+            self._agents,
+            fold_registry=AgentGroupFoldRegistry(),
+            mode=self._active_grouping_mode(),
+        )
         l0: GroupKey | None = None
         deep: GroupKey | None = None
         for entry in entries:
@@ -103,7 +121,7 @@ class AgentFoldingMixin:
         """Every L0 + L1 key the current agent list would render."""
         from ...models.agent_groups import enumerate_group_keys
 
-        return enumerate_group_keys(self._agents)
+        return enumerate_group_keys(self._agents, mode=self._active_grouping_mode())
 
     def _snap_focus_after_group_fold_change(self) -> None:
         """Reposition ``current_idx`` / ``_current_group_key`` after a fold change.
@@ -124,7 +142,9 @@ class AgentFoldingMixin:
             self._current_group_key = None
             return
         entries = build_agent_tree(
-            self._agents, fold_registry=self._group_fold_registry
+            self._agents,
+            fold_registry=self._group_fold_registry,
+            mode=self._active_grouping_mode(),
         )
         # If the focused agent's row is in the tree, focus stays on it.
         for entry in entries:
@@ -186,7 +206,9 @@ class AgentFoldingMixin:
         from ...models.agent_groups import build_agent_tree
 
         entries = build_agent_tree(
-            self._agents, fold_registry=self._group_fold_registry
+            self._agents,
+            fold_registry=self._group_fold_registry,
+            mode=self._active_grouping_mode(),
         )
         # Find the agent_indices the expanded banner covers, so we can
         # match either by descendant-banner key prefix or by agent

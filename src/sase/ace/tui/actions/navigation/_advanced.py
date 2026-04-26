@@ -152,11 +152,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             return list(range(len(self.changespecs)))
         if self.current_tab == "agents":
-            from ...models.agent_groups import build_agent_tree
+            from ...models.agent_groups import GroupingMode, build_agent_tree
 
             tree = build_agent_tree(
                 self._agents,
                 fold_registry=self._group_fold_registry,
+                mode=getattr(self, "_grouping_mode", GroupingMode.STANDARD),
             )
             return [
                 e.agent_idx

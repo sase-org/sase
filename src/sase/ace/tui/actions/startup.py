@@ -191,9 +191,23 @@ class StartupMixin:
         # the per-workflow fold manager — workflow folds only take effect
         # once the enclosing group is expanded.  Empty registry => every
         # group expanded (first-paint default).
+        #
+        # Per-mode registry: each grouping mode maintains its own fold
+        # state so cycling modes (g) doesn't lose collapse intent on the
+        # mode the user came from.  ``_group_fold_registry`` always
+        # points at the active mode's slot; the cycle action swaps it
+        # in via :meth:`_ensure_mode_registry` so existing call sites
+        # (loading, folding, display) keep reading a single attribute.
         from ..models.agent_group_fold import AgentGroupFoldRegistry
+        from ..models.agent_groups import GroupingMode
 
-        self._group_fold_registry = AgentGroupFoldRegistry()
+        self._grouping_mode: GroupingMode = GroupingMode.STANDARD
+        self._group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry] = {
+            GroupingMode.STANDARD: AgentGroupFoldRegistry(),
+        }
+        self._group_fold_registry: AgentGroupFoldRegistry = self._group_fold_registries[
+            GroupingMode.STANDARD
+        ]
         # When non-None, the user has navigated onto a group banner row
         # (only possible when that group is collapsed).  Banner-aware
         # actions look at this to target the group instead of the
