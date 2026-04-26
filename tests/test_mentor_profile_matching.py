@@ -9,10 +9,10 @@ from sase.ace.changespec import (
 )
 from sase.ace.scheduler.mentor_profile_matching import (
     _UpfrontMatchResult,
-    _extract_changed_files_from_diff,
-    _get_commits_since_last_mentors,
-    get_matching_profiles_for_entry,
     add_matching_profiles_upfront,
+    extract_changed_files_from_diff,
+    get_commits_since_last_mentors,
+    get_matching_profiles_for_entry,
     get_profiles_registered_for_entry,
     profile_matches_any_commit,
 )
@@ -20,10 +20,10 @@ from sase.config.mentor import MentorProfileConfig
 from test_utils import build_changespec, make_mentor_config
 
 
-# Tests for _extract_changed_files_from_diff
+# Tests for extract_changed_files_from_diff
 
 
-def test_extract_changed_files_from_diff_git_format() -> None:
+def testextract_changed_files_from_diff_git_format() -> None:
     """Test extracting files from git diff format."""
     diff_content = """diff --git a/src/main.py b/src/main.py
 index 123456..789abc 100644
@@ -41,11 +41,11 @@ index aaaaaa..bbbbbb 100644
  def test_main(): pass
 +def test_other(): pass
 """
-    files = _extract_changed_files_from_diff(diff_content)
+    files = extract_changed_files_from_diff(diff_content)
     assert files == ["src/main.py", "tests/test_main.py"]
 
 
-def test_extract_changed_files_from_diff_hg_format() -> None:
+def testextract_changed_files_from_diff_hg_format() -> None:
     """Test extracting files from hg diff format."""
     diff_content = """diff -r abc123 src/main.py
 --- a/src/main.py
@@ -60,11 +60,11 @@ diff -r abc123 tests/test_main.py
 @@ -1 +1,2 @@
  def test_main(): pass
 """
-    files = _extract_changed_files_from_diff(diff_content)
+    files = extract_changed_files_from_diff(diff_content)
     assert files == ["src/main.py", "tests/test_main.py"]
 
 
-def test_extract_changed_files_from_diff_hg_changeset_format() -> None:
+def testextract_changed_files_from_diff_hg_changeset_format() -> None:
     """Test extracting files from hg changeset diff format (double -r)."""
     diff_content = """diff -r abc123 -r def456 src/main.dart
 --- a/src/main.dart
@@ -80,11 +80,11 @@ diff -r abc123 -r def456 tests/main_test.dart
  void testMain() {}
 +void testOther() {}
 """
-    files = _extract_changed_files_from_diff(diff_content)
+    files = extract_changed_files_from_diff(diff_content)
     assert files == ["src/main.dart", "tests/main_test.dart"]
 
 
-def test_extract_changed_files_from_diff_hg_non_hex_revision_tokens() -> None:
+def testextract_changed_files_from_diff_hg_non_hex_revision_tokens() -> None:
     """Test hg diff parsing with non-hex revision tokens."""
     diff_content = """diff -r 123:ABCDEF+ -r tip src/feature.py
 --- a/src/feature.py
@@ -99,14 +99,14 @@ diff -r 123:ABCDEF+ -r tip tests/test_feature.py
  def test_feature(): pass
 +def test_other(): pass
 """
-    files = _extract_changed_files_from_diff(diff_content)
+    files = extract_changed_files_from_diff(diff_content)
     assert files == ["src/feature.py", "tests/test_feature.py"]
 
 
-# Tests for _get_commits_since_last_mentors
+# Tests for get_commits_since_last_mentors
 
 
-def test_get_commits_since_last_mentors_excludes_earlier() -> None:
+def testget_commits_since_last_mentors_excludes_earlier() -> None:
     """Test that commits before last mentor entry are excluded."""
     cs = build_changespec(
         commits=[
@@ -118,14 +118,14 @@ def test_get_commits_since_last_mentors_excludes_earlier() -> None:
             MentorEntry(entry_id="2", profiles=["code"], status_lines=None),
         ],
     )
-    result = _get_commits_since_last_mentors(cs)
+    result = get_commits_since_last_mentors(cs)
     # Should include commits 2 and 3, exclude commit 1
     assert len(result) == 2
     assert result[0].display_number == "2"
     assert result[1].display_number == "3"
 
 
-def test_get_commits_since_last_mentors_skips_proposals() -> None:
+def testget_commits_since_last_mentors_skips_proposals() -> None:
     """Test that proposals (entries like 1a, 2b) are skipped."""
     cs = build_changespec(
         commits=[
@@ -135,16 +135,16 @@ def test_get_commits_since_last_mentors_skips_proposals() -> None:
         ],
         mentors=None,
     )
-    result = _get_commits_since_last_mentors(cs)
+    result = get_commits_since_last_mentors(cs)
     # Should only include commit 1, not 1a or 1b
     assert len(result) == 1
     assert result[0].display_number == "1"
 
 
-def test_get_commits_since_last_mentors_no_commits() -> None:
+def testget_commits_since_last_mentors_no_commits() -> None:
     """Test with no commits returns empty list."""
     cs = build_changespec(commits=None)
-    result = _get_commits_since_last_mentors(cs)
+    result = get_commits_since_last_mentors(cs)
     assert result == []
 
 
