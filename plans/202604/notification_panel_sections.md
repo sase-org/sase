@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 23:24:32
-status: wip
+status: done
 ---
 # Sectioned Notification Panel
 

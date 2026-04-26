@@ -22,6 +22,7 @@ from sase.notifications import (
     Notification,
     format_relative_time,
     format_relative_until,
+    is_priority,
     mark_all_read,
     mark_dismissed,
     mark_muted,
@@ -43,6 +44,16 @@ _ACTION_BADGES: dict[str | None, str] = {
     "UserQuestion": "[question]",
     "ViewErrorReport": "[error]",
 }
+
+
+# Section taxonomy: (key, label, color). Order is render order.
+_SECTIONS: list[tuple[str, str, str]] = [
+    ("priority", "PRIORITY", "#FF4444"),
+    ("inbox", "INBOX", "#FFD700"),
+    ("muted", "MUTED", "#5FAFAF"),
+]
+
+_HEADER_ID_PREFIX = "hdr:"
 
 
 class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | None]):
@@ -91,7 +102,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 with Vertical(id="notification-left"):
                     if self._notifications:
                         yield OptionList(
-                            *self._create_options(),
+                            *self._create_sectioned_options(),
                             id="notification-list",
                         )
                     else:
@@ -228,7 +239,11 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
     ) -> None:
         """Update the right pane when a different notification is highlighted."""
         self._current_file_index = 0
-        if event.option and event.option.id is not None:
+        if (
+            event.option
+            and event.option.id is not None
+            and not event.option.id.startswith(_HEADER_ID_PREFIX)
+        ):
             idx = int(event.option.id)
             if 0 <= idx < len(self._notifications):
                 self._display_file(self._notifications[idx])
@@ -286,21 +301,71 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         return text
 
-    def _create_options(self) -> list[Option]:
-        """Create options from notifications."""
-        return [
-            Option(self._create_styled_label(n), id=str(i))
-            for i, n in enumerate(self._notifications)
-        ]
+    @staticmethod
+    def _section_for(notification: Notification) -> str:
+        """Return the section key for a notification (mute dominates priority)."""
+        if notification.muted:
+            return "muted"
+        if is_priority(notification):
+            return "priority"
+        return "inbox"
+
+    @staticmethod
+    def _build_header_text(key: str, count: int) -> Text:
+        """Build the styled header row text for a section."""
+        label, color = next((lbl, c) for k, lbl, c in _SECTIONS if k == key)
+        text = Text()
+        accent = f"bold {color}"
+        text.append("▌ ", style=accent)
+        text.append(label, style=accent)
+        text.append(f" · {count}", style=accent)
+        text.append(" ", style="")
+        text.append("─" * 40, style="dim")
+        return text
+
+    def _create_sectioned_options(self) -> list[Option]:
+        """Create options grouped by section, with disabled header rows."""
+        groups: dict[str, list[tuple[int, Notification]]] = {
+            key: [] for key, _, _ in _SECTIONS
+        }
+        for i, n in enumerate(self._notifications):
+            groups[self._section_for(n)].append((i, n))
+
+        options: list[Option] = []
+        for key, _, _ in _SECTIONS:
+            items = groups[key]
+            if not items:
+                continue
+            options.append(
+                Option(
+                    self._build_header_text(key, len(items)),
+                    id=f"{_HEADER_ID_PREFIX}{key}",
+                    disabled=True,
+                )
+            )
+            for idx, n in items:
+                options.append(Option(self._create_styled_label(n), id=str(idx)))
+        return options
+
+    def _row_for_notification_index(
+        self, option_list: OptionList, notification_idx: int
+    ) -> int | None:
+        """Return the option-list row position for a notification index."""
+        target = str(notification_idx)
+        for row in range(option_list.option_count):
+            opt = option_list.get_option_at_index(row)
+            if opt.id == target:
+                return row
+        return None
 
     def on_mount(self) -> None:
         """Focus the option list on mount and display initial file."""
         try:
             option_list = self.query_one("#notification-list", OptionList)
-            if self._initial_index > 0 and self._initial_index < len(
-                self._notifications
-            ):
-                option_list.highlighted = self._initial_index
+            if 0 <= self._initial_index < len(self._notifications):
+                row = self._row_for_notification_index(option_list, self._initial_index)
+                if row is not None:
+                    option_list.highlighted = row
             option_list.focus()
         except Exception:
             pass  # No list if empty
@@ -312,7 +377,11 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (Enter or click)."""
-        if event.option and event.option.id is not None:
+        if (
+            event.option
+            and event.option.id is not None
+            and not event.option.id.startswith(_HEADER_ID_PREFIX)
+        ):
             idx = int(event.option.id)
             if 0 <= idx < len(self._notifications):
                 self.dismiss(self._notifications[idx])
@@ -324,7 +393,9 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             highlighted = option_list.highlighted
             if highlighted is not None:
                 option = option_list.get_option_at_index(highlighted)
-                if option.id is not None:
+                if option.id is not None and not option.id.startswith(
+                    _HEADER_ID_PREFIX
+                ):
                     return int(option.id)
         except Exception:
             pass
@@ -490,12 +561,15 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             self._display_file(None)
             return
 
-        for option in self._create_options():
+        for option in self._create_sectioned_options():
             option_list.add_option(option)
 
-        # Restore highlight to the requested index
+        # `highlight_index` is a notification index; translate to row position
+        # in the freshly-built (sectioned) option list.
         if highlight_index is not None:
-            option_list.highlighted = highlight_index
+            row = self._row_for_notification_index(option_list, highlight_index)
+            if row is not None:
+                option_list.highlighted = row
 
         # Update right pane for whatever is now highlighted
         self._current_file_index = 0
