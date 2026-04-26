@@ -1,5 +1,6 @@
 """Agent list widget for the ace TUI."""
 
+from datetime import datetime
 from typing import Any
 
 from rich.text import Text
@@ -11,6 +12,7 @@ from textual.widgets.option_list import Option
 from ..models.agent import Agent, AgentType, AttemptRecord
 from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
+    GroupingMode,
     GroupRow,
     TreeEntry,
     build_agent_tree,
@@ -95,6 +97,10 @@ class AgentList(OptionList, inherit_bindings=False):
         # Expanded banners stay disabled and skip the map entirely so they
         # remain invisible to selection.
         self._banner_at_row: dict[int, GroupRow] = {}
+        # Active grouping mode for the current render.  Updated on every
+        # ``update_list`` call so the test/inspection helpers
+        # (``_format_banner_option``) match the most recent render.
+        self._grouping_mode: GroupingMode = GroupingMode.STANDARD
 
     def update_list(
         self,
@@ -106,6 +112,8 @@ class AgentList(OptionList, inherit_bindings=False):
         current_attempt_number: int | None = None,
         fold_registry: AgentGroupFoldRegistry | None = None,
         current_group_key: tuple[str, ...] | None = None,
+        grouping_mode: GroupingMode = GroupingMode.STANDARD,
+        now: datetime | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -124,6 +132,15 @@ class AgentList(OptionList, inherit_bindings=False):
                 navigation flies through agents.
             current_group_key: When non-None, highlight the banner row whose
                 ``group_key`` matches.  Takes precedence over agent highlight.
+            grouping_mode: Which grouping/sorting mode the tree should use.
+                Defaults to ``STANDARD`` (project → ChangeSpec → name-root);
+                ``BY_DATE`` and ``BY_STATUS`` swap L0 for a date / status
+                bucket and drop the ChangeSpec layer.  Phase 2 callers
+                hardcode ``STANDARD``; Phase 3 wires this to a cyclable
+                app-level setting.
+            now: Reference time for ``BY_DATE`` bucketing.  Defaults to
+                ``datetime.now()``; tests pass a fixed value so bucket
+                membership is deterministic.
         """
         self._programmatic_update = True
         self._agents = agents
@@ -208,7 +225,10 @@ class AgentList(OptionList, inherit_bindings=False):
         max_width = target_width
 
         # Walk the grouping tree and emit Options in display order.
-        tree: list[TreeEntry] = build_agent_tree(agents, fold_registry=fold_registry)
+        self._grouping_mode = grouping_mode
+        tree: list[TreeEntry] = build_agent_tree(
+            agents, fold_registry=fold_registry, mode=grouping_mode, now=now
+        )
 
         highlighted_row: int | None = None
         banner_seq = 0
@@ -238,6 +258,7 @@ class AgentList(OptionList, inherit_bindings=False):
                     width=banner_width,
                     sequence=banner_seq,
                     selectable=banner_selectable,
+                    mode=grouping_mode,
                 )
                 banner_seq += 1
                 row_index = len(self._row_entries)
@@ -374,6 +395,7 @@ class AgentList(OptionList, inherit_bindings=False):
             width=width,
             sequence=sequence,
             selectable=selectable,
+            mode=self._grouping_mode,
         )
 
     def _format_attempt_option(

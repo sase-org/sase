@@ -58,7 +58,6 @@ NO_PROJECT = ""
 NO_CHANGESPEC_LABEL = "(no ChangeSpec)"
 
 
-# pyvision: tests/ace/tui/models/test_agent_groups.py
 class GroupingMode(Enum):
     """How the Agents-tab tree is bucketed at L0.
 

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
+from ...models.agent_groups import GroupingMode
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
@@ -292,6 +293,7 @@ class AgentDisplayMixin:
                 current_attempt_number=attempt_number if idx == focused_idx else None,
                 fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,
+                grouping_mode=GroupingMode.STANDARD,
             )
 
             if idx == focused_idx:

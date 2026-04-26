@@ -14,6 +14,7 @@ from ..models.agent import (
     format_compact_duration,
 )
 from ..models.agent_groups import (
+    GroupingMode,
     GroupRow,
     banner_label,
     banner_summary_text,
@@ -41,6 +42,7 @@ from ._agent_list_styling import (
     _PROJECT_BANNER_RULE_STYLE,
     _PROJECT_BAR_GLYPH,
     _PROJECT_RULE,
+    _STATUS_BUCKET_GLYPHS,
     _STEP_TYPE_COLORS,
 )
 
@@ -299,17 +301,24 @@ def format_banner_option(
     width: int,
     sequence: int,
     selectable: bool = False,
+    mode: GroupingMode = GroupingMode.STANDARD,
 ) -> Option:
     """Render a group banner row Option.
 
     Both levels share the shape ``<prefix> <label> <rule…>  <chip>`` with
     the chip right-aligned to ``width`` so banner chips line up with the
-    runtime suffix column on agent rows.  Glyphs and colors differ:
+    runtime suffix column on agent rows.  Glyphs and colors differ by
+    grouping mode:
 
-    - L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue heavy
-      rule ``━`` and chip.
-    - L1 (name-root): 2-space indent + dim-gray ``╭─`` branch glyph,
-      teal label, dim-gray light rule ``─`` and chip.
+    - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
+      heavy rule ``━`` and chip.
+    - STANDARD L1 (ChangeSpec, 3-level mode): cooler accent + ``▎`` bar.
+    - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
+      project bar — the bucket name is the visual anchor.
+    - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
+      ``Needs Attention``) + bold sky-blue label + heavy rule.
+    - L1 (name-root) in any mode: 2-space indent + dim-gray ``╭─`` branch
+      glyph, teal label, dim-gray light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` so OptionList cursor
     navigation skips them at full expansion.  When *selectable* is True
@@ -319,12 +328,29 @@ def format_banner_option(
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
 
-    panel_uses_changespec = any(a.cl_name for a in agents)
+    # Only STANDARD mode uses the ChangeSpec banner row; BY_DATE / BY_STATUS
+    # collapse the project + ChangeSpec layers into the bucket so any L1
+    # banner there is a name-root banner regardless of agents' cl_name.
+    panel_uses_changespec = mode is GroupingMode.STANDARD and any(
+        a.cl_name for a in agents
+    )
     is_changespec_banner = (
         group.level == 1 and panel_uses_changespec and len(group.group_key) == 2
     )
-    if group.level == 0:
+    if group.level == 0 and mode is GroupingMode.STANDARD:
         prefix = f"{_PROJECT_BAR_GLYPH} "
+        rule_char = _PROJECT_RULE
+        prefix_style = _PROJECT_BANNER_BAR_STYLE
+        label_style = _PROJECT_BANNER_BAR_STYLE
+        rule_style = _PROJECT_BANNER_RULE_STYLE
+    elif group.level == 0:
+        # Bucket banner (BY_DATE / BY_STATUS): drop the project bar so the
+        # bucket name leads.  In BY_STATUS mode, prepend a status glyph
+        # that signals the bucket's semantics at a glance.
+        if mode is GroupingMode.BY_STATUS and label in _STATUS_BUCKET_GLYPHS:
+            prefix = f"{_STATUS_BUCKET_GLYPHS[label]} "
+        else:
+            prefix = ""
         rule_char = _PROJECT_RULE
         prefix_style = _PROJECT_BANNER_BAR_STYLE
         label_style = _PROJECT_BANNER_BAR_STYLE

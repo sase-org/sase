@@ -41,6 +41,20 @@ _NAME_ROOT_RULE = "─"
 _NAME_ROOT_INDENT = "  "
 _NAME_ROOT_DEEP_INDENT = "    "
 
+# Status-bucket prefix glyphs for ``BY_STATUS`` mode L0 banners.  Reuses
+# semantically-loaded glyphs from agent rendering so the banner reads as
+# "this bucket is the X kind".  ``Needs Attention`` borrows the embedded-
+# workflow ``▲`` (the only attention-grabbing arrow already in use);
+# remaining buckets use minimal play / cross / check marks so the bucket
+# title still leads visually.  Each glyph is rendered in the L0 sky-blue
+# banner color — no per-bucket palette to keep the agents tab calm.
+_STATUS_BUCKET_GLYPHS: dict[str, str] = {
+    "Needs Attention": "▲",
+    "Running": "▶",
+    "Failed": "✗",
+    "Done": "✓",
+}
+
 # Color mapping for agent types
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",  # Blue

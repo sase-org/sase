@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
     _CHANGESPEC_BANNER_RULE_STYLE,
@@ -13,6 +14,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _PROJECT_BANNER_BAR_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
+    _STATUS_BUCKET_GLYPHS,
 )
 from sase.ace.tui.widgets.agent_list import _BANNER_ROW, AgentList
 
@@ -25,15 +27,21 @@ def _agent(
     project_file: str = "/repo/proj.gp",
     tag: str | None = None,
     agent_name: str | None = None,
+    status: str = "RUNNING",
+    start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
+    wait_until: str | None = None,
+    retried_as_timestamp: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file=project_file,
-        status="RUNNING",
-        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        status=status,
+        start_time=start_time,
         agent_name=agent_name,
         tag=tag,
+        wait_until=wait_until,
+        retried_as_timestamp=retried_as_timestamp,
     )
 
 
@@ -368,6 +376,167 @@ def test_update_highlight_falls_back_to_agent_search_when_group_key_unmatched() 
     # changespec(b), agent1 → row 6.
     widget.update_highlight(1, group_key=("ghost",))
     assert widget.highlighted == 6
+
+
+# --- Phase 2: BY_DATE / BY_STATUS bucket rendering ---
+
+
+def test_by_date_mode_emits_bucket_banner_per_date_group() -> None:
+    """In BY_DATE mode L0 banners are date buckets, ChangeSpec layer is dropped."""
+    now = datetime(2026, 4, 25, 12, 0, 0)
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="a", start_time=now),  # Today
+            _agent(cl_name="b", start_time=datetime(2026, 4, 15, 9, 0, 0)),  # Earlier
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_DATE,
+        now=now,
+    )
+    # Two L0 bucket banners (Today, Earlier), no ChangeSpec banner inserted
+    # under either, agents render directly under their bucket.  A spacer
+    # row separates the two L0 banners as in STANDARD mode.
+    assert widget._row_entries == [
+        _BR,  # Today
+        (0, None),
+        _BR,  # spacer
+        _BR,  # Earlier
+        (1, None),
+    ]
+
+
+def test_by_date_bucket_label_omits_project_bar() -> None:
+    """BY_DATE bucket banners drop the ``▌`` project bar — bucket name leads."""
+    now = datetime(2026, 4, 25, 12, 0, 0)
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="a", start_time=now),
+            _agent(cl_name="b", start_time=datetime(2026, 4, 25, 13, 0, 0)),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_DATE,
+        now=now,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    # Bucket name leads — no ``▌`` bar prefix from STANDARD project mode.
+    assert plain.startswith("Today")
+    assert "▌" not in plain
+    # Still uses the L0 sky-blue palette so visual hierarchy stays the same.
+    spans = {s.style for s in options[0].prompt.spans}  # type: ignore[union-attr]
+    assert _PROJECT_BANNER_BAR_STYLE in spans
+    assert _PROJECT_BANNER_RULE_STYLE in spans
+
+
+def test_by_status_mode_emits_status_bucket_banners() -> None:
+    """BY_STATUS mode buckets agents by status; L0 = bucket, no ChangeSpec layer."""
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="a", status="RUNNING"),
+            _agent(cl_name="b", status="QUESTION"),
+            _agent(cl_name="c", status="DONE"),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    # Order is (Needs Attention, Running, Done) — Failed bucket absent.
+    assert widget._row_entries == [
+        _BR,  # Needs Attention
+        (1, None),
+        _BR,  # spacer
+        _BR,  # Running
+        (0, None),
+        _BR,  # spacer
+        _BR,  # Done
+        (2, None),
+    ]
+
+
+def test_by_status_needs_attention_banner_carries_status_glyph() -> None:
+    """``Needs Attention`` bucket leads with the ``▲`` status glyph."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="a", status="QUESTION")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    assert plain.startswith(
+        f"{_STATUS_BUCKET_GLYPHS['Needs Attention']} Needs Attention"
+    )
+
+
+def test_by_status_running_banner_carries_status_glyph() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="a", status="RUNNING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    assert plain.startswith(f"{_STATUS_BUCKET_GLYPHS['Running']} Running")
+
+
+def test_by_date_mode_drops_changespec_banner_even_when_cl_name_present() -> None:
+    """The ChangeSpec banner disappears in BY_DATE mode regardless of cl_name."""
+    now = datetime(2026, 4, 25, 12, 0, 0)
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="fix-bug-id", start_time=now)],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_DATE,
+        now=now,
+    )
+    # Just the bucket banner + agent — no ChangeSpec banner inserted.
+    assert widget._row_entries == [_BR, (0, None)]
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    assert "fix-bug-id" not in plain
+
+
+def test_by_status_name_root_banner_uses_existing_palette() -> None:
+    """Name-root banners under a bucket reuse the teal STANDARD-mode style."""
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="", agent_name="coder.claude", status="RUNNING"),
+            _agent(cl_name="", agent_name="coder.codex", status="RUNNING"),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    # Layout: bucket banner (Running), name-root banner (coder), agents.
+    assert widget._row_entries == [_BR, _BR, (0, None), (1, None)]
+    name_root_text = options[1].prompt
+    plain = name_root_text.plain  # type: ignore[union-attr]
+    assert "╭─ coder " in plain
+    spans = {s.style for s in name_root_text.spans}  # type: ignore[union-attr]
+    assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
+    assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
+
+
+def test_standard_mode_banner_unchanged_after_phase_2() -> None:
+    """Regression guard: STANDARD mode behavior is byte-identical to Phase 1."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        current_idx=0,
+        grouping_mode=GroupingMode.STANDARD,
+    )
+    options = list(widget._options)
+    proj_plain = options[0].prompt.plain  # type: ignore[union-attr]
+    cs_plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert proj_plain.startswith("▌ sase_100")
+    assert "fix-bug-id" in cs_plain
+    cs_styles = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
+    assert _CHANGESPEC_BANNER_BAR_STYLE in cs_styles
+    assert _CHANGESPEC_BANNER_RULE_STYLE in cs_styles
 
 
 def test_banner_summary_chips_render_in_text() -> None:
