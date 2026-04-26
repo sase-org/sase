@@ -1,4 +1,4 @@
-"""Tests for the Phase-4 group-fold state model."""
+"""Tests for the group-fold state model."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent_group_fold import (
 
 def test_default_state_is_fully_expanded() -> None:
     state = AgentGroupFoldState()
-    assert state.level == GROUP_LEVEL_MAX == 3
+    assert state.level == GROUP_LEVEL_MAX == 2
 
 
 def test_collapse_steps_down_one_level_per_call() -> None:
@@ -19,7 +19,7 @@ def test_collapse_steps_down_one_level_per_call() -> None:
     levels = []
     while state.collapse():
         levels.append(state.level)
-    assert levels == [2, 1, 0]
+    assert levels == [1, 0]
     # Already at floor: no further change.
     assert state.collapse() is False
     assert state.level == GROUP_LEVEL_MIN
@@ -30,7 +30,7 @@ def test_expand_steps_up_one_level_per_call() -> None:
     levels = []
     while state.expand():
         levels.append(state.level)
-    assert levels == [1, 2, 3]
+    assert levels == [1, 2]
     # Already at ceiling: no further change.
     assert state.expand() is False
     assert state.level == GROUP_LEVEL_MAX
@@ -45,7 +45,7 @@ def test_expand_all_jumps_to_max() -> None:
 
 
 def test_collapse_all_jumps_to_min() -> None:
-    state = AgentGroupFoldState(level=3)
+    state = AgentGroupFoldState(level=2)
     assert state.collapse_all() is True
     assert state.level == GROUP_LEVEL_MIN
     # No-op when already at min.

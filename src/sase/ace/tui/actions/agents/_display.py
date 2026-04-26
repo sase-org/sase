@@ -12,13 +12,29 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldState
-    from ...widgets import AgentDetail, KeybindingFooter
+    from ...models.agent_panels import AgentPanelGroup, PanelKey
+    from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 log = logging.getLogger(__name__)
+
+#: id of the untagged "main" panel — kept stable across panel set changes
+#: so existing callers (loading shim, prompt-bar mount, tests) continue to
+#: work without knowing about the dynamic side panels.
+_MAIN_PANEL_ID = "agent-list-panel"
+
+
+def _panel_widget_id(panel_idx: int) -> str:
+    """Return the AgentList widget id for the panel at *panel_idx*.
+
+    Index 0 is the untagged main pane; tag panels follow.
+    """
+    if panel_idx == 0:
+        return _MAIN_PANEL_ID
+    return f"{_MAIN_PANEL_ID}-{panel_idx}"
 
 
 class AgentDisplayMixin:
@@ -42,9 +58,10 @@ class AgentDisplayMixin:
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
 
-    # Phase-4 group fold: see ``startup.py`` for documentation.
+    # Group fold + tag-driven panel collection (see startup.py).
     _group_fold_state: AgentGroupFoldState
     _current_group_key: tuple[str, ...] | None
+    _panel_group: AgentPanelGroup
 
     # Countdown for refresh
     _countdown_remaining: int
@@ -69,10 +86,9 @@ class AgentDisplayMixin:
 
         from textual.css.query import NoMatches
 
-        from ...widgets import AgentDetail, AgentList, KeybindingFooter
+        from ...widgets import AgentDetail, KeybindingFooter
 
         try:
-            agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
         except NoMatches:
@@ -82,30 +98,21 @@ class AgentDisplayMixin:
         if list_changed:
             # Drop any marks pointing at identities that no longer exist.
             self._prune_stale_marked_agents()  # type: ignore[attr-defined]
+            self._sync_panel_group()
             jump_hints = (
                 dict(self._entry_jump_index_to_hint)
                 if self._entry_jump_mode_active
                 else None
             )
 
-            group_fold_level = self._group_fold_state.level  # type: ignore[attr-defined]
-            agent_list.update_list(
-                self._agents,
-                self.current_idx,
-                fold_counts=self._fold_counts,
-                marked_agents=self._marked_agents,
-                jump_hints=jump_hints,
-                current_attempt_number=self.current_attempt_number,
-                group_fold_level=group_fold_level,
-                current_group_key=self._current_group_key,  # type: ignore[attr-defined]
-            )
+            self._refresh_panel_widgets(jump_hints=jump_hints)
             log.debug(
                 "agents display refresh list phase: elapsed=%.3fs agents=%d",
                 time.perf_counter() - list_started,
                 len(self._agents),
             )
         else:
-            agent_list.update_highlight(self.current_idx, self.current_attempt_number)
+            self._refresh_panel_highlights()
 
         self._update_agents_info_panel()
         if defer_detail:
@@ -133,14 +140,7 @@ class AgentDisplayMixin:
         debounces the expensive detail panel and footer updates (disk I/O,
         Rich Syntax highlighting, background workers).
         """
-        from ...widgets import AgentList
-
-        agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
-        agent_list.update_highlight(
-            self.current_idx,
-            self.current_attempt_number,
-            group_key=self._current_group_key,  # type: ignore[attr-defined]
-        )
+        self._refresh_panel_highlights()
         self._update_agents_info_panel()
 
         # Cancel any pending debounce timer before scheduling a new one
@@ -167,6 +167,200 @@ class AgentDisplayMixin:
             return
 
         self._apply_agent_detail_update(agent_detail, footer_widget)
+
+    # ---------------------------------------------------------------------
+    # Panel-collection helpers
+    # ---------------------------------------------------------------------
+
+    def _sync_panel_group(self) -> None:
+        """Recompute :attr:`_panel_group` from the current :attr:`_agents`.
+
+        Preserves the previously focused panel key when possible; falls
+        back to the untagged main pane when its tag's panel disappears.
+        Also re-anchors :attr:`current_idx` into the focused panel when
+        the previous focus is no longer in it.
+        """
+        from ...models.agent_panels import AgentPanelGroup, panel_key_per_agent
+
+        prev_focused = self._panel_group.focused_key
+        self._panel_group = AgentPanelGroup.from_agents(self._agents, prev_focused)
+
+        # Make sure current_idx points at an agent in the focused panel.
+        keys_per_agent = panel_key_per_agent(self._agents)
+        focused_key = self._panel_group.focused_key
+        if 0 <= self.current_idx < len(self._agents):
+            if keys_per_agent[self.current_idx] != focused_key:
+                self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
+        else:
+            self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
+
+    def _snap_current_idx_to_focused_panel(
+        self, keys_per_agent: list[PanelKey], focused_key: PanelKey
+    ) -> None:
+        """Set ``current_idx`` to the first agent in the focused panel.
+
+        When the focused panel is empty (e.g. the untagged main when
+        every loaded agent is tagged) leaves ``current_idx`` at ``0``.
+        """
+        for i, k in enumerate(keys_per_agent):
+            if k == focused_key:
+                self.current_idx = i
+                return
+        if self._agents:
+            self.current_idx = 0
+
+    def _refresh_panel_widgets(self, *, jump_hints: dict[int, str] | None) -> None:
+        """Mount/unmount AgentList widgets to match :attr:`_panel_group`.
+
+        Calls :meth:`AgentList.update_list` on each panel with its
+        agent slice.  Sets Textual focus on the focused panel.
+        """
+        from textual.css.query import NoMatches
+
+        from ...models.agent_panels import (
+            agents_for_panel,
+            panel_key_per_agent,
+        )
+        from ...widgets import AgentList
+
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+
+        panel_keys = self._panel_group.panel_keys
+        # Mount missing panels (skip index 0 — the main pane is composed
+        # statically and lives at id ``agent-list-panel``).
+        existing_ids = {w.id for w in container.children if isinstance(w, AgentList)}
+        for idx in range(len(panel_keys)):
+            wid = _panel_widget_id(idx)
+            if wid not in existing_ids:
+                container.mount(AgentList(id=wid))
+                existing_ids.add(wid)
+
+        # Unmount stale panels (id format ``agent-list-panel-<n>`` whose
+        # ``n`` is past the current panel set).
+        keep_ids = {_panel_widget_id(i) for i in range(len(panel_keys))}
+        for w in list(container.children):
+            if isinstance(w, AgentList) and w.id not in keep_ids:
+                w.remove()
+
+        keys_per_agent = panel_key_per_agent(self._agents)
+        focused_idx = self._panel_group.focused_idx
+        group_fold_level = self._group_fold_state.level
+        marked = self._marked_agents
+        fold_counts = self._fold_counts
+        attempt_number = self.current_attempt_number
+        current_group_key = self._current_group_key
+        global_idx = self.current_idx
+
+        for idx, key in enumerate(panel_keys):
+            wid = _panel_widget_id(idx)
+            try:
+                widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+            except NoMatches:
+                continue
+
+            panel_agents = agents_for_panel(self._agents, key)
+            global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
+
+            local_idx = -1
+            if idx == focused_idx and 0 <= global_idx < len(self._agents):
+                try:
+                    local_idx = global_indices.index(global_idx)
+                except ValueError:
+                    local_idx = -1
+
+            local_jump_hints: dict[int, str] | None = None
+            if jump_hints:
+                local_jump_hints = {}
+                for local_i, gi in enumerate(global_indices):
+                    if gi in jump_hints:
+                        local_jump_hints[local_i] = jump_hints[gi]
+
+            widget.update_list(
+                panel_agents,
+                local_idx,
+                fold_counts=fold_counts,
+                marked_agents=marked,
+                jump_hints=local_jump_hints,
+                current_attempt_number=attempt_number if idx == focused_idx else None,
+                group_fold_level=group_fold_level,
+                current_group_key=current_group_key if idx == focused_idx else None,
+            )
+
+            if idx == focused_idx:
+                widget.add_class("-focused-panel")
+            else:
+                widget.remove_class("-focused-panel")
+
+        self._focus_focused_panel_widget()
+
+    def _refresh_panel_highlights(self) -> None:
+        """Update the highlight on the focused panel without rebuilding options.
+
+        Used by the j/k debounced refresh path — only the focused panel's
+        cursor moves, so we skip the expensive list rebuild on the others.
+        """
+        from textual.css.query import NoMatches
+
+        from ...models.agent_panels import (
+            agents_for_panel,
+            panel_key_per_agent,
+        )
+        from ...widgets import AgentList
+
+        focused_key = self._panel_group.focused_key
+        keys_per_agent = panel_key_per_agent(self._agents)
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
+        wid = _panel_widget_id(self._panel_group.focused_idx)
+        try:
+            widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        local_idx = -1
+        if 0 <= self.current_idx < len(self._agents):
+            try:
+                local_idx = global_indices.index(self.current_idx)
+            except ValueError:
+                local_idx = -1
+        widget.update_highlight(
+            local_idx,
+            self.current_attempt_number,
+            group_key=self._current_group_key,
+        )
+        # Make sure the focused panel still wears the focus class even
+        # when only the highlight is updated (e.g. after a tag-set
+        # change that didn't go through ``_refresh_panel_widgets``).
+        try:
+            for w in self.query("#agent-list-container AgentList").results(AgentList):  # type: ignore[attr-defined]
+                if w.id == wid:
+                    w.add_class("-focused-panel")
+                else:
+                    w.remove_class("-focused-panel")
+        except NoMatches:
+            pass
+
+    def _focus_focused_panel_widget(self) -> None:
+        """Set Textual focus on the focused-panel AgentList."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        wid = _panel_widget_id(self._panel_group.focused_idx)
+        try:
+            widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+        try:
+            widget.focus()
+        except Exception:
+            # Focus may not be available before mount completes; harmless.
+            pass
+
+    # ---------------------------------------------------------------------
+    # Detail update + info panel
+    # ---------------------------------------------------------------------
 
     def _apply_agent_detail_update(
         self,

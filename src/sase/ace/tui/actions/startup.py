@@ -186,19 +186,26 @@ class StartupMixin:
         self._fold_manager = FoldStateManager()
         self._fold_counts: dict[str, tuple[int, int]] = {}
 
-        # Phase-4 group fold: tracks a single global expansion level
-        # (L0..L3) for the agents-tab three-level grouping tree.  Layers
-        # *above* the per-workflow fold manager — workflow folds only
-        # take effect once we have reached L3 (full expansion).  L3 is
-        # the default so first-paint matches the always-expanded Phase 3
-        # behavior.
+        # Group fold: tracks a single global expansion level (L0..L2)
+        # for the agents-tab two-level grouping tree (project →
+        # name-root).  Layers *above* the per-workflow fold manager —
+        # workflow folds only take effect once we have reached L2 (full
+        # expansion).  L2 is the default so first-paint shows everything
+        # visible.
         from ..models.agent_group_fold import AgentGroupFoldState
 
         self._group_fold_state = AgentGroupFoldState()
         # When non-None, the user has navigated onto a group banner row
-        # (only possible at fold level < 3).  Banner-aware actions look
+        # (only possible at fold level < 2).  Banner-aware actions look
         # at this to target the group instead of the underlying agent.
         self._current_group_key: tuple[str, ...] | None = None
+
+        # Tag-driven side-panel collection.  Initialized empty (untagged
+        # main pane only); rebuilt by ``_load_agents`` whenever the
+        # agent set changes.
+        from ..models.agent_panels import AgentPanelGroup
+
+        self._panel_group: AgentPanelGroup = AgentPanelGroup()
 
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents

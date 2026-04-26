@@ -104,6 +104,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_agent_changespec", "Go to CL", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
     ("add_agent_tag", "Add Agent Tag", False),
+    ("focus_next_agent_panel", "Next Panel", False),
+    ("focus_prev_agent_panel", "Prev Panel", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -235,6 +237,8 @@ class AppKeymaps:
     edit_panel: str
     toggle_attempt_view: str
     add_agent_tag: str
+    focus_next_agent_panel: str
+    focus_prev_agent_panel: str
     # Thinking panel
     toggle_thinking: str
     toggle_thinking_reverse: str

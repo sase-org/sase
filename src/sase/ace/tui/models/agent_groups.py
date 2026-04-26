@@ -1,34 +1,35 @@
-"""Three-level grouping tree for the Agents tab.
+"""Two-level grouping tree for an Agents-tab panel.
 
 Builds a flat sequence of banner + agent entries from a list of agents,
 grouped by:
 
-1. **Tag** (``Agent.tag``; empty string for untagged agents).
-2. **Project / changespec** (derived from ``Agent.project_file`` and
+1. **Project / changespec** (derived from ``Agent.project_file`` and
    ``Agent.cl_name``).
-3. **Name root** — the part of the agent's name before the first ``.``.
+2. **Name root** — the part of the agent's name before the first ``.``.
+
+Tag-level grouping is not part of this tree — tags drive the dynamic
+side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
+already represents a single tag bucket.
 
 Workflow children inherit grouping identity from their parent so that
 banners are never emitted between a parent and its child steps.
 
 The tree builder accepts a ``group_fold_level``:
 
-* ``3`` (default) — every banner and agent row is emitted.  Each group
+* ``2`` (default) — every banner and agent row is emitted.  Each group
   key renders exactly once, with all of its members contiguous beneath
   the banner.
-* ``0``/``1``/``2`` — only banners up to the requested level are
-  emitted.  Each unique group key produces exactly one banner row.
-  Agent rows are suppressed entirely so that L0/L1/L2 act as a
-  "headers-only" view.
+* ``0``/``1`` — only banners up to the requested level are emitted.
+  Each unique group key produces exactly one banner row.  Agent rows
+  are suppressed entirely so that L0/L1 act as a "headers-only" view.
 
 Group ordering is deterministic and independent of the input agent
-list's order: named tags sort before ``(untagged)``; named projects
-sort before ``(no project)``; the empty name-root sorts first within a
-project so dotless agents render directly under the project banner.
-Within each group, members keep their original input order via a
-stable sort.
+list's order: named projects sort before ``(no project)``; the empty
+name-root sorts first within a project so dotless agents render directly
+under the project banner.  Within each group, members keep their
+original input order via a stable sort.
 
-Level-2 (name-root) banners are only emitted when the name-root group
+Level-1 (name-root) banners are only emitted when the name-root group
 contains two or more entries; a singleton root renders its lone agent
 directly under the project banner without an extra header.
 """
@@ -43,15 +44,12 @@ from .agent import Agent
 #: Sentinel used as the project key for agents without a ``project_file``.
 NO_PROJECT = ""
 
-#: Sentinel used as the tag key for agents without any tags.
-UNTAGGED = ""
-
 
 @dataclass(frozen=True)
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
-    level: int  # 0 = tag, 1 = project, 2 = name-root
+    level: int  # 0 = project, 1 = name-root
     group_key: tuple[str, ...]
     agent_indices: tuple[int, ...]
     is_collapsed: bool = False
@@ -78,7 +76,6 @@ class _BannerSummary:
 
 @dataclass(frozen=True)
 class _GroupingKeys:
-    tag: str
     project: tuple[str, str]  # (project_name, changespec)
     name_root: str
 
@@ -101,11 +98,6 @@ def _name_root(agent: Agent) -> str:
     return ""
 
 
-def _tag_sort_key(tag: str) -> tuple[int, str]:
-    """Sort key for primary tags — named tags first, ``(untagged)`` last."""
-    return (0, tag.lower()) if tag else (1, "")
-
-
 def _project_sort_key(project: tuple[str, str]) -> tuple[int, str, str]:
     """Sort key for projects — named projects first, ``(no project)`` last."""
     name, cl = project
@@ -124,7 +116,6 @@ def _walk_order(keys_per_agent: list[_GroupingKeys]) -> list[int]:
     return sorted(
         range(len(keys_per_agent)),
         key=lambda i: (
-            _tag_sort_key(keys_per_agent[i].tag),
             _project_sort_key(keys_per_agent[i].project),
             _name_root_sort_key(keys_per_agent[i].name_root),
             i,
@@ -133,7 +124,7 @@ def _walk_order(keys_per_agent: list[_GroupingKeys]) -> list[int]:
 
 
 def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _GroupingKeys:
-    """Compute (tag, project, name_root) for *agent*.
+    """Compute (project, name_root) for *agent*.
 
     Workflow children inherit grouping from their parent so a banner is
     never inserted between a parent and its workflow steps.
@@ -143,20 +134,17 @@ def _grouping_keys_for(agent: Agent, parent_lookup: dict[str, Agent]) -> _Groupi
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent
-    tag = target.tag or UNTAGGED
-    return _GroupingKeys(
-        tag=tag, project=_project_key(target), name_root=_name_root(target)
-    )
+    return _GroupingKeys(project=_project_key(target), name_root=_name_root(target))
 
 
-def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[TreeEntry]:
+def build_agent_tree(agents: list[Agent], group_fold_level: int = 2) -> list[TreeEntry]:
     """Build the grouped tree of banner + agent entries.
 
     See module docstring for level semantics.
 
     Args:
         agents: The flat agent list (as filtered/sorted for display).
-        group_fold_level: Global expansion level (0–3).
+        group_fold_level: Global expansion level (0–2).
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
@@ -168,25 +156,20 @@ def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[Tre
     keys_per_agent = [_grouping_keys_for(a, parent_lookup) for a in agents]
     walk_order = _walk_order(keys_per_agent)
 
-    tag_indices: dict[str, list[int]] = {}
-    proj_indices: dict[tuple[str, tuple[str, str]], list[int]] = {}
-    root_indices: dict[tuple[str, tuple[str, str], str], list[int]] = {}
+    proj_indices: dict[tuple[str, str], list[int]] = {}
+    root_indices: dict[tuple[tuple[str, str], str], list[int]] = {}
     for i in walk_order:
         k = keys_per_agent[i]
-        tag_indices.setdefault(k.tag, []).append(i)
-        proj_indices.setdefault((k.tag, k.project), []).append(i)
+        proj_indices.setdefault(k.project, []).append(i)
         if k.name_root:
-            root_indices.setdefault((k.tag, k.project, k.name_root), []).append(i)
+            root_indices.setdefault((k.project, k.name_root), []).append(i)
 
-    if group_fold_level >= 3:
-        return _build_full_tree(
-            keys_per_agent, walk_order, tag_indices, proj_indices, root_indices
-        )
+    if group_fold_level >= 2:
+        return _build_full_tree(keys_per_agent, walk_order, proj_indices, root_indices)
     return _build_collapsed_tree(
         keys_per_agent,
         walk_order,
         group_fold_level,
-        tag_indices,
         proj_indices,
         root_indices,
     )
@@ -195,9 +178,8 @@ def build_agent_tree(agents: list[Agent], group_fold_level: int = 3) -> list[Tre
 def _build_full_tree(
     keys_per_agent: list[_GroupingKeys],
     walk_order: list[int],
-    tag_indices: dict[str, list[int]],
-    proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
-    root_indices: dict[tuple[str, tuple[str, str], str], list[int]],
+    proj_indices: dict[tuple[str, str], list[int]],
+    root_indices: dict[tuple[tuple[str, str], str], list[int]],
 ) -> list[TreeEntry]:
     """Full banner + agent rows.
 
@@ -206,50 +188,33 @@ def _build_full_tree(
     beneath it.
     """
     entries: list[TreeEntry] = []
-    cur_tag: str | None = None
     cur_proj: tuple[str, str] | None = None
     cur_root: str = ""
 
     for i in walk_order:
         k = keys_per_agent[i]
-        if cur_tag is None or k.tag != cur_tag:
-            entries.append(
-                TreeEntry(
-                    kind="group",
-                    group=GroupRow(
-                        level=0,
-                        group_key=(k.tag,),
-                        agent_indices=tuple(tag_indices[k.tag]),
-                    ),
-                )
-            )
-            cur_tag = k.tag
-            cur_proj = None
-            cur_root = ""
         if cur_proj is None or k.project != cur_proj:
             entries.append(
                 TreeEntry(
                     kind="group",
                     group=GroupRow(
-                        level=1,
-                        group_key=(k.tag, *k.project),
-                        agent_indices=tuple(proj_indices[(k.tag, k.project)]),
+                        level=0,
+                        group_key=k.project,
+                        agent_indices=tuple(proj_indices[k.project]),
                     ),
                 )
             )
             cur_proj = k.project
             cur_root = ""
         if k.name_root != cur_root:
-            if k.name_root and len(root_indices[(k.tag, k.project, k.name_root)]) >= 2:
+            if k.name_root and len(root_indices[(k.project, k.name_root)]) >= 2:
                 entries.append(
                     TreeEntry(
                         kind="group",
                         group=GroupRow(
-                            level=2,
-                            group_key=(k.tag, *k.project, k.name_root),
-                            agent_indices=tuple(
-                                root_indices[(k.tag, k.project, k.name_root)]
-                            ),
+                            level=1,
+                            group_key=(*k.project, k.name_root),
+                            agent_indices=tuple(root_indices[(k.project, k.name_root)]),
                         ),
                     )
                 )
@@ -263,60 +228,43 @@ def _build_collapsed_tree(
     keys_per_agent: list[_GroupingKeys],
     walk_order: list[int],
     group_fold_level: int,
-    tag_indices: dict[str, list[int]],
-    proj_indices: dict[tuple[str, tuple[str, str]], list[int]],
-    root_indices: dict[tuple[str, tuple[str, str], str], list[int]],
+    proj_indices: dict[tuple[str, str], list[int]],
+    root_indices: dict[tuple[tuple[str, str], str], list[int]],
 ) -> list[TreeEntry]:
-    """Headers-only tree for fold levels 0/1/2.
+    """Headers-only tree for fold levels 0/1.
 
     Each unique group at the requested levels appears once in
     deterministic grouping order.  Agent rows are suppressed.
     """
     entries: list[TreeEntry] = []
-    seen_tags: set[str] = set()
-    seen_projects: set[tuple[str, tuple[str, str]]] = set()
-    seen_roots: set[tuple[str, tuple[str, str], str]] = set()
+    seen_projects: set[tuple[str, str]] = set()
+    seen_roots: set[tuple[tuple[str, str], str]] = set()
 
     for i in walk_order:
         k = keys_per_agent[i]
-        if k.tag not in seen_tags:
-            seen_tags.add(k.tag)
+        if k.project not in seen_projects:
+            seen_projects.add(k.project)
             entries.append(
                 TreeEntry(
                     kind="group",
                     group=GroupRow(
                         level=0,
-                        group_key=(k.tag,),
-                        agent_indices=tuple(tag_indices[k.tag]),
+                        group_key=k.project,
+                        agent_indices=tuple(proj_indices[k.project]),
                         is_collapsed=group_fold_level < 1,
                     ),
                 )
             )
-        if group_fold_level >= 1:
-            proj_id = (k.tag, k.project)
-            if proj_id not in seen_projects:
-                seen_projects.add(proj_id)
-                entries.append(
-                    TreeEntry(
-                        kind="group",
-                        group=GroupRow(
-                            level=1,
-                            group_key=(k.tag, *k.project),
-                            agent_indices=tuple(proj_indices[proj_id]),
-                            is_collapsed=group_fold_level < 2,
-                        ),
-                    )
-                )
-        if group_fold_level >= 2 and k.name_root:
-            root_id = (k.tag, k.project, k.name_root)
+        if group_fold_level >= 1 and k.name_root:
+            root_id = (k.project, k.name_root)
             if root_id not in seen_roots and len(root_indices[root_id]) >= 2:
                 seen_roots.add(root_id)
                 entries.append(
                     TreeEntry(
                         kind="group",
                         group=GroupRow(
-                            level=2,
-                            group_key=(k.tag, *k.project, k.name_root),
+                            level=1,
+                            group_key=(*k.project, k.name_root),
                             agent_indices=tuple(root_indices[root_id]),
                             is_collapsed=True,
                         ),
@@ -360,20 +308,16 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
 def banner_label(group: GroupRow) -> str:
     """Compose the human-readable banner label for *group*.
 
-    Tag level: ``"@tag"`` or ``"(untagged)"``.
     Project level: ``"<project> / <changespec>"`` or
     ``"(no project) / <changespec>"``.
     Name-root level: the bare ``"<name>"``.
     """
     if group.level == 0:
-        tag = group.group_key[0]
-        return f"@{tag}" if tag else "(untagged)"
-    if group.level == 1:
-        proj = group.group_key[1]
-        cl = group.group_key[2] if len(group.group_key) > 2 else ""
+        proj = group.group_key[0]
+        cl = group.group_key[1] if len(group.group_key) > 1 else ""
         proj_disp = proj if proj else "(no project)"
         return f"{proj_disp} / {cl}" if cl else proj_disp
-    if group.level == 2:
+    if group.level == 1:
         return group.group_key[-1]
     return ""
 

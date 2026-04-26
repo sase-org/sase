@@ -265,23 +265,71 @@ class EventHandlersMixin:
     def on_agent_list_selection_changed(
         self, event: AgentList.SelectionChanged
     ) -> None:
-        """Handle selection change in the Agent list widget."""
+        """Handle selection change in the Agent list widget.
+
+        Each AgentList instance is a tag-bucket panel; ``event.index`` is
+        local to that panel, so we translate it back to a global agent
+        index using the panel's filtered slice.
+        """
         if self.current_tab != "agents":
             return
 
-        if 0 <= event.index < len(self._agents):
-            # Updating current_idx clears _current_attempt_number (setter
-            # in AceApp). Set the attempt number after so attempt-child
-            # selections land on the pinned view.
-            if event.index == self.current_idx:
-                self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+        from ..models.agent_panels import (
+            agents_for_panel,
+            panel_key_per_agent,
+        )
+        from ..widgets import AgentList
+
+        widget = event.control
+        if not isinstance(widget, AgentList):
+            return
+        wid = widget.id
+        panel_keys = self._panel_group.panel_keys  # type: ignore[attr-defined]
+        # Map widget id back to panel index.
+        try:
+            if wid == "agent-list-panel":
+                panel_idx = 0
+            elif wid is not None and wid.startswith("agent-list-panel-"):
+                panel_idx = int(wid.rsplit("-", 1)[-1])
             else:
-                self.current_idx = event.index
-                self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
-            # Phase-4 group banner focus: a banner row carries a
-            # ``group_key`` so banner-aware actions can target the
-            # group; selecting an agent row clears it.
-            self._current_group_key = event.group_key  # type: ignore[attr-defined]
+                return
+        except ValueError:
+            return
+        if not (0 <= panel_idx < len(panel_keys)):
+            return
+        panel_key = panel_keys[panel_idx]
+
+        keys_per_agent = panel_key_per_agent(self._agents)
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == panel_key]
+        panel_agents = agents_for_panel(self._agents, panel_key)
+
+        if event.group_key is not None:
+            # Banner row click — anchor focus on the first agent in the
+            # banner's group (already mapped to a local index when
+            # AgentList resolved the row).
+            if not (0 <= event.index < len(panel_agents)):
+                return
+            target_global = global_indices[event.index]
+        else:
+            if not (0 <= event.index < len(panel_agents)):
+                return
+            target_global = global_indices[event.index]
+
+        # Switching panel via mouse click moves panel focus too.
+        if panel_idx != self._panel_group.focused_idx:  # type: ignore[attr-defined]
+            self._panel_group.focused_idx = panel_idx  # type: ignore[attr-defined]
+
+        # Updating current_idx clears _current_attempt_number (setter
+        # in AceApp). Set the attempt number after so attempt-child
+        # selections land on the pinned view.
+        if target_global == self.current_idx:
+            self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+        else:
+            self.current_idx = target_global
+            self.current_attempt_number = event.attempt_number  # type: ignore[attr-defined]
+        # A banner row carries a ``group_key`` so banner-aware actions
+        # can target the group; selecting an agent row clears it.
+        self._current_group_key = event.group_key  # type: ignore[attr-defined]
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""

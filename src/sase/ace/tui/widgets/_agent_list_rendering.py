@@ -23,7 +23,6 @@ from ._agent_list_styling import (
     _NAME_ROOT_BANNER_STYLE,
     _PROJECT_BANNER_STYLE,
     _STEP_TYPE_COLORS,
-    _TAG_BANNER_STYLE,
 )
 
 
@@ -222,13 +221,12 @@ def format_banner_option(
 
     Banner styling per level:
 
-    - L0 (tag): heavy double rule ``══`` in warm yellow.
-    - L1 (project): single rule ``──`` in sky blue.
-    - L2 (name-root): dim center-dot rule ``· name ·`` in muted gray.
+    - L0 (project): single rule ``──`` in sky blue.
+    - L1 (name-root): dim center-dot rule ``· name ·`` in muted gray.
 
-    Banner Options are marked ``disabled`` (Phase 3) so OptionList
-    cursor navigation skips them.  When *selectable* is True (Phase 4
-    fold level < 3) the banner stays in the cursor flow and shows a
+    Banner Options are marked ``disabled`` so OptionList cursor
+    navigation skips them at full expansion.  When *selectable* is True
+    (fold level < max) the banner stays in the cursor flow and shows a
     compact summary chip after the label.
     """
     label = banner_label(group)
@@ -237,15 +235,6 @@ def format_banner_option(
     chip_text = f"{chip} " if chip else ""
     text = Text()
     if group.level == 0:
-        rule = "═"
-        style = _TAG_BANNER_STYLE
-        head_text = f"{rule}{rule} {label} "
-        pad_len = max(0, width - len(head_text) - len(chip_text))
-        text.append(head_text, style=style)
-        if chip_text:
-            text.append(chip_text, style=style)
-        text.append(rule * pad_len, style=style)
-    elif group.level == 1:
         rule = "─"
         style = _PROJECT_BANNER_STYLE
         head_text = f"{rule}{rule} {label} "

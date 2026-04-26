@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldState
+    from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldStateManager
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
@@ -74,9 +75,11 @@ class AgentsMixinCore(
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
 
-    # Phase-4 group fold (see startup.py for full documentation).
+    # Group fold + tag-driven panel collection (see startup.py for full
+    # documentation).
     _group_fold_state: AgentGroupFoldState
     _current_group_key: tuple[str, ...] | None
+    _panel_group: AgentPanelGroup
 
     # Agent completion tracking for notifications
     _pending_attention_count: int
@@ -98,18 +101,35 @@ class AgentsMixinCore(
     _detail_update_timer: Timer | None
 
     def _agents_visible_order(self) -> list[int]:
-        """Return global agent indices in the order rendered on the agents panel.
+        """Return global agent indices in the order rendered on the focused panel.
 
-        Mirrors :func:`AgentList.update_list`'s tree walk at fold level 3
+        Mirrors :func:`AgentList.update_list`'s tree walk at fold level 2
         so j/k navigation steps through the same sequence the user sees.
-        Workflow children inherit parent grouping (per ``_grouping_keys_for``)
-        and so render contiguous with their parent.
+        Only agents in the currently focused tag panel are returned;
+        workflow children inherit parent grouping (per
+        ``_grouping_keys_for``) and so render contiguous with their parent.
         """
         from ...models.agent_groups import build_agent_tree
+        from ...models.agent_panels import (
+            agents_for_panel,
+            panel_key_per_agent,
+        )
 
-        tree = build_agent_tree(self._agents, group_fold_level=3)
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            tree = build_agent_tree(self._agents, group_fold_level=2)
+            return [
+                entry.agent_idx
+                for entry in tree
+                if entry.kind == "agent" and entry.agent_idx is not None
+            ]
+        focused_key = panel_group.focused_key
+        keys_per_agent = panel_key_per_agent(self._agents)
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
+        panel_agents = agents_for_panel(self._agents, focused_key)
+        tree = build_agent_tree(panel_agents, group_fold_level=2)
         return [
-            entry.agent_idx
+            global_indices[entry.agent_idx]
             for entry in tree
             if entry.kind == "agent" and entry.agent_idx is not None
         ]

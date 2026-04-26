@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from ...models.agent_panels import AgentPanelGroup
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -15,6 +18,49 @@ class AgentPanelsMixin:
     """
 
     current_tab: TabName
+    current_idx: int
+    current_attempt_number: int | None
+    _panel_group: AgentPanelGroup
+    _current_group_key: tuple[str, ...] | None
+
+    def _change_focused_agent_panel(self, *, forward: bool) -> None:
+        """Cycle focus between tag-driven side panels with wrap.
+
+        Snaps ``current_idx`` to the first agent of the new focused
+        panel and clears any pending banner-row focus.  No-ops when
+        only the untagged main pane exists.
+        """
+        if self.current_tab != "agents":
+            return
+        if forward:
+            changed = self._panel_group.focus_next()
+        else:
+            changed = self._panel_group.focus_prev()
+        if not changed:
+            return
+
+        from ...models.agent_panels import panel_key_per_agent
+
+        keys_per_agent = panel_key_per_agent(self._agents)  # type: ignore[attr-defined]
+        focused_key = self._panel_group.focused_key
+        new_idx: int | None = None
+        for i, k in enumerate(keys_per_agent):
+            if k == focused_key:
+                new_idx = i
+                break
+        if new_idx is not None:
+            self.current_idx = new_idx  # type: ignore[attr-defined]
+        self.current_attempt_number = None  # type: ignore[attr-defined]
+        self._current_group_key = None  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+    def action_focus_next_agent_panel(self) -> None:
+        """Move focus to the next tag-driven side panel (with wrap)."""
+        self._change_focused_agent_panel(forward=True)
+
+    def action_focus_prev_agent_panel(self) -> None:
+        """Move focus to the previous tag-driven side panel (with wrap)."""
+        self._change_focused_agent_panel(forward=False)
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""

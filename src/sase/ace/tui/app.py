@@ -233,7 +233,7 @@ class AceApp(
             with Vertical(id="agents-view", classes="hidden"):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):
-                    with Vertical(id="agent-list-container"):
+                    with Horizontal(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")

@@ -68,6 +68,9 @@ ace:
       toggle_attempt_view: "V"
       # Agent tag modal (agents tab)
       add_agent_tag: "N"
+      # Tag-driven side panels (agents tab)
+      focus_next_agent_panel: "J"
+      focus_prev_agent_panel: "K"
       # File trim
       reset_file_trim: "minus"
       show_all_file_lines: "equals_sign"

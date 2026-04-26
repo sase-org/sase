@@ -59,9 +59,9 @@ class AgentFoldingMixin:
     def _snap_focus_after_group_fold_change(self) -> None:
         """Reposition ``current_idx`` / ``_current_group_key`` after a fold change.
 
-        At fold level < 3 agents are hidden — focus snaps to the nearest
+        At fold level < 2 agents are hidden — focus snaps to the nearest
         visible ancestor banner of the previously selected agent so the
-        user never loses their place.  At fold level == 3 banners are
+        user never loses their place.  At fold level == 2 banners are
         non-selectable, so any pending banner focus is cleared and
         focus stays on the underlying agent.
         """
@@ -71,7 +71,7 @@ class AgentFoldingMixin:
         )
 
         level = self._group_fold_state.level
-        if level >= 3:
+        if level >= 2:
             self._current_group_key = None
             return
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
@@ -84,12 +84,12 @@ class AgentFoldingMixin:
     def _expand_fold(self) -> None:
         """Expand the fold for the selected workflow (one level).
 
-        At group fold level < 3, ``l`` instead steps the global group
+        At group fold level < 2, ``l`` instead steps the global group
         fold so the user reaches the agent rows before per-workflow fold
-        logic kicks in.  Once at level 3 the original Phase 3 behavior
-        (single-workflow expansion) returns.
+        logic kicks in.  Once at level 2 the original single-workflow
+        expansion behavior returns.
         """
-        if self.current_tab == "agents" and self._group_fold_state.level < 3:
+        if self.current_tab == "agents" and self._group_fold_state.level < 2:
             if self._group_fold_state.expand():
                 self._snap_focus_after_group_fold_change()
                 self._refilter_agents()  # type: ignore[attr-defined]
@@ -183,7 +183,7 @@ class AgentFoldingMixin:
     def _expand_all_folds(self) -> None:
         """Jump to the fully-expanded endpoint (``L`` action).
 
-        On the agents tab this means: snap the global group fold to L3
+        On the agents tab this means: snap the global group fold to L2
         (so all banners + agents are visible) and then advance every
         per-workflow fold to ``FULLY_EXPANDED``.  A single ``L`` press
         from any state lands the user at "everything visible".
@@ -213,7 +213,7 @@ class AgentFoldingMixin:
 
         On the agents tab this means: collapse every per-workflow fold
         to ``COLLAPSED`` and then snap the global group fold to L0 (only
-        tag banners visible).  A single ``H`` press always lands the
+        project banners visible).  A single ``H`` press always lands the
         user at "maximally collapsed".
         """
         if self.current_tab == "agents":

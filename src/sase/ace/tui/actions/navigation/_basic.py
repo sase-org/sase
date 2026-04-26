@@ -16,15 +16,15 @@ class BasicNavigationMixin(NavigationMixinBase):
         """Navigate within the agents panel.
 
         Walks the same row sequence the renderer is showing: at fold
-        level < 3 cycles through banner rows (updating
-        ``_current_group_key``); at fold level 3 cycles through agents
+        level < 2 cycles through banner rows (updating
+        ``_current_group_key``); at fold level 2 cycles through agents
         in rendered order.
 
         Args:
             direction: +1 for next, -1 for previous.
         """
         level = self._group_fold_state.level
-        if level >= 3:
+        if level >= 2:
             self._current_group_key = None
             self._navigate_visible(direction)
             return
@@ -52,7 +52,7 @@ class BasicNavigationMixin(NavigationMixinBase):
     def _navigate_visible(self, direction: int) -> None:
         """Cycle ``current_idx`` through agents in rendered order.
 
-        At fold level 3 the renderer walks the agent tree's grouping order
+        At fold level 2 the renderer walks the agent tree's grouping order
         rather than the raw ``_agents`` input order, so j/k must step
         through the same sequence to track the visible row.
         """

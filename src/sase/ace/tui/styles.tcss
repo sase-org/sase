@@ -648,10 +648,10 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-list-container {
-    width: 60;  /* Default, will be set programmatically */
+    width: auto;  /* Sized programmatically as panels mount/unmount */
     min-width: 60;
-    max-width: 80;
     height: 100%;
+    layout: horizontal;
 }
 
 #agent-info-panel {
@@ -661,11 +661,15 @@ HintInputBar #hint-escape-hint {
     background: $surface;
 }
 
-#agent-list-panel {
-    width: 100%;
+#agent-list-container AgentList {
+    width: 60;
     height: 1fr;
     border: solid $primary;
     padding: 0 1;
+}
+
+#agent-list-container AgentList.-focused-panel {
+    border: solid $accent;
 }
 
 #agent-detail-container {

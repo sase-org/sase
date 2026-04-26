@@ -76,22 +76,22 @@ class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
 def test_action_kill_routes_to_group_when_banner_focused() -> None:
     """With no marks but a banner focused, x bulk-kills every agent in the group."""
     a1 = _make_agent(
-        cl_name="fix-bug",
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120000",
-        tag="release",
     )
     a2 = _make_agent(
-        cl_name="add-test",
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101130000",
-        tag="release",
     )
     a3 = _make_agent(
-        cl_name="other",
+        cl_name="other-cl",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101140000",
-        tag="experiments",
     )
     app = _FakeGroupKillApp([a1, a2, a3], level=0)
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "release-fix")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app.action_kill_agent()
@@ -99,7 +99,8 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
         # User confirms
         app.pushed_callbacks[0](True)
 
-    # Both release agents go into killable (RUNNING + pid set), other tag untouched.
+    # Both project+cl agents go into killable; the other-cl agent is in a
+    # separate banner.
     args, _ = mock_bulk.call_args
     killable = args[0]
     dismissable = args[1] if len(args) > 1 else []
@@ -112,37 +113,45 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
 
 def test_group_kill_modal_header_includes_group_label_and_count() -> None:
     """The pushed modal description includes the group banner label."""
-    a1 = _make_agent(raw_suffix="20240101120000", tag="release")
-    a2 = _make_agent(raw_suffix="20240101130000", tag="release")
+    a1 = _make_agent(
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
+        raw_suffix="20240101120000",
+    )
+    a2 = _make_agent(
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
+        raw_suffix="20240101130000",
+    )
     app = _FakeGroupKillApp([a1, a2], level=0)
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "release-fix")
 
     app.action_kill_agent()
 
     assert app.pushed_modals, "Expected a confirmation modal"
     description = app.pushed_modals[0].agent_description
-    assert "@release" in description
+    assert "proj_a / release-fix" in description
     assert "2 agent" in description
 
 
 def test_group_kill_partitions_killable_and_dismissable() -> None:
     """A group containing both running and done agents partitions correctly."""
     running = _make_agent(
-        cl_name="fix",
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120000",
         status="RUNNING",
         pid=111,
-        tag="release",
     )
     done = _make_agent(
-        cl_name="add",
+        cl_name="release-fix",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101130000",
         status="DONE",
         pid=None,
-        tag="release",
     )
     app = _FakeGroupKillApp([running, done], level=0)
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "release-fix")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app.action_kill_agent()
@@ -153,10 +162,10 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
 
 def test_group_kill_cancel_leaves_agents_untouched() -> None:
     """Cancelling the modal does not invoke _do_bulk_kill_agents."""
-    a1 = _make_agent(raw_suffix="20240101120000", tag="release")
-    a2 = _make_agent(raw_suffix="20240101130000", tag="release")
+    a1 = _make_agent(raw_suffix="20240101120000")
+    a2 = _make_agent(raw_suffix="20240101130000")
     app = _FakeGroupKillApp([a1, a2], level=0)
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "fix-bug")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app.action_kill_agent()
@@ -168,18 +177,18 @@ def test_group_kill_cancel_leaves_agents_untouched() -> None:
 def test_marks_take_priority_over_focused_group() -> None:
     """When marks exist, x ignores the focused group and bulk-kills marks."""
     marked = _make_agent(
-        cl_name="marked",
+        cl_name="fix-bug",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101110000",
-        tag="release",
     )
     in_group = _make_agent(
-        cl_name="ingroup",
+        cl_name="fix-bug",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120000",
-        tag="release",
     )
     app = _FakeGroupKillApp([marked, in_group], level=0)
     app._marked_agents = {marked.identity}
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "fix-bug")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app.action_kill_agent()
@@ -195,18 +204,18 @@ def test_group_kill_skips_workflow_children() -> None:
     """Workflow children are excluded; killing the parent cascades elsewhere."""
     parent = _make_agent(
         cl_name="parent",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120000",
         agent_type=AgentType.WORKFLOW,
-        tag="release",
     )
     child = _make_agent(
-        cl_name="child",
+        cl_name="parent",
+        project_file="/tmp/projects/proj_a/proj_a.gp",
         raw_suffix="20240101120100",
         parent_timestamp="20240101120000",
-        tag=None,
     )
     app = _FakeGroupKillApp([parent, child], level=0)
-    app._current_group_key = ("release",)
+    app._current_group_key = ("proj_a", "parent")
 
     with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
         app.action_kill_agent()
@@ -226,7 +235,6 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
         raw_suffix="20240101120000",
         status="DONE",
         pid=None,
-        tag="release",
     )
     app = _FakeGroupKillApp([a1], level=0)
     app._current_group_key = ("nonexistent",)

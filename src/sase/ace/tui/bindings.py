@@ -75,6 +75,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding("V", "toggle_attempt_view", "Attempt View", show=False),
     Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
+    # Tag-driven side-panel focus cycling (agents tab)
+    Binding("J", "focus_next_agent_panel", "Next Panel", show=False),
+    Binding("K", "focus_prev_agent_panel", "Prev Panel", show=False),
     # Copy to clipboard (changespecs tab - % followed by key)
     Binding("percent_sign", "copy_tab_content", "Copy", show=False),
     # Scroll to top/bottom (Axe tab)

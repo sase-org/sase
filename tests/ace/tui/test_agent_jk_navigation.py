@@ -1,10 +1,11 @@
 """Tests for j/k navigation across banner rows on the Agents tab.
 
-When the global group fold collapses agents (level < 3) the Agents
-panel renders only banner rows.  The keyboard `j`/`k` bindings must
-walk those banners in tree order, updating ``_current_group_key`` so
-the rendered highlight follows.  At level 3 the original flat-agent
-behavior must still hold.
+When the global group fold collapses agents (level < 2) the focused
+Agents-tab panel renders only banner rows.  The keyboard `j`/`k`
+bindings must walk those banners in tree order, updating
+``_current_group_key`` so the rendered highlight follows.  At level 2
+the original flat-agent behavior must still hold (within the focused
+panel).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from datetime import datetime
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
 class _StubApp(BasicNavigationMixin):
@@ -24,21 +26,33 @@ class _StubApp(BasicNavigationMixin):
         agents: list[Agent],
         *,
         current_idx: int = 0,
-        level: int = 3,
+        level: int = 2,
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = current_idx
         self._agents = agents
         self._group_fold_state = AgentGroupFoldState(level=level)
         self._current_group_key: tuple[str, ...] | None = None
+        # Tests put every agent in the same panel (focused_key derived
+        # from the first agent's tag) so navigation visits all of them.
+        focused_key = agents[0].tag if agents else None
+        self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
 
     def _agents_visible_order(self) -> list[int]:
         """Mirror :meth:`AgentsMixinCore._agents_visible_order` for tests."""
         from sase.ace.tui.models.agent_groups import build_agent_tree
+        from sase.ace.tui.models.agent_panels import (
+            agents_for_panel,
+            panel_key_per_agent,
+        )
 
-        tree = build_agent_tree(self._agents, group_fold_level=3)
+        focused_key = self._panel_group.focused_key
+        keys_per_agent = panel_key_per_agent(self._agents)
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
+        panel_agents = agents_for_panel(self._agents, focused_key)
+        tree = build_agent_tree(panel_agents, group_fold_level=2)
         return [
-            entry.agent_idx
+            global_indices[entry.agent_idx]
             for entry in tree
             if entry.kind == "agent" and entry.agent_idx is not None
         ]
@@ -67,109 +81,84 @@ def _agent(
     )
 
 
-def _l0_roster() -> list[Agent]:
-    """Three tag banners: 'alpha', 'beta', 'gamma' (one agent each)."""
-    return [
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
-        _agent(tag="gamma", name="c1"),
+def test_l0_j_cycles_through_project_banners() -> None:
+    """Three project banners (different projects) within the focused panel."""
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
     ]
-
-
-def test_l0_j_cycles_through_tag_banners() -> None:
-    app = _StubApp(_l0_roster(), level=0)
-    # Pre-position on the first banner so the first `j` advances.
-    app._current_group_key = ("alpha",)
+    app = _StubApp(agents, level=0)
+    app._current_group_key = ("p1", "cl1")
 
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("beta",)
+    assert app._current_group_key == ("p2", "cl2")
     assert app.current_idx == 1
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("gamma",)
+    assert app._current_group_key == ("p3", "cl3")
     assert app.current_idx == 2
     # Wraps to first.
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha",)
+    assert app._current_group_key == ("p1", "cl1")
     assert app.current_idx == 0
 
 
-def test_l0_k_reverses_tag_banner_cycle() -> None:
-    app = _StubApp(_l0_roster(), level=0)
-    app._current_group_key = ("alpha",)
+def test_l0_k_reverses_project_banner_cycle() -> None:
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
+    ]
+    app = _StubApp(agents, level=0)
+    app._current_group_key = ("p1", "cl1")
 
     app._navigate_agents_panel(-1)
-    assert app._current_group_key == ("gamma",)
+    assert app._current_group_key == ("p3", "cl3")
     assert app.current_idx == 2
     app._navigate_agents_panel(-1)
-    assert app._current_group_key == ("beta",)
+    assert app._current_group_key == ("p2", "cl2")
     assert app.current_idx == 1
 
 
-def test_l1_cycles_project_banners() -> None:
-    """One banner per (tag, project, cl) tuple plus the tag header above."""
-    agents = [
-        _agent(tag="alpha", project="p1", cl="cl1", name="a"),
-        _agent(tag="alpha", project="p2", cl="cl2", name="b"),
-        _agent(tag="alpha", project="p3", cl="cl3", name="c"),
-    ]
-    app = _StubApp(agents, level=1)
-    # Walk the four-row banner sequence in tree order.
-    app._current_group_key = ("alpha",)
-
-    app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha", "p1", "cl1")
-    app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha", "p2", "cl2")
-    app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha", "p3", "cl3")
-    # Wraps back to the tag header.
-    app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha",)
-
-
-def test_l2_cycles_all_six_banners() -> None:
-    """L2 fold: tag + project + name-root banners all visible.
+def test_l1_cycles_project_and_name_root_banners() -> None:
+    """L1 fold: project + name-root banners visible.
 
     Each name-root has two entries — singletons would be suppressed at
-    level 2, so duplicating per root keeps every banner in the cycle.
+    level 1, so duplicating per root keeps every banner in the cycle.
     """
     agents = [
-        _agent(tag="alpha", project="p1", cl="cl1", name="d.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="d.second"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.second"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="j.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="j.second"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.second"),
+        _agent(project="p1", cl="cl1", name="d.first"),
+        _agent(project="p1", cl="cl1", name="d.second"),
+        _agent(project="p1", cl="cl1", name="sase-r.first"),
+        _agent(project="p1", cl="cl1", name="sase-r.second"),
     ]
-    app = _StubApp(agents, level=2)
-    app._current_group_key = ("alpha",)
+    app = _StubApp(agents, level=1)
+    app._current_group_key = ("p1", "cl1")
 
     keys: list[tuple[str, ...] | None] = []
-    # Six steps through the row sequence; final step wraps.
-    for _ in range(6):
+    for _ in range(3):
         app._navigate_agents_panel(1)
         keys.append(app._current_group_key)
     # Name-root banners render in deterministic alpha order within the project.
     assert keys == [
-        ("alpha", "p1", "cl1"),
-        ("alpha", "p1", "cl1", "d"),
-        ("alpha", "p1", "cl1", "j"),
-        ("alpha", "p1", "cl1", "sase-q"),
-        ("alpha", "p1", "cl1", "sase-r"),
-        ("alpha",),  # wrap to start
+        ("p1", "cl1", "d"),
+        ("p1", "cl1", "sase-r"),
+        ("p1", "cl1"),  # wrap to start
     ]
 
 
-def test_l3_keeps_flat_agent_navigation() -> None:
-    """Regression guard: at level 3 j/k must still cycle agents.
+def test_l2_keeps_flat_agent_navigation() -> None:
+    """At level 2 j/k must still cycle agents in visible order.
 
-    Input is already in tag-alphabetical order, so visible order ==
-    input order and the cursor walks 0 -> 1 -> 2 -> 0.
+    Input order matches visible order (same project), so the cursor
+    walks 0 -> 1 -> 2 -> 0.
     """
-    agents = _l0_roster()
-    app = _StubApp(agents, level=3, current_idx=0)
+    agents = [
+        _agent(name="a1"),
+        _agent(name="b1"),
+        _agent(name="c1"),
+    ]
+    app = _StubApp(agents, level=2, current_idx=0)
     app._current_group_key = ("stale",)
 
     app._navigate_agents_panel(1)
@@ -181,20 +170,20 @@ def test_l3_keeps_flat_agent_navigation() -> None:
     assert app.current_idx == 0  # wrap
 
 
-def test_l3_walks_visible_grouping_order_not_input_order() -> None:
-    """Regression for agents_jk_random_jumps_at_fold_3.
+def test_l2_walks_visible_grouping_order_not_input_order() -> None:
+    """Agents in scrambled project order render in alphabetical project order.
 
-    Agents in scrambled tag order: input ``[zeta, alpha, beta]`` renders
-    as ``[alpha, beta, zeta]`` after the level-3 grouping walk.  j from
-    the visually-first row (``alpha``, global idx 1) must advance to
-    ``beta`` (idx 2), then ``zeta`` (idx 0), then wrap.
+    Input ``[zeta, alpha, beta]`` (by project) renders as
+    ``[alpha, beta, zeta]``.  j from the visually-first row (``alpha``,
+    global idx 1) must advance to ``beta`` (idx 2), then ``zeta`` (idx 0),
+    then wrap.
     """
     agents = [
-        _agent(tag="zeta", name="z1"),
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
+        _agent(project="zeta", cl="z1", name="z1"),
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
     ]
-    app = _StubApp(agents, level=3, current_idx=1)  # alpha — visually first
+    app = _StubApp(agents, level=2, current_idx=1)  # alpha — visually first
 
     app._navigate_agents_panel(1)
     assert app.current_idx == 2  # beta
@@ -204,72 +193,21 @@ def test_l3_walks_visible_grouping_order_not_input_order() -> None:
     assert app.current_idx == 1  # wrap to alpha
 
 
-def test_l3_k_walks_visible_grouping_order_in_reverse() -> None:
-    """Symmetric reverse walk for the scrambled-tag case."""
-    agents = [
-        _agent(tag="zeta", name="z1"),
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
-    ]
-    app = _StubApp(agents, level=3, current_idx=1)  # alpha — visually first
-
-    app._navigate_agents_panel(-1)
-    assert app.current_idx == 0  # wraps backward to zeta (visually last)
-    app._navigate_agents_panel(-1)
-    assert app.current_idx == 2  # beta
-    app._navigate_agents_panel(-1)
-    assert app.current_idx == 1  # alpha
-
-
-def test_l3_interleaved_untagged_walk_keeps_block_contiguous() -> None:
-    """Mirrors the user's interleaved-tag report.
-
-    Input order ``[(untagged), (untagged), @name_level, (untagged)]``
-    must render with all three ``(untagged)`` agents contiguous, then
-    the ``@name_level`` agent.  Since ``(untagged)`` sorts after named
-    tags, the visible order is
-    ``[name_level (idx 2), untagged_a (0), untagged_b (1), untagged_c (3)]``.
-    Walking ``j`` from the first ``(untagged)`` must visit the second
-    and third ``(untagged)``s before the ``name_level`` agent — never
-    ping-pong across the banner boundary.
-    """
-    agents = [
-        _agent(tag="", name="u1"),  # 0 untagged
-        _agent(tag="", name="u2"),  # 1 untagged
-        _agent(tag="name_level", name="nl"),  # 2 named tag
-        _agent(tag="", name="u3"),  # 3 untagged
-    ]
-    app = _StubApp(agents, level=3, current_idx=0)  # first untagged
-
-    # Visible order: [2 (name_level), 0, 1, 3].  Starting at idx 0
-    # (visually second), j -> 1 -> 3 -> 2 -> 0.
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 1
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 3
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 2  # crosses to name_level after all untagged
-    app._navigate_agents_panel(1)
-    assert app.current_idx == 0  # wrap
-
-
-def test_l3_workflow_children_inherit_parent_grouping_in_walk() -> None:
+def test_l2_workflow_children_inherit_parent_grouping_in_walk() -> None:
     """Workflow children render contiguous with their parent.
 
-    Input ``[parent (tagA), unrelated (tagB), child_of_parent]``: the
-    child inherits ``tagA`` from its parent so the visible order is
-    ``[parent, child, unrelated]``.  Pressing ``j`` from the parent must
-    land on the workflow child, not the unrelated agent.
+    Input ``[parent, unrelated, child_of_parent]``: the child inherits
+    parent's grouping so the visible order is ``[parent, child, unrelated]``.
     """
-    parent = _agent(tag="alpha", name="parent")
+    parent = _agent(project="alpha", cl="parent", name="parent")
     parent.raw_suffix = "ts_parent"
-    unrelated = _agent(tag="zeta", name="unrelated")
-    child = _agent(tag="", name="parent.step1")
+    unrelated = _agent(project="zeta", cl="unrelated", name="unrelated")
+    child = _agent(project="proj", cl="step", name="parent.step1")
     child.parent_timestamp = "ts_parent"
     child.parent_workflow = "wf"
     agents = [parent, unrelated, child]
 
-    app = _StubApp(agents, level=3, current_idx=0)  # parent
+    app = _StubApp(agents, level=2, current_idx=0)  # parent
 
     app._navigate_agents_panel(1)
     assert app.current_idx == 2  # workflow child (visually contiguous)
@@ -281,53 +219,54 @@ def test_l3_workflow_children_inherit_parent_grouping_in_walk() -> None:
 
 def test_unmatched_group_key_lands_on_first_banner() -> None:
     """If ``_current_group_key`` matches no visible banner, snap to first."""
-    app = _StubApp(_l0_roster(), level=0)
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
+    ]
+    app = _StubApp(agents, level=0)
     app._current_group_key = ("ghost",)
 
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha",)
+    assert app._current_group_key == ("p1", "cl1")
     assert app.current_idx == 0
 
 
-def test_jk_at_l1_banner_moves_visible_highlight_to_l2_banner() -> None:
-    """Regression for jk_banner_highlight: at fold level 2, advancing from
-    an L1 (project) banner to the L2 (name-root) banner must move the
-    AgentList's rendered highlight, not just ``_current_group_key``.
-
-    Reproduces the user's snapshot: cursor on `── sase / sase ──`, press
-    `j`, expect highlight to land on `· sase-r ·` rather than visually
-    sticking on the L1 banner.
+def test_jk_at_l0_banner_moves_visible_highlight_to_l1_banner() -> None:
+    """At fold level 1, advancing from an L0 (project) banner to the L1
+    (name-root) banner must move the AgentList's rendered highlight, not
+    just ``_current_group_key``.
     """
     from sase.ace.tui.widgets.agent_list import AgentList
 
     agents = [
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-r.second"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.first"),
-        _agent(tag="alpha", project="p1", cl="cl1", name="sase-q.second"),
+        _agent(project="p1", cl="cl1", name="sase-r.first"),
+        _agent(project="p1", cl="cl1", name="sase-r.second"),
+        _agent(project="p1", cl="cl1", name="sase-q.first"),
+        _agent(project="p1", cl="cl1", name="sase-q.second"),
     ]
-    app = _StubApp(agents, level=2)
-    app._current_group_key = ("alpha", "p1", "cl1")  # L1 project banner
+    app = _StubApp(agents, level=1)
+    app._current_group_key = ("p1", "cl1")  # L0 project banner
 
     widget = AgentList()
     widget.update_list(
         agents,
         current_idx=0,
-        group_fold_level=2,
+        group_fold_level=1,
         current_group_key=app._current_group_key,
     )
-    # Layout at L2: tag (0), project (1), name-root sase-q (2),
-    # name-root sase-r (3).  Starts highlighted on the project banner.
-    assert widget.highlighted == 1
+    # Layout at L1: project (0), name-root sase-q (1), name-root sase-r (2).
+    # Starts highlighted on the project banner.
+    assert widget.highlighted == 0
 
-    # Drive the action-level navigation: j moves to the next banner in
-    # tree order — the first L2 name-root.
+    # Drive the action-level navigation: j moves to the next banner — the
+    # first L1 name-root.
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("alpha", "p1", "cl1", "sase-q")
+    assert app._current_group_key == ("p1", "cl1", "sase-q")
 
     # The debounced refresh path then calls update_highlight with the
-    # new group_key.  Before the fix this left the highlight on the L1
-    # banner; after the fix it advances to the L2 banner row.
+    # new group_key.  Before the fix this left the highlight on the L0
+    # banner; after the fix it advances to the L1 banner row.
     local_idx = app.current_idx
     widget.update_highlight(local_idx, None, group_key=app._current_group_key)
-    assert widget.highlighted == 2
+    assert widget.highlighted == 1

@@ -17,13 +17,24 @@ class _Timer:
 
 
 class _ListWidget:
-    def __init__(self) -> None:
+    def __init__(self, wid: str = "agent-list-panel") -> None:
         self.highlighted = None
+        self.id = wid
+        self._classes: set[str] = set()
 
     def update_list(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
 
     def update_highlight(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        return
+
+    def add_class(self, name: str) -> None:
+        self._classes.add(name)
+
+    def remove_class(self, name: str) -> None:
+        self._classes.discard(name)
+
+    def focus(self) -> None:
         return
 
 
@@ -41,6 +52,25 @@ class _DetailWidget:
 class _FooterWidget:
     def update_agent_bindings(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
+
+
+class _Container:
+    def __init__(self, children: list[_ListWidget]) -> None:
+        self.children = list(children)
+
+    def mount(self, widget: _ListWidget) -> None:
+        self.children.append(widget)
+
+    def remove(self) -> None:
+        return
+
+
+class _QueryResult:
+    def __init__(self, items: list[_ListWidget]) -> None:
+        self._items = items
+
+    def results(self, _type=None):  # type: ignore[no-untyped-def]
+        return iter(self._items)
 
 
 class _FakeApp(AgentDisplayMixin):
@@ -66,12 +96,18 @@ class _FakeApp(AgentDisplayMixin):
         self._entry_jump_index_to_hint = {}
         self._countdown_remaining = 0
         from sase.ace.tui.models.agent_group_fold import AgentGroupFoldState
+        from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
         self._group_fold_state = AgentGroupFoldState()
         self._current_group_key = None
+        self._panel_group = AgentPanelGroup.from_agents(self._agents)
         self._pending_callback = None
+
+        list_widget = _ListWidget()
+        self._container = _Container([list_widget])
         self._widgets = {
-            "#agent-list-panel": _ListWidget(),
+            "#agent-list-panel": list_widget,
+            "#agent-list-container": self._container,
             "#agent-detail-panel": _DetailWidget(),
             "#keybinding-footer": _FooterWidget(),
         }
@@ -79,6 +115,9 @@ class _FakeApp(AgentDisplayMixin):
 
     def query_one(self, selector: str, _type=None):  # type: ignore[no-untyped-def]
         return self._widgets[selector]
+
+    def query(self, selector: str):  # type: ignore[no-untyped-def]
+        return _QueryResult(self._container.children)
 
     def set_timer(self, _delay: float, callback):  # type: ignore[no-untyped-def]
         self._pending_callback = callback

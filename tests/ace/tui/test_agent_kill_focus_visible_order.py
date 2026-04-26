@@ -87,7 +87,7 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
     def _agents_visible_order(self) -> list[int]:
         from sase.ace.tui.models.agent_groups import build_agent_tree
 
-        tree = build_agent_tree(self._agents, group_fold_level=3)
+        tree = build_agent_tree(self._agents, group_fold_level=2)
         return [
             entry.agent_idx
             for entry in tree
@@ -150,18 +150,22 @@ def _agent(
 
 
 def _scrambled_three() -> list[Agent]:
-    """`_agents` order ``[zeta, alpha, beta]``; visible order ``[alpha, beta, zeta]``."""
+    """`_agents` order ``[zeta, alpha, beta]``; visible order ``[alpha, beta, zeta]``.
+
+    Scrambling is achieved by varying the *project* directory name —
+    project sort order drives the visible walk in the two-level tree.
+    """
     return [
-        _agent(tag="zeta", name="z1"),
-        _agent(tag="alpha", name="a1"),
-        _agent(tag="beta", name="b1"),
+        _agent(project="zeta", cl="z1", name="z1"),
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
     ]
 
 
 # ---- Single kill --------------------------------------------------------
 
 
-def test_single_kill_at_fold_3_lands_on_visually_next_agent() -> None:
+def test_single_kill_at_fold_2_lands_on_visually_next_agent() -> None:
     """Killing the visually-first agent moves focus to the visually-next."""
     agents = _scrambled_three()
     alpha = agents[1]  # zeta=0, alpha=1, beta=2 in `_agents` order
@@ -192,11 +196,11 @@ def test_single_kill_at_end_of_visible_order_falls_back_to_last() -> None:
 
 def test_workflow_parent_kill_lands_on_unrelated_after_cascade() -> None:
     """Killing a workflow parent removes children and re-anchors visibly."""
-    parent = _agent(tag="alpha", name="parent")
+    parent = _agent(project="alpha", cl="parent", name="parent")
     parent.raw_suffix = "ts_parent"
     parent.agent_type = AgentType.WORKFLOW
-    unrelated = _agent(tag="zeta", name="unrelated")
-    child = _agent(tag="", name="parent.step1")
+    unrelated = _agent(project="zeta", cl="unrelated", name="unrelated")
+    child = _agent(project="proj", cl="step", name="parent.step1")
     child.parent_timestamp = "ts_parent"
     child.parent_workflow = "wf"
     agents = [parent, unrelated, child]
@@ -213,7 +217,7 @@ def test_workflow_parent_kill_lands_on_unrelated_after_cascade() -> None:
 
 def test_last_agent_in_panel_killed_falls_back_safely() -> None:
     """Killing the only agent leaves the cursor in a valid state."""
-    only_one = _agent(tag="alpha", name="solo")
+    only_one = _agent(project="alpha", cl="solo", name="solo")
     app = _StubApp([only_one], current_idx=0)
 
     app._apply_killed_agents_in_memory({only_one.identity})
@@ -225,12 +229,12 @@ def test_last_agent_in_panel_killed_falls_back_safely() -> None:
 # ---- Single dismiss -----------------------------------------------------
 
 
-def test_single_dismiss_at_fold_3_lands_on_visually_next_agent() -> None:
+def test_single_dismiss_at_fold_2_lands_on_visually_next_agent() -> None:
     """Same scrambled fixture, but exercising the dismiss pipeline."""
     agents = [
-        _agent(tag="zeta", name="z1", status="DONE", pid=None),
-        _agent(tag="alpha", name="a1", status="DONE", pid=None),
-        _agent(tag="beta", name="b1", status="DONE", pid=None),
+        _agent(project="zeta", cl="z1", name="z1", status="DONE", pid=None),
+        _agent(project="alpha", cl="a1", name="a1", status="DONE", pid=None),
+        _agent(project="beta", cl="b1", name="b1", status="DONE", pid=None),
     ]
     alpha = agents[1]
     app = _StubApp(agents, current_idx=1)  # alpha — visually first
@@ -264,7 +268,7 @@ def test_banner_focus_kill_does_not_anchor_to_visible_position() -> None:
     """When focus is out-of-range, prior_pos is None — clamp fallback runs.
 
     This guards the no-anchor path used by the group-banner bulk kill flow
-    at fold level < 3. We capture by hand to assert the contract that
+    at fold level < 2. We capture by hand to assert the contract that
     ``_capture_focused_visible_pos`` returns ``None`` when selection is
     not on a real agent row.
     """

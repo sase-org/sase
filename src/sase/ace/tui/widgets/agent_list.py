@@ -89,7 +89,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # attempt_number is None for an agent row, int for an attempt child.
         self._row_entries: list[tuple[int, int | None]] = []
         # Sparse map row_index -> GroupRow for selectable banners (group fold
-        # level < 3).  Banner rows at fold level 3 stay disabled and skip the
+        # level < 2).  Banner rows at fold level 2 stay disabled and skip the
         # map entirely so they remain invisible to selection.
         self._banner_at_row: dict[int, GroupRow] = {}
 
@@ -101,7 +101,7 @@ class AgentList(OptionList, inherit_bindings=False):
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         jump_hints: dict[int, str] | None = None,
         current_attempt_number: int | None = None,
-        group_fold_level: int = 3,
+        group_fold_level: int = 2,
         current_group_key: tuple[str, ...] | None = None,
     ) -> None:
         """Update the list with new agents.
@@ -115,7 +115,7 @@ class AgentList(OptionList, inherit_bindings=False):
             jump_hints: Optional row index -> hint character mapping
             current_attempt_number: When non-None, highlight the corresponding
                 attempt child row of the selected agent instead of the agent row.
-            group_fold_level: Global group-fold level (0–3).  At ``3`` (default)
+            group_fold_level: Global group-fold level (0–2).  At ``2`` (default)
                 every banner and agent row is shown and banners are
                 non-selectable.  At lower levels only banners up to that level
                 appear, agents are hidden, and banners become selectable.
@@ -194,9 +194,9 @@ class AgentList(OptionList, inherit_bindings=False):
         )
 
         # Banners are selectable whenever the group fold has hidden the level
-        # below them.  At fold level 3 (full expansion) every banner stays
+        # below them.  At fold level 2 (full expansion) every banner stays
         # disabled so cursor navigation skips them and lands on agents.
-        banners_selectable = effective_level < 3
+        banners_selectable = effective_level < 2
 
         highlighted_row: int | None = None
         banner_seq = 0
@@ -385,11 +385,11 @@ class AgentList(OptionList, inherit_bindings=False):
         """Translate a raw OptionList row index to selection state.
 
         Returns ``(agent_idx, attempt_number, group_key)``.  When a
-        selectable banner row is hit (group fold level < 3) the
+        selectable banner row is hit (group fold level < 2) the
         ``group_key`` is the banner's :attr:`GroupRow.group_key` and
         ``agent_idx`` points at the first agent in the group so
         the detail panel still has something to show.  When a banner is
-        non-selectable (group fold level == 3) the row resolves to the
+        non-selectable (group fold level == 2) the row resolves to the
         next agent row.
         """
         if 0 <= option_index < len(self._row_entries):

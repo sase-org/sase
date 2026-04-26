@@ -9,7 +9,6 @@ _BANNER_ROW = -1
 _MIN_BANNER_WIDTH = 40
 
 # Banner styles per level (rule + accent color).
-_TAG_BANNER_STYLE = "bold #FFAF00"
 _PROJECT_BANNER_STYLE = "bold #5FAFFF"
 _NAME_ROOT_BANNER_STYLE = "dim #AFAFAF"
 _NAME_ROOT_BANNER_LABEL_STYLE = "bold #87D7AF"
