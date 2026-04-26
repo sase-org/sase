@@ -138,10 +138,11 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("rename_cl"), "name"))
 
         # Add/remove agent tag (always available on a focused agent)
-        bindings.append((self._kd("start_tmux_mode"), "tag/untag"))
+        bindings.append((self._kd("add_agent_tag"), "tag/untag"))
 
         # Open tmux window (only if agent has a workspace)
         if agent.workspace_num is not None and agent.workspace_num > 0:
+            bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
         # Jump to CL (only when resolution logic found a valid ChangeSpec)

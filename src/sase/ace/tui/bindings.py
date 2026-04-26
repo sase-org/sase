@@ -74,6 +74,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
     ),
     Binding("V", "toggle_attempt_view", "Attempt View", show=False),
+    Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
     # Copy to clipboard (changespecs tab - % followed by key)
     Binding("percent_sign", "copy_tab_content", "Copy", show=False),
     # Scroll to top/bottom (Axe tab)

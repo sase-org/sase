@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 19:59:40
-status: wip
+status: done
 ---
 # Restore `t` tmux keymap on Agents tab; move tag/untag to `N`
 

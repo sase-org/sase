@@ -66,6 +66,8 @@ ace:
       toggle_thinking_reverse: "left_square_bracket"
       # Attempt history (agents tab)
       toggle_attempt_view: "V"
+      # Agent tag modal (agents tab)
+      add_agent_tag: "N"
       # File trim
       reset_file_trim: "minus"
       show_all_file_lines: "equals_sign"

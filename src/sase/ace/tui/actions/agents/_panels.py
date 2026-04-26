@@ -231,9 +231,9 @@ class AgentPanelsMixin:
         super().action_open_tmux()  # type: ignore[misc]
 
     def action_start_tmux_mode(self) -> None:
-        """``t`` opens the agent-tag modal on Agents tab; tmux mode otherwise."""
+        """``t`` opens tmux in the focused agent's workspace; tmux mode otherwise."""
         if self.current_tab == "agents":
-            self.action_add_agent_tag()  # type: ignore[attr-defined]
+            self._open_agent_tmux_window(use_primary=False)
             return
         super().action_start_tmux_mode()  # type: ignore[misc]
 
