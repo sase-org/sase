@@ -33,13 +33,16 @@ from ._agent_list_styling import (
     _STEP_TYPE_COLORS,
 )
 
-# Style for the timestamp half of the right-side runtime suffix.  Same
-# muted grey already used for retry/workflow indents so the suffix nests
-# naturally with the existing visual hierarchy.
-_RUNTIME_TS_STYLE = "dim #808080"
-# Elapsed half stays color-less so the terminal's default foreground-mute
-# applies and the value is readable on any theme.
-_RUNTIME_ELAPSED_STYLE = "dim"
+# Timestamp half: muted lavender-steel.  No `dim` attribute so the color
+# carries on its own; chosen to harmonize with WAITING amethyst (#AF87FF)
+# and project-banner sky-blue (#5FAFFF) while staying clearly less
+# saturated, so the timestamp reads as a "metadata column" rather than a
+# status word.
+_RUNTIME_TS_STYLE = "#8787AF"
+# Elapsed half: light neutral grey, bold to give the headline number
+# ("how long?") a little more weight than the timestamp without using
+# a saturated color.  Readable on dark and light themes alike.
+_RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 
 
 def _build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
