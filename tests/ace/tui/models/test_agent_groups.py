@@ -468,6 +468,76 @@ def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:
     # Only the multi-entry "coder" root has a banner — solo.gemini stays bare.
     assert len(name_root_banners) == 1
     assert name_root_banners[0].group.group_key[-1] == "coder"  # type: ignore[union-attr]
+    # And the bare singleton sorts above the level-2 group members.
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    assert agent_order == [0, 1, 2]
+
+
+def test_singleton_dotted_agent_sorts_above_level_2_group() -> None:
+    """A singleton dotted agent renders above the level-2 group banner."""
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="solo.gemini"),
+            _agent(cl_name="demo", agent_name="coder.claude"),
+            _agent(cl_name="demo", agent_name="coder.codex"),
+        ]
+    )
+    # Tree-walk order: project banner, singleton agent, coder banner, coder members.
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("agent", 0),
+        ("group", 1),
+        ("agent", 1),
+        ("agent", 2),
+    ]
+
+
+def test_dotless_and_singleton_agents_both_precede_level_2_group() -> None:
+    """Dotless and singleton dotted agents both fall in the ungrouped bucket."""
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="bare"),
+            _agent(cl_name="demo", agent_name="lone.x"),
+            _agent(cl_name="demo", agent_name="grp.a"),
+            _agent(cl_name="demo", agent_name="grp.b"),
+        ]
+    )
+    # Project banner, then the two ungrouped agents (stable input order),
+    # then the grp banner with its members.
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("agent", 0),
+        ("agent", 1),
+        ("group", 1),
+        ("agent", 2),
+        ("agent", 3),
+    ]
+
+
+def test_ungrouped_bucket_preserves_input_order() -> None:
+    """Stable sort preserves input order within the ungrouped bucket."""
+    perm_a = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="bare"),
+            _agent(cl_name="demo", agent_name="lone.x"),
+            _agent(cl_name="demo", agent_name="grp.a"),
+            _agent(cl_name="demo", agent_name="grp.b"),
+        ]
+    )
+    perm_b = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="lone.x"),
+            _agent(cl_name="demo", agent_name="bare"),
+            _agent(cl_name="demo", agent_name="grp.a"),
+            _agent(cl_name="demo", agent_name="grp.b"),
+        ]
+    )
+    order_a = [e.agent_idx for e in perm_a if e.kind == "agent"]
+    order_b = [e.agent_idx for e in perm_b if e.kind == "agent"]
+    # In each permutation the ungrouped pair (idx 0 then 1) precedes the
+    # grouped pair, in their original input order.
+    assert order_a == [0, 1, 2, 3]
+    assert order_b == [0, 1, 2, 3]
 
 
 def test_collapsed_tree_order_is_deterministic() -> None:

@@ -19,9 +19,10 @@ Each group has a binary collapsed/expanded state, tracked per-key in an
 descendants are suppressed; sibling groups remain unaffected.
 
 Group ordering is deterministic and independent of the input agent
-list's order: named projects sort before ``(no project)``; the empty
-name-root sorts first within a project so dotless agents render directly
-under the project banner.  Within each group, members keep their
+list's order: named projects sort before ``(no project)``; ungrouped
+agents (dotless agents and singleton-name-root agents) sort first within
+a project so they render directly under the project banner, before any
+level-1 (name-root) banner.  Within each group, members keep their
 original input order via a stable sort.
 
 Level-1 (name-root) banners are only emitted when the name-root group
@@ -102,18 +103,36 @@ def _project_sort_key(project: tuple[str, str]) -> tuple[int, str, str]:
     return (1, "", cl.lower())
 
 
-def _name_root_sort_key(name_root: str) -> tuple[int, str]:
-    """Sort key for name-roots — empty (dotless) sorts first within project."""
-    return (0, "") if not name_root else (1, name_root.lower())
+def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
+    """Sort key for name-roots — ungrouped (dotless or singleton) sorts first."""
+    return (1, name_root.lower()) if in_group else (0, "")
 
 
 def _walk_order(keys_per_agent: list[_GroupingKeys]) -> list[int]:
-    """Return a stable permutation of agent indices sorted by grouping keys."""
+    """Return a stable permutation of agent indices sorted by grouping keys.
+
+    An agent counts as "ungrouped" — and sorts before any level-2 banner
+    within its project — iff it would render bare: either dotless or the
+    sole agent in its project sharing its name-root.
+    """
+    root_counts: dict[tuple[tuple[str, str], str], int] = {}
+    for k in keys_per_agent:
+        if k.name_root:
+            root_counts[(k.project, k.name_root)] = (
+                root_counts.get((k.project, k.name_root), 0) + 1
+            )
     return sorted(
         range(len(keys_per_agent)),
         key=lambda i: (
             _project_sort_key(keys_per_agent[i].project),
-            _name_root_sort_key(keys_per_agent[i].name_root),
+            _name_root_sort_key(
+                keys_per_agent[i].name_root,
+                in_group=bool(keys_per_agent[i].name_root)
+                and root_counts.get(
+                    (keys_per_agent[i].project, keys_per_agent[i].name_root), 0
+                )
+                >= 2,
+            ),
             i,
         ),
     )

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-25 22:05:53
-status: wip
+status: done
 ---
 # Sort ungrouped agents above all level-2 groups on the Agents tab
 
