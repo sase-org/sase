@@ -11,6 +11,10 @@ the :func:`evaluate_agent_query` semantics layer; Phase 3 wires it into
 """
 
 from .evaluator import evaluate_agent_query
+from .highlighting import (
+    AGENT_QUERY_TOKEN_STYLES,
+    tokenize_agent_query_for_display,
+)
 from .parser import AgentQueryParseError, parse_agent_query
 from .types import (
     AndExpr,
@@ -24,6 +28,7 @@ from .types import (
 )
 
 __all__ = [
+    "AGENT_QUERY_TOKEN_STYLES",
     "AgentQueryParseError",
     "AndExpr",
     "DurationCompare",
@@ -35,4 +40,5 @@ __all__ = [
     "evaluate_agent_query",
     "parse_agent_query",
     "to_canonical_string",
+    "tokenize_agent_query_for_display",
 ]

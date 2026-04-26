@@ -392,7 +392,30 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
         (
             "Search",
             [
-                (d(a.edit_query), "Filter agents by name"),
+                (d(a.edit_query), "Filter agents by query"),
+            ],
+        ),
+        (
+            "Agent Query Syntax",
+            [
+                ("status:VAL", "Substring on status"),
+                ("cl:VAL", "Substring on CL name"),
+                ("project:VAL", "Substring on project basename"),
+                ("name:VAL", "Substring on agent name"),
+                ("model:VAL", "Substring on model"),
+                ("provider:VAL", "Substring on llm provider"),
+                ("type:VAL", "workflow | run | running"),
+                ("source:VAL", "axe | manual"),
+                ("needs:input", "Question / waiting input"),
+                ("attention:BOOL", "true | false (needs attention)"),
+                ("pinned:BOOL", "true | false (sugar tag:pinned)"),
+                ("hidden:BOOL", "true | false (show hidden)"),
+                ("tag:VAL  tag:", "Exact tag / any tagged"),
+                ("age>=2h", "Op: > >= < <= = ; unit s|m|h|d"),
+                ("age:2h", "Sugar for age>=2h"),
+                ('text:"..."', "Quoted substring (whole hay)"),
+                ('c"FAILED"', "Case-sensitive quoted"),
+                ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
             ],
         ),
         (

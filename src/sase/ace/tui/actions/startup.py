@@ -23,6 +23,7 @@ from ..activity_log import ActivityLog
 from ..models.fold_state import FoldStateManager
 
 if TYPE_CHECKING:
+    from ...agent_query import QueryExpr as AgentQueryExpr
     from ..models import Agent
     from ..models.agent import AgentType
     from .navigation._types import JumpAllResult
@@ -175,6 +176,12 @@ class StartupMixin:
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
+
+        # Cached parsed agent-query AST keyed by raw query string so
+        # re-renders skip the parse. ``None`` AST means "no filter".
+        self._agent_query_cache: tuple[str, AgentQueryExpr | None] | None = None
+        # Last agent-query parse error, surfaced by the filter modal.
+        self._agent_query_parse_error: str | None = None
 
         # Lazy cache of lowercased prompt/reply content for the `/` filter.
         # Populated only when a search query is active.

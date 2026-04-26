@@ -337,6 +337,7 @@ class AgentsMixinCore(
 
     def _edit_agent_search_query(self) -> None:
         """Open modal to edit the agent search/filter query."""
+        from ....agent_query import parse_agent_query
         from ...modals import QueryEditModal
 
         def on_dismiss(new_query: str | None) -> None:
@@ -345,7 +346,22 @@ class AgentsMixinCore(
             self._agent_search_query = new_query
             self._load_agents()
 
+        def _validator(value: str) -> None:
+            if value:
+                parse_agent_query(value)
+
+        hint = (
+            "status:foo  cl:bar  project:baz  age>2h  attention:true  "
+            "AND/OR/NOT  (?: help)"
+        )
+        initial_error = getattr(self, "_agent_query_parse_error", None)
         self.push_screen(  # type: ignore[attr-defined]
-            QueryEditModal(self._agent_search_query, title="Filter Agents"),
+            QueryEditModal(
+                self._agent_search_query,
+                title="Filter Agents",
+                hint=hint,
+                validator=_validator,
+                initial_error=initial_error,
+            ),
             on_dismiss,
         )

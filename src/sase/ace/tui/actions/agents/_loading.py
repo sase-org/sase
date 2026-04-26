@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_content_search import AgentContentSearchCache
@@ -113,6 +115,13 @@ class AgentLoadingMixin:
     # Agent search/filter query
     _agent_search_query: str
     _agent_content_search_cache: AgentContentSearchCache
+    # Cached (raw_query, parsed_ast) so re-renders re-use the parse. ``None``
+    # AST means an empty query (no filter). The cache is invalidated whenever
+    # the raw query string changes.
+    _agent_query_cache: tuple[str, QueryExpr | None] | None
+    # Last parse error message (for the modal to surface). ``None`` means the
+    # current query parsed cleanly or is empty.
+    _agent_query_parse_error: str | None
 
     # Loading guard
     _agents_loading: bool
@@ -361,6 +370,46 @@ class AgentLoadingMixin:
                 self._agents_refresh_pending = False
                 self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
+    def _get_or_parse_agent_query(self) -> QueryExpr | None:
+        """Return the parsed AST for the active agent search query.
+
+        Returns ``None`` when the query is empty or fails to parse — the
+        caller treats both as "no filter applied". The parsed AST is cached
+        on ``self._agent_query_cache`` keyed by the raw query string so
+        re-renders skip the parse. Parse failures emit a transient toast
+        and persist the error message on ``self`` for the modal to surface.
+        """
+        from ....agent_query import AgentQueryParseError, parse_agent_query
+
+        raw = getattr(self, "_agent_search_query", "") or ""
+        if not raw:
+            self._agent_query_cache = None
+            self._agent_query_parse_error = None
+            return None
+
+        cached = getattr(self, "_agent_query_cache", None)
+        if cached is not None and cached[0] == raw:
+            return cached[1]
+
+        try:
+            parsed = parse_agent_query(raw)
+        except AgentQueryParseError as e:
+            msg = str(e)
+            self._agent_query_parse_error = msg
+            # Cache the failure to avoid re-parsing the bad query each render.
+            self._agent_query_cache = (raw, None)
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Bad query: {msg}", severity="warning"
+                )
+            except Exception:
+                log.warning("agent query parse error: %s", msg)
+            return None
+
+        self._agent_query_parse_error = None
+        self._agent_query_cache = (raw, parsed)
+        return parsed
+
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         """Lightweight agent refresh that skips disk I/O.
 
@@ -433,21 +482,22 @@ class AgentLoadingMixin:
             self._agents, self._fold_manager
         )
 
-        # Apply agent search filter (case-insensitive substring match).
+        # Apply agent search filter via the structured agent query language.
         # The haystack includes metadata fields plus each agent's cached
         # prompt/reply content — see ``AgentContentSearchCache``. Content
-        # reads only happen when a query is active.
-        if self._agent_search_query:
-            query_lower = self._agent_search_query.lower()
+        # reads only happen when a query is active. Parse errors are
+        # non-fatal: surface a toast and skip filtering for this render.
+        parsed_ast = self._get_or_parse_agent_query()
+        if parsed_ast is not None:
+            from ....agent_query import evaluate_agent_query
+
             content_cache = self._agent_content_search_cache
+            now = datetime.now()
 
             def _matches(agent: Agent) -> bool:
-                for field in ("cl_name", "display_name", "agent_name", "status"):
-                    value = getattr(agent, field, "") or ""
-                    if query_lower in value.lower():
-                        return True
-                haystack = content_cache.get_haystack(agent)
-                return bool(haystack) and query_lower in haystack
+                return evaluate_agent_query(
+                    parsed_ast, agent, now=now, content_cache=content_cache
+                )
 
             # Collect identities of matching parents so children stay visible
             matching_parent_names: set[str] = set()
