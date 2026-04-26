@@ -396,6 +396,20 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             ],
         ),
         (
+            "Grouping",
+            [
+                (
+                    d(a.cycle_grouping_mode),
+                    "Cycle: default → date → status",
+                ),
+                ("⏳ Waiting", "Timer or dependency wait"),
+                ("▲ Needs Attention", "User must act"),
+                ("▶ Running", "Actively executing"),
+                ("✗ Failed", "Failed and retried"),
+                ("✓ Done", "Completed"),
+            ],
+        ),
+        (
             "Agent Row Glyphs",
             [
                 ("×N", "N steps (collapsed)"),

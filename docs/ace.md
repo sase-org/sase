@@ -325,16 +325,22 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `g` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: default` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                        | Notes                                                                                    |
-| ----------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)      | Default. Uses the 2-/3-level layout described above.                                     |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`   | Bucketed by each agent's `start_time`. Project / ChangeSpec levels collapse away.        |
-| `BY_STATUS` | `Needs Attention` / `Running` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage). Project / ChangeSpec levels collapse away. |
+| Mode        | L0 buckets                                                    | Notes                                                                                    |
+| ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | Default. Uses the 2-/3-level layout described above.                                     |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Bucketed by each agent's `start_time`. Project / ChangeSpec levels collapse away.        |
+| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage). Project / ChangeSpec levels collapse away. |
 
 In `BY_DATE` and `BY_STATUS` modes the L0 banner is the bucket itself (the project / ChangeSpec levels disappear), L1 is
 the name-root, and the same singleton-suppression rule applies. Each mode keeps its own per-group fold registry, so
 collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are
-prefixed with semantic glyphs (`▲`, `▶`, `✗`, `✓`) so the bucket title still leads visually.
+prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
+
+The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (g)]` badge so the durable
+mode is always visible after the cycle toast fades. **Waiting** holds agents that are blocked but progressing on their
+own — `WAITING` with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs
+Attention** keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays
+there because it's parked waiting on the user.
 
 ### Agent Row Glyphs
 

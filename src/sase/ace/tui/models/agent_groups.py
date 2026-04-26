@@ -81,12 +81,20 @@ class GroupingMode(Enum):
 
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
-_STATUS_BUCKETS: tuple[str, ...] = ("Needs Attention", "Running", "Failed", "Done")
+_STATUS_BUCKETS: tuple[str, ...] = (
+    "Needs Attention",
+    "Running",
+    "Waiting",
+    "Failed",
+    "Done",
+)
 
-# TODO(grouping-modes): "Needs Attention" mapping is a Phase-1 judgment call
-# pulled from plans/202604/agents_tab_grouping_modes.md and worth confirming
-# before treating as canon. Currently includes:
-#   * ``WAITING`` with no ``wait_until`` (paused on user input, not a timer)
+# Status mapping for ``BY_STATUS`` bucketing.  The semantic line is:
+# **Needs Attention** = "you need to act"; **Waiting** = "agent is blocked
+# but nothing is asked of you" (timer-driven ``%wait`` or dependency wait).
+# Currently includes:
+#   * ``WAITING`` with no ``wait_until`` AND no ``waiting_for`` (parked
+#     with nothing to unblock it — implicitly asking the user)
 #   * ``QUESTION`` and ``PLAN APPROVED`` (the existing _AWAITING_STATUSES)
 #   * ``PLAN DONE`` and ``EPIC CREATED`` (terminal-but-actionable states)
 #   * ``FAILED`` without ``retried_as_timestamp`` (terminal failures the
@@ -123,16 +131,21 @@ def _date_bucket_for(agent: Agent, now: datetime) -> str:
 def _status_bucket_for(agent: Agent) -> str:
     """Map ``agent.status`` (plus retry lineage) to a status bucket.
 
-    See the ``_NEEDS_ATTENTION_STATUSES`` TODO above for the mapping rules.
-    Anything not explicitly bucketed lands in ``Running`` (the agent is in
-    flight from the user's perspective).
+    See the ``_NEEDS_ATTENTION_STATUSES`` comment above for the mapping
+    rules.  ``WAITING`` with either a ``wait_until`` timer or a non-empty
+    ``waiting_for`` lands in ``Waiting``; ``WAITING`` without either is
+    parked on user input and stays in ``Needs Attention``.  Anything not
+    explicitly bucketed lands in ``Running`` (the agent is in flight from
+    the user's perspective).
     """
     status = agent.status or ""
     if status == "DONE":
         return "Done"
     if status in _NEEDS_ATTENTION_STATUSES:
         return "Needs Attention"
-    if status == "WAITING" and not agent.wait_until:
+    if status == "WAITING":
+        if agent.wait_until or agent.waiting_for:
+            return "Waiting"
         return "Needs Attention"
     if status.startswith("FAILED"):
         if not agent.retried_as_timestamp:

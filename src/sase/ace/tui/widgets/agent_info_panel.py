@@ -17,6 +17,7 @@ class AgentInfoPanel(Static):
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
+        self._grouping_mode: str = ""
         self._search_query: str = ""
         self._loading: bool = False
 
@@ -63,6 +64,18 @@ class AgentInfoPanel(Static):
         self._view_mode = mode
         self._update_display()
 
+    def update_grouping_mode(self, label: str) -> None:
+        """Update the active grouping-strategy label.
+
+        Args:
+            label: Human-readable label for the active grouping strategy
+                (``"default"``, ``"by date"``, ``"by status"``).  The
+                badge is always rendered, so an empty string is treated
+                as ``"default"``.
+        """
+        self._grouping_mode = label
+        self._update_display()
+
     def update_search_query(self, query: str) -> None:
         """Update the search query filter display.
 
@@ -76,6 +89,12 @@ class AgentInfoPanel(Static):
         "file": "bold green",
         "thinking": "bold #af87d7",
         "collapsed": "dim italic",
+    }
+
+    _GROUPING_MODE_STYLES: dict[str, str] = {
+        "default": "dim italic",
+        "by date": "bold #87D7FF",
+        "by status": "bold #FFAF87",
     }
 
     def _update_display(self) -> None:
@@ -98,6 +117,16 @@ class AgentInfoPanel(Static):
             style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
             text.append(self._view_mode, style=style)
             text.append("]", style="dim")
+        grouping_label = self._grouping_mode or "default"
+        text.append("   ")
+        text.append("[", style="dim")
+        text.append("group: ", style="dim")
+        text.append(
+            grouping_label,
+            style=self._GROUPING_MODE_STYLES.get(grouping_label, "dim"),
+        )
+        text.append(" (g)", style="dim")
+        text.append("]", style="dim")
         if self._interval > 0:
             text.append("   ")
             text.append("(auto-refresh in ", style="dim")

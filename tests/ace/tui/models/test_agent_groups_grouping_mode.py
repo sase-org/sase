@@ -88,16 +88,24 @@ def test_status_bucket_epic_created_is_needs_attention() -> None:
     assert _status_bucket_for(_agent(status="EPIC CREATED")) == "Needs Attention"
 
 
-def test_status_bucket_waiting_without_wait_until_needs_attention() -> None:
-    """User-input WAIT (no timer) is the user's turn → Needs Attention."""
+def test_status_bucket_waiting_without_wait_until_or_waiting_for_needs_attention() -> (
+    None
+):
+    """User-input WAIT (no timer, no dependency) is the user's turn → Needs Attention."""
     a = _agent(status="WAITING", wait_until=None)
     assert _status_bucket_for(a) == "Needs Attention"
 
 
-def test_status_bucket_waiting_with_wait_until_is_running() -> None:
-    """Timer-driven WAIT is still in flight → Running, not Needs Attention."""
+def test_status_bucket_waiting_with_wait_until_is_waiting() -> None:
+    """Timer-driven WAIT is blocked but progressing → Waiting, not Running."""
     a = _agent(status="WAITING", wait_until="2026-04-26T15:00:00")
-    assert _status_bucket_for(a) == "Running"
+    assert _status_bucket_for(a) == "Waiting"
+
+
+def test_status_bucket_waiting_with_waiting_for_is_waiting() -> None:
+    """Dependency-driven WAIT is blocked but not actionable → Waiting."""
+    a = _agent(status="WAITING", wait_until=None, waiting_for=["other-agent"])
+    assert _status_bucket_for(a) == "Waiting"
 
 
 def test_status_bucket_failed_terminal_is_needs_attention() -> None:
@@ -262,16 +270,26 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
 
 
 def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
-    """BY_STATUS bucket order is fixed at Needs Attention → Running → Failed → Done."""
+    """BY_STATUS bucket order is fixed at
+    Needs Attention → Running → Waiting → Failed → Done.
+    """
     needs = _agent(cl_name="a", agent_name="x.a", status="QUESTION")
     running = _agent(cl_name="b", agent_name="y.a", status="RUNNING")
+    waiting = _agent(
+        cl_name="e",
+        agent_name="v.a",
+        status="WAITING",
+        wait_until="2026-04-26T15:00:00",
+    )
     failed = _agent(
         cl_name="c", agent_name="z.a", status="FAILED", retried_as_timestamp="ts"
     )
     done = _agent(cl_name="d", agent_name="w.a", status="DONE")
     # Feed them in scrambled order to verify the sort is intrinsic.
     entries = build_agent_tree(
-        [done, failed, needs, running], mode=GroupingMode.BY_STATUS, now=_NOW
+        [done, failed, needs, waiting, running],
+        mode=GroupingMode.BY_STATUS,
+        now=_NOW,
     )
     l0_banners = [
         e.group.group_key  # type: ignore[union-attr]
@@ -281,6 +299,7 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     assert l0_banners == [
         ("Needs Attention",),
         ("Running",),
+        ("Waiting",),
         ("Failed",),
         ("Done",),
     ]

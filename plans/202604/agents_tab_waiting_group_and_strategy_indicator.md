@@ -4,7 +4,7 @@ description:
   Add a dedicated "Waiting" bucket to BY_STATUS grouping on the ACE TUI Agents tab, and surface the active grouping
   strategy in the AgentInfoPanel header.
 create_time: 2026-04-26 03:45:01
-status: wip
+status: done
 ---
 
 # Agents tab — "Waiting" status bucket + grouping-strategy indicator

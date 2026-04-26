@@ -524,6 +524,11 @@ class AgentDisplayMixin:
             self._countdown_remaining, self.refresh_interval
         )
         agent_info_panel.update_search_query(self._agent_search_query)
+        from ._grouping import _MODE_LABELS
+
+        agent_info_panel.update_grouping_mode(
+            _MODE_LABELS.get(self._grouping_mode.name, self._grouping_mode.name)
+        )
         # Show current panel view mode when an agent is selected
         if self._get_selected_agent() is not None:  # type: ignore[attr-defined]
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

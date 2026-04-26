@@ -51,6 +51,7 @@ _NAME_ROOT_DEEP_INDENT = "    "
 _STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Needs Attention": "▲",
     "Running": "▶",
+    "Waiting": "⏳",
     "Failed": "✗",
     "Done": "✓",
 }

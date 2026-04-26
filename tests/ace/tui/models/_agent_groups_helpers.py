@@ -22,6 +22,7 @@ def _agent(
     status: str = "RUNNING",
     start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
     wait_until: str | None = None,
+    waiting_for: list[str] | None = None,
     retried_as_timestamp: str | None = None,
 ) -> Agent:
     return Agent(
@@ -36,6 +37,7 @@ def _agent(
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
         wait_until=wait_until,
+        waiting_for=list(waiting_for) if waiting_for is not None else [],
         retried_as_timestamp=retried_as_timestamp,
     )
 
