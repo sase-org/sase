@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.launcher import AgentLaunchResult
+from sase.axe.chop_agents import ENV_CHOP_NAME
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
 
@@ -504,10 +505,14 @@ def test_per_chop_timeout_overrides_lumberjack_default(
     lumberjack = Lumberjack("override_test", config, axe_config)
     lumberjack._run_tick()
 
-    # First call should use chop-level timeout=10, second should use lumberjack chop_timeout=30
+    # Chops run concurrently via ThreadPoolExecutor, so call ordering is
+    # nondeterministic — key assertions by chop name instead of position.
     assert mock_run.call_count == 2
-    assert mock_run.call_args_list[0].kwargs["timeout"] == 10
-    assert mock_run.call_args_list[1].kwargs["timeout"] == 30
+    timeouts_by_chop = {
+        call.kwargs["env"][ENV_CHOP_NAME]: call.kwargs["timeout"]
+        for call in mock_run.call_args_list
+    }
+    assert timeouts_by_chop == {"custom_timeout": 10, "default_timeout": 30}
 
 
 # --- Tick Overrun Warning Tests ---

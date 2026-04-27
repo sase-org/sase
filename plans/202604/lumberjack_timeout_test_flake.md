@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 16:50:10
-status: wip
+status: done
 ---
 # Plan: Fix flaky test `test_per_chop_timeout_overrides_lumberjack_default`
 
