@@ -325,6 +325,25 @@ class ChangeSpecList(OptionList):
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False
 
+    def update_highlight(self, current_idx: int) -> None:
+        """Move the highlight without clearing/rebuilding options.
+
+        Use this for j/k navigation where the item list hasn't changed,
+        only the selection index.
+        """
+        if self.option_count == 0:
+            return
+        target_idx = min(max(current_idx, 0), self.option_count - 1)
+        self._programmatic_update = True
+        self.highlighted = target_idx
+        self.call_later(self._clear_programmatic_flag)
+
+    def watch_highlighted(self, highlighted: int | None) -> None:
+        """Suppress OptionHighlighted messages during programmatic updates."""
+        if self._programmatic_update:
+            return
+        super().watch_highlighted(highlighted)
+
     def _format_changespec_option(
         self,
         changespec: ChangeSpec,

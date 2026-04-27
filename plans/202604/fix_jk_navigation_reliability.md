@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 10:33:46
-status: wip
+status: done
 ---
 # Plan: Fix unreliable `j`/`k` navigation
 

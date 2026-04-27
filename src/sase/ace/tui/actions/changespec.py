@@ -499,8 +499,8 @@ class ChangeSpecMixin:
             self._changespec_detail_debouncer.cancel()
             return
 
-        if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
-            list_widget.highlighted = self.current_idx
+        if self.changespecs:
+            list_widget.update_highlight(self.current_idx)
         self._update_info_panel()
         self._changespec_detail_debouncer.schedule(self._refresh_display)
 
