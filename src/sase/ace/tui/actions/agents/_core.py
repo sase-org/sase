@@ -264,32 +264,27 @@ class AgentsMixinCore(
         if self.current_idx < 0:
             self.current_idx = 0
 
-        if prior_visible_pos is not None:
-            try:
-                stops = self._panel_navigation_stops()
-            except Exception:
-                stops = []
-            if stops:
-                kind, payload = stops[min(prior_visible_pos, len(stops) - 1)]
-                if kind == "banner":
-                    assert isinstance(payload, tuple)
-                    self._current_group_key = payload
-                else:
-                    assert isinstance(payload, int)
-                    self._current_group_key = None
-                    self.current_idx = payload
-                return
+        try:
+            stops = self._panel_navigation_stops()
+        except Exception:
+            stops = []
 
-        if self._current_group_key is not None:
-            try:
-                stops = self._panel_navigation_stops()
-            except Exception:
-                stops = []
-            if not any(
-                kind == "banner" and payload == self._current_group_key
-                for kind, payload in stops
-            ):
+        if prior_visible_pos is not None and stops:
+            kind, payload = stops[min(prior_visible_pos, len(stops) - 1)]
+            if kind == "banner":
+                assert isinstance(payload, tuple)
+                self._current_group_key = payload
+            else:
+                assert isinstance(payload, int)
                 self._current_group_key = None
+                self.current_idx = payload
+            return
+
+        if self._current_group_key is not None and not any(
+            kind == "banner" and payload == self._current_group_key
+            for kind, payload in stops
+        ):
+            self._current_group_key = None
 
     def _get_selected_agent(self) -> Agent | None:
         """Get the currently selected agent, or None if no valid selection."""
