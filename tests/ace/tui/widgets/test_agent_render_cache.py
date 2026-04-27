@@ -13,7 +13,7 @@ from textual.app import App
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
-    _agent_render_key,
+    agent_render_key,
     cached_format_agent_option,
 )
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -42,7 +42,7 @@ def _agent(
 
 def test_render_key_changes_when_approve_flips() -> None:
     a = _agent(approve=False)
-    k1 = _agent_render_key(
+    k1 = agent_render_key(
         a,
         0,
         is_selected=False,
@@ -53,7 +53,7 @@ def test_render_key_changes_when_approve_flips() -> None:
         now=None,
     )
     a.approve = True
-    k2 = _agent_render_key(
+    k2 = agent_render_key(
         a,
         0,
         is_selected=False,
@@ -68,7 +68,7 @@ def test_render_key_changes_when_approve_flips() -> None:
 
 def test_render_key_stable_for_unchanged_inputs() -> None:
     a = _agent()
-    k1 = _agent_render_key(
+    k1 = agent_render_key(
         a,
         0,
         is_selected=False,
@@ -78,7 +78,7 @@ def test_render_key_stable_for_unchanged_inputs() -> None:
         hint_char=None,
         now=None,
     )
-    k2 = _agent_render_key(
+    k2 = agent_render_key(
         a,
         0,
         is_selected=False,
