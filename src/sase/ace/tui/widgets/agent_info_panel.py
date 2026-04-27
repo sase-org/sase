@@ -77,9 +77,9 @@ class AgentInfoPanel(Static):
 
         Args:
             label: Human-readable label for the active grouping strategy
-                (``"default"``, ``"by date"``, ``"by status"``).  The
+                (``"by project"``, ``"by date"``, ``"by status"``).  The
                 badge is always rendered, so an empty string is treated
-                as ``"default"``.
+                as ``"by project"``.
         """
         self._grouping_mode = label
         self._update_display()
@@ -100,7 +100,7 @@ class AgentInfoPanel(Static):
     }
 
     _GROUPING_MODE_STYLES: dict[str, str] = {
-        "default": "dim italic",
+        "by project": "bold #5FAFFF",
         "by date": "bold #87D7FF",
         "by status": "bold #FFAF87",
     }
@@ -125,7 +125,7 @@ class AgentInfoPanel(Static):
             style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
             text.append(self._view_mode, style=style)
             text.append("]", style="dim")
-        grouping_label = self._grouping_mode or "default"
+        grouping_label = self._grouping_mode or "by project"
         text.append("   ")
         text.append("[", style="dim")
         text.append("group: ", style="dim")

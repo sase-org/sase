@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:53:47
-status: wip
+status: done
 ---
 # Rename `default` grouping label to `by project` and give it a unique badge color
 

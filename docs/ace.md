@@ -322,8 +322,8 @@ selection always lands somewhere meaningful in the rendered tree.
 
 ### Grouping Modes
 
-Press `g` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
-(`Grouping: default` / `by date` / `by status`) on each cycle:
+Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
+(`Grouping: by project` / `by date` / `by status`) on each cycle:
 
 | Mode        | L0 buckets                                                    | Notes                                                                                    |
 | ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -336,7 +336,7 @@ the name-root, and the same singleton-suppression rule applies. Each mode keeps 
 collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are
 prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
 
-The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (g)]` badge so the durable
+The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the durable
 mode is always visible after the cycle toast fades. **Waiting** holds agents that are blocked but progressing on their
 own — `WAITING` with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs
 Attention** keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays

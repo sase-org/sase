@@ -20,13 +20,13 @@ def _collect_text(panel: AgentInfoPanel) -> str:
     return captured[-1]
 
 
-def test_grouping_badge_renders_default_when_unset() -> None:
-    """The badge always renders, treating an empty label as ``default``."""
+def test_grouping_badge_renders_by_project_when_unset() -> None:
+    """The badge always renders, treating an empty label as ``by project``."""
     panel = AgentInfoPanel()
     panel._position = 1
     panel._total = 1
     plain = _collect_text(panel)
-    assert f"[group: default ({_DEFAULT_GROUPING_KEY})]" in plain
+    assert f"[group: by project ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
 def test_grouping_badge_renders_label_after_update() -> None:

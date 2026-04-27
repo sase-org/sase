@@ -24,7 +24,7 @@ _GROUPING_CYCLE: tuple[str, ...] = ("STANDARD", "BY_DATE", "BY_STATUS")
 
 #: Human-readable labels for the toast emitted on each cycle step.
 _MODE_LABELS: dict[str, str] = {
-    "STANDARD": "default",
+    "STANDARD": "by project",
     "BY_DATE": "by date",
     "BY_STATUS": "by status",
 }
