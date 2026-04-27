@@ -35,9 +35,9 @@ class ChangeSpecLoadingMixin:
         thread via ``asyncio.to_thread`` so the Textual event loop stays
         free (e.g. for the startup stopwatch to tick).
         """
-        from ....changespec import find_all_changespecs
+        from ....changespec import find_all_changespecs_cached
 
-        return find_all_changespecs()
+        return find_all_changespecs_cached()
 
     def _apply_changespecs(self, all_changespecs: list[ChangeSpec]) -> None:
         """Apply a pre-loaded changespec list to app state.
@@ -74,23 +74,22 @@ class ChangeSpecLoadingMixin:
         self, changespecs: list[ChangeSpec]
     ) -> list[ChangeSpec]:
         from ....changespec import get_base_status
-        from ....query import evaluate_query
+        from ....query import build_query_context, evaluate_query_with_context
         from ....query.evaluator import (
-            build_name_to_base_status,
             query_explicitly_targets_submitted,
             query_explicitly_targets_terminal,
         )
 
-        # Build the map once and reuse it for both
-        # query_explicitly_targets_* helpers — without this each helper
-        # re-iterates `changespecs` to build the same map.
-        status_map = build_name_to_base_status(changespecs)
+        # Build context once per refresh: name_map, status_map, plus
+        # lazy searchable_text / ancestor_memo reused across rows.
+        ctx = build_query_context(changespecs)
+        status_map = ctx.status_map
 
         # First apply the query filter
         result = [
             cs
             for cs in changespecs
-            if evaluate_query(self.parsed_query, cs, changespecs)
+            if evaluate_query_with_context(self.parsed_query, cs, ctx)
         ]
 
         # Count reverted/archived and submitted in query results (for tab bar)
@@ -136,13 +135,13 @@ class ChangeSpecLoadingMixin:
 
     def _reload_and_reposition(self, current_name: str | None = None) -> None:
         """Reload changespecs and try to stay on the same one."""
-        from ....changespec import find_all_changespecs
+        from ....changespec import find_all_changespecs_cached
 
         if current_name is None and self.changespecs:
             idx = min(self.current_idx, len(self.changespecs) - 1)
             current_name = self.changespecs[idx].name
 
-        all_changespecs = find_all_changespecs()
+        all_changespecs = find_all_changespecs_cached()
         self._apply_reloaded_changespecs(all_changespecs, current_name)
 
     async def _reload_and_reposition_async(
@@ -156,11 +155,11 @@ class ChangeSpecLoadingMixin:
         """
         import asyncio
 
-        from ....changespec import find_all_changespecs
+        from ....changespec import find_all_changespecs_cached
 
         caller_supplied_name = current_name is not None
 
-        all_changespecs = await asyncio.to_thread(find_all_changespecs)
+        all_changespecs = await asyncio.to_thread(find_all_changespecs_cached)
 
         # Re-capture current selection AFTER the await — user may have
         # moved with j/k or switched tabs while disk I/O was in flight.

@@ -29,7 +29,10 @@ Precedence (tightest to loosest):
 """
 
 from .evaluator import (
+    QueryEvaluationContext,
+    build_query_context,
     evaluate_query,
+    evaluate_query_with_context,
     get_sole_project_filter,
     query_explicitly_targets_submitted,
     query_explicitly_targets_terminal,
@@ -51,6 +54,9 @@ __all__ = [
     "QueryParseError",
     # Evaluator
     "evaluate_query",
+    "evaluate_query_with_context",
+    "build_query_context",
+    "QueryEvaluationContext",
     "get_sole_project_filter",
     "query_explicitly_targets_submitted",
     "query_explicitly_targets_terminal",

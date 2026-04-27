@@ -6,11 +6,14 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.core.changespec import strip_reverted_suffix
 from rich.text import Text
 from textual.widgets import Static
 
 from ...changespec import ChangeSpec
+from ..models.changespec_graph_index import (
+    ChangeSpecGraphIndex,
+    build_changespec_graph_index,
+)
 from ..util.trace import tui_trace
 
 
@@ -86,14 +89,36 @@ class AncestorsChildrenPanel(Static):
             "widget.ancestors_children.update_relationships",
             count=len(all_changespecs),
         ):
+            index = build_changespec_graph_index(all_changespecs)
             return self._update_relationships_impl(
-                changespec, all_changespecs, hide_reverted=hide_reverted
+                changespec, index, hide_reverted=hide_reverted
+            )
+
+    def update_relationships_from_index(
+        self,
+        changespec: ChangeSpec,
+        index: ChangeSpecGraphIndex,
+        hide_reverted: bool = False,
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+        """Like :meth:`update_relationships` but using a prebuilt graph index.
+
+        Use this on the hot path so 100 selections don't rebuild the
+        children / status / sibling maps 100 times. Build the index once
+        per ``_all_changespecs`` change and pass it in here on each
+        selection.
+        """
+        with tui_trace(
+            "widget.ancestors_children.update_relationships_from_index",
+            count=len(index.name_map),
+        ):
+            return self._update_relationships_impl(
+                changespec, index, hide_reverted=hide_reverted
             )
 
     def _update_relationships_impl(
         self,
         changespec: ChangeSpec,
-        all_changespecs: list[ChangeSpec],
+        index: ChangeSpecGraphIndex,
         hide_reverted: bool = False,
     ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         # Reset hidden counts
@@ -102,17 +127,15 @@ class AncestorsChildrenPanel(Static):
         self._hidden_reverted_sibling_count = 0
 
         # Build ancestors (recursive parent traversal)
-        self._ancestors = self._find_ancestors(
-            changespec, all_changespecs, hide_reverted
-        )
+        self._ancestors = self._find_ancestors(changespec, index, hide_reverted)
 
         # Build descendant tree (recursive child traversal)
         self._descendant_tree = self._build_descendant_tree(
-            changespec.name, all_changespecs, hide_reverted
+            changespec.name, index, hide_reverted
         )
 
         # Build siblings (same base name, with or without __<N> suffix)
-        self._siblings = self._find_siblings(changespec, all_changespecs, hide_reverted)
+        self._siblings = self._find_siblings(changespec, index, hide_reverted)
 
         # Assign keybindings
         self._ancestor_keys = self._assign_ancestor_keys(self._ancestors)
@@ -137,18 +160,18 @@ class AncestorsChildrenPanel(Static):
     def _find_ancestors(
         self,
         changespec: ChangeSpec,
-        all_changespecs: list[ChangeSpec],
+        index: ChangeSpecGraphIndex,
         hide_reverted: bool = False,
     ) -> list[str]:
         """Find all ancestors recursively (parent, grandparent, etc.).
 
         Args:
             changespec: The starting ChangeSpec
-            all_changespecs: All changespecs for lookup
+            index: Pre-built graph index for ``_all_changespecs``
             hide_reverted: Whether to hide reverted ancestors from display
                           (but continue traversal through them)
         """
-        name_map = {cs.name.lower(): cs for cs in all_changespecs}
+        name_map = index.name_map
         ancestors: list[str] = []
         self._ancestor_statuses = {}
         visited: set[str] = set()
@@ -186,7 +209,7 @@ class AncestorsChildrenPanel(Static):
     def _find_siblings(
         self,
         changespec: ChangeSpec,
-        all_changespecs: list[ChangeSpec],
+        index: ChangeSpecGraphIndex,
         hide_reverted: bool = False,
     ) -> list[str]:
         """Find all sibling ChangeSpecs (same base name, with or without __<N> suffix).
@@ -197,7 +220,7 @@ class AncestorsChildrenPanel(Static):
 
         Args:
             changespec: The starting ChangeSpec
-            all_changespecs: All changespecs for lookup
+            index: Pre-built graph index for ``_all_changespecs``
             hide_reverted: Whether to hide reverted siblings from display
 
         Returns:
@@ -205,63 +228,45 @@ class AncestorsChildrenPanel(Static):
         """
         self._sibling_statuses = {}
 
-        # Get base name for comparison (case-insensitive)
-        base_name = strip_reverted_suffix(changespec.name).lower()
+        family = index.get_siblings_of(changespec)
 
-        # Find all siblings (same base name, different name, not self)
-        siblings: list[tuple[int, str, str]] = []  # (suffix_num, name, status)
-        for cs in all_changespecs:
-            if cs.name.lower() == changespec.name.lower():
-                continue  # Skip self
-            if strip_reverted_suffix(cs.name).lower() != base_name:
-                continue  # Different base name
+        # Sort by suffix number ascending (already sorted in index, defensive resort)
+        family.sort(
+            key=lambda c: (
+                int(m.group(1)) if (m := re.match(r"^.+__(\d+)$", c.name)) else 0
+            )
+        )
 
-            # Check if we should hide this terminal status sibling
+        result: list[str] = []
+        for cs in family:
             if hide_reverted and (
                 cs.status.startswith("Reverted") or cs.status.startswith("Archived")
             ):
                 self._hidden_reverted_sibling_count += 1
                 continue
-
-            # Extract suffix number for sorting
-            match = re.match(r"^.+__(\d+)$", cs.name)
-            suffix_num = int(match.group(1)) if match else 0
-            siblings.append((suffix_num, cs.name, cs.status))
-
-        # Sort by suffix number ascending
-        siblings.sort(key=lambda x: x[0])
-
-        # Build result list and status map
-        result: list[str] = []
-        for _, name, status in siblings:
-            result.append(name)
-            self._sibling_statuses[name] = status
+            result.append(cs.name)
+            self._sibling_statuses[cs.name] = cs.status
 
         return result
 
     def _build_descendant_tree(
         self,
         parent_name: str,
-        all_changespecs: list[ChangeSpec],
+        index: ChangeSpecGraphIndex,
         hide_reverted: bool = False,
     ) -> list[_ChildNode]:
         """Build tree of all descendants with assigned keymaps.
 
         Args:
             parent_name: Name of the parent ChangeSpec
-            all_changespecs: All changespecs for lookup
+            index: Pre-built graph index for ``_all_changespecs``
             hide_reverted: Whether to hide reverted descendants
         """
-        # Build lookup for finding children
-        children_map: dict[str, list[str]] = {}
-        status_map: dict[str, str] = {}
-        for cs in all_changespecs:
-            status_map[cs.name.lower()] = cs.status
-            if cs.parent:
-                parent_lower = cs.parent.lower()
-                if parent_lower not in children_map:
-                    children_map[parent_lower] = []
-                children_map[parent_lower].append(cs.name)
+        children_map: dict[str, list[str]] = {
+            parent_lower: [c.name for c in children]
+            for parent_lower, children in index.children_by_parent.items()
+        }
+        status_map = index.status_by_name
 
         # Build tree recursively with a counter for sequential key assignment
         # counter[0] tracks position across entire tree (pre-order traversal)

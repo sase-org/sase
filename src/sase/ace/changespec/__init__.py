@@ -30,6 +30,11 @@ from .models import (
     is_running_process_suffix,
     parse_commit_entry_id,
 )
+from .cache import (
+    ChangeSpecSnapshotCache,
+    find_all_changespecs_cached,
+    get_global_snapshot_cache,
+)
 from .parser import parse_project_file
 from .archive import (
     get_archive_file_path,
@@ -94,6 +99,9 @@ __all__ = [
     "get_current_and_proposal_entry_ids",
     "all_hooks_passed_for_entries",
     "parse_project_file",
+    "ChangeSpecSnapshotCache",
+    "find_all_changespecs_cached",
+    "get_global_snapshot_cache",
     "get_raw_changespec_text",
     "get_archive_file_path",
     "get_main_file_path",

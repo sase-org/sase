@@ -1,6 +1,9 @@
 """Tests for AncestorsChildrenPanel sibling logic."""
 
 from sase.ace.changespec import ChangeSpec
+from sase.ace.tui.models.changespec_graph_index import (
+    build_changespec_graph_index,
+)
 from sase.ace.tui.widgets.ancestors_children_panel import AncestorsChildrenPanel
 from conftest import _ChangeSpecFactory
 
@@ -28,7 +31,8 @@ def _find_siblings_and_keys(
     ]
     panel = AncestorsChildrenPanel.__new__(AncestorsChildrenPanel)
     panel._hidden_reverted_sibling_count = 0
-    siblings = panel._find_siblings(current, all_cs, hide_reverted)
+    index = build_changespec_graph_index(all_cs)
+    siblings = panel._find_siblings(current, index, hide_reverted)
     keys = panel._assign_sibling_keys(siblings)
     return panel, siblings, keys
 

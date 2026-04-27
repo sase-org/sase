@@ -11,6 +11,10 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
 
 from ....changespec import ChangeSpec
+from ...models.changespec_graph_index import (
+    ChangeSpecGraphIndex,
+    build_changespec_graph_index,
+)
 from ...util.trace import tui_trace
 
 log = logging.getLogger(__name__)
@@ -54,6 +58,27 @@ class ChangeSpecDisplayMixin:
     _w_changespec_info_panel: object
     _w_footer: object
     _w_search_query_panel: object
+    _changespec_graph_index: ChangeSpecGraphIndex | None
+    _changespec_graph_index_for_id: int | None
+
+    def _get_changespec_graph_index(self) -> ChangeSpecGraphIndex:
+        """Return the graph index for ``_all_changespecs``, building if stale.
+
+        Cached by the list's ``id()`` so 100 j/k selections reuse one
+        index instead of rebuilding name / children / status maps 100 times.
+        ``_apply_changespecs`` reassigns ``_all_changespecs`` on reload, which
+        bumps the id and forces a rebuild.
+        """
+        all_specs = self._all_changespecs
+        list_id = id(all_specs)
+        cached = getattr(self, "_changespec_graph_index", None)
+        cached_id = getattr(self, "_changespec_graph_index_for_id", None)
+        if cached is not None and cached_id == list_id:
+            return cached
+        index = build_changespec_graph_index(all_specs)
+        self._changespec_graph_index = index
+        self._changespec_graph_index_for_id = list_id
+        return index
 
     def _update_cls_tab_count(self) -> None:
         """Update the CLs tab bar label with current ChangeSpec counts."""
@@ -220,10 +245,11 @@ class ChangeSpecDisplayMixin:
                 mentors_collapsed=self.mentors_collapsed,
                 timestamps_collapsed=self.timestamps_collapsed,
             )
+        graph_index = self._get_changespec_graph_index()
         self._ancestor_keys, self._children_keys, self._sibling_keys = (
-            ancestors_panel.update_relationships(  # type: ignore[attr-defined]
+            ancestors_panel.update_relationships_from_index(  # type: ignore[attr-defined]
                 changespec,
-                self._all_changespecs,
+                graph_index,
                 hide_reverted=effective_hide_reverted,
             )
         )

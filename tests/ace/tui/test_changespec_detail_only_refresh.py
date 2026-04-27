@@ -91,6 +91,13 @@ class _RecordingAncestors:
         self.update_relationships_calls += 1
         return {}, {}, {}
 
+    def update_relationships_from_index(
+        self, *args: Any, **kwargs: Any
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+        del args, kwargs
+        self.update_relationships_calls += 1
+        return {}, {}, {}
+
     def clear(self) -> None:
         self.clear_calls += 1
 

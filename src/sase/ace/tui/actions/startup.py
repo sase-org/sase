@@ -159,6 +159,11 @@ class StartupMixin:
         self._w_agent_info_panel: Any = None
         self._w_tab_bar: Any = None
 
+        # Cached graph index over ``_all_changespecs``; rebuilt only when the
+        # list identity changes (see ``_get_changespec_graph_index``).
+        self._changespec_graph_index: Any = None
+        self._changespec_graph_index_for_id: int | None = None
+
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
 

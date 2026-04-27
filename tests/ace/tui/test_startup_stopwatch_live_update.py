@@ -32,11 +32,11 @@ def test_try_startup_fallback_async_is_coroutine() -> None:
 
 
 def test_read_changespecs_from_disk_returns_list() -> None:
-    """Pure read helper must return whatever ``find_all_changespecs`` does."""
+    """Pure read helper must return whatever the cached loader does."""
     mixin = ChangeSpecMixin.__new__(ChangeSpecMixin)
     sentinel = [MagicMock(), MagicMock()]
     with patch(
-        "sase.ace.changespec.find_all_changespecs",
+        "sase.ace.changespec.find_all_changespecs_cached",
         return_value=sentinel,
     ):
         result = mixin._read_changespecs_from_disk()

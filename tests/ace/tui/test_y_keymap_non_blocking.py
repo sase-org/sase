@@ -87,7 +87,7 @@ async def test_reload_does_not_block_event_loop() -> None:
 
     with (
         patch(
-            "sase.ace.changespec.find_all_changespecs",
+            "sase.ace.changespec.find_all_changespecs_cached",
             side_effect=slow_find_all,
         ),
         patch.object(
@@ -129,7 +129,7 @@ async def test_run_async_refresh_sets_and_clears_loading_flag() -> None:
 
     with (
         patch(
-            "sase.ace.changespec.find_all_changespecs",
+            "sase.ace.changespec.find_all_changespecs_cached",
             side_effect=fast_find_all,
         ),
         patch.object(

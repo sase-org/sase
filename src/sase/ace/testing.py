@@ -142,7 +142,12 @@ class AcePage:
             "sase.ace.changespec.find_all_changespecs",
             return_value=self._changespecs,
         )
+        self._patch_cached: Any = patch(
+            "sase.ace.changespec.find_all_changespecs_cached",
+            return_value=self._changespecs,
+        )
         self._patch.start()
+        self._patch_cached.start()
         self._app = AceApp(
             query=self._query,
             model_tier_override=self._model_tier_override,
@@ -164,6 +169,8 @@ class AcePage:
         finally:
             if self._patch is not None:
                 self._patch.stop()
+            if getattr(self, "_patch_cached", None) is not None:
+                self._patch_cached.stop()
 
     async def press(self, *keys: str) -> None:
         """Press one or more keys via the pilot."""
