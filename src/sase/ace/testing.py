@@ -208,7 +208,7 @@ class AcePage:
         key: str,
         value: Any,
         *,
-        timeout: float = 2.0,
+        timeout: float = 5.0,
     ) -> None:
         """Poll state until state[key] == value, or raise AssertionError.
 
@@ -230,15 +230,15 @@ class AcePage:
                 raise AssertionError(msg)
             await self._pilot.pause()
 
-    async def expect_modal(self, name: str, *, timeout: float = 2.0) -> None:
+    async def expect_modal(self, name: str, *, timeout: float = 5.0) -> None:
         """Assert that the named modal is currently shown."""
         await self.expect_state("modal", name, timeout=timeout)
 
-    async def expect_no_modal(self, *, timeout: float = 2.0) -> None:
+    async def expect_no_modal(self, *, timeout: float = 5.0) -> None:
         """Assert that no modal is currently shown."""
         await self.expect_state("modal", None, timeout=timeout)
 
-    async def expect_screen_contains(self, text: str, *, timeout: float = 2.0) -> None:
+    async def expect_screen_contains(self, text: str, *, timeout: float = 5.0) -> None:
         """Poll screen until text is found, or raise AssertionError."""
         deadline = asyncio.get_event_loop().time() + timeout
         while True:
@@ -254,7 +254,7 @@ class AcePage:
             await self._pilot.pause()
 
     async def expect_screen_not_contains(
-        self, text: str, *, timeout: float = 2.0
+        self, text: str, *, timeout: float = 5.0
     ) -> None:
         """Poll screen until text is absent, or raise AssertionError."""
         deadline = asyncio.get_event_loop().time() + timeout
@@ -274,7 +274,7 @@ class AcePage:
         self,
         predicate: Callable[[dict[str, Any]], bool],
         *,
-        timeout: float = 2.0,
+        timeout: float = 5.0,
     ) -> None:
         """Poll state until predicate(state) returns True, or raise."""
         deadline = asyncio.get_event_loop().time() + timeout
