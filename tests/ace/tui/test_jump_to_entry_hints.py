@@ -3,12 +3,16 @@
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
+from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation.jump_hints import (
     JUMP_HINT_CHARS,
     build_jump_hint_maps,
+    normalize_jump_key,
 )
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -43,6 +47,60 @@ def _make_agent(cl_name: str = "test_feature") -> Agent:
     )
 
 
+class _InlineJumpApp(AdvancedNavigationMixin):
+    """Minimal changespec-tab harness for inline jump mode."""
+
+    def __init__(self, changespecs: list[ChangeSpec]) -> None:
+        self.changespecs = changespecs
+        self.current_idx = 0
+        self.current_tab = "changespecs"
+        self._axe_items: list[Any] = []
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_index: dict[str, int] = {}
+        self._entry_jump_index_to_hint: dict[int, str] = {}
+        self._entry_jump_hint_to_banner: dict[str, Any] = {}
+        self._entry_jump_banner_to_hint: dict[Any, str] = {}
+        self._entry_jump_last_index: dict[str, int] = {}
+        self._entry_jump_last_agents_anchor: Any = None
+        self.refreshes = 0
+
+    def _refresh_current_tab(self) -> None:
+        self.refreshes += 1
+
+    def _update_jump_footer(self) -> None:
+        return
+
+
+class _InlineJumpEventApp(EventHandlersMixin):
+    """Small event-handler harness that records jump keys."""
+
+    def __init__(self) -> None:
+        self._entry_jump_mode_active = True
+        self.handled_keys: list[str] = []
+        self.activity_recorded = False
+
+    def _record_user_activity(self) -> None:
+        self.activity_recorded = True
+
+    def _handle_entry_jump_key(self, key: str) -> bool:
+        self.handled_keys.append(key)
+        return True
+
+
+class _KeyEvent:
+    def __init__(self, key: str, character: str | None) -> None:
+        self.key = key
+        self.character = character
+        self.prevented = False
+        self.stopped = False
+
+    def prevent_default(self) -> None:
+        self.prevented = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
 def test_build_jump_hint_maps_uses_expected_order() -> None:
     indices = [10, 11, 12]
     hint_to_index, index_to_hint = build_jump_hint_maps(indices)
@@ -67,6 +125,40 @@ def test_jump_hint_alphabet_has_62_chars() -> None:
     assert len(JUMP_HINT_CHARS) == 62
 
 
+def test_normalize_jump_key_prefers_uppercase_hint_character() -> None:
+    assert normalize_jump_key("a", "A") == "A"
+    assert normalize_jump_key("apostrophe", "'") == "apostrophe"
+    assert normalize_jump_key("grave_accent", "`") == "grave_accent"
+    assert normalize_jump_key("escape", None) == "escape"
+
+
+def test_inline_jump_to_entry_allocates_and_dispatches_uppercase_hint() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(37)]
+    app = _InlineJumpApp(changespecs)
+
+    app.action_jump_to_entry()
+
+    assert app._entry_jump_hint_to_index["A"] == 36
+    assert app._entry_jump_index_to_hint[36] == "A"
+
+    handled = app._handle_entry_jump_key("A")
+
+    assert handled is True
+    assert app.current_idx == 36
+    assert app._entry_jump_mode_active is False
+
+
+def test_inline_jump_on_key_uses_uppercase_event_character() -> None:
+    app = _InlineJumpEventApp()
+    event = _KeyEvent(key="a", character="A")
+
+    app.on_key(event)  # type: ignore[arg-type]
+
+    assert app.handled_keys == ["A"]
+    assert event.prevented is True
+    assert event.stopped is True
+
+
 def test_changespec_list_hint_marker_rendered() -> None:
     widget = ChangeSpecList()
     option = widget._format_changespec_option(
@@ -76,6 +168,23 @@ def test_changespec_list_hint_marker_rendered() -> None:
         hint_char="a",
     )
     assert "[a]" in str(option.prompt)
+
+
+def test_changespec_list_update_renders_uppercase_hint_marker(
+    monkeypatch: Any,
+) -> None:
+    widget = ChangeSpecList()
+    monkeypatch.setattr(widget, "call_later", lambda callback: None)
+    monkeypatch.setattr(widget, "post_message", lambda message: None)
+
+    widget.update_list(
+        [_make_changespec("uppercase_hint")],
+        current_idx=0,
+        jump_hints={0: "A"},
+    )
+
+    option = widget.get_option_at_index(0)
+    assert "[A]" in str(option.prompt)
 
 
 def test_agent_list_hint_marker_rendered() -> None:
@@ -107,6 +216,25 @@ def test_jump_all_modal_no_last_position() -> None:
         axe_items=[],
     )
     assert modal._last_position is None
+
+
+def test_jump_all_modal_on_key_uses_uppercase_event_character(
+    monkeypatch: Any,
+) -> None:
+    modal = JumpAllModal(
+        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(37)],
+        agents=[],
+        axe_items=[],
+    )
+    dismissed: list[JumpAllResult | None] = []
+    event = _KeyEvent(key="a", character="A")
+    monkeypatch.setattr(modal, "dismiss", dismissed.append)
+
+    modal.on_key(event)  # type: ignore[arg-type]
+
+    assert dismissed == [JumpAllResult(tab="changespecs", index=36)]
+    assert event.prevented is True
+    assert event.stopped is True
 
 
 def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:

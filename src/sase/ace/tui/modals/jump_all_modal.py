@@ -18,7 +18,7 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from ..actions.navigation.jump_hints import JUMP_HINT_CHARS
+from ..actions.navigation.jump_hints import JUMP_HINT_CHARS, normalize_jump_key
 from ..bgcmd import get_slot_info
 from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
 
@@ -257,7 +257,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
 
     def on_key(self, event: Key) -> None:
         """Intercept hint keypresses for immediate jump."""
-        key = event.key
+        key = normalize_jump_key(event.key, event.character)
         if key == "escape":
             event.prevent_default()
             event.stop()

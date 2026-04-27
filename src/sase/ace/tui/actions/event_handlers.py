@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from textual import events
 
 from ..activity_log import ActivityEventType, ActivityLog
+from .navigation.jump_hints import normalize_jump_key
 from ..util.nav_gate import NavigationGate
 from ..widgets import (
     AgentList,
@@ -240,7 +241,8 @@ class EventHandlersMixin:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
         self._record_user_activity()
         if self._entry_jump_mode_active:
-            if self._handle_entry_jump_key(event.key):  # type: ignore[attr-defined]
+            key = normalize_jump_key(event.key, event.character)
+            if self._handle_entry_jump_key(key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
         elif self._fold_mode_active:

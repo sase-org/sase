@@ -15,6 +15,20 @@ BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
 JumpTarget = AgentJumpTarget | BannerJumpTarget
 
 
+def normalize_jump_key(key: str, character: str | None = None) -> str:
+    """Return the key token used for jump hint dispatch.
+
+    Textual may expose shifted letters as ``event.key == "a"`` with
+    ``event.character == "A"``.  Jump hints are case-sensitive, so printable
+    hint characters must win over the normalized key name.  Named controls
+    such as ``apostrophe`` and ``grave_accent`` keep their key names so
+    back-jump behavior is unchanged.
+    """
+    if character is not None and len(character) == 1 and character in JUMP_HINT_CHARS:
+        return character
+    return key
+
+
 def build_jump_hint_maps[T: Hashable](
     targets: list[T],
 ) -> tuple[dict[str, T], dict[T, str]]:
