@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 14:00:34
-status: wip
+status: done
 ---
 # Fix Agents Tab Next-Entry Selection
 

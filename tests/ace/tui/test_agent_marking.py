@@ -10,6 +10,7 @@ from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -36,6 +37,8 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         self._agents: list[Agent] = list(agents)
         self._agents_with_children: list[Agent] = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._current_group_key: tuple[str, ...] | None = None
+        self._group_fold_registry = AgentGroupFoldRegistry()
         self.refresh_calls: int = 0
         self.notifications: list[tuple[str, str]] = []
         self.pushed_modals: list[Any] = []
@@ -69,6 +72,16 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
 
     def _refresh_display(self) -> None:
         pass
+
+    def _agents_visible_order(self) -> list[int]:
+        from sase.ace.tui.models.agent_groups import build_agent_tree
+
+        tree = build_agent_tree(self._agents, fold_registry=self._group_fold_registry)
+        return [
+            entry.agent_idx
+            for entry in tree
+            if entry.kind == "agent" and entry.agent_idx is not None
+        ]
 
     def _get_selected_agent(self) -> Agent | None:
         if 0 <= self.current_idx < len(self._agents):
@@ -134,6 +147,51 @@ def test_toggle_mark_wraps_around() -> None:
     app._toggle_mark_agent()
 
     assert app.current_idx == 0
+
+
+def test_toggle_mark_advances_in_rendered_agent_order() -> None:
+    agents = [
+        _make_agent(project_file="/tmp/projects/zeta/zeta.gp", cl_name="z1"),
+        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+    ]
+    app = _FakeMarkApp(agents)
+    app.current_idx = 1  # alpha, visually first
+
+    app._toggle_mark_agent()
+
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx].cl_name == "b1"
+
+
+def test_toggle_mark_wraps_in_rendered_agent_order() -> None:
+    agents = [
+        _make_agent(project_file="/tmp/projects/zeta/zeta.gp", cl_name="z1"),
+        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+    ]
+    app = _FakeMarkApp(agents)
+    app.current_idx = 0  # zeta, visually last
+
+    app._toggle_mark_agent()
+
+    assert app.current_idx == 1
+    assert app._agents[app.current_idx].cl_name == "a1"
+
+
+def test_toggle_mark_skips_collapsed_banner_rows() -> None:
+    agents = [
+        _make_agent(project_file="/tmp/projects/alpha/alpha.gp", cl_name="a1"),
+        _make_agent(project_file="/tmp/projects/beta/beta.gp", cl_name="b1"),
+    ]
+    app = _FakeMarkApp(agents)
+    app._group_fold_registry.collapse(("alpha",))
+    app.current_idx = 1
+
+    app._toggle_mark_agent()
+
+    assert app.current_idx == 1
+    assert app._agents[app.current_idx].cl_name == "b1"
 
 
 def test_toggle_mark_twice_removes_identity() -> None:

@@ -215,37 +215,48 @@ class AgentsMixinCore(
         return stops
 
     def _capture_focused_visible_pos(self) -> int | None:
-        """Return the visible-row position of ``current_idx``.
+        """Return the rendered selectable-row position of the current focus.
 
-        Returns ``None`` when there is no anchor to capture — selection
-        is out of range or the focused agent does not appear in the
-        rendered visible order. A ``None`` result signals callers
-        (kill / dismiss) to fall back to the conservative clamp
-        behavior in :meth:`_restore_focus_after_removal`.
+        The Agents tab can focus either an agent row (``current_idx``)
+        or a collapsed group banner (``_current_group_key``). Capture the
+        position in ``_panel_navigation_stops()`` so removals restore to
+        the next surviving selectable row in the same order j/k uses.
+        Returns ``None`` when the current focus is no longer rendered.
         """
         agents = getattr(self, "_agents", None)
-        if not agents or not (0 <= self.current_idx < len(agents)):
+        if not agents:
             return None
-        visible = self._agents_visible_order()
+
         try:
-            return visible.index(self.current_idx)
-        except ValueError:
-            return None
+            stops = self._panel_navigation_stops()
+        except Exception:
+            stops = []
+
+        current_group_key = getattr(self, "_current_group_key", None)
+        if current_group_key is not None:
+            for pos, (kind, payload) in enumerate(stops):
+                if kind == "banner" and payload == current_group_key:
+                    return pos
+
+        if 0 <= self.current_idx < len(agents):
+            for pos, (kind, payload) in enumerate(stops):
+                if kind == "agent" and payload == self.current_idx:
+                    return pos
+        return None
 
     def _restore_focus_after_removal(self, prior_visible_pos: int | None) -> None:
-        """Re-anchor ``current_idx`` after an in-memory removal.
+        """Re-anchor focus after an in-memory removal.
 
-        ``prior_visible_pos`` is the visible-row position of the agent that
-        previously held focus, captured *before* the removal via
-        :meth:`_capture_focused_visible_pos`. After the removal the same
-        position points at the agent visually below the killed one; if
-        it is past the end of the new visible list we fall back to the
-        last visible row. When the agent list is empty, ``current_idx``
-        is clamped to 0. When ``prior_visible_pos`` is ``None`` the
-        visible-anchor branch is skipped and only the clamp runs.
+        ``prior_visible_pos`` is the pre-removal position in
+        ``_panel_navigation_stops()``. After removal, the same position
+        points at the row visually below the removed one, clamped to the
+        last surviving stop. Agent stops clear banner focus and update
+        ``current_idx``; banner stops preserve banner focus and keep
+        ``current_idx`` clamped to a valid backing index.
         """
         if not self._agents:
             self.current_idx = 0
+            self._current_group_key = None
             return
 
         if self.current_idx >= len(self._agents):
@@ -255,12 +266,30 @@ class AgentsMixinCore(
 
         if prior_visible_pos is not None:
             try:
-                visible = self._agents_visible_order()
+                stops = self._panel_navigation_stops()
             except Exception:
-                visible = []
-            if visible:
-                target = visible[min(prior_visible_pos, len(visible) - 1)]
-                self.current_idx = target
+                stops = []
+            if stops:
+                kind, payload = stops[min(prior_visible_pos, len(stops) - 1)]
+                if kind == "banner":
+                    assert isinstance(payload, tuple)
+                    self._current_group_key = payload
+                else:
+                    assert isinstance(payload, int)
+                    self._current_group_key = None
+                    self.current_idx = payload
+                return
+
+        if self._current_group_key is not None:
+            try:
+                stops = self._panel_navigation_stops()
+            except Exception:
+                stops = []
+            if not any(
+                kind == "banner" and payload == self._current_group_key
+                for kind, payload in stops
+            ):
+                self._current_group_key = None
 
     def _get_selected_agent(self) -> Agent | None:
         """Get the currently selected agent, or None if no valid selection."""

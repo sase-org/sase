@@ -22,6 +22,7 @@ class AgentMarkingMixin:
     _agents: list[Agent]
     _agents_with_children: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
+    _current_group_key: tuple[str, ...] | None
 
     def _toggle_mark_agent(self) -> None:
         """Toggle the mark on the currently-selected agent."""
@@ -36,10 +37,9 @@ class AgentMarkingMixin:
         else:
             self._marked_agents.add(identity)
 
-        # Auto-advance cursor to the next entry (wraparound).
+        # Auto-advance cursor to the next visible agent row (wraparound).
         prev_idx = self.current_idx
-        if len(self._agents) > 1:
-            self.current_idx = (self.current_idx + 1) % len(self._agents)
+        self._advance_mark_selection(prev_idx)
 
         # Patch the just-marked row in place; the cursor's new position
         # is reflected by the per-panel highlight update so we avoid
@@ -55,6 +55,35 @@ class AgentMarkingMixin:
             self._try_patch_agent_row(new_agent)  # type: ignore[attr-defined]
         if not patched:
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+    def _advance_mark_selection(self, prev_idx: int) -> None:
+        """Move mark focus to the next visible agent row.
+
+        Marking targets agents, not collapsed banner rows, so auto-advance
+        walks ``_agents_visible_order()`` rather than the full selectable
+        stop list. When visible-order helpers are unavailable or the
+        current agent is hidden, fall back to the legacy raw-list step.
+        """
+        if len(self._agents) <= 1:
+            return
+
+        try:
+            visible = self._agents_visible_order()  # type: ignore[attr-defined]
+        except Exception:
+            visible = []
+
+        if visible:
+            try:
+                pos = visible.index(prev_idx)
+            except ValueError:
+                pass
+            else:
+                self.current_idx = visible[(pos + 1) % len(visible)]
+                self._current_group_key = None
+                return
+
+        self.current_idx = (prev_idx + 1) % len(self._agents)
+        self._current_group_key = None
 
     def _clear_agent_marks(self) -> None:
         """Clear every agent mark."""

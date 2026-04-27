@@ -15,9 +15,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.actions.agents._killing import AgentKillingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
 
 
 class _StubApp(AgentKillingMixin, AgentDismissingMixin):
@@ -38,6 +41,10 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         self.current_idx = current_idx
         self._agents = agents
         self._agents_with_children = list(agents)
+        self._current_group_key: tuple[str, ...] | None = None
+        self._group_fold_registry = AgentGroupFoldRegistry()
+        self._grouping_mode = GroupingMode.STANDARD
+        self._nav_stops_cache: tuple | None = None
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
@@ -82,41 +89,12 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
         self._agents = list(self._agents_with_children)
         self._restore_focus_after_removal(prior_pos)
 
-    # --- Visible-order helpers ---
+    # --- Production AgentsMixinCore focus helpers ---
 
-    def _agents_visible_order(self) -> list[int]:
-        from sase.ace.tui.models.agent_groups import build_agent_tree
-
-        tree = build_agent_tree(self._agents)
-        return [
-            entry.agent_idx
-            for entry in tree
-            if entry.kind == "agent" and entry.agent_idx is not None
-        ]
-
-    def _capture_focused_visible_pos(self) -> int | None:
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
-            return None
-        visible = self._agents_visible_order()
-        try:
-            return visible.index(self.current_idx)
-        except ValueError:
-            return None
-
-    def _restore_focus_after_removal(self, prior_visible_pos: int | None) -> None:
-        if not self._agents:
-            self.current_idx = 0
-            return
-
-        if self.current_idx >= len(self._agents):
-            self.current_idx = len(self._agents) - 1
-        if self.current_idx < 0:
-            self.current_idx = 0
-
-        if prior_visible_pos is not None:
-            visible = self._agents_visible_order()
-            if visible:
-                self.current_idx = visible[min(prior_visible_pos, len(visible) - 1)]
+    _agents_visible_order = AgentsMixinCore._agents_visible_order
+    _panel_navigation_stops = AgentsMixinCore._panel_navigation_stops
+    _capture_focused_visible_pos = AgentsMixinCore._capture_focused_visible_pos
+    _restore_focus_after_removal = AgentsMixinCore._restore_focus_after_removal
 
 
 def _agent(
@@ -280,4 +258,40 @@ def test_banner_focus_kill_does_not_anchor_to_visible_position() -> None:
     app._agents = list(agents)
     app._restore_focus_after_removal(None)
     # current_idx clamped into bounds.
+    assert 0 <= app.current_idx < len(app._agents)
+
+
+def test_focused_collapsed_banner_removal_lands_on_next_banner() -> None:
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
+    ]
+    app = _StubApp(agents, current_idx=0)
+    for key in [("p1",), ("p2",), ("p3",)]:
+        app._group_fold_registry.collapse(key)
+    app._current_group_key = ("p1",)
+
+    app._apply_killed_agents_in_memory({agents[0].identity})
+
+    assert [ag.agent_name for ag in app._agents] == ["b1", "c1"]
+    assert app._current_group_key == ("p2",)
+    assert 0 <= app.current_idx < len(app._agents)
+
+
+def test_focused_last_collapsed_banner_removal_clamps_to_previous_banner() -> None:
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
+    ]
+    app = _StubApp(agents, current_idx=2)
+    for key in [("p1",), ("p2",), ("p3",)]:
+        app._group_fold_registry.collapse(key)
+    app._current_group_key = ("p3",)
+
+    app._apply_killed_agents_in_memory({agents[2].identity})
+
+    assert [ag.agent_name for ag in app._agents] == ["a1", "b1"]
+    assert app._current_group_key == ("p2",)
     assert 0 <= app.current_idx < len(app._agents)
