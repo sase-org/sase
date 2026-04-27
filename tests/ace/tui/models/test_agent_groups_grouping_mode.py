@@ -494,6 +494,121 @@ def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
     assert l1_banners == []
 
 
+def test_build_agent_tree_by_date_done_agents_sort_by_stop_time() -> None:
+    """Within a bucket, terminal agents sort by ``stop_time``, newest-first.
+
+    A starts earlier but stops later; B starts later but stops earlier.
+    The Done segment should order A → B (newest completion first), even
+    though by ``start_time`` it would be B → A.
+    """
+    a = _agent(
+        cl_name="x",
+        agent_name="coder.bb",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+        stop_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    b = _agent(
+        cl_name="y",
+        agent_name="coder.bc",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+        stop_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    entries = build_agent_tree([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    assert agent_order == [0, 1]
+
+
+def test_build_agent_tree_by_date_mixed_running_and_done_uses_each_anchor() -> None:
+    """Running agents anchor on ``start_time``; done agents anchor on ``stop_time``.
+
+    Running's start_time is 09:00; Done's stop_time is 11:00, so Done sorts
+    first (newest by its own anchor) even though its start_time (07:00) is
+    older than the running agent's start.
+    """
+    running = _agent(
+        cl_name="x",
+        agent_name="coder.run",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    done = _agent(
+        cl_name="y",
+        agent_name="coder.done",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 7, 0, 0),
+        stop_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    entries = build_agent_tree([running, done], mode=GroupingMode.BY_DATE, now=_NOW)
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # done.stop_time (11:00) is newer than running.start_time (09:00),
+    # so done sorts first.
+    assert agent_order == [1, 0]
+
+
+def test_build_agent_tree_by_date_done_without_stop_time_falls_back_to_start_time() -> (
+    None
+):
+    """A DONE agent missing ``stop_time`` still sorts (by ``start_time``)."""
+    no_stop = _agent(
+        cl_name="x",
+        agent_name="coder.foo",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+        stop_time=None,
+    )
+    has_stop = _agent(
+        cl_name="y",
+        agent_name="coder.bar",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+        stop_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    entries = build_agent_tree([no_stop, has_stop], mode=GroupingMode.BY_DATE, now=_NOW)
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # has_stop's stop_time (10:00) > no_stop's start_time fallback (09:00).
+    assert agent_order == [1, 0]
+
+
+def test_build_agent_tree_by_date_workflow_child_inherits_parents_stop_time() -> None:
+    """A workflow child of a DONE parent anchors on the parent's ``stop_time``.
+
+    The child still renders immediately after its parent (the
+    ``is_child`` invariant), and the parent/child cluster sorts by
+    ``stop_time`` against other agents in the bucket.
+    """
+    parent = _agent(
+        cl_name="x",
+        agent_name="coder.parent",
+        raw_suffix="ts-parent",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 7, 0, 0),
+        stop_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    child = _agent(
+        cl_name="x",
+        agent_name="step.bash",
+        parent_workflow="coder",
+        parent_timestamp="ts-parent",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    other = _agent(
+        cl_name="y",
+        agent_name="coder.other",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    entries = build_agent_tree(
+        [parent, child, other], mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # Parent's stop_time (11:00) outranks other's start_time (10:00),
+    # and child stays glued to the parent.
+    assert agent_order == [0, 1, 2]
+
+
 def test_build_agent_tree_by_date_none_start_time_sorts_last_within_bucket() -> None:
     """Agents with no ``start_time`` sort after start-time-bearing peers."""
     has_start = _agent(

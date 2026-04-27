@@ -107,6 +107,12 @@ _STATUS_BUCKETS: tuple[str, ...] = (
 # regardless of timer/dependency presence.
 _NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 
+#: Terminal statuses — agents that have finished and have a meaningful
+#: ``stop_time``.  Shared by :func:`_status_bucket_for` (which maps these
+#: into the ``Done`` bucket) and :func:`_walk_anchors` (which sorts these
+#: by ``stop_time`` rather than ``start_time``).
+_TERMINAL_STATUSES: frozenset[str] = frozenset({"DONE", "PLAN DONE", "EPIC CREATED"})
+
 # TODO(@user): confirm needs:input mapping. Initial set drawn from
 # plans/202604/agents_tab_query_filters.md — covers the statuses where the
 # agent is paused awaiting user input rather than running or terminal.
@@ -148,7 +154,7 @@ def _status_bucket_for(agent: Agent) -> str:
     the user's perspective).
     """
     status = agent.status or ""
-    if status in {"DONE", "PLAN DONE", "EPIC CREATED"}:
+    if status in _TERMINAL_STATUSES:
         return "Done"
     if status in _NEEDS_ATTENTION_STATUSES:
         return "Needs Attention"
@@ -358,15 +364,21 @@ def _walk_anchors(
     parent_lookup: dict[str, Agent],
     mode: GroupingMode,
 ) -> list[tuple[float, int]]:
-    """Per-agent ``(-anchor_start_epoch, is_child)`` tiebreak under ``BY_DATE``.
+    """Per-agent ``(-anchor_epoch, is_child)`` tiebreak under ``BY_DATE``.
 
-    Workflow children adopt their parent's ``start_time`` and a ``1`` in
-    the ``is_child`` slot so they sort immediately after the parent
-    regardless of the child's own ``start_time``.  Non-``BY_DATE`` modes
+    Workflow children adopt their parent's anchor and a ``1`` in the
+    ``is_child`` slot so they sort immediately after the parent
+    regardless of the child's own timestamps.  Non-``BY_DATE`` modes
     return a constant ``(0.0, 0)`` per agent so the sort is unchanged.
 
-    Agents with no ``start_time`` sort last within their bucket
-    (``+inf`` in the negated-epoch slot).
+    Terminal agents (``DONE`` / ``PLAN DONE`` / ``EPIC CREATED``) anchor
+    on ``stop_time`` so a recently-finished agent floats to the top of
+    the Done segment regardless of when it started; they fall back to
+    ``start_time`` when ``stop_time`` is missing.  Non-terminal agents
+    continue to anchor on ``start_time``.
+
+    Agents with no usable anchor sort last within their bucket (``+inf``
+    in the negated-epoch slot).
     """
     if mode is not GroupingMode.BY_DATE:
         return [(0.0, 0)] * len(agents)
@@ -379,10 +391,15 @@ def _walk_anchors(
             if parent is not None:
                 target = parent
                 is_child = 1
-        if target.start_time is None:
+        anchor_time = None
+        if (target.status or "") in _TERMINAL_STATUSES:
+            anchor_time = target.stop_time or target.start_time
+        else:
+            anchor_time = target.start_time
+        if anchor_time is None:
             anchor = float("inf")
         else:
-            anchor = -target.start_time.timestamp()
+            anchor = -anchor_time.timestamp()
         out.append((anchor, is_child))
     return out
 

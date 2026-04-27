@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 11:13:25
-status: wip
+status: done
 ---
 # Plan: Sort done agents by completion time in `sase ace` Agents tab
 
