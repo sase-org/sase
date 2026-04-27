@@ -57,6 +57,13 @@ class _FakeMarkApp(AgentMarkingMixin, MarkingMixin):
         del agent
         return False
 
+    def _try_patch_changespec_row(self, idx: int) -> bool:
+        del idx
+        return False
+
+    def _update_info_panel(self) -> None:
+        return
+
     def _refresh_panel_highlights(self) -> None:
         pass
 

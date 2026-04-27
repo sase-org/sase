@@ -49,7 +49,12 @@ class MarkingMixin:
         # Force reactive update by reassigning
         self.marked_indices = set(self.marked_indices)  # type: ignore[assignment]
 
-        self._refresh_display()  # type: ignore[attr-defined]
+        # Patch only the toggled row in place; falls back to a full refresh
+        # if the widget can't accept the patch (e.g. width grew).
+        if not self._try_patch_changespec_row(idx):  # type: ignore[attr-defined]
+            self._refresh_display()  # type: ignore[attr-defined]
+        else:
+            self._update_info_panel()  # type: ignore[attr-defined]
 
         # Auto-navigate to next spec (with wraparound)
         if len(self.changespecs) > 1:

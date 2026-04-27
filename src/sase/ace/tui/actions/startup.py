@@ -61,6 +61,15 @@ class StartupMixin:
     _jump_all_last_position: JumpAllResult | None
     _nav_gate: NavigationGate
     _fs_watcher: ArtifactWatcher | None
+    _w_changespec_list: Any
+    _w_changespec_detail: Any
+    _w_ancestors_children: Any
+    _w_changespec_info_panel: Any
+    _w_footer: Any
+    _w_search_query_panel: Any
+    _w_agent_detail: Any
+    _w_agent_info_panel: Any
+    _w_tab_bar: Any
 
     def _init_app_state(
         self,
@@ -135,6 +144,20 @@ class StartupMixin:
         self._pinned_idle = False
 
         self._activity_log = ActivityLog()
+        # Stable widget refs cached during ``on_mount`` so hot paths (j/k
+        # navigation, debounced detail refresh, mark toggle) skip repeated
+        # ``query_one`` walks against the DOM. ``None`` until mount runs;
+        # callers must fall back to ``query_one`` while these are unset
+        # (e.g. tests that exercise mixin methods without mounting).
+        self._w_changespec_list: Any = None
+        self._w_changespec_detail: Any = None
+        self._w_ancestors_children: Any = None
+        self._w_changespec_info_panel: Any = None
+        self._w_footer: Any = None
+        self._w_search_query_panel: Any = None
+        self._w_agent_detail: Any = None
+        self._w_agent_info_panel: Any = None
+        self._w_tab_bar: Any = None
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
@@ -410,9 +433,15 @@ class StartupMixin:
         import asyncio
 
         from ..widgets import (
+            AgentDetail,
             AgentInfoPanel,
+            AncestorsChildrenPanel,
+            ChangeSpecDetail,
+            ChangeSpecInfoPanel,
+            ChangeSpecList,
             InactiveIndicator,
             KeybindingFooter,
+            SearchQueryPanel,
             TabBar,
         )
 
@@ -425,6 +454,29 @@ class StartupMixin:
             tab_bar.set_keymap_registry(self._keymap_registry)
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
             info_panel.set_keymap_registry(self._keymap_registry)
+
+            # Cache stable widget refs so hot paths skip repeat ``query_one``
+            # walks. Wrapped in try/except so a missing widget never blocks
+            # mount; callers fall back to ``query_one`` when a ref is unset.
+            self._w_footer = footer
+            self._w_tab_bar = tab_bar
+            self._w_agent_info_panel = info_panel
+            for attr, selector, cls in (
+                ("_w_changespec_list", "#list-panel", ChangeSpecList),
+                ("_w_changespec_detail", "#detail-panel", ChangeSpecDetail),
+                (
+                    "_w_ancestors_children",
+                    "#ancestors-children-panel",
+                    AncestorsChildrenPanel,
+                ),
+                ("_w_changespec_info_panel", "#info-panel", ChangeSpecInfoPanel),
+                ("_w_search_query_panel", "#search-query-panel", SearchQueryPanel),
+                ("_w_agent_detail", "#agent-detail-panel", AgentDetail),
+            ):
+                try:
+                    setattr(self, attr, self.query_one(selector, cls))  # type: ignore[attr-defined]
+                except Exception:
+                    log.debug("widget ref cache skipped: %s not found", selector)
 
             # Initialize agent tracking for completion notifications
             notif_state = await asyncio.to_thread(

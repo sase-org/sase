@@ -235,6 +235,37 @@ def _get_status_indicator(changespec: ChangeSpec) -> tuple[str, str]:
     return indicator, letter_color
 
 
+def _row_signature(
+    changespec: ChangeSpec,
+    *,
+    is_selected: bool,
+    is_marked: bool,
+    show_hideable: bool,
+    show_submitted: bool,
+    mentor_stats: _MentorCommentStats | None,
+    hint_char: str | None,
+) -> tuple[Any, ...]:
+    """Compact key encoding everything that affects a row's rendered prompt."""
+    indicator, _ = _get_status_indicator(changespec)
+    stats_tuple: tuple[int, int, int] | None = (
+        (mentor_stats.total, mentor_stats.unread, mentor_stats.accepted)
+        if mentor_stats is not None
+        else None
+    )
+    return (
+        changespec.name,
+        changespec.cl,
+        changespec.status,
+        indicator,
+        is_selected,
+        is_marked,
+        show_hideable,
+        show_submitted,
+        stats_tuple,
+        hint_char,
+    )
+
+
 class ChangeSpecList(OptionList):
     """Left sidebar showing list of ChangeSpecs."""
 
@@ -258,6 +289,11 @@ class ChangeSpecList(OptionList):
         self._changespecs: list[ChangeSpec] = []
         self._marked_indices: set[int] = set()
         self._programmatic_update: bool = False
+        self._option_idx_by_changespec_name: dict[str, int] = {}
+        self._last_row_signature_by_idx: dict[int, tuple[Any, ...]] = {}
+        self._row_widths_by_idx: dict[int, int] = {}
+        self._target_width: int = 0
+        self._row_render_ctx: dict[int, dict[str, Any]] = {}
 
     def update_list(
         self,
@@ -304,11 +340,16 @@ class ChangeSpecList(OptionList):
         show_hideable = not hide_reverted
         show_submitted = not hide_submitted
         self.clear_options()
+        self._option_idx_by_changespec_name = {}
+        self._last_row_signature_by_idx = {}
+        self._row_widths_by_idx = {}
+        self._row_render_ctx = {}
 
         max_width = 0
         for i, cs in enumerate(changespecs):
             is_marked = i in self._marked_indices
             stats = _compute_mentor_stats(cs)
+            hint = (jump_hints or {}).get(i)
             option = self._format_changespec_option(
                 cs,
                 is_selected=(i == current_idx),
@@ -316,7 +357,7 @@ class ChangeSpecList(OptionList):
                 show_hideable=show_hideable,
                 show_submitted=show_submitted,
                 mentor_stats=stats,
-                hint_char=(jump_hints or {}).get(i),
+                hint_char=hint,
             )
             self.add_option(option)
             width = _calculate_entry_display_width(
@@ -325,13 +366,30 @@ class ChangeSpecList(OptionList):
                 show_hideable=show_hideable,
                 show_submitted=show_submitted,
                 mentor_stats=stats,
-                hint_char=(jump_hints or {}).get(i),
+                hint_char=hint,
             )
             max_width = max(max_width, width)
+            self._option_idx_by_changespec_name[cs.name] = i
+            self._row_widths_by_idx[i] = width
+            self._last_row_signature_by_idx[i] = _row_signature(
+                cs,
+                is_selected=(i == current_idx),
+                is_marked=is_marked,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                mentor_stats=stats,
+                hint_char=hint,
+            )
+            self._row_render_ctx[i] = {
+                "show_hideable": show_hideable,
+                "show_submitted": show_submitted,
+                "mentor_stats": stats,
+            }
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
         optimal_width = max_width + _PADDING
+        self._target_width = optimal_width
         self.post_message(self.WidthChanged(optimal_width))
 
         # Highlight the current item
@@ -366,6 +424,114 @@ class ChangeSpecList(OptionList):
         if self._programmatic_update:
             return
         super().watch_highlighted(highlighted)
+
+    def patch_changespec_row(
+        self,
+        idx: int,
+        changespec: ChangeSpec,
+        *,
+        selected: bool,
+        marked: bool,
+        hint: str | None = None,
+    ) -> bool:
+        """Replace one ChangeSpec's Option in place when shape didn't change.
+
+        Returns ``True`` when the patch landed; ``False`` when the caller
+        must fall back to a full :meth:`update_list` rebuild — the row
+        index drifted, the alignment width grew past the cached target,
+        or no prior full render captured the per-row context.
+        """
+        with tui_trace("widget.changespec_list.patch_changespec_row", idx=idx):
+            return self._patch_changespec_row_impl(
+                idx,
+                changespec,
+                selected=selected,
+                marked=marked,
+                hint=hint,
+            )
+
+    def _patch_changespec_row_impl(
+        self,
+        idx: int,
+        changespec: ChangeSpec,
+        *,
+        selected: bool,
+        marked: bool,
+        hint: str | None,
+    ) -> bool:
+        if not (0 <= idx < len(self._changespecs)):
+            return False
+        ctx = self._row_render_ctx.get(idx)
+        if ctx is None:
+            return False
+        # Row-count drift: refuse to patch when the underlying option list
+        # no longer matches the cached size.
+        if self.option_count != len(self._changespecs):
+            return False
+
+        existing = self._changespecs[idx]
+        if existing.name != changespec.name:
+            return False
+        # The option_id is the changespec name — keep the cached idx map
+        # honest by refusing to patch an entry whose name moved index.
+        if self._option_idx_by_changespec_name.get(changespec.name) != idx:
+            return False
+
+        show_hideable: bool = ctx["show_hideable"]
+        show_submitted: bool = ctx["show_submitted"]
+        stats = _compute_mentor_stats(changespec)
+
+        new_width = _calculate_entry_display_width(
+            changespec,
+            is_marked=marked,
+            show_hideable=show_hideable,
+            show_submitted=show_submitted,
+            mentor_stats=stats,
+            hint_char=hint,
+        )
+        # Container width was posted at full-rebuild time as
+        # ``_target_width = max_content_width + _PADDING``. A patched row
+        # whose content stays within ``_target_width`` fits the parent
+        # panel; only fall back when growth would exceed the cached
+        # panel width and require a fresh WidthChanged message.
+        if self._target_width and new_width > self._target_width:
+            return False
+
+        new_option = self._format_changespec_option(
+            changespec,
+            is_selected=selected,
+            is_marked=marked,
+            show_hideable=show_hideable,
+            show_submitted=show_submitted,
+            mentor_stats=stats,
+            hint_char=hint,
+        )
+
+        self._programmatic_update = True
+        try:
+            self.replace_option_prompt_at_index(idx, new_option.prompt)
+        except (AttributeError, IndexError):
+            return False
+        finally:
+            self.call_later(self._clear_programmatic_flag)
+
+        self._changespecs[idx] = changespec
+        if marked:
+            self._marked_indices.add(idx)
+        else:
+            self._marked_indices.discard(idx)
+        self._row_widths_by_idx[idx] = new_width
+        self._row_render_ctx[idx]["mentor_stats"] = stats
+        self._last_row_signature_by_idx[idx] = _row_signature(
+            changespec,
+            is_selected=selected,
+            is_marked=marked,
+            show_hideable=show_hideable,
+            show_submitted=show_submitted,
+            mentor_stats=stats,
+            hint_char=hint,
+        )
+        return True
 
     def _format_changespec_option(
         self,
