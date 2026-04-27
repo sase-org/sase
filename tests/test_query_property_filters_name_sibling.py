@@ -49,6 +49,27 @@ def test_evaluate_name_match(
     assert evaluate_query(query, cs) is True
 
 
+def test_evaluate_name_no_substring_match(
+    make_changespec: Any,
+) -> None:
+    """`&name` is exact, not substring — `&foo` must not match `foo_bar` or `bar_foo`."""
+    query = parse_query("&foo")
+    assert evaluate_query(query, make_changespec.create(name="foo_bar")) is False
+    assert evaluate_query(query, make_changespec.create(name="bar_foo")) is False
+    assert evaluate_query(query, make_changespec.create(name="foobar")) is False
+    assert evaluate_query(query, make_changespec.create(name="foo")) is True
+
+
+def test_evaluate_name_case_insensitive(
+    make_changespec: Any,
+) -> None:
+    """`&name` matches case-insensitively but still requires full equality."""
+    query = parse_query("&MyFeature")
+    assert evaluate_query(query, make_changespec.create(name="myfeature")) is True
+    assert evaluate_query(query, make_changespec.create(name="MYFEATURE")) is True
+    assert evaluate_query(query, make_changespec.create(name="myfeature_2")) is False
+
+
 # --- Sibling Filter Tokenizer Tests ---
 
 
