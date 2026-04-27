@@ -34,7 +34,7 @@ class _FakeApp(EventHandlersMixin):
     async def _load_axe_status_async(self) -> None:
         self.refresh_calls.append("axe")
 
-    def _poll_agent_completions(self) -> None:
+    async def _poll_agent_completions(self) -> None:
         self.refresh_calls.append("notifications")
 
     async def _load_agents_async(self) -> None:

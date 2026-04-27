@@ -1,7 +1,6 @@
 """Evaluator for query expressions against ChangeSpecs."""
 
 import re
-from pathlib import Path
 
 from ..changespec import ChangeSpec, has_any_status_suffix
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr, StringMatch
@@ -13,6 +12,9 @@ RUNNING_AGENT_MARKER = "- (@"
 # Pattern that indicates a running process in searchable text
 # Matches "- ($: PID)" (hook subprocess with PID)
 RUNNING_PROCESS_MARKER = "- ($: "
+
+_WORKSPACE_SUFFIX_RE = re.compile(r" \([a-zA-Z0-9_-]+_\d+\)$")
+_LEGACY_READY_TO_MAIL_RE = re.compile(r" - \(!\: READY TO MAIL\)$")
 
 
 def _get_searchable_text(changespec: ChangeSpec) -> str:
@@ -42,8 +44,7 @@ def _get_searchable_text(changespec: ChangeSpec) -> str:
     ]
 
     # Add project basename (e.g., "myproject" from "~/.sase/projects/myproject/myproject.gp")
-    project_path = Path(changespec.file_path)
-    parts.append(project_path.parent.name)
+    parts.append(changespec.project_name)
 
     if changespec.parent:
         parts.append(changespec.parent)
@@ -154,10 +155,8 @@ def _get_base_status(status: str) -> str:
     Returns:
         The base status value (e.g., "Ready").
     """
-    # Strip workspace suffix: " (<project>_<N>)" at end
-    status = re.sub(r" \([a-zA-Z0-9_-]+_\d+\)$", "", status)
-    # Strip legacy READY TO MAIL suffix
-    status = re.sub(r" - \(!\: READY TO MAIL\)$", "", status)
+    status = _WORKSPACE_SUFFIX_RE.sub("", status)
+    status = _LEGACY_READY_TO_MAIL_RE.sub("", status)
     return status.strip()
 
 
@@ -185,9 +184,7 @@ def _match_project(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
     Returns:
         True if the project basename matches (case-insensitive).
     """
-    project_path = Path(changespec.file_path)
-    project_name = project_path.parent.name
-    return project_name.lower() == prop.value.lower()
+    return changespec.project_name.lower() == prop.value.lower()
 
 
 def _match_name(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
@@ -367,9 +364,22 @@ def _evaluate(
         raise TypeError(f"Unknown expression type: {type(expr)}")
 
 
+def build_name_to_base_status(
+    all_changespecs: list[ChangeSpec],
+) -> dict[str, str]:
+    """Return a ``name.lower() -> base_status`` map for the given list.
+
+    Cached and reused across the per-filter helpers so a single pass over
+    ``_filter_changespecs`` doesn't rebuild this map three times.
+    """
+    return {cs.name.lower(): _get_base_status(cs.status) for cs in all_changespecs}
+
+
 def query_explicitly_targets_terminal(
     expr: QueryExpr,
     all_changespecs: list[ChangeSpec] | None = None,
+    *,
+    status_map: dict[str, str] | None = None,
 ) -> bool:
     """Check if query explicitly references terminal status ChangeSpecs.
 
@@ -382,15 +392,16 @@ def query_explicitly_targets_terminal(
     Args:
         expr: The parsed query expression.
         all_changespecs: List of all ChangeSpecs for name/ancestor lookups.
+        status_map: Optional pre-built ``name -> base_status`` map; built
+            from ``all_changespecs`` if not provided.
 
     Returns:
         True if the query explicitly targets terminal status ChangeSpecs.
     """
-    # Build name -> status map for quick lookup
-    status_map: dict[str, str] = {}
-    if all_changespecs:
-        for cs in all_changespecs:
-            status_map[cs.name.lower()] = _get_base_status(cs.status)
+    if status_map is None:
+        status_map = (
+            build_name_to_base_status(all_changespecs) if all_changespecs else {}
+        )
 
     def _check_expr(e: QueryExpr) -> bool:
         """Recursively check if expression targets terminal statuses."""
@@ -420,6 +431,8 @@ def query_explicitly_targets_terminal(
 def query_explicitly_targets_submitted(
     expr: QueryExpr,
     all_changespecs: list[ChangeSpec] | None = None,
+    *,
+    status_map: dict[str, str] | None = None,
 ) -> bool:
     """Check if query explicitly references Submitted status ChangeSpecs.
 
@@ -430,14 +443,16 @@ def query_explicitly_targets_submitted(
     Args:
         expr: The parsed query expression.
         all_changespecs: List of all ChangeSpecs for name/ancestor lookups.
+        status_map: Optional pre-built ``name -> base_status`` map; built
+            from ``all_changespecs`` if not provided.
 
     Returns:
         True if the query explicitly targets Submitted status ChangeSpecs.
     """
-    status_map: dict[str, str] = {}
-    if all_changespecs:
-        for cs in all_changespecs:
-            status_map[cs.name.lower()] = _get_base_status(cs.status)
+    if status_map is None:
+        status_map = (
+            build_name_to_base_status(all_changespecs) if all_changespecs else {}
+        )
 
     def _check_expr(e: QueryExpr) -> bool:
         if isinstance(e, PropertyMatch):

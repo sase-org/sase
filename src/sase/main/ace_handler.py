@@ -23,6 +23,21 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     if vcs_provider is not None:
         os.environ["SASE_VCS_PROVIDER"] = vcs_provider
 
+    profiler = None
+    if args.profile is not None:
+        try:
+            import pyinstrument
+        except ImportError:
+            print(
+                "Error: pyinstrument is not installed. "
+                "Install it with: pip install sase[dev]",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        profiler = pyinstrument.Profiler(async_mode="enabled")
+        profiler.start()
+
     try:
         # Resolve model tier: prefer --model-tier, fall back to --model-size
         model_tier_override = getattr(args, "model_tier", None)
@@ -44,19 +59,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    if args.profile is not None:
-        try:
-            import pyinstrument
-        except ImportError:
-            print(
-                "Error: pyinstrument is not installed. "
-                "Install it with: pip install sase[dev]",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        profiler = pyinstrument.Profiler(async_mode="enabled")
-        profiler.start()
+    if profiler is not None:
         app.run()
         profiler.stop()
 

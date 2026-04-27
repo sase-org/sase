@@ -3,6 +3,7 @@
 import os
 import re
 from dataclasses import dataclass
+from functools import cached_property
 
 # Error suffix messages that require "!: " prefix when formatting/displaying
 ERROR_SUFFIX_MESSAGES = frozenset(
@@ -452,3 +453,14 @@ class ChangeSpec:
         if basename.endswith("-archive"):
             return basename[:-8]
         return basename
+
+    @cached_property
+    def project_name(self) -> str:
+        """Parent directory name of ``file_path`` (e.g. ``"myproject"`` from
+        ``"~/.sase/projects/myproject/myproject.gp"``).
+
+        Cached because ``Path(...).parent.name`` is surprisingly expensive
+        (pathlib churn) and this is read in hot filter paths for every
+        changespec on every filter pass.
+        """
+        return os.path.basename(os.path.dirname(self.file_path))

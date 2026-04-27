@@ -13,6 +13,18 @@ NOTIFICATIONS_DIR = os.path.expanduser("~/.sase/notifications")
 NOTIFICATIONS_FILE = os.path.join(NOTIFICATIONS_DIR, "notifications.jsonl")
 
 
+# Process-local cache of the parsed notifications file. Keyed by a
+# (size, mtime_ns, inode, include_dismissed) tuple so cross-process writes
+# (e.g. a Telegram callback updating a notification) invalidate naturally
+# via the stat() check; in-process writes invalidate explicitly.
+_LOAD_CACHE: dict[tuple[int, int, int, bool], list[Notification]] = {}
+
+
+def _invalidate_load_cache() -> None:
+    """Drop the cached parse — call after any in-process write."""
+    _LOAD_CACHE.clear()
+
+
 def _notification_from_dict(data: dict) -> Notification | None:
     """Safely construct a Notification from a dict, returning None on invalid data."""
     try:
@@ -43,16 +55,28 @@ def append_notification(n: Notification) -> None:
             f.write(json.dumps(dataclasses.asdict(n)) + "\n")
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+    _invalidate_load_cache()
 
 
 def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     """Load notifications from the JSONL file with shared locking.
 
-    Skips invalid lines silently.
+    Skips invalid lines silently. Results are cached per-process and keyed
+    by file (size, mtime_ns, inode); cross-process writes invalidate the
+    cache via the stat check, in-process writes invalidate explicitly.
+    Returned ``Notification`` instances are fresh copies, so callers may
+    mutate top-level fields without corrupting the cache.
     """
     path = Path(NOTIFICATIONS_FILE)
-    if not path.exists():
+    try:
+        st = path.stat()
+    except FileNotFoundError:
         return []
+
+    key = (st.st_size, st.st_mtime_ns, st.st_ino, include_dismissed)
+    cached = _LOAD_CACHE.get(key)
+    if cached is not None:
+        return [dataclasses.replace(n) for n in cached]
 
     with open(path) as f:
         fcntl.flock(f, fcntl.LOCK_SH)
@@ -76,6 +100,11 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
         if not include_dismissed and n.dismissed:
             continue
         notifications.append(n)
+
+    # Drop any prior entries — only the latest stat is interesting and
+    # this keeps the cache size bounded across long-running processes.
+    _LOAD_CACHE.clear()
+    _LOAD_CACHE[key] = [dataclasses.replace(n) for n in notifications]
     return notifications
 
 
@@ -89,6 +118,7 @@ def _rewrite_notifications(notifications: list[Notification]) -> None:
                 f.write(json.dumps(dataclasses.asdict(n)) + "\n")
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
+    _invalidate_load_cache()
 
 
 def rewrite_notifications(notifications: list[Notification]) -> None:

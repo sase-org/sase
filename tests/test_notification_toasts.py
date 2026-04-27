@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 from types import SimpleNamespace
@@ -299,7 +300,7 @@ class TestPollingDelta:
         existing = _make(action="PlanApproval", notes=["already-seen"])
         app._last_unread_ids = {existing.id}
         with _patch_load([existing]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -312,7 +313,7 @@ class TestPollingDelta:
             files=["/p/sase_plan_foo.md"],
         )
         with _patch_load([new_notif]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app._bell_rung == 1
         assert app.notify.call_count == 1
         call = app.notify.call_args
@@ -326,7 +327,7 @@ class TestPollingDelta:
         a = _make(action="PlanApproval", notes=["Plan ready for review: a.md"])
         b = _make(action="UserQuestion", notes=["What?"])
         with _patch_load([a, b]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 2
 
     def test_five_new_mixed_grouped(self) -> None:
@@ -339,7 +340,7 @@ class TestPollingDelta:
             _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
         ]
         with _patch_load(notifs):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         # Three severity buckets → three toasts.
         assert app.notify.call_count == 3
 
@@ -347,7 +348,7 @@ class TestPollingDelta:
         app = _FakeApp()
         silent = _make(action="PlanApproval", notes=["silent one"], silent=True)
         with _patch_load([silent]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -355,11 +356,11 @@ class TestPollingDelta:
         app = _FakeApp()
         first = _make(action="UserQuestion", notes=["q1?"])
         with _patch_load([first]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 1
         # Poll again with the same notification — no new toast.
         with _patch_load([first]):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 1
 
 
@@ -386,7 +387,7 @@ class TestSnoozeExpiry:
                 return_value=[snoozed],
             ),
         ):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
 
         # Row is unmuted in-memory and in the indicator's unread (rest) bucket.
         assert snoozed.muted is False
@@ -411,7 +412,7 @@ class TestSnoozeExpiry:
             _patch_load([snoozed]),
             patch("sase.notifications.store._rewrite_notifications"),
         ):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
 
         assert snoozed.muted is True
         assert snoozed.snooze_until == future
@@ -441,7 +442,7 @@ class TestSnoozeExpiry:
                 return_value=[snoozed_read],
             ),
         ):
-            app._poll_agent_completions()
+            asyncio.run(app._poll_agent_completions())
 
         # Row is no longer snoozed, but stays read — so unread bucket is empty.
         assert snoozed_read.muted is False

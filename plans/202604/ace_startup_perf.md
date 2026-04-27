@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:43:27
-status: wip
+status: done
 ---
 # Plan: Improve `sase ace` TUI Startup Performance
 

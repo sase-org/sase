@@ -5,6 +5,7 @@ Provides the loader that reads from the merged config system
 the Textual ``Binding`` builder, and key display name utilities.
 """
 
+import functools
 import importlib.resources
 import logging
 from dataclasses import fields
@@ -33,6 +34,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@functools.cache
 def load_builtin_app_defaults() -> dict[str, str]:
     """Load app-level keymap defaults from the bundled ``default_config.yml``.
 

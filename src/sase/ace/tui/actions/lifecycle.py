@@ -41,36 +41,49 @@ class LifecycleMixin:
             n.id for n in notifications if not n.read and not n.silent and not n.muted
         }
 
-    def _initialize_agent_tracking(self, unread_ids: set[str] | None = None) -> None:
-        """Initialize notification tracking by seeding unread ids.
+    def _read_notifications_for_startup(self) -> tuple[set[str], int, int, int]:
+        """Single-pass disk read returning unread_ids + priority/rest/muted counts.
 
-        This ensures we don't trigger bell/toast for notifications that
-        were already unread when the TUI started. ``unread_ids`` may be
-        pre-loaded off the main thread; if ``None``, we read from disk
-        inline. The priority/rest/muted counts are recomputed off disk
-        so the indicator reflects all totals at startup.
+        Avoids parsing the JSONL twice during startup (once for the unread-id
+        seed, once for the indicator counts).
         """
         from sase.notifications import is_priority, load_notifications
 
-        from ..widgets import NotificationIndicator
-
-        if unread_ids is None:
-            unread_ids = self._read_unread_notification_ids()
-        self._last_unread_ids = unread_ids
-
         notifications = load_notifications()
+        unread_ids: set[str] = set()
         priority_count = 0
         rest_count = 0
         muted_count = 0
         for n in notifications:
             if n.read or n.silent:
                 continue
+            if not n.muted:
+                unread_ids.add(n.id)
             if n.muted:
                 muted_count += 1
             elif is_priority(n):
                 priority_count += 1
             else:
                 rest_count += 1
+        return unread_ids, priority_count, rest_count, muted_count
+
+    def _initialize_agent_tracking(
+        self,
+        state: tuple[set[str], int, int, int] | None = None,
+    ) -> None:
+        """Seed unread-id tracker and notification counts from preloaded state.
+
+        ``state`` is ``(unread_ids, priority, rest, muted)``; when ``None``
+        we read from disk inline (kept for callers outside the startup
+        path). Seeding the unread set prevents bell/toast for notifications
+        that were already unread when the TUI started.
+        """
+        from ..widgets import NotificationIndicator
+
+        if state is None:
+            state = self._read_notifications_for_startup()
+        unread_ids, priority_count, rest_count, muted_count = state
+        self._last_unread_ids = unread_ids
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)  # type: ignore[attr-defined]
         indicator.set_counts(priority_count, rest_count, muted_count)

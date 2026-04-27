@@ -31,12 +31,16 @@ class AgentNotificationMixin:
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _plan_feedback_context: PlanFeedbackContext | None
 
-    def _poll_agent_completions(self) -> None:
+    async def _poll_agent_completions(self) -> None:
         """Poll notification store for new unread notifications.
 
         Detects when unread count increases and triggers bell/toast.
-        Called on every auto-refresh regardless of current tab.
+        Called on every auto-refresh regardless of current tab. The disk
+        parse happens off the main thread so the polling tick doesn't
+        block the event loop while the user is settling into the TUI.
         """
+        import asyncio
+
         from sase.notifications import (
             expire_due_snoozes,
             is_priority,
@@ -45,7 +49,7 @@ class AgentNotificationMixin:
 
         from ._toasts import format_batch_toasts
 
-        notifications = load_notifications()
+        notifications = await asyncio.to_thread(load_notifications)
         expired_snoozes = expire_due_snoozes(notifications)
         unread_priority = [
             n

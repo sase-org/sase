@@ -50,7 +50,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the footer widget."""
         super().__init__(**kwargs)
-        self._registry = load_keymap_registry({})
+        self._registry: KeymapRegistry | None = None
         self._axe_running: bool = False
         self._axe_starting: bool = False
         self._axe_stopping: bool = False
@@ -104,9 +104,21 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         """Override the keymap registry with user config."""
         self._registry = registry
 
+    def _kr(self) -> KeymapRegistry:
+        """Return the active registry, lazy-loading defaults on first use.
+
+        The default load is only paid by callers that read keymaps before
+        ``set_keymap_registry()`` runs (tests, and any pre-mount edge case).
+        Production startup wires the real registry from ``on_mount`` before
+        any read fires, so the default load is never executed there.
+        """
+        if self._registry is None:
+            self._registry = load_keymap_registry({})
+        return self._registry
+
     def _kd(self, action_name: str) -> str:
         """Get footer display key for an app-level action."""
-        return footer_key_display(getattr(self._registry.app, action_name))
+        return footer_key_display(getattr(self._kr().app, action_name))
 
     def compose(self) -> ComposeResult:
         """Compose the footer with bindings on left and status on right."""
@@ -297,7 +309,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
     def update_fold_bindings(self) -> None:
         """Update bindings to show fold mode options."""
         d = footer_key_display
-        keys = self._registry.fold_mode.keys
+        keys = self._kr().fold_mode.keys
 
         def k(name: str) -> str:
             v = keys[name]
@@ -351,7 +363,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             has_mentor_results: Whether the selected ChangeSpec has mentor results.
         """
         d = footer_key_display
-        keys = self._registry.leader_mode.keys
+        keys = self._kr().leader_mode.keys
 
         def k(name: str) -> str:
             v = keys[name]
@@ -392,7 +404,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
     def update_bang_bindings(self) -> None:
         """Update bindings to show bang mode options."""
         d = footer_key_display
-        keys = self._registry.bang_mode.keys
+        keys = self._kr().bang_mode.keys
 
         def k(name: str) -> str:
             v = keys[name]
@@ -417,7 +429,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             mode_name: Name of the active custom mode.
         """
         d = footer_key_display
-        mode = self._registry.modes.get(mode_name)
+        mode = self._kr().modes.get(mode_name)
         if mode is None:
             return
 
@@ -444,7 +456,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             file_visible: Whether the file panel is visible (agents tab only).
         """
         d = footer_key_display
-        tab_keys = self._registry.copy_mode.keys.get(tab, {})
+        tab_keys = self._kr().copy_mode.keys.get(tab, {})
         assert isinstance(tab_keys, dict)
 
         def k(name: str) -> str:

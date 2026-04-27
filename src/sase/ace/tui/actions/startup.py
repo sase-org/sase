@@ -405,8 +405,10 @@ class StartupMixin:
             info_panel.set_keymap_registry(self._keymap_registry)
 
             # Initialize agent tracking for completion notifications
-            unread_ids = await asyncio.to_thread(self._read_unread_notification_ids)  # type: ignore[attr-defined]
-            self._initialize_agent_tracking(unread_ids)  # type: ignore[attr-defined]
+            notif_state = await asyncio.to_thread(
+                self._read_notifications_for_startup  # type: ignore[attr-defined]
+            )
+            self._initialize_agent_tracking(notif_state)  # type: ignore[attr-defined]
 
             # Load initial changespecs with the startup query
             all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)  # type: ignore[attr-defined]

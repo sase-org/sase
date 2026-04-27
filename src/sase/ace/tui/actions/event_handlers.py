@@ -120,7 +120,7 @@ class EventHandlersMixin:
         await self._load_axe_status_async()  # type: ignore[attr-defined]
 
         # Poll agent completions for notifications (regardless of tab)
-        self._poll_agent_completions()  # type: ignore[attr-defined]
+        await self._poll_agent_completions()  # type: ignore[attr-defined]
 
         # Skip changespec refresh if user is in an input mode
         # (prompt bar or hint bar is active)

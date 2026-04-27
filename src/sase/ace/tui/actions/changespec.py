@@ -100,11 +100,17 @@ class ChangeSpecMixin:
     def _filter_changespecs(self, changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
         """Filter changespecs using the parsed query and hide settings."""
         from ...changespec import get_base_status
-        from ...query import (
-            evaluate_query,
+        from ...query import evaluate_query
+        from ...query.evaluator import (
+            build_name_to_base_status,
             query_explicitly_targets_submitted,
             query_explicitly_targets_terminal,
         )
+
+        # Build the map once and reuse it for both
+        # query_explicitly_targets_* helpers — without this each helper
+        # re-iterates `changespecs` to build the same map.
+        status_map = build_name_to_base_status(changespecs)
 
         # First apply the query filter
         result = [
@@ -126,11 +132,15 @@ class ChangeSpecMixin:
         # Determine effective hide settings (disabled if query targets them)
         effective_hide_reverted = (
             self.hide_reverted
-            and not query_explicitly_targets_terminal(self.parsed_query, changespecs)
+            and not query_explicitly_targets_terminal(
+                self.parsed_query, changespecs, status_map=status_map
+            )
         )
         effective_hide_submitted = (
             self.hide_submitted
-            and not query_explicitly_targets_submitted(self.parsed_query, changespecs)
+            and not query_explicitly_targets_submitted(
+                self.parsed_query, changespecs, status_map=status_map
+            )
         )
 
         # Filter out hidden statuses
@@ -335,10 +345,9 @@ class ChangeSpecMixin:
                 self.query_string = query
                 filtered = self._filter_changespecs(self._all_changespecs)
                 if filtered:
-                    # Found results – fully load this query (disk read off
-                    # the main thread so the stopwatch keeps ticking).
-                    all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
-                    self._apply_changespecs(all_cs)
+                    # Already-loaded list — re-reading from disk would be a
+                    # ~37ms duplicate parse plus a second filter pass.
+                    self._apply_changespecs(self._all_changespecs)
                     self._restore_selection_for_current_query()
                     return True
             except Exception:
