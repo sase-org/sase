@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:30:38
-status: wip
+status: done
 ---
 # Plan: Scope `X` and `,X` to the focused agent panel
 

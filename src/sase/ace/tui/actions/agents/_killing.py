@@ -346,14 +346,15 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         """Kill all running agents and dismiss all done agents (double-confirm)."""
         from ._core import DISMISSABLE_STATUSES
 
+        panel_agents = self._agents_in_focused_panel()  # type: ignore[attr-defined]
         killable = [
             a
-            for a in self._agents
+            for a in panel_agents
             if a.pid is not None and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable = [
             a
-            for a in self._agents
+            for a in panel_agents
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 

@@ -344,7 +344,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_all'))}",
-                    "Kill & dismiss all agents",
+                    "Kill & dismiss agents in panel",
                 ),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'retry_edit'))}",

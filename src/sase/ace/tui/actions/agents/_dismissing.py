@@ -184,7 +184,7 @@ class AgentDismissingMixin:
 
         dismissable = [
             a
-            for a in self._agents
+            for a in self._agents_in_focused_panel()  # type: ignore[attr-defined]
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
