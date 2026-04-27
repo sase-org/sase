@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 11:46:22
-status: wip
+status: done
 ---
 # Hide Attempt Rows In Agents List
 

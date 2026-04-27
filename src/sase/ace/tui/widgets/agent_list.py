@@ -63,8 +63,8 @@ class AgentList(OptionList, inherit_bindings=False):
         """Message sent when selection changes.
 
         ``index`` is the agent index of the target agent; ``attempt_number``
-        is non-None when a prior-attempt child row is selected (the detail view
-        should then pin to that attempt rather than the agent's live state).
+        is preserved for compatibility with older attempt-row selection
+        state, but the list no longer renders prior-attempt child rows.
         ``group_key`` is non-None when a banner row is the selection target —
         the index then points at the first agent in that group, but the
         ``current_group_key`` state should be updated so banner-aware actions
@@ -96,7 +96,9 @@ class AgentList(OptionList, inherit_bindings=False):
         self._agents: list[Agent] = []
         self._programmatic_update: bool = False
         # Each rendered Option maps back to (agent_idx, attempt_number).
-        # attempt_number is None for an agent row, int for an attempt child.
+        # Attempt child rows are no longer emitted, so attempt_number is
+        # currently None for agent rows; the tuple shape is preserved for
+        # compatibility with selection/detail state.
         self._row_entries: list[tuple[int, int | None]] = []
         # Sparse map row_index -> GroupRow for selectable (collapsed) banners.
         # Expanded banners stay disabled and skip the map entirely so they
@@ -144,8 +146,9 @@ class AgentList(OptionList, inherit_bindings=False):
                 (non_hidden_count, hidden_count) for fold annotations
             marked_agents: Optional set of marked agent identities
             jump_hints: Optional row index -> hint character mapping
-            current_attempt_number: When non-None, highlight the corresponding
-                attempt child row of the selected agent instead of the agent row.
+            current_attempt_number: Accepted for compatibility with pinned
+                attempt detail state. The list still highlights the selected
+                agent row because prior-attempt child rows are not rendered.
             fold_registry: Per-group collapse registry.  The tree builder uses
                 it to mark banner rows ``is_collapsed``; collapsed banners
                 become selectable, expanded banners stay disabled so cursor
@@ -197,11 +200,10 @@ class AgentList(OptionList, inherit_bindings=False):
             tree, panel_uses_cs=panel_uses_cs
         )
 
-        # Pre-format agent and attempt rows so we know their widths before
-        # emitting banner rules (banners are stretched to the widest row,
-        # and the runtime suffix is right-aligned to the same column).
+        # Pre-format agent rows so we know their widths before emitting banner
+        # rules (banners are stretched to the widest row, and the runtime
+        # suffix is right-aligned to the same column).
         agent_parts: dict[int, tuple[Any, Any, str]] = {}
-        attempt_parts: dict[tuple[int, int], tuple[Any, Any, str]] = {}
         max_left = 0
         max_suffix = 0
         for i, agent in enumerate(agents):
@@ -216,7 +218,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 parents_with_visible_children,
                 fully_expanded_parents,
             )
-            is_selected_agent = i == current_idx and current_attempt_number is None
+            is_selected_agent = current_group_key is None and i == current_idx
             hint = (jump_hints or {}).get(i)
             tier_styles = agent_tier_styles.get(i, ())
             left, suffix, option_id = cached_format_agent_option(
@@ -242,20 +244,6 @@ class AgentList(OptionList, inherit_bindings=False):
             self._row_tier_styles[i] = tier_styles
             max_left = max(max_left, left.cell_len)
             max_suffix = max(max_suffix, suffix.cell_len)
-            if not agent.is_workflow_child:
-                for record in agent.attempt_history:
-                    is_selected_attempt = (
-                        i == current_idx
-                        and current_attempt_number == record.attempt_number
-                    )
-                    a_left, a_suffix, a_id = format_attempt_option(
-                        agent,
-                        record,
-                        is_selected=is_selected_attempt,
-                    )
-                    attempt_parts[(i, record.attempt_number)] = (a_left, a_suffix, a_id)
-                    max_left = max(max_left, a_left.cell_len)
-                    max_suffix = max(max_suffix, a_suffix.cell_len)
 
         gap = 2 if max_suffix > 0 else 0
         target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)
@@ -267,12 +255,6 @@ class AgentList(OptionList, inherit_bindings=False):
                 left, suffix, width=target_width, option_id=option_id
             )
             for i, (left, suffix, option_id) in agent_parts.items()
-        }
-        attempt_options: dict[tuple[int, int], Option] = {
-            key: assemble_padded_option(
-                left, suffix, width=target_width, option_id=option_id
-            )
-            for key, (left, suffix, option_id) in attempt_parts.items()
         }
         max_width = target_width
 
@@ -340,28 +322,10 @@ class AgentList(OptionList, inherit_bindings=False):
             agent = agents[i]
             option = agent_options[i]
             self.add_option(option)
-            is_selected_agent = (
-                current_group_key is None
-                and i == current_idx
-                and current_attempt_number is None
-            )
+            is_selected_agent = current_group_key is None and i == current_idx
             if is_selected_agent:
                 highlighted_row = len(self._row_entries)
             self._row_entries.append((i, None))
-
-            if agent.is_workflow_child:
-                continue
-            for record in agent.attempt_history:
-                attempt_option = attempt_options[(i, record.attempt_number)]
-                self.add_option(attempt_option)
-                is_selected_attempt = (
-                    current_group_key is None
-                    and i == current_idx
-                    and current_attempt_number == record.attempt_number
-                )
-                if is_selected_attempt:
-                    highlighted_row = len(self._row_entries)
-                self._row_entries.append((i, record.attempt_number))
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
@@ -432,8 +396,9 @@ class AgentList(OptionList, inherit_bindings=False):
 
         Args:
             current_idx: Agent index to highlight.
-            current_attempt_number: When non-None, highlight the attempt child
-                row of ``current_idx`` instead of the agent row.
+            current_attempt_number: Accepted for compatibility with pinned
+                attempt detail state. Falls back to the selected agent row when
+                no matching attempt row exists.
             group_key: When non-None, highlight the banner row whose
                 ``GroupRow.group_key`` matches.  Falls back to the agent-row
                 search when no banner matches (defensive against
@@ -448,13 +413,16 @@ class AgentList(OptionList, inherit_bindings=False):
                     return
         if not self._agents or not (0 <= current_idx < len(self._agents)):
             return
-        target = (current_idx, current_attempt_number)
-        for row, entry in enumerate(self._row_entries):
-            if entry == target:
-                self._programmatic_update = True
-                self.highlighted = row
-                self.call_later(self._clear_programmatic_flag)
-                return
+        targets = [(current_idx, current_attempt_number)]
+        if current_attempt_number is not None:
+            targets.append((current_idx, None))
+        for target in targets:
+            for row, entry in enumerate(self._row_entries):
+                if entry == target:
+                    self._programmatic_update = True
+                    self.highlighted = row
+                    self.call_later(self._clear_programmatic_flag)
+                    return
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
