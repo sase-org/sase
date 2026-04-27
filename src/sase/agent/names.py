@@ -495,18 +495,6 @@ def _get_active_agent_names() -> set[str]:
             # ``<letter>.<digits>`` reserves ``<letter>``.
             prefix = _extract_auto_name_prefix(name_field, workflow_name_field)
 
-            # Follow-up agents (coder/epic steps spawned after plan
-            # approval) share their parent's name and are sub-steps of
-            # the parent workflow — they should not independently
-            # reserve their full name. They still reserve the auto-name
-            # prefix so a fresh ``<base>`` agent does not collide with
-            # them; the parent is by definition alive (otherwise this
-            # artifact dir would have been dismissed with it).
-            if data.get("parent_timestamp"):
-                if prefix is not None:
-                    names.add(prefix)
-                continue
-
             # Done agents do not reserve their name. They are hidden by
             # default on the Agents tab, so reserving their slot would
             # block reuse without any visual collision benefit.
@@ -519,10 +507,23 @@ def _get_active_agent_names() -> set[str]:
             # Verify the agent process is actually alive — orphaned agents
             # (killed via SIGKILL, system crash, etc.) may lack done.json
             # but their process is long dead.
-            if is_process_alive(data, artifact_dir):
-                names.add(name)
+            if not is_process_alive(data, artifact_dir):
+                continue
+
+            # Follow-up agents (coder/epic steps spawned after plan
+            # approval) share their parent's name and are sub-steps of
+            # the parent workflow — they should not independently
+            # reserve their full name. They still reserve the auto-name
+            # prefix while live so a fresh ``<base>`` agent does not
+            # collide with them.
+            if data.get("parent_timestamp"):
                 if prefix is not None:
                     names.add(prefix)
+                continue
+
+            names.add(name)
+            if prefix is not None:
+                names.add(prefix)
 
     return names
 

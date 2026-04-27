@@ -362,6 +362,57 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "n"
 
+    def test_done_parent_tracked_child_releases_prefix(self, tmp_path: Path) -> None:
+        """A done ``parent_timestamp`` child releases the auto-name prefix."""
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-child",
+            "m.claude.code",
+            workflow_name="m.claude",
+            parent_timestamp="run-parent",
+            pid=os.getpid(),
+            done=True,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "m"
+
+    def test_dead_parent_tracked_child_releases_prefix(self, tmp_path: Path) -> None:
+        """A dead ``parent_timestamp`` child without done.json releases the prefix."""
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-child",
+            "m.claude.code",
+            workflow_name="m.claude",
+            parent_timestamp="run-parent",
+            pid=_DEAD_PID,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "m"
+
+    def test_live_parent_tracked_child_reserves_prefix_without_root(
+        self, tmp_path: Path
+    ) -> None:
+        """A live ``parent_timestamp`` child reserves the prefix on its own."""
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-child",
+            "m.claude.code",
+            workflow_name="m.claude",
+            parent_timestamp="run-parent",
+            pid=os.getpid(),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "n"
+
     def test_multi_segment_user_base_does_not_pollute_pool(
         self, tmp_path: Path
     ) -> None:
