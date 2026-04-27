@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 14:36:23
-status: wip
+status: done
 ---
 # Plan: Fix Flaky Agent Loader Bundle Test
 

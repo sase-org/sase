@@ -167,16 +167,17 @@ def test_load_agents_from_disk_includes_bundles_missing_from_index() -> None:
     with (
         patch("sase.ace.tui.models.load_all_agents", return_value=[]),
         patch(
-            "sase.ace.dismissed_agents.load_dismissed_bundles",
+            "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
+            ".dismissed_bundles",
             return_value=[bundled],
-        ) as mock_load_bundles,
+        ) as mock_dismissed_bundles,
     ):
         all_agents, dismissed_from_loader = load_agents_from_disk(set())
 
     assert all_agents == []
     assert dismissed_from_loader == [bundled]
     assert bundled._loaded_from_dismissed_bundle is True
-    mock_load_bundles.assert_called_once_with()
+    mock_dismissed_bundles.assert_called_once_with()
 
 
 def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:
