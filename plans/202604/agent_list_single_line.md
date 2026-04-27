@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 11:39:07
-status: wip
+status: done
 ---
 # Agent List Single-Line Rendering Plan
 

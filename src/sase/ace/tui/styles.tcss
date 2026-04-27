@@ -753,6 +753,8 @@ HintInputBar #hint-escape-hint {
 /* Agent list styling */
 AgentList {
     scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
 }
 
 AgentList > .option-list--option {
