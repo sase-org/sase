@@ -13,7 +13,9 @@ Covers Phase 3 of the cyclable grouping/sorting modes feature
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -241,3 +243,17 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
     assert app.scroll_calls == 0
     assert app.refilter_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
+
+
+# ---------------------------------------------------------------------------
+# Persistence on cycle
+# ---------------------------------------------------------------------------
+
+
+def test_cycle_persists_new_mode(tmp_path: Path) -> None:
+    """After cycling, the new mode is written to disk."""
+    test_file = tmp_path / "grouping_mode.txt"
+    with patch("sase.ace.grouping_mode_state._GROUPING_MODE_FILE", test_file):
+        app = _StubApp([_agent()])
+        app.action_cycle_grouping_mode()
+        assert test_file.read_text() == GroupingMode.BY_DATE.value

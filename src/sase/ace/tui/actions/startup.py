@@ -215,15 +215,16 @@ class StartupMixin:
         # points at the active mode's slot; the cycle action swaps it
         # in via :meth:`_ensure_mode_registry` so existing call sites
         # (loading, folding, display) keep reading a single attribute.
+        from ...grouping_mode_state import load_grouping_mode
         from ..models.agent_group_fold import AgentGroupFoldRegistry
         from ..models.agent_groups import GroupingMode
 
-        self._grouping_mode: GroupingMode = GroupingMode.STANDARD
+        self._grouping_mode: GroupingMode = load_grouping_mode()
         self._group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry] = {
-            GroupingMode.STANDARD: AgentGroupFoldRegistry(),
+            self._grouping_mode: AgentGroupFoldRegistry(),
         }
         self._group_fold_registry: AgentGroupFoldRegistry = self._group_fold_registries[
-            GroupingMode.STANDARD
+            self._grouping_mode
         ]
         # When non-None, the user has navigated onto a group banner row
         # (only possible when that group is collapsed).  Banner-aware

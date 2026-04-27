@@ -64,6 +64,8 @@ class AgentGroupingMixin:
 
     def action_cycle_grouping_mode(self) -> None:
         """Advance the agents-tab grouping mode by one step."""
+        from ....grouping_mode_state import save_grouping_mode
+
         if self.current_tab != "agents":
             return
 
@@ -71,6 +73,7 @@ class AgentGroupingMixin:
         if next_mode is self._grouping_mode:
             return
         self._grouping_mode = next_mode
+        save_grouping_mode(next_mode)
         # Swap the active fold registry so existing call sites (loading,
         # folding, display) continue to read ``_group_fold_registry``.
         self._group_fold_registry = self._ensure_mode_registry(next_mode)

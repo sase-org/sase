@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:34:24
-status: wip
+status: done
 ---
 # Persist the Agents-tab grouping mode across TUI restarts
 
