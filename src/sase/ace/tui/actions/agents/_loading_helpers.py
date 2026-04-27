@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from ....changespec import ChangeSpec
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
 
@@ -72,45 +73,55 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
 
 def load_agents_from_disk(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
     """Load agents from disk (thread-safe, no app state mutation).
 
     Args:
         dismissed_agents: Snapshot of dismissed agent identities.
+        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
+            supplied, the loader skips its own ``find_all_changespecs()``
+            call and reuses this snapshot for bug/CL lookups.
 
     Returns:
         Tuple of (all_agents, dismissed_from_loader).
     """
     with tui_trace("agents.load_from_disk"):
-        return _load_agents_from_disk_impl(dismissed_agents)
+        return _load_agents_from_disk_impl(
+            dismissed_agents, changespec_snapshot=changespec_snapshot
+        )
 
 
 def _load_agents_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
     from ...models import load_all_agents
 
-    all_agents = load_all_agents()
+    all_agents = load_all_agents(changespec_snapshot=changespec_snapshot)
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
     from sase.ace.agent_tags import load_agent_tags
-    from sase.ace.tui.models.agent import load_attempt_history
-    from sase.llm_provider.retry_config import RetryState
 
+    from ._snapshot_cache import get_global_snapshot_cache
+
+    snapshot_cache = get_global_snapshot_cache()
     tags_by_identity = load_agent_tags()
 
     for agent in all_agents:
         agent.tag = tags_by_identity.get(agent.identity)
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
-            agent.attempt_history = load_attempt_history(artifacts_dir)
+            agent.attempt_history = snapshot_cache.attempt_history_for(artifacts_dir)
 
         if agent.status != "RUNNING":
             continue
         if not artifacts_dir:
             continue
-        retry_state = RetryState.read_from(artifacts_dir)
+        retry_state = snapshot_cache.retry_state_for(artifacts_dir)
         if retry_state is None:
             continue
         agent.retry_count = retry_state.retry_count
@@ -146,13 +157,13 @@ def _load_agents_from_disk_impl(
     # so load every saved bundle, including entries whose identity index was
     # pruned.  Mark them so apply-time self-healing can repair the index while
     # cleanup still distinguishes them from loader-sourced dismissed artifacts.
-    from ....dismissed_agents import load_dismissed_bundles
-
+    # Bundles are cached by directory signature so an idle refresh skips the
+    # per-file JSON parse.
     loader_identities = {a.identity for a in dismissed_from_loader}
     loader_suffixes = {
         a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
     }
-    for bundled_agent in load_dismissed_bundles():
+    for bundled_agent in snapshot_cache.dismissed_bundles():
         if bundled_agent.identity in loader_identities:
             continue
         if (

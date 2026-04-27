@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from ...changespec import find_all_changespecs
+from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
 from ._dedup import (
     dedup_axe_spawned_agents,
@@ -56,7 +56,9 @@ def load_all_workflows() -> list[WorkflowEntry]:
     return workflows_with_time + workflows_without_time
 
 
-def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
+def _load_agents_from_all_sources(
+    *, changespec_snapshot: list[ChangeSpec] | None = None
+) -> tuple[list[Agent], list[Agent]]:
     """Load agents from all sources and return (agents, workflow_agent_steps).
 
     Sources:
@@ -65,14 +67,26 @@ def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
     3. running.json markers (home mode agents)
     4. Workflow agent steps and workflow entries
     5. HOOKS, MENTORS, COMMENTS fields from ChangeSpecs
+
+    Args:
+        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
+            supplied, the loader skips the in-process ``find_all_changespecs()``
+            call and reuses this snapshot for bug/CL lookups and the
+            HOOKS/MENTORS/COMMENTS sweep.
     """
     agents: list[Agent] = []
 
     # Get all project files
     project_files = get_all_project_files()
 
-    # Load all ChangeSpecs early to build bug lookup
-    all_changespecs = find_all_changespecs()
+    # Load all ChangeSpecs early to build bug lookup. Caller-supplied
+    # snapshots avoid re-globbing every ``.gp`` file when the TUI already
+    # has a fresh cached snapshot in hand.
+    all_changespecs = (
+        changespec_snapshot
+        if changespec_snapshot is not None
+        else find_all_changespecs()
+    )
 
     # Build bug URL and CL number lookups by CL name (single pass)
     bug_by_cl_name: dict[str, str | None] = {}
@@ -499,7 +513,9 @@ def _sort_and_reorder(
     return sorted_agents
 
 
-def load_all_agents() -> list[Agent]:
+def load_all_agents(
+    *, changespec_snapshot: list[ChangeSpec] | None = None
+) -> list[Agent]:
     """Load all running agents from all sources.
 
     Sources:
@@ -509,11 +525,18 @@ def load_all_agents() -> list[Agent]:
     4. COMMENTS field with suffix_type="running_agent" (CRS)
     5. done.json marker files (DONE agents)
 
+    Args:
+        changespec_snapshot: Optional pre-fetched ChangeSpec list. When
+            supplied, the loader skips its own ``find_all_changespecs()``
+            call and reuses this snapshot.
+
     Returns:
         List of Agent objects sorted by start time (most recent first),
         with agents that have no start time at the end.
     """
-    agents, workflow_agent_steps = _load_agents_from_all_sources()
+    agents, workflow_agent_steps = _load_agents_from_all_sources(
+        changespec_snapshot=changespec_snapshot
+    )
 
     # Filter out agents with dead PIDs (but keep completed agents)
     agents = _filter_dead_pids(agents)

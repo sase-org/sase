@@ -48,6 +48,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._trim_is_trimmed: bool = False
         self._attempt_view_mode: str = "merged"
         self._current_attempt_number: int | None = None
+        # Two-phase update guard. ``update_display_immediate`` and
+        # ``update_display`` both bump this counter; debounced workers
+        # capture the value at start and discard their result if the
+        # generation has advanced before they complete.
+        self._agent_detail_generation: int = 0
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -77,12 +82,36 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             attempt_number: When non-None, pin the detail view to the matching
                 prior-attempt record (shows full error + that attempt's reply).
         """
+        self._agent_detail_generation += 1
         with tui_trace("widget.agent_detail.update_display", status=agent.status):
             self._update_display_impl(
                 agent,
                 stale_threshold_seconds=stale_threshold_seconds,
                 attempt_number=attempt_number,
             )
+
+    def update_display_immediate(
+        self,
+        agent: Agent,
+        attempt_number: int | None = None,
+    ) -> None:
+        """Phase-5 immediate path: refresh prompt header without spawning workers.
+
+        Called synchronously from the j/k debounced refresh so the user sees
+        the new agent's title/status and any cached prompt content with no
+        latency, while the file/thinking/diff workers wait for the detail
+        debouncer to settle on a final selection.
+        """
+        self._agent_detail_generation += 1
+        with tui_trace(
+            "widget.agent_detail.update_display_immediate", status=agent.status
+        ):
+            self._current_agent = agent
+            self._current_attempt_number = attempt_number
+            prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+            prompt_panel.attempt_view_mode = self._attempt_view_mode
+            prompt_panel.attempt_pinned_number = attempt_number
+            prompt_panel.update_display(agent)
 
     def _update_display_impl(
         self,

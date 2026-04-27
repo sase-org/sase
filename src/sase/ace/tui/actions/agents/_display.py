@@ -293,14 +293,35 @@ class AgentDisplayMixin:
     def _refresh_agents_display_debounced(self) -> None:
         """Debounced refresh for j/k navigation on the agents tab.
 
-        Updates the list highlight and position counter immediately, but
-        debounces the expensive detail panel and footer updates (disk I/O,
-        Rich Syntax highlighting, background workers).
+        Two-phase: the immediate phase updates list highlight, info panel,
+        and the detail prompt header for the freshly-selected agent. The
+        debounced phase fires after the j/k burst settles and runs the
+        expensive file/thinking/diff workers — only for the final selection.
         """
         with tui_trace("agents.refresh_debounced", agents=len(self._agents)):
             self._refresh_panel_highlights()
             self._update_agents_info_panel()
+            self._apply_agent_detail_immediate()
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+
+    def _apply_agent_detail_immediate(self) -> None:
+        """Update the agent detail prompt header without spawning workers."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if current_agent is None:
+            agent_detail.show_empty()
+            return
+        agent_detail.update_display_immediate(
+            current_agent, attempt_number=self.current_attempt_number
+        )
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""

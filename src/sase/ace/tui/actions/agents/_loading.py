@@ -125,6 +125,8 @@ class AgentLoadingMixin:
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
+        from ....changespec import find_all_changespecs_cached
+
         on_agents_tab = self.current_tab == "agents"
 
         selected_identity: tuple[AgentType, str, str | None] | None = None
@@ -132,7 +134,10 @@ class AgentLoadingMixin:
             selected_identity = self._agents[self.current_idx].identity
 
         dismissed_snapshot = set(self._dismissed_agents)
-        all_agents, dismissed_from_loader = load_agents_from_disk(dismissed_snapshot)
+        changespec_snapshot = find_all_changespecs_cached()
+        all_agents, dismissed_from_loader = load_agents_from_disk(
+            dismissed_snapshot, changespec_snapshot=changespec_snapshot
+        )
         self._apply_loaded_agents(
             all_agents, dismissed_from_loader, on_agents_tab, selected_identity
         )
@@ -150,10 +155,15 @@ class AgentLoadingMixin:
         """
         import asyncio
 
+        from ....changespec import find_all_changespecs_cached
+
         dismissed_snapshot = set(self._dismissed_agents)
+        changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()
         all_agents, dismissed_from_loader = await asyncio.to_thread(
-            load_agents_from_disk, dismissed_snapshot
+            load_agents_from_disk,
+            dismissed_snapshot,
+            changespec_snapshot=changespec_snapshot,
         )
         disk_elapsed = time.perf_counter() - disk_start
         log.debug(
