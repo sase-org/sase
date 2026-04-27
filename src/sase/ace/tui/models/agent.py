@@ -1,96 +1,29 @@
 """Agent data model for the Agents tab."""
 
-import json
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from .agent_attempt import AttemptRecord, load_attempt_history
+from .agent_source import agent_source
+from .agent_time import (
+    compute_row_runtime,
+    format_compact_duration,
+    format_wait_until,
+)
 
-def format_wait_until(iso_str: str) -> str:
-    """Format an ISO 8601 target time for display.
-
-    Same day: ``"14:30"`` (just the time).
-    Different day: ``"Apr 11 14:30"`` (short month + day + time).
-    """
-    target = datetime.fromisoformat(iso_str)
-    now = datetime.now()
-    if target.date() == now.date():
-        return target.strftime("%H:%M")
-    return target.strftime("%b %-d %H:%M")
-
-
-def format_compact_duration(seconds: float) -> str:
-    """Format seconds as a compact duration string (e.g., '4m32s', '1h5m').
-
-    Shows the two most significant non-zero units:
-    - >= 1h: 'Xh Ym'
-    - >= 1m: 'Xm Ys'
-    - < 1m: 'Xs'
-    """
-    total = max(0, int(seconds))
-    h, remainder = divmod(total, 3600)
-    m, s = divmod(remainder, 60)
-    if h > 0:
-        return f"{h}h{m:02d}m" if m else f"{h}h"
-    if m > 0:
-        return f"{m}m{s:02d}s" if s else f"{m}m"
-    return f"{s}s"
-
-
-def _format_finish_timestamp(
-    stop: datetime, now: datetime | None = None
-) -> tuple[str, str]:
-    """Format a finish-time clock for the Agents-tab right-side suffix.
-
-    Returns a ``(date_prefix, time)`` pair so the renderer can style the
-    two halves differently:
-
-    - Same calendar day: ``("", "HH:MM:SS")``.
-    - Prior day, same year: ``("Mon DD ", "HH:MM")`` (trailing space owns
-      the gap between the two halves).
-    - Different year: ``("Mon DD 'YY", "")``.
-    """
-    reference = now if now is not None else datetime.now()
-    if stop.date() == reference.date():
-        return ("", stop.strftime("%H:%M:%S"))
-    if stop.year == reference.year:
-        return (stop.strftime("%b %-d "), stop.strftime("%H:%M"))
-    return (stop.strftime("%b %-d '%y"), "")
-
-
-def compute_row_runtime(
-    agent: "Agent",
-    now: datetime | None = None,
-) -> tuple[tuple[str, str] | None, str | None]:
-    """Compute the right-side ``(timestamp, elapsed)`` suffix pair for a row.
-
-    - ``(None, None)`` when no suffix should render (missing ``start_time``
-      or pre-run ``WAITING`` with no ``run_start_time``).
-    - Active rows: ``(None, "<dur>")``.
-    - Finished rows: ``((date_prefix, time), "<dur>")`` where the
-      ``(date_prefix, time)`` pair follows the tiers in
-      :func:`_format_finish_timestamp`.
-
-    Elapsed uses ``run_start_time`` when set so a long WAIT period doesn't
-    inflate what reads as runtime; falls back to ``start_time``.
-    """
-    if agent.start_time is None:
-        return (None, None)
-    effective_start = agent.run_start_time or agent.start_time
-    if agent.stop_time is not None:
-        elapsed_secs = (agent.stop_time - effective_start).total_seconds()
-        return (
-            _format_finish_timestamp(agent.stop_time, now=now),
-            format_compact_duration(elapsed_secs),
-        )
-    if agent.status == "WAITING" and agent.run_start_time is None:
-        return (None, None)
-    reference = now if now is not None else datetime.now()
-    elapsed_secs = (reference - effective_start).total_seconds()
-    return (None, format_compact_duration(elapsed_secs))
+__all__ = [
+    "Agent",
+    "AgentType",
+    "AttemptRecord",
+    "agent_source",
+    "compute_row_runtime",
+    "format_compact_duration",
+    "format_wait_until",
+    "load_attempt_history",
+]
 
 
 class AgentType(Enum):
@@ -98,134 +31,6 @@ class AgentType(Enum):
 
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
-
-
-@dataclass(frozen=True)
-class AttemptRecord:
-    """One prior (failed) attempt preserved under ``attempts/<N>/``.
-
-    Mirrors the ``attempt_meta.json`` schema written by
-    ``sase.axe.run_agent_exec_attempts.snapshot_attempt``, with the resolved
-    paths to the per-attempt reply files.
-    """
-
-    attempt_number: int
-    status: str  # "failed" or "raised"
-    start_epoch: float
-    end_epoch: float
-    model: str | None
-    used_fallback: bool
-    error_snippet: str
-    error_full: str
-    live_reply_path: str
-    timestamps_path: str
-
-    def get_reply_content(self) -> str | None:
-        """Return the live_reply.md captured for this attempt."""
-        try:
-            with open(self.live_reply_path, encoding="utf-8") as f:
-                return f.read()
-        except (FileNotFoundError, OSError):
-            return None
-
-    def get_timestamped_reply_chunks(self) -> list[tuple[str, str]] | None:
-        """Return the timestamped chunks captured for this attempt.
-
-        Mirrors ``Agent.get_timestamped_reply_chunks`` shape: list of
-        ``(iso_timestamp, content_text)`` or None when the timestamps file
-        is missing / empty.
-        """
-        try:
-            with open(self.timestamps_path, encoding="utf-8") as f:
-                lines = f.readlines()
-        except (FileNotFoundError, OSError):
-            return None
-
-        entries: list[tuple[int, str]] = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                entries.append((data["byte_offset"], data["timestamp"]))
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-        if not entries:
-            return None
-
-        try:
-            with open(self.live_reply_path, "rb") as f:
-                content_bytes = f.read()
-        except (FileNotFoundError, OSError):
-            return None
-
-        chunks: list[tuple[str, str]] = []
-        for i, (offset, ts) in enumerate(entries):
-            end = entries[i + 1][0] if i + 1 < len(entries) else len(content_bytes)
-            chunks.append(
-                (ts, content_bytes[offset:end].decode("utf-8", errors="replace"))
-            )
-
-        return chunks if chunks else None
-
-    @property
-    def start_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.start_epoch)
-
-    @property
-    def end_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.end_epoch)
-
-    @property
-    def start_hhmmss(self) -> str:
-        return self.start_datetime.strftime("%H:%M:%S")
-
-
-def load_attempt_history(artifacts_dir: str | None) -> list[AttemptRecord]:
-    """Read ``attempts/<N>/attempt_meta.json`` records, sorted by attempt_number.
-
-    Silently tolerates a missing ``attempts/`` directory or malformed meta
-    files.
-    """
-    if not artifacts_dir:
-        return []
-    attempts_dir = os.path.join(artifacts_dir, "attempts")
-    if not os.path.isdir(attempts_dir):
-        return []
-
-    records: list[AttemptRecord] = []
-    for entry in os.listdir(attempts_dir):
-        sub = os.path.join(attempts_dir, entry)
-        if not os.path.isdir(sub):
-            continue
-        meta_path = os.path.join(sub, "attempt_meta.json")
-        try:
-            with open(meta_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
-            continue
-        try:
-            records.append(
-                AttemptRecord(
-                    attempt_number=int(data["attempt_number"]),
-                    status=str(data.get("status", "failed")),
-                    start_epoch=float(data.get("start_epoch", 0.0)),
-                    end_epoch=float(data.get("end_epoch", 0.0)),
-                    model=data.get("model"),
-                    used_fallback=bool(data.get("used_fallback", False)),
-                    error_snippet=str(data.get("error_snippet", "")),
-                    error_full=str(data.get("error_full", "")),
-                    live_reply_path=os.path.join(sub, "live_reply.md"),
-                    timestamps_path=os.path.join(sub, "live_reply_timestamps.jsonl"),
-                )
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-
-    records.sort(key=lambda r: r.attempt_number)
-    return records
 
 
 @dataclass
@@ -380,29 +185,24 @@ class Agent:
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list["Agent"] = field(default_factory=list)
 
-    # ----------------------------------------------------------------
-    # Retry-chain lineage (spawn-on-retry)
-    # ----------------------------------------------------------------
-    # Backward pointer to the immediate parent in the retry chain (the agent
-    # that failed and spawned this retry).  None when this is not a retry.
+    # Retry-chain lineage (spawn-on-retry).
+    # retry_of_timestamp: backward pointer to the immediate parent in the
+    #   retry chain. None when this is not a retry.
+    # retry_attempt: 0 = chain root; 1+ = retry attempt depth.
+    # retry_chain_root_timestamp: short-circuit pointer to the chain root.
+    # retried_as_timestamp: forward pointer to the downstream child that took
+    #   over; when set the parent displays as "FAILED (RETRIED)".
+    # retry_terminal: marks the parent as terminal-but-handed-off.
+    # retry_error_category: one of "context_overflow", "rate_limit",
+    #   "transient", "other".
+    # retry_chain_siblings: direct retry children (populated at load time,
+    #   not serialized). Mirrors followup_agents for the retry-chain dimension.
     retry_of_timestamp: str | None = None
-    # 0 = chain root (the original failing attempt); 1+ = retry attempt
-    # number, increasing with each spawned retry.
     retry_attempt: int = 0
-    # Pointer to the chain root, short-circuiting walks for display.
     retry_chain_root_timestamp: str | None = None
-    # Forward pointer set on a failed-then-retried parent; identifies the
-    # downstream child that took over.  When set the parent's display
-    # status becomes "FAILED (RETRIED)" instead of "FAILED".
     retried_as_timestamp: str | None = None
-    # Marks the parent as terminal-but-handed-off (no more in-process work
-    # will happen here; downstream child carries the chain forward).
     retry_terminal: bool = False
-    # One of "context_overflow", "rate_limit", "transient", "other" — the
-    # error class that triggered the retry.
     retry_error_category: str | None = None
-    # Direct retry children of this agent (populated at load time, not
-    # serialized).  Mirrors followup_agents for the retry-chain dimension.
     retry_chain_siblings: list["Agent"] = field(default_factory=list)
 
     # When plans were submitted for review (one per proposal; plan agents only)
@@ -692,20 +492,3 @@ class Agent:
         from sase.ace.tui.models.agent_bundle import from_bundle_dict
 
         return from_bundle_dict(data)
-
-
-def agent_source(agent: Agent) -> Literal["axe", "manual"]:
-    """Classify *agent* as ``"axe"`` (workflow-spawned) or ``"manual"``.
-
-    An agent is ``axe`` when it carries any axe lineage marker — either it
-    sits inside a workflow (``workflow is not None``) or it is itself a
-    workflow step (``step_type is not None``). Everything else is
-    classified as ``manual``.
-
-    Edge case: a manually-launched root-of-workflow agent is classified as
-    ``manual`` until a workflow attaches to it. That's the intended
-    behavior — at the moment of evaluation it is still a manual run.
-    """
-    if agent.workflow is not None or agent.step_type is not None:
-        return "axe"
-    return "manual"

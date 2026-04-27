@@ -8,8 +8,8 @@ from sase.ace.tui.models.agent import (
     Agent,
     AgentType,
     compute_row_runtime,
-    _format_finish_timestamp,
 )
+from sase.ace.tui.models.agent_time import _format_finish_timestamp
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import AgentList
 
