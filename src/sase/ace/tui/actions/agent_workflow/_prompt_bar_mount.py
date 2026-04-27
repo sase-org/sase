@@ -163,8 +163,8 @@ class PromptBarMountMixin:
         if refs:
             record_file_references(refs)
 
-    def _unmount_prompt_bar(self, *, save_cancelled: bool = True) -> None:
-        """Unmount the prompt input bar if present, optionally saving draft text."""
+    def _unmount_prompt_bar(self) -> None:
+        """Unmount the prompt input bar if present, saving any unsaved text."""
         from ...widgets import PromptInputBar
 
         try:
@@ -172,10 +172,10 @@ class PromptBarMountMixin:
         except Exception:
             return  # Bar not present
 
-        if save_cancelled:
-            # Save any non-trivial text as cancelled before removing the bar.
-            # This is the safety net for paths that dismiss or replace the bar.
-            self._save_bar_text_as_cancelled(bar)
+        # Save any non-trivial text as cancelled before removing the bar.
+        # This is the safety net — every code path that dismisses the bar
+        # flows through here, so no prompt text can ever be silently lost.
+        self._save_bar_text_as_cancelled(bar)
 
         # Transfer focus to a live widget *before* the forcible detach below.
         # Without this, Screen.focused can be left pointing at the PromptTextArea
