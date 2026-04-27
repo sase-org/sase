@@ -25,6 +25,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
+from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 
 
@@ -35,6 +36,7 @@ class _FakeApp(AgentLaunchMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
         self.body_calls: list[str] = []
+        self.unmount_save_cancelled: list[bool] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_changespecs = None
         self._last_custom_agent_selection = None
@@ -46,8 +48,67 @@ class _FakeApp(AgentLaunchMixin):
         del kwargs
         self.scheduled.append((fn, args))
 
-    def _unmount_prompt_bar(self) -> None:
-        pass
+    def _unmount_prompt_bar(self, *, save_cancelled: bool = True) -> None:
+        self.unmount_save_cancelled.append(save_cancelled)
+
+    def _run_agent_launch_body(self, prompt: str) -> None:
+        self.body_calls.append(prompt)
+
+
+class _FakeNodes:
+    def __init__(self) -> None:
+        self.removed: list[object] = []
+
+    def _remove(self, node: object) -> None:
+        self.removed.append(node)
+
+
+class _FakeParent:
+    def __init__(self) -> None:
+        self._nodes = _FakeNodes()
+
+
+class _FakePromptBar:
+    def __init__(self) -> None:
+        self._parent = _FakeParent()
+        self.removed = False
+
+    def remove(self) -> None:
+        self.removed = True
+
+
+class _PromptUnmountApp(AgentLaunchMixin, PromptBarMountMixin):
+    """Harness for the launch-submit prompt-bar teardown path."""
+
+    def __init__(self) -> None:
+        self.notifications: list[tuple[str, str | None]] = []
+        self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
+        self.body_calls: list[str] = []
+        self.cancelled_save_calls: list[object] = []
+        self.focus_transfer_calls: list[object] = []
+        self.bar = _FakePromptBar()
+        self._prompt_context: PromptContext | None = _fake_context()
+        self._bulk_changespecs = None
+        self._last_custom_agent_selection = None
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
+
+    def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
+        del kwargs
+        self.scheduled.append((fn, args))
+
+    def query_one(self, selector: str, *_args: Any) -> _FakePromptBar:
+        if selector == "#prompt-input-bar":
+            return self.bar
+        raise LookupError(selector)
+
+    def _save_bar_text_as_cancelled(self, bar: object) -> None:
+        time.sleep(0.2)
+        self.cancelled_save_calls.append(bar)
+
+    def _transfer_focus_off_prompt_bar(self, bar: object) -> None:
+        self.focus_transfer_calls.append(bar)
 
     def _run_agent_launch_body(self, prompt: str) -> None:
         self.body_calls.append(prompt)
@@ -215,9 +276,36 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     fn, args = app.scheduled[0]
     assert fn == app._run_agent_launch_body_async
     assert args == ("the prompt",)
+    assert app.unmount_save_cancelled == [False]
     # The body itself was NOT called synchronously.
     assert app.body_calls == []
     assert app.notifications == [("Launching agent for test...", None)]
+
+
+def test_finish_agent_launch_skips_slow_cancelled_save_on_submit() -> None:
+    app = _PromptUnmountApp()
+
+    app._finish_agent_launch("the prompt")
+
+    assert app.cancelled_save_calls == []
+    assert app.focus_transfer_calls == [app.bar]
+    assert app.bar._parent._nodes.removed == [app.bar]
+    assert app.bar.removed is True
+    assert len(app.scheduled) == 1
+    fn, args = app.scheduled[0]
+    assert fn == app._run_agent_launch_body_async
+    assert args == ("the prompt",)
+
+
+def test_unmount_prompt_bar_saves_cancelled_by_default() -> None:
+    app = _PromptUnmountApp()
+
+    app._unmount_prompt_bar()
+
+    assert app.cancelled_save_calls == [app.bar]
+    assert app.focus_transfer_calls == [app.bar]
+    assert app.bar._parent._nodes.removed == [app.bar]
+    assert app.bar.removed is True
 
 
 def test_run_agent_launch_body_skips_xprompt_processing_for_plain_prompt() -> None:
