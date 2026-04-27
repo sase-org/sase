@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 12:15:44
 status: wip
+bead_id: sase-w
 ---
 # Plan: TUI (`sase ace`) Performance Overhaul
 
