@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:25:54
-status: wip
+status: done
 ---
 # SASE Plan: Fix `test_navigation_next_key` `NoMatches` flake on `#list-panel`
 

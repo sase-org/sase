@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING, Literal
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -483,9 +486,8 @@ class ChangeSpecMixin:
         try:
             list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
         except NoMatches:
-            # Widget tree not ready yet — fall back to the full refresh path.
+            log.debug("changespecs display refresh skipped: widget tree unavailable")
             self._changespec_detail_debouncer.cancel()
-            self._refresh_display()
             return
 
         if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
@@ -498,6 +500,8 @@ class ChangeSpecMixin:
         # Full refresh supersedes any pending debounced detail update.
         self._changespec_detail_debouncer.cancel()
 
+        from textual.css.query import NoMatches
+
         from ...query import query_explicitly_targets_terminal
         from ..widgets import (
             AncestorsChildrenPanel,
@@ -507,13 +511,17 @@ class ChangeSpecMixin:
             SearchQueryPanel,
         )
 
-        list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
-        detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
-        search_panel = self.query_one("#search-query-panel", SearchQueryPanel)  # type: ignore[attr-defined]
-        footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-        ancestors_panel = self.query_one(  # type: ignore[attr-defined]
-            "#ancestors-children-panel", AncestorsChildrenPanel
-        )
+        try:
+            list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
+            detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
+            search_panel = self.query_one("#search-query-panel", SearchQueryPanel)  # type: ignore[attr-defined]
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            ancestors_panel = self.query_one(  # type: ignore[attr-defined]
+                "#ancestors-children-panel", AncestorsChildrenPanel
+            )
+        except NoMatches:
+            log.debug("changespecs full refresh skipped: widget tree unavailable")
+            return
 
         list_widget.update_list(
             self.changespecs,
