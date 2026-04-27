@@ -128,6 +128,7 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_counts: dict[str, tuple[int, int]] | None = None,
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         jump_hints: dict[int, str] | None = None,
+        banner_jump_hints: dict[tuple[str, ...], str] | None = None,
         current_attempt_number: int | None = None,
         fold_registry: AgentGroupFoldRegistry | None = None,
         current_group_key: tuple[str, ...] | None = None,
@@ -303,6 +304,11 @@ class AgentList(OptionList, inherit_bindings=False):
                     if banner_seq < len(banner_tier_styles)
                     else ()
                 )
+                banner_hint = (
+                    (banner_jump_hints or {}).get(entry.group.group_key)
+                    if banner_selectable
+                    else None
+                )
                 option = cached_format_banner_option(
                     self._agent_render_cache,
                     entry.group,
@@ -312,6 +318,7 @@ class AgentList(OptionList, inherit_bindings=False):
                     selectable=banner_selectable,
                     mode=grouping_mode,
                     tier_styles=tier_styles_for_banner,
+                    hint_char=banner_hint,
                 )
                 banner_seq += 1
                 row_index = len(self._row_entries)

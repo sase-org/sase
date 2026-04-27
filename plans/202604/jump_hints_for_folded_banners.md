@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:45:48
-status: wip
+status: done
 ---
 # Jump hints for folded headings on the Agents tab
 

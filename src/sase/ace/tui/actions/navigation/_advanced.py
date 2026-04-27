@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from ...changespec_history import ChangeSpecHistoryEntry
 from ...models.fold_state import FoldLevel, cycle_forward
-from .jump_hints import build_jump_hint_maps
+from .jump_hints import (
+    BannerJumpTarget,
+    JumpTarget,
+    build_jump_hint_maps,
+)
 from ._types import NavigationMixinBase
 
 
@@ -132,6 +138,10 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
     def action_jump_to_entry(self) -> None:
         """Enter one-key jump mode for the current tab's left-panel entries."""
+        if self.current_tab == "agents":
+            self._begin_agents_jump_mode()
+            return
+
         indices = self._jump_candidate_indices()
         if not indices:
             return
@@ -142,39 +152,138 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             return
         self._entry_jump_mode_active = True
         self._update_jump_footer()
-        if self.current_tab == "agents":
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        else:
-            self._refresh_current_tab()  # type: ignore[attr-defined]
+        self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _begin_agents_jump_mode(self) -> None:
+        """Allocate hints across visible agents + collapsed banners (agents tab)."""
+        targets = self._jump_candidate_targets()
+        if not targets:
+            return
+        hint_to_target, _ = build_jump_hint_maps(targets)
+        if not hint_to_target:
+            return
+
+        agent_hint_to_idx: dict[str, int] = {}
+        agent_idx_to_hint: dict[int, str] = {}
+        banner_hint_to_target: dict[str, BannerJumpTarget] = {}
+        banner_to_hint: dict[BannerJumpTarget, str] = {}
+        for hint, target in hint_to_target.items():
+            if target[0] == "agent":
+                agent_hint_to_idx[hint] = target[1]
+                agent_idx_to_hint[target[1]] = hint
+            else:
+                banner_hint_to_target[hint] = target
+                banner_to_hint[target] = hint
+
+        self._entry_jump_hint_to_index = agent_hint_to_idx
+        self._entry_jump_index_to_hint = agent_idx_to_hint
+        self._entry_jump_hint_to_banner = banner_hint_to_target
+        self._entry_jump_banner_to_hint = banner_to_hint
+        self._entry_jump_mode_active = True
+        self._update_jump_footer()
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _jump_candidate_indices(self) -> list[int]:
-        """Return target indices for jump mode in visual order."""
+        """Return target indices for jump mode in visual order (CLs / AXE only)."""
         if self.current_tab == "changespecs":
             return list(range(len(self.changespecs)))
         if self.current_tab == "agents":
-            from ...models.agent_groups import GroupingMode, build_agent_tree
-
-            tree = build_agent_tree(
-                self._agents,
-                fold_registry=self._group_fold_registry,
-                mode=getattr(self, "_grouping_mode", GroupingMode.STANDARD),
-            )
-            return [
-                e.agent_idx
-                for e in tree
-                if e.kind == "agent" and e.agent_idx is not None
-            ]
+            # Kept for backward compatibility with tests / callers that
+            # only need the agent indices (no banner targets).
+            return [t[1] for t in self._jump_candidate_targets() if t[0] == "agent"]
         return list(range(len(self._axe_items)))  # type: ignore[attr-defined]
+
+    def _jump_candidate_targets(self) -> list[JumpTarget]:
+        """Return jump targets for the agents tab in render order.
+
+        Walks each tag panel's grouping tree (mirroring
+        :func:`_refresh_panel_widgets`) so hint characters march down the
+        screen in the same order they're rendered.  Collapsed banners
+        contribute ``("banner", panel_idx, group_key)`` targets;
+        non-collapsed banners are non-selectable and excluded.
+        """
+        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ...models.agent_panels import agents_for_panel, panel_key_per_agent
+
+        registry = self._group_fold_registry
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        panel_group = getattr(self, "_panel_group", None)
+        panel_keys = panel_group.panel_keys if panel_group is not None else [None]
+        keys_per_agent = panel_key_per_agent(self._agents)
+        targets: list[JumpTarget] = []
+        for panel_idx, key in enumerate(panel_keys):
+            global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
+            panel_agents = agents_for_panel(self._agents, key)
+            tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
+            for entry in tree:
+                if entry.kind == "group" and entry.group is not None:
+                    if entry.group.is_collapsed:
+                        targets.append(("banner", panel_idx, entry.group.group_key))
+                elif entry.kind == "agent" and entry.agent_idx is not None:
+                    targets.append(("agent", global_indices[entry.agent_idx]))
+        return targets
 
     def _exit_entry_jump_mode(self) -> None:
         """Clear jump mode state and remove hint overlays."""
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
+        self._entry_jump_hint_to_banner = {}
+        self._entry_jump_banner_to_hint = {}
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _save_agents_jump_anchor(self) -> None:
+        """Snapshot the agents-tab cursor (agent or banner) for ``'`` back-jump."""
+        panel_idx = self._panel_group.focused_idx
+        if self._current_group_key is not None:
+            self._entry_jump_last_agents_anchor = (
+                "banner",
+                panel_idx,
+                self._current_group_key,
+            )
+        else:
+            self._entry_jump_last_agents_anchor = (
+                "agent",
+                self.current_idx,
+                panel_idx,
+            )
+
+    def _restore_agents_jump_anchor(self) -> bool:
+        """Restore the saved agents-tab anchor.  Returns True on success."""
+        anchor = self._entry_jump_last_agents_anchor
+        if anchor is None:
+            return False
+        # Capture the current spot as the new anchor before jumping back so
+        # a third ``'`` press toggles back to where we were.
+        new_anchor: tuple[Literal["agent"], int, int] | BannerJumpTarget
+        panel_idx = self._panel_group.focused_idx
+        if self._current_group_key is not None:
+            new_anchor = ("banner", panel_idx, self._current_group_key)
+        else:
+            new_anchor = ("agent", self.current_idx, panel_idx)
+        self._entry_jump_last_agents_anchor = new_anchor
+
+        if anchor[0] == "agent":
+            _, agent_idx, target_panel = anchor
+            if (
+                target_panel != self._panel_group.focused_idx
+                and 0 <= target_panel < len(self._panel_group.panel_keys)
+            ):
+                self._panel_group.focused_idx = target_panel
+            self._current_group_key = None
+            self.current_idx = agent_idx
+        else:
+            _, target_panel, group_key = anchor
+            if (
+                target_panel != self._panel_group.focused_idx
+                and 0 <= target_panel < len(self._panel_group.panel_keys)
+            ):
+                self._panel_group.focused_idx = target_panel
+            self._current_group_key = group_key
+        return True
 
     def _handle_entry_jump_key(self, key: str) -> bool:
         """Handle one keypress while jump mode is active."""
@@ -185,11 +294,37 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             return True
 
         if key == "apostrophe":
+            if self.current_tab == "agents":
+                if self._restore_agents_jump_anchor():
+                    self._exit_entry_jump_mode()
+                    return True
+                self._exit_entry_jump_mode()
+                return True
             last_idx = self._entry_jump_last_index.get(self.current_tab)
             if last_idx is not None:
                 # Save current position before jumping back
                 self._entry_jump_last_index[self.current_tab] = self.current_idx
                 self.current_idx = last_idx
+            self._exit_entry_jump_mode()
+            return True
+
+        if self.current_tab == "agents":
+            banner_target = self._entry_jump_hint_to_banner.get(key)
+            agent_target = self._entry_jump_hint_to_index.get(key)
+            if banner_target is None and agent_target is None:
+                self._exit_entry_jump_mode()
+                return True
+            self._save_agents_jump_anchor()
+            if banner_target is not None:
+                _, panel_idx, group_key = banner_target
+                if 0 <= panel_idx < len(self._panel_group.panel_keys):
+                    if panel_idx != self._panel_group.focused_idx:
+                        self._panel_group.focused_idx = panel_idx
+                self._current_group_key = group_key
+            else:
+                assert agent_target is not None
+                self._current_group_key = None
+                self.current_idx = agent_target
             self._exit_entry_jump_mode()
             return True
 
@@ -200,13 +335,6 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         self._entry_jump_last_index[self.current_tab] = self.current_idx
         self.current_idx = target
-        if self.current_tab == "agents":
-            self._entry_jump_mode_active = False
-            self._entry_jump_hint_to_index = {}
-            self._entry_jump_index_to_hint = {}
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-            return True
-
         self._exit_entry_jump_mode()
         return True
 
@@ -216,7 +344,10 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            has_back = self.current_tab in self._entry_jump_last_index
+            if self.current_tab == "agents":
+                has_back = self._entry_jump_last_agents_anchor is not None
+            else:
+                has_back = self.current_tab in self._entry_jump_last_index
             footer.update_jump_bindings(has_back=has_back)
         except Exception:
             pass

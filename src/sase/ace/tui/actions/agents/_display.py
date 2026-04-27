@@ -57,6 +57,12 @@ class AgentDisplayMixin:
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
+    # Banner-target inverse map; agents-tab jump mode populates this when
+    # the user presses ``'`` and ``_jump_candidate_targets`` includes any
+    # collapsed banners.
+    _entry_jump_banner_to_hint: dict[
+        tuple[Literal["banner"], int, tuple[str, ...]], str
+    ]
 
     # Group fold + tag-driven panel collection (see startup.py).
     _group_fold_registry: AgentGroupFoldRegistry
@@ -103,8 +109,16 @@ class AgentDisplayMixin:
                 if self._entry_jump_mode_active
                 else None
             )
+            banner_jump_hints = (
+                dict(self._entry_jump_banner_to_hint)
+                if self._entry_jump_mode_active
+                else None
+            )
 
-            self._refresh_panel_widgets(jump_hints=jump_hints)
+            self._refresh_panel_widgets(
+                jump_hints=jump_hints,
+                banner_jump_hints=banner_jump_hints,
+            )
             log.debug(
                 "agents display refresh list phase: elapsed=%.3fs agents=%d",
                 time.perf_counter() - list_started,
@@ -284,7 +298,13 @@ class AgentDisplayMixin:
         if self._agents:
             self.current_idx = 0
 
-    def _refresh_panel_widgets(self, *, jump_hints: dict[int, str] | None) -> None:
+    def _refresh_panel_widgets(
+        self,
+        *,
+        jump_hints: dict[int, str] | None,
+        banner_jump_hints: dict[tuple[Literal["banner"], int, tuple[str, ...]], str]
+        | None = None,
+    ) -> None:
         """Mount/unmount AgentList widgets to match :attr:`_panel_group`.
 
         Calls :meth:`AgentList.update_list` on each panel with its
@@ -359,12 +379,23 @@ class AgentDisplayMixin:
                     if gi in jump_hints:
                         local_jump_hints[local_i] = jump_hints[gi]
 
+            local_banner_hints: dict[tuple[str, ...], str] | None = None
+            if banner_jump_hints:
+                local_banner_hints = {
+                    group_key: hint
+                    for (kind, panel_idx, group_key), hint in banner_jump_hints.items()
+                    if kind == "banner" and panel_idx == idx
+                }
+                if not local_banner_hints:
+                    local_banner_hints = None
+
             widget.update_list(
                 panel_agents,
                 local_idx,
                 fold_counts=fold_counts,
                 marked_agents=marked,
                 jump_hints=local_jump_hints,
+                banner_jump_hints=local_banner_hints,
                 current_attempt_number=attempt_number if idx == focused_idx else None,
                 fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,

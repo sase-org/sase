@@ -445,6 +445,7 @@ def format_banner_option(
     selectable: bool = False,
     mode: GroupingMode = GroupingMode.STANDARD,
     tier_styles: tuple[str, ...] = (),
+    hint_char: str | None = None,
 ) -> Option:
     """Render a group banner row Option.
 
@@ -515,19 +516,22 @@ def format_banner_option(
 
     text = _render_tier_gutter(tier_styles)
     gutter_cells = len(tier_styles) * _TIER_GUIDE_SEGMENT_WIDTH
+    if hint_char is not None:
+        text.append(f"[{hint_char}] ", style="bold #FFFF00")
+    hint_cells = 4 if hint_char is not None else 0
     text.append(prefix, style=prefix_style)
     text.append(label, style=label_style)
     if chip:
-        # ``<gutter><prefix><label> <rule…>  <chip>``: 1-cell gap before
-        # the rule, 2-cell gap before the chip.
-        used = gutter_cells + len(prefix) + len(label) + 1 + 2 + len(chip)
+        # ``<gutter><hint><prefix><label> <rule…>  <chip>``: 1-cell gap
+        # before the rule, 2-cell gap before the chip.
+        used = gutter_cells + hint_cells + len(prefix) + len(label) + 1 + 2 + len(chip)
         pad_len = max(2, width - used)
         text.append(
             " " + rule_char * pad_len + "  " + chip,
             style=rule_style,
         )
     else:
-        used = gutter_cells + len(prefix) + len(label) + 1
+        used = gutter_cells + hint_cells + len(prefix) + len(label) + 1
         pad_len = max(2, width - used)
         text.append(" " + rule_char * pad_len, style=rule_style)
 
@@ -670,6 +674,7 @@ def _banner_render_key(
     selectable: bool,
     mode: GroupingMode,
     tier_styles: tuple[str, ...],
+    hint_char: str | None,
 ) -> tuple[Any, ...]:
     """Stable cache key for :func:`format_banner_option`.
 
@@ -690,6 +695,7 @@ def _banner_render_key(
         selectable,
         mode,
         tier_styles,
+        hint_char,
         member_sig,
     )
 
@@ -704,6 +710,7 @@ def cached_format_banner_option(
     selectable: bool = False,
     mode: GroupingMode = GroupingMode.STANDARD,
     tier_styles: tuple[str, ...] = (),
+    hint_char: str | None = None,
 ) -> Option:
     """Memoized wrapper for :func:`format_banner_option`."""
     key = _banner_render_key(
@@ -714,6 +721,7 @@ def cached_format_banner_option(
         selectable=selectable,
         mode=mode,
         tier_styles=tier_styles,
+        hint_char=hint_char,
     )
     hit = cache.get_banner(key)
     if hit is not None:
@@ -726,6 +734,7 @@ def cached_format_banner_option(
         selectable=selectable,
         mode=mode,
         tier_styles=tier_styles,
+        hint_char=hint_char,
     )
     cache.put_banner(key, option)
     return option

@@ -290,6 +290,8 @@ class AceApp(
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
+        self._entry_jump_hint_to_banner = {}
+        self._entry_jump_banner_to_hint = {}
 
         # Update tab bar indicator
         tab_bar = self.query_one("#tab-bar", TabBar)
