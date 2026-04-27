@@ -35,7 +35,7 @@ class SnippetExpansionMixin(_MixinBase):
 
     def _get_snippets(self) -> dict[str, str]:
         """Get the snippet registry from the app config."""
-        return self._ace_app._snippets
+        return self._ace_app.get_snippets()
 
     def _try_expand_snippet(self) -> bool:
         """Try to expand a snippet trigger word at the cursor.

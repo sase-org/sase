@@ -20,6 +20,40 @@ from ..util.trace import tui_trace
 LumberjackSummary = tuple[str, LumberjackStatus | None, int]
 
 
+# Per-source ANSI parse cache. ``source_id`` is the dashboard caller (axe
+# output, bgcmd output, lumberjack output); each owns one slot. The cache
+# stores the last (size, tail_hash, parsed Text) so an unchanged refresh
+# tick reuses the cached renderable instead of paying ``Text.from_ansi``.
+_ANSI_TAIL_HASH_BYTES = 1024
+_ansi_parse_cache: dict[str, tuple[int, int, Text]] = {}
+
+
+def _tail_hash(s: str) -> int:
+    """Hash the trailing window so growing logs invalidate cleanly."""
+    if len(s) <= _ANSI_TAIL_HASH_BYTES:
+        return hash(s)
+    return hash(s[-_ANSI_TAIL_HASH_BYTES:])
+
+
+def _render_ansi_cached(source_id: str, output: str) -> Text:
+    """Return a Rich ``Text`` for ``output``, reusing the last parse if unchanged.
+
+    Cache key is the input identity: ``(len(output), tail_hash)`` plus the
+    caller-provided ``source_id`` slot. Append-only logs with the same
+    capped tail (post ``cap_ansi_output``) collide on the same key and
+    short-circuit the parse — the bead's no-change refresh acceptance.
+    """
+    capped = cap_ansi_output(output)
+    size = len(capped)
+    digest = _tail_hash(capped)
+    cached = _ansi_parse_cache.get(source_id)
+    if cached is not None and cached[0] == size and cached[1] == digest:
+        return cached[2]
+    text = Text.from_ansi(capped)
+    _ansi_parse_cache[source_id] = (size, digest, text)
+    return text
+
+
 class _AxeStatusSection(Static):
     """Compact status bar showing runtime, cycles, and runners."""
 
@@ -295,11 +329,13 @@ class _AxeStatusSection(Static):
 class _AxeOutputSection(Static):
     """Section showing live axe output log."""
 
-    def update_display(self, output: str) -> None:
+    def update_display(self, output: str, source_id: str = "axe-output") -> None:
         """Update the output section with log content.
 
         Args:
             output: Raw output with ANSI codes.
+            source_id: Cache slot name (defaults to the daemon log; lumberjack
+                output passes a per-name slot so distinct logs don't collide).
         """
         if not output:
             text = Text("No output yet. Start axe with ", style="dim italic")
@@ -308,8 +344,9 @@ class _AxeOutputSection(Static):
             self.update(text)
             return
 
-        # Convert ANSI codes to Rich Text for proper rendering
-        text = Text.from_ansi(cap_ansi_output(output))
+        # Convert ANSI codes to Rich Text via the per-source cache so an
+        # unchanged log tick skips ``Text.from_ansi`` entirely.
+        text = _render_ansi_cached(source_id, output)
         self.update(text)
 
     def update_lumberjack_summary(self, summaries: list[LumberjackSummary]) -> None:
@@ -500,8 +537,10 @@ class AxeDashboard(Static):
                 text.append("No output.", style="dim italic")
             output_section.update(text)
         else:
-            # Convert ANSI codes to Rich Text for proper rendering
-            text = Text.from_ansi(cap_ansi_output(output))
+            # Convert ANSI codes to Rich Text via the per-source cache so an
+            # unchanged bgcmd output tick skips ``Text.from_ansi`` entirely.
+            info_id = info.pid if info is not None else "unset"
+            text = _render_ansi_cached(f"bgcmd:{info_id}", output)
             output_section.update(text)
 
     def update_lumberjack_display(
@@ -527,7 +566,7 @@ class AxeDashboard(Static):
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
         status_section.update_lumberjack_display(status, name, idx, total, countdown)
-        output_section.update_display(output)
+        output_section.update_display(output, source_id=f"lumberjack:{name}")
 
     def update_countdown(self, countdown: int) -> None:
         """Update just the countdown display.

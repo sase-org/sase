@@ -93,8 +93,14 @@ class BgCmdList(OptionList):
 
         self.clear_options()
 
-        # Count lumberjack children for the parent label
-        lumberjack_count = sum(1 for item in items if isinstance(item, LumberjackItem))
+        # Count lumberjack children currently in the list (vs. configured),
+        # then reuse the configured-name list for the collapsed-fold label.
+        # Both are precomputed by the caller so this hot row-render path
+        # never reads ``axe.config`` from disk.
+        lumberjack_child_count = sum(
+            1 for item in items if isinstance(item, LumberjackItem)
+        )
+        configured_lumberjack_total = len(lumberjack_names)
 
         for idx, item in enumerate(items):
             is_selected = idx == current_idx
@@ -103,8 +109,9 @@ class BgCmdList(OptionList):
                     option = self._format_axe_parent_option(
                         is_running=axe_running,
                         is_selected=is_selected,
-                        child_count=lumberjack_count,
-                        is_expanded=lumberjack_count > 0,
+                        child_count=lumberjack_child_count,
+                        is_expanded=lumberjack_child_count > 0,
+                        configured_lumberjack_total=configured_lumberjack_total,
                         hint_char=(jump_hints or {}).get(idx),
                     )
                 case LumberjackItem(name=name):
@@ -150,6 +157,7 @@ class BgCmdList(OptionList):
         is_selected: bool,
         child_count: int,
         is_expanded: bool,
+        configured_lumberjack_total: int = 0,
         hint_char: str | None = None,
     ) -> Option:
         """Format the axe parent option for display."""
@@ -169,18 +177,18 @@ class BgCmdList(OptionList):
         label_style = "bold #FFD700" if is_selected else "#FFD700"
         text.append("sase axe", style=label_style)
 
-        # Fold annotation
-        if child_count > 0 or not is_expanded:
-            from sase.axe.config import load_axe_config
-
-            config = load_axe_config()
-            total_lumberjacks = len(config.lumberjacks)
-            if total_lumberjacks > 0:
-                fold_label = (
-                    f" ({total_lumberjacks} lumberjacks)" if not is_expanded else ""
-                )
-                if fold_label:
-                    text.append(fold_label, style="dim")
+        # Fold annotation: only show the count when collapsed.  The total
+        # comes from the precomputed ``lumberjack_names`` list — no disk
+        # config read on this row-render hot path.
+        if (
+            (child_count > 0 or not is_expanded)
+            and configured_lumberjack_total > 0
+            and not is_expanded
+        ):
+            text.append(
+                f" ({configured_lumberjack_total} lumberjacks)",
+                style="dim",
+            )
 
         return Option(text, id="axe")
 

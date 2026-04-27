@@ -65,18 +65,34 @@ class SearchQueryPanel(Static):
         self._query_string = query_string
         self.refresh()
 
-    def render(self) -> Text:
-        """Render the search query panel with proper right-alignment."""
+    def _resolve_saved_queries(self) -> dict[str, str]:
+        """Return the app's cached saved-query map, falling back to disk.
+
+        The TUI seeds ``app._saved_queries`` during startup and invalidates
+        it on save/delete, so the hot render path is disk-free in the
+        common case. The fallback covers tests that mount the panel
+        without going through the full app lifecycle.
+        """
+        app = getattr(self, "app", None)
+        cache = getattr(app, "_saved_queries", None)
+        if isinstance(cache, dict):
+            return cache
         from ...saved_queries import load_saved_queries
 
+        return load_saved_queries()
+
+    def render(self) -> Text:
+        """Render the search query panel with proper right-alignment."""
         # Build left side content
         text = Text()
         text.append("Search Query ", style="dim italic #87D7FF")
         text.append("» ", style="dim #808080")
         text.append_text(build_query_text(self._query_string))
 
-        # Check for saved query match
-        saved_queries = load_saved_queries()
+        # Check for saved query match.  Read the in-memory cache the app
+        # populates at startup (and refreshes on save/delete) so this hot
+        # render path skips the per-keystroke disk read.
+        saved_queries = self._resolve_saved_queries()
         matched_slot: str | None = None
         for slot, saved_query in saved_queries.items():
             if saved_query == self._query_string:

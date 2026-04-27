@@ -63,9 +63,26 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         self._startup_elapsed: float = 0.0
         self._startup_stopwatch_timer: Timer | None = None
         self._stopwatch_frame: int = 0
+        # Signatures of the most recently rendered bindings/status text.
+        # An update with an identical signature short-circuits before it
+        # touches the child widgets — j/k bursts that don't change state
+        # repaint zero times.
+        self._last_bindings_signature: tuple[Any, ...] | None = None
+        self._last_status_signature: tuple[Any, ...] | None = None
+        # Child Static refs cached on mount so each ``_update_display``
+        # call avoids a ``query_one`` walk.  ``None`` until ``on_mount``.
+        self._content_widget: Static | None = None
+        self._status_widget: Static | None = None
 
     def on_mount(self) -> None:
         """Anchor the startup stopwatch and begin ticking every 0.1s."""
+        # Cache child Static refs once so hot updates skip the DOM query.
+        try:
+            self._content_widget = self.query_one("#keybinding-content", Static)
+            self._status_widget = self.query_one("#keybinding-status", Static)
+        except Exception:
+            self._content_widget = None
+            self._status_widget = None
         if not self._startup_stopwatch_active:
             return
         self._startup_start_time = time.monotonic()
@@ -180,13 +197,52 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         """
         self._runner_count = count
 
-    def _update_status(self) -> None:
-        """Update the status indicator widget."""
+    def _status_signature(self) -> tuple[Any, ...]:
+        """Compact signature of every input that drives status rendering."""
+        if self._startup_stopwatch_active:
+            return (
+                "startup",
+                round(self._startup_elapsed, 1),
+                self._stopwatch_frame % len(_STOPWATCH_GLYPH_FRAMES),
+            )
+        return (
+            "axe",
+            self._axe_restarting,
+            self._axe_starting,
+            self._axe_stopping,
+            self._axe_running,
+            self._bgcmd_running_count,
+            self._bgcmd_done_count,
+        )
+
+    def _resolve_status_widget(self) -> Static | None:
+        if self._status_widget is not None:
+            return self._status_widget
         try:
-            status = self.query_one("#keybinding-status", Static)
-            status.update(self._get_status_text())
+            self._status_widget = self.query_one("#keybinding-status", Static)
         except Exception:
-            pass
+            return None
+        return self._status_widget
+
+    def _resolve_content_widget(self) -> Static | None:
+        if self._content_widget is not None:
+            return self._content_widget
+        try:
+            self._content_widget = self.query_one("#keybinding-content", Static)
+        except Exception:
+            return None
+        return self._content_widget
+
+    def _update_status(self) -> None:
+        """Update the status indicator widget if its signature changed."""
+        signature = self._status_signature()
+        if signature == self._last_status_signature:
+            return
+        widget = self._resolve_status_widget()
+        if widget is None:
+            return
+        widget.update(self._get_status_text())
+        self._last_status_signature = signature
 
     def _get_status_text(self) -> Text:
         """Get styled status indicator text.
@@ -239,16 +295,33 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
     def _update_display(self, bindings_text: Text) -> None:
         """Update both the bindings content and status indicator.
 
+        Skips the actual ``Static.update`` calls when the signatures of
+        the bindings text and the status indicator both match the last
+        render — j/k bursts on the same entry repaint zero times.
+
         Args:
             bindings_text: Formatted text for the keybindings.
         """
-        try:
-            content = self.query_one("#keybinding-content", Static)
-            status = self.query_one("#keybinding-status", Static)
+        # ``Text`` carries spans we want to compare too; the rendered
+        # ``__rich_console__`` output isn't readily available, so we hash
+        # the plain text plus span tuples.
+        bindings_signature = (
+            bindings_text.plain,
+            tuple((s.start, s.end, str(s.style)) for s in bindings_text.spans),
+        )
+        status_signature = self._status_signature()
+        bindings_dirty = bindings_signature != self._last_bindings_signature
+        status_dirty = status_signature != self._last_status_signature
+        if not bindings_dirty and not status_dirty:
+            return
+        content = self._resolve_content_widget()
+        status = self._resolve_status_widget()
+        if bindings_dirty and content is not None:
             content.update(bindings_text)
+            self._last_bindings_signature = bindings_signature
+        if status_dirty and status is not None:
             status.update(self._get_status_text())
-        except Exception:
-            pass
+            self._last_status_signature = status_signature
 
     def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
         """Update bindings based on current ChangeSpec and app state."""

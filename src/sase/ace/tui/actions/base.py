@@ -401,6 +401,7 @@ class BaseActionsMixin:
                     # Delete mode: #<N> with no query
                     if slot_specified:
                         if delete_query(slot_specified):
+                            self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
                             self.notify(f"Deleted query from slot {slot_specified}")  # type: ignore[attr-defined]
                         else:
                             self.notify("Failed to delete query", severity="error")  # type: ignore[attr-defined]
@@ -431,6 +432,7 @@ class BaseActionsMixin:
                         return
 
                 if save_query(slot, canonical):
+                    self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
                     if existing_slot is not None and existing_slot != slot:
                         self.notify(  # type: ignore[attr-defined]
                             f"Moved query from slot {existing_slot} to slot {slot}: {canonical}"

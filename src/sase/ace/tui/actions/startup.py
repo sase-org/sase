@@ -70,6 +70,43 @@ class StartupMixin:
     _w_agent_detail: Any
     _w_agent_info_panel: Any
     _w_tab_bar: Any
+    _saved_queries: dict[str, str]
+    _dirty_changespecs: bool
+    _dirty_agents: bool
+    _dirty_axe: bool
+    _last_full_sanity_refresh: float
+    _user_snippets: dict[str, str]
+    _snippets_cache: dict[str, str] | None
+
+    def get_snippets(self) -> dict[str, str]:
+        """Return the merged xprompt + user snippet registry, building on demand.
+
+        First call walks disk-backed xprompt definitions to materialize the
+        combined map; subsequent calls reuse the cached dict. The widgets
+        that need snippets (prompt text-area, help modal) call this rather
+        than reading ``_snippets`` directly so cold startup never pays the
+        scan unless the user opens the snippet entry surface.
+        """
+        cached = getattr(self, "_snippets_cache", None)
+        if cached is not None:
+            return cached
+        from sase.xprompt.snippet_bridge import get_xprompt_snippets
+
+        merged = get_xprompt_snippets()
+        merged.update(self._user_snippets)
+        self._snippets_cache = merged
+        return merged
+
+    def _invalidate_saved_queries_cache(self) -> None:
+        """Reload ``_saved_queries`` from disk after a save/delete.
+
+        Called by the actions that mutate saved-query slots (save / delete
+        keymap and the help modal). The hot render path (``SearchQueryPanel``)
+        only touches the cached dict, so this is the lone refill site.
+        """
+        from ...saved_queries import load_saved_queries
+
+        self._saved_queries = load_saved_queries()
 
     def _init_app_state(
         self,
@@ -111,6 +148,17 @@ class StartupMixin:
         # post-load and cleared on quit.
         self._nav_gate = NavigationGate()
         self._fs_watcher = None
+
+        # Phase 7 event-driven auto-refresh state.  When the inotify
+        # watcher is active, ``_on_artifact_change`` flips the dirty
+        # flags; the auto-refresh tick only does work for flags that are
+        # set (or when the slow sanity floor below has elapsed). Defaults
+        # mark "dirty" so the first tick still primes everything when no
+        # watcher event has fired yet.
+        self._dirty_changespecs: bool = True
+        self._dirty_agents: bool = True
+        self._dirty_axe: bool = True
+        self._last_full_sanity_refresh: float = 0.0
 
         # Hint mode state
         self._hint_mode_active: bool = False
@@ -370,6 +418,14 @@ class StartupMixin:
 
         self._query_selections = load_query_selections()
 
+        # Saved-query slots cached in memory.  ``SearchQueryPanel`` reads
+        # this on every render so we keep it disk-free; the cache is
+        # refreshed by :meth:`_invalidate_saved_queries_cache` on explicit
+        # save/delete.
+        from ...saved_queries import load_saved_queries
+
+        self._saved_queries: dict[str, str] = load_saved_queries()
+
         # ChangeSpec history stacks for ctrl+o/ctrl+i navigation (session-based)
         from ..changespec_history import create_empty_stacks as create_cs_history_stacks
 
@@ -386,12 +442,12 @@ class StartupMixin:
         user_snippets: dict[str, str] = (
             ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
         )
-        # Merge xprompt-derived snippets (user-defined snippets take precedence)
-        from sase.xprompt.snippet_bridge import get_xprompt_snippets
-
-        xp_snippets = get_xprompt_snippets()
-        xp_snippets.update(user_snippets)
-        self._snippets: dict[str, str] = xp_snippets
+        # Defer the xprompt snippet scan (which walks disk-backed xprompt
+        # definitions) until the prompt entry / help modal asks for it.
+        # Cold startup's first paint never needs snippets, so skipping
+        # this on the mount path keeps the stopwatch tight.
+        self._user_snippets = dict(user_snippets)
+        self._snippets_cache = None
 
         # Build keymap registry from config
         from ..keymaps import (

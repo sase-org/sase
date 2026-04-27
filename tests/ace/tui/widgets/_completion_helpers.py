@@ -16,6 +16,9 @@ class CompletionTestApp(App[None]):
         super().__init__()
         self._snippets: dict[str, str] = snippets or {}
 
+    def get_snippets(self) -> dict[str, str]:
+        return self._snippets
+
     def compose(self) -> ComposeResult:
         yield PromptInputBar()
 

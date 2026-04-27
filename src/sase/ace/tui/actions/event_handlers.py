@@ -18,6 +18,11 @@ from ..widgets import (
     TabBar,
 )
 
+# Slow sanity-refresh floor: even when the inotify watcher is active and
+# every dirty flag is clear we still reconcile every minute as a safety
+# net for missed events (NFS, container bind-mount edge cases, etc.).
+FULL_SANITY_REFRESH_SECONDS = 60.0
+
 if TYPE_CHECKING:
     from textual.widgets import Input
 
@@ -60,6 +65,10 @@ class EventHandlersMixin:
     _last_activity_flush: float
     _activity_log: ActivityLog
     _nav_gate: NavigationGate
+    _dirty_changespecs: bool
+    _dirty_agents: bool
+    _dirty_axe: bool
+    _last_full_sanity_refresh: float
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -90,17 +99,32 @@ class EventHandlersMixin:
         a burst of file-system events.  Defers when the user is mid-burst
         on j/k so the reconcile lands during a pause rather than spiking
         latency in the middle of navigation.
+
+        Phase 7: also flips the per-surface dirty flags so the auto-refresh
+        tick (which is the watcher fallback) only does work for surfaces
+        that actually changed.
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
             self.set_timer(delay, self._on_artifact_change)  # type: ignore[attr-defined]
             return
+        # The watcher cannot currently distinguish per-surface events
+        # (artifacts vs project files vs axe state) without a deeper
+        # rework of ``ArtifactWatcher``; mark every surface dirty so the
+        # next auto-refresh tick reconciles whatever the user has open.
+        self._dirty_changespecs = True
+        self._dirty_agents = True
+        self._dirty_axe = True
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
         # inotify wakeups still triggers at most one in-flight reload plus
         # one follow-up.
         self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+
+    def _watcher_active(self) -> bool:
+        """Return True when the inotify watcher is currently driving refreshes."""
+        return getattr(self, "_fs_watcher", None) is not None
 
     async def _on_auto_refresh(self) -> None:
         """Auto-refresh handler called by timer.
@@ -109,6 +133,11 @@ class EventHandlersMixin:
         remainder of the navigation window plus a small overshoot.  A new
         ``set_timer`` call schedules a single retry; if the user is *still*
         navigating when that fires, the same gate will defer it again.
+
+        Phase 7: when the inotify watcher is active each surface's refresh
+        is gated on its dirty flag; flags clear after the refresh runs.
+        Every ``FULL_SANITY_REFRESH_SECONDS`` we ignore the gate and run
+        a full reconcile to recover from any missed events.
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
@@ -117,14 +146,33 @@ class EventHandlersMixin:
 
         self._countdown_remaining = self.refresh_interval
 
-        # Always poll axe status regardless of tab (for STARTING/STOPPING states)
-        await self._load_axe_status_async()  # type: ignore[attr-defined]
+        watcher_active = self._watcher_active()
+        now_mono = time.monotonic()
+        sanity_due = (
+            now_mono - getattr(self, "_last_full_sanity_refresh", 0.0)
+            >= FULL_SANITY_REFRESH_SECONDS
+        )
 
-        # Poll agent completions for notifications (regardless of tab)
-        await self._poll_agent_completions()  # type: ignore[attr-defined]
+        def _should_refresh(flag_name: str) -> bool:
+            if not watcher_active or sanity_due:
+                return True
+            return bool(getattr(self, flag_name, True))
 
-        # Skip changespec refresh if user is in an input mode
-        # (prompt bar or hint bar is active)
+        # Always poll axe status regardless of tab (for STARTING/STOPPING
+        # transitions) — but skip the disk poll on idle ticks when the
+        # watcher is active and nothing about axe has changed.
+        if _should_refresh("_dirty_axe"):
+            await self._load_axe_status_async()  # type: ignore[attr-defined]
+            self._dirty_axe = False
+
+        # Poll agent completions for notifications (regardless of tab).
+        # Notification freshness rides the agent dirty flag because a
+        # done.json write triggers an agents-dir watcher event.
+        if _should_refresh("_dirty_agents"):
+            await self._poll_agent_completions()  # type: ignore[attr-defined]
+
+        # Skip changespec/agent refresh if the user is in an input mode
+        # (prompt bar or hint bar is active).
         if getattr(self, "_prompt_context", None) is not None:
             return
         if getattr(self, "_hint_mode_active", False):
@@ -138,17 +186,21 @@ class EventHandlersMixin:
         if self._agents_loading:
             return
 
-        # Load agents asynchronously to avoid blocking the event loop
-        self._agents_loading = True
-        try:
-            await self._load_agents_async()  # type: ignore[attr-defined]
-        finally:
-            self._agents_loading = False
+        agents_due = _should_refresh("_dirty_agents")
+        if agents_due:
+            self._agents_loading = True
+            try:
+                await self._load_agents_async()  # type: ignore[attr-defined]
+            finally:
+                self._agents_loading = False
+            self._dirty_agents = False
 
-        # Tab-specific refreshes
-        if self.current_tab == "changespecs":
+        if self.current_tab == "changespecs" and _should_refresh("_dirty_changespecs"):
             await self._reload_and_reposition_async()  # type: ignore[attr-defined]
-        # No else needed - axe display already refreshed by _load_axe_status()
+            self._dirty_changespecs = False
+
+        if sanity_due:
+            self._last_full_sanity_refresh = now_mono
 
     def _on_countdown_tick(self) -> None:
         """Countdown tick handler called every second."""
