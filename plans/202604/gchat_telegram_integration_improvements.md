@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 12:44:30
 status: wip
+bead_id: sase-x
 ---
 # sase-gchat and sase-telegram Integration Improvement Plan
 
