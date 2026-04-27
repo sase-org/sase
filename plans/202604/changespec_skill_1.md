@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 14:26:50
-status: wip
+status: done
 bead_id: sase-y
 ---
 # Plan: ChangeSpec Agent Skill
