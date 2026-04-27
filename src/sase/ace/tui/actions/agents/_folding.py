@@ -338,23 +338,42 @@ class AgentFoldingMixin:
         return keys
 
     def _expand_all_folds(self) -> None:
-        """Jump to the fully-expanded endpoint (``L`` action).
+        """Advance the visible tree by one level (``L`` action).
 
-        On the agents tab: expand every known L0/L1 group and advance
-        every per-workflow fold to ``FULLY_EXPANDED``.  A single ``L``
-        press from any state lands the user at "everything visible".
+        On the agents tab: walk the snapshot of currently-visible
+        entries and apply a single-level expand to each — collapsed
+        banners become expanded, and visible workflow folds step one
+        notch toward ``FULLY_EXPANDED``.  Rows that become visible *as
+        a result of* this press are not stepped; the next ``L`` press
+        picks them up.  Repeated presses peel one layer at a time.
         """
         if self.current_tab == "agents":
-            changed = self._group_fold_registry.expand_keys(
-                self._all_known_group_keys()
+            from ...models.agent_groups import build_agent_tree
+            from ...models.fold_state import FoldLevel
+
+            entries = build_agent_tree(
+                self._agents,
+                fold_registry=self._group_fold_registry,
+                mode=self._active_grouping_mode(),
             )
+            changed = False
+            seen_wf_keys: set[str] = set()
+            for entry in entries:
+                if entry.kind == "group" and entry.group is not None:
+                    if entry.group.is_collapsed:
+                        if self._group_fold_registry.expand(entry.group.group_key):
+                            changed = True
+                elif entry.kind == "agent" and entry.agent_idx is not None:
+                    agent = self._agents[entry.agent_idx]
+                    wf_key = self._get_workflow_key_for_agent(agent)
+                    if wf_key is None or wf_key in seen_wf_keys:
+                        continue
+                    seen_wf_keys.add(wf_key)
+                    if self._fold_manager.get(wf_key) != FoldLevel.FULLY_EXPANDED:
+                        if self._fold_manager.expand(wf_key):
+                            changed = True
             if changed:
                 self._current_group_key = None
-            keys = self._get_focused_panel_workflow_keys()
-            for key in keys:
-                while self._fold_manager.expand(key):
-                    changed = True
-            if changed:
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
 
@@ -366,23 +385,45 @@ class AgentFoldingMixin:
             self._refilter_agents()  # type: ignore[attr-defined]
 
     def _collapse_all_folds(self) -> None:
-        """Jump to the fully-collapsed endpoint (``H`` action).
+        """Retreat the visible tree by one level (``H`` action).
 
-        On the agents tab: collapse every per-workflow fold then mark
-        every known L0/L1 group collapsed so only project banners
-        remain visible.  A single ``H`` press always lands the user at
-        "maximally collapsed".
+        On the agents tab: walk the snapshot of currently-visible
+        entries and apply a single-level collapse to each — visible
+        workflow folds step one notch toward ``COLLAPSED``, then any
+        currently-expanded banners collapse.  Rows hidden behind a
+        collapsed banner are not stepped (snapshot-at-start rule).
+        Repeated presses peel one layer at a time.
         """
         if self.current_tab == "agents":
-            keys = self._get_focused_panel_workflow_keys()
+            from ...models.agent_groups import build_agent_tree
+            from ...models.fold_state import FoldLevel
+
+            entries = build_agent_tree(
+                self._agents,
+                fold_registry=self._group_fold_registry,
+                mode=self._active_grouping_mode(),
+            )
             changed = False
-            for key in keys:
-                while self._fold_manager.collapse(key):
-                    changed = True
-            if self._group_fold_registry.collapse_keys(self._all_known_group_keys()):
-                self._snap_focus_after_group_fold_change()
-                changed = True
+            seen_wf_keys: set[str] = set()
+            for entry in entries:
+                if entry.kind != "agent" or entry.agent_idx is None:
+                    continue
+                agent = self._agents[entry.agent_idx]
+                wf_key = self._get_workflow_key_for_agent(agent)
+                if wf_key is None or wf_key in seen_wf_keys:
+                    continue
+                seen_wf_keys.add(wf_key)
+                if self._fold_manager.get(wf_key) != FoldLevel.COLLAPSED:
+                    if self._fold_manager.collapse(wf_key):
+                        changed = True
+            for entry in entries:
+                if entry.kind != "group" or entry.group is None:
+                    continue
+                if not entry.group.is_collapsed:
+                    if self._group_fold_registry.collapse(entry.group.group_key):
+                        changed = True
             if changed:
+                self._snap_focus_after_group_fold_change()
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
 

@@ -112,6 +112,13 @@ def test_l_on_collapsed_l1_banner_expands_only_that_l1() -> None:
 
 
 def test_capital_l_expands_every_group() -> None:
+    """Both panels' L1 banners visible-and-collapsed → one ``L`` expands them all.
+
+    L0 banners (``projA``, ``projB``) are already expanded, so the first
+    ``L`` press only steps the visible L1 banners up.  With this single-
+    L1-per-panel fixture there is nothing else under either banner to
+    step, so the registry empties out in one press.
+    """
     a = _agent(cl_name="cl-a", project="projA")
     b = _agent(cl_name="cl-b", project="projB")
     app = _StubApp([a, b])
@@ -129,10 +136,79 @@ def test_capital_h_collapses_every_group_and_workflow() -> None:
     app._fold_manager.expand("ts1")
     app._fold_manager.expand("ts1")  # FULLY_EXPANDED
 
+    # First H: workflow steps one notch (FULLY_EXPANDED → EXPANDED) and
+    # every visible banner collapses in the same press.
     app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
-    # Every project key the agent set produces is now collapsed.
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
+    assert ("proj",) in app._group_fold_registry.collapsed
     assert ("proj", "demo") in app._group_fold_registry.collapsed
+
+    # Second H: only the L0 banner is visible (already collapsed) and
+    # the workflow agent is hidden, so nothing changes — single-level
+    # semantics don't reach into hidden state.
+    app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
+
+
+def test_capital_l_peels_one_level_per_press() -> None:
+    """Successive ``L`` presses peel outward one layer at a time."""
+    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
+    app = _StubApp([parent])
+    l0 = ("proj",)
+    l1 = ("proj", "demo")
+    app._group_fold_registry.collapse(l0)
+    app._group_fold_registry.collapse(l1)
+
+    # First L: only L0 visible → expand L0; L1 stays collapsed.
+    app.action_expand_all_folds()
+    assert app._group_fold_registry.is_collapsed(l0) is False
+    assert app._group_fold_registry.is_collapsed(l1) is True
+    assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
+
+    # Second L: L1 now visible → expand L1; workflow still COLLAPSED.
+    app.action_expand_all_folds()
+    assert app._group_fold_registry.is_collapsed(l1) is False
+    assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
+
+    # Third L: workflow now visible → step COLLAPSED → EXPANDED.
+    app.action_expand_all_folds()
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
+
+    # Fourth L: EXPANDED → FULLY_EXPANDED.
+    app.action_expand_all_folds()
+    assert app._fold_manager.get("ts1") == FoldLevel.FULLY_EXPANDED
+
+
+def test_capital_h_peels_one_level_per_press() -> None:
+    """Successive ``H`` presses peel inward — first press collapses all
+    visible banners and steps the visible workflow once; second press
+    sees only the collapsed L0 banner and is a no-op.
+    """
+    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
+    app = _StubApp([parent])
+    app._fold_manager.expand("ts1")
+    app._fold_manager.expand("ts1")  # FULLY_EXPANDED
+
+    app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
+    assert ("proj",) in app._group_fold_registry.collapsed
+    assert ("proj", "demo") in app._group_fold_registry.collapsed
+
+    app.action_hooks_or_collapse_all()
+    # Workflow stays at EXPANDED — its row is hidden behind the collapsed L0.
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
+
+
+def test_capital_h_does_not_step_invisible_workflows() -> None:
+    """Workflow folds hidden behind a collapsed banner are not stepped by ``H``."""
+    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
+    app = _StubApp([parent])
+    app._fold_manager.expand("ts1")  # EXPANDED
+    app._group_fold_registry.collapse(("proj",))
+
+    app.action_hooks_or_collapse_all()
+    # ``H`` saw only the collapsed L0 banner — workflow state untouched.
+    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
 
 
 def test_per_workflow_h_runs_before_group_collapse() -> None:
