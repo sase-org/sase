@@ -9,6 +9,8 @@ import functools
 import importlib.resources
 import logging
 from dataclasses import fields
+from collections.abc import Mapping
+from types import MappingProxyType
 
 import yaml  # type: ignore[import-untyped]
 from textual.binding import Binding
@@ -35,8 +37,8 @@ log = logging.getLogger(__name__)
 
 
 @functools.cache
-def load_builtin_app_defaults() -> dict[str, str]:
-    """Load app-level keymap defaults from the bundled ``default_config.yml``.
+def _builtin_app_defaults() -> Mapping[str, str]:
+    """Parse and cache the app-level keymap defaults as an immutable mapping.
 
     This file is the **single source of truth** for default keybindings.
     Adding a new field to ``AppKeymaps`` without a corresponding entry in
@@ -52,7 +54,16 @@ def load_builtin_app_defaults() -> dict[str, str]:
     if not isinstance(app, dict):
         msg = "default_config.yml missing ace.keymaps.app section"
         raise RuntimeError(msg)
-    return {k: str(v) for k, v in app.items()}
+    return MappingProxyType({k: str(v) for k, v in app.items()})
+
+
+def load_builtin_app_defaults() -> dict[str, str]:
+    """Load app-level keymap defaults from the bundled ``default_config.yml``.
+
+    Returns a fresh ``dict`` per call; callers may freely mutate it without
+    corrupting the cached parse.
+    """
+    return dict(_builtin_app_defaults())
 
 
 # ---------------------------------------------------------------------------
