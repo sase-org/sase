@@ -3,10 +3,30 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from sase.config.core import load_merged_config
+from sase.config.core import current_config_token, load_merged_config, stat_token
 
 logger = logging.getLogger(__name__)
+
+# Process-wide caches.  Mentor profile parsing/validation is the second-largest
+# cost on the `sase ace` tab-switch path (after YAML re-parses) — caching the
+# parsed dataclasses on the same token shape eliminates it.
+_mentor_profiles_cache_token: tuple[Any, ...] | None = None
+_mentor_profiles_cache_value: list["MentorProfileConfig"] | None = None
+_local_profile_names_cache_token: tuple[str, int, int] | None = None
+_local_profile_names_cache_value: set[str] | None = None
+
+
+# pyvision: tests/conftest.py
+def clear_mentor_profiles_cache() -> None:
+    """Drop cached mentor profiles.  Call from tests or explicit refresh paths."""
+    global _mentor_profiles_cache_token, _mentor_profiles_cache_value
+    global _local_profile_names_cache_token, _local_profile_names_cache_value
+    _mentor_profiles_cache_token = None
+    _mentor_profiles_cache_value = None
+    _local_profile_names_cache_token = None
+    _local_profile_names_cache_value = None
 
 
 @dataclass
@@ -57,25 +77,59 @@ class MentorProfileConfig:
 
 
 def _get_local_profile_names() -> set[str]:
-    """Return the set of mentor profile names defined in the local sase.yml."""
-    local_path = Path.cwd() / "sase.yml"
-    if not local_path.is_file():
+    """Return the set of mentor profile names defined in the local sase.yml.
+
+    Memoized on the local file's ``(path, mtime_ns, size)`` tuple — unchanged
+    files yield instant repeat lookups, edits invalidate naturally.
+    """
+    global _local_profile_names_cache_token, _local_profile_names_cache_value
+
+    try:
+        local_path = Path.cwd() / "sase.yml"
+    except FileNotFoundError:
         return set()
+    token = stat_token(local_path)
+    if token is None:
+        # File missing — cache the empty result keyed on a sentinel so a repeat
+        # call short-circuits.  Any future creation will produce a non-None token.
+        if (
+            _local_profile_names_cache_token is None
+            and _local_profile_names_cache_value is not None
+        ):
+            return _local_profile_names_cache_value
+        _local_profile_names_cache_token = None
+        _local_profile_names_cache_value = set()
+        return _local_profile_names_cache_value
+
+    if (
+        _local_profile_names_cache_value is not None
+        and _local_profile_names_cache_token == token
+    ):
+        return _local_profile_names_cache_value
+
     import yaml  # type: ignore[import-untyped]
 
     text = local_path.read_text(encoding="utf-8")
     local_data = yaml.safe_load(text)
     if not isinstance(local_data, dict):
-        return set()
+        _local_profile_names_cache_token = token
+        _local_profile_names_cache_value = set()
+        return _local_profile_names_cache_value
     names: set[str] = set()
     for item in local_data.get("mentor_profiles", []):
         if isinstance(item, dict) and "profile_name" in item:
             names.add(item["profile_name"])
+    _local_profile_names_cache_token = token
+    _local_profile_names_cache_value = names
     return names
 
 
 def _load_mentor_profiles() -> list[MentorProfileConfig]:
     """Load all mentor profile configurations from the config file.
+
+    Memoized on the merged-config token (same shape as ``load_merged_config``'s
+    cache key) so repeat calls during a single `sase ace` render skip the
+    profile parsing/validation loop entirely.
 
     Returns:
         List of MentorProfileConfig objects.
@@ -84,6 +138,15 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
         FileNotFoundError: If config data is empty (no config files exist).
         ValueError: If config file is malformed.
     """
+    global _mentor_profiles_cache_token, _mentor_profiles_cache_value
+
+    token = current_config_token()
+    if (
+        _mentor_profiles_cache_value is not None
+        and _mentor_profiles_cache_token == token
+    ):
+        return _mentor_profiles_cache_value
+
     data = load_merged_config()
 
     if not data:
@@ -120,6 +183,8 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
             continue
         profiles.append(profile)
 
+    _mentor_profiles_cache_token = token
+    _mentor_profiles_cache_value = profiles
     return profiles
 
 

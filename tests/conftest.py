@@ -97,6 +97,21 @@ def _mock_system_clipboard():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _clear_config_caches() -> None:
+    """Drop the merged-config / mentor-profile caches before each test.
+
+    The runtime caches live at module scope and would otherwise carry parsed
+    config across tests that patch ``load_merged_config`` or rewrite tmp_path
+    sase.yml files between runs.
+    """
+    from sase.config.core import clear_config_cache
+    from sase.config.mentor import clear_mentor_profiles_cache
+
+    clear_config_cache()
+    clear_mentor_profiles_cache()
+
+
 @pytest.fixture
 def make_changespec() -> "type[_ChangeSpecFactory]":  # Return a callable factory class
     """Fixture that provides a factory for creating ChangeSpec objects for testing."""

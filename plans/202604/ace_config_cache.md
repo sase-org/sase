@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 10:15:56
-status: wip
+status: done
 ---
 # Cache merged-config / mentor-profile loads to speed up `sase ace` TUI tab switching
 

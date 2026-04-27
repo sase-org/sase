@@ -5,6 +5,8 @@ import re
 from collections.abc import Sequence
 from typing import Protocol
 
+from sase.config.mentor import get_mentor_profile_by_name
+
 _ENTRY_REF_RE = re.compile(r"^\d+[a-z]?$")
 
 
@@ -130,8 +132,6 @@ def format_profile_with_count(
     Returns:
         Formatted string like "profile[2/3]".
     """
-    from sase.config.mentor import get_mentor_profile_by_name
-
     profile_config = get_mentor_profile_by_name(profile_name)
     if profile_config is None:
         return profile_name  # Fallback if profile not found in config

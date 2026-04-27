@@ -5,6 +5,7 @@ import os
 from rich.text import Text
 
 from ...changespec import ChangeSpec
+from ...display_helpers import format_profile_with_count
 from ...hooks import format_timestamp_display
 from ...scheduler.mentor_runner import get_mentor_chat_path
 from ..models.fold_state import FoldLevel
@@ -72,8 +73,6 @@ def build_mentors_section(
     text.append("MENTORS:\n", style="bold #87D7FF")
 
     for mentor_entry in changespec.mentors:
-        from ...display_helpers import format_profile_with_count
-
         visible_profiles = mentor_entry.profiles
 
         # Skip entry entirely if no visible profiles

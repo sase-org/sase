@@ -29,11 +29,69 @@ CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
 # agent runs are separate processes and keep the default (True).
 _include_local_config: bool = True
 
+# Process-wide caches.  The merged-config cache is keyed on a tuple of mtime/size
+# stat tokens for every candidate config file (cheap to recompute), plus the
+# include-local flag and cwd.  The bundled-default and plugin-default layers ship
+# inside packages and never change in a process, so they're memoized once.  Note:
+# callers must not mutate the returned dict; the cache returns the same object.
+_default_config_cache: dict[str, Any] | None = None
+_plugin_configs_cache: list[dict[str, Any]] | None = None
+_merged_config_cache_token: tuple[Any, ...] | None = None
+_merged_config_cache_value: dict[str, Any] | None = None
+
 
 def set_include_local_config(value: bool) -> None:
     """Enable or disable loading of the local CWD ``sase.yml``."""
     global _include_local_config
     _include_local_config = value
+
+
+def stat_token(path: Path) -> tuple[str, int, int] | None:
+    """Return ``(path, mtime_ns, size)`` for *path* or ``None`` if missing.
+
+    Combines mtime_ns with size to defeat coarse-grained filesystem timestamps.
+    """
+    try:
+        st = path.stat()
+    except (OSError, FileNotFoundError):
+        return None
+    return (str(path), st.st_mtime_ns, st.st_size)
+
+
+def current_config_token() -> tuple[Any, ...]:
+    """Compute the cache key for the current merged-config state.
+
+    Includes the include-local flag, cwd (when local config is enabled), and a
+    stat tuple per candidate file layer.  Bundled and plugin defaults aren't
+    keyed because they ship in packages and don't change at runtime.
+    """
+    parts: list[Any] = [_include_local_config]
+    if _include_local_config:
+        try:
+            parts.append(str(Path.cwd()))
+        except FileNotFoundError:
+            parts.append(None)
+    else:
+        parts.append(None)
+
+    parts.append(stat_token(CONFIG_DIR / "sase.yml"))
+    parts.append(tuple(stat_token(p) for p in _get_overlay_paths()))
+
+    local_path = _get_local_config_path()
+    parts.append(stat_token(local_path) if local_path is not None else None)
+
+    return tuple(parts)
+
+
+# pyvision: tests/conftest.py
+def clear_config_cache() -> None:
+    """Drop all cached config layers.  Call from tests or explicit refresh paths."""
+    global _default_config_cache, _plugin_configs_cache
+    global _merged_config_cache_token, _merged_config_cache_value
+    _default_config_cache = None
+    _plugin_configs_cache = None
+    _merged_config_cache_token = None
+    _merged_config_cache_value = None
 
 
 def get_use_chezmoi() -> bool:
@@ -250,12 +308,29 @@ def load_merged_config() -> dict[str, Any]:
     5. ``./sase.yml`` (local CWD config — lists **concatenate**, highest priority)
 
     Returns at least the defaults even when no user config files exist.
+
+    The result is memoized; cache invalidates automatically when any candidate
+    file's mtime/size changes, when ``set_include_local_config`` toggles, or when
+    cwd changes (and local config is enabled).  Callers must not mutate the
+    returned dict — every call site today reads via ``.get()`` or key access.
+    Use :func:`clear_config_cache` to force a reload.
     """
-    result = _load_default_config()
+    global _default_config_cache, _plugin_configs_cache
+    global _merged_config_cache_token, _merged_config_cache_value
+
+    token = current_config_token()
+    if _merged_config_cache_value is not None and _merged_config_cache_token == token:
+        return _merged_config_cache_value
+
+    if _default_config_cache is None:
+        _default_config_cache = _load_default_config()
+    result = dict(_default_config_cache)
     log.debug("Loading layer 'default' (keys: %s)", ", ".join(result.keys()))
 
     # 2. Plugin configs (between defaults and user config)
-    for plugin_config in _load_plugin_configs():
+    if _plugin_configs_cache is None:
+        _plugin_configs_cache = _load_plugin_configs()
+    for plugin_config in _plugin_configs_cache:
         log.debug("Loading layer 'plugin' (keys: %s)", ", ".join(plugin_config.keys()))
         result = _deep_merge(result, plugin_config)
 
@@ -294,6 +369,8 @@ def load_merged_config() -> dict[str, Any]:
             )
             result = _deep_merge(result, local_config)
 
+    _merged_config_cache_token = token
+    _merged_config_cache_value = result
     return result
 
 
