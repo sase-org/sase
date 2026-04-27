@@ -148,19 +148,14 @@ def _wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | Non
 class _BatchTimestampAllocator:
     """Allocate per-batch timestamps without changing timestamp format."""
 
-    def __init__(
-        self,
-        generate: Callable[[], str],
-        sleep: Callable[[float], None] | None = None,
-    ) -> None:
+    def __init__(self, generate: Callable[[], str]) -> None:
         self._generate = generate
-        self._sleep = time.sleep if sleep is None else sleep
         self._last_timestamp: str | None = None
 
     def next(self) -> str:
         timestamp = self._generate()
         while timestamp == self._last_timestamp:
-            self._sleep(0.05)
+            time.sleep(0.05)
             timestamp = self._generate()
         self._last_timestamp = timestamp
         return timestamp

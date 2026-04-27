@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 12:35:22
-status: wip
+status: done
 ---
 # Plan: Drop Unused `sleep` Parameter From `_BatchTimestampAllocator`
 
