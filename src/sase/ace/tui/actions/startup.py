@@ -288,6 +288,7 @@ class StartupMixin:
         # one of those, so no explicit bumps are needed at writers.
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_keys_cache: tuple[Any, ...] | None = None
+        self._agent_panel_index_cache: tuple[Any, Any] | None = None
 
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents

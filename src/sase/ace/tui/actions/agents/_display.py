@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ...models.agent_panel_index import AgentPanelIndex
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
@@ -76,25 +77,38 @@ class AgentDisplayMixin:
 
     # Phase 2 j/k cache (initialized in StartupMixin._init_app_state).
     _panel_keys_cache: tuple[Any, ...] | None
+    # Phase 4 panel index cache: keyed on ``self._agents`` identity so a
+    # single agents-list ref reuses the same panels / non-child indices /
+    # completed count across every refresh path.
+    _agent_panel_index_cache: tuple[Any, AgentPanelIndex] | None
 
-    def _panel_keys_per_agent(self) -> list:
-        """Memoized :func:`panel_key_per_agent` keyed on the agents list.
+    def _agent_panel_index(self) -> AgentPanelIndex:
+        """Memoized :class:`AgentPanelIndex` keyed on the agents-list ref.
 
-        ``self._agents`` is replaced wholesale by the loading/refilter
-        paths, so ``is`` identity is a sufficient invalidation signal —
-        when the list ref changes, the cache misses and rebuilds.
-        Several call sites per j/k keystroke share this cache so the
-        list comprehension over ``self._agents`` runs at most once per
-        refresh cycle.
+        ``self._agents`` is replaced wholesale by the loading / refilter
+        paths so ``is`` identity is a sufficient invalidation signal.
+        Every panel-aware refresh path (highlights, widgets, info panel,
+        single-row patch) reads from this index so the agents list is
+        scanned at most once per refresh cycle.
         """
-        from ...models.agent_panels import panel_key_per_agent
+        from ...models.agent_panel_index import build_agent_panel_index
 
-        cached = getattr(self, "_panel_keys_cache", None)
+        cached = getattr(self, "_agent_panel_index_cache", None)
         if cached is not None and cached[0] is self._agents:
             return cached[1]
-        keys = panel_key_per_agent(self._agents)
-        self._panel_keys_cache = (self._agents, keys)
-        return keys
+        index = build_agent_panel_index(
+            self._agents, dismissable_statuses=DISMISSABLE_STATUSES
+        )
+        self._agent_panel_index_cache = (self._agents, index)
+        # Keep the legacy ``_panel_keys_cache`` populated so callers that
+        # still go through ``_panel_keys_per_agent`` (tree builder, banner
+        # math) share the same per-agent key list as the panel index.
+        self._panel_keys_cache = (self._agents, index.keys_per_agent)
+        return index
+
+    def _panel_keys_per_agent(self) -> list:
+        """Memoized :func:`panel_key_per_agent` keyed on the agents list."""
+        return self._agent_panel_index().keys_per_agent
 
     def _refresh_agents_display(
         self, *, list_changed: bool = False, defer_detail: bool = False
@@ -211,8 +225,8 @@ class AgentDisplayMixin:
         except ValueError:
             return False
 
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        agent_panel_key = keys_per_agent[agent_idx]
+        panel_index = self._agent_panel_index()
+        agent_panel_key = panel_index.keys_per_agent[agent_idx]
 
         # Find which panel currently displays this agent, if any.
         target_panel_idx: int | None = None
@@ -229,9 +243,9 @@ class AgentDisplayMixin:
         except NoMatches:
             return False
 
-        # Translate the global agent index to the panel-local index by
-        # counting agents with the same panel key that come before it.
-        local_idx = sum(1 for k in keys_per_agent[:agent_idx] if k == agent_panel_key)
+        local_idx = panel_index.local_idx_for(agent_panel_key, agent_idx)
+        if local_idx < 0:
+            return False
 
         # Cross-group safety: under BY_STATUS the same agent set can be
         # split across different banners when status flips, and banner
@@ -364,7 +378,6 @@ class AgentDisplayMixin:
     ) -> None:
         from textual.css.query import NoMatches
 
-        from ...models.agent_panels import agents_for_panel
         from ...widgets import AgentList
 
         try:
@@ -373,6 +386,7 @@ class AgentDisplayMixin:
             return
 
         panel_keys = self._panel_group.panel_keys
+        panel_index = self._agent_panel_index()
         # Mount missing panels (skip index 0 — the main pane is composed
         # statically and lives at id ``agent-list-panel``).
         existing_ids = {w.id for w in container.children if isinstance(w, AgentList)}
@@ -389,7 +403,6 @@ class AgentDisplayMixin:
             if isinstance(w, AgentList) and w.id not in keep_ids:
                 w.remove()
 
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_idx = self._panel_group.focused_idx
         fold_registry = self._group_fold_registry
         marked = self._marked_agents
@@ -408,18 +421,17 @@ class AgentDisplayMixin:
                 continue
             ordered_widgets.append(widget)
 
-            panel_agents = agents_for_panel(self._agents, key)
-            global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
+            slot = panel_index.slice_for(key)
+            panel_agents = slot.agents
+            global_indices = slot.global_indices
+            global_to_local = slot.global_to_local
 
             label = "(untagged)" if key is None else f"@{key}"
             widget.border_title = f"{label} · {len(panel_agents)}"
 
             local_idx = -1
             if idx == focused_idx and 0 <= global_idx < len(self._agents):
-                try:
-                    local_idx = global_indices.index(global_idx)
-                except ValueError:
-                    local_idx = -1
+                local_idx = global_to_local.get(global_idx, -1)
 
             local_jump_hints: dict[int, str] | None = None
             if jump_hints:
@@ -552,8 +564,7 @@ class AgentDisplayMixin:
         from ...widgets import AgentList
 
         focused_key = self._panel_group.focused_key
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
+        panel_index = self._agent_panel_index()
         wid = _panel_widget_id(self._panel_group.focused_idx)
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
@@ -561,10 +572,7 @@ class AgentDisplayMixin:
             return
         local_idx = -1
         if 0 <= self.current_idx < len(self._agents):
-            try:
-                local_idx = global_indices.index(self.current_idx)
-            except ValueError:
-                local_idx = -1
+            local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
         widget.update_highlight(
             local_idx,
             self.current_attempt_number,
@@ -638,9 +646,7 @@ class AgentDisplayMixin:
         elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
             footer_widget.update_custom_mode_bindings(cm)
         else:
-            completed_count = sum(
-                1 for a in self._agents if a.status in DISMISSABLE_STATUSES
-            )
+            completed_count = self._agent_panel_index().completed_count
             can_jump = (
                 self._resolve_agent_cl_name(current_agent) is not None  # type: ignore[attr-defined]
                 if current_agent
@@ -660,17 +666,11 @@ class AgentDisplayMixin:
         from ...widgets import AgentDetail, AgentInfoPanel
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
-        # Position is 1-based for display; exclude workflow children from count.
-        non_child_indices = [
-            i for i, a in enumerate(self._agents) if not a.is_workflow_child
-        ]
-        from bisect import bisect_right
-
-        total = len(non_child_indices)
-        if self._agents:
-            position = bisect_right(non_child_indices, self.current_idx)
-        else:
-            position = 0
+        panel_index = self._agent_panel_index()
+        total = panel_index.non_child_total
+        position = (
+            panel_index.non_child_position(self.current_idx) if self._agents else 0
+        )
         agent_info_panel.update_position(position, total)
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval

@@ -123,6 +123,13 @@ class AgentList(OptionList, inherit_bindings=False):
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.
         self._row_tier_styles: dict[int, tuple[str, ...]] = {}
+        # O(1) row lookups (Phase 4 of plans/202604/tui_perf_overhaul_1.md):
+        # populated alongside ``_row_entries`` during ``update_list`` so
+        # ``update_highlight`` / ``_row_index_for_agent`` / ``patch_agent_row``
+        # never linearly scan ``_row_entries`` to find a target row.
+        self._row_by_agent_attempt: dict[tuple[int, int | None], int] = {}
+        self._row_by_agent_idx: dict[int, int] = {}
+        self._banner_row_by_key: dict[tuple[str, ...], int] = {}
 
     def update_list(
         self,
@@ -202,6 +209,9 @@ class AgentList(OptionList, inherit_bindings=False):
         self._banner_at_row = {}
         self._row_render_ctx = {}
         self._row_tier_styles = {}
+        self._row_by_agent_attempt = {}
+        self._row_by_agent_idx = {}
+        self._banner_row_by_key = {}
 
         marked = marked_agents or set()
 
@@ -338,6 +348,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 self._row_entries.append((_BANNER_ROW, None))
                 if banner_selectable:
                     self._banner_at_row[row_index] = entry.group
+                    self._banner_row_by_key[entry.group.group_key] = row_index
                     if (
                         current_group_key is not None
                         and entry.group.group_key == current_group_key
@@ -353,9 +364,12 @@ class AgentList(OptionList, inherit_bindings=False):
             option = agent_options[i]
             self.add_option(option)
             is_selected_agent = current_group_key is None and i == current_idx
+            row_index = len(self._row_entries)
             if is_selected_agent:
-                highlighted_row = len(self._row_entries)
+                highlighted_row = row_index
             self._row_entries.append((i, None))
+            self._row_by_agent_attempt[(i, None)] = row_index
+            self._row_by_agent_idx[i] = row_index
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
@@ -436,24 +450,21 @@ class AgentList(OptionList, inherit_bindings=False):
         """
         with tui_trace("widget.agent_list.update_highlight", count=len(self._agents)):
             if group_key is not None:
-                for row, banner in self._banner_at_row.items():
-                    if banner.group_key == group_key:
-                        self._programmatic_update = True
-                        self.highlighted = row
-                        self.call_later(self._clear_programmatic_flag)
-                        return
+                row = self._banner_row_by_key.get(group_key)
+                if row is not None:
+                    self._programmatic_update = True
+                    self.highlighted = row
+                    self.call_later(self._clear_programmatic_flag)
+                    return
             if not self._agents or not (0 <= current_idx < len(self._agents)):
                 return
-            targets = [(current_idx, current_attempt_number)]
-            if current_attempt_number is not None:
-                targets.append((current_idx, None))
-            for target in targets:
-                for row, entry in enumerate(self._row_entries):
-                    if entry == target:
-                        self._programmatic_update = True
-                        self.highlighted = row
-                        self.call_later(self._clear_programmatic_flag)
-                        return
+            row = self._row_by_agent_attempt.get((current_idx, current_attempt_number))
+            if row is None and current_attempt_number is not None:
+                row = self._row_by_agent_idx.get(current_idx)
+            if row is not None:
+                self._programmatic_update = True
+                self.highlighted = row
+                self.call_later(self._clear_programmatic_flag)
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
@@ -469,10 +480,7 @@ class AgentList(OptionList, inherit_bindings=False):
         Returns ``None`` when no row maps to that agent (e.g. it lives in
         another panel, or the index is stale).
         """
-        for row, entry in enumerate(self._row_entries):
-            if entry == (agent_idx, None):
-                return row
-        return None
+        return self._row_by_agent_idx.get(agent_idx)
 
     def patch_agent_row(
         self,
