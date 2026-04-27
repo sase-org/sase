@@ -19,6 +19,11 @@ class AgentLaunchResult:
     workspace_num: int
     workspace_dir: str
     output_path: str
+    project_file: str = ""
+    project_name: str = ""
+    workflow_name: str = ""
+    cl_name: str = ""
+    timestamp: str = ""
 
 
 def spawn_agent_subprocess(
@@ -57,6 +62,7 @@ def spawn_agent_subprocess(
     from sase.running_field import claim_workspace, transfer_workspace_claim
     from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
+    from sase.axe.chop_agents import record_chop_agent_launch_from_env
 
     # Write prompt to temp file (runner will read and delete)
     from sase.core.paths import get_sase_tmpdir
@@ -102,6 +108,10 @@ def spawn_agent_subprocess(
 
     if local_xprompts_file:
         subprocess_env["SASE_AGENT_LOCAL_XPROMPTS"] = local_xprompts_file
+
+    resolved_project_name = project_name or (
+        "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
+    )
 
     # Spawn detached subprocess
     with open(output_path, "w") as output_file:
@@ -180,11 +190,28 @@ def spawn_agent_subprocess(
             with open(home_project_file, "w", encoding="utf-8") as f:
                 f.write("")
 
+    record_chop_agent_launch_from_env(
+        pid=process.pid,
+        project_file=project_file,
+        project_name=resolved_project_name,
+        workspace_num=workspace_num,
+        workflow_name=workflow_name,
+        cl_name=cl_name,
+        timestamp=timestamp,
+        prompt=prompt,
+        env=subprocess_env,
+    )
+
     return AgentLaunchResult(
         pid=process.pid,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
         output_path=output_path,
+        project_file=project_file,
+        project_name=resolved_project_name,
+        workflow_name=workflow_name,
+        cl_name=cl_name,
+        timestamp=timestamp,
     )
 
 
@@ -269,6 +296,7 @@ def launch_agent_from_cwd(
             project_name=project_name,
             is_home_mode=is_home_mode,
             vcs_ref=mp_vcs_ref,
+            extra_env=extra_env,
         )
         return results[0]
 
@@ -335,6 +363,7 @@ def launch_agent_from_cwd(
             project_name=project_name,
             is_home_mode=is_home_mode,
             vcs_ref=alt_vcs_ref,
+            extra_env=extra_env,
         )
         return results[0]
 

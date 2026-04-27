@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.agent.launcher import AgentLaunchResult
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
 
@@ -298,7 +299,109 @@ def test_agent_chop_launches_after_previous_completes(
 
     assert result.success is True
     assert result.agent_pid == 12345
-    mock_launch.assert_called_once_with("some_agent", extra_env=None)
+    mock_launch.assert_called_once()
+    assert mock_launch.call_args.args == ("some_agent",)
+    extra_env = mock_launch.call_args.kwargs["extra_env"]
+    assert extra_env["SASE_CHOP_LUMBERJACK"] == "dedup2"
+    assert extra_env["SASE_CHOP_NAME"] == "my_agent"
+    assert extra_env["SASE_CHOP_RUN_ID"]
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_registry_skips_after_lumberjack_restart(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A live registry record prevents duplicate launch after restart."""
+    config = LumberjackConfig(
+        name="dedup_restart",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    first_lumberjack = Lumberjack("dedup_restart", config, axe_config)
+    launch_result = AgentLaunchResult(
+        pid=12345,
+        workspace_num=7,
+        workspace_dir="/tmp/ws7",
+        output_path="/tmp/out",
+        project_file="/tmp/projects/proj/proj.gp",
+        project_name="proj",
+        workflow_name="ace(run)-260101_120000",
+        cl_name="proj",
+        timestamp="260101_120000",
+    )
+
+    with patch("sase.agent.launcher.launch_agent_from_cwd", return_value=launch_result):
+        result = first_lumberjack._launch_agent_chop(config.chops[0])
+
+    assert result.success is True
+
+    restarted_lumberjack = Lumberjack("dedup_restart", config, axe_config)
+    with patch("sase.axe.chop_agents.is_process_running", return_value=True):
+        assert restarted_lumberjack._is_agent_eligible(config.chops[0]) is False
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_registry_prunes_dead_pid(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Dead registry records are pruned and do not block relaunch."""
+    from sase.axe.chop_agents import _record_chop_agent_launch
+
+    config = LumberjackConfig(
+        name="dedup_prune",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    _record_chop_agent_launch(
+        lumberjack_name="dedup_prune",
+        chop_name="my_agent",
+        run_id="old",
+        pid=99999,
+        project_file="/tmp/projects/proj/proj.gp",
+        project_name="proj",
+        workspace_num=1,
+        workflow_name="ace(run)-260101_120000",
+        cl_name="proj",
+        timestamp="260101_120000",
+        prompt="some_agent",
+    )
+
+    lumberjack = Lumberjack("dedup_prune", config, axe_config)
+    with patch("sase.axe.chop_agents.is_process_running", return_value=False):
+        assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_script_chop_receives_chop_env(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """External chop scripts receive durable chop identity env vars."""
+    config = LumberjackConfig(
+        name="scripts",
+        interval=10,
+        chops=[ChopConfig(name="script_chop", description="", env={"EXTRA": "1"})],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("scripts", config, axe_config)
+    lumberjack._run_tick()
+
+    env = mock_run.call_args.kwargs["env"]
+    assert env["EXTRA"] == "1"
+    assert env["SASE_CHOP_LUMBERJACK"] == "scripts"
+    assert env["SASE_CHOP_NAME"] == "script_chop"
+    assert env["SASE_CHOP_RUN_ID"]
 
 
 # --- Status/Metrics Writing Tests ---

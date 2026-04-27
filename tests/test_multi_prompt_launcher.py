@@ -365,3 +365,40 @@ def test_launch_multi_prompt_with_multi_model_segment(
 
     # Naming-wait should fire between segments (not between model variants).
     assert mock_wait.call_count == 1
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"])
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_passes_extra_env_to_each_child(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Chop metadata env is forwarded to every child agent."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+    extra_env = {"SASE_CHOP_LUMBERJACK": "hooks", "SASE_CHOP_NAME": "split"}
+
+    launch_multi_prompt_agents(
+        segments=["seg1", "seg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        extra_env=extra_env,
+    )
+
+    assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
+    assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env

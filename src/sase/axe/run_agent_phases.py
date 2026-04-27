@@ -11,6 +11,7 @@ import time
 from typing import Any, NamedTuple
 
 from sase.axe.runner_utils import was_killed
+from sase.axe.chop_agents import agent_meta_from_chop_env
 
 
 class _AgentInfo(NamedTuple):
@@ -137,6 +138,7 @@ def extract_directives_and_write_meta(
         agent_meta["plan"] = True
     if directives.tag:
         agent_meta["tag"] = directives.tag
+    agent_meta.update(agent_meta_from_chop_env())
 
     # Write agent_meta.json
     if agent_meta:

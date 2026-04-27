@@ -193,3 +193,24 @@ def test_handle_shutdown_forwards_sigterm(
     assert pids_killed == {100, 200}
     for c in calls:
         assert c[0][1] == signal.SIGTERM
+
+
+@patch("os.killpg")
+@patch("os.kill")
+def test_terminate_children_does_not_signal_process_groups(
+    mock_kill: MagicMock,
+    mock_killpg: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Axe shutdown targets lumberjack PIDs, not descendant process groups."""
+    orch = Orchestrator(axe_config)
+    mock_proc = MagicMock()
+    mock_proc.pid = 100
+    mock_proc.poll.return_value = None
+    orch._children = {"hooks": mock_proc}
+
+    orch._terminate_children()
+
+    mock_kill.assert_called_once_with(100, signal.SIGTERM)
+    mock_killpg.assert_not_called()

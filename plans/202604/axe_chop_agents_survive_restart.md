@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 11:10:22
-status: wip
+status: done
 ---
 # Plan: Make lumberjack-launched agents survive axe restarts
 

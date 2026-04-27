@@ -155,6 +155,7 @@ def launch_multi_prompt_agents(
     is_home_mode: bool,
     vcs_ref: tuple[str, str] | None,
     on_agent_spawned: Callable[[], None] | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent with naming-wait between launches.
 
@@ -241,6 +242,7 @@ def launch_multi_prompt_agents(
                 vcs_ref=vcs_ref,
                 deferred_workspace=has_wait,
                 local_xprompts_file=local_xprompts_file,
+                extra_env=extra_env,
             )
             results.append(result)
 

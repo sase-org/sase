@@ -11,6 +11,7 @@ import signal
 import subprocess
 import time
 import traceback
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -31,6 +32,15 @@ from .chop_script_context import (
     write_chop_context,
 )
 from .chop_script_runner import discover_chop_script, run_chop_script
+from .chop_agents import (
+    ENV_CHOP_LUMBERJACK,
+    ENV_CHOP_NAME,
+    ENV_CHOP_PROMPT_HASH,
+    ENV_CHOP_RUN_ID,
+    get_live_chop_agent_records,
+    prompt_hash,
+    record_chop_agent_launch_result,
+)
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .state import (
     AxeMetrics,
@@ -231,11 +241,13 @@ class Lumberjack:
                     update_timestamp=False,
                     error=RuntimeError(f"Chop script not found: {chop.name}"),
                 )
+            env = dict(chop.env)
+            env.update(self._chop_launch_env(chop))
             result = run_chop_script(
                 script,
                 context_file,
                 timeout=resolved_timeout,
-                env=chop.env,
+                env=env,
                 cwd=str(self._state_dir),
             )
             if result.stdout:
@@ -287,6 +299,21 @@ class Lumberjack:
 
         Must be called from the main thread only.
         """
+        assert chop.agent is not None
+        prompt_hash_value = prompt_hash(chop.agent)
+        live_records = get_live_chop_agent_records(
+            self.name,
+            chop_name=chop.name,
+            prompt_hash_value=prompt_hash_value,
+        )
+        if live_records:
+            live_pids = {record.pid for record in live_records}
+            self._agent_pids[chop.name] = live_pids
+            self._log(
+                f"Skipping agent chop '{chop.name}': already running (PIDs {live_pids})"
+            )
+            return False
+
         live_pids = self._agent_pids.get(chop.name, set())
         still_alive: set[int] = set()
         for pid in live_pids:
@@ -303,6 +330,17 @@ class Lumberjack:
             return False
         self._agent_pids.pop(chop.name, None)
         return True
+
+    def _chop_launch_env(self, chop: ChopConfig) -> dict[str, str]:
+        """Build env vars that identify a chop-launched workflow."""
+        env = {
+            ENV_CHOP_LUMBERJACK: self.name,
+            ENV_CHOP_NAME: chop.name,
+            ENV_CHOP_RUN_ID: uuid.uuid4().hex,
+        }
+        if chop.agent is not None:
+            env[ENV_CHOP_PROMPT_HASH] = prompt_hash(chop.agent)
+        return env
 
     def _resolve_gate_cwd(self, chop: ChopConfig) -> str | None:
         """Resolve the CWD for a gate command from the agent prompt's VCS ref.
@@ -375,10 +413,15 @@ class Lumberjack:
             # Pass auto-dismiss via extra_env to avoid mutating os.environ
             # (not thread-safe). This ensures recurring run_every agents
             # don't accumulate as "done" entries.
-            extra_env = (
-                {"SASE_AGENT_AUTO_DISMISS": "1"} if chop.run_every is not None else None
-            )
+            extra_env = self._chop_launch_env(chop)
+            if chop.run_every is not None:
+                extra_env["SASE_AGENT_AUTO_DISMISS"] = "1"
             result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
+            record_chop_agent_launch_result(
+                result=result,
+                prompt=chop.agent,
+                env=extra_env,
+            )
             return _ChopResult(
                 chop_name=chop.name,
                 executed=True,
