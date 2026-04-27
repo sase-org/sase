@@ -65,6 +65,7 @@ class SnoozeDurationModal(ModalScreen["timedelta | datetime | None"]):
                     placeholder="e.g., 30m, 2h, 1h30m",
                     id="snooze-custom-input",
                     classes="hidden",
+                    disabled=True,
                 )
                 yield Label("", id="snooze-custom-error", classes="hidden")
 
@@ -83,6 +84,7 @@ class SnoozeDurationModal(ModalScreen["timedelta | datetime | None"]):
     def action_open_custom(self) -> None:
         """Reveal the custom-duration input and focus it."""
         custom_input = self.query_one("#snooze-custom-input", Input)
+        custom_input.disabled = False
         custom_input.remove_class("hidden")
         custom_input.value = ""
         custom_input.focus()
@@ -92,6 +94,7 @@ class SnoozeDurationModal(ModalScreen["timedelta | datetime | None"]):
         custom_input = self.query_one("#snooze-custom-input", Input)
         if not custom_input.has_class("hidden") and custom_input.has_focus:
             custom_input.add_class("hidden")
+            custom_input.disabled = True
             custom_input.value = ""
             error = self.query_one("#snooze-custom-error", Label)
             error.update("")

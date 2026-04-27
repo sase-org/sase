@@ -3,10 +3,22 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
+from textual.app import App, ComposeResult
+from textual.widgets import Input
+
 from sase.ace.tui.modals.snooze_duration_modal import (
     SnoozeDurationModal,
     _tomorrow_morning,
 )
+
+
+class _TestApp(App[timedelta | datetime | None]):
+    """Minimal app for async snooze picker tests."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
 
 
 def _make_modal() -> SnoozeDurationModal:
@@ -63,3 +75,96 @@ def test__tomorrow_morning_skips_today_even_if_morning() -> None:
     early_morning = datetime(2026, 4, 21, 6, 0, 0, tzinfo=tz)
     target = _tomorrow_morning(now=early_morning)
     assert target == datetime(2026, 4, 22, 9, 0, 0, tzinfo=tz)
+
+
+async def test_preset_1_key_dismisses_after_mount() -> None:
+    """Digit shortcuts are handled by the modal, not the hidden input."""
+    result: timedelta | datetime | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: timedelta | datetime | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = SnoozeDurationModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        custom_input = modal.query_one("#snooze-custom-input", Input)
+        assert custom_input.has_class("hidden")
+        assert custom_input.disabled is True
+
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert result == timedelta(minutes=15)
+
+
+async def test_preset_2_key_dismisses_after_mount() -> None:
+    """A second digit shortcut catches regressions beyond the first binding."""
+    result: timedelta | datetime | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: timedelta | datetime | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = SnoozeDurationModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("2")
+        await pilot.pause()
+
+    assert result == timedelta(hours=1)
+
+
+async def test_custom_key_reveals_enables_and_focuses_input() -> None:
+    """``c`` is handled before the custom input becomes active."""
+    async with _TestApp().run_test() as pilot:
+        modal = SnoozeDurationModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.press("c")
+        await pilot.pause()
+
+        custom_input = modal.query_one("#snooze-custom-input", Input)
+        assert not custom_input.has_class("hidden")
+        assert custom_input.disabled is False
+        assert pilot.app.focused is custom_input
+
+
+async def test_escape_from_custom_hides_and_disables_input() -> None:
+    """Back out of custom entry so later preset shortcuts still reach the modal."""
+    result: timedelta | datetime | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: timedelta | datetime | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = SnoozeDurationModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("c")
+        await pilot.pause()
+
+        custom_input = modal.query_one("#snooze-custom-input", Input)
+        custom_input.value = "30m"
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert custom_input.has_class("hidden")
+        assert custom_input.disabled is True
+        assert custom_input.value == ""
+
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert result == timedelta(minutes=15)
