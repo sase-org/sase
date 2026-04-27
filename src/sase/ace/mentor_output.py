@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -94,7 +93,6 @@ def save_mentor_output(
     return path
 
 
-@lru_cache(maxsize=1024)
 def _load_mentor_output(path: Path) -> MentorOutput:
     """Load a single mentor output from a JSON file.
 
@@ -110,6 +108,31 @@ def _load_mentor_output(path: Path) -> MentorOutput:
         role=data["role"],
         comments=comments,
     )
+
+
+def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
+    """Load all mentor outputs for a given CL.
+
+    Returns:
+        List of (path, MentorOutput) tuples sorted by filename (timestamp order).
+    """
+    if not SASE_MENTORS_DIR.is_dir():
+        return []
+    safe_cl = cl_name.replace("/", "_")
+    results: list[tuple[Path, MentorOutput]] = []
+    for path in sorted(SASE_MENTORS_DIR.glob(f"{safe_cl}-*.json")):
+        # Skip acceptance state files
+        if path.name.endswith("-acceptance.json"):
+            continue
+        if path.name.endswith("-readstate.json"):
+            continue
+        if path.name.endswith("-files.json"):
+            continue
+        try:
+            results.append((path, _load_mentor_output(path)))
+        except (json.JSONDecodeError, KeyError, TypeError):
+            log.debug("Skipping malformed mentor output: %s", path)
+    return results
 
 
 def save_file_snapshots(
@@ -156,34 +179,24 @@ def load_file_snapshots(
         return {}
 
 
-def load_mentor_outputs_for_runs(
-    cl_name: str, runs: list[tuple[str, str, str]]
+def load_mentor_outputs_for_commit(
+    cl_name: str, timestamps: set[str]
 ) -> list[tuple[Path, MentorOutput]]:
-    """Load mentor outputs for specific runs (profile, mentor, timestamp).
+    """Load mentor outputs matching specific timestamps.
 
-    Args:
-        cl_name: The ChangeSpec name.
-        runs: List of (profile_name, mentor_name, timestamp) tuples.
+    Each mentor output file is named ``<cl>-<profile>-<mentor>-<timestamp>.json``.
+    The *timestamps* set (from ``MentorStatusLine.timestamp``) is matched against
+    the final segment of each filename.
 
     Returns:
-        List of (path, MentorOutput) tuples.
+        List of (path, MentorOutput) tuples for the matching timestamps.
     """
-    if not SASE_MENTORS_DIR.is_dir() or not runs:
-        return []
-
-    safe_cl = cl_name.replace("/", "_")
-    results: list[tuple[Path, MentorOutput]] = []
-
-    for profile_name, mentor_name, ts in runs:
-        filename = f"{safe_cl}-{profile_name}-{mentor_name}-{ts}.json"
-        path = SASE_MENTORS_DIR / filename
-        if path.is_file():
-            try:
-                results.append((path, _load_mentor_output(path)))
-            except (json.JSONDecodeError, KeyError, TypeError):
-                log.debug("Skipping malformed mentor output: %s", path)
-
-    return results
+    all_outputs = _load_all_mentor_outputs(cl_name)
+    return [
+        (p, o)
+        for p, o in all_outputs
+        if any(p.stem.endswith(f"-{ts}") for ts in timestamps)
+    ]
 
 
 # ── Acceptance state ─────────────────────────────────────────────────────

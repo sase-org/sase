@@ -18,7 +18,7 @@ from ...changespec import (
 )
 from ...mentor_output import (
     load_acceptance_state,
-    load_mentor_outputs_for_runs,
+    load_mentor_outputs_for_commit,
     load_read_state,
 )
 
@@ -43,11 +43,6 @@ class _MentorCommentStats:
     accepted: int
 
 
-# Cache for mentor stats to avoid redundant disk I/O during list rebuilds.
-# Key: (cl_name, entry_id, tuple_of_status_line_timestamps_and_statuses)
-_MENTOR_STATS_CACHE: dict[tuple[Any, ...], _MentorCommentStats | None] = {}
-
-
 def _compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
     """Compute mentor comment stats for the latest commit entry.
 
@@ -55,7 +50,6 @@ def _compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
     """
     if not changespec.mentors:
         return None
-
     try:
         latest_entry = max(changespec.mentors, key=lambda e: e.entry_id)
         if not latest_entry.status_lines:
@@ -68,28 +62,17 @@ def _compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
         if not finished_lines:
             return None
 
-        # Check cache first
+        timestamps = {sl.timestamp for sl in finished_lines}
         cl_name = changespec.name
-        entry_id = latest_entry.entry_id
-        timestamps_and_statuses = tuple(
-            (sl.timestamp, sl.status) for sl in finished_lines
-        )
-        cache_key = (cl_name, entry_id, timestamps_and_statuses)
-        if cache_key in _MENTOR_STATS_CACHE:
-            return _MENTOR_STATS_CACHE[cache_key]
-
-        runs = [
-            (sl.profile_name, sl.mentor_name, sl.timestamp) for sl in finished_lines
-        ]
-        outputs = load_mentor_outputs_for_runs(cl_name, runs)
+        outputs = load_mentor_outputs_for_commit(cl_name, timestamps)
 
         # Map timestamps to outputs
         ts_map: dict[str, Any] = {}
         for path, mo in outputs:
-            # Filename is {cl}-{profile}-{mentor}-{timestamp}.json
-            # Extract timestamp from stem
-            ts = path.stem.split("-")[-1]
-            ts_map[ts] = mo
+            for ts in timestamps:
+                if path.stem.endswith(f"-{ts}"):
+                    ts_map[ts] = mo
+                    break
 
         entry_id = latest_entry.entry_id
         acceptance = load_acceptance_state(cl_name, entry_id)
@@ -118,16 +101,13 @@ def _compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
                     read_count += 1
 
         if total == 0:
-            _MENTOR_STATS_CACHE[cache_key] = None
             return None
 
-        stats = _MentorCommentStats(
+        return _MentorCommentStats(
             total=total,
             unread=max(0, total - read_count),
             accepted=min(accepted_count, total),
         )
-        _MENTOR_STATS_CACHE[cache_key] = stats
-        return stats
     except Exception:
         log.debug(
             "Failed to compute mentor stats for %s",
