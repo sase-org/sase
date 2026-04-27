@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
+from sase.ace.tui.util.nav_gate import NavigationGate
 
 
 class _FakeApp(AgentLoadingMixin):
@@ -15,9 +17,14 @@ class _FakeApp(AgentLoadingMixin):
         self._agents_refresh_pending = False
         self._agents_refresh_scheduled = False
         self._scheduled: list[Any] = []
+        self._nav_gate = NavigationGate(window_s=0.25)
+        self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
 
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
+
+    def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
+        self._timer_calls.append((delay, callback))
 
 
 @pytest.mark.asyncio

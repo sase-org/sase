@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:02:02
-status: wip
+status: done
 ---
 # Plan — Eliminate the Post-Launch `j`/`k` Lag
 
