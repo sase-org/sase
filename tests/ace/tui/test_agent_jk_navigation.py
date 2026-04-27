@@ -36,6 +36,10 @@ class _StubApp(BasicNavigationMixin):
         self._current_group_key: tuple[str, ...] | None = None
         focused_key = agents[0].tag if agents else None
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
+        self.refresh_calls = 0
+
+    def _refresh_agents_display_debounced(self) -> None:
+        self.refresh_calls += 1
 
     def _agents_visible_order(self) -> list[int]:
         from sase.ace.tui.models.agent_groups import build_agent_tree
@@ -291,3 +295,91 @@ def test_jk_at_l0_banner_moves_highlight_to_deeper_banner() -> None:
     widget.update_highlight(app.current_idx, None, group_key=app._current_group_key)
     # Highlight tracks the L2 banner row.
     assert widget.highlighted is not None
+
+
+def test_jk_banner_to_banner_refreshes_highlight() -> None:
+    """Banner→banner: ``current_idx`` is unchanged so the setter's
+    watcher never fires; the navigation path must drive the refresh
+    itself or the highlight stays on the previous row.
+    """
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),
+        _agent(project="p2", cl="cl2", name="b1"),
+        _agent(project="p3", cl="cl3", name="c1"),
+    ]
+    app = _StubApp(
+        agents,
+        collapsed=[("p1",), ("p2",), ("p3",)],
+    )
+    app._current_group_key = ("p1",)
+    old_idx = app.current_idx
+
+    app._navigate_agents_panel(1)
+
+    assert app._current_group_key == ("p2",)
+    assert app.current_idx == old_idx
+    assert app.refresh_calls == 1
+
+
+def test_jk_agent_to_banner_refreshes_highlight() -> None:
+    """Agent→banner: ``current_idx`` is left alone; refresh must fire."""
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),  # collapsed
+        _agent(project="p2", cl="cl2", name="b1"),  # expanded
+        _agent(project="p3", cl="cl3", name="c1"),  # expanded
+    ]
+    app = _StubApp(
+        agents,
+        collapsed=[("p1",)],
+        current_idx=2,  # last visible agent
+    )
+    # Stops: banner(p1), agent(1), agent(2).  j wraps from agent(2) → banner(p1).
+    app._navigate_agents_panel(1)
+
+    assert app._current_group_key == ("p1",)
+    assert app.current_idx == 2
+    assert app.refresh_calls == 1
+
+
+def test_jk_banner_to_agent_with_same_idx_refreshes_highlight() -> None:
+    """Banner→agent stop whose idx equals the pre-navigation
+    ``current_idx``: the setter's ``old != value`` guard short-circuits
+    the watcher, so refresh would never run without our explicit call.
+    """
+    agents = [
+        _agent(project="p1", cl="cl1", name="a1"),  # collapsed
+        _agent(project="p2", cl="cl2", name="b1"),  # expanded
+        _agent(project="p3", cl="cl3", name="c1"),  # expanded
+    ]
+    app = _StubApp(
+        agents,
+        collapsed=[("p1",)],
+        current_idx=1,  # matches the agent stop that follows banner(p1)
+    )
+    app._current_group_key = ("p1",)
+    # Stops: banner(p1), agent(1), agent(2).  j moves banner(p1) → agent(1).
+    app._navigate_agents_panel(1)
+
+    assert app._current_group_key is None
+    assert app.current_idx == 1  # unchanged
+    assert app.refresh_calls == 1
+
+
+def test_jk_agent_to_agent_does_not_double_refresh() -> None:
+    """Agent→agent (distinct indices) must not call the refresh
+    explicitly — the ``current_idx`` setter's watcher already does so
+    in the real app.  The harness leaves that watcher unwired, so any
+    spy hit here would be a duplicate path.
+    """
+    agents = [
+        _agent(name="a1"),
+        _agent(name="b1"),
+        _agent(name="c1"),
+    ]
+    app = _StubApp(agents, current_idx=0)
+
+    app._navigate_agents_panel(1)
+
+    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app.refresh_calls == 0

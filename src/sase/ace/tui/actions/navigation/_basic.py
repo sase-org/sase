@@ -27,19 +27,19 @@ class BasicNavigationMixin(NavigationMixinBase):
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if not stops:
             return
-        cur_key = self._current_group_key
-        cur_idx = self.current_idx
+        old_key = self._current_group_key
+        old_idx = self.current_idx
         pos: int | None = None
         # Prefer a banner match when the user is explicitly focused on
         # one; otherwise fall through to an agent match by current_idx.
-        if cur_key is not None:
+        if old_key is not None:
             for i, (kind, payload) in enumerate(stops):
-                if kind == "banner" and payload == cur_key:
+                if kind == "banner" and payload == old_key:
                     pos = i
                     break
         if pos is None:
             for i, (kind, payload) in enumerate(stops):
-                if kind == "agent" and payload == cur_idx:
+                if kind == "agent" and payload == old_idx:
                     pos = i
                     break
         if pos is None:
@@ -52,6 +52,15 @@ class BasicNavigationMixin(NavigationMixinBase):
         else:
             self._current_group_key = None
             self.current_idx = payload
+        # The ``current_idx`` setter only fires ``watch_current_idx``
+        # (the refresh trigger) when the index actually changes.
+        # Banner-targeted stops leave ``current_idx`` untouched, and
+        # banner→agent transitions can land on the same index — in
+        # both cases nothing fires a refresh, so the highlight stays
+        # stale on the previously selected row.  Drive it explicitly
+        # whenever only ``_current_group_key`` changed.
+        if self.current_idx == old_idx and self._current_group_key != old_key:
+            self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
 
     def _navigate_visible(self, direction: int) -> None:
         """Cycle ``current_idx`` through agents in rendered order.

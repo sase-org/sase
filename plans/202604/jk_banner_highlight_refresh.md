@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 08:50:16
-status: wip
+status: done
 ---
 # Plan: Refresh Agent-List Highlight on j/k Navigation Across Folded-Group Banners
 
