@@ -650,14 +650,16 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase ace`
 
-| Flag                     | Values              | Default                   | Description                                  |
-| ------------------------ | ------------------- | ------------------------- | -------------------------------------------- |
-| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.      |
-| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations. |
-| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.         |
-| `-r, --refresh-interval` | int (seconds)       | `8`                       | Auto-refresh interval (0 to disable).        |
-| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.        |
-| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                       |
+| Flag                     | Values              | Default                   | Description                                                                                     |
+| ------------------------ | ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.                                                         |
+| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.                                                    |
+| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.                                                            |
+| `-p, --profile`          | optional path       | -                         | Profile the TUI session with pyinstrument (default output `$SASE_TMPDIR/ace_profile_<ts>.txt`). |
+| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).                                                           |
+| `-R, --restart-axe`      | flag                | -                         | Restart the axe daemon on startup (no-op if axe is not running).                                |
+| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.                                                           |
+| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                                                                          |
 
 ### `sase axe`
 
@@ -771,9 +773,9 @@ No flags. Outputs a JSON array of all available xprompts with name, type, source
 
 ### `sase bead`
 
-| Flag         | Values                                                                                                                     | Default    | Description     |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------- |
-| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard` | (required) | Bead subcommand |
+| Flag         | Values                                                                                                                             | Default    | Description     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------- |
+| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard`, `work` | (required) | Bead subcommand |
 
 #### `sase bead create`
 
@@ -883,11 +885,12 @@ Supported date range formats:
 
 `sase agents` provides cross-project visibility into running agents. Subcommands:
 
-| Subcommand | Flags                                   | Description                                                                                                                                                             |
-| ---------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project. |
-| `show`     | `name`                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                        |
-| `kill`     | `name`                                  | SIGTERM a running agent by name.                                                                                                                                        |
+| Subcommand | Flags                                   | Description                                                                                                                                                                                                       |
+| ---------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                           |
+| `show`     | `name`                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                  |
+| `kill`     | `name`                                  | SIGTERM a running agent by name.                                                                                                                                                                                  |
+| `tag`      | `set` / `unset` / `list`                | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set <agent> <tag>` replaces any prior tag; `tag unset <agent>` clears it; `tag list [--name <agent>]` prints tags as JSON. |
 
 ## Directory Sharding
 

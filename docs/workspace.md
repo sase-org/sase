@@ -57,40 +57,40 @@ Result of resolving a workspace reference:
 
 ### Metadata and Detection
 
-| Hook                       | Returns           | Description |
-| -------------------------- | ----------------- | ----------- | -------------------------------------------- |
-| `ws_get_workflow_metadata` | `WorkflowMetadata | None`       | Declare this plugin's workflow type metadata |
-| `ws_detect_workflow_type`  | `str              | None`       | Detect workflow type from a project file     |
-| `ws_get_change_label`      | `str              | None`       | Get the change label (e.g., `"PR"`, `"CL"`)  |
-| `ws_get_workspace_name`    | `str              | None`       | Get the workspace/project name for a CWD     |
+| Hook                       | Returns                    | Description                                  |
+| -------------------------- | -------------------------- | -------------------------------------------- |
+| `ws_get_workflow_metadata` | `WorkflowMetadata \| None` | Declare this plugin's workflow type metadata |
+| `ws_detect_workflow_type`  | `str \| None`              | Detect workflow type from a project file     |
+| `ws_get_change_label`      | `str \| None`              | Get the change label (e.g., `"PR"`, `"CL"`)  |
+| `ws_get_workspace_name`    | `str \| None`              | Get the workspace/project name for a CWD     |
 
 `ws_get_workflow_metadata` is the only hook that collects results from **all** plugins (not `firstresult`). This allows
 the registry to build a complete map of all available workflow types.
 
 ### Reference Resolution and Workflow Setup
 
-| Hook                         | Returns        | Description |
-| ---------------------------- | -------------- | ----------- | ------------------------------------------------- |
-| `ws_resolve_ref`             | `ResolvedRef   | None`       | Resolve a `#type:ref` reference to workspace info |
-| `ws_setup_workflow`          | `dict[str,str] | None`       | Set up environment variables for a workflow run   |
-| `ws_get_workspace_directory` | `str           | None`       | Get or create a workspace directory for a clone   |
+| Hook                         | Returns                 | Description                                       |
+| ---------------------------- | ----------------------- | ------------------------------------------------- |
+| `ws_resolve_ref`             | `ResolvedRef \| None`   | Resolve a `#type:ref` reference to workspace info |
+| `ws_setup_workflow`          | `dict[str,str] \| None` | Set up environment variables for a workflow run   |
+| `ws_get_workspace_directory` | `str \| None`           | Get or create a workspace directory for a clone   |
 
 ### Change Submission and Review
 
-| Hook                                   | Returns         | Description |
-| -------------------------------------- | --------------- | ----------- | ----------------------------------------------- | --------------------------------------- |
-| `ws_submit`                            | `tuple[bool,str | None]       | None`                                           | Submit a ChangeSpec (merge, push, etc.) |
-| `ws_prepare_mail`                      | `object         | None`       | Prepare a change for mailing/review             |
-| `ws_extract_change_identifier`         | `tuple[str,str] | None`       | Extract identifier from a CL/PR URL             |
-| `ws_supports_reviewer_comments`        | `bool           | None`       | Check if a CL URL supports reviewer comments    |
-| `ws_generate_reviewer_comments_script` | `str            | None`       | Generate a script to fetch reviewer comments    |
-| `ws_generate_submitted_check_script`   | `str            | None`       | Generate a script to check if a CL is submitted |
+| Hook                                   | Returns                            | Description                                     |
+| -------------------------------------- | ---------------------------------- | ----------------------------------------------- |
+| `ws_submit`                            | `tuple[bool, str \| None] \| None` | Submit a ChangeSpec (merge, push, etc.)         |
+| `ws_prepare_mail`                      | `object \| None`                   | Prepare a change for mailing/review             |
+| `ws_extract_change_identifier`         | `tuple[str, str] \| None`          | Extract identifier from a CL/PR URL             |
+| `ws_supports_reviewer_comments`        | `bool \| None`                     | Check if a CL URL supports reviewer comments    |
+| `ws_generate_reviewer_comments_script` | `str \| None`                      | Generate a script to fetch reviewer comments    |
+| `ws_generate_submitted_check_script`   | `str \| None`                      | Generate a script to check if a CL is submitted |
 
 ### Commit Formatting
 
-| Hook                           | Returns | Description |
-| ------------------------------ | ------- | ----------- | --------------------------------------------------------- |
-| `ws_format_commit_description` | `bool   | None`       | Format a commit description file (add tags, prefix, etc.) |
+| Hook                           | Returns        | Description                                               |
+| ------------------------------ | -------------- | --------------------------------------------------------- |
+| `ws_format_commit_description` | `bool \| None` | Format a commit description file (add tags, prefix, etc.) |
 
 ## Registry Functions
 

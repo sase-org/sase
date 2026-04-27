@@ -72,7 +72,7 @@ sase axe chop run hook_checks
 
 Axe ships with five default lumberjacks:
 
-### hooks (1-second interval)
+### hooks (5-second interval)
 
 High-frequency hook lifecycle management:
 

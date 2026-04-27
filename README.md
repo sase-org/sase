@@ -140,6 +140,7 @@ sase
 | `sase agents status`           | List running agents across all projects (pretty table or JSON)                                                 |
 | `sase agents show`             | Render a full detail panel for one running agent                                                               |
 | `sase agents kill`             | SIGTERM a running agent by name                                                                                |
+| `sase agents tag`              | Manage the user-defined tag on an agent (`set` / `unset` / `list`)                                             |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
 | `sase axe start`               | Start the lumberjack-based daemon (orchestrator mode)                                                          |

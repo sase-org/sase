@@ -420,13 +420,14 @@ llm_provider:
 
 ### Config Fields
 
-| Field                 | Type      | Default | Description                                                                        |
-| --------------------- | --------- | ------- | ---------------------------------------------------------------------------------- |
-| `max_retries`         | int       | `0`     | Maximum retry attempts. `0` disables retrying.                                     |
-| `error_patterns`      | list[str] | `[]`    | Case-insensitive substring patterns matched against error output.                  |
-| `wait_times`          | list[int] | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.           |
-| `fallback_model`      | str\|null | `null`  | Alternate model to use after exhausting all retries.                               |
-| `continuation_prompt` | str       | `""`    | Text prepended to `state.current_prompt` on every retry (used to nudge the agent). |
+| Field                 | Type      | Default | Description                                                                                                                                                                                      |
+| --------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `max_retries`         | int       | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                   |
+| `error_patterns`      | list[str] | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                                |
+| `wait_times`          | list[int] | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                         |
+| `fallback_model`      | str\|null | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                             |
+| `continuation_prompt` | str       | `""`    | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                               |
+| `spawn_new_agent`     | bool      | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run -d` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
 
 ### Default Configuration
 
@@ -504,6 +505,36 @@ After execution completes, retry metadata is written to `done.json` in the agent
 ```
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec.py`
+
+### Spawn-on-Retry
+
+When `ProviderRetryConfig.spawn_new_agent=True`, a retryable error spawns a fresh detached child agent (as if
+`sase run -d` had been invoked) instead of running the next attempt in-process. The failing parent transfers its
+workspace claim to the child via `transfer_workspace_claim()` and exits with status `FAILED (RETRIED)`. This trades the
+small cost of a fresh process for two benefits:
+
+- The workspace is preserved by design — the child skips `prepare_workspace()` and inherits the parent's in-progress
+  edits via the transferred workspace claim. (Legacy in-process retry runs `prepare_workspace()` between attempts and
+  wipes uncommitted file edits unless `preserve_workspace=True`.)
+- A retry boundary becomes a real process boundary, which is more robust against memory leaks, lingering child
+  processes, and stale interpreter state.
+
+**Linkage fields** (written to both `agent_meta.json` and `done.json` so retry chains are queryable from either side):
+
+| Field                        | Meaning                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `retry_of_timestamp`         | Backward link: the parent agent's run timestamp.                                  |
+| `retried_as_timestamp`       | Forward link: the child agent's run timestamp (written on the parent at handoff). |
+| `retry_chain_root_timestamp` | The root agent's timestamp — stable across the entire chain.                      |
+| `retry_attempt`              | Depth in the chain (1-based).                                                     |
+
+State is carried across the boundary by a `retry_handoff.json` file written to the parent's artifacts directory; the
+child reads it before launch.
+
+**Fallback behavior**: spawn-on-retry is opt-in (default `false`). If spawning fails (e.g. workspace transfer fails),
+the legacy in-process retry runs as a fallback so the user is never worse off.
+
+Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_config.py`
 
 ## Token Usage Tracking
 

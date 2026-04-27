@@ -198,19 +198,21 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                                     |
-| ------------------- | -------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`) |
-| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                     |
-| `'`                 | Jump to entry by hint character (current tab)                              |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))      |
-| `g`                 | Cycle grouping mode (`STANDARD` → `BY_DATE` → `BY_STATUS`)                 |
-| `G`                 | Scroll to bottom (file, thinking, or metadata panel)                       |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                              |
+| Key                 | Action                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)                            |
+| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
+| `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
+| `o`                 | Cycle grouping mode (`STANDARD` → `BY_DATE` → `BY_STATUS`)                                            |
+| `g`                 | Scroll to top (file, thinking, or metadata panel)                                                     |
+| `G`                 | Scroll to bottom (file, thinking, or metadata panel)                                                  |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `g` is a per-tab binding — on the CLs and AXE tabs it scrolls to top as before; only on the Agents tab does
-> it cycle the grouping mode. See [Grouping Modes](#grouping-modes) below.
+> **Note:** `o` ("organize") is the grouping-mode cycle on the Agents tab; on the CLs and AXE tabs it is a silent no-op.
+> `g`/`G` keep their conventional vim-style scroll-to-top/bottom meaning on every tab. See
+> [Grouping Modes](#grouping-modes) below.
 
 ### Agent Actions
 
@@ -228,7 +230,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
 | `u`                 | Clear all agent marks                                                                                         |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
-| `X`                 | Dismiss all completed agents (with confirmation)                                                              |
+| `X`                 | Dismiss every completed agent in the focused tag panel (with confirmation)                                    |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
 | `e`                 | Edit chat in editor                                                                                           |
 | `E`                 | Edit panel content in editor                                                                                  |
@@ -312,10 +314,12 @@ top-level agent in that group (single confirmation modal). Marks take priority o
 always drives the bulk action regardless of banner focus. When a fold change hides the previously focused agent, focus
 snaps to the nearest visible ancestor banner so navigation context is never lost.
 
-Visual treatment: project banners use a sky-blue `▌` left bar and a heavy `━` rule; ChangeSpec banners get a slightly
-cooler accent and a `▎` bar so the project still reads as the dominant header; name-root banners use a `╭─` branch glyph
-with a teal-accented label and a lighter `─` rule. Singleton name-root groups suppress their banner entirely to reduce
-visual noise.
+Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
+banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
+glance. L0 project / bucket banners use a sky-blue `▌` left bar and a heavy `━` rule; L1 ChangeSpec banners get a cooler
+accent with a `▎` bar and a lighter `─` rule, so banner weight forms a three-tier gradient. Name-root banners use a `▸`
+branch glyph (with the gutter doing the indentation work). Singleton name-root groups suppress their banner entirely to
+reduce visual noise.
 
 After a kill or dismiss, focus re-anchors on the visually-next row (rather than the next row in input order) so the
 selection always lands somewhere meaningful in the rendered tree.
@@ -325,22 +329,26 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                    | Notes                                                                                    |
-| ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | Default. Uses the 2-/3-level layout described above.                                     |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Bucketed by each agent's `start_time`. Project / ChangeSpec levels collapse away.        |
-| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage). Project / ChangeSpec levels collapse away. |
+| Mode        | L0 buckets                                                    | Notes                                                                                      |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | The "by project" default. Uses the 2-/3-level layout described above.                      |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Flat list within each bucket, sorted by `start_time` newest-first; no name-root sub-level. |
+| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage); name-root sub-level inside each bucket.      |
 
-In `BY_DATE` and `BY_STATUS` modes the L0 banner is the bucket itself (the project / ChangeSpec levels disappear), L1 is
-the name-root, and the same singleton-suppression rule applies. Each mode keeps its own per-group fold registry, so
-collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are
-prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
+In `BY_DATE` mode the bucket banner is the only level — same-base-name agents are not a meaningful sub-unit inside a
+date window, so they render as a flat newest-first list (workflow children inherit the parent's `start_time` anchor so
+they stay adjacent to the parent regardless of their own start time). In `BY_STATUS` mode the L0 banner is the status
+bucket and L1 is the name-root, with the same singleton-suppression rule as `STANDARD`. Each mode keeps its own
+per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`.
+`BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads
+visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the durable
-mode is always visible after the cycle toast fades. **Waiting** holds agents that are blocked but progressing on their
-own — `WAITING` with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs
-Attention** keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays
-there because it's parked waiting on the user.
+mode is always visible after the cycle toast fades. The selected mode is persisted to `~/.sase/grouping_mode.txt` and
+restored on the next TUI launch (mirroring the `last_selection.txt` precedent), so cycling once is durable. **Waiting**
+holds agents that are blocked but progressing on their own — `WAITING` with a `wait_until` timer (`%wait:5m`,
+`%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps the strict "you need to act" semantics:
+a `WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on the user.
 
 ### Agent Row Glyphs
 
@@ -364,29 +372,55 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
-panel. Statuses not in the table fall back to `(STATUS)` text for forwards compatibility.
+panel. For finished agents, the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit
+the existing 15-cell slot:
+
+- **Same day**: `HH:MM:SS`
+- **Prior day, same year**: `Mon DD HH:MM` (drops seconds — they're noise once a row finished hours ago)
+- **Different year**: `Mon DD 'YY` (date only)
+
+The date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal
+hierarchy without inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards
+compatibility.
 
 ### Agent Search
 
-Press `/` on the Agents tab to open the query editor. In addition to matching the standard metadata fields (`cl_name`,
-`display_name`, `agent_name`, `status`), the query also searches each agent's **xprompt, live reply/response, chat
-transcript, and prior attempt replies**. Transcript files are read lazily (only while a query is active) and cached by
-`(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads are capped at 512 KB; missing or unreadable files are
-skipped silently.
+Press `/` on the Agents tab to open the query editor. The query language is a **structured Boolean expression** —
+parallel to the ChangeSpec query language but with a property-key allowlist tailored to agents. Bare words are
+substring-matched against an agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its **xprompt, live
+reply/response, chat transcript, and prior attempt replies**.
+
+Property keys (closed allowlist):
+
+| Key                                                                                     | Form                                | Notes                                             |
+| --------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| `status`, `cl`, `project`, `name`, `model`, `provider`, `tag`, `text`, `type`, `source` | `key:value` (substring match)       | `source` is `axe` (workflow / step) or `manual`.  |
+| `pinned`, `hidden`, `attention`, `needs`                                                | `key:true` / `key:false`            | Boolean keys.                                     |
+| `age`                                                                                   | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`. |
+
+Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `NOT` (with parentheses) are honored.
+Precedence is `NOT > AND > OR`. The help modal carries an **Agent Query Syntax** section listing the same grammar.
+
+Parse failures are non-fatal: the loader falls back to "no filter" for that render and surfaces a transient toast; the
+query-edit modal re-validates on Apply, keeping itself open and rendering the error inline (in red) on failure.
+
+Transcript files are read lazily (only while a query is active) and cached by `(path, mtime_ns)` so auto-refresh stays
+cheap. Per-file reads are capped at 512 KB; missing or unreadable files are skipped silently. Parsed ASTs are also
+cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                |
-| ---------- | --------------------------------------------------------------------- |
-| `,h`       | Run agent (home directory)                                            |
-| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)  |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed) |
-| `,r`       | Edit prompt and relaunch agent (retry without killing)                |
-| `,x`       | Kill agent & edit prompt                                              |
-| `,X`       | Kill & dismiss all agents (running and completed)                     |
-| `,<space>` | Run agent from current agent's CL (skips selection)                   |
-| `,.`       | Open prompt history modal for the last CL                             |
-| `,>`       | Open prompt history modal with cancelled prompts visible              |
+| Key        | Action                                                                      |
+| ---------- | --------------------------------------------------------------------------- |
+| `,h`       | Run agent (home directory)                                                  |
+| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)        |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)       |
+| `,r`       | Edit prompt and relaunch agent (retry without killing)                      |
+| `,x`       | Kill agent & edit prompt                                                    |
+| `,X`       | Kill & dismiss every agent (running and completed) in the focused tag panel |
+| `,<space>` | Run agent from current agent's CL (skips selection)                         |
+| `,.`       | Open prompt history modal for the last CL                                   |
+| `,>`       | Open prompt history modal with cancelled prompts visible                    |
 
 ### Bang Mode (`!` prefix)
 
@@ -397,12 +431,13 @@ skipped silently.
 
 ### Copy Mode (`%` prefix)
 
-| Key  | Action                 |
-| ---- | ---------------------- |
-| `%c` | Copy chat file path    |
-| `%E` | Copy file path         |
-| `%p` | Copy agent prompt      |
-| `%s` | Copy sase ace snapshot |
+| Key  | Action                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------- |
+| `%c` | Copy chat file path                                                                         |
+| `%E` | Copy file path                                                                              |
+| `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
+| `%p` | Copy agent prompt                                                                           |
+| `%s` | Copy sase ace snapshot                                                                      |
 
 ## Keybindings: Axe Tab
 

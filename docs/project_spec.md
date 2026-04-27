@@ -7,7 +7,8 @@ ProjectSpec files are stored at `~/.sase/projects/<filename>/<filename>.gp`.
 ## Format
 
 A ProjectSpec starts with a BUG field at the top, followed by one or more ChangeSpecs, each separated by two blank
-lines:
+lines. PARENT and CL are optional (omit them for the initial / unparented state — see
+[`change_spec.md`](change_spec.md)):
 
 ```
 BUG: <BUG_ID>
@@ -18,8 +19,6 @@ DESCRIPTION:
   <TITLE1>
 
   <BODY1>
-PARENT: <PARENT1>
-CL: <CL1>
 STATUS: <STATUS1>
 
 
@@ -28,8 +27,7 @@ DESCRIPTION:
   <TITLE2>
 
   <BODY2>
-PARENT: <PARENT2>
-CL: <CL2>
+PARENT: <NAME1>
 STATUS: <STATUS2>
 ```
 
@@ -58,13 +56,14 @@ Each ChangeSpec within a ProjectSpec must contain the following fields:
      - High-level approach or implementation details
    - All DESCRIPTION lines must be 2-space indented
    - **DO NOT include file modification lists** - that will be handled by a different workflow
-3. **PARENT**: Either "None" (for the first CL or CLs with no dependencies) or the NAME of the parent CL that must be
-   completed first
-4. **CL**: Must be "None" when created by the workflow. Can be updated later when the CL is created. Supports multiple
-   formats:
-   - Plain ID: `CL: 12345`
-   - Legacy format: `CL: cl/12345`
-   - URL format: `CL: http://cl/12345` or `CL: https://cl/12345`
+3. **PARENT** (optional): The NAME of the parent CL that must be completed first. Omit the field entirely when the CL
+   has no dependencies (preferred for parallelization). The PARENT field is a ChangeSpec **name**, never a VCS ref —
+   `sase commit` drops the PARENT field and warns when the value passed via `-p` does not resolve to an existing
+   ChangeSpec.
+4. **CL / PR** (optional): Identifier of the created CL/PR. Omit the field entirely until the CL exists; both `CL:` and
+   `PR:` are accepted and treated identically. Supported value formats:
+   - URL format: `CL: http://cl/12345` or `https://cl/12345`
+   - GitHub PR URL: `PR: https://github.com/<owner>/<repo>/pull/<N>`
 5. **STATUS**: Must be one of the valid statuses: WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived. New
    ChangeSpecs typically start as "WIP". See [`change_spec.md`](change_spec.md) for the full status lifecycle.
 
@@ -84,8 +83,6 @@ DESCRIPTION:
   with type definitions for the configuration schema. Tests will
   cover valid YAML parsing, invalid config validation, and missing
   file handling.
-PARENT: None
-CL: None
 STATUS: WIP
 
 
@@ -99,7 +96,6 @@ DESCRIPTION:
   error handling for invalid configurations. Tests will verify both
   valid and invalid config scenarios.
 PARENT: my-project_add_config_parser
-CL: None
 STATUS: WIP
 
 
@@ -112,7 +108,6 @@ DESCRIPTION:
   the configuration file format, provide examples of common scenarios,
   and document all available configuration options.
 PARENT: my-project_integrate_parser
-CL: None
 STATUS: WIP
 ```
 
@@ -122,9 +117,9 @@ STATUS: WIP
 - **Blank lines between ChangeSpecs**: Each ChangeSpec must be separated by exactly two blank lines
 - **NAME field**: All ChangeSpecs in a project MUST start with `<basename>_` where basename is the project filename
   (without .gp), followed by a descriptive suffix (words separated by underscores, strive for shorter names)
-- **CL field**: Set to "None" initially (updated later when the CL is created)
+- **CL / PR field**: Omit until the CL/PR is created; once it exists, set to its URL (or PR URL for GitHub)
 - **STATUS field**: Must be a valid status (WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived). New ChangeSpecs
   typically start as "WIP"
-- **PARENT field**: Used to establish dependencies between CLs in the project plan
+- **PARENT field**: Optional. Omit it when there is no dependency; otherwise set it to the NAME of the parent CL
 - **No file modifications**: The DESCRIPTION should NOT include specific file modification lists — that will be handled
   by a different workflow
