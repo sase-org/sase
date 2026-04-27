@@ -53,6 +53,10 @@ from ._agent_list_styling import (
 # saturated, so the timestamp reads as a "metadata column" rather than a
 # status word.
 _RUNTIME_TS_STYLE = "#8787AF"
+# Date prefix half (e.g. "Apr 26 ", "Apr 26 '25"): same hue as the time
+# half but dimmed so the date reads as context while the time stays the
+# salient anchor when scanning rows.
+_RUNTIME_DATE_STYLE = "dim #8787AF"
 # Elapsed half: light neutral grey, bold to give the headline number
 # ("how long?") a little more weight than the timestamp without using
 # a saturated color.  Readable on dark and light themes alike.
@@ -168,12 +172,16 @@ def _agent_render_key(
 
 def _build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
     """Return a Rich ``Text`` for the right-side runtime suffix (may be empty)."""
-    timestamp, elapsed = compute_row_runtime(agent, now=now)
+    ts_pair, elapsed = compute_row_runtime(agent, now=now)
     suffix = Text()
-    if timestamp is None and elapsed is None:
+    if ts_pair is None and elapsed is None:
         return suffix
-    if timestamp is not None:
-        suffix.append(timestamp, style=_RUNTIME_TS_STYLE)
+    if ts_pair is not None:
+        date_part, time_part = ts_pair
+        if date_part:
+            suffix.append(date_part, style=_RUNTIME_DATE_STYLE)
+        if time_part:
+            suffix.append(time_part, style=_RUNTIME_TS_STYLE)
         suffix.append(" · ", style=_RUNTIME_TS_STYLE)
     if elapsed is not None:
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)

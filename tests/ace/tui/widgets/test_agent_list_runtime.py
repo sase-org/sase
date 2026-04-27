@@ -41,13 +41,19 @@ def _agent(
 def test__format_finish_timestamp_same_day() -> None:
     stop = datetime(2026, 4, 25, 20, 17, 3)
     now = datetime(2026, 4, 25, 21, 0, 0)
-    assert _format_finish_timestamp(stop, now=now) == "20:17:03"
+    assert _format_finish_timestamp(stop, now=now) == ("", "20:17:03")
 
 
-def test__format_finish_timestamp_prior_day() -> None:
+def test__format_finish_timestamp_prior_day_same_year() -> None:
     stop = datetime(2026, 4, 24, 20, 17, 3)
     now = datetime(2026, 4, 25, 9, 0, 0)
-    assert _format_finish_timestamp(stop, now=now) == "260424T20:17:03"
+    assert _format_finish_timestamp(stop, now=now) == ("Apr 24 ", "20:17")
+
+
+def test__format_finish_timestamp_prior_year() -> None:
+    stop = datetime(2025, 12, 31, 20, 17, 3)
+    now = datetime(2026, 4, 25, 9, 0, 0)
+    assert _format_finish_timestamp(stop, now=now) == ("Dec 31 '25", "")
 
 
 # --- compute_row_runtime ----------------------------------------------------
@@ -78,7 +84,7 @@ def test_compute_row_runtime_finished_today() -> None:
     ts, elapsed = compute_row_runtime(
         _agent(status="DONE", start=start, stop=stop), now=now
     )
-    assert ts == "20:17:03"
+    assert ts == ("", "20:17:03")
     # >= 1h: hours and minutes
     assert elapsed == "6h17m"
 
@@ -90,7 +96,7 @@ def test_compute_row_runtime_finished_yesterday() -> None:
     ts, elapsed = compute_row_runtime(
         _agent(status="DONE", start=start, stop=stop), now=now
     )
-    assert ts == "260424T20:17:03"
+    assert ts == ("Apr 24 ", "20:17")
     assert elapsed == "38m45s"
 
 
@@ -136,6 +142,19 @@ def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None
     assert suffix.plain == "20:17:03 · 6h17m"
 
 
+def test_format_agent_option_finished_yesterday_suffix_human_readable() -> None:
+    start = datetime(2026, 4, 24, 19, 38, 18)
+    stop = datetime(2026, 4, 24, 20, 17, 3)
+    now = datetime(2026, 4, 25, 9, 0, 0)
+    _, suffix, _ = format_agent_option(
+        _agent(status="DONE", start=start, stop=stop),
+        0,
+        is_selected=False,
+        now=now,
+    )
+    assert suffix.plain == "Apr 24 20:17 · 38m45s"
+
+
 def test_format_agent_option_no_start_has_empty_suffix() -> None:
     _, suffix, _ = format_agent_option(
         _agent(start=None), 0, is_selected=False, now=datetime.now()
@@ -169,7 +188,11 @@ def test_update_list_right_aligns_suffixes_across_batch() -> None:
         start=datetime(2026, 4, 25, 14, 0, 0),
         stop=datetime(2026, 4, 25, 20, 17, 3),
     )
-    widget.update_list([short_active, long_done], current_idx=0)
+    widget.update_list(
+        [short_active, long_done],
+        current_idx=0,
+        now=datetime(2026, 4, 25, 21, 0, 0),
+    )
     # Pull the rendered rows for the two agent options (skip banners).
     rows: list[str] = []
     for opt in list(widget._options):  # type: ignore[attr-defined]

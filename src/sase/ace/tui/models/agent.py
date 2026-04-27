@@ -40,29 +40,39 @@ def format_compact_duration(seconds: float) -> str:
     return f"{s}s"
 
 
-def _format_finish_timestamp(stop: datetime, now: datetime | None = None) -> str:
+def _format_finish_timestamp(
+    stop: datetime, now: datetime | None = None
+) -> tuple[str, str]:
     """Format a finish-time clock for the Agents-tab right-side suffix.
 
-    Same-day finishes show ``HH:MM:SS``; finishes on prior days show
-    ``YYMMDDTHH:MM:SS`` so the date is unambiguous.  ``now`` defaults to
-    the local clock and is only an argument for testability.
+    Returns a ``(date_prefix, time)`` pair so the renderer can style the
+    two halves differently:
+
+    - Same calendar day: ``("", "HH:MM:SS")``.
+    - Prior day, same year: ``("Mon DD ", "HH:MM")`` (trailing space owns
+      the gap between the two halves).
+    - Different year: ``("Mon DD 'YY", "")``.
     """
     reference = now if now is not None else datetime.now()
     if stop.date() == reference.date():
-        return stop.strftime("%H:%M:%S")
-    return stop.strftime("%y%m%dT%H:%M:%S")
+        return ("", stop.strftime("%H:%M:%S"))
+    if stop.year == reference.year:
+        return (stop.strftime("%b %-d "), stop.strftime("%H:%M"))
+    return (stop.strftime("%b %-d '%y"), "")
 
 
 def compute_row_runtime(
     agent: "Agent",
     now: datetime | None = None,
-) -> tuple[str | None, str | None]:
+) -> tuple[tuple[str, str] | None, str | None]:
     """Compute the right-side ``(timestamp, elapsed)`` suffix pair for a row.
 
     - ``(None, None)`` when no suffix should render (missing ``start_time``
       or pre-run ``WAITING`` with no ``run_start_time``).
     - Active rows: ``(None, "<dur>")``.
-    - Finished rows: ``("<HH:MM:SS|YYMMDDTHH:MM:SS>", "<dur>")``.
+    - Finished rows: ``((date_prefix, time), "<dur>")`` where the
+      ``(date_prefix, time)`` pair follows the tiers in
+      :func:`_format_finish_timestamp`.
 
     Elapsed uses ``run_start_time`` when set so a long WAIT period doesn't
     inflate what reads as runtime; falls back to ``start_time``.

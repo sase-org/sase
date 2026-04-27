@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 08:59:13
-status: wip
+status: done
 ---
 # Plan — Agents-tab finish-timestamp redesign
 
