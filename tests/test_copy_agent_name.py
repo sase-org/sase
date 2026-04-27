@@ -45,7 +45,8 @@ def test_copy_agent_name_uses_agent_name_when_set() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", return_value=True
+        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
+        return_value=True,
     ) as mock_copy:
         app._copy_agent_name()
 
@@ -59,7 +60,8 @@ def test_copy_agent_name_falls_back_to_display_name() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", return_value=True
+        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
+        return_value=True,
     ) as mock_copy:
         app._copy_agent_name()
 
@@ -73,7 +75,8 @@ def test_copy_agent_name_no_agent_selected() -> None:
     app = FakeApp(None)
 
     with patch(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", return_value=True
+        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
+        return_value=True,
     ) as mock_copy:
         app._copy_agent_name()
 
@@ -86,7 +89,8 @@ def test_copy_agent_name_clipboard_failure() -> None:
     app = FakeApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.clipboard.copy_to_system_clipboard", return_value=False
+        "sase.ace.tui.actions.clipboard._agents.copy_to_system_clipboard",
+        return_value=False,
     ):
         app._copy_agent_name()
 

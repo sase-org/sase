@@ -1,4 +1,4 @@
-"""Tests for _format_changespec_for_clipboard() function."""
+"""Tests for format_changespec_for_clipboard() function."""
 
 from typing import Any
 from unittest.mock import patch
@@ -12,7 +12,7 @@ from sase.ace.changespec import (
     MentorEntry,
     MentorStatusLine,
 )
-from sase.ace.tui.actions.clipboard import _format_changespec_for_clipboard
+from sase.ace.tui.actions.clipboard._helpers import format_changespec_for_clipboard
 
 
 def _make_basic_changespec(
@@ -43,7 +43,7 @@ def _make_basic_changespec(
 def test_format_changespec_with_parent() -> None:
     """Test formatting ChangeSpec with parent field."""
     cs = _make_basic_changespec(parent="parent_cl")
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "PARENT: parent_cl" in result
 
 
@@ -51,31 +51,31 @@ def test_format_changespec_with_cl() -> None:
     """Test formatting ChangeSpec with CL field."""
     cs = _make_basic_changespec(cl="12345")
     with patch(
-        "sase.ace.tui.actions.clipboard.get_change_label",
+        "sase.ace.tui.actions.clipboard._helpers.get_change_label",
         return_value="CL",
     ):
-        result = _format_changespec_for_clipboard(cs)
+        result = format_changespec_for_clipboard(cs)
     assert "CL: 12345" in result
 
 
 def test_format_changespec_with_bug() -> None:
     """Test formatting ChangeSpec with bug field."""
     cs = _make_basic_changespec(bug="b/123456")
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "BUG: b/123456" in result
 
 
 def test_format_changespec_with_test_targets() -> None:
     """Test formatting ChangeSpec with test targets."""
     cs = _make_basic_changespec(test_targets=["//foo:test1", "//bar:test2"])
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "TEST_TARGETS: //foo:test1, //bar:test2" in result
 
 
 def test_format_changespec_with_kickstart() -> None:
     """Test formatting ChangeSpec with kickstart field."""
     cs = _make_basic_changespec(kickstart="some kickstart value")
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "KICKSTART: some kickstart value" in result
 
 
@@ -85,7 +85,7 @@ def test_format_changespec_commits_with_plain_suffix() -> None:
         CommitEntry(number=1, note="Commit with note", suffix="Plain note"),
     ]
     cs = _make_basic_changespec(commits=commits)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(1) Commit with note - (Plain note)" in result
 
 
@@ -100,7 +100,7 @@ def test_format_changespec_commits_with_chat_and_diff() -> None:
         ),
     ]
     cs = _make_basic_changespec(commits=commits)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "[chat: /path/to/chat.md]" in result
     assert "[diff: /path/to/diff.txt]" in result
 
@@ -112,7 +112,7 @@ def test_format_changespec_with_hooks() -> None:
         HookEntry(command="pytest tests"),
     ]
     cs = _make_basic_changespec(hooks=hooks)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "HOOKS:" in result
     assert "  flake8 src" in result
     assert "  pytest tests" in result
@@ -134,7 +134,7 @@ def test_format_changespec_hooks_with_status_lines() -> None:
         ),
     ]
     cs = _make_basic_changespec(hooks=hooks)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "  flake8 src" in result
     assert "(1) [240601_123456] PASSED (1m23s)" in result
 
@@ -156,7 +156,7 @@ def test_format_changespec_hooks_with_summarize_complete_suffix() -> None:
         ),
     ]
     cs = _make_basic_changespec(hooks=hooks)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(%: fix_id)" in result
 
 
@@ -178,7 +178,7 @@ def test_format_changespec_hooks_with_summary() -> None:
         ),
     ]
     cs = _make_basic_changespec(hooks=hooks)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(%: fix_id | Brief summary of error)" in result
 
 
@@ -188,7 +188,7 @@ def test_format_changespec_with_comments() -> None:
         CommentEntry(reviewer="critique", file_path="/path/to/comments.json"),
     ]
     cs = _make_basic_changespec(comments=comments)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "COMMENTS:" in result
     assert "[critique] /path/to/comments.json" in result
 
@@ -204,7 +204,7 @@ def test_format_changespec_comments_with_suffix() -> None:
         ),
     ]
     cs = _make_basic_changespec(comments=comments)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(!: Unresolved Comments)" in result
 
 
@@ -219,7 +219,7 @@ def test_format_changespec_comments_with_running_agent_suffix() -> None:
         ),
     ]
     cs = _make_basic_changespec(comments=comments)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(@: agent_240601_123456)" in result
 
 
@@ -229,7 +229,7 @@ def test_format_changespec_mentors_with_draft() -> None:
         MentorEntry(entry_id="1", profiles=["profile1"], is_draft=True),
     ]
     cs = _make_basic_changespec(mentors=mentors)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(1) profile1 (Draft)" in result
 
 
@@ -251,7 +251,7 @@ def test_format_changespec_mentors_with_status_lines() -> None:
         ),
     ]
     cs = _make_basic_changespec(mentors=mentors)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "test_profile:test_mentor - PASSED - (5m30s)" in result
 
 
@@ -272,7 +272,7 @@ def test_format_changespec_mentors_status_with_timestamp() -> None:
         ),
     ]
     cs = _make_basic_changespec(mentors=mentors)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "[240601_123456] test_profile:test_mentor - RUNNING" in result
 
 
@@ -295,5 +295,5 @@ def test_format_changespec_mentors_status_with_suffix() -> None:
         ),
     ]
     cs = _make_basic_changespec(mentors=mentors)
-    result = _format_changespec_for_clipboard(cs)
+    result = format_changespec_for_clipboard(cs)
     assert "(@: mentor_process_123)" in result
