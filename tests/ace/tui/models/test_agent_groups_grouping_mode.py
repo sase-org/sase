@@ -67,33 +67,34 @@ def test_status_bucket_running() -> None:
     assert _status_bucket_for(_agent(status="RUNNING")) == "Running"
 
 
-def test_status_bucket_planning_is_running() -> None:
-    """Intermediate states (PLANNING) read as in-flight, not Needs Attention."""
-    assert _status_bucket_for(_agent(status="PLANNING")) == "Running"
+def test_status_bucket_planning_is_needs_attention() -> None:
+    """``PLANNING`` is an active drafting state where the user is on call."""
+    assert _status_bucket_for(_agent(status="PLANNING")) == "Needs Attention"
 
 
 def test_status_bucket_question_is_needs_attention() -> None:
     assert _status_bucket_for(_agent(status="QUESTION")) == "Needs Attention"
 
 
-def test_status_bucket_plan_approved_is_needs_attention() -> None:
-    assert _status_bucket_for(_agent(status="PLAN APPROVED")) == "Needs Attention"
+def test_status_bucket_plan_approved_is_running() -> None:
+    """An approved plan is actively executing → Running."""
+    assert _status_bucket_for(_agent(status="PLAN APPROVED")) == "Running"
 
 
-def test_status_bucket_plan_done_is_needs_attention() -> None:
-    assert _status_bucket_for(_agent(status="PLAN DONE")) == "Needs Attention"
+def test_status_bucket_plan_done_is_done() -> None:
+    """``PLAN DONE`` is a post-plan handoff state — planning work is finished."""
+    assert _status_bucket_for(_agent(status="PLAN DONE")) == "Done"
 
 
-def test_status_bucket_epic_created_is_needs_attention() -> None:
-    assert _status_bucket_for(_agent(status="EPIC CREATED")) == "Needs Attention"
+def test_status_bucket_epic_created_is_done() -> None:
+    """``EPIC CREATED`` is a post-plan handoff state — code work has been spun off."""
+    assert _status_bucket_for(_agent(status="EPIC CREATED")) == "Done"
 
 
-def test_status_bucket_waiting_without_wait_until_or_waiting_for_needs_attention() -> (
-    None
-):
-    """User-input WAIT (no timer, no dependency) is the user's turn → Needs Attention."""
+def test_status_bucket_waiting_without_wait_until_or_waiting_for_is_waiting() -> None:
+    """All ``WAITING`` variants collapse into the ``Waiting`` bucket."""
     a = _agent(status="WAITING", wait_until=None)
-    assert _status_bucket_for(a) == "Needs Attention"
+    assert _status_bucket_for(a) == "Waiting"
 
 
 def test_status_bucket_waiting_with_wait_until_is_waiting() -> None:

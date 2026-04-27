@@ -90,18 +90,22 @@ _STATUS_BUCKETS: tuple[str, ...] = (
 )
 
 # Status mapping for ``BY_STATUS`` bucketing.  The semantic line is:
-# **Needs Attention** = "you need to act"; **Waiting** = "agent is blocked
-# but nothing is asked of you" (timer-driven ``%wait`` or dependency wait).
-# Currently includes:
-#   * ``WAITING`` with no ``wait_until`` AND no ``waiting_for`` (parked
-#     with nothing to unblock it — implicitly asking the user)
-#   * ``QUESTION`` and ``PLAN APPROVED`` (the existing _AWAITING_STATUSES)
-#   * ``PLAN DONE`` and ``EPIC CREATED`` (terminal-but-actionable states)
-#   * ``FAILED`` without ``retried_as_timestamp`` (terminal failures the
-#     user has not yet retried)
-_NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset(
-    {"PLAN DONE", "EPIC CREATED", "QUESTION", "PLAN APPROVED"}
-)
+# **Needs Attention** = "you need to act right now"; everything else is a
+# state the agent is moving through on its own.
+#
+# Members of Needs Attention:
+#   * ``PLANNING`` — a plan is being drafted and the user is expected to
+#     review/answer questions as they arise
+#   * ``QUESTION`` — the agent has explicitly paused for an answer
+#   * ``FAILED`` without ``retried_as_timestamp`` (handled by the
+#     ``startswith("FAILED")`` branch below, not by this frozenset)
+#
+# ``PLAN DONE`` and ``EPIC CREATED`` are post-plan handoff states: the
+# planning work is finished and any code work has been spun off, so they
+# read as **Done**.  ``PLAN APPROVED`` is an actively executing state and
+# reads as **Running**.  All ``WAITING`` variants land in **Waiting**
+# regardless of timer/dependency presence.
+_NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from
 # plans/202604/agents_tab_query_filters.md — covers the statuses where the
@@ -139,21 +143,19 @@ def _status_bucket_for(agent: Agent) -> str:
     """Map ``agent.status`` (plus retry lineage) to a status bucket.
 
     See the ``_NEEDS_ATTENTION_STATUSES`` comment above for the mapping
-    rules.  ``WAITING`` with either a ``wait_until`` timer or a non-empty
-    ``waiting_for`` lands in ``Waiting``; ``WAITING`` without either is
-    parked on user input and stays in ``Needs Attention``.  Anything not
+    rules.  All ``WAITING`` variants land in ``Waiting``.  Anything not
     explicitly bucketed lands in ``Running`` (the agent is in flight from
     the user's perspective).
     """
     status = agent.status or ""
-    if status == "DONE":
+    if status in {"DONE", "PLAN DONE", "EPIC CREATED"}:
         return "Done"
     if status in _NEEDS_ATTENTION_STATUSES:
         return "Needs Attention"
+    if status == "PLAN APPROVED":
+        return "Running"
     if status == "WAITING":
-        if agent.wait_until or agent.waiting_for:
-            return "Waiting"
-        return "Needs Attention"
+        return "Waiting"
     if status.startswith("FAILED"):
         if not agent.retried_as_timestamp:
             return "Needs Attention"
