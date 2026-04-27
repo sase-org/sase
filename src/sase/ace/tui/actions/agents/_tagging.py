@@ -149,5 +149,8 @@ class AgentTaggingMixin:
                 self.notify(  # type: ignore[attr-defined]
                     f"Cleared tag on {changed} {suffix}",
                 )
+            affected_identities = {agent.identity for agent in affected}
+            self._marked_agents -= affected_identities
+            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]

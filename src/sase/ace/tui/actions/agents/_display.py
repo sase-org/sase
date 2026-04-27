@@ -76,11 +76,21 @@ class AgentDisplayMixin:
     _countdown_remaining: int
 
     # Phase 2 j/k cache (initialized in StartupMixin._init_app_state).
+    _nav_stops_cache: tuple[Any, ...] | None
     _panel_keys_cache: tuple[Any, ...] | None
     # Phase 4 panel index cache: keyed on ``self._agents`` identity so a
     # single agents-list ref reuses the same panels / non-child indices /
     # completed count across every refresh path.
     _agent_panel_index_cache: tuple[Any, AgentPanelIndex] | None
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        """Clear panel-derived caches after in-place agent mutations."""
+        if hasattr(self, "_agent_panel_index_cache"):
+            self._agent_panel_index_cache = None
+        if hasattr(self, "_panel_keys_cache"):
+            self._panel_keys_cache = None
+        if hasattr(self, "_nav_stops_cache"):
+            self._nav_stops_cache = None
 
     def _agent_panel_index(self) -> AgentPanelIndex:
         """Memoized :class:`AgentPanelIndex` keyed on the agents-list ref.

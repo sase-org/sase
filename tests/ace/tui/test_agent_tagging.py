@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._tagging import AgentTaggingMixin
 from sase.ace.tui.modals.agent_tag_modal import AgentTagModal, AgentTagModalResult
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -27,7 +28,7 @@ def _make_agent(suffix: str = "20240101120000", **overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _FakeApp(AgentTaggingMixin):
+class _FakeApp(AgentTaggingMixin, AgentDisplayMixin):
     """Minimal stub of AceApp for exercising AgentTaggingMixin."""
 
     def __init__(self, agents: list[Agent]) -> None:
@@ -40,6 +41,10 @@ class _FakeApp(AgentTaggingMixin):
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
         self.refresh_calls = 0
+        self.events: list[str] = []
+        self._agent_panel_index_cache: tuple[Any, Any] | None = ("agents", "index")
+        self._panel_keys_cache: tuple[Any, ...] | None = ("agents", "keys")
+        self._nav_stops_cache: tuple[Any, ...] | None = ("agents", "stops")
 
     def _get_selected_agent(self) -> Agent | None:
         if 0 <= self.current_idx < len(self._agents):
@@ -61,6 +66,11 @@ class _FakeApp(AgentTaggingMixin):
         self, *, list_changed: bool = False
     ) -> None:  # pragma: no cover - trivial
         self.refresh_calls += 1
+        self.events.append(f"refresh:{list_changed}")
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        super()._invalidate_agent_panel_cache()
+        self.events.append("invalidate")
 
 
 def test_action_no_op_when_not_on_agents_tab(tmp_path: Path) -> None:
@@ -204,6 +214,43 @@ def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
         ("run", "fix-bug", "t1"): "release-blockers",
         ("run", "fix-bug", "t3"): "release-blockers",
     }
+
+
+def test_marked_bulk_success_clears_affected_marks(tmp_path: Path) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    a1 = _make_agent(suffix="t1")
+    a2 = _make_agent(suffix="t2")
+    a3 = _make_agent(suffix="t3")
+    unrelated_identity = (AgentType.RUNNING, "other", "t4")
+    app = _FakeApp([a1, a2, a3])
+    app._marked_agents = {a1.identity, a3.identity, unrelated_identity}
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        app._apply_agent_tag_change(
+            AgentTagModalResult(action="set", tag="release-blockers"),
+            [a1, a3],
+        )
+
+    assert app._marked_agents == {unrelated_identity}
+
+
+def test_successful_tag_change_invalidates_panel_cache_before_refresh(
+    tmp_path: Path,
+) -> None:
+    tag_file = tmp_path / "agent_tags.json"
+    agent = _make_agent()
+    app = _FakeApp([agent])
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+        app._apply_agent_tag_change(
+            AgentTagModalResult(action="set", tag="release-blockers"),
+            [agent],
+        )
+
+    assert app._agent_panel_index_cache is None
+    assert app._panel_keys_cache is None
+    assert app._nav_stops_cache is None
+    assert app.events == ["invalidate", "refresh:True"]
 
 
 def test_modal_dismiss_with_none_is_noop(tmp_path: Path) -> None:
