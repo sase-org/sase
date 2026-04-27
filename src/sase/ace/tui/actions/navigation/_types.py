@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldLevel
     from ...widgets.bgcmd_list import AxeItem
+    from ..axe_display._loaders import AxeItemKey
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
@@ -47,6 +48,7 @@ class NavigationMixinBase:
     _keymap_registry: KeymapRegistry
     _axe_pinned_to_bottom: bool
     _axe_last_idx: int
+    _axe_last_item_key: AxeItemKey | None
     _ancestor_mode_active: bool
     _child_mode_active: bool
     _sibling_mode_active: bool

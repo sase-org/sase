@@ -7,7 +7,7 @@ that the render layer paints from.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sase.axe.state import (
     AxeMetrics,
@@ -41,6 +41,41 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
 
 
+type AxeItemKey = (
+    tuple[Literal["axe"], None]
+    | tuple[Literal["lumberjack"], str]
+    | tuple[Literal["bgcmd"], int]
+)
+
+
+def _axe_item_key(item: AxeItem) -> AxeItemKey:
+    """Return the stable identity key for an AXE side-panel item."""
+    match item:
+        case AxeParentItem():
+            return ("axe", None)
+        case LumberjackItem(name=name):
+            return ("lumberjack", name)
+        case BgCmdItem(slot=slot):
+            return ("bgcmd", slot)
+
+
+def find_axe_item_idx(items: list[AxeItem], key: AxeItemKey | None) -> int | None:
+    """Find the row index for an AXE item identity key."""
+    if key is None:
+        return None
+    for idx, item in enumerate(items):
+        if _axe_item_key(item) == key:
+            return idx
+    return None
+
+
+def selected_axe_item_key(items: list[AxeItem], current_idx: int) -> AxeItemKey | None:
+    """Return the selected AXE item identity key, if the row is valid."""
+    if 0 <= current_idx < len(items):
+        return _axe_item_key(items[current_idx])
+    return None
+
+
 class AxeDisplayLoadersMixin:
     """Mixin providing axe data loading and item-list building."""
 
@@ -60,6 +95,8 @@ class AxeDisplayLoadersMixin:
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
     _axe_items: list[AxeItem]
+    _axe_last_idx: int
+    _axe_last_item_key: AxeItemKey | None
     _axe_fold_manager: FoldStateManager
     # Caches populated by the async collector so navigation paints without I/O.
     _axe_lumberjack_statuses: dict[str, LumberjackStatus | None]
@@ -323,6 +360,12 @@ class AxeDisplayLoadersMixin:
         """Build the flat list of AXE side-panel items based on fold and hidden state."""
         from ...models.fold_state import FoldLevel
 
+        selected_key = (
+            selected_axe_item_key(self._axe_items, self.current_idx)
+            if self.current_tab == "axe"
+            else None
+        )
+
         items: list[AxeItem] = [AxeParentItem()]
 
         # Add lumberjack children when expanded
@@ -337,9 +380,16 @@ class AxeDisplayLoadersMixin:
 
         self._axe_items = items
 
-        # Clamp current_idx if it's out of bounds for the new items list
-        if self.current_tab == "axe" and self.current_idx >= len(items):
-            self.current_idx = 0
+        if self.current_tab == "axe":
+            restored_idx = find_axe_item_idx(items, selected_key)
+            if restored_idx is not None:
+                self.current_idx = restored_idx
+            elif self.current_idx >= len(items):
+                # Preserve the previous fallback: removed selections that leave
+                # the old row invalid return to the parent AXE row.
+                self.current_idx = 0
+            self._axe_last_idx = self.current_idx
+            self._axe_last_item_key = selected_axe_item_key(items, self.current_idx)
 
     def _derive_axe_view_from_selection(self) -> None:
         """Derive _axe_current_view and _axe_lumberjack_idx from selected item."""

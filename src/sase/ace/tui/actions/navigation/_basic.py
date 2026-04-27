@@ -328,6 +328,13 @@ class BasicNavigationMixin(NavigationMixinBase):
         """Get axe index clamped to valid range."""
         if not self._axe_items:  # type: ignore[attr-defined]
             return 0
+        from ..axe_display._loaders import find_axe_item_idx
+
+        key_idx = find_axe_item_idx(  # type: ignore[attr-defined]
+            self._axe_items, self._axe_last_item_key
+        )
+        if key_idx is not None:
+            return key_idx
         return min(self._axe_last_idx, len(self._axe_items) - 1)  # type: ignore[attr-defined]
 
     def action_next_tab(self) -> None:
@@ -366,3 +373,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._agents_last_idx = self.current_idx
         elif self.current_tab == "axe":
             self._axe_last_idx = self.current_idx  # type: ignore[attr-defined]
+            from ..axe_display._loaders import selected_axe_item_key
+
+            self._axe_last_item_key = selected_axe_item_key(  # type: ignore[attr-defined]
+                self._axe_items, self.current_idx
+            )

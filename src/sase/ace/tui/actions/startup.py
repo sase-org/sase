@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
     from ..models import Agent
     from ..models.agent import AgentType
+    from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
 
 log = logging.getLogger(__name__)
@@ -405,6 +406,7 @@ class StartupMixin:
 
         self._axe_items: list[AxeItem] = []
         self._axe_last_idx: int = 0
+        self._axe_last_item_key: AxeItemKey | None = None
         self._axe_fold_manager = FoldStateManager()
         self._axe_fold_manager.expand("axe")  # start expanded by default
 

@@ -20,6 +20,7 @@ from .axe_display import AxeDisplayMixin, get_axe_process_module
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
     from ..keymaps import KeymapRegistry
+    from .axe_display._loaders import AxeItemKey
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -51,6 +52,8 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     # Background command state
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
+    _axe_last_idx: int
+    _axe_last_item_key: AxeItemKey | None
 
     # Lumberjack cycling state
     _axe_lumberjack_names: list[str]
@@ -209,7 +212,16 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         Args:
             view: The view to switch to ("axe" or slot number).
         """
+        from .axe_display._loaders import find_axe_item_idx
+
         self._axe_current_view = view
+        key: AxeItemKey = ("axe", None) if view == "axe" else ("bgcmd", view)
+        idx = find_axe_item_idx(self._axe_items, key)  # type: ignore[attr-defined]
+        if idx is not None:
+            if self.current_tab == "axe":
+                self.current_idx = idx
+            self._axe_last_idx = idx
+            self._axe_last_item_key = key
         self._refresh_axe_display()
 
     def _start_axe(self) -> None:
