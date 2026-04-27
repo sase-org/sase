@@ -12,7 +12,7 @@ from sase.ace.mentor_output import (
     MentorReadState,
     load_acceptance_state,
     load_file_snapshots,
-    load_mentor_outputs_for_commit,
+    load_mentor_outputs_for_runs,
     load_read_state,
 )
 
@@ -131,21 +131,23 @@ def build_mentor_review_data(
     """
     entry_id = mentor_entry.entry_id
 
-    # Load mentor outputs from disk, matching by status line timestamps
-    timestamps = (
-        {sl.timestamp for sl in mentor_entry.status_lines}
+    # Load mentor outputs from disk, matching by status line info
+    runs = (
+        [
+            (sl.profile_name, sl.mentor_name, sl.timestamp)
+            for sl in mentor_entry.status_lines
+        ]
         if mentor_entry.status_lines
-        else set()
+        else []
     )
-    outputs = load_mentor_outputs_for_commit(cl_name, timestamps)
-    # Map timestamp → MentorOutput (filenames use config-level names, but the
-    # JSON content may have LLM-provided names that don't match status lines).
+    outputs = load_mentor_outputs_for_runs(cl_name, runs)
+    # Map timestamp → MentorOutput
     ts_output_map: dict[str, MentorOutput] = {}
     for path, mo in outputs:
-        for ts in timestamps:
-            if path.stem.endswith(f"-{ts}"):
-                ts_output_map[ts] = mo
-                break
+        # Filename is {cl}-{profile}-{mentor}-{timestamp}.json
+        # Extract timestamp from stem
+        ts = path.stem.split("-")[-1]
+        ts_output_map[ts] = mo
 
     # Build mentor info list from status lines
     mentors: list[MentorInfo] = []
