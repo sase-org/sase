@@ -145,6 +145,27 @@ def _wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | Non
     return None
 
 
+class _BatchTimestampAllocator:
+    """Allocate per-batch timestamps without changing timestamp format."""
+
+    def __init__(
+        self,
+        generate: Callable[[], str],
+        sleep: Callable[[float], None] | None = None,
+    ) -> None:
+        self._generate = generate
+        self._sleep = time.sleep if sleep is None else sleep
+        self._last_timestamp: str | None = None
+
+    def next(self) -> str:
+        timestamp = self._generate()
+        while timestamp == self._last_timestamp:
+            self._sleep(0.05)
+            timestamp = self._generate()
+        self._last_timestamp = timestamp
+        return timestamp
+
+
 def launch_multi_prompt_agents(
     *,
     segments: list[str],
@@ -178,6 +199,7 @@ def launch_multi_prompt_agents(
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
 
     results: list[AgentLaunchResult] = []
+    timestamp_allocator = _BatchTimestampAllocator(generate_timestamp)
 
     for i, segment in enumerate(segments):
         has_wait = has_wait_directive(segment)
@@ -204,7 +226,7 @@ def launch_multi_prompt_agents(
             if j > 0:
                 time.sleep(1)
 
-            timestamp = generate_timestamp()
+            timestamp = timestamp_allocator.next()
             last_timestamp = timestamp
             workflow_name = f"ace(run)-{timestamp}"
 

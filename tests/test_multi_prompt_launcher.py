@@ -151,6 +151,7 @@ def test__wait_for_agent_naming_waits_for_name_field() -> None:
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -160,6 +161,7 @@ def test_launch_multi_prompt_sequential_calls(
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
+    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -185,6 +187,101 @@ def test_launch_multi_prompt_sequential_calls(
     assert mock_spawn.call_count == 3
     # naming-wait called between launches (not after last one)
     assert mock_wait.call_count == 2
+    mock_sleep.assert_not_called()
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.multi_prompt_launcher.time.sleep")
+@patch("sase.core.time.generate_timestamp")
+@patch("sase.artifacts.create_artifacts_directory")
+@patch("sase.running_field.get_first_available_axe_workspace")
+@patch("sase.running_field.get_workspace_directory_for_num")
+def test_launch_multi_prompt_retries_duplicate_timestamps(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_sleep: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Duplicate generated timestamps are retried before each child spawn."""
+    mock_first_ws.side_effect = [100, 101, 102]
+    mock_ws_dir.side_effect = [
+        ("/ws/100", None),
+        ("/ws/101", None),
+        ("/ws/102", None),
+    ]
+    mock_timestamp.side_effect = ["ts1", "ts1", "ts2", "ts2", "ts3"]
+    mock_wait.return_value = "alpha"
+    mock_create_artifacts.return_value = "/artifacts/dir"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["seg1", "seg2", "seg3"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    calls = mock_spawn.call_args_list
+    assert [c.kwargs["timestamp"] for c in calls] == ["ts1", "ts2", "ts3"]
+    assert [c.kwargs["workflow_name"] for c in calls] == [
+        "ace(run)-ts1",
+        "ace(run)-ts2",
+        "ace(run)-ts3",
+    ]
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_called_with(0.05)
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.multi_prompt_launcher.time.sleep")
+@patch("sase.core.time.generate_timestamp")
+@patch("sase.artifacts.create_artifacts_directory")
+@patch("sase.running_field.get_workspace_directory")
+def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
+    mock_wait_ws_dir: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_sleep: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Multiple %wait segments in one batch do not reuse launch identity."""
+    mock_wait_ws_dir.return_value = "/ws/1"
+    mock_timestamp.side_effect = ["ts1", "ts1", "ts2", "ts2", "ts3"]
+    mock_wait.return_value = "alpha"
+    mock_create_artifacts.return_value = "/artifacts/dir"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["%wait first", "%wait second", "%wait land"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    calls = mock_spawn.call_args_list
+    assert [c.kwargs["timestamp"] for c in calls] == ["ts1", "ts2", "ts3"]
+    assert [c.kwargs["workflow_name"] for c in calls] == [
+        "ace(run)-ts1",
+        "ace(run)-ts2",
+        "ace(run)-ts3",
+    ]
+    assert [c.kwargs["workspace_num"] for c in calls] == [0, 0, 0]
+    assert [c.kwargs["deferred_workspace"] for c in calls] == [True, True, True]
+    assert mock_create_artifacts.call_args_list[0].kwargs["timestamp"] == "ts1"
+    assert mock_create_artifacts.call_args_list[1].kwargs["timestamp"] == "ts2"
+    assert mock_sleep.call_count == 2
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -322,6 +419,8 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.multi_prompt_launcher.time.sleep")
+@patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace")
 @patch(
@@ -331,6 +430,8 @@ def test_launch_multi_prompt_with_multi_model_segment(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -341,6 +442,7 @@ def test_launch_multi_prompt_with_multi_model_segment(
         ("/ws/101", None),
         ("/ws/102", None),
     ]
+    mock_timestamp.side_effect = ["ts1", "ts1", "ts2", "ts3"]
     mock_wait.return_value = "alpha"
     mock_spawn.return_value = MagicMock(pid=1)
 
@@ -362,9 +464,16 @@ def test_launch_multi_prompt_with_multi_model_segment(
     assert "%model:opus" in prompts[0]
     assert "%model:sonnet" in prompts[1]
     assert prompts[2] == "Review the output"
+    assert [c.kwargs["timestamp"] for c in mock_spawn.call_args_list] == [
+        "ts1",
+        "ts2",
+        "ts3",
+    ]
 
     # Naming-wait should fire between segments (not between model variants).
     assert mock_wait.call_count == 1
+    mock_sleep.assert_any_call(1)
+    mock_sleep.assert_any_call(0.05)
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
