@@ -263,7 +263,9 @@ class StartupMixin:
 
         # Tab state - track position in each tab
         self._changespecs_last_idx: int = 0
+        self._changespecs_last_name: str | None = None
         self._agents_last_idx: int = 0
+        self._agents_last_identity: tuple[AgentType, str, str | None] | None = None
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False

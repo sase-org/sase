@@ -61,7 +61,11 @@ def test_saved_axe_tab_selection_restores_by_bgcmd_slot_key() -> None:
     app._axe_lumberjack_names = ["checks", "hooks"]
     app._build_axe_items()
 
-    assert app._axe_last_idx == 2
+    # Off-tab rebuild now follows the saved identity to its new row so
+    # ``action_next_tab`` lands on the right entry without relying on a
+    # second key-based lookup pass.  Plan §4.4 of tui_selection_drift.
+    assert app._axe_last_idx == 3
+    assert app._axe_last_item_key == ("bgcmd", 7)
     assert app._get_clamped_axe_idx() == 3
 
 
@@ -90,9 +94,43 @@ def test_rebuild_falls_back_when_selected_item_disappears() -> None:
     app._bgcmd_slots = []
     app._build_axe_items()
 
-    assert app.current_idx == 0
-    assert app._axe_last_idx == 0
-    assert app._axe_last_item_key == ("axe", None)
+    # Plan §4.1 nearest-neighbor fallback: when the saved identity is
+    # gone, clamp to the prior visual row in the new list (here row 2
+    # clamps to row 1 — the last surviving row).  Old behaviour
+    # snapped to row 0 ("parent AXE" fallback) which violated the
+    # unified invariant.
+    assert app.current_idx == 1
+    assert app._axe_last_idx == 1
+    assert app._axe_last_item_key == ("lumberjack", "hooks")
+
+
+def test_off_tab_rebuild_does_not_mutate_current_idx() -> None:
+    """Plan §4.4: an off-tab AXE rebuild leaves ``current_idx`` alone.
+
+    ``current_idx`` belongs to the active tab. When the axe daemon
+    pushes a status update while the user is on Agents/ChangeSpecs,
+    ``_build_axe_items`` must update only the AXE-tab saved fields
+    (``_axe_last_idx`` / ``_axe_last_item_key``) and leave the
+    cross-tab ``current_idx`` untouched.
+    """
+    app = FakeAxeSelectionApp()
+    app._axe_lumberjack_names = ["hooks"]
+    app._bgcmd_slots = [(7, object())]
+    app._build_axe_items()
+    app.current_idx = 2  # bgcmd-7 row
+    app._save_current_tab_position()
+
+    app.current_tab = "agents"
+    app.current_idx = 12  # arbitrary value owned by the agents tab
+
+    app._axe_lumberjack_names = ["checks", "hooks"]
+    app._build_axe_items()
+
+    # current_idx untouched (still owned by agents tab)
+    assert app.current_idx == 12
+    # saved AXE row follows the identity to its new position
+    assert app._axe_last_item_key == ("bgcmd", 7)
+    assert app._axe_last_idx == 3
 
 
 def test_switch_to_axe_view_moves_highlight_to_matching_row() -> None:

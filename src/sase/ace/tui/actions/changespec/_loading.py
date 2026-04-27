@@ -20,6 +20,8 @@ class ChangeSpecLoadingMixin:
     hide_reverted: bool
     hide_submitted: bool
     marked_indices: set[int]
+    _changespecs_last_idx: int
+    _changespecs_last_name: str | None
     _all_changespecs: list[ChangeSpec]
     _hidden_reverted_count: int
     _query_reverted_count: int
@@ -137,12 +139,25 @@ class ChangeSpecLoadingMixin:
         """Reload changespecs and try to stay on the same one."""
         from ....changespec import find_all_changespecs_cached
 
-        if current_name is None and self.changespecs:
-            idx = min(self.current_idx, len(self.changespecs) - 1)
-            current_name = self.changespecs[idx].name
+        if current_name is None:
+            current_name = self._snapshot_active_changespec_name()
 
         all_changespecs = find_all_changespecs_cached()
         self._apply_reloaded_changespecs(all_changespecs, current_name)
+
+    def _snapshot_active_changespec_name(self) -> str | None:
+        """Return the identity of the currently selected ChangeSpec.
+
+        Falls back to ``_changespecs_last_name`` when the ChangeSpecs tab
+        isn't active so off-tab refreshes (file-watcher / async reload
+        while on Agents or AXE) restore by identity rather than by the
+        cross-tab-shared ``current_idx``.
+        """
+        on_changespecs_tab = getattr(self, "current_tab", None) == "changespecs"
+        if on_changespecs_tab and self.changespecs:
+            idx = min(self.current_idx, len(self.changespecs) - 1)
+            return self.changespecs[idx].name
+        return getattr(self, "_changespecs_last_name", None)
 
     async def _reload_and_reposition_async(
         self, current_name: str | None = None
@@ -164,9 +179,8 @@ class ChangeSpecLoadingMixin:
         # Re-capture current selection AFTER the await — user may have
         # moved with j/k or switched tabs while disk I/O was in flight.
         # Skip if the caller explicitly pinned us to a specific name.
-        if not caller_supplied_name and self.changespecs:
-            idx = min(self.current_idx, len(self.changespecs) - 1)
-            current_name = self.changespecs[idx].name
+        if not caller_supplied_name:
+            current_name = self._snapshot_active_changespec_name()
 
         self._apply_reloaded_changespecs(all_changespecs, current_name)
 
@@ -176,35 +190,58 @@ class ChangeSpecLoadingMixin:
         current_name: str | None,
     ) -> None:
         """Apply a freshly-loaded changespec list and reposition the cursor."""
+        from ...util.selection import restore_selection_by_identity
+
+        on_changespecs_tab = getattr(self, "current_tab", None) == "changespecs"
+
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         new_changespecs = self._filter_changespecs(all_changespecs)
 
-        # Try to find the same changespec by name
-        new_idx = 0
+        # Capture the prior visual row before mutating state so we can
+        # land on the nearest neighbor when the previously selected
+        # ChangeSpec has been filtered out (Submitted + hide_submitted).
+        if on_changespecs_tab:
+            prior_visual_row = self.current_idx if self.changespecs else None
+        else:
+            prior_visual_row = getattr(self, "_changespecs_last_idx", None)
+
+        # Try to find the same changespec by name. When the name was mutated
+        # by a suffix strip/append (e.g. revert flow), fall back to the base
+        # name before deferring to the neighbor-based helper.
+        identity_to_match: str | None = current_name
         if current_name:
-            for idx, cs in enumerate(new_changespecs):
-                if cs.name == current_name:
-                    new_idx = idx
-                    break
-            else:
-                # Name changed (suffix strip/append) -- match by base name
+            found = any(cs.name == current_name for cs in new_changespecs)
+            if not found:
                 from sase.core.changespec import strip_reverted_suffix
 
                 base = strip_reverted_suffix(current_name)
-                # Prefer exact base name (suffix was stripped)
-                for idx, cs in enumerate(new_changespecs):
-                    if cs.name == base:
-                        new_idx = idx
-                        break
+                if any(cs.name == base for cs in new_changespecs):
+                    identity_to_match = base
                 else:
-                    # Try any CS with same base name (suffix was appended)
-                    for idx, cs in enumerate(new_changespecs):
+                    for cs in new_changespecs:
                         if strip_reverted_suffix(cs.name) == base:
-                            new_idx = idx
+                            identity_to_match = cs.name
                             break
 
+        new_idx = restore_selection_by_identity(
+            new_changespecs,
+            prior_identity=identity_to_match,
+            prior_visual_row=prior_visual_row,
+            identity_fn=lambda cs: cs.name,
+        )
+
         self.changespecs = new_changespecs  # type: ignore[assignment]
-        self.current_idx = new_idx
+        if on_changespecs_tab:
+            self.current_idx = new_idx
+        else:
+            # Off-tab refresh: don't mutate ``current_idx`` (it belongs to
+            # whichever tab is active). Update the saved row + identity
+            # so a tab switch back lands on the right entry.
+            self._changespecs_last_idx = new_idx
+            if new_changespecs and 0 <= new_idx < len(new_changespecs):
+                self._changespecs_last_name = new_changespecs[new_idx].name
+            else:
+                self._changespecs_last_name = None
         self._update_cls_tab_count()  # type: ignore[attr-defined]
         self._refresh_display()  # type: ignore[attr-defined]
 

@@ -278,8 +278,18 @@ class BgCmdList(OptionList):
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         """Suppress OptionHighlighted messages during programmatic updates."""
+        from ..util.trace import trace_event
+
         if self._programmatic_update:
+            trace_event(
+                "widget.bgcmd_list.watch_highlighted.suppressed",
+                highlighted=highlighted,
+            )
             return
+        trace_event(
+            "widget.bgcmd_list.watch_highlighted",
+            highlighted=highlighted,
+        )
         super().watch_highlighted(highlighted)
 
     def on_option_list_option_highlighted(

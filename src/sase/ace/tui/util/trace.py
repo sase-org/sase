@@ -81,6 +81,28 @@ def _write(record: dict[str, Any]) -> None:
         log.debug("trace log write failed: %s", e)
 
 
+def trace_event(event: str, **fields: Any) -> None:
+    """Emit a single point-in-time trace record when ``SASE_TUI_TRACE=1``.
+
+    Used by selection-mutation call sites that don't span time (e.g. the
+    moment ``current_idx`` is reassigned, or a widget's ``watch_highlighted``
+    fires). Disabled-path overhead is one env lookup.
+    """
+    if not is_enabled():
+        return
+    record: dict[str, Any] = {
+        "ts": time.time(),
+        "event": event,
+        "current_tab": _context.get("current_tab"),
+    }
+    for key, value in _context.items():
+        if key == "current_tab":
+            continue
+        record.setdefault(key, value)
+    record.update(fields)
+    _write(record)
+
+
 @contextmanager
 def tui_trace(span: str, **counters: Any) -> Generator[None, None, None]:
     """Record a scoped phase span when ``SASE_TUI_TRACE=1`` is set.

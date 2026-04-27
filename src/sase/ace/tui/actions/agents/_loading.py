@@ -73,6 +73,7 @@ class AgentLoadingMixin:
     _agents: list[Agent]
     _agents_with_children: list[Agent]
     _agents_last_idx: int
+    _agents_last_identity: tuple[AgentType, str, str | None] | None
     _has_always_visible: bool
     _hidden_count: int
     _hideable_agents: list[Agent]
@@ -132,6 +133,11 @@ class AgentLoadingMixin:
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            # Off-tab rebuild: fall back to the saved identity so the next
+            # tab switch back lands on the previously selected agent rather
+            # than whatever drifted into ``_agents_last_idx``'s slot.
+            selected_identity = getattr(self, "_agents_last_identity", None)
 
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = find_all_changespecs_cached()
@@ -193,6 +199,8 @@ class AgentLoadingMixin:
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
 
         prep_start = time.perf_counter()
         # Bind the worker function to a local so ``to_thread`` doesn't see
@@ -407,6 +415,8 @@ class AgentLoadingMixin:
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
         self._agents = list(self._agents_with_children)

@@ -166,15 +166,25 @@ def finalize_agent_list(
     # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
     saved_idx = app.current_idx if on_agents_tab else app._agents_last_idx
 
-    identity_restored = False
-    if selected_identity is not None:
-        # Try to restore selection by identity
-        for idx, agent in enumerate(app._agents):
-            if agent.identity == selected_identity:
-                saved_idx = idx
-                identity_restored = True
-                break
-        # If agent not found, saved_idx remains at the original position
+    # Identity-preserving restoration via the shared helper. This deliberately
+    # replaces the old "search-then-fall-through-to-saved_idx" path so the
+    # neighbor-based fallback (clamped prior visual row) wins when the agent
+    # disappears — instead of leaving the cursor at whatever stale numeric
+    # index happened to be in saved_idx and then drifting downstream.
+    from ...util.selection import restore_selection_by_identity
+
+    restored_idx = restore_selection_by_identity(
+        app._agents,
+        prior_identity=selected_identity,
+        prior_visual_row=saved_idx,
+        identity_fn=lambda agent: agent.identity,
+    )
+    identity_restored = (
+        selected_identity is not None
+        and 0 <= restored_idx < len(app._agents)
+        and app._agents[restored_idx].identity == selected_identity
+    )
+    saved_idx = restored_idx
 
     # When the previously selected identity is gone (kill / dismiss),
     # re-anchor focus to the agent that now occupies the same visible
@@ -201,6 +211,14 @@ def finalize_agent_list(
             app.current_idx = new_idx
         else:
             app._agents_last_idx = new_idx
+            # Keep the off-tab identity snapshot consistent with the row
+            # we'd land on when the user tabs back. Without this, a later
+            # rebuild on this same tab would see a stale identity that no
+            # longer matches ``_agents_last_idx``.
+            if app._agents and 0 <= new_idx < len(app._agents):
+                app._agents_last_identity = app._agents[new_idx].identity  # type: ignore[attr-defined]
+            else:
+                app._agents_last_identity = None  # type: ignore[attr-defined]
 
     # Garbage-collect collapse entries for groups that vanished after
     # the latest fold/search/filter pipeline so a re-appearing group

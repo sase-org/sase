@@ -376,11 +376,11 @@ class AgentList(OptionList, inherit_bindings=False):
         optimal_width = max(max_width, banner_width) + _PADDING
         self.post_message(self.WidthChanged(optimal_width))
 
-        if highlighted_row is not None:
-            self.highlighted = highlighted_row
-
-        # Clear flag after event loop processes pending events
-        self.call_later(self._clear_programmatic_flag)
+        try:
+            if highlighted_row is not None:
+                self.highlighted = highlighted_row
+        finally:
+            self._programmatic_update = False
 
     def _compute_tier_styles(
         self,
@@ -453,8 +453,10 @@ class AgentList(OptionList, inherit_bindings=False):
                 row = self._banner_row_by_key.get(group_key)
                 if row is not None:
                     self._programmatic_update = True
-                    self.highlighted = row
-                    self.call_later(self._clear_programmatic_flag)
+                    try:
+                        self.highlighted = row
+                    finally:
+                        self._programmatic_update = False
                     return
             if not self._agents or not (0 <= current_idx < len(self._agents)):
                 return
@@ -463,12 +465,40 @@ class AgentList(OptionList, inherit_bindings=False):
                 row = self._row_by_agent_idx.get(current_idx)
             if row is not None:
                 self._programmatic_update = True
-                self.highlighted = row
-                self.call_later(self._clear_programmatic_flag)
+                try:
+                    self.highlighted = row
+                finally:
+                    self._programmatic_update = False
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False
+
+    def watch_highlighted(self, highlighted: int | None) -> None:
+        """Suppress OptionHighlighted messages during programmatic updates.
+
+        Without this override the parent ``OptionList.watch_highlighted``
+        posts an ``OptionHighlighted`` message every time ``self.highlighted``
+        is reassigned. During a programmatic rebuild that message would
+        race with the deferred flag-clear and end up at
+        ``on_option_list_option_highlighted`` after ``_programmatic_update``
+        had already been reset to ``False`` — producing a phantom
+        ``SelectionChanged`` that overwrote ``current_idx`` with row 0.
+        Synchronously short-circuiting the watch keeps the rebuild silent.
+        """
+        from ..util.trace import trace_event
+
+        if self._programmatic_update:
+            trace_event(
+                "widget.agent_list.watch_highlighted.suppressed",
+                highlighted=highlighted,
+            )
+            return
+        trace_event(
+            "widget.agent_list.watch_highlighted",
+            highlighted=highlighted,
+        )
+        super().watch_highlighted(highlighted)
 
     # ------------------------------------------------------------------
     # Selective single-row patching (Phase 3 of instant_jk_navigation)
@@ -573,7 +603,7 @@ class AgentList(OptionList, inherit_bindings=False):
         except (AttributeError, IndexError):
             return False
         finally:
-            self.call_later(self._clear_programmatic_flag)
+            self._programmatic_update = False
         return True
 
     def _format_agent_option(

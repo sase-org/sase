@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 15:45:15
-status: wip
+status: done
 ---
 # Plan: Fix Random Selection Drift Across All TUI Tabs
 

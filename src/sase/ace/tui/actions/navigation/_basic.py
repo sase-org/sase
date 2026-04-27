@@ -366,11 +366,26 @@ class BasicNavigationMixin(NavigationMixinBase):
             self.current_idx = self._get_clamped_agents_idx()
 
     def _save_current_tab_position(self) -> None:
-        """Save the current position before switching tabs."""
+        """Save the current position before switching tabs.
+
+        Persists both the visible row index and the per-tab identity key
+        so that an off-tab rebuild can restore the user's selection by
+        identity rather than index — without an identity snapshot a
+        background refresh on an inactive tab would silently shift the
+        saved row to a different logical entry.
+        """
         if self.current_tab == "changespecs":
             self._changespecs_last_idx = self.current_idx
+            if self.changespecs and 0 <= self.current_idx < len(self.changespecs):
+                self._changespecs_last_name = self.changespecs[self.current_idx].name
+            else:
+                self._changespecs_last_name = None
         elif self.current_tab == "agents":
             self._agents_last_idx = self.current_idx
+            if self._agents and 0 <= self.current_idx < len(self._agents):
+                self._agents_last_identity = self._agents[self.current_idx].identity
+            else:
+                self._agents_last_identity = None
         elif self.current_tab == "axe":
             self._axe_last_idx = self.current_idx  # type: ignore[attr-defined]
             from ..axe_display._loaders import selected_axe_item_key

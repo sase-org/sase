@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .jump_hints import BannerJumpTarget
 
@@ -44,7 +44,9 @@ class NavigationMixinBase:
     _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
     _changespecs_last_idx: int
+    _changespecs_last_name: str | None
     _agents_last_idx: int
+    _agents_last_identity: tuple[Any, ...] | None  # AgentType / str / str|None tuple
     _keymap_registry: KeymapRegistry
     _axe_pinned_to_bottom: bool
     _axe_last_idx: int

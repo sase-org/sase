@@ -393,11 +393,11 @@ class ChangeSpecList(OptionList):
         self.post_message(self.WidthChanged(optimal_width))
 
         # Highlight the current item
-        if changespecs and 0 <= current_idx < len(changespecs):
-            self.highlighted = current_idx
-
-        # Clear flag after event loop processes pending events
-        self.call_later(self._clear_programmatic_flag)
+        try:
+            if changespecs and 0 <= current_idx < len(changespecs):
+                self.highlighted = current_idx
+        finally:
+            self._programmatic_update = False
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
@@ -416,13 +416,25 @@ class ChangeSpecList(OptionList):
                 return
             target_idx = min(max(current_idx, 0), self.option_count - 1)
             self._programmatic_update = True
-            self.highlighted = target_idx
-            self.call_later(self._clear_programmatic_flag)
+            try:
+                self.highlighted = target_idx
+            finally:
+                self._programmatic_update = False
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         """Suppress OptionHighlighted messages during programmatic updates."""
+        from ..util.trace import trace_event
+
         if self._programmatic_update:
+            trace_event(
+                "widget.changespec_list.watch_highlighted.suppressed",
+                highlighted=highlighted,
+            )
             return
+        trace_event(
+            "widget.changespec_list.watch_highlighted",
+            highlighted=highlighted,
+        )
         super().watch_highlighted(highlighted)
 
     def patch_changespec_row(
@@ -513,7 +525,7 @@ class ChangeSpecList(OptionList):
         except (AttributeError, IndexError):
             return False
         finally:
-            self.call_later(self._clear_programmatic_flag)
+            self._programmatic_update = False
 
         self._changespecs[idx] = changespec
         if marked:

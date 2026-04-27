@@ -359,12 +359,21 @@ class AxeDisplayLoadersMixin:
     def _build_axe_items(self) -> None:
         """Build the flat list of AXE side-panel items based on fold and hidden state."""
         from ...models.fold_state import FoldLevel
+        from ...util.selection import restore_selection_by_identity
 
-        selected_key = (
-            selected_axe_item_key(self._axe_items, self.current_idx)
-            if self.current_tab == "axe"
-            else None
-        )
+        on_axe_tab = self.current_tab == "axe"
+
+        # Capture identity *before* mutating ``_axe_items`` so off-tab
+        # rebuilds (e.g. axe daemon push while the user is on Agents)
+        # still preserve the saved-key for when the user returns. When
+        # on-tab, the live cursor wins; when off-tab, fall back to the
+        # last-saved key so we don't lose it across tab switches.
+        if on_axe_tab:
+            selected_key = selected_axe_item_key(self._axe_items, self.current_idx)
+            prior_visual_row: int | None = self.current_idx
+        else:
+            selected_key = self._axe_last_item_key
+            prior_visual_row = self._axe_last_idx
 
         items: list[AxeItem] = [AxeParentItem()]
 
@@ -380,16 +389,21 @@ class AxeDisplayLoadersMixin:
 
         self._axe_items = items
 
-        if self.current_tab == "axe":
-            restored_idx = find_axe_item_idx(items, selected_key)
-            if restored_idx is not None:
-                self.current_idx = restored_idx
-            elif self.current_idx >= len(items):
-                # Preserve the previous fallback: removed selections that leave
-                # the old row invalid return to the parent AXE row.
-                self.current_idx = 0
-            self._axe_last_idx = self.current_idx
-            self._axe_last_item_key = selected_axe_item_key(items, self.current_idx)
+        restored_idx = restore_selection_by_identity(
+            items,
+            prior_identity=selected_key,
+            prior_visual_row=prior_visual_row,
+            identity_fn=_axe_item_key,
+        )
+
+        if on_axe_tab:
+            self.current_idx = restored_idx
+
+        # Always update the tab-saved position/key so a later tab switch
+        # back to AXE lands on the same logical entry. Off-tab rebuilds
+        # never touch ``current_idx`` (it belongs to whatever tab is active).
+        self._axe_last_idx = restored_idx
+        self._axe_last_item_key = selected_axe_item_key(items, restored_idx)
 
     def _derive_axe_view_from_selection(self) -> None:
         """Derive _axe_current_view and _axe_lumberjack_idx from selected item."""

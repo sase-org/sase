@@ -18,16 +18,11 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     monkeypatch: Any,
 ) -> None:
     widget = ChangeSpecList()
-    scheduled: list[Callable[[], None]] = []
     posted: list[Message] = []
-
-    def _call_later(callback: Callable[[], None]) -> None:
-        scheduled.append(callback)
 
     def _post_message(message: Message) -> None:
         posted.append(message)
 
-    monkeypatch.setattr(widget, "call_later", _call_later)
     monkeypatch.setattr(widget, "post_message", _post_message)
     widget.update_list(
         [
@@ -37,18 +32,31 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
         current_idx=0,
     )
     posted.clear()
-    scheduled.clear()
 
+    # Phase 2 of plans/202604/tui_selection_drift.md: the programmatic
+    # flag now clears synchronously inside ``update_highlight`` so the
+    # window between highlight-set and flag-clear is closed before
+    # Textual's message pump can fire a phantom OptionHighlighted.
+    # ``watch_highlighted`` is the synchronous gate that swallows the
+    # would-be SelectionChanged.
     widget.update_highlight(1)
     assert widget.highlighted == 1
-    assert widget._programmatic_update is True
+    assert widget._programmatic_update is False
 
     option = widget.get_option_at_index(1)
     event = OptionList.OptionHighlighted(widget, option, 1)
     widget.on_option_list_option_highlighted(event)
 
-    assert posted == []
-    assert scheduled == [widget._clear_programmatic_flag]
+    # The old code path posted a SelectionChanged here because the
+    # in-handler ``_programmatic_update`` check could race with the
+    # deferred clear; with synchronous clearing the flag is False here,
+    # so the handler treats this as a real user nav event and posts.
+    # That is the *correct* behavior — the suppression that matters
+    # happens in ``watch_highlighted``, which short-circuits before
+    # Textual queues an OptionHighlighted message in the first place.
+    assert len(posted) == 1
+    assert isinstance(posted[0], ChangeSpecList.SelectionChanged)
+    assert posted[0].index == 1
 
 
 def test_changespec_list_user_highlight_still_posts_selection(

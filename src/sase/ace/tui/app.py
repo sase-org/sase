@@ -141,9 +141,14 @@ class AceApp(
             self._current_attempt_number = None
             if self._jk_perf is not None:
                 self._jk_perf.mark_model_updated()
-            from .util.trace import set_trace_context
+            from .util.trace import set_trace_context, trace_event
 
             set_trace_context(current_idx=value)
+            trace_event(
+                "selection.current_idx.set",
+                old=old,
+                new=value,
+            )
             self.watch_current_idx(old, value)
 
     @property
