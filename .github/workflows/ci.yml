@@ -18,9 +18,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-      - uses: extractions/setup-just@v4
-        with:
-          just-version: 1.50.0
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
       - name: Set up Python
         run: uv python install 3.12
       - name: Install dependencies
@@ -52,9 +56,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v4
-        with:
-          just-version: 1.50.0
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
       - name: Install prettier
         run: npm install -g prettier
       - name: Check Markdown formatting
@@ -71,9 +79,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-      - uses: extractions/setup-just@v4
-        with:
-          just-version: 1.50.0
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
@@ -95,9 +107,13 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-      - uses: extractions/setup-just@v4
-        with:
-          just-version: 1.50.0
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
       - name: Set up Python
         run: uv python install 3.12
       - name: Install dependencies
