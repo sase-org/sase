@@ -322,6 +322,7 @@ class CopyModeKeymaps(ModeKeymaps):
             "agents": {
                 "chat": "c",
                 "file_path": "E",
+                "name": "n",
                 "prompt": "p",
                 "snapshot": "s",
             },

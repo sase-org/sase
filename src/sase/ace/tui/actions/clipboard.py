@@ -146,6 +146,8 @@ class ClipboardMixin:
             self._copy_chat_path()
         elif key == ag_keys["file_path"]:
             self._copy_file_path()
+        elif key == ag_keys["name"]:
+            self._copy_agent_name()
         elif key == ag_keys["prompt"]:
             self._copy_agent_prompt()
         elif key == ag_keys["snapshot"]:
@@ -306,6 +308,25 @@ class ClipboardMixin:
                 chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
             )
             self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+
+    def _copy_agent_name(self) -> None:
+        """Copy the selected agent's name (%n on agents tab)."""
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if agent.agent_name:
+            name_value = agent.agent_name
+            label = "Agent Name"
+        else:
+            name_value = agent.display_name
+            label = "Agent Display Name"
+
+        if copy_to_system_clipboard(name_value):
+            self.notify(f"Copied: {label} ({name_value})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 

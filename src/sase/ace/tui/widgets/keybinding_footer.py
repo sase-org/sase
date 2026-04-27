@@ -465,6 +465,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         elif tab == "agents":
             bindings = [
                 (k("chat"), "chat"),
+                (k("name"), "name"),
                 (k("prompt"), "prompt"),
                 (k("snapshot"), "snap"),
             ]

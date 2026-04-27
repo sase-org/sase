@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:26:22
-status: wip
+status: done
 ---
 # Plan: Copy Agent Name to Clipboard from Agents Tab Copy Mode
 

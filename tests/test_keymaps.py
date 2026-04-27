@@ -117,6 +117,7 @@ def test_copy_mode_nested_defaults() -> None:
     assert keys["changespecs"]["bug"] == "b"
     assert isinstance(keys["agents"], dict)
     assert keys["agents"]["chat"] == "c"
+    assert keys["agents"]["name"] == "n"
     assert isinstance(keys["axe"], dict)
     assert keys["axe"]["visible"] == "o"
 
