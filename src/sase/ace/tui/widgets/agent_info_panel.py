@@ -5,6 +5,8 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
+from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+
 
 class AgentInfoPanel(Static):
     """Top bar showing agent count and auto-refresh countdown."""
@@ -20,6 +22,12 @@ class AgentInfoPanel(Static):
         self._grouping_mode: str = ""
         self._search_query: str = ""
         self._loading: bool = False
+        self._registry = load_keymap_registry({})
+
+    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
+        """Override the keymap registry and refresh display."""
+        self._registry = registry
+        self._update_display()
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
@@ -125,7 +133,8 @@ class AgentInfoPanel(Static):
             grouping_label,
             style=self._GROUPING_MODE_STYLES.get(grouping_label, "dim"),
         )
-        text.append(" (g)", style="dim")
+        key = key_display_name(self._registry.app.cycle_grouping_mode)
+        text.append(f" ({key})", style="dim")
         text.append("]", style="dim")
         if self._interval > 0:
             text.append("   ")

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from sase.ace.tui.keymaps import key_display_name, load_keymap_registry
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+
+_DEFAULT_GROUPING_KEY = key_display_name(
+    load_keymap_registry({}).app.cycle_grouping_mode
+)
 
 
 def _collect_text(panel: AgentInfoPanel) -> str:
@@ -21,7 +26,7 @@ def test_grouping_badge_renders_default_when_unset() -> None:
     panel._position = 1
     panel._total = 1
     plain = _collect_text(panel)
-    assert "[group: default (g)]" in plain
+    assert f"[group: default ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
 def test_grouping_badge_renders_label_after_update() -> None:
@@ -30,7 +35,7 @@ def test_grouping_badge_renders_label_after_update() -> None:
     panel._total = 1
     panel._grouping_mode = "by status"
     plain = _collect_text(panel)
-    assert "[group: by status (g)]" in plain
+    assert f"[group: by status ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
 def test_grouping_badge_renders_by_date_label() -> None:
@@ -39,7 +44,7 @@ def test_grouping_badge_renders_by_date_label() -> None:
     panel._total = 1
     panel._grouping_mode = "by date"
     plain = _collect_text(panel)
-    assert "[group: by date (g)]" in plain
+    assert f"[group: by date ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
 def test_grouping_badge_suppressed_while_loading() -> None:

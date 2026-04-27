@@ -210,8 +210,8 @@ class StartupMixin:
         # group expanded (first-paint default).
         #
         # Per-mode registry: each grouping mode maintains its own fold
-        # state so cycling modes (g) doesn't lose collapse intent on the
-        # mode the user came from.  ``_group_fold_registry`` always
+        # state so cycling grouping mode doesn't lose collapse intent on
+        # the mode the user came from.  ``_group_fold_registry`` always
         # points at the active mode's slot; the cycle action swaps it
         # in via :meth:`_ensure_mode_registry` so existing call sites
         # (loading, folding, display) keep reading a single attribute.
@@ -388,6 +388,7 @@ class StartupMixin:
         import asyncio
 
         from ..widgets import (
+            AgentInfoPanel,
             InactiveIndicator,
             KeybindingFooter,
             TabBar,
@@ -400,6 +401,8 @@ class StartupMixin:
             footer.set_keymap_registry(self._keymap_registry)
             tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
             tab_bar.set_keymap_registry(self._keymap_registry)
+            info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
+            info_panel.set_keymap_registry(self._keymap_registry)
 
             # Initialize agent tracking for completion notifications
             unread_ids = await asyncio.to_thread(self._read_unread_notification_ids)  # type: ignore[attr-defined]
