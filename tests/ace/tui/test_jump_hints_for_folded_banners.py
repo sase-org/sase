@@ -42,6 +42,11 @@ class _StubApp(AdvancedNavigationMixin):
         self._entry_jump_last_index: dict[str, int] = {}
         self._entry_jump_last_agents_anchor: Any = None
 
+    def _panel_keys_per_agent(self) -> list:
+        from sase.ace.tui.models.agent_panels import panel_key_per_agent
+
+        return panel_key_per_agent(self._agents)
+
     # The mixin would normally drive a full refresh; tests don't render so
     # we can swallow these calls.
     def _refresh_agents_display(self, *, list_changed: bool = False) -> None:

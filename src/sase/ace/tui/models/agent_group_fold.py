@@ -36,9 +36,13 @@ class AgentGroupFoldRegistry:
     Stores only the *collapsed* set; any key not present is expanded.
     Mutating methods return ``True`` when the registry actually changed
     so callers can short-circuit redundant refreshes.
+
+    ``version`` increments on every successful mutation so caches keyed
+    on fold state can invalidate without inspecting the set itself.
     """
 
     collapsed: set[GroupKey] = field(default_factory=set)
+    version: int = 0
 
     def is_collapsed(self, key: GroupKey) -> bool:
         return key in self.collapsed
@@ -47,12 +51,14 @@ class AgentGroupFoldRegistry:
         if key in self.collapsed:
             return False
         self.collapsed.add(key)
+        self.version += 1
         return True
 
     def expand(self, key: GroupKey) -> bool:
         if key not in self.collapsed:
             return False
         self.collapsed.discard(key)
+        self.version += 1
         return True
 
     def collapse_keys(self, keys: Iterable[GroupKey]) -> bool:
@@ -77,4 +83,7 @@ class AgentGroupFoldRegistry:
         same key reappears later.
         """
         known_set = set(known)
+        before = len(self.collapsed)
         self.collapsed.intersection_update(known_set)
+        if len(self.collapsed) != before:
+            self.version += 1

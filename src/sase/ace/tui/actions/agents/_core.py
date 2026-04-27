@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ._approve import AgentApproveMixin
 from ._display import AgentDisplayMixin
@@ -101,6 +101,9 @@ class AgentsMixinCore(
     # Debouncer for j/k navigation detail panel updates
     _agent_detail_debouncer: DetailPanelDebouncer
 
+    # Phase 2 j/k caches (initialized in StartupMixin._init_app_state).
+    _nav_stops_cache: tuple[Any, ...] | None
+
     def _agents_visible_order(self) -> list[int]:
         """Return global agent indices in the order rendered on the focused panel.
 
@@ -113,10 +116,7 @@ class AgentsMixinCore(
         render contiguous with their parent.
         """
         from ...models.agent_groups import build_agent_tree
-        from ...models.agent_panels import (
-            agents_for_panel,
-            panel_key_per_agent,
-        )
+        from ...models.agent_panels import agents_for_panel
 
         from ...models.agent_groups import GroupingMode
 
@@ -131,7 +131,7 @@ class AgentsMixinCore(
                 if entry.kind == "agent" and entry.agent_idx is not None
             ]
         focused_key = panel_group.focused_key
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
         panel_agents = agents_for_panel(self._agents, focused_key)
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
@@ -150,18 +150,35 @@ class AgentsMixinCore(
         or ``("banner", group_key)`` for a collapsed banner row.  Used
         by j/k navigation to cycle through every selectable stop —
         including stepping in and out of collapsed groups.
+
+        Memoized: under j/k autorepeat the inputs (agents list,
+        focused panel, fold state, grouping mode) don't change between
+        keystrokes, so the tree rebuild is amortized to one per refresh
+        cycle.  Cache invalidates implicitly when any input changes
+        identity / version.
         """
         from ...models.agent_groups import build_agent_tree
-        from ...models.agent_panels import (
-            agents_for_panel,
-            panel_key_per_agent,
-        )
+        from ...models.agent_panels import agents_for_panel
 
         from ...models.agent_groups import GroupingMode
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
+
+        fold_version = registry.version if registry is not None else 0
+        cached = getattr(self, "_nav_stops_cache", None)
+        if (
+            cached is not None
+            and cached[0] is self._agents
+            and cached[1] is panel_group
+            and cached[2]
+            == (panel_group.focused_idx if panel_group is not None else None)
+            and cached[3] == fold_version
+            and cached[4] is mode
+        ):
+            return cached[5]
+
         if panel_group is None:
             tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
             stops: list[tuple[str, int | tuple[str, ...]]] = []
@@ -171,19 +188,30 @@ class AgentsMixinCore(
                         stops.append(("banner", entry.group.group_key))
                 elif entry.kind == "agent" and entry.agent_idx is not None:
                     stops.append(("agent", entry.agent_idx))
-            return stops
-        focused_key = panel_group.focused_key
-        keys_per_agent = panel_key_per_agent(self._agents)
-        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
-        panel_agents = agents_for_panel(self._agents, focused_key)
-        tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
-        stops = []
-        for entry in tree:
-            if entry.kind == "group" and entry.group is not None:
-                if entry.group.is_collapsed:
-                    stops.append(("banner", entry.group.group_key))
-            elif entry.kind == "agent" and entry.agent_idx is not None:
-                stops.append(("agent", global_indices[entry.agent_idx]))
+        else:
+            focused_key = panel_group.focused_key
+            keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+            global_indices = [
+                i for i, k in enumerate(keys_per_agent) if k == focused_key
+            ]
+            panel_agents = agents_for_panel(self._agents, focused_key)
+            tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
+            stops = []
+            for entry in tree:
+                if entry.kind == "group" and entry.group is not None:
+                    if entry.group.is_collapsed:
+                        stops.append(("banner", entry.group.group_key))
+                elif entry.kind == "agent" and entry.agent_idx is not None:
+                    stops.append(("agent", global_indices[entry.agent_idx]))
+
+        self._nav_stops_cache = (
+            self._agents,
+            panel_group,
+            panel_group.focused_idx if panel_group is not None else None,
+            fold_version,
+            mode,
+            stops,
+        )
         return stops
 
     def _capture_focused_visible_pos(self) -> int | None:

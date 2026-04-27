@@ -226,8 +226,14 @@ def test_workflow_children_inherit_parent_grouping_in_walk() -> None:
     assert app.current_idx == 0  # wrap to parent
 
 
-def test_unmatched_group_key_lands_on_first_stop() -> None:
-    """A stale ``_current_group_key`` snaps to the first stop on j."""
+def test_unmatched_group_key_steps_from_nearest_anchor() -> None:
+    """A stale ``_current_group_key`` lands one stop past the nearest anchor.
+
+    With no banner ancestor and no agent stops in the panel (all groups
+    collapsed), the fallback anchors on the first banner stop and the
+    keystroke advances by one — instead of silently teleporting to
+    ``stops[0]``.
+    """
     agents = [
         _agent(project="p1", cl="cl1", name="a1"),
         _agent(project="p2", cl="cl2", name="b1"),
@@ -240,7 +246,7 @@ def test_unmatched_group_key_lands_on_first_stop() -> None:
     app._current_group_key = ("ghost",)
 
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p1",)
+    assert app._current_group_key == ("p2",)
 
 
 def test_jk_at_l0_banner_moves_highlight_to_deeper_banner() -> None:
@@ -282,9 +288,12 @@ def test_jk_at_l0_banner_moves_highlight_to_deeper_banner() -> None:
     assert widget.highlighted == 0
 
     # Expand the L0 so the deeper banners become visible & selectable.
+    # The pre-expansion anchor was ("p1",); after expansion both deeper
+    # banners share its prefix, so j anchors on the first and steps to
+    # the second.
     app._group_fold_registry.expand(("p1",))
     app._navigate_agents_panel(1)
-    assert app._current_group_key == ("p1", "cl1", "sase-q")
+    assert app._current_group_key == ("p1", "cl1", "sase-r")
 
     widget.update_list(
         agents,

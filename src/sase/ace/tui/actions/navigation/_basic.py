@@ -7,6 +7,62 @@ from textual.containers import VerticalScroll
 from ._types import NavigationMixinBase
 
 
+def _nearest_stop_anchor(
+    stops: list[tuple[str, int | tuple[str, ...]]],
+    old_idx: int,
+    old_key: tuple[str, ...] | None,
+) -> int:
+    """Pick a sensible anchor in ``stops`` when no exact match was found.
+
+    Returns the position of the stop closest to the user's last anchor.
+    Caller adds ``direction`` so the keystroke still moves by exactly one
+    stop — but from a sensible neighbor instead of jumping to ``stops[0]``
+    or ``stops[-1]``.
+
+    Banner ancestor preferred when ``old_key`` shares any prefix with a
+    banner stop's key.  Otherwise the agent stop with the closest global
+    index to ``old_idx`` wins (lower-index tiebreak).  When neither
+    applies the first banner stop is the last-resort fallback.
+    """
+    best_banner_pos: int | None = None
+    best_banner_depth = 0
+    if old_key is not None:
+        for i, (kind, payload) in enumerate(stops):
+            if kind != "banner":
+                continue
+            assert isinstance(payload, tuple)
+            depth = 0
+            while (
+                depth < len(payload)
+                and depth < len(old_key)
+                and payload[depth] == old_key[depth]
+            ):
+                depth += 1
+            if depth > best_banner_depth:
+                best_banner_depth = depth
+                best_banner_pos = i
+        if best_banner_pos is not None:
+            return best_banner_pos
+
+    best_agent_pos: int | None = None
+    best_dist: int | None = None
+    for i, (kind, payload) in enumerate(stops):
+        if kind != "agent":
+            continue
+        assert isinstance(payload, int)
+        dist = abs(payload - old_idx)
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_agent_pos = i
+    if best_agent_pos is not None:
+        return best_agent_pos
+
+    for i, (kind, _) in enumerate(stops):
+        if kind == "banner":
+            return i
+    return 0
+
+
 class BasicNavigationMixin(NavigationMixinBase):
     """Mixin providing basic navigation, scrolling, and tab switching."""
 
@@ -43,9 +99,8 @@ class BasicNavigationMixin(NavigationMixinBase):
                     pos = i
                     break
         if pos is None:
-            new_pos = 0 if direction > 0 else len(stops) - 1
-        else:
-            new_pos = (pos + direction) % len(stops)
+            pos = _nearest_stop_anchor(stops, old_idx, old_key)
+        new_pos = (pos + direction) % len(stops)
         kind, payload = stops[new_pos]
         if kind == "banner":
             self._current_group_key = payload

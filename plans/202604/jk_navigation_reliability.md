@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 10:40:56
-status: wip
+status: done
 ---
 # Plan — Make `j`/`k` Navigation on the Agents Tab Reliable
 

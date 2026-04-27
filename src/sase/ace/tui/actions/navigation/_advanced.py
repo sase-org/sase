@@ -203,13 +203,13 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         non-collapsed banners are non-selectable and excluded.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import agents_for_panel, panel_key_per_agent
+        from ...models.agent_panels import agents_for_panel
 
         registry = self._group_fold_registry
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
             global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -72,6 +72,28 @@ class AgentDisplayMixin:
 
     # Countdown for refresh
     _countdown_remaining: int
+
+    # Phase 2 j/k cache (initialized in StartupMixin._init_app_state).
+    _panel_keys_cache: tuple[Any, ...] | None
+
+    def _panel_keys_per_agent(self) -> list:
+        """Memoized :func:`panel_key_per_agent` keyed on the agents list.
+
+        ``self._agents`` is replaced wholesale by the loading/refilter
+        paths, so ``is`` identity is a sufficient invalidation signal —
+        when the list ref changes, the cache misses and rebuilds.
+        Several call sites per j/k keystroke share this cache so the
+        list comprehension over ``self._agents`` runs at most once per
+        refresh cycle.
+        """
+        from ...models.agent_panels import panel_key_per_agent
+
+        cached = getattr(self, "_panel_keys_cache", None)
+        if cached is not None and cached[0] is self._agents:
+            return cached[1]
+        keys = panel_key_per_agent(self._agents)
+        self._panel_keys_cache = (self._agents, keys)
+        return keys
 
     def _refresh_agents_display(
         self, *, list_changed: bool = False, defer_detail: bool = False
@@ -165,7 +187,6 @@ class AgentDisplayMixin:
         """
         from textual.css.query import NoMatches
 
-        from ...models.agent_panels import panel_key_per_agent
         from ...widgets import AgentList
 
         if self.current_tab != "agents":
@@ -176,7 +197,7 @@ class AgentDisplayMixin:
         except ValueError:
             return False
 
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         agent_panel_key = keys_per_agent[agent_idx]
 
         # Find which panel currently displays this agent, if any.
@@ -269,13 +290,13 @@ class AgentDisplayMixin:
         Also re-anchors :attr:`current_idx` into the focused panel when
         the previous focus is no longer in it.
         """
-        from ...models.agent_panels import AgentPanelGroup, panel_key_per_agent
+        from ...models.agent_panels import AgentPanelGroup
 
         prev_focused = self._panel_group.focused_key
         self._panel_group = AgentPanelGroup.from_agents(self._agents, prev_focused)
 
         # Make sure current_idx points at an agent in the focused panel.
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_key = self._panel_group.focused_key
         if 0 <= self.current_idx < len(self._agents):
             if keys_per_agent[self.current_idx] != focused_key:
@@ -312,10 +333,7 @@ class AgentDisplayMixin:
         """
         from textual.css.query import NoMatches
 
-        from ...models.agent_panels import (
-            agents_for_panel,
-            panel_key_per_agent,
-        )
+        from ...models.agent_panels import agents_for_panel
         from ...widgets import AgentList
 
         try:
@@ -340,7 +358,7 @@ class AgentDisplayMixin:
             if isinstance(w, AgentList) and w.id not in keep_ids:
                 w.remove()
 
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_idx = self._panel_group.focused_idx
         fold_registry = self._group_fold_registry
         marked = self._marked_agents
@@ -497,11 +515,10 @@ class AgentDisplayMixin:
         """
         from textual.css.query import NoMatches
 
-        from ...models.agent_panels import panel_key_per_agent
         from ...widgets import AgentList
 
         focused_key = self._panel_group.focused_key
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
         wid = _panel_widget_id(self._panel_group.focused_idx)
         try:

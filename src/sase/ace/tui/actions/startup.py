@@ -250,6 +250,17 @@ class StartupMixin:
 
         self._panel_group: AgentPanelGroup = AgentPanelGroup()
 
+        # j/k navigation caches (Phase 2 of jk_navigation_reliability):
+        # ``_panel_navigation_stops`` and ``panel_key_per_agent`` are
+        # called several times per keystroke; memoize them so a 20-key
+        # autorepeat burst rebuilds the agent tree at most once.  Cache
+        # keys include the agents-list ref, ``_panel_group`` ref +
+        # focused index, the fold registry's monotonic ``version``, and
+        # the active grouping mode — every invalidator already mutates
+        # one of those, so no explicit bumps are needed at writers.
+        self._nav_stops_cache: tuple[Any, ...] | None = None
+        self._panel_keys_cache: tuple[Any, ...] | None = None
+
         # Agent completion tracking for notifications
         from ...dismissed_agents import load_dismissed_agents
 

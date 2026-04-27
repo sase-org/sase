@@ -33,6 +33,11 @@ class _StubApp(AdvancedNavigationMixin):
         for key in collapsed or []:
             self._group_fold_registry.collapse(key)
 
+    def _panel_keys_per_agent(self) -> list:
+        from sase.ace.tui.models.agent_panels import panel_key_per_agent
+
+        return panel_key_per_agent(self._agents)
+
 
 def _agent(*, project: str, cl: str, name: str) -> Agent:
     return Agent(

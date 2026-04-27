@@ -315,10 +315,7 @@ class EventHandlersMixin:
         if self.current_tab != "agents":
             return
 
-        from ..models.agent_panels import (
-            agents_for_panel,
-            panel_key_per_agent,
-        )
+        from ..models.agent_panels import agents_for_panel
         from ..widgets import AgentList
 
         widget = event.control
@@ -340,7 +337,7 @@ class EventHandlersMixin:
             return
         panel_key = panel_keys[panel_idx]
 
-        keys_per_agent = panel_key_per_agent(self._agents)
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == panel_key]
         panel_agents = agents_for_panel(self._agents, panel_key)
 

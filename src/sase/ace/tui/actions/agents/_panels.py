@@ -39,9 +39,7 @@ class AgentPanelsMixin:
         if not changed:
             return
 
-        from ...models.agent_panels import panel_key_per_agent
-
-        keys_per_agent = panel_key_per_agent(self._agents)  # type: ignore[attr-defined]
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_key = self._panel_group.focused_key
         new_idx: int | None = None
         for i, k in enumerate(keys_per_agent):
