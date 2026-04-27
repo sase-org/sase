@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from ....query.types import QueryExpr
 
 from ....changespec import ChangeSpec
+from ...util.trace import tui_trace
 
 
 class ChangeSpecLoadingMixin:
@@ -66,6 +67,12 @@ class ChangeSpecLoadingMixin:
 
     def _filter_changespecs(self, changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
         """Filter changespecs using the parsed query and hide settings."""
+        with tui_trace("changespec.filter", count=len(changespecs)):
+            return self._filter_changespecs_impl(changespecs)
+
+    def _filter_changespecs_impl(
+        self, changespecs: list[ChangeSpec]
+    ) -> list[ChangeSpec]:
         from ....changespec import get_base_status
         from ....query import evaluate_query
         from ....query.evaluator import (

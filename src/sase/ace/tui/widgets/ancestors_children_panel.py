@@ -11,6 +11,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from ...changespec import ChangeSpec
+from ..util.trace import tui_trace
 
 
 def _get_simple_status_indicator(status: str) -> tuple[str, str]:
@@ -81,6 +82,20 @@ class AncestorsChildrenPanel(Static):
             - children_keys: key -> name (e.g., {">>": "child1", ">2a": "grandchild"})
             - sibling_keys: key -> name (e.g., {"~~": "foo__1", "~a": "foo__2"})
         """
+        with tui_trace(
+            "widget.ancestors_children.update_relationships",
+            count=len(all_changespecs),
+        ):
+            return self._update_relationships_impl(
+                changespec, all_changespecs, hide_reverted=hide_reverted
+            )
+
+    def _update_relationships_impl(
+        self,
+        changespec: ChangeSpec,
+        all_changespecs: list[ChangeSpec],
+        hide_reverted: bool = False,
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
         # Reset hidden counts
         self._hidden_ancestor_count = 0
         self._hidden_descendant_count = 0

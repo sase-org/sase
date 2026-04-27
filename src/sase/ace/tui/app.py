@@ -141,6 +141,9 @@ class AceApp(
             self._current_attempt_number = None
             if self._jk_perf is not None:
                 self._jk_perf.mark_model_updated()
+            from .util.trace import set_trace_context
+
+            set_trace_context(current_idx=value)
             self.watch_current_idx(old, value)
 
     @property
@@ -275,6 +278,10 @@ class AceApp(
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+
+        from .util.trace import set_trace_context
+
+        set_trace_context(current_tab=new_tab)
 
         # Cancel any pending detail-panel debouncer for the tab we're leaving;
         # the new tab will redraw fresh and the deferred work would land in a

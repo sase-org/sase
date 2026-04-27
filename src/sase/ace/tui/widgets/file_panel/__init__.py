@@ -9,6 +9,7 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from ...models.agent import Agent
+from ...util.trace import tui_trace
 from ._diff import get_agent_diff
 from ._display import FilePanelDisplayMixin
 from ._messages import (
@@ -57,6 +58,10 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             agent: The Agent to display file for.
             stale_threshold_seconds: Files older than this are refetched.
         """
+        with tui_trace("widget.file_panel.update_display"):
+            self._update_display_body(agent, stale_threshold_seconds)
+
+    def _update_display_body(self, agent: Agent, stale_threshold_seconds: int) -> None:
         same_agent = (
             self._current_agent is not None
             and self._current_agent.identity == agent.identity

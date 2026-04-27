@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
 
+from ...util.trace import tui_trace
+
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -79,6 +81,13 @@ def load_agents_from_disk(
     Returns:
         Tuple of (all_agents, dismissed_from_loader).
     """
+    with tui_trace("agents.load_from_disk"):
+        return _load_agents_from_disk_impl(dismissed_agents)
+
+
+def _load_agents_from_disk_impl(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+) -> tuple[list[Agent], list[Agent]]:
     from ...models import load_all_agents
 
     all_agents = load_all_agents()

@@ -13,6 +13,8 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
 
+from ..util.trace import tui_trace
+
 # Type alias for lumberjack summary tuple: (name, status, chops_executed)
 LumberjackSummary = tuple[str, LumberjackStatus | None, int]
 
@@ -444,15 +446,20 @@ class AxeDashboard(Static):
             lumberjack_summaries: Per-lumberjack (name, status, chops_executed)
                 tuples for the activity summary, or None to skip.
         """
-        status_section = self.query_one("#axe-status-section", _AxeStatusSection)
-        output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+        with tui_trace(
+            "widget.axe_dashboard.update_display",
+            output_bytes=len(output) if output else 0,
+            lumberjacks=len(lumberjack_summaries or []),
+        ):
+            status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+            output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
-        status_section.update_display(status, is_running, full_cycles, countdown)
+            status_section.update_display(status, is_running, full_cycles, countdown)
 
-        if lumberjack_summaries:
-            output_section.update_lumberjack_summary(lumberjack_summaries)
-        else:
-            output_section.update_display(output)
+            if lumberjack_summaries:
+                output_section.update_lumberjack_summary(lumberjack_summaries)
+            else:
+                output_section.update_display(output)
 
     def show_empty(self) -> None:
         """Show empty/stopped state."""

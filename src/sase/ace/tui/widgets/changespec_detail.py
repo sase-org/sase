@@ -17,6 +17,7 @@ from ...display_helpers import (
 )
 from ...query.highlighting import QUERY_TOKEN_STYLES, tokenize_query_for_display
 from ..models.fold_state import FoldLevel
+from ..util.trace import tui_trace
 from .section_builders import (
     HintTracker,
     build_comments_section,
@@ -125,15 +126,16 @@ class ChangeSpecDetail(Static):
             mentors_collapsed: Fold level for MENTORS entries
             timestamps_collapsed: Fold level for TIMESTAMPS section
         """
-        content, _, _, _, _ = self._build_display_content(
-            changespec,
-            query_string,
-            hooks_collapsed=hooks_collapsed,
-            commits_collapsed=commits_collapsed,
-            mentors_collapsed=mentors_collapsed,
-            timestamps_collapsed=timestamps_collapsed,
-        )
-        self.update(content)
+        with tui_trace("widget.changespec_detail.update_display"):
+            content, _, _, _, _ = self._build_display_content(
+                changespec,
+                query_string,
+                hooks_collapsed=hooks_collapsed,
+                commits_collapsed=commits_collapsed,
+                mentors_collapsed=mentors_collapsed,
+                timestamps_collapsed=timestamps_collapsed,
+            )
+            self.update(content)
 
     def update_display_with_hints(
         self,

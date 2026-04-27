@@ -33,6 +33,7 @@ from ._agent_list_styling import (
     _MIN_BANNER_WIDTH,
     _PROJECT_BANNER_RULE_STYLE,
 )
+from ..util.trace import tui_trace
 
 # Re-exported under its historical name for tests that import from
 # ``sase.ace.tui.widgets.agent_list``.
@@ -165,6 +166,35 @@ class AgentList(OptionList, inherit_bindings=False):
                 ``datetime.now()``; tests pass a fixed value so bucket
                 membership is deterministic.
         """
+        with tui_trace("widget.agent_list.update_list", count=len(agents)):
+            self._update_list_impl(
+                agents,
+                current_idx,
+                fold_counts=fold_counts,
+                marked_agents=marked_agents,
+                jump_hints=jump_hints,
+                banner_jump_hints=banner_jump_hints,
+                current_attempt_number=current_attempt_number,
+                fold_registry=fold_registry,
+                current_group_key=current_group_key,
+                grouping_mode=grouping_mode,
+                now=now,
+            )
+
+    def _update_list_impl(
+        self,
+        agents: list[Agent],
+        current_idx: int,
+        fold_counts: dict[str, tuple[int, int]] | None = None,
+        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        jump_hints: dict[int, str] | None = None,
+        banner_jump_hints: dict[tuple[str, ...], str] | None = None,
+        current_attempt_number: int | None = None,
+        fold_registry: AgentGroupFoldRegistry | None = None,
+        current_group_key: tuple[str, ...] | None = None,
+        grouping_mode: GroupingMode = GroupingMode.STANDARD,
+        now: datetime | None = None,
+    ) -> None:
         self._programmatic_update = True
         self._agents = agents
         self.clear_options()
@@ -404,25 +434,26 @@ class AgentList(OptionList, inherit_bindings=False):
                 search when no banner matches (defensive against
                 refresh-vs-fold races).
         """
-        if group_key is not None:
-            for row, banner in self._banner_at_row.items():
-                if banner.group_key == group_key:
-                    self._programmatic_update = True
-                    self.highlighted = row
-                    self.call_later(self._clear_programmatic_flag)
-                    return
-        if not self._agents or not (0 <= current_idx < len(self._agents)):
-            return
-        targets = [(current_idx, current_attempt_number)]
-        if current_attempt_number is not None:
-            targets.append((current_idx, None))
-        for target in targets:
-            for row, entry in enumerate(self._row_entries):
-                if entry == target:
-                    self._programmatic_update = True
-                    self.highlighted = row
-                    self.call_later(self._clear_programmatic_flag)
-                    return
+        with tui_trace("widget.agent_list.update_highlight", count=len(self._agents)):
+            if group_key is not None:
+                for row, banner in self._banner_at_row.items():
+                    if banner.group_key == group_key:
+                        self._programmatic_update = True
+                        self.highlighted = row
+                        self.call_later(self._clear_programmatic_flag)
+                        return
+            if not self._agents or not (0 <= current_idx < len(self._agents)):
+                return
+            targets = [(current_idx, current_attempt_number)]
+            if current_attempt_number is not None:
+                targets.append((current_idx, None))
+            for target in targets:
+                for row, entry in enumerate(self._row_entries):
+                    if entry == target:
+                        self._programmatic_update = True
+                        self.highlighted = row
+                        self.call_later(self._clear_programmatic_flag)
+                        return
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
@@ -459,6 +490,22 @@ class AgentList(OptionList, inherit_bindings=False):
         target, or the per-row context wasn't captured by a previous full
         render).
         """
+        with tui_trace("widget.agent_list.patch_agent_row", agent_idx=agent_idx):
+            return self._patch_agent_row_impl(
+                agent_idx,
+                marked_agents=marked_agents,
+                is_selected=is_selected,
+                now=now,
+            )
+
+    def _patch_agent_row_impl(
+        self,
+        agent_idx: int,
+        *,
+        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        is_selected: bool | None = None,
+        now: datetime | None = None,
+    ) -> bool:
         if not (0 <= agent_idx < len(self._agents)):
             return False
         ctx = self._row_render_ctx.get(agent_idx)

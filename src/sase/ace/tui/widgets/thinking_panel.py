@@ -22,6 +22,8 @@ from sase.ace.tui.thinking import (
 )
 from sase.llm_provider.registry import get_default_provider_name
 
+from ..util.trace import tui_trace
+
 
 class ThinkingVisibilityChanged(Message):
     """Message posted when thinking panel visibility should change."""
@@ -119,6 +121,14 @@ class AgentThinkingPanel(Static):
             agent: The Agent to display thinking for.
             stale_threshold_seconds: Entries older than this are refetched.
         """
+        with tui_trace("widget.thinking_panel.update_display"):
+            self._update_display_impl(
+                agent, stale_threshold_seconds=stale_threshold_seconds
+            )
+
+    def _update_display_impl(
+        self, agent: Agent, stale_threshold_seconds: int = 10
+    ) -> None:
         self._current_agent = agent
 
         # Check cache

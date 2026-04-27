@@ -7,6 +7,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent, AgentType, AttemptRecord
+from ...util.trace import tui_trace
 from ._agent_display_parts import (
     build_header_text,
     get_phase_label,
@@ -72,6 +73,10 @@ class AgentDisplayMixin:
         Args:
             agent: The Agent to display.
         """
+        with tui_trace("widget.prompt_panel.update_display"):
+            self._update_display_impl(agent)
+
+    def _update_display_impl(self, agent: Agent) -> None:
         # Attempt-pinned view: render the selected prior attempt's full error
         # + prompt + captured reply; skip all other rendering paths.
         if self.attempt_pinned_number is not None:

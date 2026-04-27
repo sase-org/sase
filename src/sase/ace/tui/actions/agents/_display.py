@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
+from ...util.trace import tui_trace
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
@@ -106,6 +107,19 @@ class AgentDisplayMixin:
                 index moved (j/k navigation) — skip the expensive OptionList
                 clear-and-rebuild.
         """
+        with tui_trace(
+            "agents.refresh_display",
+            agents=len(self._agents),
+            list_changed=bool(list_changed),
+            defer_detail=bool(defer_detail),
+        ):
+            self._refresh_agents_display_impl(
+                list_changed=list_changed, defer_detail=defer_detail
+            )
+
+    def _refresh_agents_display_impl(
+        self, *, list_changed: bool = False, defer_detail: bool = False
+    ) -> None:
         started = time.perf_counter()
         list_started = started
         # Cancel any pending debounced detail update — full refresh supersedes
@@ -259,9 +273,10 @@ class AgentDisplayMixin:
         debounces the expensive detail panel and footer updates (disk I/O,
         Rich Syntax highlighting, background workers).
         """
-        self._refresh_panel_highlights()
-        self._update_agents_info_panel()
-        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        with tui_trace("agents.refresh_debounced", agents=len(self._agents)):
+            self._refresh_panel_highlights()
+            self._update_agents_info_panel()
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""
@@ -331,6 +346,22 @@ class AgentDisplayMixin:
         Calls :meth:`AgentList.update_list` on each panel with its
         agent slice.  Sets Textual focus on the focused panel.
         """
+        with tui_trace(
+            "agents.refresh_panel_widgets",
+            agents=len(self._agents),
+            panels=len(self._panel_group.panel_keys),
+        ):
+            self._refresh_panel_widgets_impl(
+                jump_hints=jump_hints, banner_jump_hints=banner_jump_hints
+            )
+
+    def _refresh_panel_widgets_impl(
+        self,
+        *,
+        jump_hints: dict[int, str] | None,
+        banner_jump_hints: dict[tuple[Literal["banner"], int, tuple[str, ...]], str]
+        | None = None,
+    ) -> None:
         from textual.css.query import NoMatches
 
         from ...models.agent_panels import agents_for_panel
@@ -512,6 +543,10 @@ class AgentDisplayMixin:
         Used by the j/k debounced refresh path — only the focused panel's
         cursor moves, so we skip the expensive list rebuild on the others.
         """
+        with tui_trace("agents.refresh_panel_highlights", agents=len(self._agents)):
+            self._refresh_panel_highlights_impl()
+
+    def _refresh_panel_highlights_impl(self) -> None:
         from textual.css.query import NoMatches
 
         from ...widgets import AgentList

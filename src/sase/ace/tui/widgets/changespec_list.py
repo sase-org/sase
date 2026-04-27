@@ -21,6 +21,7 @@ from ...mentor_output import (
     load_mentor_outputs_for_commit,
     load_read_state,
 )
+from ..util.trace import tui_trace
 
 log = logging.getLogger(__name__)
 
@@ -277,6 +278,25 @@ class ChangeSpecList(OptionList):
             hide_submitted: Whether submitted CLs are currently hidden
             jump_hints: Optional local row index -> hint character mapping
         """
+        with tui_trace("widget.changespec_list.update_list", count=len(changespecs)):
+            self._update_list_impl(
+                changespecs,
+                current_idx,
+                marked_indices=marked_indices,
+                hide_reverted=hide_reverted,
+                hide_submitted=hide_submitted,
+                jump_hints=jump_hints,
+            )
+
+    def _update_list_impl(
+        self,
+        changespecs: list[ChangeSpec],
+        current_idx: int,
+        marked_indices: set[int] | None = None,
+        hide_reverted: bool = True,
+        hide_submitted: bool = True,
+        jump_hints: dict[int, str] | None = None,
+    ) -> None:
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
         self._changespecs = changespecs
@@ -331,12 +351,15 @@ class ChangeSpecList(OptionList):
         Use this for j/k navigation where the item list hasn't changed,
         only the selection index.
         """
-        if self.option_count == 0:
-            return
-        target_idx = min(max(current_idx, 0), self.option_count - 1)
-        self._programmatic_update = True
-        self.highlighted = target_idx
-        self.call_later(self._clear_programmatic_flag)
+        with tui_trace(
+            "widget.changespec_list.update_highlight", count=self.option_count
+        ):
+            if self.option_count == 0:
+                return
+            target_idx = min(max(current_idx, 0), self.option_count - 1)
+            self._programmatic_update = True
+            self.highlighted = target_idx
+            self.call_later(self._clear_programmatic_flag)
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         """Suppress OptionHighlighted messages during programmatic updates."""

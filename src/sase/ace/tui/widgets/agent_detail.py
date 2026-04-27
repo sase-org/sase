@@ -14,6 +14,7 @@ from ._agent_detail_panels import (
 from .file_panel import AgentFilePanel
 from .prompt_panel import AgentPromptPanel
 from .thinking_panel import AgentThinkingPanel
+from ..util.trace import tui_trace
 
 
 _ACTIVE_STATUSES = frozenset(
@@ -76,6 +77,19 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             attempt_number: When non-None, pin the detail view to the matching
                 prior-attempt record (shows full error + that attempt's reply).
         """
+        with tui_trace("widget.agent_detail.update_display", status=agent.status):
+            self._update_display_impl(
+                agent,
+                stale_threshold_seconds=stale_threshold_seconds,
+                attempt_number=attempt_number,
+            )
+
+    def _update_display_impl(
+        self,
+        agent: Agent,
+        stale_threshold_seconds: int = 10,
+        attempt_number: int | None = None,
+    ) -> None:
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)

@@ -56,6 +56,9 @@ def _make_panel() -> MagicMock:
 
     # Bind the real methods we want to test
     panel.update_display = types.MethodType(AgentFilePanel.update_display, panel)
+    panel._update_display_body = types.MethodType(
+        AgentFilePanel._update_display_body, panel
+    )
     panel.set_file_list = types.MethodType(AgentFilePanel.set_file_list, panel)
     panel.next_file = types.MethodType(AgentFilePanel.next_file, panel)
     panel.prev_file = types.MethodType(AgentFilePanel.prev_file, panel)

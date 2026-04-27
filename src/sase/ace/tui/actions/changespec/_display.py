@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
 
 from ....changespec import ChangeSpec
+from ...util.trace import tui_trace
 
 log = logging.getLogger(__name__)
 
@@ -88,20 +89,29 @@ class ChangeSpecDisplayMixin:
 
         from ...widgets import ChangeSpecList
 
-        try:
-            list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
-        except NoMatches:
-            log.debug("changespecs display refresh skipped: widget tree unavailable")
-            self._changespec_detail_debouncer.cancel()
-            return
+        with tui_trace(
+            "changespec.refresh_debounced", changespecs=len(self.changespecs)
+        ):
+            try:
+                list_widget = self.query_one("#list-panel", ChangeSpecList)  # type: ignore[attr-defined]
+            except NoMatches:
+                log.debug(
+                    "changespecs display refresh skipped: widget tree unavailable"
+                )
+                self._changespec_detail_debouncer.cancel()
+                return
 
-        if self.changespecs:
-            list_widget.update_highlight(self.current_idx)
-        self._update_info_panel()
-        self._changespec_detail_debouncer.schedule(self._refresh_display)
+            if self.changespecs:
+                list_widget.update_highlight(self.current_idx)
+            self._update_info_panel()
+            self._changespec_detail_debouncer.schedule(self._refresh_display)
 
     def _refresh_display(self) -> None:
         """Refresh the display with current state."""
+        with tui_trace("changespec.refresh_display", changespecs=len(self.changespecs)):
+            self._refresh_display_impl()
+
+    def _refresh_display_impl(self) -> None:
         # Full refresh supersedes any pending debounced detail update.
         self._changespec_detail_debouncer.cancel()
 
