@@ -22,6 +22,7 @@ from ..widgets import (
 # every dirty flag is clear we still reconcile every minute as a safety
 # net for missed events (NFS, container bind-mount edge cases, etc.).
 FULL_SANITY_REFRESH_SECONDS = 60.0
+PROMPT_INPUT_DEFER_SECONDS = 0.25
 
 if TYPE_CHECKING:
     from textual.widgets import Input
@@ -92,6 +93,26 @@ class EventHandlersMixin:
         """
         self._nav_gate.record()
 
+    def _prompt_input_active(self) -> bool:
+        """Return True while any prompt-like input surface is mounted."""
+        if getattr(self, "_prompt_context", None) is not None:
+            return True
+        if getattr(self, "_approve_prompt_context", None) is not None:
+            return True
+        if getattr(self, "_plan_feedback_context", None) is not None:
+            return True
+
+        query = getattr(self, "query", None)
+        if query is None:
+            return False
+
+        try:
+            from ..widgets import PromptInputBar
+
+            return any(True for _ in query(PromptInputBar))
+        except Exception:
+            return False
+
     def _on_artifact_change(self) -> None:
         """Inotify dispatch: schedule a reconcile when the user is idle.
 
@@ -115,6 +136,12 @@ class EventHandlersMixin:
         self._dirty_changespecs = True
         self._dirty_agents = True
         self._dirty_axe = True
+        if self._prompt_input_active():
+            self.set_timer(  # type: ignore[attr-defined]
+                PROMPT_INPUT_DEFER_SECONDS,
+                self._on_artifact_change,
+            )
+            return
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
         # inotify wakeups still triggers at most one in-flight reload plus
@@ -145,6 +172,8 @@ class EventHandlersMixin:
             return
 
         self._countdown_remaining = self.refresh_interval
+        if self._prompt_input_active():
+            return
 
         watcher_active = self._watcher_active()
         now_mono = time.monotonic()
@@ -171,10 +200,8 @@ class EventHandlersMixin:
         if _should_refresh("_dirty_agents"):
             await self._poll_agent_completions()  # type: ignore[attr-defined]
 
-        # Skip changespec/agent refresh if the user is in an input mode
-        # (prompt bar or hint bar is active).
-        if getattr(self, "_prompt_context", None) is not None:
-            return
+        # Skip changespec/agent refresh if the user is in a transient input
+        # mode (hint bar or similar is active).
         if getattr(self, "_hint_mode_active", False):
             return
         if getattr(self, "_entry_jump_mode_active", False):
