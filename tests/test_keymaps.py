@@ -40,6 +40,18 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.bang_mode, BangModeKeymaps)
 
 
+def test_g_and_o_default_bindings_do_not_collide() -> None:
+    """Guard: ``g`` is scroll_to_top everywhere; ``o`` is the grouping cycle.
+
+    Re-introducing the old ``cycle_grouping_mode: g`` binding would steal the
+    universal scroll-to-top mnemonic on the Agents tab — see
+    plans/202604/g_keymap_restore.md.
+    """
+    reg = load_keymap_registry({})
+    assert reg.app.scroll_to_top == "g"
+    assert reg.app.cycle_grouping_mode == "o"
+
+
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "f"}}})

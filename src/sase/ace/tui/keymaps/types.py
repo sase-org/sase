@@ -82,7 +82,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_thinking_reverse", "Thinking Rev", False),
     ("mark_inactive_pinned", "Pin Inactive", False),
     ("copy_tab_content", "Copy", False),
-    ("cycle_grouping_mode", "Cycle Grouping", False),
     ("scroll_to_top", "Top", False),
     ("scroll_to_bottom", "Bottom", False),
     ("show_help", "Help", False),
@@ -107,6 +106,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("add_agent_tag", "Add Agent Tag", False),
     ("focus_next_agent_panel", "Next Panel", False),
     ("focus_prev_agent_panel", "Prev Panel", False),
+    ("cycle_grouping_mode", "Cycle Grouping", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.

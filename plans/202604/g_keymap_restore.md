@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:22:48
-status: wip
+status: done
 ---
 # Restore `g` to "scroll to top" on the Agents tab; move grouping-mode cycle to a new key
 

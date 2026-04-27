@@ -1,14 +1,10 @@
 """Grouping-mode cycle action for the Agents tab.
 
-The cycle key (``g`` by default) advances ``self._grouping_mode`` through
+The cycle key (``o`` by default) advances ``self._grouping_mode`` through
 ``STANDARD → BY_DATE → BY_STATUS → STANDARD`` and re-renders the agents
 tab.  Per-mode fold registries are kept in :attr:`_group_fold_registries`
 so a mode-specific collapse layout is restored when the user cycles back
 to a previously-visited mode.
-
-On non-agents tabs the action defers to :meth:`action_scroll_to_top`
-(via the kill_agent / toggle_hide_submitted dispatch pattern) so the
-``g`` mnemonic still scrolls in the CLs and AXE tabs.
 """
 
 from __future__ import annotations
@@ -22,7 +18,7 @@ if TYPE_CHECKING:
 
 TabName = Literal["changespecs", "agents", "axe"]
 
-#: Cycle order for ``g`` — STANDARD is included so a single press from
+#: Cycle order — STANDARD is included so a single press from
 #: BY_STATUS lands the user back at the project/ChangeSpec default.
 _GROUPING_CYCLE: tuple[str, ...] = ("STANDARD", "BY_DATE", "BY_STATUS")
 
@@ -67,14 +63,8 @@ class AgentGroupingMixin:
         return registry
 
     def action_cycle_grouping_mode(self) -> None:
-        """Advance the agents-tab grouping mode by one step.
-
-        On non-agents tabs the binding still routes ``g`` through
-        :meth:`action_scroll_to_top` so the user gets the documented
-        scroll-to-top behavior in the CLs and AXE tabs.
-        """
+        """Advance the agents-tab grouping mode by one step."""
         if self.current_tab != "agents":
-            self.action_scroll_to_top()  # type: ignore[attr-defined]
             return
 
         next_mode = self._next_grouping_mode()

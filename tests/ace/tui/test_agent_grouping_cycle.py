@@ -7,7 +7,7 @@ Covers Phase 3 of the cyclable grouping/sorting modes feature
 * Per-mode fold-state preservation across mode cycles.
 * Tree shape after cycling matches the new mode's L0 (project /
   date bucket / status bucket).
-* Non-agents tab routing falls through to ``action_scroll_to_top``.
+* Non-agents tabs are a silent no-op — the cycle key only acts on Agents.
 """
 
 from __future__ import annotations
@@ -226,18 +226,18 @@ def test_build_tree_after_cycle_uses_active_mode_registry() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_on_non_agents_tab_falls_through_to_scroll() -> None:
-    """``g`` on the CLs / AXE tabs keeps its scroll-to-top behavior."""
+def test_cycle_on_non_agents_tab_is_silent_noop() -> None:
+    """The cycle key is Agents-tab only; CLs / AXE tabs ignore it."""
     app = _StubApp([_agent()], current_tab="changespecs")
     app.action_cycle_grouping_mode()
-    assert app.scroll_calls == 1
+    assert app.scroll_calls == 0
     assert app.refilter_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
 
 
-def test_cycle_on_axe_tab_falls_through_to_scroll() -> None:
+def test_cycle_on_axe_tab_is_silent_noop() -> None:
     app = _StubApp([_agent()], current_tab="axe")
     app.action_cycle_grouping_mode()
-    assert app.scroll_calls == 1
+    assert app.scroll_calls == 0
     assert app.refilter_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
