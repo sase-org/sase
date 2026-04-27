@@ -56,7 +56,7 @@ from MUTED on its own once the timer runs out.
 
 The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
 
-- **Red** — at least one unread PRIORITY notification (plan approval, user question, mentor review, axe error, …)
+- **Orange** — at least one unread PRIORITY notification (plan approval, user question, mentor review, axe error, …)
 - **Gold** — only regular INBOX notifications are unread
 - **Cyan** — only MUTED (or snoozed) notifications are unread
 - **Hidden** — no unread notifications at all

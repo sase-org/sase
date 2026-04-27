@@ -10,7 +10,7 @@ class NotificationIndicator(Static):
     """Always-visible unread notification count in the top-right.
 
     The primary segment color signals urgency:
-      * red — at least one unmuted priority-type notification
+      * orange — at least one unmuted priority-type notification
       * gold — unmuted non-priority notifications, no priority
       * dim cyan — only muted notifications remain (acknowledged backlog)
       * dim — nothing unread
@@ -34,7 +34,7 @@ class NotificationIndicator(Static):
 
         Args:
             priority: Unmuted, unread, priority-type notifications. Drives
-                the red primary segment when greater than zero.
+                the orange primary segment when greater than zero.
             rest: Unmuted, unread, non-priority notifications. Drives the
                 gold primary segment when ``priority == 0``.
             muted: Muted, unread notifications of any type. Renders as the
@@ -56,7 +56,7 @@ class NotificationIndicator(Static):
             return Text(" ✉ 0 ", style="dim")
 
         if priority > 0:
-            text = Text(f" ✉ {priority}+{rest} ", style="bold #1a1a1a on #FF4444")
+            text = Text(f" ✉ {priority}+{rest} ", style="bold #1a1a1a on #FF8700")
         elif rest > 0:
             text = Text(f" ✉ {rest} ", style="bold #1a1a1a on #FFD700")
         else:

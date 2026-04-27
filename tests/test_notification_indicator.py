@@ -15,16 +15,16 @@ def test_rest_only_renders_gold_envelope() -> None:
     assert "#FFD700" in str(text.style)
 
 
-def test_priority_only_renders_red_split_envelope() -> None:
+def test_priority_only_renders_orange_split_envelope() -> None:
     text = NotificationIndicator._build_content(2, 0, 0)
     assert text.plain == " ✉ 2+0 "
-    assert "#FF4444" in str(text.style)
+    assert "#FF8700" in str(text.style)
 
 
 def test_priority_dominates_when_both_present() -> None:
     text = NotificationIndicator._build_content(2, 3, 0)
     assert text.plain == " ✉ 2+3 "
-    assert "#FF4444" in str(text.style)
+    assert "#FF8700" in str(text.style)
 
 
 def test_muted_only_collapses_to_single_count_dim_cyan() -> None:
@@ -33,10 +33,10 @@ def test_muted_only_collapses_to_single_count_dim_cyan() -> None:
     assert "#5FAFAF" in str(text.style)
 
 
-def test_priority_with_muted_renders_red_primary_and_secondary() -> None:
+def test_priority_with_muted_renders_orange_primary_and_secondary() -> None:
     text = NotificationIndicator._build_content(1, 0, 2)
     assert text.plain == " ✉ 1+0 ·2 "
-    assert "#FF4444" in str(text.style)
+    assert "#FF8700" in str(text.style)
 
 
 def test_rest_with_muted_renders_gold_primary_and_secondary() -> None:

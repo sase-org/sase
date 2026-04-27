@@ -544,9 +544,9 @@ Press `i` (or the `,n` leader chord to jump straight to an agent's notification)
 [`docs/notifications.md`](notifications.md) for the full keybinding reference, the priority/inbox/muted section
 taxonomy, and the per-notification snooze and mute affordances.
 
-The top-bar notification indicator color reflects the highest-priority unread bucket: red for **PRIORITY** notifications
-(plan approvals, user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for regular
-**INBOX** notifications, and cyan when only **MUTED** notifications remain.
+The top-bar notification indicator color reflects the highest-priority unread bucket: orange for **PRIORITY**
+notifications (plan approvals, user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for
+regular **INBOX** notifications, and cyan when only **MUTED** notifications remain.
 
 ## Notification Actions
 
