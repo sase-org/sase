@@ -430,21 +430,21 @@ def get_most_recent_agent_name() -> str | None:
 def get_next_auto_name() -> str:
     """Return the lowest available alphabetic agent name.
 
-    Scans active (non-done) agents across all projects and returns the
+    Scans currently-running agents across all projects and returns the
     first name in the sequence ``a, b, ..., z, aa, ab, ...`` that is not
-    currently in use.
+    currently in use. Done and dismissed agents do not block reuse.
     """
     used = _get_active_agent_names()
     return _next_available_name(used)
 
 
 def _get_active_agent_names() -> set[str]:
-    """Return the set of names used by non-dismissed agents.
+    """Return the set of names reserved by currently-running agents.
 
-    An agent's name is considered in use as long as its artifact
-    directory exists (dismissal deletes it).  For agents without a
-    ``done.json``, we additionally verify the process is alive to
-    handle orphaned agents.
+    Names of running agents (or live parent-tracked follow-ups) are
+    reserved so a fresh auto-named agent does not collide with them on
+    the Agents tab. Dismissed agents (artifact dir removed) and done
+    agents do not block reuse — their slots are released.
     """
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
@@ -507,13 +507,13 @@ def _get_active_agent_names() -> set[str]:
                     names.add(prefix)
                 continue
 
-            # Done agents still hold their name until dismissed
-            # (dismissal deletes the artifact directory).
+            # Done agents do not reserve their name. They are hidden by
+            # default on the Agents tab, so reserving their slot would
+            # block reuse without any visual collision benefit.
+            # ``find_named_agent()`` already prefers running over done
+            # and most-recent done by timestamp for ``@<name>`` lookups.
             done_path = artifact_dir / "done.json"
             if done_path.exists():
-                names.add(name)
-                if prefix is not None:
-                    names.add(prefix)
                 continue
 
             # Verify the agent process is actually alive — orphaned agents
