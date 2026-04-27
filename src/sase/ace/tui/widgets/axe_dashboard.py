@@ -13,6 +13,7 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
 
+from ..util.lazy_syntax import cap_ansi_output
 from ..util.trace import tui_trace
 
 # Type alias for lumberjack summary tuple: (name, status, chops_executed)
@@ -308,7 +309,7 @@ class _AxeOutputSection(Static):
             return
 
         # Convert ANSI codes to Rich Text for proper rendering
-        text = Text.from_ansi(output)
+        text = Text.from_ansi(cap_ansi_output(output))
         self.update(text)
 
     def update_lumberjack_summary(self, summaries: list[LumberjackSummary]) -> None:
@@ -500,7 +501,7 @@ class AxeDashboard(Static):
             output_section.update(text)
         else:
             # Convert ANSI codes to Rich Text for proper rendering
-            text = Text.from_ansi(output)
+            text = Text.from_ansi(cap_ansi_output(output))
             output_section.update(text)
 
     def update_lumberjack_display(

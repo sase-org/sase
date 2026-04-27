@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.agent.agent_artifacts_cache import get_global_cache
 from sase.ace.tui.models.agent import AgentType
 
 if TYPE_CHECKING:
@@ -147,11 +147,7 @@ def get_raw_xprompt_content(agent: Agent) -> str | None:
     if artifacts_dir is None:
         return None
     raw_path = os.path.join(artifacts_dir, "raw_xprompt.md")
-    try:
-        with open(raw_path, encoding="utf-8") as f:
-            return f.read()
-    except (FileNotFoundError, OSError):
-        return None
+    return get_global_cache().read_text(raw_path)
 
 
 def get_live_reply_content(agent: Agent) -> str | None:
@@ -164,11 +160,7 @@ def get_live_reply_content(agent: Agent) -> str | None:
     if artifacts_dir is None:
         return None
     path = os.path.join(artifacts_dir, "live_reply.md")
-    try:
-        with open(path, encoding="utf-8") as f:
-            return f.read()
-    except (FileNotFoundError, OSError):
-        return None
+    return get_global_cache().read_live_reply(path)
 
 
 def get_timestamped_reply_chunks(agent: Agent) -> list[tuple[str, str]] | None:
@@ -185,40 +177,7 @@ def get_timestamped_reply_chunks(agent: Agent) -> list[tuple[str, str]] | None:
 
     timestamps_path = os.path.join(artifacts_dir, "live_reply_timestamps.jsonl")
     reply_path = os.path.join(artifacts_dir, "live_reply.md")
-
-    try:
-        with open(timestamps_path, encoding="utf-8") as f:
-            lines = f.readlines()
-    except (FileNotFoundError, OSError):
-        return None
-
-    entries: list[tuple[int, str]] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-            entries.append((data["byte_offset"], data["timestamp"]))
-        except (json.JSONDecodeError, KeyError):
-            continue
-
-    if not entries:
-        return None
-
-    try:
-        with open(reply_path, "rb") as f:
-            content_bytes = f.read()
-    except (FileNotFoundError, OSError):
-        return None
-
-    chunks: list[tuple[str, str]] = []
-    for i, (offset, timestamp) in enumerate(entries):
-        end = entries[i + 1][0] if i + 1 < len(entries) else len(content_bytes)
-        chunk_text = content_bytes[offset:end].decode("utf-8", errors="replace")
-        chunks.append((timestamp, chunk_text))
-
-    return chunks if chunks else None
+    return get_global_cache().read_reply_chunks(timestamps_path, reply_path)
 
 
 def get_response_content(agent: Agent) -> str | None:
@@ -229,11 +188,7 @@ def get_response_content(agent: Agent) -> str | None:
     """
     if agent.response_path is None:
         return None
-    try:
-        with open(os.path.expanduser(agent.response_path), encoding="utf-8") as f:
-            return f.read()
-    except Exception:
-        return None
+    return get_global_cache().read_text(os.path.expanduser(agent.response_path))
 
 
 def get_chat_response_content(agent: Agent) -> str | None:
@@ -249,16 +204,10 @@ def get_chat_response_content(agent: Agent) -> str | None:
     if artifacts_dir is None:
         return None
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    data = get_global_cache().read_json(meta_path)
+    if not isinstance(data, dict):
         return None
     chat_path = data.get("chat_path")
-    if not chat_path:
+    if not isinstance(chat_path, str) or not chat_path:
         return None
-    try:
-        with open(os.path.expanduser(chat_path), encoding="utf-8") as f:
-            return f.read()
-    except (FileNotFoundError, OSError):
-        return None
+    return get_global_cache().read_text(os.path.expanduser(chat_path))

@@ -10,7 +10,7 @@ from textual.worker import Worker, WorkerState
 
 from ...models.agent import Agent
 from ...util.trace import tui_trace
-from ._diff import get_agent_diff
+from ._diff import DiffCacheKey, compute_diff_cache_key, get_agent_diff
 from ._display import FilePanelDisplayMixin
 from ._messages import (
     FileListChanged,
@@ -50,6 +50,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
         self._static_header_path: str | None = None
+        # Phase 6: dedupe in-flight diff workers across rapid re-selections of
+        # the same agent. When a worker for the same DiffCacheKey is already
+        # running, ``_start_background_fetch`` attaches to it instead of
+        # cancelling and respawning.
+        self._inflight_diff_tasks: dict[DiffCacheKey, Worker[str | None]] = {}
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent file output.
@@ -353,14 +358,30 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._start_background_fetch(agent)
 
     def _start_background_fetch(self, agent: Agent) -> None:
-        """Cancel any running worker and start a new background fetch."""
+        """Start a background fetch, attaching to in-flight workers when possible.
+
+        For agents whose diff cache key is derivable, concurrent re-selects of
+        the same agent on the same worktree share one worker rather than
+        cancel-and-respawn. This avoids redundant ``diff_with_untracked``
+        calls during rapid j/k navigation.
+        """
+        cache_key = compute_diff_cache_key(agent)
+        if cache_key is not None:
+            existing = self._inflight_diff_tasks.get(cache_key)
+            if existing is not None and existing.is_running:
+                self._current_worker = existing
+                return
+
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
         def fetch_task() -> str | None:
             return self._fetch_file_in_background(agent)
 
-        self._current_worker = self.run_worker(fetch_task, thread=True)
+        worker = self.run_worker(fetch_task, thread=True)
+        self._current_worker = worker
+        if cache_key is not None:
+            self._inflight_diff_tasks[cache_key] = worker
 
     def _fetch_file_in_background(self, agent: Agent) -> str | None:
         """Fetch file output in background thread.
@@ -384,6 +405,19 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
+        if event.state in (
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        ):
+            # Drop any inflight-task entries pointing at this worker so the
+            # next selection of the same key starts a fresh fetch.
+            stale_keys = [
+                k for k, w in self._inflight_diff_tasks.items() if w is event.worker
+            ]
+            for k in stale_keys:
+                self._inflight_diff_tasks.pop(k, None)
+
         if event.worker != self._current_worker:
             return
 

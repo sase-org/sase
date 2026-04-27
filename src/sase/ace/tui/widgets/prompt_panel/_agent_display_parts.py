@@ -1,12 +1,14 @@
 """Rendering helpers and header building for agent display."""
 
 from datetime import datetime
-from pathlib import Path
 
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.agent.agent_artifacts_cache import get_global_cache
+
 from ...models.agent import Agent, AttemptRecord
+from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     append_model_field,
     extract_meta_fields,
@@ -112,46 +114,28 @@ def render_phase_divider(label: str, start_time: datetime | None) -> Text:
     return divider
 
 
-def render_agent_reply_content(agent: Agent) -> list[Text | Syntax]:
+def render_agent_reply_content(agent: Agent) -> list:
     """Render one agent's reply (chunks, live reply, or response)."""
-    renderables: list[Text | Syntax] = []
+    renderables: list = []
     chunks = agent.get_timestamped_reply_chunks()
     if chunks:
         for ts, chunk_text in chunks:
             renderables.append(render_timestamp_divider(ts))
             content = chunk_text.strip()
             if content:
-                renderables.append(
-                    Syntax(content, "markdown", theme="monokai", word_wrap=True)
-                )
+                renderables.append(lazy_renderable(content, "markdown"))
         return renderables
     live_reply = agent.get_live_reply_content()
     if live_reply:
-        renderables.append(
-            Syntax(live_reply, "markdown", theme="monokai", word_wrap=True)
-        )
+        renderables.append(lazy_renderable(live_reply, "markdown"))
         return renderables
     response_content = agent.get_response_content()
     if response_content:
-        renderables.append(
-            Syntax(
-                response_content,
-                "markdown",
-                theme="monokai",
-                word_wrap=True,
-            )
-        )
+        renderables.append(lazy_renderable(response_content, "markdown"))
         return renderables
     chat_response = agent.get_chat_response_content()
     if chat_response:
-        renderables.append(
-            Syntax(
-                chat_response,
-                "markdown",
-                theme="monokai",
-                word_wrap=True,
-            )
-        )
+        renderables.append(lazy_renderable(chat_response, "markdown"))
         return renderables
     # Running Gemini thinking models buffer output until the session ends;
     # show a placeholder so the reply section isn't blank.
@@ -394,30 +378,12 @@ def get_prompt_content(agent: Agent) -> str | None:
     if artifacts_dir is None:
         return None
 
-    artifacts_path = Path(artifacts_dir)
-
-    # Look for any *_prompt.md file
-    prompt_files = list(artifacts_path.glob("*_prompt.md"))
-
-    if not prompt_files:
+    cache = get_global_cache()
+    selected = cache.select_prompt_file(
+        artifacts_dir,
+        is_workflow_child=agent.is_workflow_child,
+        step_name=agent.step_name,
+    )
+    if selected is None:
         return None
-
-    # For workflow child agents, filter to the step-specific prompt file.
-    # All workflow steps share the same artifacts_dir, so without filtering
-    # we'd always show the most recently modified prompt (usually the last
-    # step).
-    if agent.is_workflow_child and agent.step_name:
-        step_specific = [
-            p for p in prompt_files if p.name.endswith(f"-{agent.step_name}_prompt.md")
-        ]
-        if step_specific:
-            prompt_files = step_specific
-
-    # Sort by modification time to get the most recent
-    prompt_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-
-    try:
-        with open(prompt_files[0], encoding="utf-8") as f:
-            return f.read()
-    except Exception:
-        return None
+    return cache.read_text(selected)

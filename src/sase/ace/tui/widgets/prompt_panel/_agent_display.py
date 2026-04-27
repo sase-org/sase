@@ -7,6 +7,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent, AgentType, AttemptRecord
+from ...util.lazy_syntax import lazy_renderable
 from ...util.trace import tui_trace
 from ._agent_display_parts import (
     build_header_text,
@@ -25,14 +26,14 @@ def _should_render_merged(agent: Agent, attempt_view_mode: str) -> bool:
     return attempt_view_mode == "merged" and bool(agent.attempt_history)
 
 
-def _render_merged_attempt_history(agent: Agent) -> list[Text | Syntax]:
+def _render_merged_attempt_history(agent: Agent) -> list:
     """Render prior attempts followed by the current attempt divider.
 
     Emits one divider + reply block for each record in ``agent.attempt_history``
     followed by a ``CURRENT`` divider. The caller is responsible for appending
     the current attempt's reply content afterwards.
     """
-    renderables: list[Text | Syntax] = []
+    renderables: list = []
     for record in agent.attempt_history:
         renderables.append(render_attempt_divider(record, is_current=False))
         chunks = record.get_timestamped_reply_chunks()
@@ -41,15 +42,11 @@ def _render_merged_attempt_history(agent: Agent) -> list[Text | Syntax]:
                 renderables.append(render_timestamp_divider(ts))
                 content = chunk_text.strip()
                 if content:
-                    renderables.append(
-                        Syntax(content, "markdown", theme="monokai", word_wrap=True)
-                    )
+                    renderables.append(lazy_renderable(content, "markdown"))
             continue
         reply = record.get_reply_content()
         if reply and reply.strip():
-            renderables.append(
-                Syntax(reply, "markdown", theme="monokai", word_wrap=True)
-            )
+            renderables.append(lazy_renderable(reply, "markdown"))
     renderables.append(
         render_attempt_divider(
             None, is_current=True, fallback_model=agent.fallback_model
@@ -124,17 +121,11 @@ class AgentDisplayMixin:
         # Get and display prompt content
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            # Render markdown with syntax highlighting
-            prompt_syntax = Syntax(
-                prompt_content,
-                "markdown",
-                theme="monokai",
-                word_wrap=True,
-            )
+            prompt_syntax = lazy_renderable(prompt_content, "markdown")
 
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
-                renderables: list[Text | Syntax] = [header_text]
+                renderables: list = [header_text]
                 if error_tb_syntax:
                     renderables.append(error_tb_syntax)
                 renderables.append(prompt_syntax)
@@ -204,18 +195,9 @@ class AgentDisplayMixin:
                         renderables.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            renderables.append(
-                                Syntax(
-                                    content, "markdown", theme="monokai", word_wrap=True
-                                )
-                            )
+                            renderables.append(lazy_renderable(content, "markdown"))
                 elif response_content:
-                    response_syntax = Syntax(
-                        response_content,
-                        "markdown",
-                        theme="monokai",
-                        word_wrap=True,
-                    )
+                    response_syntax = lazy_renderable(response_content, "markdown")
                     renderables.append(reply_header)
                     if merge_history:
                         renderables.extend(_render_merged_attempt_history(agent))
@@ -226,7 +208,7 @@ class AgentDisplayMixin:
 
                 self.update(Group(*renderables))  # type: ignore[attr-defined]
             else:
-                renderables_other: list[Text | Syntax] = [header_text]
+                renderables_other: list = [header_text]
                 if error_tb_syntax:
                     renderables_other.append(error_tb_syntax)
                 renderables_other.append(prompt_syntax)
@@ -251,20 +233,10 @@ class AgentDisplayMixin:
                         content = chunk_text.strip()
                         if content:
                             renderables_other.append(
-                                Syntax(
-                                    content,
-                                    "markdown",
-                                    theme="monokai",
-                                    word_wrap=True,
-                                )
+                                lazy_renderable(content, "markdown")
                             )
                 elif live_reply:
-                    reply_syntax = Syntax(
-                        live_reply,
-                        "markdown",
-                        theme="monokai",
-                        word_wrap=True,
-                    )
+                    reply_syntax = lazy_renderable(live_reply, "markdown")
                     renderables_other.append(reply_header)
                     if merge_history:
                         renderables_other.extend(_render_merged_attempt_history(agent))
@@ -308,11 +280,9 @@ class AgentDisplayMixin:
         header_text.append(f"{source_label}\n", style="bold #D7AF5F underline")
         header_text.append("\n")
 
-        source_content: Syntax | Text
+        source_content: object
         if agent.step_source:
-            source_content = Syntax(
-                agent.step_source, syntax_lang, theme="monokai", word_wrap=True
-            )
+            source_content = lazy_renderable(agent.step_source, syntax_lang)
         else:
             source_content = Text("No source available.\n", style="dim italic")
 
@@ -324,14 +294,14 @@ class AgentDisplayMixin:
         output_header.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
         output_header.append("\n")
 
-        renderables: list[Text | Syntax] = [header_text]
+        renderables: list = [header_text]
         if error_tb_syntax:
             renderables.append(error_tb_syntax)
         renderables.append(source_content)
 
         if agent.step_output:
             output_str = format_output(agent.step_output)
-            output_syntax = Syntax(output_str, "json", theme="monokai", word_wrap=True)
+            output_syntax = lazy_renderable(output_str, "json")
             renderables.extend([output_header, output_syntax])
         else:
             output_header.append("No output available.\n", style="dim italic")
@@ -355,13 +325,13 @@ class AgentDisplayMixin:
         header_text.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
         header_text.append("\n")
 
-        renderables: list[Text | Syntax] = [header_text]
+        renderables: list = [header_text]
         if error_tb_syntax:
             renderables.append(error_tb_syntax)
 
         if agent.step_output:
             output_str = format_output(agent.step_output)
-            output_syntax = Syntax(output_str, "json", theme="monokai", word_wrap=True)
+            output_syntax = lazy_renderable(output_str, "json")
             renderables.append(output_syntax)
         else:
             renderables.append(Text("No output available.\n", style="dim italic"))
@@ -377,7 +347,7 @@ class AgentDisplayMixin:
         aren't snapshotted per-attempt; the detail panel hides those panels.
         """
         record = _find_attempt(agent, attempt_number)
-        renderables: list[Text | Syntax] = []
+        renderables: list = []
         if record is None:
             missing = Text()
             missing.append(
@@ -392,9 +362,7 @@ class AgentDisplayMixin:
         )
 
         if record.error_full.strip():
-            renderables.append(
-                Syntax(record.error_full, "pytb", theme="monokai", word_wrap=True)
-            )
+            renderables.append(lazy_renderable(record.error_full, "pytb"))
         elif record.error_snippet:
             snippet = Text()
             snippet.append(f"{record.error_snippet}\n", style="#FF5F5F")
@@ -412,9 +380,7 @@ class AgentDisplayMixin:
         renderables.append(prompt_header)
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            renderables.append(
-                Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
-            )
+            renderables.append(lazy_renderable(prompt_content, "markdown"))
         else:
             renderables.append(Text("No prompt file found.\n", style="dim italic"))
 

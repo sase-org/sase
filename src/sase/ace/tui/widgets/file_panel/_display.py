@@ -4,9 +4,9 @@ import os
 from datetime import datetime
 
 from rich.console import Group
-from rich.syntax import Syntax
 from rich.text import Text
 
+from ...util.lazy_syntax import lazy_renderable
 from ._messages import _EXTENSION_TO_LEXER
 
 
@@ -66,12 +66,10 @@ class FilePanelDisplayMixin:
             if trim_size > 0 and total > trim_size:
                 self._visible_line_count = trim_size
                 self._is_trimmed = True
-                syntax = Syntax(
+                syntax = lazy_renderable(
                     diff_with_header,
                     "diff",
-                    theme="monokai",
                     line_numbers=True,
-                    word_wrap=True,
                     line_range=(1, trim_size),
                 )
                 remaining = total - trim_size
@@ -85,12 +83,10 @@ class FilePanelDisplayMixin:
             else:
                 self._visible_line_count = total
                 self._is_trimmed = False
-                syntax = Syntax(
+                syntax = lazy_renderable(
                     diff_with_header,
                     "diff",
-                    theme="monokai",
                     line_numbers=True,
-                    word_wrap=True,
                 )
                 self.update(syntax)  # type: ignore[attr-defined]
                 # Container was hidden/not laid out — trim after layout
@@ -153,12 +149,10 @@ class FilePanelDisplayMixin:
         if trim_size > 0 and total > trim_size:
             self._visible_line_count = trim_size
             self._is_trimmed = True
-            syntax = Syntax(
+            syntax = lazy_renderable(
                 diff_with_header,
                 "diff",
-                theme="monokai",
                 line_numbers=True,
-                word_wrap=True,
                 line_range=(1, trim_size),
             )
             remaining = total - trim_size
@@ -172,12 +166,10 @@ class FilePanelDisplayMixin:
         else:
             self._visible_line_count = total
             self._is_trimmed = False
-            syntax = Syntax(
+            syntax = lazy_renderable(
                 diff_with_header,
                 "diff",
-                theme="monokai",
                 line_numbers=True,
-                word_wrap=True,
             )
             self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout
@@ -233,12 +225,10 @@ class FilePanelDisplayMixin:
         if trim_size > 0 and total > trim_size:
             self._visible_line_count = trim_size
             self._is_trimmed = True
-            syntax = Syntax(
+            syntax = lazy_renderable(
                 content,
                 lexer,
-                theme="monokai",
                 line_numbers=True,
-                word_wrap=True,
                 line_range=(1, trim_size),
             )
             remaining = total - trim_size
@@ -252,12 +242,10 @@ class FilePanelDisplayMixin:
         else:
             self._visible_line_count = total
             self._is_trimmed = False
-            syntax = Syntax(
+            syntax = lazy_renderable(
                 content,
                 lexer,
-                theme="monokai",
                 line_numbers=True,
-                word_wrap=True,
             )
             self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout

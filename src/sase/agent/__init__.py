@@ -3,6 +3,11 @@
 Groups the agent-launching, naming, and multi-prompt orchestration modules.
 """
 
+from sase.agent.agent_artifacts_cache import (
+    AgentArtifactCache,
+    TailCache,
+    get_global_cache,
+)
 from sase.agent.launcher import (
     AgentLaunchResult,
     launch_agent_from_cwd,
@@ -30,11 +35,14 @@ from sase.agent.running import (
 )
 
 __all__ = [
+    "AgentArtifactCache",
     "AgentLaunchResult",
     "MultiPrompt",
+    "TailCache",
     "claim_agent_name",
     "deserialize_local_xprompts",
     "find_named_agent",
+    "get_global_cache",
     "get_most_recent_agent_name",
     "get_next_auto_name",
     "is_multi_prompt",
