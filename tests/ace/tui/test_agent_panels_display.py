@@ -1,9 +1,10 @@
 """Per-panel dynamic height regimes for the Agents-tab tag stack.
 
 When the sum of natural panel heights fits the agent-list container,
-each panel is sized to exactly fit its content (Fits regime). When it
-overflows, panels are weighted by ``option_count + 1`` using fractional
-units (Overflow regime).
+the untagged main panel fills leftover space while tag panels are sized
+to exactly fit their content (Fits regime). When it overflows, panels
+are weighted by ``option_count + 1`` using fractional units (Overflow
+regime).
 """
 
 from __future__ import annotations
@@ -131,7 +132,7 @@ def _three_panel_agents() -> list[Agent]:
     ]
 
 
-def test_fits_regime_assigns_natural_cell_heights() -> None:
+def test_fits_regime_main_panel_absorbs_leftover() -> None:
     # 3 panels with option counts 2 / 4 / 6 → naturals 4 / 6 / 8 = 18 ≤ 30.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
@@ -142,14 +143,14 @@ def test_fits_regime_assigns_natural_cell_heights() -> None:
     apple = app._panel_widgets["agent-list-panel-1"]
     banana = app._panel_widgets["agent-list-panel-2"]
 
-    assert main.styles.height.unit is Unit.CELLS
-    assert main.styles.height.value == 4.0
+    # The untagged main panel gets the flexible height so it absorbs any
+    # leftover space in the column.
+    assert main.styles.height.unit is Unit.FRACTION
+    assert main.styles.height.value == 1.0
     assert apple.styles.height.unit is Unit.CELLS
     assert apple.styles.height.value == 6.0
-    # Last panel absorbs leftover space via a fractional unit so no dead
-    # zone is left beneath the column.
-    assert banana.styles.height.unit is Unit.FRACTION
-    assert banana.styles.height.value == 1.0
+    assert banana.styles.height.unit is Unit.CELLS
+    assert banana.styles.height.value == 8.0
 
 
 def test_overflow_regime_assigns_proportional_fr_weights() -> None:
@@ -172,9 +173,9 @@ def test_overflow_regime_assigns_proportional_fr_weights() -> None:
 
 
 def test_single_panel_fills_container() -> None:
-    # Only the untagged main pane: as the last (and only) panel it absorbs
-    # the full column height via a fractional unit, so it extends to the
-    # bottom even when its natural height (5) is smaller than the container.
+    # Only the untagged main pane: it absorbs the full column height via a
+    # fractional unit, so it extends to the bottom even when its natural
+    # height (5) is smaller than the container.
     agents = [_agent(name="u1", tag=None, suffix="t1")]
     app = _FakeApp(agents, option_counts=[3], container_height=40)
 

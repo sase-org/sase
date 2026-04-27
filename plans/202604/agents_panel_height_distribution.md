@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 11:27:39
-status: wip
+status: done
 ---
 # Fix Agents-tab panel height distribution
 

@@ -437,10 +437,10 @@ class AgentDisplayMixin:
 
         Two regimes:
 
-        - **Fits** (Σ natural ≤ container): every panel except the last is
-          pinned to its exact natural cell height; the last panel grows to
-          fill leftover space via a fractional unit, so no dead zone is left
-          beneath the column.
+        - **Fits** (Σ natural ≤ container): the first panel (the untagged
+          main pane) grows to fill leftover space via a fractional unit, so
+          no dead zone is left beneath the column; later tag panels are
+          pinned to their exact natural cell heights.
         - **Overflow** (Σ natural > container): weight each panel by
           ``option_count + 1`` (border allowance keeps tiny panels from
           collapsing to nothing) using fractional units.
@@ -464,11 +464,10 @@ class AgentDisplayMixin:
         from textual.css.scalar import Scalar, Unit
 
         if total_natural <= container_height:
-            last_idx = len(widgets) - 1
             for idx, (widget, natural) in enumerate(
                 zip(widgets, natural_heights, strict=True)
             ):
-                if idx == last_idx:
+                if idx == 0:
                     widget.styles.height = Scalar(1.0, Unit.FRACTION, Unit.HEIGHT)
                 else:
                     widget.styles.height = Scalar(
