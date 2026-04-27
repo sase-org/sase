@@ -192,7 +192,7 @@ def test_enumerate_group_keys_per_panel_mode() -> None:
 def test_compute_banner_summary_counts_running_failed_awaiting() -> None:
     agents = [
         _agent(cl_name="a", status="RUNNING"),
-        _agent(cl_name="b", status="FAILED"),
+        _agent(cl_name="b", status="FAILED (RETRIED)", retried_as_timestamp="ts-retry"),
         _agent(cl_name="c", status="QUESTION"),
         _agent(cl_name="d", status="DONE"),
     ]
@@ -202,6 +202,19 @@ def test_compute_banner_summary_counts_running_failed_awaiting() -> None:
     assert summary.running == 1
     assert summary.failed == 1
     assert summary.awaiting == 1
+
+
+def test_compute_banner_summary_counts_plan_approved_as_running() -> None:
+    """PLAN APPROVED is an actively executing state and counts as running."""
+    agents = [
+        _agent(cl_name="a", status="RUNNING"),
+        _agent(cl_name="b", status="PLAN APPROVED"),
+    ]
+    group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1))
+    summary = compute_banner_summary(group, agents)
+    assert summary.count == 2
+    assert summary.running == 2
+    assert summary.awaiting == 0
 
 
 def test_compute_banner_summary_excludes_workflow_children() -> None:
@@ -221,7 +234,7 @@ def test_compute_banner_summary_excludes_workflow_children() -> None:
 def test_banner_summary_text_renders_chips_separated_by_dots() -> None:
     agents = [
         _agent(cl_name="a", status="RUNNING"),
-        _agent(cl_name="b", status="FAILED"),
+        _agent(cl_name="b", status="FAILED (RETRIED)", retried_as_timestamp="ts-retry"),
     ]
     group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1))
     summary = compute_banner_summary(group, agents)
@@ -232,14 +245,20 @@ def test_banner_summary_text_renders_chips_separated_by_dots() -> None:
 
 
 def test_banner_summary_text_handles_failed_retried_status() -> None:
-    """Both ``FAILED`` and ``FAILED (RETRIED)`` count toward the failed chip."""
+    """Only ``FAILED`` agents with retry lineage count toward the failed chip.
+
+    A bare ``FAILED`` (no ``retried_as_timestamp``) buckets into Needs
+    Attention, so it counts toward the awaiting chip — matching how the
+    banner labels it in practice.
+    """
     agents = [
         _agent(cl_name="a", status="FAILED"),
-        _agent(cl_name="b", status="FAILED (RETRIED)"),
+        _agent(cl_name="b", status="FAILED (RETRIED)", retried_as_timestamp="ts-retry"),
     ]
     group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1))
     summary = compute_banner_summary(group, agents)
-    assert summary.failed == 2
+    assert summary.failed == 1
+    assert summary.awaiting == 1
 
 
 def test_banner_summary_text_empty_when_count_is_zero() -> None:

@@ -576,14 +576,13 @@ def build_agent_tree(
     return entries
 
 
-_AWAITING_STATUSES = frozenset({"QUESTION", "PLAN APPROVED"})
-
-
 def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSummary:
     """Aggregate status counts for the agents referenced by *group*.
 
     Only non-workflow-child agents are counted so the summary mirrors
-    the user's mental model of "agents in this group".
+    the user's mental model of "agents in this group".  Counts are
+    derived from :func:`_status_bucket_for` so the chip line can never
+    disagree with the banner it sits on.
     """
     count = 0
     running = 0
@@ -596,12 +595,12 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
         if agent.is_workflow_child:
             continue
         count += 1
-        status = agent.status or ""
-        if status == "RUNNING":
+        bucket = _status_bucket_for(agent)
+        if bucket == "Running":
             running += 1
-        elif status.startswith("FAILED"):
+        elif bucket == "Failed":
             failed += 1
-        elif status in _AWAITING_STATUSES:
+        elif bucket == "Needs Attention":
             awaiting += 1
     return _BannerSummary(
         count=count, running=running, failed=failed, awaiting=awaiting

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:27:25
-status: wip
+status: done
 ---
 # Plan: count `PLAN APPROVED` agents as running in banner summary
 
