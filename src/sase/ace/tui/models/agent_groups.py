@@ -293,7 +293,10 @@ def _grouping_keys_for(
     never inserted between a parent and its workflow steps.  ``now`` is
     only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
     ``changespec`` is always empty in non-STANDARD modes since the
-    ChangeSpec level disappears from the hierarchy.
+    ChangeSpec level disappears from the hierarchy.  ``name_root`` is
+    additionally suppressed under ``BY_DATE`` — within a date bucket,
+    same-base-name agents are not a meaningful sub-unit, so the bucket
+    renders as a flat list sorted by ``start_time``.
     """
     target = agent
     if agent.is_workflow_child and agent.parent_timestamp:
@@ -308,7 +311,7 @@ def _grouping_keys_for(
             if mode is GroupingMode.STANDARD
             else ""
         ),
-        name_root=_name_root(target),
+        name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
     )
 
 
@@ -350,8 +353,43 @@ def _panel_uses_changespec_level(
     return False
 
 
+def _walk_anchors(
+    agents: list[Agent],
+    parent_lookup: dict[str, Agent],
+    mode: GroupingMode,
+) -> list[tuple[float, int]]:
+    """Per-agent ``(-anchor_start_epoch, is_child)`` tiebreak under ``BY_DATE``.
+
+    Workflow children adopt their parent's ``start_time`` and a ``1`` in
+    the ``is_child`` slot so they sort immediately after the parent
+    regardless of the child's own ``start_time``.  Non-``BY_DATE`` modes
+    return a constant ``(0.0, 0)`` per agent so the sort is unchanged.
+
+    Agents with no ``start_time`` sort last within their bucket
+    (``+inf`` in the negated-epoch slot).
+    """
+    if mode is not GroupingMode.BY_DATE:
+        return [(0.0, 0)] * len(agents)
+    out: list[tuple[float, int]] = []
+    for agent in agents:
+        target = agent
+        is_child = 0
+        if agent.is_workflow_child and agent.parent_timestamp:
+            parent = parent_lookup.get(agent.parent_timestamp)
+            if parent is not None:
+                target = parent
+                is_child = 1
+        if target.start_time is None:
+            anchor = float("inf")
+        else:
+            anchor = -target.start_time.timestamp()
+        out.append((anchor, is_child))
+    return out
+
+
 def _walk_order(
     keys_per_agent: list[_GroupingKeys],
+    anchors: list[tuple[float, int]],
     *,
     use_changespec_level: bool,
     mode: GroupingMode = GroupingMode.STANDARD,
@@ -382,6 +420,8 @@ def _walk_order(
                 and root_counts.get((parent_keys[i], keys_per_agent[i].name_root), 0)
                 >= 2,
             ),
+            anchors[i][0],
+            anchors[i][1],
             i,
         ),
     )
@@ -475,8 +515,11 @@ def build_agent_tree(
     keys_per_agent = [
         _grouping_keys_for(a, parent_lookup, mode, reference) for a in agents
     ]
+    anchors = _walk_anchors(agents, parent_lookup, mode)
     use_cs = _panel_uses_changespec_level(agents, mode)
-    walk_order = _walk_order(keys_per_agent, use_changespec_level=use_cs, mode=mode)
+    walk_order = _walk_order(
+        keys_per_agent, anchors, use_changespec_level=use_cs, mode=mode
+    )
 
     proj_indices: dict[str, list[int]] = {}
     cs_indices: dict[tuple[str, str], list[int]] = {}

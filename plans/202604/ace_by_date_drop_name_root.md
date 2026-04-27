@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 10:18:33
-status: wip
+status: done
 ---
 # Plan: `sase ace` "by date" grouping should not sub-group by base name
 

@@ -355,8 +355,12 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
     ]
 
 
-def test_build_agent_tree_by_date_l1_key_extends_bucket() -> None:
-    """L1 keys are ``(bucket, name_root)`` — no ChangeSpec layer in non-STANDARD."""
+def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
+    """Under BY_DATE the L1 name-root banner is suppressed entirely.
+
+    Within a date bucket, same-base-name agents are not a meaningful unit
+    — the bucket renders as a flat list sorted by ``start_time``.
+    """
     a = _agent(
         cl_name="x",
         agent_name="coder.claude",
@@ -373,7 +377,7 @@ def test_build_agent_tree_by_date_l1_key_extends_bucket() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "coder")]
+    assert l1_banners == []
 
 
 def test_build_agent_tree_single_bucket_still_renders_banner() -> None:
@@ -403,6 +407,104 @@ def test_enumerate_group_keys_respects_grouping_mode() -> None:
     )
     keys = enumerate_group_keys([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
     assert ("Today",) in keys
-    assert ("Today", "coder") in keys
+    # No name-root sub-banner under BY_DATE — the bucket renders flat.
+    assert ("Today", "coder") not in keys
     # The STANDARD-mode (project,) key shape is absent under BY_DATE.
     assert ("repo",) not in keys
+
+
+def test_build_agent_tree_by_date_sorts_agents_newest_first_within_bucket() -> None:
+    """Within a date bucket, agents render newest-first by ``start_time``."""
+    foo = _agent(
+        cl_name="x",
+        agent_name="coder.foo",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    bar = _agent(
+        cl_name="y",
+        agent_name="coder.bar",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    solo = _agent(
+        cl_name="z",
+        agent_name="solo",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    entries = build_agent_tree([foo, bar, solo], mode=GroupingMode.BY_DATE, now=_NOW)
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # Newest first: bar (10:00) → foo (09:00) → solo (08:00).
+    assert agent_order == [1, 0, 2]
+
+
+def test_build_agent_tree_by_date_workflow_child_stays_adjacent_to_parent() -> None:
+    """A workflow child renders immediately after its parent regardless of own start."""
+    parent = _agent(
+        cl_name="x",
+        agent_name="coder.foo",
+        raw_suffix="ts-parent",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    child = _agent(
+        cl_name="x",
+        agent_name="step.bash",
+        parent_workflow="coder",
+        parent_timestamp="ts-parent",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    other = _agent(
+        cl_name="y",
+        agent_name="coder.bar",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    entries = build_agent_tree(
+        [parent, child, other], mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # The child's own 12:00 start would put it ahead of everyone, but it
+    # inherits the parent's 09:00 anchor and the child-after-parent flag,
+    # so the order is: other (10:00) → parent (09:00) → child.
+    assert agent_order == [2, 0, 1]
+
+
+def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
+    """Same base name appearing in two buckets emits no name-root banner anywhere."""
+    today_a = _agent(
+        cl_name="x",
+        agent_name="coder.foo",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    today_b = _agent(
+        cl_name="y",
+        agent_name="coder.bar",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    earlier_a = _agent(
+        cl_name="z",
+        agent_name="coder.qux",
+        start_time=datetime(2026, 4, 1, 9, 0, 0),
+    )
+    entries = build_agent_tree(
+        [today_a, today_b, earlier_a], mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    l1_banners = [
+        e.group.group_key  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 1
+    ]
+    assert l1_banners == []
+
+
+def test_build_agent_tree_by_date_none_start_time_sorts_last_within_bucket() -> None:
+    """Agents with no ``start_time`` sort after start-time-bearing peers."""
+    has_start = _agent(
+        cl_name="x",
+        agent_name="solo",
+        start_time=datetime(2026, 4, 1, 9, 0, 0),
+    )
+    no_start = _agent(cl_name="y", agent_name="solo2", start_time=None)
+    entries = build_agent_tree(
+        [no_start, has_start], mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    # Both bucket as "Earlier"; the dated agent comes first.
+    assert agent_order == [1, 0]
