@@ -84,6 +84,7 @@ class StateInitMixin:
         self._dirty_changespecs: bool = True
         self._dirty_agents: bool = True
         self._dirty_axe: bool = True
+        self._artifact_change_defer_pending: bool = False
         self._last_full_sanity_refresh: float = 0.0
 
         # Hint mode state

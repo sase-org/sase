@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 16:36:55
-status: wip
+status: done
 ---
 # Plan: Follow-up Fixes for Prompt Input Lag Implementation
 

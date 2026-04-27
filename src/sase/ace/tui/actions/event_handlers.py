@@ -15,6 +15,7 @@ from ..widgets import (
     BgCmdList,
     ChangeSpecList,
     InactiveIndicator,
+    PromptInputBar,
     TabBar,
 )
 
@@ -69,6 +70,7 @@ class EventHandlersMixin:
     _dirty_changespecs: bool
     _dirty_agents: bool
     _dirty_axe: bool
+    _artifact_change_defer_pending: bool
     _last_full_sanity_refresh: float
 
     def _refresh_current_tab(self) -> None:
@@ -106,12 +108,7 @@ class EventHandlersMixin:
         if query is None:
             return False
 
-        try:
-            from ..widgets import PromptInputBar
-
-            return any(True for _ in query(PromptInputBar))
-        except Exception:
-            return False
+        return bool(query(PromptInputBar))
 
     def _on_artifact_change(self) -> None:
         """Inotify dispatch: schedule a reconcile when the user is idle.
@@ -137,10 +134,12 @@ class EventHandlersMixin:
         self._dirty_agents = True
         self._dirty_axe = True
         if self._prompt_input_active():
-            self.set_timer(  # type: ignore[attr-defined]
-                PROMPT_INPUT_DEFER_SECONDS,
-                self._on_artifact_change,
-            )
+            if not self._artifact_change_defer_pending:
+                self._artifact_change_defer_pending = True
+                self.set_timer(  # type: ignore[attr-defined]
+                    PROMPT_INPUT_DEFER_SECONDS,
+                    self._on_artifact_change_deferred,
+                )
             return
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
@@ -148,6 +147,17 @@ class EventHandlersMixin:
         # one follow-up.
         self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+
+    def _on_artifact_change_deferred(self) -> None:
+        """Timer-fired wrapper that clears the dedup flag before reentering.
+
+        Clearing the flag *on entry* means a single fresh defer timer can
+        be scheduled if the prompt is still active when ``_on_artifact_change``
+        re-runs, while back-to-back watcher events that arrive between
+        scheduling and firing collapse into the existing pending timer.
+        """
+        self._artifact_change_defer_pending = False
+        self._on_artifact_change()
 
     def _watcher_active(self) -> bool:
         """Return True when the inotify watcher is currently driving refreshes."""

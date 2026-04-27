@@ -39,6 +39,7 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_changespecs = False
         self._dirty_agents = False
         self._dirty_axe = False
+        self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
@@ -168,4 +169,37 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     assert len(app.deferred_calls) == 1
     delay, callback = app.deferred_calls[0]
     assert delay == PROMPT_INPUT_DEFER_SECONDS
-    assert callback == app._on_artifact_change
+    assert callback == app._on_artifact_change_deferred
+
+
+def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._plan_feedback_context = object()
+    app._on_artifact_change()
+    app._on_artifact_change()
+    app._on_artifact_change()
+    assert len(app.deferred_calls) == 1
+    assert app._artifact_change_defer_pending is True
+    assert app.refresh_calls == []
+
+
+def test_artifact_change_deferred_reschedules_while_prompt_still_active() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._plan_feedback_context = object()
+    app._artifact_change_defer_pending = True
+    app._on_artifact_change_deferred()
+    assert len(app.deferred_calls) == 1
+    delay, callback = app.deferred_calls[0]
+    assert delay == PROMPT_INPUT_DEFER_SECONDS
+    assert callback == app._on_artifact_change_deferred
+    assert app._artifact_change_defer_pending is True
+    assert app.refresh_calls == []
+
+
+def test_artifact_change_deferred_resumes_refresh_after_prompt_closes() -> None:
+    app = _FakeApp(watcher_active=True)
+    app._artifact_change_defer_pending = True
+    app._on_artifact_change_deferred()
+    assert "schedule_agents" in app.refresh_calls
+    assert "schedule_changespecs" in app.refresh_calls
+    assert app._artifact_change_defer_pending is False
