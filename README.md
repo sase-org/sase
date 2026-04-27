@@ -165,6 +165,8 @@ sase
 | `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
+| `sase file list`               | JSON file/directory candidates rooted at `--path` (used by editor `<C-t>` completion)                          |
+| `sase file-history list`       | JSON array of recently-referenced paths (most recent first; consumed by editor plugins)                        |
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
@@ -362,6 +364,8 @@ just build         # Build wheel + sdist
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system
 - [`docs/notifications.md`](docs/notifications.md) — Notification system
+- [`docs/perf_runbook.md`](docs/perf_runbook.md) — `sase ace` performance runbook (`SASE_TUI_TRACE` and benchmark
+  harness)
 - [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference

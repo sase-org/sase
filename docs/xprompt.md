@@ -26,6 +26,9 @@ Use xprompts when you want to:
 - [Tags](#tags)
 - [Dynamic Memory (Keywords)](#dynamic-memory-keywords)
 - [Snippet Field](#snippet-field)
+- [Skill Field](#skill-field)
+  - [Bundled Skills](#bundled-skills)
+- [Built-in XPrompts](#built-in-xprompts)
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
@@ -583,6 +586,45 @@ The `description` field provides a human-readable summary shown in `sase xprompt
 
 **Workflow:** Edit skill sources in `src/sase/xprompts/skills/`, run `sase init-skills --force`, then `chezmoi apply` to
 deploy the generated files to their live locations. Do not edit deployed SKILL.md files directly.
+
+### Bundled Skills
+
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init-skills`. Coding agents invoke
+them as `/sase_<name>`:
+
+| Skill                | Purpose                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `sase_agents_status` | Report on currently-running sase agents (status, kill, show)                                      |
+| `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                       |
+| `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase search …`, exact-name lookup, and safe edit rules  |
+| `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos) |
+| `sase_hg_commit`     | Mercurial counterpart of `sase_git_commit` (deployed only for Gemini)                             |
+| `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                        |
+| `sase_questions`     | Ask the user structured questions (used in lieu of disabled `AskUserQuestion`)                    |
+
+## Built-in XPrompts
+
+A handful of xprompts ship in `src/sase/default_config.yml` and are always available without needing a project- or
+user-level definition. They're the lowest priority in the [discovery order](#discovery-order), so any project or user
+xprompt with the same name overrides them.
+
+| Reference             | Body summary                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
+| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
+| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
+| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
+| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
+| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
+| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
+| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
+| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                  |
+| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
+| `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
+| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
+
+To see the exact body of any built-in xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog with
+`sase xprompt catalog`.
 
 ## Config-Based XPrompts
 

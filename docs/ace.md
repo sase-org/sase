@@ -1179,3 +1179,15 @@ shown in the info panel. Set `--refresh-interval 0` to disable.
 
 Tab switches are instant: cached data is shown immediately while a background refresh runs asynchronously, so moving
 between tabs never blocks on disk I/O.
+
+When the inotify-based artifact watcher is active, the periodic tick is **event-driven**: it consults per-surface dirty
+flags (`_dirty_changespecs`, `_dirty_agents`, `_dirty_axe`) and short-circuits the whole tick when nothing has changed.
+A 60-second `FULL_SANITY_REFRESH_SECONDS` floor still triggers a full reconcile to recover from missed inotify events,
+so a quiet TUI does ~zero work between real changes without going stale.
+
+### Performance Tracing
+
+For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase ace`. Tracing is near-zero-cost when the env
+var is unset; with it enabled, each instrumented hot path emits one JSONL line per span to
+`~/.sase/perf/tui_trace.jsonl` (override via `SASE_TUI_TRACE_PATH=…`). See [`docs/perf_runbook.md`](perf_runbook.md) for
+the full span catalog, benchmark harness, and per-phase performance targets.
