@@ -242,12 +242,12 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "c"
 
-    def test_done_agent_releases_name(self, tmp_path: Path) -> None:
-        """Done but not-dismissed agent releases its name slot."""
+    def test_done_agent_reserves_name(self, tmp_path: Path) -> None:
+        """Done but not-dismissed agent keeps its name slot reserved."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True)
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "c"
 
     def test_reuses_dismissed_agent_name(self, tmp_path: Path) -> None:
         """Name is freed once artifacts are deleted (dismissed)."""
@@ -280,28 +280,28 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
-    def test_done_workflow_without_appears_as_agent_releases_name(
+    def test_done_workflow_without_appears_as_agent_reserves_name(
         self, tmp_path: Path
     ) -> None:
-        """Done workflows with appears_as_agent=False release their name."""
+        """Done workflows with appears_as_agent=False reserve their name."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
-    def test_done_workflow_with_appears_as_agent_releases_name(
+    def test_done_workflow_with_appears_as_agent_reserves_name(
         self, tmp_path: Path
     ) -> None:
-        """Done workflows with appears_as_agent=True release their name."""
+        """Done workflows with appears_as_agent=True reserve their name."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
-    def test_done_mixed_workflow_and_agent_names_release(self, tmp_path: Path) -> None:
-        """All done agents release their slot regardless of appears_as_agent."""
+    def test_done_mixed_workflow_and_agent_names_reserve(self, tmp_path: Path) -> None:
+        """All done agents reserve their slot regardless of appears_as_agent."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
         _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "c"
 
     def test_workflow_name_reserves_base_name(self, tmp_path: Path) -> None:
         """Promoted initial agent reserves base workflow name, not child name."""
@@ -362,8 +362,8 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "n"
 
-    def test_done_parent_tracked_child_releases_prefix(self, tmp_path: Path) -> None:
-        """A done ``parent_timestamp`` child releases the auto-name prefix."""
+    def test_done_parent_tracked_child_reserves_prefix(self, tmp_path: Path) -> None:
+        """A done ``parent_timestamp`` child reserves the auto-name prefix."""
         for letter in "abcdefghijkl":
             _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
         _make_agent(
@@ -377,7 +377,7 @@ class TestGetNextAutoName:
             done=True,
         )
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "m"
+            assert get_next_auto_name() == "n"
 
     def test_dead_parent_tracked_child_releases_prefix(self, tmp_path: Path) -> None:
         """A dead ``parent_timestamp`` child without done.json releases the prefix."""
@@ -445,8 +445,8 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "m"
 
-    def test_dotted_done_agent_releases_prefix(self, tmp_path: Path) -> None:
-        """A done (not dismissed) ``m.claude.plan`` releases ``m``."""
+    def test_dotted_done_agent_reserves_prefix(self, tmp_path: Path) -> None:
+        """A done (not dismissed) ``m.claude.plan`` reserves ``m``."""
         _make_agent(
             tmp_path,
             "proj",
@@ -458,13 +458,28 @@ class TestGetNextAutoName:
         for letter in "abcdefghijkl":
             _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "m"
+            assert get_next_auto_name() == "n"
 
-    def test_done_multi_model_releases_base_name(self, tmp_path: Path) -> None:
-        """Done multi-model children (a.codex / a.claude) release ``a``.
+    def test_done_codex_plan_agent_reserves_prefix(self, tmp_path: Path) -> None:
+        """A done ``m.codex.plan`` artifact reserves the root auto name."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "m.codex.plan",
+            workflow_name="m.codex",
+            done=True,
+        )
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "n"
 
-        Regression: previously 19 done multi-model children with workflow_name
-        ``a`` blocked the alphabetic pool all the way past ``ba``.
+    def test_done_multi_model_reserves_base_name(self, tmp_path: Path) -> None:
+        """Done multi-model children (a.codex / a.claude) reserve ``a``.
+
+        Regression: visible done multi-model children with workflow_name ``a``
+        still claim the auto-assignable root until dismissed.
         """
         _make_agent(
             tmp_path,
@@ -484,7 +499,7 @@ class TestGetNextAutoName:
         )
         _make_agent(tmp_path, "proj", "run-aw", "aw", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
     def test_running_follow_up_still_reserves_prefix(self, tmp_path: Path) -> None:
         """Live parent-tracked follow-up still reserves the auto-name prefix."""
@@ -509,6 +524,19 @@ class TestGetNextAutoName:
     def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
         """Dismissed agent suffixes are excluded from auto-name reservation."""
         _make_agent(tmp_path, "proj", "run1", "a", pid=os.getpid())
+        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
+        dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
+        dismissed_file.parent.mkdir(parents=True, exist_ok=True)
+        dismissed_file.write_text('[["run", "proj", "run1"]]')
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
+        ):
+            assert get_next_auto_name() == "a"
+
+    def test_dismissed_done_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
+        """Dismissal releases a completed agent's reserved auto-name slot."""
+        _make_agent(tmp_path, "proj", "run1", "a", done=True)
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
         dismissed_file.parent.mkdir(parents=True, exist_ok=True)

@@ -89,17 +89,15 @@ class TestReserveRepeatNameBase:
 
 
 class TestAutoNameChildAware:
-    def test_done_child_releases_letter(self, tmp_path: Path) -> None:
+    def test_done_child_reserves_letter(self, tmp_path: Path) -> None:
         # Undismissed orphan from an old %r:3 batch: name="q.2", done.
-        # Done agents release their slot (and prefix) — they are hidden by
-        # default on the Agents tab and find_named_agent already prefers
-        # running over done.
+        # Done agents reserve their slot and prefix until dismissed.
         _write_meta(tmp_path, "ts1", "q.2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
             active = _get_active_agent_names()
             auto = get_next_auto_name()
-        assert "q" not in active
-        assert "q.2" not in active
+        assert "q" in active
+        assert "q.2" in active
         assert auto == "a"
 
     def test_skips_letter_with_live_child(self, tmp_path: Path) -> None:

@@ -430,20 +430,21 @@ def get_most_recent_agent_name() -> str | None:
 def get_next_auto_name() -> str:
     """Return the lowest available alphabetic agent name.
 
-    Scans currently-running agents across all projects and returns the
+    Scans visible, non-dismissed agents across all projects and returns the
     first name in the sequence ``a, b, ..., z, aa, ab, ...`` that is not
-    currently in use. Done and dismissed agents do not block reuse.
+    currently in use. Completed agents keep reserving their slot until
+    dismissed because they remain visible on the Agents tab.
     """
     used = _get_active_agent_names()
     return _next_available_name(used)
 
 
 def _get_active_agent_names() -> set[str]:
-    """Return the set of names reserved by currently-running agents.
+    """Return the set of names reserved by visible, non-dismissed agents.
 
-    Names of running agents (or live parent-tracked follow-ups) are
-    reserved so a fresh auto-named agent does not collide with them on
-    the Agents tab. Dismissed agents (artifact dir removed) and done
+    Names of running or done agents are reserved so a fresh auto-named
+    agent does not collide with entries that still appear on the Agents
+    tab. Dismissed agents (or deleted artifact dirs) and dead non-done
     agents do not block reuse — their slots are released.
     """
     projects_dir = Path.home() / ".sase" / "projects"
@@ -495,19 +496,13 @@ def _get_active_agent_names() -> set[str]:
             # ``<letter>.<digits>`` reserves ``<letter>``.
             prefix = _extract_auto_name_prefix(name_field, workflow_name_field)
 
-            # Done agents do not reserve their name. They are hidden by
-            # default on the Agents tab, so reserving their slot would
-            # block reuse without any visual collision benefit.
-            # ``find_named_agent()`` already prefers running over done
-            # and most-recent done by timestamp for ``@<name>`` lookups.
             done_path = artifact_dir / "done.json"
-            if done_path.exists():
-                continue
+            is_done = done_path.exists()
 
-            # Verify the agent process is actually alive — orphaned agents
-            # (killed via SIGKILL, system crash, etc.) may lack done.json
-            # but their process is long dead.
-            if not is_process_alive(data, artifact_dir):
+            # Non-done artifacts only reserve a name while their process is
+            # actually alive. Done artifacts do not need a live PID because
+            # dismissal controls their visible lifecycle.
+            if not is_done and not is_process_alive(data, artifact_dir):
                 continue
 
             # Follow-up agents (coder/epic steps spawned after plan
