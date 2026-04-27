@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import Any
 
-from rich.text import Text
 from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
@@ -14,25 +13,22 @@ from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
-    TreeEntry,
-    build_agent_tree,
+)
+from ._agent_list_build import (
+    build_list,
+    compute_tier_styles,
+    patch_row,
+    resolve_row,
 )
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
     AgentRenderCache,
     assemble_padded_option,
-    cached_format_agent_option,
-    cached_format_banner_option,
     format_agent_option,
     format_attempt_option,
     format_banner_option,
 )
-from ._agent_list_styling import (
-    _BANNER_ROW,
-    _CHANGESPEC_BANNER_RULE_STYLE,
-    _MIN_BANNER_WIDTH,
-    _PROJECT_BANNER_RULE_STYLE,
-)
+from ._agent_list_styling import _BANNER_ROW
 from ..util.trace import tui_trace
 
 # Re-exported under its historical name for tests that import from
@@ -173,259 +169,33 @@ class AgentList(OptionList, inherit_bindings=False):
                 ``datetime.now()``; tests pass a fixed value so bucket
                 membership is deterministic.
         """
+        # ``current_attempt_number`` is accepted for API compatibility with
+        # the pinned-attempt detail state but no longer affects rebuild
+        # output (prior-attempt child rows aren't rendered).
+        del current_attempt_number
         with tui_trace("widget.agent_list.update_list", count=len(agents)):
-            self._update_list_impl(
+            build_list(
+                self,
                 agents,
                 current_idx,
                 fold_counts=fold_counts,
                 marked_agents=marked_agents,
                 jump_hints=jump_hints,
                 banner_jump_hints=banner_jump_hints,
-                current_attempt_number=current_attempt_number,
                 fold_registry=fold_registry,
                 current_group_key=current_group_key,
                 grouping_mode=grouping_mode,
                 now=now,
             )
 
-    def _update_list_impl(
-        self,
-        agents: list[Agent],
-        current_idx: int,
-        fold_counts: dict[str, tuple[int, int]] | None = None,
-        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
-        jump_hints: dict[int, str] | None = None,
-        banner_jump_hints: dict[tuple[str, ...], str] | None = None,
-        current_attempt_number: int | None = None,
-        fold_registry: AgentGroupFoldRegistry | None = None,
-        current_group_key: tuple[str, ...] | None = None,
-        grouping_mode: GroupingMode = GroupingMode.STANDARD,
-        now: datetime | None = None,
-    ) -> None:
-        self._programmatic_update = True
-        self._agents = agents
-        self.clear_options()
-        self._row_entries = []
-        self._banner_at_row = {}
-        self._row_render_ctx = {}
-        self._row_tier_styles = {}
-        self._row_by_agent_attempt = {}
-        self._row_by_agent_idx = {}
-        self._banner_row_by_key = {}
-
-        marked = marked_agents or set()
-
-        # Determine which parents have visible children in the filtered list
-        parents_with_visible_children: set[str] = set()
-        fully_expanded_parents: set[str] = set()
-        for agent in agents:
-            if agent.is_workflow_child and agent.parent_timestamp:
-                parents_with_visible_children.add(agent.parent_timestamp)
-                if agent.is_hidden_step:
-                    fully_expanded_parents.add(agent.parent_timestamp)
-
-        # Walk the grouping tree once before pre-formatting to determine
-        # each agent's tier-guide gutter (one ``│  `` segment per ancestor
-        # L0/L1 banner) and each banner's gutter.  Folding the gutter
-        # into the row's left text up front means alignment widths and
-        # cache keys reflect the rendered geometry.
-        self._grouping_mode = grouping_mode
-        tree: list[TreeEntry] = build_agent_tree(
-            agents, fold_registry=fold_registry, mode=grouping_mode, now=now
-        )
-        panel_uses_cs = grouping_mode is GroupingMode.STANDARD and any(
-            a.cl_name for a in agents
-        )
-        agent_tier_styles, banner_tier_styles = self._compute_tier_styles(
-            tree, panel_uses_cs=panel_uses_cs
-        )
-
-        # Pre-format agent rows so we know their widths before emitting banner
-        # rules (banners are stretched to the widest row, and the runtime
-        # suffix is right-aligned to the same column).
-        agent_parts: dict[int, tuple[Any, Any, str]] = {}
-        max_left = 0
-        max_suffix = 0
-        for i, agent in enumerate(agents):
-            is_expanded = (
-                agent.raw_suffix is not None
-                and agent.raw_suffix in parents_with_visible_children
-            )
-            is_marked = agent.identity in marked
-            annotation = compute_fold_annotation(
-                agent,
-                fold_counts,
-                parents_with_visible_children,
-                fully_expanded_parents,
-            )
-            is_selected_agent = current_group_key is None and i == current_idx
-            hint = (jump_hints or {}).get(i)
-            tier_styles = agent_tier_styles.get(i, ())
-            left, suffix, option_id = cached_format_agent_option(
-                self._agent_render_cache,
-                agent,
-                i,
-                is_selected=is_selected_agent,
-                fold_annotation=annotation,
-                is_expanded=is_expanded,
-                is_marked=is_marked,
-                hint_char=hint,
-                now=now,
-                tier_styles=tier_styles,
-            )
-            agent_parts[i] = (left, suffix, option_id)
-            self._row_render_ctx[i] = {
-                "fold_annotation": annotation,
-                "is_expanded": is_expanded,
-                "is_marked": is_marked,
-                "hint_char": hint,
-                "is_selected": is_selected_agent,
-            }
-            self._row_tier_styles[i] = tier_styles
-            max_left = max(max_left, left.cell_len)
-            max_suffix = max(max_suffix, suffix.cell_len)
-
-        gap = 2 if max_suffix > 0 else 0
-        target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)
-        banner_width = target_width
-        self._target_width = target_width
-
-        agent_options: dict[int, Option] = {
-            i: assemble_padded_option(
-                left, suffix, width=target_width, option_id=option_id
-            )
-            for i, (left, suffix, option_id) in agent_parts.items()
-        }
-        max_width = target_width
-
-        # Walk the grouping tree and emit Options in display order.
-        highlighted_row: int | None = None
-        banner_seq = 0
-        spacer_seq = 0
-        seen_first_l0 = False
-        for entry in tree:
-            if entry.kind == "group" and entry.group is not None:
-                if entry.group.level == 0:
-                    if seen_first_l0:
-                        # Insert a blank spacer row before each non-first
-                        # L0 banner so adjacent project groups don't read
-                        # as one continuous block.  Disabled so cursor
-                        # navigation skips it.
-                        spacer = Option(
-                            Text(""),
-                            id=f"spacer:{spacer_seq}",
-                            disabled=True,
-                        )
-                        spacer_seq += 1
-                        self.add_option(spacer)
-                        self._row_entries.append((_BANNER_ROW, None))
-                    seen_first_l0 = True
-                banner_selectable = entry.group.is_collapsed
-                tier_styles_for_banner = (
-                    banner_tier_styles[banner_seq]
-                    if banner_seq < len(banner_tier_styles)
-                    else ()
-                )
-                banner_hint = (
-                    (banner_jump_hints or {}).get(entry.group.group_key)
-                    if banner_selectable
-                    else None
-                )
-                option = cached_format_banner_option(
-                    self._agent_render_cache,
-                    entry.group,
-                    self._agents,
-                    width=banner_width,
-                    sequence=banner_seq,
-                    selectable=banner_selectable,
-                    mode=grouping_mode,
-                    tier_styles=tier_styles_for_banner,
-                    hint_char=banner_hint,
-                )
-                banner_seq += 1
-                row_index = len(self._row_entries)
-                self.add_option(option)
-                self._row_entries.append((_BANNER_ROW, None))
-                if banner_selectable:
-                    self._banner_at_row[row_index] = entry.group
-                    self._banner_row_by_key[entry.group.group_key] = row_index
-                    if (
-                        current_group_key is not None
-                        and entry.group.group_key == current_group_key
-                        and highlighted_row is None
-                    ):
-                        highlighted_row = row_index
-                continue
-
-            if entry.agent_idx is None:
-                continue
-            i = entry.agent_idx
-            agent = agents[i]
-            option = agent_options[i]
-            self.add_option(option)
-            is_selected_agent = current_group_key is None and i == current_idx
-            row_index = len(self._row_entries)
-            if is_selected_agent:
-                highlighted_row = row_index
-            self._row_entries.append((i, None))
-            self._row_by_agent_attempt[(i, None)] = row_index
-            self._row_by_agent_idx[i] = row_index
-
-        # Add padding for border, scrollbar, visual comfort (~8 cells)
-        _PADDING = 8
-        optimal_width = max(max_width, banner_width) + _PADDING
-        self.post_message(self.WidthChanged(optimal_width))
-
-        try:
-            if highlighted_row is not None:
-                self.highlighted = highlighted_row
-        finally:
-            self._programmatic_update = False
-
     def _compute_tier_styles(
         self,
-        tree: list[TreeEntry],
+        tree: list,
         *,
         panel_uses_cs: bool,
     ) -> tuple[dict[int, tuple[str, ...]], list[tuple[str, ...]]]:
-        """Walk *tree* and compute per-row tier-guide gutter styles.
-
-        Returns ``(agent_tier_styles, banner_tier_styles)``:
-
-        * ``agent_tier_styles[i]`` — the gutter for ``agents[i]``'s row.
-        * ``banner_tier_styles[seq]`` — the gutter for the ``seq``-th
-          banner emitted, in tree order.
-
-        The gutter for a row is the list of ancestor tier styles that
-        contribute a ``│  `` segment.  L0 (project / bucket) and L1
-        ChangeSpec banners contribute; L1/L2 name-root banners do not
-        (the indent already groups their agents).  Order is outermost
-        first.
-        """
-        agent_styles: dict[int, tuple[str, ...]] = {}
-        banner_styles: list[tuple[str, ...]] = []
-        cur_l0: str | None = None
-        cur_l1: str | None = None
-        for entry in tree:
-            if entry.kind == "group" and entry.group is not None:
-                g = entry.group
-                if g.level == 0:
-                    banner_styles.append(())
-                    cur_l0 = _PROJECT_BANNER_RULE_STYLE
-                    cur_l1 = None
-                elif g.level == 1 and panel_uses_cs and len(g.group_key) == 2:
-                    banner_styles.append((cur_l0,) if cur_l0 is not None else ())
-                    cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
-                else:
-                    banner_styles.append(
-                        tuple(s for s in (cur_l0, cur_l1) if s is not None)
-                    )
-                continue
-            if entry.agent_idx is not None:
-                agent_styles[entry.agent_idx] = tuple(
-                    s for s in (cur_l0, cur_l1) if s is not None
-                )
-        return agent_styles, banner_styles
+        """Backwards-compatible shim around :func:`compute_tier_styles`."""
+        return compute_tier_styles(tree, panel_uses_cs=panel_uses_cs)
 
     def update_highlight(
         self,
@@ -529,82 +299,13 @@ class AgentList(OptionList, inherit_bindings=False):
         render).
         """
         with tui_trace("widget.agent_list.patch_agent_row", agent_idx=agent_idx):
-            return self._patch_agent_row_impl(
+            return patch_row(
+                self,
                 agent_idx,
                 marked_agents=marked_agents,
                 is_selected=is_selected,
                 now=now,
             )
-
-    def _patch_agent_row_impl(
-        self,
-        agent_idx: int,
-        *,
-        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
-        is_selected: bool | None = None,
-        now: datetime | None = None,
-    ) -> bool:
-        if not (0 <= agent_idx < len(self._agents)):
-            return False
-        ctx = self._row_render_ctx.get(agent_idx)
-        if ctx is None:
-            return False
-        row = self._row_index_for_agent(agent_idx)
-        if row is None:
-            return False
-
-        agent = self._agents[agent_idx]
-        marked = marked_agents if marked_agents is not None else set()
-        is_marked = agent.identity in marked
-        sel = ctx["is_selected"] if is_selected is None else is_selected
-
-        # Bust the cached entry for this agent so we re-render from
-        # current field values; the patch path is the only writer of
-        # mid-list mutations and must not return a stale cache hit.
-        self._agent_render_cache.invalidate_agent(agent.identity)
-
-        left, suffix, option_id = cached_format_agent_option(
-            self._agent_render_cache,
-            agent,
-            agent_idx,
-            is_selected=sel,
-            fold_annotation=ctx["fold_annotation"],
-            is_expanded=ctx["is_expanded"],
-            is_marked=is_marked,
-            hint_char=ctx["hint_char"],
-            now=now,
-            tier_styles=self._row_tier_styles.get(agent_idx, ()),
-        )
-
-        # The alignment width was fixed at the last full rebuild. If the
-        # new row's content is wider than the cached width, the patched
-        # row would visually misalign — fall back so update_list can
-        # recompute target_width across all rows.
-        gap = 2 if suffix.cell_len else 0
-        if left.cell_len + gap + suffix.cell_len > self._target_width:
-            return False
-
-        new_option = assemble_padded_option(
-            left, suffix, width=self._target_width, option_id=option_id
-        )
-
-        # Refresh the per-row context (mark / selection may have moved).
-        ctx["is_marked"] = is_marked
-        ctx["is_selected"] = sel
-
-        self._programmatic_update = True
-        try:
-            # Textual's OptionList exposes ``replace_option_prompt_at_index``;
-            # the option_id (and therefore ``_id_to_option`` mapping) is
-            # preserved by ``format_agent_option`` since it derives from
-            # ``(index, agent_type, cl_name)`` which don't change for a
-            # single-row mutation.
-            self.replace_option_prompt_at_index(row, new_option.prompt)
-        except (AttributeError, IndexError):
-            return False
-        finally:
-            self._programmatic_update = False
-        return True
 
     def _format_agent_option(
         self,
@@ -704,22 +405,4 @@ class AgentList(OptionList, inherit_bindings=False):
         something to show.  When a banner is non-selectable (its group
         is expanded) the row resolves to the next agent row.
         """
-        if 0 <= option_index < len(self._row_entries):
-            entry = self._row_entries[option_index]
-            banner = self._banner_at_row.get(option_index)
-            if banner is not None:
-                first = banner.agent_indices[0] if banner.agent_indices else 0
-                return (first, None, banner.group_key)
-            if entry[0] == _BANNER_ROW:
-                # Non-selectable banner — route through to a real agent row.
-                for j in range(option_index + 1, len(self._row_entries)):
-                    nxt = self._row_entries[j]
-                    if nxt[0] != _BANNER_ROW:
-                        return (nxt[0], nxt[1], None)
-                for j in range(option_index - 1, -1, -1):
-                    prv = self._row_entries[j]
-                    if prv[0] != _BANNER_ROW:
-                        return (prv[0], prv[1], None)
-                return (0, None, None)
-            return (entry[0], entry[1], None)
-        return (option_index, None, None)
+        return resolve_row(option_index, self._row_entries, self._banner_at_row)
