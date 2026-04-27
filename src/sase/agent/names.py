@@ -22,12 +22,28 @@ class NameCollisionError(ValueError):
     """Raised when an explicit repeat-name base conflicts with existing agents."""
 
 
-# Shape of a child agent name inside a repeat batch: ``<letter-base>.<slot>``.
-# The base is intentionally restricted to ``[a-z]+`` so that only names reachable
-# by the auto-name sequence (``a``, ``b``, ..., ``aa``, ...) are extracted as
-# prefixes by ``_get_active_agent_names``. Multi-segment user bases like
-# ``sase-z`` are already reserved via the ``workflow_name`` path.
-_AUTO_CHILD_NAME_RE = re.compile(r"^([a-z]+)\.\d+$")
+# Auto-name prefix: the ``[a-z]+`` segment before the first ``.`` in an
+# agent name or workflow name. The base is intentionally restricted to
+# ``[a-z]+`` so that only names reachable by the auto-name sequence
+# (``a``, ``b``, ..., ``aa``, ...) are extracted as prefixes by
+# ``_get_active_agent_names``. Multi-segment user bases like ``sase-z``
+# are already reserved via the ``workflow_name`` path.
+_AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z]+)\.")
+
+
+def _extract_auto_name_prefix(*values: object) -> str | None:
+    """Return the longest ``[a-z]+`` prefix before the first ``.`` in any value."""
+    best: str | None = None
+    for v in values:
+        if not isinstance(v, str):
+            continue
+        m = _AUTO_NAME_PREFIX_RE.match(v)
+        if m is None:
+            continue
+        candidate = m.group(1)
+        if best is None or len(candidate) > len(best):
+            best = candidate
+    return best
 
 
 @dataclass
@@ -466,35 +482,38 @@ def _get_active_agent_names() -> set[str]:
             # Prefer workflow_name for multi-agent workflows so the
             # base name (e.g. "a") is reserved, not the child name ("a.1").
             name_field = data.get("name")
-            name = data.get("workflow_name") or name_field
+            workflow_name_field = data.get("workflow_name")
+            name = workflow_name_field or name_field
             if not name:
                 continue
+
+            # Any active agent whose name (or workflow name) starts with
+            # ``<base>.`` reserves the auto-name slot ``<base>``: a fresh
+            # ``m`` agent next to ``m.claude.plan`` would visually collide on
+            # the Agents tab and become ambiguous when typing ``@m`` in
+            # prompts. This also covers the legacy repeat-batch case where
+            # ``<letter>.<digits>`` reserves ``<letter>``.
+            prefix = _extract_auto_name_prefix(name_field, workflow_name_field)
 
             # Follow-up agents (coder/epic steps spawned after plan
             # approval) share their parent's name and are sub-steps of
             # the parent workflow — they should not independently
-            # reserve names.
+            # reserve their full name. They still reserve the auto-name
+            # prefix so a fresh ``<base>`` agent does not collide with
+            # them; the parent is by definition alive (otherwise this
+            # artifact dir would have been dismissed with it).
             if data.get("parent_timestamp"):
+                if prefix is not None:
+                    names.add(prefix)
                 continue
-
-            # An undismissed child agent (``<letter>.<k>``) from a past
-            # repeat batch reserves its base letter too — otherwise
-            # ``get_next_auto_name()`` hands out a letter whose batch
-            # slots are already claimed, causing the downstream
-            # ``reserve_repeat_name_base`` check to raise a collision.
-            child_base: str | None = None
-            if isinstance(name_field, str):
-                m = _AUTO_CHILD_NAME_RE.match(name_field)
-                if m:
-                    child_base = m.group(1)
 
             # Done agents still hold their name until dismissed
             # (dismissal deletes the artifact directory).
             done_path = artifact_dir / "done.json"
             if done_path.exists():
                 names.add(name)
-                if child_base is not None:
-                    names.add(child_base)
+                if prefix is not None:
+                    names.add(prefix)
                 continue
 
             # Verify the agent process is actually alive — orphaned agents
@@ -502,8 +521,8 @@ def _get_active_agent_names() -> set[str]:
             # but their process is long dead.
             if is_process_alive(data, artifact_dir):
                 names.add(name)
-                if child_base is not None:
-                    names.add(child_base)
+                if prefix is not None:
+                    names.add(prefix)
 
     return names
 

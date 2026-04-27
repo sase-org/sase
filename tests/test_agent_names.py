@@ -306,6 +306,105 @@ class TestGetNextAutoName:
             # "a" should be reserved (via workflow_name), not "a.1"
             assert get_next_auto_name() == "b"
 
+    def test_dotted_suffix_reserves_prefix(self, tmp_path: Path) -> None:
+        """``m.plan`` (no workflow_name) reserves the base letter ``m``."""
+        _make_agent(tmp_path, "proj", "run1", "m.plan", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+        # And once ``a`` is taken too, the next pick skips ``m``.
+        _make_agent(tmp_path, "proj", "run2", "a", pid=os.getpid())
+        for letter in "bcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "n"
+
+    def test_multi_segment_dotted_suffix_reserves_prefix(self, tmp_path: Path) -> None:
+        """``m.claude.plan`` with workflow ``m.claude`` reserves ``m`` too."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "m.claude.plan",
+            workflow_name="m.claude",
+            pid=os.getpid(),
+        )
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            # ``m`` must be skipped even though no agent has the bare name ``m``.
+            assert get_next_auto_name() == "n"
+
+    def test_parent_tracked_child_reserves_prefix(self, tmp_path: Path) -> None:
+        """A ``parent_timestamp`` child still reserves the auto-name prefix."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-parent",
+            "m.claude.plan",
+            workflow_name="m.claude",
+            pid=os.getpid(),
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-child",
+            "m.claude.code",
+            workflow_name="m.claude",
+            parent_timestamp="run-parent",
+            pid=os.getpid(),
+        )
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "n"
+
+    def test_multi_segment_user_base_does_not_pollute_pool(
+        self, tmp_path: Path
+    ) -> None:
+        """``sase-z.2`` does not reserve any auto-name letter."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "sase-z.2",
+            workflow_name="sase-z",
+            pid=os.getpid(),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_orphaned_dotted_agent_does_not_reserve_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        """``m.claude.plan`` with a dead PID and no done.json frees ``m``."""
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run-dead",
+            "m.claude.plan",
+            workflow_name="m.claude",
+            pid=_DEAD_PID,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "m"
+
+    def test_dotted_done_agent_holds_prefix(self, tmp_path: Path) -> None:
+        """A done (not dismissed) ``m.claude.plan`` keeps ``m`` reserved."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "m.claude.plan",
+            workflow_name="m.claude",
+            done=True,
+        )
+        for letter in "abcdefghijkl":
+            _make_agent(tmp_path, "proj", f"run-{letter}", letter, pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "n"
+
     def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
         """Dismissed agent suffixes are excluded from auto-name reservation."""
         _make_agent(tmp_path, "proj", "run1", "a", pid=os.getpid())

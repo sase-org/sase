@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:10:59
-status: wip
+status: done
 ---
 # Plan: Auto-name Reserves Dotted Prefix (`<base>.*`)
 
