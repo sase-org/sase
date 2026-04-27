@@ -27,19 +27,23 @@ _NAME_ROOT_BANNER_BRANCH_STYLE = "dim #AFAFAF"
 _NAME_ROOT_BANNER_LABEL_STYLE = "bold #87D7AF"
 
 # Banner glyphs.  ``▌`` (left half-block) anchors L0 banners at the left
-# edge as a colored bar; ``╶─`` starts ChangeSpec banners with a slight
-# indent; ``╭─`` (rounded branch) starts name-root banners and reads as
-# "subgroup begins here".  Rules use heavy ``━`` for project / ChangeSpec
-# headers and light ``─`` for name-root so the project tier has visibly
-# more weight.
+# edge as a colored bar; ``▎`` starts ChangeSpec banners; ``▸`` starts
+# name-root banners and reads as "expanded labelled group".  Rules use
+# heavy ``━`` only for L0 and light ``─`` for L1 ChangeSpec / name-root
+# so weight forms a clear three-tier gradient.
 _PROJECT_BAR_GLYPH = "▌"
 _PROJECT_RULE = "━"
 _CHANGESPEC_BAR_GLYPH = "▎"
-_CHANGESPEC_INDENT = "  "
-_NAME_ROOT_BRANCH_GLYPH = "╭─"
+_CHANGESPEC_RULE = "─"
+_NAME_ROOT_BRANCH_GLYPH = "▸"
 _NAME_ROOT_RULE = "─"
-_NAME_ROOT_INDENT = "  "
-_NAME_ROOT_DEEP_INDENT = "    "
+
+# Tier guide gutter: every row carries one ``│  `` segment per ancestor
+# L0/L1 banner so the nesting reads as a tree at a glance.  Width is 3
+# cells (bar + 2 spaces).  Segment color reflects the tier the segment
+# descends from, reusing the dim banner-rule colors.
+_TIER_GUIDE_SEGMENT = "│  "
+_TIER_GUIDE_SEGMENT_WIDTH = 3
 
 # Status-bucket prefix glyphs for ``BY_STATUS`` mode L0 banners.  Reuses
 # semantically-loaded glyphs from agent rendering so the banner reads as

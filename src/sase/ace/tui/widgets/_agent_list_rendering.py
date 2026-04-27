@@ -29,14 +29,12 @@ from ._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
     _CHANGESPEC_BANNER_RULE_STYLE,
     _CHANGESPEC_BAR_GLYPH,
-    _CHANGESPEC_INDENT,
+    _CHANGESPEC_RULE,
     _CHILD_INDENT,
     _HIDDEN_ICON,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BRANCH_GLYPH,
-    _NAME_ROOT_DEEP_INDENT,
-    _NAME_ROOT_INDENT,
     _NAME_ROOT_RULE,
     _PROJECT_BANNER_BAR_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
@@ -44,6 +42,8 @@ from ._agent_list_styling import (
     _PROJECT_RULE,
     _STATUS_BUCKET_GLYPHS,
     _STEP_TYPE_COLORS,
+    _TIER_GUIDE_SEGMENT,
+    _TIER_GUIDE_SEGMENT_WIDTH,
     _TYPE_GLYPHS,
 )
 
@@ -65,6 +65,19 @@ _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
+
+
+def _render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
+    """Build the leading tier-guide gutter for a row.
+
+    Emits one ``│  `` segment per supplied style, in order from outermost
+    (project / bucket) to innermost (ChangeSpec).  Returns an empty Text
+    when *tier_styles* is empty so callers can prepend unconditionally.
+    """
+    gutter = Text()
+    for style in tier_styles:
+        gutter.append(_TIER_GUIDE_SEGMENT, style=style)
+    return gutter
 
 
 def _bounded_lru_get(cache: "OrderedDict[Any, Any]", key: Any) -> Any:
@@ -131,6 +144,7 @@ def _agent_render_key(
     is_marked: bool,
     hint_char: str | None,
     now: datetime | None,
+    tier_styles: tuple[str, ...] = (),
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -166,6 +180,7 @@ def _agent_render_key(
         agent.agent_type,
         agent.display_name,
         agent.cl_name,
+        tier_styles,
         _runtime_signature(agent, now),
     )
 
@@ -234,9 +249,10 @@ def format_agent_option(
     is_marked: bool = False,
     hint_char: str | None = None,
     now: datetime | None = None,
+    tier_styles: tuple[str, ...] = (),
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
-    text = Text()
+    text = _render_tier_gutter(tier_styles)
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
@@ -428,23 +444,26 @@ def format_banner_option(
     sequence: int,
     selectable: bool = False,
     mode: GroupingMode = GroupingMode.STANDARD,
+    tier_styles: tuple[str, ...] = (),
 ) -> Option:
     """Render a group banner row Option.
 
-    Both levels share the shape ``<prefix> <label> <rule…>  <chip>`` with
-    the chip right-aligned to ``width`` so banner chips line up with the
-    runtime suffix column on agent rows.  Glyphs and colors differ by
-    grouping mode:
+    Both levels share the shape ``<gutter><prefix> <label> <rule…>  <chip>``
+    with the chip right-aligned to ``width`` so banner chips line up with
+    the runtime suffix column on agent rows.  ``tier_styles`` injects the
+    leading tier-guide gutter (one ``│  `` segment per ancestor L0/L1
+    banner).  Glyphs and colors differ by grouping mode:
 
     - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
       heavy rule ``━`` and chip.
-    - STANDARD L1 (ChangeSpec, 3-level mode): cooler accent + ``▎`` bar.
+    - STANDARD L1 (ChangeSpec, 3-level mode): cooler accent + ``▎`` bar,
+      light rule ``─``.
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
       ``Needs Attention``) + bold sky-blue label + heavy rule.
-    - L1 (name-root) in any mode: 2-space indent + dim-gray ``╭─`` branch
-      glyph, teal label, dim-gray light rule ``─`` and chip.
+    - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
+      label, dim-gray light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` so OptionList cursor
     navigation skips them at full expansion.  When *selectable* is True
@@ -482,33 +501,33 @@ def format_banner_option(
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
     elif is_changespec_banner:
-        prefix = f"{_CHANGESPEC_INDENT}{_CHANGESPEC_BAR_GLYPH} "
-        rule_char = _PROJECT_RULE
+        prefix = f"{_CHANGESPEC_BAR_GLYPH} "
+        rule_char = _CHANGESPEC_RULE
         prefix_style = _CHANGESPEC_BANNER_BAR_STYLE
         label_style = _CHANGESPEC_BANNER_BAR_STYLE
         rule_style = _CHANGESPEC_BANNER_RULE_STYLE
     else:
-        indent = _NAME_ROOT_DEEP_INDENT if group.level == 2 else _NAME_ROOT_INDENT
-        prefix = f"{indent}{_NAME_ROOT_BRANCH_GLYPH} "
+        prefix = f"{_NAME_ROOT_BRANCH_GLYPH} "
         rule_char = _NAME_ROOT_RULE
         prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE
         label_style = _NAME_ROOT_BANNER_LABEL_STYLE
         rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
 
-    text = Text()
+    text = _render_tier_gutter(tier_styles)
+    gutter_cells = len(tier_styles) * _TIER_GUIDE_SEGMENT_WIDTH
     text.append(prefix, style=prefix_style)
     text.append(label, style=label_style)
     if chip:
-        # ``<prefix><label> <rule…>  <chip>``: 1-cell gap before the rule,
-        # 2-cell gap before the chip.
-        used = len(prefix) + len(label) + 1 + 2 + len(chip)
+        # ``<gutter><prefix><label> <rule…>  <chip>``: 1-cell gap before
+        # the rule, 2-cell gap before the chip.
+        used = gutter_cells + len(prefix) + len(label) + 1 + 2 + len(chip)
         pad_len = max(2, width - used)
         text.append(
             " " + rule_char * pad_len + "  " + chip,
             style=rule_style,
         )
     else:
-        used = len(prefix) + len(label) + 1
+        used = gutter_cells + len(prefix) + len(label) + 1
         pad_len = max(2, width - used)
         text.append(" " + rule_char * pad_len, style=rule_style)
 
@@ -604,6 +623,7 @@ def cached_format_agent_option(
     is_marked: bool = False,
     hint_char: str | None = None,
     now: datetime | None = None,
+    tier_styles: tuple[str, ...] = (),
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -621,6 +641,7 @@ def cached_format_agent_option(
         is_marked=is_marked,
         hint_char=hint_char,
         now=now,
+        tier_styles=tier_styles,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -634,6 +655,7 @@ def cached_format_agent_option(
         is_marked=is_marked,
         hint_char=hint_char,
         now=now,
+        tier_styles=tier_styles,
     )
     cache.put_agent(key, parts)
     return parts
@@ -647,6 +669,7 @@ def _banner_render_key(
     sequence: int,
     selectable: bool,
     mode: GroupingMode,
+    tier_styles: tuple[str, ...],
 ) -> tuple[Any, ...]:
     """Stable cache key for :func:`format_banner_option`.
 
@@ -666,6 +689,7 @@ def _banner_render_key(
         sequence,
         selectable,
         mode,
+        tier_styles,
         member_sig,
     )
 
@@ -679,6 +703,7 @@ def cached_format_banner_option(
     sequence: int,
     selectable: bool = False,
     mode: GroupingMode = GroupingMode.STANDARD,
+    tier_styles: tuple[str, ...] = (),
 ) -> Option:
     """Memoized wrapper for :func:`format_banner_option`."""
     key = _banner_render_key(
@@ -688,6 +713,7 @@ def cached_format_banner_option(
         sequence=sequence,
         selectable=selectable,
         mode=mode,
+        tier_styles=tier_styles,
     )
     hit = cache.get_banner(key)
     if hit is not None:
@@ -699,6 +725,7 @@ def cached_format_banner_option(
         sequence=sequence,
         selectable=selectable,
         mode=mode,
+        tier_styles=tier_styles,
     )
     cache.put_banner(key, option)
     return option

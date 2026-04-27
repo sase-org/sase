@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 09:03:28
-status: wip
+status: done
 ---
 # Pretty Agents-Tab Headings — Design & Plan
 

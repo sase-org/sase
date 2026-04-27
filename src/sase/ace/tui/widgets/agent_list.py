@@ -29,7 +29,9 @@ from ._agent_list_rendering import (
 )
 from ._agent_list_styling import (
     _BANNER_ROW,
+    _CHANGESPEC_BANNER_RULE_STYLE,
     _MIN_BANNER_WIDTH,
+    _PROJECT_BANNER_RULE_STYLE,
 )
 
 # Re-exported under its historical name for tests that import from
@@ -114,6 +116,10 @@ class AgentList(OptionList, inherit_bindings=False):
         # at full-rebuild time.
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
         self._target_width: int = 0
+        # Per-agent tier-guide gutter styles, captured during ``update_list``
+        # so ``patch_agent_row`` can reproduce the same gutter on a single-
+        # row re-render without rewalking the grouping tree.
+        self._row_tier_styles: dict[int, tuple[str, ...]] = {}
 
     def update_list(
         self,
@@ -161,6 +167,7 @@ class AgentList(OptionList, inherit_bindings=False):
         self._row_entries = []
         self._banner_at_row = {}
         self._row_render_ctx = {}
+        self._row_tier_styles = {}
 
         marked = marked_agents or set()
 
@@ -172,6 +179,22 @@ class AgentList(OptionList, inherit_bindings=False):
                 parents_with_visible_children.add(agent.parent_timestamp)
                 if agent.is_hidden_step:
                     fully_expanded_parents.add(agent.parent_timestamp)
+
+        # Walk the grouping tree once before pre-formatting to determine
+        # each agent's tier-guide gutter (one ``│  `` segment per ancestor
+        # L0/L1 banner) and each banner's gutter.  Folding the gutter
+        # into the row's left text up front means alignment widths and
+        # cache keys reflect the rendered geometry.
+        self._grouping_mode = grouping_mode
+        tree: list[TreeEntry] = build_agent_tree(
+            agents, fold_registry=fold_registry, mode=grouping_mode, now=now
+        )
+        panel_uses_cs = grouping_mode is GroupingMode.STANDARD and any(
+            a.cl_name for a in agents
+        )
+        agent_tier_styles, banner_tier_styles = self._compute_tier_styles(
+            tree, panel_uses_cs=panel_uses_cs
+        )
 
         # Pre-format agent and attempt rows so we know their widths before
         # emitting banner rules (banners are stretched to the widest row,
@@ -194,6 +217,7 @@ class AgentList(OptionList, inherit_bindings=False):
             )
             is_selected_agent = i == current_idx and current_attempt_number is None
             hint = (jump_hints or {}).get(i)
+            tier_styles = agent_tier_styles.get(i, ())
             left, suffix, option_id = cached_format_agent_option(
                 self._agent_render_cache,
                 agent,
@@ -204,6 +228,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 is_marked=is_marked,
                 hint_char=hint,
                 now=now,
+                tier_styles=tier_styles,
             )
             agent_parts[i] = (left, suffix, option_id)
             self._row_render_ctx[i] = {
@@ -213,6 +238,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 "hint_char": hint,
                 "is_selected": is_selected_agent,
             }
+            self._row_tier_styles[i] = tier_styles
             max_left = max(max_left, left.cell_len)
             max_suffix = max(max_suffix, suffix.cell_len)
             if not agent.is_workflow_child:
@@ -250,11 +276,6 @@ class AgentList(OptionList, inherit_bindings=False):
         max_width = target_width
 
         # Walk the grouping tree and emit Options in display order.
-        self._grouping_mode = grouping_mode
-        tree: list[TreeEntry] = build_agent_tree(
-            agents, fold_registry=fold_registry, mode=grouping_mode, now=now
-        )
-
         highlighted_row: int | None = None
         banner_seq = 0
         spacer_seq = 0
@@ -277,6 +298,11 @@ class AgentList(OptionList, inherit_bindings=False):
                         self._row_entries.append((_BANNER_ROW, None))
                     seen_first_l0 = True
                 banner_selectable = entry.group.is_collapsed
+                tier_styles_for_banner = (
+                    banner_tier_styles[banner_seq]
+                    if banner_seq < len(banner_tier_styles)
+                    else ()
+                )
                 option = cached_format_banner_option(
                     self._agent_render_cache,
                     entry.group,
@@ -285,6 +311,7 @@ class AgentList(OptionList, inherit_bindings=False):
                     sequence=banner_seq,
                     selectable=banner_selectable,
                     mode=grouping_mode,
+                    tier_styles=tier_styles_for_banner,
                 )
                 banner_seq += 1
                 row_index = len(self._row_entries)
@@ -339,6 +366,51 @@ class AgentList(OptionList, inherit_bindings=False):
 
         # Clear flag after event loop processes pending events
         self.call_later(self._clear_programmatic_flag)
+
+    def _compute_tier_styles(
+        self,
+        tree: list[TreeEntry],
+        *,
+        panel_uses_cs: bool,
+    ) -> tuple[dict[int, tuple[str, ...]], list[tuple[str, ...]]]:
+        """Walk *tree* and compute per-row tier-guide gutter styles.
+
+        Returns ``(agent_tier_styles, banner_tier_styles)``:
+
+        * ``agent_tier_styles[i]`` — the gutter for ``agents[i]``'s row.
+        * ``banner_tier_styles[seq]`` — the gutter for the ``seq``-th
+          banner emitted, in tree order.
+
+        The gutter for a row is the list of ancestor tier styles that
+        contribute a ``│  `` segment.  L0 (project / bucket) and L1
+        ChangeSpec banners contribute; L1/L2 name-root banners do not
+        (the indent already groups their agents).  Order is outermost
+        first.
+        """
+        agent_styles: dict[int, tuple[str, ...]] = {}
+        banner_styles: list[tuple[str, ...]] = []
+        cur_l0: str | None = None
+        cur_l1: str | None = None
+        for entry in tree:
+            if entry.kind == "group" and entry.group is not None:
+                g = entry.group
+                if g.level == 0:
+                    banner_styles.append(())
+                    cur_l0 = _PROJECT_BANNER_RULE_STYLE
+                    cur_l1 = None
+                elif g.level == 1 and panel_uses_cs and len(g.group_key) == 2:
+                    banner_styles.append((cur_l0,) if cur_l0 is not None else ())
+                    cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
+                else:
+                    banner_styles.append(
+                        tuple(s for s in (cur_l0, cur_l1) if s is not None)
+                    )
+                continue
+            if entry.agent_idx is not None:
+                agent_styles[entry.agent_idx] = tuple(
+                    s for s in (cur_l0, cur_l1) if s is not None
+                )
+        return agent_styles, banner_styles
 
     def update_highlight(
         self,
@@ -441,6 +513,7 @@ class AgentList(OptionList, inherit_bindings=False):
             is_marked=is_marked,
             hint_char=ctx["hint_char"],
             now=now,
+            tier_styles=self._row_tier_styles.get(agent_idx, ()),
         )
 
         # The alignment width was fixed at the last full rebuild. If the

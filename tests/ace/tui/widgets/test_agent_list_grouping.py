@@ -330,8 +330,8 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
     # then the two agent rows.
     text = options[2].prompt
     plain = text.plain  # type: ignore[union-attr]
-    # Indented branch glyph + label.
-    assert "╭─ coder " in plain
+    # Branch glyph + label after the tier-guide gutter.
+    assert "▸ coder " in plain
 
     spans_by_range = {(s.start, s.end): s.style for s in text.spans}  # type: ignore[union-attr]
     label_start = plain.index("coder")
@@ -340,7 +340,8 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
     assert spans_by_range.get((label_start, label_end)) == _NAME_ROOT_BANNER_LABEL_STYLE
 
     # L0 banner: bar + label use the bar style; rule + chip use the
-    # dimmer rule style.
+    # dimmer rule style.  L0 has no gutter so only those two styles
+    # appear on its spans.
     proj_text = options[0].prompt
     proj_plain = proj_text.plain  # type: ignore[union-attr]
     assert proj_plain.startswith("▌ ")
@@ -350,7 +351,7 @@ def test_name_root_banner_label_uses_distinct_accent_style() -> None:
 
 
 def test_two_level_panel_name_root_banner_uses_indent() -> None:
-    """In 2-level mode the name-root banner uses the shallow indent."""
+    """In 2-level mode the name-root banner gets one project-tier guide segment."""
     widget = AgentList()
     widget.update_list(
         [
@@ -363,9 +364,10 @@ def test_two_level_panel_name_root_banner_uses_indent() -> None:
     # Layout: project banner (0), name-root banner (1), then agents.
     text = options[1].prompt
     plain = text.plain  # type: ignore[union-attr]
-    # Two-space indent (NAME_ROOT_INDENT) — not the deep four-space variant.
-    assert plain.startswith("  ╭─ coder ")
-    assert not plain.startswith("    ")
+    # One ``│  `` gutter segment (3 cells) for the project ancestor,
+    # then the ``▸`` branch glyph and label — no second gutter segment
+    # because there's no ChangeSpec tier in this panel.
+    assert plain.startswith("│  ▸ coder ")
     spans = {s.style for s in text.spans}  # type: ignore[union-attr]
     assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
     assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
@@ -545,7 +547,7 @@ def test_by_status_name_root_banner_uses_existing_palette() -> None:
     assert widget._row_entries == [_BR, _BR, (0, None), (1, None)]
     name_root_text = options[1].prompt
     plain = name_root_text.plain  # type: ignore[union-attr]
-    assert "╭─ coder " in plain
+    assert "▸ coder " in plain
     spans = {s.style for s in name_root_text.spans}  # type: ignore[union-attr]
     assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
     assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
@@ -567,6 +569,118 @@ def test_standard_mode_banner_unchanged_after_phase_2() -> None:
     cs_styles = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
     assert _CHANGESPEC_BANNER_BAR_STYLE in cs_styles
     assert _CHANGESPEC_BANNER_RULE_STYLE in cs_styles
+
+
+# --- Tier-guide gutter (pretty agents-tab headings) ---
+
+
+def test_l0_banner_carries_no_tier_gutter() -> None:
+    """Project banner is the top tier and renders flush at column 0."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    proj_plain = options[0].prompt.plain  # type: ignore[union-attr]
+    # No leading ``│`` — the L0 banner anchors at the left edge.
+    assert proj_plain.startswith("▌ ")
+
+
+def test_changespec_banner_carries_one_project_gutter_segment() -> None:
+    """L1 ChangeSpec banner threads a single project-blue gutter segment."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    cs_text = options[1].prompt
+    cs_plain = cs_text.plain  # type: ignore[union-attr]
+    # One ``│  `` segment (3 cells) before the ``▎`` ChangeSpec bar.
+    assert cs_plain.startswith("│  ▎ ")
+    cs_styles = {s.style for s in cs_text.spans}  # type: ignore[union-attr]
+    assert _PROJECT_BANNER_RULE_STYLE in cs_styles
+
+
+def test_changespec_banner_uses_light_rule() -> None:
+    """L1 ChangeSpec rule is the light ``─`` so weight matches L2 name-roots."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="fix-bug-id", project_file="/repo/sase_100/proj.gp")],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    cs_plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert "─" in cs_plain
+    assert "━" not in cs_plain
+
+
+def test_name_root_banner_in_3_level_carries_two_gutter_segments() -> None:
+    """L2 name-root threads project + ChangeSpec gutter segments."""
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="fix-bug-id", agent_name="coder.claude"),
+            _agent(cl_name="fix-bug-id", agent_name="coder.codex"),
+        ],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    nr_text = options[2].prompt
+    nr_plain = nr_text.plain  # type: ignore[union-attr]
+    assert nr_plain.startswith("│  │  ▸ coder ")
+    nr_styles = {s.style for s in nr_text.spans}  # type: ignore[union-attr]
+    assert _PROJECT_BANNER_RULE_STYLE in nr_styles
+    assert _CHANGESPEC_BANNER_RULE_STYLE in nr_styles
+
+
+def test_agent_row_under_3_level_carries_two_gutter_segments() -> None:
+    """Agent rows beneath project + ChangeSpec carry both gutter segments."""
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="fix-bug-id", agent_name="coder.claude"),
+            _agent(cl_name="fix-bug-id", agent_name="coder.codex"),
+        ],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    # Row order: L0, L1 cs, L2 name-root, agent0, agent1.
+    agent_plain = options[3].prompt.plain  # type: ignore[union-attr]
+    assert agent_plain.startswith("│  │  ")
+
+
+def test_agent_row_under_2_level_carries_one_gutter_segment() -> None:
+    """In 2-level STANDARD mode agent rows carry only the project segment."""
+    widget = AgentList()
+    widget.update_list(
+        [_agent(cl_name="", agent_name="solo.runner")],
+        current_idx=0,
+    )
+    options = list(widget._options)
+    # Row order: L0 project banner, agent.
+    agent_plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert agent_plain.startswith("│  ")
+    assert not agent_plain.startswith("│  │  ")
+
+
+def test_agent_row_under_by_status_carries_one_bucket_gutter_segment() -> None:
+    """BY_STATUS agents under a name-root sit under one bucket gutter segment."""
+    widget = AgentList()
+    widget.update_list(
+        [
+            _agent(cl_name="", agent_name="coder.claude", status="RUNNING"),
+            _agent(cl_name="", agent_name="coder.codex", status="RUNNING"),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    # Row order: L0 bucket, L1 name-root, agent0, agent1.
+    agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
+    assert agent_plain.startswith("│  ")
+    assert not agent_plain.startswith("│  │  ")
 
 
 def test_banner_summary_chips_render_in_text() -> None:
