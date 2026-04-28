@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent.names import _AgentRefError, _NamedAgent, resolve_agent_changespec
+from sase.agent.names import AgentRefError, NamedAgent, resolve_agent_changespec
 from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
 
 _MOCK_WORKFLOW_NAMES = MagicMock(return_value={"gh", "git", "hg"})
@@ -35,34 +35,34 @@ def _mock_vcs_names():
 class TestResolveAgentChangespec:
     def test_agent_not_found(self) -> None:
         with patch("sase.agent.names.find_named_agent", return_value=None):
-            with pytest.raises(_AgentRefError, match="No agent found with name 'x'"):
+            with pytest.raises(AgentRefError, match="No agent found with name 'x'"):
                 resolve_agent_changespec("x")
 
     def test_agent_still_running(self) -> None:
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir="/tmp/a", is_done=False, outcome=None
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(_AgentRefError, match="still running"):
+            with pytest.raises(AgentRefError, match="still running"):
                 resolve_agent_changespec("a")
 
     def test_agent_failed(self) -> None:
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir="/tmp/a", is_done=True, outcome="failed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(_AgentRefError, match="failed"):
+            with pytest.raises(AgentRefError, match="failed"):
                 resolve_agent_changespec("a")
 
     def test_no_step_output(self, tmp_path: Path) -> None:
         art = tmp_path / "art"
         art.mkdir()
         (art / "done.json").write_text(json.dumps({"outcome": "completed"}))
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(_AgentRefError, match="no step output"):
+            with pytest.raises(AgentRefError, match="no step output"):
                 resolve_agent_changespec("a")
 
     def test_no_meta_changespec(self, tmp_path: Path) -> None:
@@ -70,11 +70,11 @@ class TestResolveAgentChangespec:
         art.mkdir()
         done = {"outcome": "completed", "step_output": {"other_key": "val"}}
         (art / "done.json").write_text(json.dumps(done))
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(_AgentRefError, match="did not create a PR/CL"):
+            with pytest.raises(AgentRefError, match="did not create a PR/CL"):
                 resolve_agent_changespec("a")
 
     def test_returns_changespec(self, tmp_path: Path) -> None:
@@ -85,7 +85,7 @@ class TestResolveAgentChangespec:
             "step_output": {"meta_changespec": "feature/branch"},
         }
         (art / "done.json").write_text(json.dumps(done))
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
@@ -99,7 +99,7 @@ class TestResolveAgentChangespec:
             "step_output": {"meta_new_cl": "my-branch (http://example.com)"},
         }
         (art / "done.json").write_text(json.dumps(done))
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
@@ -109,11 +109,11 @@ class TestResolveAgentChangespec:
         art = tmp_path / "art"
         art.mkdir()
         (art / "done.json").write_text("not json")
-        agent = _NamedAgent(
+        agent = NamedAgent(
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(_AgentRefError, match="Cannot read done marker"):
+            with pytest.raises(AgentRefError, match="Cannot read done marker"):
                 resolve_agent_changespec("a")
 
 

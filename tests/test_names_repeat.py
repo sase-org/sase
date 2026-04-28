@@ -11,8 +11,8 @@ import pytest
 
 from sase.agent.names import (
     NameCollisionError,
-    _get_active_agent_names,
-    _get_active_child_names,
+    get_active_agent_names,
+    get_active_child_names,
     get_next_auto_name,
     reserve_repeat_name_base,
 )
@@ -45,25 +45,25 @@ class TestGetActiveChildNames:
         _write_meta(tmp_path, "ts2", "sase-z.2", pid=os.getpid())
         _write_meta(tmp_path, "ts3", "other.1", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
-            names = _get_active_child_names("sase-z")
+            names = get_active_child_names("sase-z")
         assert names == {"sase-z.1", "sase-z.2"}
 
     def test_done_children_still_held(self, tmp_path: Path) -> None:
         _write_meta(tmp_path, "ts1", "foo.1", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            names = _get_active_child_names("foo")
+            names = get_active_child_names("foo")
         assert names == {"foo.1"}
 
     def test_no_projects_dir(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            names = _get_active_child_names("foo")
+            names = get_active_child_names("foo")
         assert names == set()
 
     def test_ignores_non_matching_pattern(self, tmp_path: Path) -> None:
         _write_meta(tmp_path, "ts1", "foo", pid=os.getpid())
         _write_meta(tmp_path, "ts2", "foo.bar", pid=os.getpid())  # not \d+
         with patch.object(Path, "home", return_value=tmp_path):
-            names = _get_active_child_names("foo")
+            names = get_active_child_names("foo")
         assert names == set()
 
 
@@ -94,7 +94,7 @@ class TestAutoNameChildAware:
         # Done agents reserve their slot and prefix until dismissed.
         _write_meta(tmp_path, "ts1", "q.2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            active = _get_active_agent_names()
+            active = get_active_agent_names()
             auto = get_next_auto_name()
         assert "q" in active
         assert "q.2" in active
@@ -103,7 +103,7 @@ class TestAutoNameChildAware:
     def test_skips_letter_with_live_child(self, tmp_path: Path) -> None:
         _write_meta(tmp_path, "ts1", "b.1", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
-            active = _get_active_agent_names()
+            active = get_active_agent_names()
         assert "b" in active
 
     def test_repeat_launch_after_orphan_picks_safe_base(self, tmp_path: Path) -> None:
@@ -119,5 +119,5 @@ class TestAutoNameChildAware:
         # via the new prefix path — the auto sequence can't reach them.
         _write_meta(tmp_path, "ts1", "sase-z.2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            active = _get_active_agent_names()
+            active = get_active_agent_names()
         assert "sase-z" not in active

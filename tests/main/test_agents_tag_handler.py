@@ -11,15 +11,15 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.models.agent import AgentType
-from sase.agent.names import _NamedAgent
+from sase.agent.names import NamedAgent
 from sase.agents.cli_tag import (
     _resolve_identity_by_name,
     handle_agents_tag,
 )
 
 
-def _named(artifacts_dir: Path) -> _NamedAgent:
-    return _NamedAgent(
+def _named(artifacts_dir: Path) -> NamedAgent:
+    return NamedAgent(
         name="brisk-otter",
         artifacts_dir=str(artifacts_dir),
         is_done=True,

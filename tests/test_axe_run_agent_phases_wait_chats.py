@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.names import _NamedAgent
+from sase.agent.names import NamedAgent
 from sase.axe.run_agent_phases import resolve_wait_chat_paths
 
 
-def _seed_done(tmp_path: Path, name: str, response_path: str | None) -> _NamedAgent:
+def _seed_done(tmp_path: Path, name: str, response_path: str | None) -> NamedAgent:
     artifact_dir = tmp_path / name
     artifact_dir.mkdir()
     done: dict[str, object] = {"outcome": "completed"}
@@ -16,7 +16,7 @@ def _seed_done(tmp_path: Path, name: str, response_path: str | None) -> _NamedAg
         done["response_path"] = response_path
     with open(artifact_dir / "done.json", "w", encoding="utf-8") as f:
         json.dump(done, f)
-    return _NamedAgent(
+    return NamedAgent(
         name=name,
         artifacts_dir=str(artifact_dir),
         is_done=True,

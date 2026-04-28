@@ -277,7 +277,7 @@ def test_show_renders_running_panel(
     tmp_path: Any, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """show on a running agent renders a detail panel with prompt + tail hint."""
-    from sase.agent.names import _NamedAgent
+    from sase.agent.names import NamedAgent
 
     artifacts_dir = (
         tmp_path / "projects" / "sase" / "artifacts" / "ace-run" / "20260423120000"
@@ -294,7 +294,7 @@ def test_show_renders_running_panel(
     )
     (artifacts_dir / "raw_xprompt.md").write_text("Fix the flaky test in foo_test.py")
 
-    named = _NamedAgent(
+    named = NamedAgent(
         name="brisk-otter",
         artifacts_dir=str(artifacts_dir),
         is_done=False,
