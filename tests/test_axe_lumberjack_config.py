@@ -173,42 +173,6 @@ def test_parse_lumberjacks_per_chop_timeout() -> None:
     assert result["hooks"].chops[1].timeout is None
 
 
-def test_chop_config_gate_defaults_to_none() -> None:
-    """Test that gate defaults to None."""
-    chop = ChopConfig(name="test", description="")
-    assert chop.gate is None
-
-
-def test_parse_lumberjacks_gate_from_dict() -> None:
-    """Test that gate is parsed from dict chop entries."""
-    raw = {
-        "checks": {
-            "interval": 60,
-            "chops": [
-                {
-                    "name": "gated_chop",
-                    "agent": "#gh:sase #sase/pylimit_split",
-                    "gate": "echo check | grep -q check",
-                }
-            ],
-        },
-    }
-    result = _parse_lumberjacks(raw)
-    assert result["checks"].chops[0].gate == "echo check | grep -q check"
-
-
-def test_parse_lumberjacks_gate_missing_becomes_none() -> None:
-    """Test that missing gate defaults to None."""
-    raw = {
-        "checks": {
-            "interval": 60,
-            "chops": [{"name": "no_gate", "agent": "some_agent"}],
-        },
-    }
-    result = _parse_lumberjacks(raw)
-    assert result["checks"].chops[0].gate is None
-
-
 def test_load_axe_config_empty_data() -> None:
     """Test loading config with empty data returns AxeConfig defaults."""
     with patch("sase.axe.config.load_merged_config", return_value={}):

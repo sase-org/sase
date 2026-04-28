@@ -150,7 +150,6 @@ axe:
         - name: my_chop
           description: "What this chop does"
           agent: my_agent # Optional — runs as background agent process
-          gate: "test -f /tmp/ready" # Optional — bash command; chop skipped if exit non-zero
           run_every: "5m" # Time-based duration: run at most once per 5 minutes
           timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:
@@ -159,19 +158,14 @@ axe:
 
 #### Chop Fields
 
-| Field         | Type             | Description                                                              |
-| ------------- | ---------------- | ------------------------------------------------------------------------ |
-| `name`        | `str`            | Chop identifier (required)                                               |
-| `description` | `str`            | Human-readable description (required)                                    |
-| `agent`       | `str \| null`    | XPrompt/agent name — runs as a background agent process                  |
-| `gate`        | `str \| null`    | Bash command that gates execution; chop is skipped if exit code non-zero |
-| `run_every`   | `str \| null`    | Duration string (e.g., `"5m"`, `"2h"`) — run at most once per interval   |
-| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)    |
-| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                          |
-
-The `gate` field is evaluated before each chop run. For agent-type chops, the gate command's working directory is
-resolved from the agent prompt's VCS reference (e.g., the workspace directory for the target branch). This allows gates
-to check project-specific conditions before spawning an agent.
+| Field         | Type             | Description                                                            |
+| ------------- | ---------------- | ---------------------------------------------------------------------- |
+| `name`        | `str`            | Chop identifier (required)                                             |
+| `description` | `str`            | Human-readable description (required)                                  |
+| `agent`       | `str \| null`    | XPrompt/agent name — runs as a background agent process                |
+| `run_every`   | `str \| null`    | Duration string (e.g., `"5m"`, `"2h"`) — run at most once per interval |
+| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)  |
+| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                        |
 
 ## Concurrency Management
 

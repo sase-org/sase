@@ -167,10 +167,6 @@
                             "type": "string"
                           }
                         },
-                        "gate": {
-                          "type": "string",
-                          "description": "Bash command that gates the chop; if it exits non-zero, the chop is skipped"
-                        },
                         "timeout": {
                           "type": "string",
                           "description": "Duration string (e.g., '30s', '5m', '1h') controlling the maximum runtime for this chop",
