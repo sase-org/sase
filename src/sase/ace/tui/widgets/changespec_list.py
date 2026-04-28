@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from rich.text import Text
@@ -21,7 +22,21 @@ from ...mentor_output import (
     load_mentor_outputs_for_commit,
     load_read_state,
 )
+from ..models.changespec_groups import (
+    ChangeSpecGroupingMode,
+    ChangeSpecGroupRow,
+    build_changespec_tree,
+)
+from ..models.group_fold import GroupFoldRegistry, GroupKey
 from ..util.trace import tui_trace
+from ._changespec_list_banner import (
+    CS_MIN_BANNER_WIDTH,
+    banner_natural_width,
+    format_changespec_banner_option,
+)
+
+#: Sentinel ``_row_entries`` value for banner rows.
+_BANNER_ROW = -1
 
 log = logging.getLogger(__name__)
 
@@ -270,10 +285,22 @@ class ChangeSpecList(OptionList):
     """Left sidebar showing list of ChangeSpecs."""
 
     class SelectionChanged(Message):
-        """Message sent when selection changes."""
+        """Message sent when selection changes.
 
-        def __init__(self, index: int) -> None:
+        ``group_key`` is non-None when the selection target is a
+        collapsed group banner row.  ``index`` then points at the first
+        ChangeSpec in the group so the detail panel still has something
+        to display, while callers that care about banner focus can read
+        ``group_key`` to keep the heading-row state in sync.
+        """
+
+        def __init__(
+            self,
+            index: int,
+            group_key: GroupKey | None = None,
+        ) -> None:
             self.index = index
+            self.group_key = group_key
             super().__init__()
 
     class WidthChanged(Message):
@@ -294,6 +321,23 @@ class ChangeSpecList(OptionList):
         self._row_widths_by_idx: dict[int, int] = {}
         self._target_width: int = 0
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
+        # Each rendered Option row maps back to a ChangeSpec index, or
+        # ``_BANNER_ROW`` when the row is a group heading.  Populated by
+        # both flat and grouped render paths so the selection event
+        # handler can resolve clicks/highlights uniformly.
+        self._row_entries: list[int] = []
+        # Sparse map row_index -> ChangeSpecGroupRow for selectable
+        # (collapsed) banner rows.  Expanded banners stay disabled and
+        # skip the map entirely so they remain invisible to selection.
+        self._banner_at_row: dict[int, ChangeSpecGroupRow] = {}
+        # Banner key -> row index, so ``update_highlight`` can move the
+        # cursor to a specific group banner without scanning the option
+        # list.
+        self._banner_row_by_key: dict[GroupKey, int] = {}
+        # Active grouping mode for the current render.  Tracks which
+        # path ``update_list`` took so test/inspection helpers can
+        # branch on the most recent render.
+        self._grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT
 
     def update_list(
         self,
@@ -303,6 +347,11 @@ class ChangeSpecList(OptionList):
         hide_reverted: bool = True,
         hide_submitted: bool = True,
         jump_hints: dict[int, str] | None = None,
+        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+        fold_registry: GroupFoldRegistry | None = None,
+        current_group_key: GroupKey | None = None,
+        banner_jump_hints: dict[GroupKey, str] | None = None,
+        now: datetime | None = None,
     ) -> None:
         """Update the list with new changespecs.
 
@@ -313,6 +362,22 @@ class ChangeSpecList(OptionList):
             hide_reverted: Whether reverted CLs are currently hidden
             hide_submitted: Whether submitted CLs are currently hidden
             jump_hints: Optional local row index -> hint character mapping
+            grouping_mode: Which CL grouping mode to render.  ``FLAT``
+                (default) preserves the historical one-row-per-CL render
+                so existing tests stay byte-for-byte stable; the grouped
+                modes interleave banner rows produced by
+                :func:`build_changespec_tree`.
+            fold_registry: Per-group collapse registry consulted by the
+                tree builder.  Missing or empty registry renders every
+                group expanded.  Ignored in ``FLAT``.
+            current_group_key: When non-None and pointing at a banner
+                row whose group is collapsed, highlight that banner
+                instead of the CL row at ``current_idx``.
+            banner_jump_hints: Group key -> hint character for collapsed
+                banner rows (Phase 4 wires the producer side; the widget
+                only needs to render whatever it is given).
+            now: Reference time for ``BY_DATE`` bucketing.  Defaults to
+                ``datetime.now()`` inside the tree builder.
         """
         with tui_trace("widget.changespec_list.update_list", count=len(changespecs)):
             self._update_list_impl(
@@ -322,6 +387,11 @@ class ChangeSpecList(OptionList):
                 hide_reverted=hide_reverted,
                 hide_submitted=hide_submitted,
                 jump_hints=jump_hints,
+                grouping_mode=grouping_mode,
+                fold_registry=fold_registry,
+                current_group_key=current_group_key,
+                banner_jump_hints=banner_jump_hints,
+                now=now,
             )
 
     def _update_list_impl(
@@ -332,10 +402,16 @@ class ChangeSpecList(OptionList):
         hide_reverted: bool = True,
         hide_submitted: bool = True,
         jump_hints: dict[int, str] | None = None,
+        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+        fold_registry: GroupFoldRegistry | None = None,
+        current_group_key: GroupKey | None = None,
+        banner_jump_hints: dict[GroupKey, str] | None = None,
+        now: datetime | None = None,
     ) -> None:
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
         self._changespecs = changespecs
+        self._grouping_mode = grouping_mode
         # When not hiding, show ◌ prefix on the relevant CLs
         show_hideable = not hide_reverted
         show_submitted = not hide_submitted
@@ -344,7 +420,42 @@ class ChangeSpecList(OptionList):
         self._last_row_signature_by_idx = {}
         self._row_widths_by_idx = {}
         self._row_render_ctx = {}
+        self._row_entries = []
+        self._banner_at_row = {}
+        self._banner_row_by_key = {}
 
+        if grouping_mode is ChangeSpecGroupingMode.FLAT:
+            self._render_flat(
+                changespecs,
+                current_idx,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                jump_hints=jump_hints,
+            )
+        else:
+            self._render_grouped(
+                changespecs,
+                current_idx,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                jump_hints=jump_hints,
+                grouping_mode=grouping_mode,
+                fold_registry=fold_registry,
+                current_group_key=current_group_key,
+                banner_jump_hints=banner_jump_hints,
+                now=now,
+            )
+
+    def _render_flat(
+        self,
+        changespecs: list[ChangeSpec],
+        current_idx: int,
+        *,
+        show_hideable: bool,
+        show_submitted: bool,
+        jump_hints: dict[int, str] | None,
+    ) -> None:
+        """Original flat one-row-per-CL render path."""
         max_width = 0
         for i, cs in enumerate(changespecs):
             is_marked = i in self._marked_indices
@@ -360,6 +471,7 @@ class ChangeSpecList(OptionList):
                 hint_char=hint,
             )
             self.add_option(option)
+            self._row_entries.append(i)
             width = _calculate_entry_display_width(
                 cs,
                 is_marked=is_marked,
@@ -392,10 +504,152 @@ class ChangeSpecList(OptionList):
         self._target_width = optimal_width
         self.post_message(self.WidthChanged(optimal_width))
 
-        # Highlight the current item
         try:
             if changespecs and 0 <= current_idx < len(changespecs):
                 self.highlighted = current_idx
+        finally:
+            self._programmatic_update = False
+
+    def _render_grouped(
+        self,
+        changespecs: list[ChangeSpec],
+        current_idx: int,
+        *,
+        show_hideable: bool,
+        show_submitted: bool,
+        jump_hints: dict[int, str] | None,
+        grouping_mode: ChangeSpecGroupingMode,
+        fold_registry: GroupFoldRegistry | None,
+        current_group_key: GroupKey | None,
+        banner_jump_hints: dict[GroupKey, str] | None,
+        now: datetime | None,
+    ) -> None:
+        """Render banner rows + CL rows for a non-FLAT grouping mode.
+
+        The grouped path always does a full rebuild — the patch path
+        guards against grouped renders by gating on
+        ``option_count == len(self._changespecs)`` so a stale patch can
+        never write to a row whose option index is offset by banner
+        rows.
+        """
+        tree = build_changespec_tree(
+            changespecs,
+            mode=grouping_mode,
+            fold_registry=fold_registry,
+            now=now,
+        )
+
+        # First pass: format CL rows so we know the widest content.
+        cs_options: dict[int, Option] = {}
+        cs_widths: dict[int, int] = {}
+        cs_signatures: dict[int, tuple[Any, ...]] = {}
+        cs_render_ctx: dict[int, dict[str, Any]] = {}
+        max_cs_width = 0
+        for i, cs in enumerate(changespecs):
+            is_marked = i in self._marked_indices
+            stats = _compute_mentor_stats(cs)
+            hint = (jump_hints or {}).get(i)
+            cs_options[i] = self._format_changespec_option(
+                cs,
+                is_selected=(i == current_idx and current_group_key is None),
+                is_marked=is_marked,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                mentor_stats=stats,
+                hint_char=hint,
+            )
+            cs_widths[i] = _calculate_entry_display_width(
+                cs,
+                is_marked=is_marked,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                mentor_stats=stats,
+                hint_char=hint,
+            )
+            max_cs_width = max(max_cs_width, cs_widths[i])
+            cs_signatures[i] = _row_signature(
+                cs,
+                is_selected=(i == current_idx and current_group_key is None),
+                is_marked=is_marked,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
+                mentor_stats=stats,
+                hint_char=hint,
+            )
+            cs_render_ctx[i] = {
+                "show_hideable": show_hideable,
+                "show_submitted": show_submitted,
+                "mentor_stats": stats,
+            }
+
+        # Banner width: at least CS_MIN_BANNER_WIDTH and at least the
+        # widest CL row so the rule fully spans the panel.
+        banner_min = max(CS_MIN_BANNER_WIDTH, max_cs_width)
+        max_banner_natural = 0
+        for entry in tree:
+            if entry.kind == "group" and entry.group is not None:
+                banner_hint = (banner_jump_hints or {}).get(entry.group.group_key)
+                max_banner_natural = max(
+                    max_banner_natural,
+                    banner_natural_width(entry.group, banner_hint),
+                )
+        banner_width = max(banner_min, max_banner_natural)
+
+        # Walk the tree and emit Options.
+        highlighted_row: int | None = None
+        banner_seq = 0
+        for entry in tree:
+            if entry.kind == "group" and entry.group is not None:
+                group = entry.group
+                selectable = group.is_collapsed
+                banner_hint = (
+                    (banner_jump_hints or {}).get(group.group_key)
+                    if selectable
+                    else None
+                )
+                option = format_changespec_banner_option(
+                    group,
+                    width=banner_width,
+                    sequence=banner_seq,
+                    selectable=selectable,
+                    hint_char=banner_hint,
+                )
+                banner_seq += 1
+                row_index = len(self._row_entries)
+                self.add_option(option)
+                self._row_entries.append(_BANNER_ROW)
+                if selectable:
+                    self._banner_at_row[row_index] = group
+                    self._banner_row_by_key[group.group_key] = row_index
+                    if (
+                        current_group_key is not None
+                        and group.group_key == current_group_key
+                        and highlighted_row is None
+                    ):
+                        highlighted_row = row_index
+                continue
+
+            if entry.changespec_idx is None:
+                continue
+            i = entry.changespec_idx
+            row_index = len(self._row_entries)
+            self.add_option(cs_options[i])
+            self._row_entries.append(i)
+            self._option_idx_by_changespec_name[changespecs[i].name] = i
+            self._row_widths_by_idx[i] = cs_widths[i]
+            self._last_row_signature_by_idx[i] = cs_signatures[i]
+            self._row_render_ctx[i] = cs_render_ctx[i]
+            if current_group_key is None and i == current_idx:
+                highlighted_row = row_index
+
+        _PADDING = 8
+        optimal_width = max(max_cs_width, banner_width) + _PADDING
+        self._target_width = optimal_width
+        self.post_message(self.WidthChanged(optimal_width))
+
+        try:
+            if highlighted_row is not None:
+                self.highlighted = highlighted_row
         finally:
             self._programmatic_update = False
 
@@ -403,21 +657,50 @@ class ChangeSpecList(OptionList):
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False
 
-    def update_highlight(self, current_idx: int) -> None:
+    def update_highlight(
+        self,
+        current_idx: int,
+        group_key: GroupKey | None = None,
+    ) -> None:
         """Move the highlight without clearing/rebuilding options.
 
         Use this for j/k navigation where the item list hasn't changed,
         only the selection index.
+
+        When *group_key* is non-None and matches a known collapsed
+        banner row, the cursor jumps to that banner.  Otherwise the
+        cursor moves to the row showing ``changespecs[current_idx]``,
+        falling back to a clamped raw index for legacy flat callers
+        that pre-date the row-map bookkeeping.
         """
         with tui_trace(
             "widget.changespec_list.update_highlight", count=self.option_count
         ):
             if self.option_count == 0:
                 return
-            target_idx = min(max(current_idx, 0), self.option_count - 1)
+            if group_key is not None:
+                row = self._banner_row_by_key.get(group_key)
+                if row is not None:
+                    self._programmatic_update = True
+                    try:
+                        self.highlighted = row
+                    finally:
+                        self._programmatic_update = False
+                    return
+            target_row: int | None = None
+            if self._row_entries:
+                # Find the option row that displays ``current_idx``.  In
+                # flat mode this is identity; in grouped mode we may
+                # need to step past banner rows.
+                for row, entry in enumerate(self._row_entries):
+                    if entry == current_idx:
+                        target_row = row
+                        break
+            if target_row is None:
+                target_row = min(max(current_idx, 0), self.option_count - 1)
             self._programmatic_update = True
             try:
-                self.highlighted = target_idx
+                self.highlighted = target_row
             finally:
                 self._programmatic_update = False
 
@@ -612,9 +895,45 @@ class ChangeSpecList(OptionList):
         if self._programmatic_update:
             return  # Skip events from programmatic updates
         if event.option_index is not None:
-            self.post_message(self.SelectionChanged(event.option_index))
+            index, group_key = self._resolve_row(event.option_index)
+            self.post_message(self.SelectionChanged(index, group_key=group_key))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
-            self.post_message(self.SelectionChanged(event.option_index))
+            index, group_key = self._resolve_row(event.option_index)
+            self.post_message(self.SelectionChanged(index, group_key=group_key))
+
+    def _resolve_row(self, option_index: int) -> tuple[int, GroupKey | None]:
+        """Translate an OptionList row index to ``(changespec_idx, group_key)``.
+
+        Selectable banner rows resolve to their group's first ChangeSpec
+        plus the banner key so the caller can keep banner focus state
+        in sync.  Non-banner rows resolve to their CL index with
+        ``group_key=None``.
+
+        When the row map hasn't been populated (e.g. tests that drive
+        the OptionList directly without a prior render) the option
+        index is returned verbatim with no group key.
+        """
+        if not (0 <= option_index < len(self._row_entries)):
+            return (option_index, None)
+        entry = self._row_entries[option_index]
+        banner = self._banner_at_row.get(option_index)
+        if banner is not None:
+            first = banner.changespec_indices[0] if banner.changespec_indices else 0
+            return (first, banner.group_key)
+        if entry == _BANNER_ROW:
+            # Expanded (non-selectable) banner row that somehow received
+            # focus — fall through to the next CL row so the caller's
+            # selection state stays meaningful.
+            for j in range(option_index + 1, len(self._row_entries)):
+                nxt = self._row_entries[j]
+                if nxt != _BANNER_ROW:
+                    return (nxt, None)
+            for j in range(option_index - 1, -1, -1):
+                prv = self._row_entries[j]
+                if prv != _BANNER_ROW:
+                    return (prv, None)
+            return (0, None)
+        return (entry, None)
