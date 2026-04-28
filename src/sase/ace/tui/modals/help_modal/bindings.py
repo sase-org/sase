@@ -71,7 +71,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Checkout CL (workspace 1-9)",
                 ),
                 (d(a.show_diff), "Show diff"),
-                (d(a.hooks_or_collapse), "Edit hooks"),
+                (d(a.edit_hooks), "Edit hooks"),
                 (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
                 (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.mail), "Mail CL"),

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 15:27:58
-status: wip
+status: done
 ---
 # Restore the "edit hooks" CL-tab keymap (lost when CLs-tab grouping became always-on)
 

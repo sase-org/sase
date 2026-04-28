@@ -36,6 +36,8 @@ ace:
       jump_to_all_entries: "grave_accent"
       edit_spec: "e"
       rename_cl: "n"
+      # ChangeSpec edits
+      edit_hooks: "f"
       # Proposals & sync
       accept_proposal: "a"
       rebase: "b"

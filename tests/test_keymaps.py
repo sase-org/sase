@@ -40,6 +40,12 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.bang_mode, BangModeKeymaps)
 
 
+def test_edit_hooks_default_binding() -> None:
+    """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
+    reg = load_keymap_registry({})
+    assert reg.app.edit_hooks == "f"
+
+
 def test_g_and_o_default_bindings_do_not_collide() -> None:
     """Guard: ``g`` is scroll_to_top everywhere; ``o`` is the grouping cycle.
 
@@ -54,8 +60,8 @@ def test_g_and_o_default_bindings_do_not_collide() -> None:
 
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "f"}}})
-    assert reg.app.next_changespec == "f"
+    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "B"}}})
+    assert reg.app.next_changespec == "B"
     assert reg.app.prev_changespec == "k"  # unchanged
     assert reg.app.quit == "q"  # unchanged
 
@@ -187,9 +193,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 76 configurable + 10 digit = 86 bindings."""
+    """build_app_bindings produces 77 configurable + 10 digit = 87 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 86
+    assert len(bindings) == 87
 
 
 def test_build_app_bindings_priority() -> None:

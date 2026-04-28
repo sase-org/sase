@@ -46,6 +46,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_all_entries", "Jump All", False),
     ("hooks_or_collapse", "Hooks / Collapse", False),
     ("hooks_or_collapse_all", "Hooks / Collapse All", False),
+    ("edit_hooks", "Edit Hooks", False),
     ("start_fold_mode", "Fold", False),
     ("accept_proposal", "Accept", False),
     ("rebase", "Rebase", False),
@@ -212,6 +213,8 @@ class AppKeymaps:
     jump_to_all_entries: str
     edit_spec: str
     rename_cl: str
+    # ChangeSpec edits
+    edit_hooks: str
     # Proposals & sync
     accept_proposal: str
     rebase: str
