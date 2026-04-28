@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 19:02:37
-status: wip
+status: done
 ---
 # Plan: `sase bead work` collides with orphaned phase agents
 

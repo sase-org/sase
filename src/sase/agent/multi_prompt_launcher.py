@@ -15,6 +15,19 @@ from sase.agent.launcher import AgentLaunchResult
 from sase.xprompt.models import XPrompt
 
 
+# pyvision: tests/test_bead/test_cli_work.py
+class MultiPromptPartialLaunchError(RuntimeError):
+    """Raised when one segment of a multi-prompt launch fails after others succeeded.
+
+    ``results`` holds the agents that were spawned before the failure, so
+    callers can roll back (e.g. terminate the leaked PIDs).
+    """
+
+    def __init__(self, results: list[AgentLaunchResult], cause: BaseException) -> None:
+        super().__init__(f"partial multi-prompt launch failed: {cause}")
+        self.results = results
+
+
 def _extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set[str]:
     """Extract xprompt names called in *text*.
 
@@ -182,19 +195,59 @@ def launch_multi_prompt_agents(
     4. Wait for the agent to write its name to ``agent_meta.json``.
 
     Returns a list of ``AgentLaunchResult`` for all launched agents.
+
+    On partial failure (one segment raises after others succeeded), raises
+    :class:`MultiPromptPartialLaunchError` with the already-spawned results
+    so callers can roll back.
     """
+    from sase.core.time import generate_timestamp
+
+    results: list[AgentLaunchResult] = []
+    timestamp_allocator = _BatchTimestampAllocator(generate_timestamp)
+
+    try:
+        _spawn_segments_into(
+            segments=segments,
+            local_xprompts=local_xprompts,
+            cl_name=cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            is_home_mode=is_home_mode,
+            vcs_ref=vcs_ref,
+            on_agent_spawned=on_agent_spawned,
+            extra_env=extra_env,
+            timestamp_allocator=timestamp_allocator,
+            results=results,
+        )
+    except Exception as exc:
+        if results:
+            raise MultiPromptPartialLaunchError(results, exc) from exc
+        raise
+    return results
+
+
+def _spawn_segments_into(
+    *,
+    segments: list[str],
+    local_xprompts: dict[str, XPrompt],
+    cl_name: str,
+    project_file: str,
+    project_name: str,
+    is_home_mode: bool,
+    vcs_ref: tuple[str, str] | None,
+    on_agent_spawned: Callable[[], None] | None,
+    extra_env: dict[str, str] | None,
+    timestamp_allocator: _BatchTimestampAllocator,
+    results: list[AgentLaunchResult],
+) -> None:
     from sase.agent.launcher import spawn_agent_subprocess
     from sase.running_field import (
         get_first_available_axe_workspace,
         get_workspace_directory,
         get_workspace_directory_for_num,
     )
-    from sase.core.time import generate_timestamp
     from sase.artifacts import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
-
-    results: list[AgentLaunchResult] = []
-    timestamp_allocator = _BatchTimestampAllocator(generate_timestamp)
 
     for i, segment in enumerate(segments):
         has_wait = has_wait_directive(segment)
@@ -288,8 +341,6 @@ def launch_multi_prompt_agents(
                 print(f"  Agent {i + 1}/{len(segments)} named '{agent_name}'")
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
-
-    return results
 
 
 # Import sentinel at module level (after function definitions to avoid

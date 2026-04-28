@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -187,3 +193,187 @@ def test_work_rejects_non_plan_bead(
         bead_cli.handle_bead_work(_make_args(phase_ids[0], yes=True))
     assert excinfo.value.code == 1
     assert "only applies to plan beads" in capsys.readouterr().err
+
+
+def _write_orphan_meta(home: Path, name: str) -> Path:
+    """Write a fake live agent_meta.json under ``home/.sase/projects/...``."""
+    artifact_dir = (
+        home
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / f"orphan-{name}"
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": name, "pid": os.getpid(), "model": "test"})
+    )
+    return artifact_dir
+
+
+def test_work_refuses_when_phase_name_collision(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = _seed_diamond(project_dir)
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    orphan_dir = _write_orphan_meta(fake_home, phase_ids[0])
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+
+    err = capsys.readouterr().err
+    assert "refusing to launch" in err
+    assert phase_ids[0] in err
+    assert str(orphan_dir) in err
+    assert launch_calls == []
+
+    # Pre-claims and ready flag must not have been touched.
+    with BeadProject(project_dir) as proj:
+        epic = proj.show(epic_id)
+        assert epic.is_ready_to_work is False
+        for pid in phase_ids:
+            phase = proj.show(pid)
+            assert phase.status == Status.OPEN
+
+
+def test_work_refuses_when_land_name_collision(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _ = _seed_diamond(project_dir)
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    _write_orphan_meta(fake_home, f"{epic_id}.land")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: FakeLaunchResult(),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+    assert f"{epic_id}.land" in capsys.readouterr().err
+
+
+def test_work_dry_run_warns_on_collision_without_mutating(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = _seed_diamond(project_dir)
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    _write_orphan_meta(fake_home, phase_ids[0])
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(_make_args(epic_id, dry_run=True, yes=True))
+
+    captured = capsys.readouterr()
+    assert "would block live launch" in captured.err
+    assert phase_ids[0] in captured.err
+    assert "Multi-prompt (dry run)" in captured.out
+    assert launch_calls == []
+
+    with BeadProject(project_dir) as proj:
+        epic = proj.show(epic_id)
+        assert epic.is_ready_to_work is False
+        for pid in phase_ids:
+            assert proj.show(pid).status == Status.OPEN
+
+
+def test_work_passes_when_no_collisions(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    epic_id, _ = _seed_diamond(project_dir)
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    captured: dict[str, Any] = {}
+
+    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        captured["query"] = query
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
+    assert "---" in captured["query"]
+
+
+def test_rollback_kills_partially_launched_agents(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.agent.launcher import AgentLaunchResult
+    from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
+
+    epic_id, _ = _seed_diamond(project_dir)
+
+    # Spawn a real, harmless child so we can observe SIGTERM.
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        partial_result = AgentLaunchResult(
+            pid=child.pid,
+            workspace_num=0,
+            workspace_dir="",
+            output_path="",
+        )
+
+        def fake_launch(query: str, extra_env: Any = None) -> Any:
+            raise MultiPromptPartialLaunchError([partial_result], RuntimeError("boom"))
+
+        monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+        with pytest.raises(SystemExit) as excinfo:
+            bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
+        assert excinfo.value.code == 1
+
+        # The child should have received SIGTERM and exited; poll briefly.
+        for _ in range(50):
+            if child.poll() is not None:
+                break
+            time.sleep(0.1)
+        assert child.poll() is not None, "partially-launched child was not killed"
+    finally:
+        if child.poll() is None:
+            child.send_signal(signal.SIGKILL)
+            child.wait(timeout=5)
+
+    err = capsys.readouterr().err
+    assert "Rolling back" in err

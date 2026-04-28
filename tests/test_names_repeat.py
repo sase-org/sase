@@ -11,6 +11,7 @@ import pytest
 
 from sase.agent.names import (
     NameCollisionError,
+    get_active_agent_name_map,
     get_active_agent_names,
     get_active_child_names,
     get_next_auto_name,
@@ -121,3 +122,33 @@ class TestAutoNameChildAware:
         with patch.object(Path, "home", return_value=tmp_path):
             active = get_active_agent_names()
         assert "sase-z" not in active
+
+
+class TestGetActiveAgentNameMap:
+    def test_returns_artifact_dirs(self, tmp_path: Path) -> None:
+        live = _write_meta(tmp_path, "ts1", "sase-12.1", pid=os.getpid())
+        done = _write_meta(tmp_path, "ts2", "sase-12.land", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            mapping = get_active_agent_name_map()
+        assert mapping["sase-12.1"] == str(live)
+        assert mapping["sase-12.land"] == str(done)
+
+    def test_skips_dead_non_done_agents(self, tmp_path: Path) -> None:
+        # PID 1 is init — not a sase agent, treated as dead.
+        _write_meta(tmp_path, "ts1", "sase-12.1", pid=1)
+        with patch.object(Path, "home", return_value=tmp_path):
+            mapping = get_active_agent_name_map()
+        assert "sase-12.1" not in mapping
+
+    def test_no_projects_dir(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_active_agent_name_map() == {}
+
+    def test_does_not_include_auto_name_prefix(self, tmp_path: Path) -> None:
+        # An agent named "a.claude.plan" must not surface as a "a" entry —
+        # only full claimed names are returned.
+        _write_meta(tmp_path, "ts1", "a.claude.plan", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            mapping = get_active_agent_name_map()
+        assert "a" not in mapping
+        assert "a.claude.plan" in mapping

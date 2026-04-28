@@ -384,6 +384,21 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
+        collisions = _find_name_collisions(plan)
+        if collisions and not dry_run:
+            print(
+                "Error: refusing to launch — these agent names are already in use:",
+                file=sys.stderr,
+            )
+            for name, path in sorted(collisions.items()):
+                print(f"  {name} (running at {path})", file=sys.stderr)
+            print(
+                "\nDismiss or kill those agents in the TUI (or `sase run --kill ...`) "
+                "before retrying.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         query = render_multi_prompt(
             plan,
             work_phase_xprompt=work_phase_xprompt,
@@ -393,6 +408,13 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         _print_work_plan_summary(args.id, issue.title, plan)
 
         if dry_run:
+            if collisions:
+                print(
+                    "\nWarning: agent-name collisions would block live launch:",
+                    file=sys.stderr,
+                )
+                for name, path in sorted(collisions.items()):
+                    print(f"  {name} (already running at {path})", file=sys.stderr)
             print("\n--- Multi-prompt (dry run) ---")
             print(query)
             return
@@ -432,7 +454,8 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 f"Error: agent launch failed for epic {args.id}: {e}",
                 file=sys.stderr,
             )
-            _rollback_work_launch(proj, args.id, claimed)
+            launched_pids = [r.pid for r in getattr(e, "results", [])]
+            _rollback_work_launch(proj, args.id, claimed, launched_pids=launched_pids)
             sys.exit(1)
 
     agent_count = sum(len(w) for w in plan.waves) + 1
@@ -440,6 +463,21 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         f"✓ Launched {agent_count} agents for epic {args.id} — {issue.title} "
         f"(workspace {result.workspace_num})"
     )
+
+
+def _expected_agent_names(plan: EpicWorkPlan) -> set[str]:
+    names = {a.agent_name for wave in plan.waves for a in wave}
+    names.add(plan.land_agent_name)
+    return names
+
+
+def _find_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
+    """Return ``{agent_name: artifact_dir}`` for plan names already claimed."""
+    from sase.agent.names import get_active_agent_name_map
+
+    expected = _expected_agent_names(plan)
+    active = get_active_agent_name_map()
+    return {name: active[name] for name in expected if name in active}
 
 
 def _print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
@@ -465,8 +503,22 @@ def _rollback_work_launch(
     proj: BeadProject,
     epic_id: str,
     claimed: list[tuple[str, str]],
+    *,
+    launched_pids: list[int] | None = None,
 ) -> None:
-    """Best-effort: revert pre-claims and the is_ready_to_work flip."""
+    """Best-effort: terminate already-spawned agents and revert pre-claims."""
+    if launched_pids:
+        import signal
+
+        for pid in launched_pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError) as exc:
+                print(
+                    f"Warning: failed to terminate partially-launched pid {pid}: {exc}",
+                    file=sys.stderr,
+                )
+
     print(
         "Rolling back pre-claims and is_ready_to_work flag. If rollback also "
         "fails, fix the affected bead status/assignee fields manually.",
