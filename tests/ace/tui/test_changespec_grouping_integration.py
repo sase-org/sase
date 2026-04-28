@@ -91,12 +91,12 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
         # CL-side state.
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.FLAT
+        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
-        ] = {ChangeSpecGroupingMode.FLAT: GroupFoldRegistry()}
+        ] = {ChangeSpecGroupingMode.BY_PROJECT: GroupFoldRegistry()}
         self._changespec_group_fold_registry = self._changespec_group_fold_registries[
-            ChangeSpecGroupingMode.FLAT
+            ChangeSpecGroupingMode.BY_PROJECT
         ]
         self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refresh_calls = 0
@@ -116,16 +116,8 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
             self.changespecs,
             self.current_idx,
             grouping_mode=self._changespec_grouping_mode,
-            fold_registry=(
-                self._changespec_group_fold_registry
-                if self._changespec_grouping_mode is not ChangeSpecGroupingMode.FLAT
-                else None
-            ),
-            current_group_key=(
-                self._current_changespec_group_key
-                if self._changespec_grouping_mode is not ChangeSpecGroupingMode.FLAT
-                else None
-            ),
+            fold_registry=self._changespec_group_fold_registry,
+            current_group_key=self._current_changespec_group_key,
         )
 
 
@@ -143,19 +135,12 @@ def _three_project_specs() -> list[ChangeSpec]:
 
 
 def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
-    """Pressing ``o`` four times must redraw the widget through every mode."""
+    """Pressing ``o`` three times must redraw the widget through every mode."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
 
-    # Start flat: 3 CL rows, no banners.
+    # Start BY_PROJECT: project banners appear from the first paint.
     app._refresh_display()
-    assert widget._row_entries == [0, 1, 2]
-    assert widget._banner_at_row == {}
-
-    # FLAT → BY_PROJECT: project banners appear.
-    app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
-    assert app.notifications[-1] == "CL grouping: by project"
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     # alpha L0 banner + alpha-siblings L1 banner (foobar_1/_2 style with
     # ``alpha_one`` and ``alpha_two`` sharing root ``alpha``) + beta L0.
@@ -175,11 +160,11 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     assert len(banner_rows) == 2
 
-    # BY_STATUS → FLAT: banners disappear.
+    # BY_STATUS → BY_PROJECT (wrap).
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
-    assert widget._row_entries == [0, 1, 2]
-    assert widget._banner_at_row == {}
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
+    assert len(banner_rows) >= 2
 
 
 def test_per_mode_fold_state_survives_cycle_round_trip(monkeypatch: Any) -> None:
@@ -187,7 +172,6 @@ def test_per_mode_fold_state_survives_cycle_round_trip(monkeypatch: Any) -> None
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
 
-    app.action_cycle_grouping_mode()  # → BY_PROJECT
     # Collapse the alpha L0 group via the navigation mixin.
     app._current_changespec_group_key = ("alpha",)
     assert app._collapse_changespec_group_fold() is True
@@ -201,7 +185,6 @@ def test_per_mode_fold_state_survives_cycle_round_trip(monkeypatch: Any) -> None
 
     app.action_cycle_grouping_mode()  # → BY_DATE
     app.action_cycle_grouping_mode()  # → BY_STATUS
-    app.action_cycle_grouping_mode()  # → FLAT
     app.action_cycle_grouping_mode()  # → BY_PROJECT (round trip)
 
     # Re-render and assert alpha is still collapsed.
@@ -224,7 +207,6 @@ def test_query_change_drops_collapsed_group_without_crash(
     """Filtering out the only members of a collapsed group must drop the focus."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
-    app.action_cycle_grouping_mode()  # → BY_PROJECT
 
     # User collapses alpha and the focus moves to its banner.
     app._current_changespec_group_key = ("alpha",)
@@ -265,7 +247,6 @@ def test_collapse_then_filter_reload_does_not_resurrect_stale_collapse(
     back collapsed automatically."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
-    app.action_cycle_grouping_mode()  # → BY_PROJECT
     app._changespec_group_fold_registry.collapse(("alpha",))
 
     # Filter out alpha entirely.
@@ -298,15 +279,15 @@ def test_agents_cycle_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="agents")
 
-    # CLs start FLAT and never got a refresh.
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    # CLs start at the default BY_PROJECT and never got a refresh.
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
     assert widget.option_count == 0
 
     app.action_cycle_grouping_mode()  # Agents-side cycle.
 
     # Agents grouping advanced; CLs untouched.
     assert app._grouping_mode is GroupingMode.BY_DATE
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
     assert widget.option_count == 0  # No CL refresh happened.
 
 
@@ -320,9 +301,9 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
 
-    # CL user picks BY_PROJECT.
+    # CL user cycles to BY_DATE.
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     assert app._grouping_mode is GroupingMode.STANDARD
 
     # User flips to Agents and cycles there.
@@ -330,9 +311,9 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
     # CL state untouched.
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
 
-    # Flip back to CLs — the previous BY_PROJECT mode is preserved.
+    # Flip back to CLs — the previous BY_DATE mode is preserved.
     app.current_tab = "changespecs"  # type: ignore[assignment]
     app._refresh_display()
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
@@ -347,6 +328,6 @@ def test_axe_cycle_is_silent_noop_for_both_tabs(monkeypatch: Any) -> None:
     app.action_cycle_grouping_mode()
 
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
     assert app.refresh_calls == 0
     assert app.refilter_calls == 0

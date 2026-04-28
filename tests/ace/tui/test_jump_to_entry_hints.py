@@ -8,7 +8,12 @@ from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.changespec._grouping_nav import (
+    ChangeSpecGroupingNavMixin,
+)
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
+from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.actions.navigation.jump_hints import (
     JUMP_HINT_CHARS,
     build_jump_hint_maps,
@@ -48,7 +53,7 @@ def _make_agent(cl_name: str = "test_feature") -> Agent:
     )
 
 
-class _InlineJumpApp(AdvancedNavigationMixin):
+class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
     """Minimal changespec-tab harness for inline jump mode."""
 
     def __init__(self, changespecs: list[ChangeSpec]) -> None:
@@ -61,11 +66,19 @@ class _InlineJumpApp(AdvancedNavigationMixin):
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
+        self._entry_jump_hint_to_changespec_banner: dict[str, Any] = {}
+        self._entry_jump_changespec_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_last_index: dict[str, int] = {}
         self._entry_jump_last_agents_anchor: Any = None
+        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
+        self._changespec_group_fold_registry = GroupFoldRegistry()
+        self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refreshes = 0
 
     def _refresh_current_tab(self) -> None:
+        self.refreshes += 1
+
+    def _refresh_display(self) -> None:
         self.refreshes += 1
 
     def _update_jump_footer(self) -> None:
@@ -183,7 +196,10 @@ def test_changespec_list_update_renders_uppercase_hint_marker(
         jump_hints={0: "A"},
     )
 
-    option = widget.get_option_at_index(0)
+    # Grouped render emits a project banner before the CL row, so the
+    # CL row sits at row index 1.
+    cs_row = next(i for i, e in enumerate(widget._row_entries) if e == 0)
+    option = widget.get_option_at_index(cs_row)
     assert "[A]" in str(option.prompt)
 
 

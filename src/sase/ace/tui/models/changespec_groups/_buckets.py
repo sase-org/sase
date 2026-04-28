@@ -15,14 +15,12 @@ _EARLIER = "Earlier"
 class ChangeSpecGroupingMode(Enum):
     """How the CLs tab is bucketed at L0.
 
-    * ``FLAT``: no group rows; preserve the existing filtered list order.
     * ``BY_PROJECT``: L0 is the project name, L1 is the sibling root
       shared by ``foobar_1`` / ``foobar_2`` style suffixed siblings.
     * ``BY_DATE``: L0 only — date bucket from the latest TIMESTAMPS entry.
     * ``BY_STATUS``: L0 only — bucket from the literal ``status`` field.
     """
 
-    FLAT = "flat"
     BY_PROJECT = "by_project"
     BY_DATE = "by_date"
     BY_STATUS = "by_status"

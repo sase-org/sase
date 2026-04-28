@@ -1,10 +1,10 @@
-"""Render paths for the ChangeSpec list widget.
+"""Render path for the ChangeSpec list widget.
 
-Splits the flat one-row-per-CL render and the grouped (banner + CL)
-render out of :class:`ChangeSpecList` so the widget module stays focused
-on widget plumbing (events, highlight, patch).  Both functions take the
-widget instance as their first argument and mutate its bookkeeping
-fields directly — they are part of the widget's implementation, just
+The grouped (banner + CL) render is factored out of
+:class:`ChangeSpecList` so the widget module stays focused on widget
+plumbing (events, highlight, patch).  ``render_grouped`` takes the
+widget instance as its first argument and mutates its bookkeeping
+fields directly — it is part of the widget's implementation, just
 factored into module scope for file size.
 """
 
@@ -44,69 +44,6 @@ _BANNER_ROW = -1
 _PADDING = 8
 
 
-def render_flat(
-    widget: ChangeSpecList,
-    changespecs: list[ChangeSpec],
-    current_idx: int,
-    *,
-    show_hideable: bool,
-    show_submitted: bool,
-    jump_hints: dict[int, str] | None,
-) -> None:
-    """Original flat one-row-per-CL render path."""
-    max_width = 0
-    for i, cs in enumerate(changespecs):
-        is_marked = i in widget._marked_indices
-        stats = compute_mentor_stats(cs)
-        hint = (jump_hints or {}).get(i)
-        option = format_changespec_option(
-            cs,
-            is_selected=(i == current_idx),
-            is_marked=is_marked,
-            show_hideable=show_hideable,
-            show_submitted=show_submitted,
-            mentor_stats=stats,
-            hint_char=hint,
-        )
-        widget.add_option(option)
-        widget._row_entries.append(i)
-        width = calculate_entry_display_width(
-            cs,
-            is_marked=is_marked,
-            show_hideable=show_hideable,
-            show_submitted=show_submitted,
-            mentor_stats=stats,
-            hint_char=hint,
-        )
-        max_width = max(max_width, width)
-        widget._option_idx_by_changespec_name[cs.name] = i
-        widget._row_widths_by_idx[i] = width
-        widget._last_row_signature_by_idx[i] = row_signature(
-            cs,
-            is_selected=(i == current_idx),
-            is_marked=is_marked,
-            show_hideable=show_hideable,
-            show_submitted=show_submitted,
-            mentor_stats=stats,
-            hint_char=hint,
-        )
-        widget._row_render_ctx[i] = {
-            "show_hideable": show_hideable,
-            "show_submitted": show_submitted,
-            "mentor_stats": stats,
-        }
-
-    optimal_width = max_width + _PADDING
-    widget._target_width = optimal_width
-    widget.post_message(widget.WidthChanged(optimal_width))
-
-    try:
-        if changespecs and 0 <= current_idx < len(changespecs):
-            widget.highlighted = current_idx
-    finally:
-        widget._programmatic_update = False
-
-
 def render_grouped(
     widget: ChangeSpecList,
     changespecs: list[ChangeSpec],
@@ -121,7 +58,7 @@ def render_grouped(
     banner_jump_hints: dict[GroupKey, str] | None,
     now: datetime | None,
 ) -> None:
-    """Render banner rows + CL rows for a non-FLAT grouping mode.
+    """Render banner rows + CL rows for the active grouping mode.
 
     The grouped path always does a full rebuild — the patch path
     guards against grouped renders by gating on

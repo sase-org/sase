@@ -53,9 +53,7 @@ def _l0_value_for(
         return cs.project_name
     if mode is ChangeSpecGroupingMode.BY_DATE:
         return date_bucket_for_changespec(cs, now, latest_map=latest_map)
-    if mode is ChangeSpecGroupingMode.BY_STATUS:
-        return status_bucket_for_changespec(cs)
-    return ""
+    return status_bucket_for_changespec(cs)
 
 
 def keys_for_changespec(
@@ -97,9 +95,7 @@ def _l0_sort_key(mode: ChangeSpecGroupingMode, l0: str) -> tuple[int, object]:
         return (0, l0.lower())
     if mode is ChangeSpecGroupingMode.BY_DATE:
         return (0, date_bucket_sort_index(l0))
-    if mode is ChangeSpecGroupingMode.BY_STATUS:
-        return (0, status_sort_index(l0))
-    return (0, "")
+    return (0, status_sort_index(l0))
 
 
 def _date_anchor_for(
@@ -126,15 +122,11 @@ def walk_order(
 ) -> list[int]:
     """Return a stable permutation of CS indices grouped by *mode*.
 
-    * ``FLAT`` returns the input order unchanged.
     * ``BY_PROJECT`` puts singleton sibling roots before grouped roots
       within a project so they render directly under the project banner.
     * ``BY_DATE`` sorts within bucket by latest timestamp descending.
     * ``BY_STATUS`` falls back to the input list's relative order.
     """
-    if mode is ChangeSpecGroupingMode.FLAT:
-        return list(range(len(changespecs)))
-
     # Count siblings per (l0, root) so singletons can sort first.
     root_counts: dict[tuple[str, str], int] = {}
     if mode is ChangeSpecGroupingMode.BY_PROJECT:

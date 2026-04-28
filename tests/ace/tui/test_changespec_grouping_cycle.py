@@ -3,7 +3,7 @@
 Covers Phase 3 of the CLs-tab ChangeSpec grouping feature
 (``plans/202604/changespec_group_headings.md``):
 
-* Cycle order ``FLAT → BY_PROJECT → BY_DATE → BY_STATUS → FLAT``.
+* Cycle order ``BY_PROJECT → BY_DATE → BY_STATUS → BY_PROJECT``.
 * Per-mode fold-state preservation across cycles, with no leakage from
   the Agents-tab fold registries.
 * Banner focus is reset on every cycle.
@@ -42,12 +42,12 @@ class _StubApp(AgentGroupingMixin):
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
         # CL-side state.
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.FLAT
+        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
-        ] = {ChangeSpecGroupingMode.FLAT: GroupFoldRegistry()}
+        ] = {ChangeSpecGroupingMode.BY_PROJECT: GroupFoldRegistry()}
         self._changespec_group_fold_registry = self._changespec_group_fold_registries[
-            ChangeSpecGroupingMode.FLAT
+            ChangeSpecGroupingMode.BY_PROJECT
         ]
         self._current_changespec_group_key: tuple[str, ...] | None = None
         # Recording stubs.
@@ -70,21 +70,11 @@ class _StubApp(AgentGroupingMixin):
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_advances_flat_to_by_project() -> None:
-    app = _StubApp()
-    app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
-    assert app.refresh_calls == 1
-
-
 def test_cycle_advances_by_project_to_by_date() -> None:
     app = _StubApp()
-    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
-    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
-        ChangeSpecGroupingMode.BY_PROJECT
-    )
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert app.refresh_calls == 1
 
 
 def test_cycle_advances_by_date_to_by_status() -> None:
@@ -97,22 +87,22 @@ def test_cycle_advances_by_date_to_by_status() -> None:
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
 
 
-def test_cycle_wraps_back_to_flat() -> None:
+def test_cycle_wraps_back_to_by_project() -> None:
     app = _StubApp()
     app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_STATUS
     app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
         ChangeSpecGroupingMode.BY_STATUS
     )
     app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
 
 
-def test_four_cycles_returns_to_flat() -> None:
+def test_three_cycles_returns_to_by_project() -> None:
     app = _StubApp()
-    for _ in range(4):
+    for _ in range(3):
         app.action_cycle_grouping_mode()
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
-    assert app.refresh_calls == 4
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app.refresh_calls == 3
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +112,6 @@ def test_four_cycles_returns_to_flat() -> None:
 
 def test_fold_state_preserved_after_cycle_round_trip() -> None:
     app = _StubApp()
-    app.action_cycle_grouping_mode()  # FLAT → BY_PROJECT
     project_registry = app._changespec_group_fold_registry
     project_registry.collapse(("projA",))
 
@@ -134,7 +123,6 @@ def test_fold_state_preserved_after_cycle_round_trip() -> None:
     by_date_registry.collapse(("Today",))
 
     app.action_cycle_grouping_mode()  # → BY_STATUS
-    app.action_cycle_grouping_mode()  # → FLAT
     app.action_cycle_grouping_mode()  # → BY_PROJECT (round trip)
     assert app._changespec_group_fold_registry is project_registry
     assert app._changespec_group_fold_registry.is_collapsed(("projA",))
@@ -142,8 +130,9 @@ def test_fold_state_preserved_after_cycle_round_trip() -> None:
 
 def test_per_mode_registry_dict_grows_lazily() -> None:
     app = _StubApp()
-    assert set(app._changespec_group_fold_registries) == {ChangeSpecGroupingMode.FLAT}
-    app.action_cycle_grouping_mode()  # → BY_PROJECT
+    assert set(app._changespec_group_fold_registries) == {
+        ChangeSpecGroupingMode.BY_PROJECT
+    }
     app.action_cycle_grouping_mode()  # → BY_DATE
     app.action_cycle_grouping_mode()  # → BY_STATUS
     assert set(app._changespec_group_fold_registries) == set(ChangeSpecGroupingMode)
@@ -174,7 +163,7 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
 
 
 def test_cycle_on_agents_tab_does_not_touch_cl_state() -> None:
@@ -182,7 +171,7 @@ def test_cycle_on_agents_tab_does_not_touch_cl_state() -> None:
     app = _StubApp(current_tab="agents")
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
     assert app.refresh_calls == 0
     assert app.refilter_calls == 1
 
@@ -191,7 +180,7 @@ def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
     app = _StubApp(current_tab="changespecs")
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     assert app.refilter_calls == 0
     assert app.refresh_calls == 1
 
@@ -208,7 +197,7 @@ def test_cycle_persists_new_mode(tmp_path: Path) -> None:
     ):
         app = _StubApp()
         app.action_cycle_grouping_mode()
-        assert test_file.read_text() == ChangeSpecGroupingMode.BY_PROJECT.value
+        assert test_file.read_text() == ChangeSpecGroupingMode.BY_DATE.value
 
 
 def test_cycle_does_not_persist_to_agents_state_file(tmp_path: Path) -> None:
@@ -233,4 +222,4 @@ def test_cycle_emits_cl_grouping_toast() -> None:
     """The toast distinguishes the CL cycle from the Agents cycle."""
     app = _StubApp()
     app.action_cycle_grouping_mode()
-    assert app.notifications == ["CL grouping: by project"]
+    assert app.notifications == ["CL grouping: by date"]

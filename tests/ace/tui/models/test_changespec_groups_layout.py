@@ -17,26 +17,15 @@ def _ts(timestamp: str) -> TimestampEntry:
     return TimestampEntry(timestamp=timestamp, event_type="STATUS", detail="x")
 
 
-# --- FLAT ---
+# --- empty input ---
 
 
-def test_flat_preserves_order_and_emits_no_banners() -> None:
-    cl = [_cs("b"), _cs("a"), _cs("c")]
-    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.FLAT, now=_NOW)
-    assert _kinds(entries) == [
-        ("changespec", 0),
-        ("changespec", 1),
-        ("changespec", 2),
-    ]
+def test_empty_input_handled() -> None:
+    assert build_changespec_tree([], ChangeSpecGroupingMode.BY_PROJECT, now=_NOW) == []
 
 
-def test_flat_handles_empty_input() -> None:
-    assert build_changespec_tree([], ChangeSpecGroupingMode.FLAT, now=_NOW) == []
-
-
-def test_flat_enumerate_keys_is_empty() -> None:
-    cl = [_cs("a"), _cs("b")]
-    assert enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.FLAT) == []
+def test_enumerate_keys_empty_for_empty_input() -> None:
+    assert enumerate_changespec_group_keys([], ChangeSpecGroupingMode.BY_PROJECT) == []
 
 
 # --- BY_PROJECT ---

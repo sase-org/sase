@@ -1,9 +1,8 @@
-"""Tests for the CL info-panel grouping badge added in Phase 3.
+"""Tests for the CL info-panel grouping badge.
 
-The badge stays hidden in ``FLAT`` (the historical default) so the
-already-dense top bar is not cluttered before the user opts in to
-grouping.  Non-flat labels render the badge plus the configured cycle
-key so ``o`` is discoverable.
+The badge is always shown on the CLs tab — there is no opt-out mode
+since FLAT was removed.  An empty label still hides the badge so test
+fixtures that don't seed a label don't render a stray ``[group:]``.
 """
 
 from __future__ import annotations
@@ -24,18 +23,18 @@ def _collect_text(panel: ChangeSpecInfoPanel) -> str:
     return panel._build_content().plain
 
 
-def test_default_state_hides_grouping_badge() -> None:
+def test_default_state_shows_by_project_badge() -> None:
     panel = ChangeSpecInfoPanel()
-    assert "group:" not in _collect_text(panel)
+    plain = _collect_text(panel)
+    assert "group:" in plain
+    assert "by project" in plain
 
 
-def test_flat_label_normalizes_to_empty_and_hides_badge() -> None:
-    """``FLAT`` (literal or empty) keeps the badge off."""
+def test_empty_label_hides_badge() -> None:
+    """An explicit empty label still hides the badge."""
     panel = ChangeSpecInfoPanel()
-    # Stub out the post-update refresh so we don't hit the active-app
-    # context — the test only cares about the normalization.
     with patch.object(panel, "_refresh_content"):
-        panel.update_grouping_mode("flat")
+        panel.update_grouping_mode("")
     assert panel._grouping_label == ""
     assert "group:" not in _collect_text(panel)
 

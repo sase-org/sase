@@ -10,12 +10,12 @@ from sase.ace.changespec_grouping_mode_state import (
 from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
 
 
-def test_load_returns_flat_when_file_absent(tmp_path: Path) -> None:
+def test_load_returns_by_project_when_file_absent(tmp_path: Path) -> None:
     with patch(
         "sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE",
         tmp_path / "changespec_grouping_mode.txt",
     ):
-        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.FLAT
+        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.BY_PROJECT
 
 
 def test_round_trip_by_status(tmp_path: Path) -> None:
@@ -45,22 +45,33 @@ def test_round_trip_by_date(tmp_path: Path) -> None:
         assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.BY_DATE
 
 
-def test_load_returns_flat_on_corrupt_value(tmp_path: Path) -> None:
+def test_load_returns_by_project_on_corrupt_value(tmp_path: Path) -> None:
     test_file = tmp_path / "cs.txt"
     test_file.write_text("garbage")
     with patch(
         "sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE", test_file
     ):
-        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.FLAT
+        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.BY_PROJECT
 
 
-def test_load_returns_flat_on_empty_file(tmp_path: Path) -> None:
+def test_load_returns_by_project_on_empty_file(tmp_path: Path) -> None:
     test_file = tmp_path / "cs.txt"
     test_file.write_text("")
     with patch(
         "sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE", test_file
     ):
-        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.FLAT
+        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.BY_PROJECT
+
+
+def test_load_returns_by_project_on_legacy_flat_value(tmp_path: Path) -> None:
+    """Files containing the literal ``flat`` (legacy persisted state) fall
+    through the ValueError path to the new BY_PROJECT default."""
+    test_file = tmp_path / "cs.txt"
+    test_file.write_text("flat")
+    with patch(
+        "sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE", test_file
+    ):
+        assert load_changespec_grouping_mode() is ChangeSpecGroupingMode.BY_PROJECT
 
 
 def test_save_returns_false_on_oserror(tmp_path: Path) -> None:

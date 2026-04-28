@@ -7,7 +7,6 @@ Agent code (or vice versa).
 
 Modes:
 
-* ``FLAT`` — no banners, preserves the input order one-for-one.
 * ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ CLs share
   the same ``foobar``-style base name.
 * ``BY_DATE`` — L0 date bucket from the latest TIMESTAMPS entry.

@@ -20,7 +20,7 @@ from ._changespec_list_helpers import (
     get_status_indicator,
     row_signature,
 )
-from ._changespec_list_render import _BANNER_ROW, render_flat, render_grouped
+from ._changespec_list_render import _BANNER_ROW, render_grouped
 
 # Re-exported for backward compatibility with tests / external callers
 # that imported these names from this module before the split.
@@ -84,7 +84,7 @@ class ChangeSpecList(OptionList):
         # Active grouping mode for the current render.  Tracks which
         # path ``update_list`` took so test/inspection helpers can
         # branch on the most recent render.
-        self._grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT
+        self._grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT
 
     def update_list(
         self,
@@ -94,7 +94,7 @@ class ChangeSpecList(OptionList):
         hide_reverted: bool = True,
         hide_submitted: bool = True,
         jump_hints: dict[int, str] | None = None,
-        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
         fold_registry: GroupFoldRegistry | None = None,
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
@@ -109,14 +109,12 @@ class ChangeSpecList(OptionList):
             hide_reverted: Whether reverted CLs are currently hidden
             hide_submitted: Whether submitted CLs are currently hidden
             jump_hints: Optional local row index -> hint character mapping
-            grouping_mode: Which CL grouping mode to render.  ``FLAT``
-                (default) preserves the historical one-row-per-CL render
-                so existing tests stay byte-for-byte stable; the grouped
-                modes interleave banner rows produced by
-                :func:`build_changespec_tree`.
+            grouping_mode: Which CL grouping mode to render.  Banner rows
+                are produced by :func:`build_changespec_tree` and
+                interleaved with the CL rows.
             fold_registry: Per-group collapse registry consulted by the
                 tree builder.  Missing or empty registry renders every
-                group expanded.  Ignored in ``FLAT``.
+                group expanded.
             current_group_key: When non-None and pointing at a banner
                 row whose group is collapsed, highlight that banner
                 instead of the CL row at ``current_idx``.
@@ -149,7 +147,7 @@ class ChangeSpecList(OptionList):
         hide_reverted: bool = True,
         hide_submitted: bool = True,
         jump_hints: dict[int, str] | None = None,
-        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+        grouping_mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
         fold_registry: GroupFoldRegistry | None = None,
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
@@ -171,29 +169,19 @@ class ChangeSpecList(OptionList):
         self._banner_at_row = {}
         self._banner_row_by_key = {}
 
-        if grouping_mode is ChangeSpecGroupingMode.FLAT:
-            render_flat(
-                self,
-                changespecs,
-                current_idx,
-                show_hideable=show_hideable,
-                show_submitted=show_submitted,
-                jump_hints=jump_hints,
-            )
-        else:
-            render_grouped(
-                self,
-                changespecs,
-                current_idx,
-                show_hideable=show_hideable,
-                show_submitted=show_submitted,
-                jump_hints=jump_hints,
-                grouping_mode=grouping_mode,
-                fold_registry=fold_registry,
-                current_group_key=current_group_key,
-                banner_jump_hints=banner_jump_hints,
-                now=now,
-            )
+        render_grouped(
+            self,
+            changespecs,
+            current_idx,
+            show_hideable=show_hideable,
+            show_submitted=show_submitted,
+            jump_hints=jump_hints,
+            grouping_mode=grouping_mode,
+            fold_registry=fold_registry,
+            current_group_key=current_group_key,
+            banner_jump_hints=banner_jump_hints,
+            now=now,
+        )
 
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""

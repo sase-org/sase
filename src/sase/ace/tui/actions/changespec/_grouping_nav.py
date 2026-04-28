@@ -1,12 +1,10 @@
 """Grouped-mode navigation, folding, and jump-hint helpers for the CLs tab.
 
-These helpers are no-ops while ``_changespec_grouping_mode`` is ``FLAT`` —
-the legacy direct-index code path keeps owning the CLs tab in that mode
-so existing flat-mode behavior stays exactly as it was.  When the user
-cycles into a grouped mode, the actions in
+The CLs tab is always grouped (``BY_PROJECT`` / ``BY_DATE`` /
+``BY_STATUS``).  The actions in
 :mod:`sase.ace.tui.actions.navigation._basic` and
 :mod:`sase.ace.tui.actions.agents._folding` delegate the CL branch into
-this mixin so banner rows become first-class navigation/fold targets,
+this mixin so banner rows are first-class navigation/fold targets,
 mirroring the Agents-tab mental model.
 """
 
@@ -45,11 +43,6 @@ class ChangeSpecGroupingNavMixin:
     _changespec_group_fold_registry: GroupFoldRegistry
     _current_changespec_group_key: tuple[str, ...] | None
 
-    def _changespec_grouping_active(self) -> bool:
-        """Return ``True`` when grouped mode owns the CL list rendering."""
-        mode = getattr(self, "_changespec_grouping_mode", ChangeSpecGroupingMode.FLAT)
-        return mode is not ChangeSpecGroupingMode.FLAT
-
     def _changespec_navigation_stops(self) -> list[_NavigationStop]:
         """Return the CL list's selectable rows in render order.
 
@@ -57,11 +50,8 @@ class ChangeSpecGroupingNavMixin:
         ``("banner", group_key)`` for a collapsed banner row.  Used by
         ``j``/``k`` so the cursor steps through every visible row,
         including collapsed banners.
-
-        Returns ``[]`` while flat mode is active so callers fall back
-        to the legacy direct-index path.
         """
-        if not self._changespec_grouping_active() or not self.changespecs:
+        if not self.changespecs:
             return []
         registry = getattr(self, "_changespec_group_fold_registry", None)
         mode: ChangeSpecGroupingMode = self._changespec_grouping_mode
@@ -85,13 +75,10 @@ class ChangeSpecGroupingNavMixin:
         ``deep_key`` is the deepest banner that contains the focused CL —
         the L1 sibling-root banner when one is visible, otherwise
         ``None``.  ``l0_key`` is the enclosing project / date / status
-        banner.  Returns ``(None, None)`` while flat mode is active or
-        when no CL is focused.
+        banner.  Returns ``(None, None)`` when no CL is focused.
         """
         from ...models.group_fold import GroupFoldRegistry
 
-        if not self._changespec_grouping_active():
-            return (None, None)
         if not self.changespecs or not (0 <= self.current_idx < len(self.changespecs)):
             return (None, None)
         # Build with an empty registry so collapsed banners don't hide
@@ -182,8 +169,6 @@ class ChangeSpecGroupingNavMixin:
         collapsed ancestor banner that's still visible so the cursor
         lands on a row the user can actually see.
         """
-        if not self._changespec_grouping_active():
-            return
         if not self.changespecs:
             self._current_changespec_group_key = None
             return
@@ -261,8 +246,6 @@ class ChangeSpecGroupingNavMixin:
         Returns ``True`` when the registry actually changed so callers
         only refresh the display when something moved.
         """
-        if not self._changespec_grouping_active():
-            return False
         registry = self._changespec_group_fold_registry
         if self._current_changespec_group_key is not None:
             key: GroupKey = tuple(self._current_changespec_group_key)
@@ -286,8 +269,6 @@ class ChangeSpecGroupingNavMixin:
         * Agent focus → collapse the deepest enclosing group (L1 if
           present, else L0) and snap focus to its now-visible banner.
         """
-        if not self._changespec_grouping_active():
-            return False
         registry = self._changespec_group_fold_registry
         if self._current_changespec_group_key is not None:
             cur_key: GroupKey = tuple(self._current_changespec_group_key)
@@ -319,8 +300,6 @@ class ChangeSpecGroupingNavMixin:
         a result of* this press are not stepped — repeated presses peel
         one layer at a time.
         """
-        if not self._changespec_grouping_active():
-            return False
         registry = self._changespec_group_fold_registry
         entries = build_changespec_tree(
             self.changespecs,
@@ -345,8 +324,6 @@ class ChangeSpecGroupingNavMixin:
         ancestor are skipped (snapshot-at-start rule); the next ``H``
         press picks them up.
         """
-        if not self._changespec_grouping_active():
-            return False
         registry = self._changespec_group_fold_registry
         entries = build_changespec_tree(
             self.changespecs,
@@ -389,8 +366,6 @@ class ChangeSpecGroupingNavMixin:
         key = getattr(self, "_current_changespec_group_key", None)
         if key is None:
             return True
-        if not self._changespec_grouping_active():
-            return False
         keys = enumerate_changespec_group_keys(
             self.changespecs, mode=self._changespec_grouping_mode
         )

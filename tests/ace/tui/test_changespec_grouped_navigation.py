@@ -4,13 +4,11 @@ Phase 4 of the CLs-tab ChangeSpec grouping feature
 (``plans/202604/changespec_group_headings.md``):
 
 * ``j`` / ``k`` walks visible CL rows plus collapsed banner rows in
-  render order in any non-FLAT mode and preserves the legacy direct-
-  index step in FLAT mode.
-* ``h`` / ``l`` / ``H`` / ``L`` operate on CL groups when grouped.
+  render order.
+* ``h`` / ``l`` / ``H`` / ``L`` operate on CL groups.
 * Focus re-anchors after fold mutations so the cursor never lands on a
   hidden row.
-* Jump hints include collapsed banner targets in grouped modes; flat
-  mode still allocates hints across CL rows only.
+* Jump hints include collapsed banner targets.
 * Stale ``_current_changespec_group_key`` is dropped after a reload
   whose query no longer produces the focused group.
 """
@@ -68,11 +66,6 @@ def _make_three_project_specs() -> list[ChangeSpec]:
 # ---------------------------------------------------------------------------
 # Navigation stops
 # ---------------------------------------------------------------------------
-
-
-def test_navigation_stops_empty_in_flat_mode() -> None:
-    app = _NavApp(_make_three_project_specs(), mode=ChangeSpecGroupingMode.FLAT)
-    assert app._changespec_navigation_stops() == []
 
 
 def test_navigation_stops_skip_expanded_banners() -> None:
@@ -197,14 +190,6 @@ def test_expand_all_peels_one_level_off_visible_collapsed_banners() -> None:
     assert app._current_changespec_group_key is None
 
 
-def test_collapse_in_flat_mode_is_a_noop() -> None:
-    app = _NavApp(_make_three_project_specs(), mode=ChangeSpecGroupingMode.FLAT)
-    assert app._collapse_changespec_group_fold() is False
-    assert app._expand_changespec_group_fold() is False
-    assert app._collapse_all_changespec_group_folds() is False
-    assert app._expand_all_changespec_group_folds() is False
-
-
 # ---------------------------------------------------------------------------
 # Jump hints
 # ---------------------------------------------------------------------------
@@ -218,11 +203,6 @@ def test_jump_targets_include_collapsed_banner_in_render_order() -> None:
         ("banner", ("alpha",)),
         ("changespec", 2),
     ]
-
-
-def test_jump_targets_empty_in_flat_mode() -> None:
-    app = _NavApp(_make_three_project_specs(), mode=ChangeSpecGroupingMode.FLAT)
-    assert app._changespec_jump_targets() == []
 
 
 # ---------------------------------------------------------------------------
@@ -240,13 +220,6 @@ def test_banner_focus_invalid_when_group_filtered_out() -> None:
     # Drop the two ``alpha`` CLs — only ``beta`` remains.
     app = _NavApp([_cs("b_one", project="beta")])
     app._current_changespec_group_key = ("alpha",)
-    assert app._changespec_banner_focus_still_valid() is False
-
-
-def test_banner_focus_invalid_in_flat_mode() -> None:
-    app = _NavApp(_make_three_project_specs(), mode=ChangeSpecGroupingMode.FLAT)
-    app._current_changespec_group_key = ("alpha",)
-    # Flat mode produces no banner keys — any non-None focus is stale.
     assert app._changespec_banner_focus_still_valid() is False
 
 
@@ -271,32 +244,10 @@ class _NavActionApp(_NavApp):
     # the relevant behavior here so the test stays focused on the CL
     # branch without dragging in the agents/AXE wiring.
     def action_next_changespec(self) -> None:
-        if self._changespec_grouping_active():
-            self._navigate_changespec_panel(1)
-        else:
-            if not self.changespecs:
-                return
-            self.current_idx = (self.current_idx + 1) % len(self.changespecs)
+        self._navigate_changespec_panel(1)
 
     def action_prev_changespec(self) -> None:
-        if self._changespec_grouping_active():
-            self._navigate_changespec_panel(-1)
-        else:
-            if not self.changespecs:
-                return
-            self.current_idx = (self.current_idx - 1) % len(self.changespecs)
-
-
-def test_jk_in_flat_mode_steps_indices_directly() -> None:
-    app = _NavActionApp(_make_three_project_specs(), mode=ChangeSpecGroupingMode.FLAT)
-    app.action_next_changespec()
-    assert app.current_idx == 1
-    app.action_next_changespec()
-    assert app.current_idx == 2
-    app.action_next_changespec()
-    assert app.current_idx == 0
-    app.action_prev_changespec()
-    assert app.current_idx == 2
+        self._navigate_changespec_panel(-1)
 
 
 def test_jk_in_grouped_mode_walks_collapsed_banner_stops() -> None:
@@ -325,31 +276,8 @@ def test_hooks_or_collapse_routes_to_cl_grouped_collapse() -> None:
     class _FoldHarness(_NavApp, AgentFoldingMixin):
         def __init__(self, specs: list[ChangeSpec]) -> None:
             _NavApp.__init__(self, specs)
-            self.edit_hooks_calls = 0
-
-        def action_edit_hooks(self) -> None:
-            # Flat-mode fallback — must not fire while grouped.
-            self.edit_hooks_calls += 1
 
     app = _FoldHarness(_make_three_project_specs())
     app.action_hooks_or_collapse()
     assert app._changespec_group_fold_registry.is_collapsed(("alpha",))
-    assert app.edit_hooks_calls == 0
     assert app.refresh_calls == 1
-
-
-def test_hooks_or_collapse_falls_back_to_edit_hooks_in_flat_mode() -> None:
-    from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
-
-    class _FoldHarness(_NavApp, AgentFoldingMixin):
-        def __init__(self, specs: list[ChangeSpec]) -> None:
-            _NavApp.__init__(self, specs, mode=ChangeSpecGroupingMode.FLAT)
-            self.edit_hooks_calls = 0
-
-        def action_edit_hooks(self) -> None:
-            self.edit_hooks_calls += 1
-
-    app = _FoldHarness(_make_three_project_specs())
-    app.action_hooks_or_collapse()
-    assert app.edit_hooks_calls == 1
-    assert not app._changespec_group_fold_registry.collapsed

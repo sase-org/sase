@@ -39,16 +39,15 @@ class ChangeSpecTreeEntry:
 
 def enumerate_changespec_group_keys(
     changespecs: list[ChangeSpec],
-    mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+    mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
     now: datetime | None = None,
 ) -> list[GroupKey]:
     """Return the deduplicated list of every banner key produced by *mode*.
 
-    ``FLAT`` always returns ``[]``.  Sibling-root L1 keys are only
-    included when their root has 2+ visible CLs, matching the
-    suppression rule in :func:`build_changespec_tree`.
+    Sibling-root L1 keys are only included when their root has 2+ visible
+    CLs, matching the suppression rule in :func:`build_changespec_tree`.
     """
-    if not changespecs or mode is ChangeSpecGroupingMode.FLAT:
+    if not changespecs:
         return []
     reference = now if now is not None else datetime.now()
     # BY_DATE bucketing reads the latest TIMESTAMPS entry; precomputing
@@ -89,16 +88,15 @@ def enumerate_changespec_group_keys(
 
 def build_changespec_tree(
     changespecs: list[ChangeSpec],
-    mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.FLAT,
+    mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
     fold_registry: GroupFoldRegistry | None = None,
     now: datetime | None = None,
 ) -> list[ChangeSpecTreeEntry]:
     """Build the grouped tree of banner + CL entries.
 
     Args:
-        changespecs: Filtered CL list (rendered order for ``FLAT``).
-        mode: Grouping strategy.  ``FLAT`` produces no banners and
-            preserves the input order one-for-one.
+        changespecs: Filtered CL list.
+        mode: Grouping strategy.
         fold_registry: Optional per-group collapse registry.  Missing or
             empty registry renders every group expanded.
         now: Reference time for ``BY_DATE`` (defaults to ``datetime.now()``).
@@ -108,12 +106,6 @@ def build_changespec_tree(
     """
     if not changespecs:
         return []
-
-    if mode is ChangeSpecGroupingMode.FLAT:
-        return [
-            ChangeSpecTreeEntry(kind="changespec", changespec_idx=i)
-            for i in range(len(changespecs))
-        ]
 
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     reference = now if now is not None else datetime.now()

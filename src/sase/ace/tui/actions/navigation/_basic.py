@@ -142,13 +142,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
                 return
-            if self._changespec_grouping_active():  # type: ignore[attr-defined]
-                self._navigate_changespec_panel(1)  # type: ignore[attr-defined]
-                return
-            if self.current_idx < len(self.changespecs) - 1:
-                self.current_idx += 1
-            else:
-                self.current_idx = 0
+            self._navigate_changespec_panel(1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(1)
         else:  # axe tab
@@ -166,13 +160,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
                 return
-            if self._changespec_grouping_active():  # type: ignore[attr-defined]
-                self._navigate_changespec_panel(-1)  # type: ignore[attr-defined]
-                return
-            if self.current_idx > 0:
-                self.current_idx -= 1
-            else:
-                self.current_idx = len(self.changespecs) - 1
+            self._navigate_changespec_panel(-1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(-1)
         else:  # axe tab

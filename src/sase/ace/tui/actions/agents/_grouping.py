@@ -34,10 +34,9 @@ _MODE_LABELS: dict[str, str] = {
     "BY_STATUS": "by status",
 }
 
-#: CLs-tab cycle order — FLAT is the first-paint default and the cycle
-#: returns to it so users can opt out without restarting.
+#: CLs-tab cycle order — BY_PROJECT is the first-paint default; the cycle
+#: walks through the three real grouping strategies and wraps back.
 _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
-    "FLAT",
     "BY_PROJECT",
     "BY_DATE",
     "BY_STATUS",
@@ -45,7 +44,6 @@ _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
 
 #: Human-readable labels for the CLs-tab toast emitted on each step.
 _CHANGESPEC_MODE_LABELS: dict[str, str] = {
-    "FLAT": "flat",
     "BY_PROJECT": "by project",
     "BY_DATE": "by date",
     "BY_STATUS": "by status",

@@ -22,10 +22,8 @@ log = logging.getLogger(__name__)
 
 TabName = Literal["changespecs", "agents", "axe"]
 
-# Human-readable badge text per CL grouping mode.  ``FLAT`` resolves to
-# the empty string so the info-panel badge stays hidden in flat mode.
+# Human-readable badge text per CL grouping mode.
 _CHANGESPEC_GROUPING_BADGE_LABELS: dict[ChangeSpecGroupingMode, str] = {
-    ChangeSpecGroupingMode.FLAT: "",
     ChangeSpecGroupingMode.BY_PROJECT: "by project",
     ChangeSpecGroupingMode.BY_DATE: "by date",
     ChangeSpecGroupingMode.BY_STATUS: "by status",
@@ -391,13 +389,9 @@ class ChangeSpecDisplayMixin:
         from ...models.changespec_groups import enumerate_changespec_group_keys
 
         grouping_mode: ChangeSpecGroupingMode = getattr(
-            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.FLAT
+            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.BY_PROJECT
         )
-        fold_registry = (
-            getattr(self, "_changespec_group_fold_registry", None)
-            if grouping_mode is not ChangeSpecGroupingMode.FLAT
-            else None
-        )
+        fold_registry = getattr(self, "_changespec_group_fold_registry", None)
         if fold_registry is not None:
             # Drop collapse intent for groups whose last member dropped
             # out of the filtered set — otherwise a key from a previous
@@ -405,15 +399,10 @@ class ChangeSpecDisplayMixin:
             fold_registry.clear_unknown(
                 enumerate_changespec_group_keys(self.changespecs, mode=grouping_mode)
             )
-        current_group_key = (
-            getattr(self, "_current_changespec_group_key", None)
-            if grouping_mode is not ChangeSpecGroupingMode.FLAT
-            else None
-        )
+        current_group_key = getattr(self, "_current_changespec_group_key", None)
         banner_jump_hints = (
             dict(getattr(self, "_entry_jump_changespec_banner_to_hint", {}) or {})
             if self._entry_jump_mode_active
-            and grouping_mode is not ChangeSpecGroupingMode.FLAT
             else None
         )
         list_widget.update_list(  # type: ignore[attr-defined]
@@ -480,7 +469,7 @@ class ChangeSpecDisplayMixin:
             self._hidden_reverted_count, self._hidden_submitted_count
         )
         cs_mode: ChangeSpecGroupingMode = getattr(
-            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.FLAT
+            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.BY_PROJECT
         )
         info_panel.update_grouping_mode(_CHANGESPEC_GROUPING_BADGE_LABELS[cs_mode])
         info_panel.update_countdown(self._countdown_remaining, self.refresh_interval)  # type: ignore[attr-defined]

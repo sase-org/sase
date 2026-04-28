@@ -49,10 +49,7 @@ class ChangeSpecInfoPanel(Static):
         self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
         self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
         self._fold_timestamps: FoldLevel = FoldLevel.COLLAPSED
-        # Empty string means "flat" — the badge stays hidden so the dense
-        # CL top bar is not cluttered when the user has not opted in to
-        # grouping.  Non-empty values turn the badge on.
-        self._grouping_label: str = ""
+        self._grouping_label: str = "by project"
         self._registry: KeymapRegistry = load_keymap_registry({})
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
@@ -64,13 +61,10 @@ class ChangeSpecInfoPanel(Static):
         """Update the active CL grouping-strategy label.
 
         Args:
-            label: Human-readable label.  Empty string (or ``"flat"``)
-                hides the badge so the FLAT default doesn't clutter the
-                top bar.
+            label: Human-readable label.  Empty string hides the badge.
         """
-        normalized = "" if label.lower() in ("", "flat") else label
-        if self._grouping_label != normalized:
-            self._grouping_label = normalized
+        if self._grouping_label != label:
+            self._grouping_label = label
             self._refresh_content()
 
     def update_position(self, position: int, total: int, marked_count: int = 0) -> None:

@@ -44,34 +44,17 @@ def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
     )
 
 
-# ── FLAT mode: backward-compatible row mapping ─────────────────────────
+# ── default mode: BY_PROJECT ───────────────────────────────────────────
 
 
-def test_flat_render_populates_row_entries_identity(monkeypatch: Any) -> None:
-    widget, _ = _wire_widget(monkeypatch)
-    css = [_cs("alpha"), _cs("beta"), _cs("gamma")]
-
-    widget.update_list(css, current_idx=0)
-
-    assert widget._row_entries == [0, 1, 2]
-    assert widget._banner_at_row == {}
-    assert widget._banner_row_by_key == {}
-    assert widget._grouping_mode is ChangeSpecGroupingMode.FLAT
-    # Flat-mode option count matches the CL count exactly so the
-    # patch-row gate (option_count == len(_changespecs)) keeps working.
-    assert widget.option_count == len(css)
-
-
-def test_flat_render_default_mode_is_unchanged(monkeypatch: Any) -> None:
-    """Callers that don't pass ``grouping_mode`` get the original behavior."""
+def test_default_mode_is_by_project(monkeypatch: Any) -> None:
+    """Callers that don't pass ``grouping_mode`` get the BY_PROJECT default."""
     widget, _ = _wire_widget(monkeypatch)
     css = [_cs("alpha"), _cs("beta")]
 
     widget.update_list(css, current_idx=1)
 
-    assert widget._grouping_mode is ChangeSpecGroupingMode.FLAT
-    # Highlight resolves to the CL row, not a banner.
-    assert widget.highlighted == 1
+    assert widget._grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
 
 
 # ── BY_STATUS / BY_DATE: L0 banners only, no L1 ────────────────────────
@@ -267,21 +250,6 @@ def test_grouped_render_respects_min_banner_width(monkeypatch: Any) -> None:
     assert width_msgs, "expected at least one WidthChanged message"
     # Banner content + padding always lands above the minimum.
     assert width_msgs[-1].width >= 40
-
-
-def test_flat_render_width_unchanged_by_grouping_path(monkeypatch: Any) -> None:
-    """Flat path width calc is independent of the grouped-mode min."""
-    widget, posted = _wire_widget(monkeypatch)
-    css = [_cs("alpha")]
-
-    widget.update_list(css, current_idx=0)
-
-    width_msgs = [m for m in posted if isinstance(m, ChangeSpecList.WidthChanged)]
-    assert width_msgs
-    # Flat-mode width comes from CL content + 8 padding; should be much
-    # smaller than the grouped-mode floor of ~48 (40 banner + 8 pad) for
-    # this trivially-named CL.
-    assert width_msgs[-1].width < 40
 
 
 # ── update_highlight overload ──────────────────────────────────────────

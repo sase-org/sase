@@ -212,15 +212,15 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             [
                 (
                     d(a.cycle_grouping_mode),
-                    "Cycle: flat→proj→date→status",
+                    "Cycle: proj→date→status",
                 ),
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand/collapse group (non-flat)",
+                    "Expand/collapse group",
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Expand/collapse all (non-flat)",
+                    "Expand/collapse all",
                 ),
             ],
         ),

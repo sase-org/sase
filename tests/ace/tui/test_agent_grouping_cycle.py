@@ -45,12 +45,12 @@ class _StubApp(AgentGroupingMixin):
         # CL-side state is required by the action's tab dispatch even
         # when the test never enters the CLs branch — the dispatcher
         # references these attributes during type-narrowing setup.
-        self._changespec_grouping_mode = ChangeSpecGroupingMode.FLAT
+        self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
-        ] = {ChangeSpecGroupingMode.FLAT: GroupFoldRegistry()}
+        ] = {ChangeSpecGroupingMode.BY_PROJECT: GroupFoldRegistry()}
         self._changespec_group_fold_registry = self._changespec_group_fold_registries[
-            ChangeSpecGroupingMode.FLAT
+            ChangeSpecGroupingMode.BY_PROJECT
         ]
         self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refilter_calls = 0
@@ -261,7 +261,7 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
 
 
 # ---------------------------------------------------------------------------

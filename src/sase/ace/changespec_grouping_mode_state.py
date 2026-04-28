@@ -9,11 +9,11 @@ from pathlib import Path
 from .tui.models.changespec_groups import ChangeSpecGroupingMode
 
 _GROUPING_MODE_FILE = Path.home() / ".sase" / "changespec_grouping_mode.txt"
-_DEFAULT = ChangeSpecGroupingMode.FLAT
+_DEFAULT = ChangeSpecGroupingMode.BY_PROJECT
 
 
 def load_changespec_grouping_mode() -> ChangeSpecGroupingMode:
-    """Load the persisted CL grouping mode, or FLAT if missing/corrupt."""
+    """Load the persisted CL grouping mode, or BY_PROJECT if missing/corrupt."""
     if not _GROUPING_MODE_FILE.exists():
         return _DEFAULT
     try:

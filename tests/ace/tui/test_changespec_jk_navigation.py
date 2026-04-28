@@ -40,11 +40,14 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     # ``watch_highlighted`` is the synchronous gate that swallows the
     # would-be SelectionChanged.
     widget.update_highlight(1)
-    assert widget.highlighted == 1
+    # Grouped render emits a project banner before the CL rows, so CL
+    # idx 1 lives at option row 2.
+    target_row = next(i for i, e in enumerate(widget._row_entries) if e == 1)
+    assert widget.highlighted == target_row
     assert widget._programmatic_update is False
 
-    option = widget.get_option_at_index(1)
-    event = OptionList.OptionHighlighted(widget, option, 1)
+    option = widget.get_option_at_index(target_row)
+    event = OptionList.OptionHighlighted(widget, option, target_row)
     widget.on_option_list_option_highlighted(event)
 
     # The old code path posted a SelectionChanged here because the
@@ -77,8 +80,9 @@ def test_changespec_list_user_highlight_still_posts_selection(
     widget._clear_programmatic_flag()
     posted.clear()
 
-    option = widget.get_option_at_index(1)
-    event = OptionList.OptionHighlighted(widget, option, 1)
+    target_row = next(i for i, e in enumerate(widget._row_entries) if e == 1)
+    option = widget.get_option_at_index(target_row)
+    event = OptionList.OptionHighlighted(widget, option, target_row)
     widget.on_option_list_option_highlighted(event)
 
     assert len(posted) == 1

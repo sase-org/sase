@@ -141,10 +141,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if self.current_tab == "agents":
             self._begin_agents_jump_mode()
             return
-        if (
-            self.current_tab == "changespecs"
-            and getattr(self, "_changespec_grouping_active", lambda: False)()
-        ):
+        if self.current_tab == "changespecs":
             self._begin_changespec_jump_mode()
             return
 
@@ -368,10 +365,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._exit_entry_jump_mode()
             return True
 
-        if (
-            self.current_tab == "changespecs"
-            and getattr(self, "_changespec_grouping_active", lambda: False)()
-        ):
+        if self.current_tab == "changespecs":
             banner_key = self._entry_jump_hint_to_changespec_banner.get(key)
             agent_target = self._entry_jump_hint_to_index.get(key)
             if banner_key is None and agent_target is None:
