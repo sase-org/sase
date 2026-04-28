@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from sase.xprompt.directives import split_prompt_for_models
+from sase.xprompt.models import XPrompt
 
 
 def test_split_prompt_for_models_two_models() -> None:
@@ -294,6 +295,64 @@ def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
     assert result[1] == (
         "%name:o.gem-gemini-2.5-flash\n%model:gemini-2.5-flash\nReview"
     )
+
+
+def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> None:
+    """A model shorthand keeps its raw directive but names with the resolved alias."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models("%n:o\n%m(#flash,gemini-2.5-flash)\nReview")
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:o.gem-flash3\n%model:#flash\nReview"
+    assert result[1] == "%name:o.gem-flash25\n%model:gemini-2.5-flash\nReview"
+
+
+def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
+    """Same-runtime shorthand variants disambiguate with resolved model aliases."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+        "pro": XPrompt(name="pro", content="gemini-3.1-pro-preview"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models("%n:ag\n%m(#flash,#pro)\nReview")
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:ag.gem-flash3\n%model:#flash\nReview"
+    assert result[1] == "%name:ag.gem-pro31p\n%model:#pro\nReview"
+
+
+def test_split_prompt_for_models_dedupes_raw_and_shorthand_same_model() -> None:
+    """Raw and shorthand forms of the same model do not fan out."""
+    xprompts = {
+        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+    }
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
+        result = split_prompt_for_models("%m(#flash,gemini-3-flash-preview)\nReview")
+
+    assert result is None
+
+
+def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -> None:
+    """Unknown shorthand remains raw in %model but drops # from the name suffix."""
+    with patch(
+        "sase.xprompt._directive_alt._runtime_label_for_model",
+        return_value="gem",
+    ):
+        result = split_prompt_for_models(
+            "%n:o\n%m(#unknown_model_alias,gemini-3-flash-preview)\nReview"
+        )
+
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == (
+        "%name:o.gem-unknown_model_alias\n%model:#unknown_model_alias\nReview"
+    )
+    assert result[1] == "%name:o.gem-flash3\n%model:gemini-3-flash-preview\nReview"
 
 
 def test_split_prompt_for_models_pure_alt_not_renamed() -> None:

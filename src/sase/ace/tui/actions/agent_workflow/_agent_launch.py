@@ -305,7 +305,10 @@ class AgentLaunchMixin(
         from sase.xprompt.directives import split_prompt_for_models
 
         dispatch_prompt = "\n---\n".join(multi.segments)
-        model_prompts = split_prompt_for_models(dispatch_prompt)
+        model_prompts = split_prompt_for_models(
+            dispatch_prompt,
+            extra_xprompts=local_xprompts or None,
+        )
         if model_prompts is None:
             # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
             # only when the prompt has a lexical xprompt candidate.  The agent
@@ -323,7 +326,10 @@ class AgentLaunchMixin(
                     dispatch_prompt,
                     extra_xprompts=local_xprompts or None,
                 )
-                model_prompts = split_prompt_for_models(expanded_prompt)
+                model_prompts = split_prompt_for_models(
+                    expanded_prompt,
+                    extra_xprompts=local_xprompts or None,
+                )
         if model_prompts is not None:
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_model_agents,

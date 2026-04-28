@@ -927,7 +927,9 @@ each agent picking its own letter independently. Single-model prompts retain the
 two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the suffix:
 `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a short alias
 (`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gem-flash3` /
-`foo.gem-flash25` rather than echoing the full model string.
+`foo.gem-flash25` rather than echoing the full model string. Model arguments used for naming are first resolved through
+xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
+`%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
 
 ### Multi-Value Directives
 

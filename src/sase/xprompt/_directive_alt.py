@@ -6,8 +6,11 @@ sub-prompts — one per Cartesian product entry — and the naming logic
 that disambiguates spawned agents per runtime.
 """
 
+from __future__ import annotations
+
 import itertools
 import re
+from typing import TYPE_CHECKING
 
 from ._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
 from ._disabled_regions import (
@@ -17,6 +20,9 @@ from ._disabled_regions import (
 from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
+
+if TYPE_CHECKING:
+    from .models import XPrompt
 
 # Pattern to match %alt( or %( at a directive-valid position.
 _ALT_DIRECTIVE_RE = re.compile(
@@ -101,7 +107,11 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     return result
 
 
-def split_prompt_for_models(prompt: str) -> list[str] | None:
+def split_prompt_for_models(
+    prompt: str,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> list[str] | None:
     """Split a prompt with multi-model or ``%alt``/``%(`` directives into per-variant prompts.
 
     Handles three cases:
@@ -195,15 +205,16 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
         sub_prompts = split_prompt_for_alternatives(prompt)
         if sub_prompts is None:
             return None
-        return _apply_multi_model_naming(sub_prompts)
+        return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
 
     # Dedupe model args in document order (first occurrence wins).
     seen_models: set[str] = set()
     unique_models: list[str] = []
     for _, _, args in directive_spans:
         for arg in args:
-            if arg not in seen_models:
-                seen_models.add(arg)
+            model_key = _model_value_for_naming(arg, extra_xprompts=extra_xprompts)
+            if model_key not in seen_models:
+                seen_models.add(model_key)
                 unique_models.append(arg)
 
     if len(unique_models) <= 1:
@@ -212,7 +223,7 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
         sub_prompts = split_prompt_for_alternatives(prompt)
         if sub_prompts is None:
             return None
-        return _apply_multi_model_naming(sub_prompts)
+        return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
 
     # Two or more unique models — collapse every collected span into a
     # single %alt(%model:a,%model:b,...) directive at the first span's
@@ -248,7 +259,7 @@ def split_prompt_for_models(prompt: str) -> list[str] | None:
     sub_prompts = split_prompt_for_alternatives(rewritten)
     if sub_prompts is None:
         return None
-    return _apply_multi_model_naming(sub_prompts)
+    return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
 
 
 def _extract_first_model_value(prompt: str) -> str | None:
@@ -374,12 +385,43 @@ def _runtime_label_for_model(model: str) -> str:
     return provider_short_name_map().get(name, name)
 
 
+def _model_value_for_naming(
+    model: str,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> str:
+    """Resolve xprompt shorthand in a model token for naming only."""
+    if "#" not in model:
+        return model
+
+    from .processor import process_xprompt_references
+
+    expanded = process_xprompt_references(
+        model,
+        extra_xprompts=extra_xprompts or None,
+    ).strip()
+    if expanded == model:
+        return model
+    return expanded
+
+
+def _model_disambiguator_for_naming(raw_model: str, label_model: str) -> str:
+    """Return the model text used after ``<runtime>-`` in agent names."""
+    if raw_model.startswith("#") and label_model == raw_model:
+        return raw_model[1:]
+    return label_model
+
+
 def _inject_name_directive(prompt: str, name: str) -> str:
     """Prepend a ``%name:<name>`` line to *prompt*."""
     return f"%name:{name}\n{prompt}"
 
 
-def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
+def _apply_multi_model_naming(
+    sub_prompts: list[str],
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> list[str]:
     """Add ``%name:<base>.<runtime>`` to each sub-prompt of a multi-model fan-out.
 
     Triggers only when the sub-prompts span at least two distinct ``%model``
@@ -389,8 +431,14 @@ def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
     (``foo.claude-opus`` / ``foo.claude-sonnet``).
     """
     models_per_sub = [_extract_first_model_value(s) for s in sub_prompts]
-    distinct_models = [m for m in dict.fromkeys(models_per_sub) if m]
-    if len(distinct_models) < 2:
+    label_models_per_sub = [
+        _model_value_for_naming(model, extra_xprompts=extra_xprompts)
+        if model is not None
+        else None
+        for model in models_per_sub
+    ]
+    distinct_label_models = [m for m in dict.fromkeys(label_models_per_sub) if m]
+    if len(distinct_label_models) < 2:
         return sub_prompts
 
     base: str | None = None
@@ -407,15 +455,20 @@ def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
     from sase.llm_provider.registry import model_short_alias_map
 
     aliases = model_short_alias_map()
-    runtime_for = {m: _runtime_label_for_model(m) for m in distinct_models}
+    runtime_for = {m: _runtime_label_for_model(m) for m in distinct_label_models}
     runtime_count: dict[str, int] = {}
     for r in runtime_for.values():
         runtime_count[r] = runtime_count.get(r, 0) + 1
     suffix_for: dict[str, str] = {}
-    for m in distinct_models:
+    raw_for_label = {
+        label: raw
+        for raw, label in zip(models_per_sub, label_models_per_sub, strict=True)
+        if raw is not None and label is not None
+    }
+    for m in distinct_label_models:
         r = runtime_for[m]
         if runtime_count[r] > 1:
-            short = aliases.get(m, m)
+            short = aliases.get(m, _model_disambiguator_for_naming(raw_for_label[m], m))
             suffix_for[m] = f"{r}-{short}"
         else:
             suffix_for[m] = r
@@ -423,16 +476,20 @@ def _apply_multi_model_naming(sub_prompts: list[str]) -> list[str]:
     # form); fall back to raw model names for the colliding runtime so
     # spawned agent names stay distinct.
     if len(set(suffix_for.values())) != len(suffix_for):
-        for m in distinct_models:
+        for m in distinct_label_models:
             r = runtime_for[m]
             if runtime_count[r] > 1:
-                suffix_for[m] = f"{r}-{m}"
+                suffix_for[m] = (
+                    f"{r}-{_model_disambiguator_for_naming(raw_for_label[m], m)}"
+                )
 
     out: list[str] = []
-    for sub, model in zip(sub_prompts, models_per_sub, strict=True):
-        if model is None or model not in suffix_for:
+    for sub, label_model in zip(sub_prompts, label_models_per_sub, strict=True):
+        if label_model is None or label_model not in suffix_for:
             out.append(sub)
             continue
         stripped, _, _ = _extract_and_strip_name_directive(sub)
-        out.append(_inject_name_directive(stripped, f"{base}.{suffix_for[model]}"))
+        out.append(
+            _inject_name_directive(stripped, f"{base}.{suffix_for[label_model]}")
+        )
     return out

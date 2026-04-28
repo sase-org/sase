@@ -204,7 +204,10 @@ def launch_multi_prompt_agents(
         # Try the raw segment first; if no match and the segment contains
         # xprompt references, expand them and re-check (a referenced xprompt
         # may inject a multi-model directive).
-        model_prompts = split_prompt_for_models(segment)
+        model_prompts = split_prompt_for_models(
+            segment,
+            extra_xprompts=segment_local_xprompts or None,
+        )
         if model_prompts is None and "#" in segment:
             from sase.xprompt.processor import process_xprompt_references
 
@@ -212,7 +215,10 @@ def launch_multi_prompt_agents(
                 segment,
                 extra_xprompts=segment_local_xprompts or None,
             )
-            model_prompts = split_prompt_for_models(expanded)
+            model_prompts = split_prompt_for_models(
+                expanded,
+                extra_xprompts=segment_local_xprompts or None,
+            )
 
         sub_prompts = model_prompts if model_prompts is not None else [segment]
 

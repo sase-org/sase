@@ -478,6 +478,62 @@ def test_launch_multi_prompt_with_multi_model_segment(
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.multi_prompt_launcher.time.sleep")
+@patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"])
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_sleep: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Local model shorthand is resolved for names but kept in %model."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    xprompts = {
+        "_flash": XPrompt(name="_flash", content="gemini-3-flash-preview"),
+    }
+
+    results = launch_multi_prompt_agents(
+        segments=["%n:ag\n%m(#_flash,gemini-2.5-flash)\nReview"],
+        local_xprompts=xprompts,
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert len(results) == 2
+    prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
+    assert prompts[0] == "%name:ag.gem-flash3\n%model:#_flash\nReview"
+    assert prompts[1] == "%name:ag.gem-flash25\n%model:gemini-2.5-flash\nReview"
+
+    local_xprompt_files = [
+        c.kwargs["local_xprompts_file"] for c in mock_spawn.call_args_list
+    ]
+    assert all(path is not None for path in local_xprompt_files)
+    for path in local_xprompt_files:
+        try:
+            loaded = deserialize_local_xprompts(path)
+            assert set(loaded) == {"_flash"}
+        finally:
+            if path and os.path.exists(path):
+                os.unlink(path)
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"])
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])

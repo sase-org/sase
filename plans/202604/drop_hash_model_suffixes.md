@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 18:04:35
-status: wip
+status: done
 ---
 # Drop `#` From Model Shorthand Agent Suffixes
 
