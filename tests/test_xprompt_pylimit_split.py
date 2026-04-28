@@ -15,6 +15,7 @@ import pytest
 
 from sase.agent.multi_prompt import parse_multi_prompt
 from sase.xprompt.workflow_loader import _load_workflow_from_file
+from sase.xprompt.workflow_validator import validate_workflow
 
 
 @pytest.fixture
@@ -38,6 +39,14 @@ def test_workflow_has_single_hidden_python_step(pylimit_workflow_path: Path) -> 
     # Sanity check the body actually drives the documented launch path.
     assert "launch_agent_from_cwd" in step.python
     assert "build_wait_chained_multi_prompt" in step.python
+
+
+def test_workflow_passes_compile_time_validation(pylimit_workflow_path: Path) -> None:
+    """The static validator must accept the generated pysplit call shape."""
+    wf = _load_workflow_from_file(pylimit_workflow_path)
+    assert wf is not None
+
+    validate_workflow(wf)
 
 
 def _run_step_python(
@@ -105,8 +114,10 @@ def test_step_two_files_launches_chained_multi_prompt(
     assert "%wait" not in parsed.segments[0]
     assert parsed.segments[1].startswith("%wait")
 
-    assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
-    assert "#sase/pysplit:src/bar.py" in parsed.segments[1]
+    assert "%name:pysplit.foo" in parsed.segments[0]
+    assert "%name:pysplit.bar" in parsed.segments[1]
+    assert "#sase/pysplit:`src/foo.py`" in parsed.segments[0]
+    assert "#sase/pysplit:`src/bar.py`" in parsed.segments[1]
     for seg in parsed.segments:
         assert "#gh:sase" in seg
         assert "%approve" in seg
@@ -131,5 +142,32 @@ def test_step_dedups_files_across_trees(
     assert len(captured) == 1
     parsed = parse_multi_prompt(captured[0])
     assert len(parsed.segments) == 2
-    assert "#sase/pysplit:src/dup.py" in parsed.segments[0]
-    assert "#sase/pysplit:tests/only.py" in parsed.segments[1]
+    assert "%name:pysplit.dup" in parsed.segments[0]
+    assert "%name:pysplit.only" in parsed.segments[1]
+    assert "#sase/pysplit:`src/dup.py`" in parsed.segments[0]
+    assert "#sase/pysplit:`tests/only.py`" in parsed.segments[1]
+
+
+def test_step_names_same_stem_with_collision_suffix(
+    pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Distinct files with the same basename get stable unique agent names."""
+    wf = _load_workflow_from_file(pylimit_workflow_path)
+    assert wf is not None
+
+    captured = _run_step_python(
+        wf.steps[0].python or "",
+        pylimit_outputs={
+            "src": "src/foo.py\n",
+            "tests": "tests/foo.py\n",
+        },
+        monkeypatch=monkeypatch,
+    )
+
+    assert len(captured) == 1
+    parsed = parse_multi_prompt(captured[0])
+    assert len(parsed.segments) == 2
+    assert "%name:pysplit.foo" in parsed.segments[0]
+    assert "%name:pysplit.foo-2" in parsed.segments[1]
+    assert "#sase/pysplit:`src/foo.py`" in parsed.segments[0]
+    assert "#sase/pysplit:`tests/foo.py`" in parsed.segments[1]
