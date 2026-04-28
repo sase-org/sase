@@ -42,12 +42,14 @@ under the parent banner without an extra header.
 
 from ._buckets import (
     NO_CHANGESPEC_LABEL,
+    NO_HOUR_LABEL,
     NO_PROJECT,
     GroupingMode,
     _NEEDS_ATTENTION_STATUSES,
     _NEEDS_INPUT_STATUSES,
     _TERMINAL_STATUSES,
     date_bucket_for,
+    hour_bucket_for,
     status_bucket_for,
 )
 from ._keys import grouping_keys_for_agents, panel_uses_changespec_level
@@ -75,6 +77,7 @@ __all__ = [
     "GroupRow",
     "GroupingMode",
     "NO_CHANGESPEC_LABEL",
+    "NO_HOUR_LABEL",
     "NO_PROJECT",
     "TreeEntry",
     "banner_label",
@@ -85,6 +88,7 @@ __all__ = [
     "enumerate_group_keys",
     "find_visible_ancestor_banner",
     "grouping_keys_for_agents",
+    "hour_bucket_for",
     "panel_uses_changespec_level",
     "status_bucket_for",
 ]

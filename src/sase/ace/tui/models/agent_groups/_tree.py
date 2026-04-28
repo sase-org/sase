@@ -22,7 +22,7 @@ from ._keys import (
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
-    level: int  # 0 = project, 1 = changespec or name-root, 2 = name-root
+    level: int  # 0 = project, 1 = changespec / name-root / hour, 2 = name-root
     group_key: tuple[str, ...]
     agent_indices: tuple[int, ...]
     is_collapsed: bool = False
@@ -73,6 +73,7 @@ def enumerate_group_keys(
         keys_per_agent = grouping_keys_for_agents(panel_agents, mode, reference)
         use_cs = panel_uses_changespec_level(panel_agents, mode)
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
+        hour_counts: dict[tuple[str, str], int] = {}
         for k in keys_per_agent:
             parent: tuple[str, ...] = (
                 (k.project, k.changespec) if use_cs else (k.project,)
@@ -80,6 +81,10 @@ def enumerate_group_keys(
             if k.name_root:
                 root_counts[(parent, k.name_root)] = (
                     root_counts.get((parent, k.name_root), 0) + 1
+                )
+            if mode is GroupingMode.BY_DATE and k.hour:
+                hour_counts[(k.project, k.hour)] = (
+                    hour_counts.get((k.project, k.hour), 0) + 1
                 )
         for k in keys_per_agent:
             l0: GroupKey = (k.project,)
@@ -94,6 +99,15 @@ def enumerate_group_keys(
                 parent = l1
             else:
                 parent = l0
+            if (
+                mode is GroupingMode.BY_DATE
+                and k.hour
+                and hour_counts.get((k.project, k.hour), 0) >= 2
+            ):
+                hour_key: GroupKey = (k.project, k.hour)
+                if hour_key not in seen:
+                    seen.add(hour_key)
+                    out.append(hour_key)
             if k.name_root and root_counts.get((parent, k.name_root), 0) >= 2:
                 deep: GroupKey = (*parent, k.name_root)
                 if deep not in seen:
@@ -141,6 +155,7 @@ def build_agent_tree(
 
     proj_indices: dict[str, list[int]] = {}
     cs_indices: dict[tuple[str, str], list[int]] = {}
+    hour_indices: dict[tuple[str, str], list[int]] = {}
     root_indices: dict[tuple[tuple[str, ...], str], list[int]] = {}
     for i in walk:
         k = keys_per_agent[i]
@@ -150,15 +165,19 @@ def build_agent_tree(
             parent: tuple[str, ...] = (k.project, k.changespec)
         else:
             parent = (k.project,)
+        if mode is GroupingMode.BY_DATE and k.hour:
+            hour_indices.setdefault((k.project, k.hour), []).append(i)
         if k.name_root:
             root_indices.setdefault((parent, k.name_root), []).append(i)
 
     entries: list[TreeEntry] = []
     cur_proj: str | None = None
     cur_cs: str | None = None  # only meaningful when use_cs
+    cur_hour: str = ""  # only meaningful under BY_DATE
     cur_root: str = ""
     cur_proj_collapsed = False
     cur_cs_collapsed = False
+    cur_hour_collapsed = False
     cur_root_collapsed = False
 
     for i in walk:
@@ -179,8 +198,10 @@ def build_agent_tree(
             )
             cur_proj = k.project
             cur_cs = None
+            cur_hour = ""
             cur_root = ""
             cur_cs_collapsed = False
+            cur_hour_collapsed = False
             cur_root_collapsed = False
         if cur_proj_collapsed:
             continue
@@ -210,6 +231,28 @@ def build_agent_tree(
         else:
             parent_key = (k.project,)
             deep_level = 1
+
+        if mode is GroupingMode.BY_DATE and k.hour != cur_hour:
+            cur_hour = k.hour
+            cur_hour_collapsed = False
+            cur_root = ""
+            cur_root_collapsed = False
+            if k.hour and len(hour_indices.get((k.project, k.hour), [])) >= 2:
+                hour_key: GroupKey = (k.project, k.hour)
+                cur_hour_collapsed = registry.is_collapsed(hour_key)
+                entries.append(
+                    TreeEntry(
+                        kind="group",
+                        group=GroupRow(
+                            level=1,
+                            group_key=hour_key,
+                            agent_indices=tuple(hour_indices[(k.project, k.hour)]),
+                            is_collapsed=cur_hour_collapsed,
+                        ),
+                    )
+                )
+        if cur_hour_collapsed:
+            continue
 
         if k.name_root != cur_root:
             cur_root = k.name_root
@@ -276,8 +319,12 @@ def banner_label(group: GroupRow) -> str:
       ChangeSpec name or the synthetic ``"(no ChangeSpec)"`` bucket.
     * Level 1, 2-level mode (2-tuple ``(project, name_root)``) → the
       bare name-root (always non-empty for a real banner).
+    * Level 1, BY_DATE mode (2-tuple ``(date_bucket, "HH:00")``) → the
+      bare ``HH:00`` hour label.
     * Level 2 (3-tuple ``(project, changespec, name_root)``) → the
       bare name-root.
+
+    All non-L0 banners use the ``group_key[-1]`` suffix as their label.
     """
     if len(group.group_key) == 1:
         proj = group.group_key[0]

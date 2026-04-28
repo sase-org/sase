@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 22:41:10
-status: wip
+status: done
 ---
 # Plan: Hour-of-day sub-grouping under BY_DATE in the `sase ace` Agents tab
 

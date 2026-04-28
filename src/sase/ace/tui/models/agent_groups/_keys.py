@@ -8,12 +8,14 @@ from pathlib import Path
 
 from ..agent import Agent
 from ._buckets import (
+    NO_HOUR_LABEL,
     NO_PROJECT,
     GroupingMode,
+    hour_anchor_time,
     bucket_sort_index,
     date_bucket_for,
+    hour_bucket_for,
     status_bucket_for,
-    _TERMINAL_STATUSES,
 )
 
 
@@ -22,6 +24,7 @@ class _GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
+    hour: str = ""  # populated only under BY_DATE; "" otherwise
 
 
 def _project_name(agent: Agent) -> str:
@@ -79,6 +82,19 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
+def _hour_sort_key(hour: str) -> tuple[int, int]:
+    """Sort key for hour buckets — newest hour first, ``(no time)`` last.
+
+    Empty ``hour`` is the non-BY_DATE neutral (``(0, 0)``) so existing
+    orderings under STANDARD / BY_STATUS are preserved byte-for-byte.
+    """
+    if hour == "":
+        return (0, 0)
+    if hour == NO_HOUR_LABEL:
+        return (1, 0)
+    return (0, -int(hour[:2]))
+
+
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
     """Compute the L0 string value for *agent* under *mode*.
 
@@ -124,6 +140,7 @@ def grouping_keys_for(
             else ""
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
+        hour=hour_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
     )
 
 
@@ -197,11 +214,7 @@ def walk_anchors(
             if parent is not None:
                 target = parent
                 is_child = 1
-        anchor_time = None
-        if (target.status or "") in _TERMINAL_STATUSES:
-            anchor_time = target.stop_time or target.start_time
-        else:
-            anchor_time = target.start_time
+        anchor_time = hour_anchor_time(target)
         if anchor_time is None:
             anchor = float("inf")
         else:
@@ -237,6 +250,7 @@ def walk_order(
                 if use_changespec_level
                 else (0, "")
             ),
+            _hour_sort_key(keys_per_agent[i].hour),
             _name_root_sort_key(
                 keys_per_agent[i].name_root,
                 in_group=bool(keys_per_agent[i].name_root)

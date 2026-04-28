@@ -443,6 +443,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     d(a.cycle_grouping_mode),
                     "Cycle: default → date → status",
                 ),
+                ("by date", "Sub-grouped by hour-of-day"),
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Needs Attention", "User must act"),
                 ("▶ Running", "Actively executing"),
