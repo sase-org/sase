@@ -1,0 +1,48 @@
+"""Group/heading tree for the CLs tab.
+
+Models a flat sequence of banner + ChangeSpec entries from a list of
+ChangeSpecs.  Mirrors the shape of ``sase.ace.tui.models.agent_groups``
+but stays separate so CL-specific bucketing rules don't leak into the
+Agent code (or vice versa).
+
+Modes:
+
+* ``FLAT`` — no banners, preserves the input order one-for-one.
+* ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ CLs share
+  the same ``foobar``-style base name.
+* ``BY_DATE`` — L0 date bucket from the latest TIMESTAMPS entry.
+* ``BY_STATUS`` — L0 status bucket from the literal ``status`` string.
+
+All modes share the generic :class:`~sase.ace.tui.models.group_fold.GroupFoldRegistry`
+for collapse/expand state.
+"""
+
+from ._buckets import (
+    ChangeSpecGroupingMode,
+    date_bucket_for_changespec,
+    date_bucket_sort_index,
+    latest_changespec_timestamp,
+    status_bucket_for_changespec,
+    status_sort_index,
+)
+from ._keys import sibling_root_for_changespec
+from ._tree import (
+    ChangeSpecGroupRow,
+    ChangeSpecTreeEntry,
+    build_changespec_tree,
+    enumerate_changespec_group_keys,
+)
+
+__all__ = [
+    "ChangeSpecGroupRow",
+    "ChangeSpecGroupingMode",
+    "ChangeSpecTreeEntry",
+    "build_changespec_tree",
+    "date_bucket_for_changespec",
+    "date_bucket_sort_index",
+    "enumerate_changespec_group_keys",
+    "latest_changespec_timestamp",
+    "sibling_root_for_changespec",
+    "status_bucket_for_changespec",
+    "status_sort_index",
+]
