@@ -12,7 +12,7 @@ mode to expand it to a template string with cursor placed at the `$0` marker pos
 
 ## Research
 
-See `research/prompt_snippet_expansion.md` for the full design exploration.
+See `research/202603/prompt_snippet_expansion.md` for the full design exploration.
 
 ## Files to Modify
 

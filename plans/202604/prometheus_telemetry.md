@@ -196,7 +196,7 @@ no removal of the existing disk-based metrics system.
   families are present
 - Integration test: mock pushgateway server, run agent completion path, verify metrics are pushed
 - Run `just check` and fix any lint/type/test issues across all phases
-- Update `research/prometheus_telemetry.md` with implementation notes (what was built, any deviations from the research
+- Update `research/202604/prometheus_telemetry.md` with implementation notes (what was built, any deviations from the research
   plan)
 - Verify all metrics follow naming convention: `sase_<subsystem>_<name>_<unit>`
 - Verify all labels are bounded enums (no unbounded cardinality)

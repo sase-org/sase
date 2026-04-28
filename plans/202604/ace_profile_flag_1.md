@@ -7,7 +7,7 @@ status: done
 
 ## Context
 
-The research document `research/tui_profiling_strategies.md` recommends pyinstrument as the Layer 2 "Broad Discovery"
+The research document `research/202604/tui_profiling_strategies.md` recommends pyinstrument as the Layer 2 "Broad Discovery"
 profiling tool for the ace TUI. The workflow: run `sase ace --profile`, use the TUI normally, exit, and review the
 profiling report. pyinstrument is a statistical sampler with ~2-5% overhead and native asyncio support
 (`async_mode="enabled"`), making it safe for interactive Textual sessions.

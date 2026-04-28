@@ -33,7 +33,7 @@ in mind that each phase will be completed by a distinct `claude` instance.
 
 - We should no longer provide mentor prompts directly (see the `#mentor/*` xprompts in the ../sase-googe repo, for
   example). Instead, we should use a rubric / configuration to control which instructions are rendered in the `#mentor`
-  prompt. I want you to lead the design on this one (the configuration schema). See the research/mentor_redesign.md and
+  prompt. I want you to lead the design on this one (the configuration schema). See the research/202603/mentor_redesign.md and
   research/mentor_redesign_v2.md (a critique of the previous file's research) for inspiration, but YOU should make the
   final call (i.e. feel free to ignore the research in those files if you have a better approach).
 - We will start using the `#mentor` xprompt by default to run all mentors (we already do this, but it is by embedding
@@ -44,7 +44,7 @@ in mind that each phase will be completed by a distinct `claude` instance.
 ### Design Decisions
 
 I prompted a previous agent to critique the above prompt to flesh out design decisions that I need to make. You can find
-that agent's reply in the research/mentor_redesign_spec_critique.md file. I have listed my replies, which match the
+that agent's reply in the research/202603/mentor_redesign_spec_critique.md file. I have listed my replies, which match the
 numbered sections in that file, below:
 
 1. We should use the new "COMMENTED" MENTORS status when a mentor agent makes one or more comments. Mentor comments

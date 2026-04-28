@@ -100,8 +100,8 @@ scenario.
 
 ## Targets per phase gate
 
-The targets below come from `research/sase_perf_research.md` and are restated here so each phase agent has a single page
-to check against. A phase is green when the relevant targets are met **without regressing** any other span.
+The targets below come from `research/202604/sase_perf_research.md` and are restated here so each phase agent has a
+single page to check against. A phase is green when the relevant targets are met **without regressing** any other span.
 
 ```text
 j/k highlight p95             < 16 ms

@@ -1,4 +1,4 @@
-Can you help me implement a solution for memory/dynamic.md (see the @research/dynamic_memory_implementation.md file for
+Can you help me implement a solution for memory/dynamic.md (see the @research/202604/dynamic_memory_implementation.md file for
 relevant research--let's go with something like the recommended solution)? git should ignore this file. It should be
 deleted before starting a sase agent and possibly re-created before agent creation (if an xprompt matches some of the
 text in the prompt). Think this through thoroughly and create a plan using your `/sase_plan` skill before making any

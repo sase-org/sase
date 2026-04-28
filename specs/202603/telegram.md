@@ -1,5 +1,5 @@
 Can you help me integrate sase with telegram? I've already set up a bot account. See the
-@research/telegram/telegram_integration.md file for context. The bot user name and chat ID are stored in environment
+@research/202602/telegram_integration.md file for context. The bot user name and chat ID are stored in environment
 variables (`SASE_TELEGRAM_BOT_USERNAME` and `SASE_TELEGRAM_BOT_CHAT_ID`, respectively) and the API token can be
 retrieved by using the `pass show telegram_sase_bot_token` command. Some design decisions:
 

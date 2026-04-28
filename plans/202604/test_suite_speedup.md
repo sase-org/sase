@@ -5,7 +5,7 @@ bead_id: sase-l
 ---
 # Speed up `just test` — Implementation Plan
 
-Research source: `research/test_suite_speedup.md` (commit `43741c5e`).
+Research source: `research/202604/test_suite_speedup.md` (commit `43741c5e`).
 
 Implement options **A** (turn on `pytest-xdist` by default), **B** (split test vs test-cov, move coverage out of
 `addopts`), and **C** (fix the slow tests in `tests/test_agent_launch_repeat.py`). Target outcome per the research:
@@ -152,7 +152,7 @@ should drop from ~50 s → ~15 s.
    - Do **not** weaken production behavior. `sleep_between=1.0` exists to give agents distinct timestamps — keep the
      default, inject the test-only zero.
 4. **Re-measure**. Record post-fix timings for the same three commands as in step 1, and update
-   `research/test_suite_speedup.md` in-place at the bottom with an "Outcome" section (date, before/after numbers, list
+   `research/202604/test_suite_speedup.md` in-place at the bottom with an "Outcome" section (date, before/after numbers, list
    the phases that shipped). Do not rewrite the historical content — append.
 
 **Verification**:
@@ -187,7 +187,7 @@ are options D/F/G in the research doc and are explicitly deferred.
   `test-cov`, `check` wiring). Grep CI for any other caller of `just test` that expects coverage. Commit.
 - Phase 3 agent: measure, diagnose, fix `tests/test_agent_launch_repeat.py` (and minimal production seam in
   `src/sase/agent/repeat_launcher.py` or `src/sase/ace/tui/actions/agent_workflow/_launch_repeat.py` if needed). Append
-  outcome to `research/test_suite_speedup.md`. Commit.
+  outcome to `research/202604/test_suite_speedup.md`. Commit.
 
 Each phase should produce exactly one commit. Commits must build on each other cleanly — no phase should leave `master`
 broken.

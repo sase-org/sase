@@ -4,7 +4,7 @@ description:
   Migrate flat research/ markdown files into research/YYYYMM/ date-stamped subdirs, mirroring the structure of specs/
   and plans/.
 create_time: 2026-04-28 12:50:33
-status: wip
+status: done
 ---
 
 # Migrate `research/` to date-stamped `research/YYYYMM/` subdirs
@@ -75,8 +75,8 @@ their target month).
 `grep -rE 'research/[a-zA-Z0-9_/]+\.md'` finds **64 references** across **46 tracked files** (mostly under `plans/`,
 `specs/`, `docs/`, plus a handful inside `research/` itself, plus `.sase_beads/issues.jsonl`).
 
-For each moved file, rewrite occurrences of its old path (e.g. `research/sase_perf_research.md`,
-`research/telegram/telegram_improvements.md`) to its new path (`research/202604/sase_perf_research.md`,
+For each moved file, rewrite occurrences of its old path (e.g. `research/202604/sase_perf_research.md`,
+`research/202603/telegram_improvements.md`) to its new path (`research/202604/sase_perf_research.md`,
 `research/202603/telegram_improvements.md`) in:
 
 - All tracked `*.md` under `plans/`, `specs/`, `research/`, `docs/`.

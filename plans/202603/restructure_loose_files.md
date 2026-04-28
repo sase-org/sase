@@ -9,7 +9,7 @@ bead_id: sase-8
 ## Goal
 
 Move all 8 loose files out of the `src/sase/` package root into descriptively-named subpackages, following Option A from
-`research/loose_files_in_src_sase.md`.
+`research/202603/loose_files_in_src_sase.md`.
 
 ## Target Structure
 

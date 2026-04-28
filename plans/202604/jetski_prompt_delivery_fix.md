@@ -119,7 +119,7 @@ prompt channel.
   PR description that the plan under-scoped the fix by preserving `--model`.
 - `plans/202604/jetski_cli_provider.md` (status: done) — add a brief amendment section at the bottom noting the
   post-merge discovery that `-p` reads argv not stdin and `--model` isn't a flag, with a pointer to this plan.
-- `research/jetski_cli_provider.md` — update open question 2 ("Does Jetski expose a CLI flag for model selection") with
+- `research/202604/jetski_cli_provider.md` — update open question 2 ("Does Jetski expose a CLI flag for model selection") with
   the answer: "No — model selection is via the `/model` slash command, persisted to
   `~/.gemini/jetski/cli/settings.json`. A follow-up plan should decide whether sase owns that file."
 
@@ -133,7 +133,7 @@ prompt channel.
 - `tests/test_llm_provider_jetski.py` — strengthen existing tests, repurpose model-override test, add stdin-unused
   regression test.
 - `plans/202604/jetski_cli_provider.md` — short amendment block (~5 lines) at the bottom.
-- `research/jetski_cli_provider.md` — resolve open question 2.
+- `research/202604/jetski_cli_provider.md` — resolve open question 2.
 
 ## Sequencing
 

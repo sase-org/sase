@@ -33,7 +33,7 @@ context injection becomes a real cost — both in tokens and in diluting the age
 
 **Suggestion:** Switch to word-boundary matching using `re.search(rf'\b{re.escape(kw)}\b', prompt, re.I)`. This
 eliminates most spurious substring matches while keeping the implementation simple. The original research doc
-(`research/dynamic_memory_implementation.md`) noted this as an open question and chose substring for simplicity — now
+(`research/202604/dynamic_memory_implementation.md`) noted this as an open question and chose substring for simplicity — now
 that the feature is stable, the tradeoff has shifted.
 
 ### 2. No relevance scoring or threshold

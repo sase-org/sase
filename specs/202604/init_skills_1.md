@@ -13,7 +13,7 @@ Can you help me add support for managing all agent skills related to sase using 
   the user y/n/d (yess/no/diff) to confirm, unless the `-f|--force` option is used (in which case we should just
   overwrite them all.
 
-See the research performed by a previous agent in the @research/init_skills_command.md file for inspiration. This is a
+See the research performed by a previous agent in the @research/202604/init_skills_command.md file for inspiration. This is a
 large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep in mind
 that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `gemini` / `codex` command).
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

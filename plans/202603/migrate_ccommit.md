@@ -20,7 +20,7 @@ delete the old artifacts.
 
 **Goal**: Absorb all ccommit features into the `sase commit` path, then delete `/commit` and `ccommit`.
 
-**Design decisions** (from `research/migrate_ccommit_prompt_critique.md`):
+**Design decisions** (from `research/202603/migrate_ccommit_prompt_critique.md`):
 
 - Migrate ccommit to `src/sase/scripts/sase_git_commit` (new bash script in this repo)
 - Add `precommit_command` config field (set to `just fix` in sase repo, `sase_hg_fix` in sase-google)
@@ -227,7 +227,7 @@ Then run `chezmoi apply`.
 **sase repo:**
 
 - `AGENTS.md` — Remove any references to `/commit` skill or `ccommit`
-- `research/migrate_ccommit_prompt_critique.md` — No changes (keep as historical record)
+- `research/202603/migrate_ccommit_prompt_critique.md` — No changes (keep as historical record)
 
 **Chezmoi repo:**
 

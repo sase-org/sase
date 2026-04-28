@@ -324,4 +324,4 @@ The following files contain detailed reference material. Read them when working 
   architecture guide
 - [SmartScope: Token Optimization Guide 2026](https://smartscope.blog/en/generative-ai/claude/agents-md-token-optimization-guide-2026/)
   -- quantitative savings data
-- Existing project research: `research/agents_md_token_optimization.md`
+- Existing project research: `research/202604/agents_md_token_optimization.md`

@@ -15,7 +15,7 @@ requirements:
   the packages when we push new tags.
 - End the plan with instructions for the user on how to set up their system the way it was before (I assume I'll need to
   install the new plugin packages?).
-- Review the research that we've stored in the research/plugins/ directory for inspiration.
+- Review the research that we've stored in the research/202602/ directory (specifically `pluggy_repo_separation.md` and `sase_plugin_specifics.md`) for inspiration.
 
 This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep
 in mind that each phase will be completed by a distinct `claude` instance.
