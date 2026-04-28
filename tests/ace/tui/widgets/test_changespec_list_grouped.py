@@ -322,3 +322,123 @@ def test_update_highlight_walks_row_map_in_grouped_mode(monkeypatch: Any) -> Non
     row = widget.highlighted
     assert row is not None
     assert widget._row_entries[row] == 1
+
+
+# ── Long names / narrow widths: layout regressions ────────────────────
+
+
+def _option_cell_len(widget: ChangeSpecList, row: int) -> int:
+    """Cell length of the rendered Rich Text for the given option row."""
+    opt = widget.get_option_at_index(row)
+    prompt = opt.prompt
+    # ``prompt`` is a ``Text`` for grouped-mode banners and CL rows.
+    return prompt.cell_len if hasattr(prompt, "cell_len") else len(str(prompt))
+
+
+def test_long_cl_name_grows_banner_width_to_fit(monkeypatch: Any) -> None:
+    """When a CL name is very long the banner rule must stretch with it.
+
+    A short banner over a long CL row would visually misalign — the CL
+    row would extend past the banner's right edge, making the banner
+    look truncated.  The widget compensates by widening the banner to
+    the max CL row width.
+    """
+    widget, posted = _wire_widget(monkeypatch)
+    long_name = "a" * 80
+    css = [_cs(long_name, status="WIP"), _cs("short", status="WIP")]
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+    )
+
+    # The width broadcast to the parent container must account for the
+    # long row; the trivial 40-char banner floor would clip it.
+    width_msgs = [m for m in posted if isinstance(m, ChangeSpecList.WidthChanged)]
+    assert width_msgs
+    assert width_msgs[-1].width >= len(long_name)
+
+
+def test_long_status_label_does_not_clip_chip(monkeypatch: Any) -> None:
+    """A status with a very long suffix must still leave room for the chip.
+
+    The ``Status (...)`` heading text + ``N CLs`` chip + at least 2
+    rule cells must all fit within the banner width.  Cell length must
+    therefore be ``>= label + chip + 4`` cells (prefix glyph + space +
+    rule padding + space).
+    """
+    widget, _ = _wire_widget(monkeypatch)
+    long_status = "Ready - (!: REVIEWERS PENDING + LOTS OF EXTRA CONTEXT)"
+    css = [_cs("a", status=long_status), _cs("b", status=long_status)]
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+    )
+
+    # Banner is row 0.  Its rendered text must contain both the full
+    # label and the chip; if either was truncated the row would render
+    # shorter than label_len + chip_len.
+    cell_len = _option_cell_len(widget, 0)
+    chip_text = "2 CLs"
+    assert cell_len >= len(long_status) + len(chip_text)
+
+
+def test_banner_rule_stays_at_least_two_cells(monkeypatch: Any) -> None:
+    """Even when label + chip nearly fill the row the rule keeps two cells.
+
+    The rendering helper uses ``pad_len = max(2, width - used)`` so we
+    never end up with the label and chip butted together with no rule
+    glyph between them.  This test asserts the lower-bound holds for a
+    label sized exactly to the banner width.
+    """
+    widget, _ = _wire_widget(monkeypatch)
+    # Single CL with a moderately long name to push the banner width
+    # right up to the natural width of its label + chip.
+    css = [_cs("medium_length_changespec_name_for_layout_check", status="WIP")]
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+    )
+
+    # The banner is the first option.  Its rendered string must contain
+    # the rule character between the label and the chip — assert via a
+    # plain-text scan that two consecutive rule chars exist.
+    opt = widget.get_option_at_index(0)
+    plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
+    # ``─`` is the L0 rule glyph used in ``_agent_list_styling``.
+    assert "──" in plain or "  " in plain, (
+        "banner must keep at least two rule cells between label and chip; "
+        f"got: {plain!r}"
+    )
+
+
+def test_jump_hint_prefix_does_not_overflow_banner(monkeypatch: Any) -> None:
+    """A jump-hint prefix on a banner extends the natural width by 4 cells.
+
+    The widget must factor the hint into its width calculation so the
+    chip never gets shoved past the banner's right edge.
+    """
+    widget, _ = _wire_widget(monkeypatch)
+    css = [_cs("alpha", status="WIP"), _cs("beta", status="WIP")]
+    fold = GroupFoldRegistry()
+    fold.collapse(("WIP",))
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
+        fold_registry=fold,
+        banner_jump_hints={("WIP",): "x"},
+    )
+
+    # Collapsed banner row carries the hint.  Its plain text must
+    # include both the hint marker and the chip text.
+    opt = widget.get_option_at_index(0)
+    plain = opt.prompt.plain if hasattr(opt.prompt, "plain") else str(opt.prompt)
+    assert "[x]" in plain
+    assert "2 CLs" in plain

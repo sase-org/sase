@@ -96,7 +96,30 @@ def latest_changespec_timestamp(cs: ChangeSpec) -> datetime | None:
     return latest
 
 
-def date_bucket_for_changespec(cs: ChangeSpec, now: datetime) -> str:
+#: Per-refresh cache mapping ``id(cs)`` → latest parsed TIMESTAMPS value.
+#: Populated once at the entry point of a tree build / key enumeration so
+#: BY_DATE bucketing and date-anchored sorting share a single parse pass
+#: instead of re-walking ``cs.timestamps`` two or three times per CS.
+LatestTimestampMap = dict[int, "datetime | None"]
+
+
+def precompute_latest_timestamps(
+    changespecs: list[ChangeSpec],
+) -> LatestTimestampMap:
+    """Build a per-CS timestamp cache for one tree build / enumeration.
+
+    Keys are ``id(cs)`` so the cache is safe to reuse across functions
+    that share the same CS list within a single refresh, but does not
+    leak across refreshes (the next call rebuilds with fresh ids).
+    """
+    return {id(cs): latest_changespec_timestamp(cs) for cs in changespecs}
+
+
+def date_bucket_for_changespec(
+    cs: ChangeSpec,
+    now: datetime,
+    latest_map: LatestTimestampMap | None = None,
+) -> str:
     """Map ``cs``'s latest TIMESTAMPS entry to a date bucket.
 
     Buckets compare on calendar dates in ``now``'s local frame:
@@ -105,8 +128,14 @@ def date_bucket_for_changespec(cs: ChangeSpec, now: datetime) -> str:
     - ``Yesterday``: the day before ``now``.
     - ``This Week``: within the prior six days, but not Today/Yesterday.
     - ``Earlier``: anything older, plus CLs with no parseable timestamps.
+
+    Pass *latest_map* (from :func:`precompute_latest_timestamps`) when
+    bucketing many CSs in the same refresh to skip a redundant parse.
     """
-    latest = latest_changespec_timestamp(cs)
+    if latest_map is not None and id(cs) in latest_map:
+        latest = latest_map[id(cs)]
+    else:
+        latest = latest_changespec_timestamp(cs)
     if latest is None:
         return _EARLIER
     today = now.date()

@@ -8,7 +8,7 @@ from datetime import datetime
 from sase.ace.changespec import ChangeSpec
 
 from ..group_fold import GroupFoldRegistry, GroupKey
-from ._buckets import ChangeSpecGroupingMode
+from ._buckets import ChangeSpecGroupingMode, precompute_latest_timestamps
 from ._keys import keys_for_changespec, keys_for_changespecs, walk_order
 
 
@@ -51,7 +51,14 @@ def enumerate_changespec_group_keys(
     if not changespecs or mode is ChangeSpecGroupingMode.FLAT:
         return []
     reference = now if now is not None else datetime.now()
-    keys = keys_for_changespecs(changespecs, mode, reference)
+    # BY_DATE bucketing reads the latest TIMESTAMPS entry; precomputing
+    # once keeps enumeration linear instead of re-parsing per CS.
+    latest_map = (
+        precompute_latest_timestamps(changespecs)
+        if mode is ChangeSpecGroupingMode.BY_DATE
+        else None
+    )
+    keys = keys_for_changespecs(changespecs, mode, reference, latest_map=latest_map)
 
     seen: set[GroupKey] = set()
     out: list[GroupKey] = []
@@ -110,8 +117,19 @@ def build_changespec_tree(
 
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     reference = now if now is not None else datetime.now()
-    keys = [keys_for_changespec(cs, mode, reference) for cs in changespecs]
-    walk = walk_order(changespecs, keys, mode)
+    # BY_DATE uses the latest TIMESTAMPS entry both for L0 bucketing and
+    # for the within-bucket sort anchor; precompute once so a 200-CL
+    # refresh does 200 timestamp parses, not 600.
+    latest_map = (
+        precompute_latest_timestamps(changespecs)
+        if mode is ChangeSpecGroupingMode.BY_DATE
+        else None
+    )
+    keys = [
+        keys_for_changespec(cs, mode, reference, latest_map=latest_map)
+        for cs in changespecs
+    ]
+    walk = walk_order(changespecs, keys, mode, latest_map=latest_map)
 
     l0_indices: dict[str, list[int]] = {}
     root_indices: dict[tuple[str, str], list[int]] = {}

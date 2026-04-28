@@ -10,6 +10,7 @@ from sase.core.changespec import strip_reverted_suffix
 
 from ._buckets import (
     ChangeSpecGroupingMode,
+    LatestTimestampMap,
     date_bucket_for_changespec,
     date_bucket_sort_index,
     latest_changespec_timestamp,
@@ -42,22 +43,30 @@ def sibling_root_for_changespec(cs: ChangeSpec) -> str:
     return strip_reverted_suffix(cs.name)
 
 
-def _l0_value_for(cs: ChangeSpec, mode: ChangeSpecGroupingMode, now: datetime) -> str:
+def _l0_value_for(
+    cs: ChangeSpec,
+    mode: ChangeSpecGroupingMode,
+    now: datetime,
+    latest_map: LatestTimestampMap | None = None,
+) -> str:
     if mode is ChangeSpecGroupingMode.BY_PROJECT:
         return cs.project_name
     if mode is ChangeSpecGroupingMode.BY_DATE:
-        return date_bucket_for_changespec(cs, now)
+        return date_bucket_for_changespec(cs, now, latest_map=latest_map)
     if mode is ChangeSpecGroupingMode.BY_STATUS:
         return status_bucket_for_changespec(cs)
     return ""
 
 
 def keys_for_changespec(
-    cs: ChangeSpec, mode: ChangeSpecGroupingMode, now: datetime
+    cs: ChangeSpec,
+    mode: ChangeSpecGroupingMode,
+    now: datetime,
+    latest_map: LatestTimestampMap | None = None,
 ) -> _ChangeSpecKeys:
     """Compute (l0, sibling_root) for *cs* under *mode*."""
     return _ChangeSpecKeys(
-        l0=_l0_value_for(cs, mode, now),
+        l0=_l0_value_for(cs, mode, now, latest_map=latest_map),
         sibling_root=(
             sibling_root_for_changespec(cs)
             if mode is ChangeSpecGroupingMode.BY_PROJECT
@@ -70,8 +79,11 @@ def keys_for_changespecs(
     changespecs: list[ChangeSpec],
     mode: ChangeSpecGroupingMode,
     now: datetime,
+    latest_map: LatestTimestampMap | None = None,
 ) -> list[_ChangeSpecKeys]:
-    return [keys_for_changespec(cs, mode, now) for cs in changespecs]
+    return [
+        keys_for_changespec(cs, mode, now, latest_map=latest_map) for cs in changespecs
+    ]
 
 
 def _l0_sort_key(mode: ChangeSpecGroupingMode, l0: str) -> tuple[int, object]:
@@ -90,12 +102,17 @@ def _l0_sort_key(mode: ChangeSpecGroupingMode, l0: str) -> tuple[int, object]:
     return (0, "")
 
 
-def _date_anchor_for(cs: ChangeSpec) -> float:
+def _date_anchor_for(
+    cs: ChangeSpec, latest_map: LatestTimestampMap | None = None
+) -> float:
     """Return ``-epoch`` for the latest TIMESTAMPS entry, ``+inf`` if missing.
 
     Negated so newest sorts first when used inside a tuple sort key.
     """
-    latest = latest_changespec_timestamp(cs)
+    if latest_map is not None and id(cs) in latest_map:
+        latest = latest_map[id(cs)]
+    else:
+        latest = latest_changespec_timestamp(cs)
     if latest is None:
         return float("inf")
     return -latest.timestamp()
@@ -105,6 +122,7 @@ def walk_order(
     changespecs: list[ChangeSpec],
     keys: list[_ChangeSpecKeys],
     mode: ChangeSpecGroupingMode,
+    latest_map: LatestTimestampMap | None = None,
 ) -> list[int]:
     """Return a stable permutation of CS indices grouped by *mode*.
 
@@ -136,7 +154,7 @@ def walk_order(
             sibling = (1, k.sibling_root.lower()) if in_group else (0, "")
             return (l0, sibling, i)
         if mode is ChangeSpecGroupingMode.BY_DATE:
-            return (l0, _date_anchor_for(changespecs[i]), i)
+            return (l0, _date_anchor_for(changespecs[i], latest_map), i)
         return (l0, i)
 
     return sorted(range(len(changespecs)), key=sort_key)
