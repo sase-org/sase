@@ -211,7 +211,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             "Grouping",
             [
                 (
-                    d(a.cycle_grouping_mode),
+                    f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: proj→date→status",
                 ),
                 (
@@ -440,7 +440,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             "Grouping",
             [
                 (
-                    d(a.cycle_grouping_mode),
+                    f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: default → date → status",
                 ),
                 ("by date", "Sub-grouped by hour-of-day"),

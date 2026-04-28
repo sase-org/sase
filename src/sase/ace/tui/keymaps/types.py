@@ -108,6 +108,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("focus_next_agent_panel", "Next Panel", False),
     ("focus_prev_agent_panel", "Prev Panel", False),
     ("cycle_grouping_mode", "Cycle Grouping", False),
+    ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
     ("show_agent_run_log", "Agent Run Log", False),
 ]
 
@@ -247,6 +248,7 @@ class AppKeymaps:
     focus_prev_agent_panel: str
     # Grouping mode cycle (agents tab)
     cycle_grouping_mode: str
+    cycle_grouping_mode_reverse: str
     # Thinking panel
     toggle_thinking: str
     toggle_thinking_reverse: str

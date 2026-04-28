@@ -276,3 +276,57 @@ def test_cycle_persists_new_mode(tmp_path: Path) -> None:
         app = _StubApp([_agent()])
         app.action_cycle_grouping_mode()
         assert test_file.read_text() == GroupingMode.BY_DATE.value
+
+
+# ---------------------------------------------------------------------------
+# Reverse cycle (`O`)
+# ---------------------------------------------------------------------------
+
+
+def test_reverse_cycle_advances_standard_to_by_status() -> None:
+    app = _StubApp([_agent()])
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.BY_STATUS
+    assert app.refilter_calls == 1
+
+
+def test_reverse_cycle_advances_by_status_to_by_date() -> None:
+    app = _StubApp([_agent()])
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_STATUS)
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.BY_DATE
+    assert app.refilter_calls == 1
+
+
+def test_reverse_cycle_wraps_back_to_standard() -> None:
+    app = _StubApp([_agent()])
+    app._grouping_mode = GroupingMode.BY_DATE
+    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_DATE)
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.STANDARD
+    assert app.refilter_calls == 1
+
+
+def test_three_reverse_cycles_returns_to_standard() -> None:
+    app = _StubApp([_agent()])
+    app.action_cycle_grouping_mode_reverse()
+    app.action_cycle_grouping_mode_reverse()
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.STANDARD
+    assert app.refilter_calls == 3
+
+
+def test_forward_then_reverse_returns_to_standard() -> None:
+    app = _StubApp([_agent()])
+    app.action_cycle_grouping_mode()
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.STANDARD
+
+
+def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
+    app = _StubApp([_agent()], current_tab="axe")
+    app.action_cycle_grouping_mode_reverse()
+    assert app.refilter_calls == 0
+    assert app.refresh_calls == 0
+    assert app._grouping_mode is GroupingMode.STANDARD

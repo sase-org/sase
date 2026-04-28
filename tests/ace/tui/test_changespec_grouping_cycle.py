@@ -223,3 +223,59 @@ def test_cycle_emits_cl_grouping_toast() -> None:
     app = _StubApp()
     app.action_cycle_grouping_mode()
     assert app.notifications == ["CL grouping: by date"]
+
+
+# ---------------------------------------------------------------------------
+# Reverse cycle (`O`)
+# ---------------------------------------------------------------------------
+
+
+def test_reverse_cycle_advances_by_project_to_by_status() -> None:
+    app = _StubApp()
+    app.action_cycle_grouping_mode_reverse()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
+    assert app.refresh_calls == 1
+
+
+def test_reverse_cycle_advances_by_status_to_by_date() -> None:
+    app = _StubApp()
+    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_STATUS
+    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
+        ChangeSpecGroupingMode.BY_STATUS
+    )
+    app.action_cycle_grouping_mode_reverse()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+
+
+def test_reverse_cycle_wraps_back_to_by_project() -> None:
+    app = _StubApp()
+    app._changespec_grouping_mode = ChangeSpecGroupingMode.BY_DATE
+    app._changespec_group_fold_registry = app._ensure_changespec_mode_registry(
+        ChangeSpecGroupingMode.BY_DATE
+    )
+    app.action_cycle_grouping_mode_reverse()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+
+
+def test_three_reverse_cycles_returns_to_by_project() -> None:
+    app = _StubApp()
+    for _ in range(3):
+        app.action_cycle_grouping_mode_reverse()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+    assert app.refresh_calls == 3
+
+
+def test_forward_then_reverse_returns_to_by_project() -> None:
+    app = _StubApp()
+    app.action_cycle_grouping_mode()
+    app.action_cycle_grouping_mode_reverse()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
+
+
+def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
+    app = _StubApp(current_tab="axe")
+    app.action_cycle_grouping_mode_reverse()
+    assert app.refilter_calls == 0
+    assert app.refresh_calls == 0
+    assert app._grouping_mode is GroupingMode.STANDARD
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT

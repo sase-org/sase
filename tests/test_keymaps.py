@@ -56,6 +56,7 @@ def test_g_and_o_default_bindings_do_not_collide() -> None:
     reg = load_keymap_registry({})
     assert reg.app.scroll_to_top == "g"
     assert reg.app.cycle_grouping_mode == "o"
+    assert reg.app.cycle_grouping_mode_reverse == "O"
 
 
 def test_partial_app_override() -> None:
@@ -193,9 +194,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 77 configurable + 10 digit = 87 bindings."""
+    """build_app_bindings produces 78 configurable + 10 digit = 88 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 87
+    assert len(bindings) == 88
 
 
 def test_build_app_bindings_priority() -> None:

@@ -65,7 +65,7 @@ class AgentGroupingMixin:
     _changespec_group_fold_registries: dict[ChangeSpecGroupingMode, GroupFoldRegistry]
     _current_changespec_group_key: tuple[str, ...] | None
 
-    def _next_grouping_mode(self) -> GroupingMode:
+    def _next_grouping_mode(self, *, reverse: bool = False) -> GroupingMode:
         """Return the mode that follows :attr:`_grouping_mode` in the cycle."""
         from ...models.agent_groups import GroupingMode
 
@@ -74,9 +74,11 @@ class AgentGroupingMixin:
             idx = order.index(self._grouping_mode)
         except ValueError:
             return order[0]
-        return order[(idx + 1) % len(order)]
+        return order[(idx + (-1 if reverse else 1)) % len(order)]
 
-    def _next_changespec_grouping_mode(self) -> ChangeSpecGroupingMode:
+    def _next_changespec_grouping_mode(
+        self, *, reverse: bool = False
+    ) -> ChangeSpecGroupingMode:
         """Return the CL mode that follows :attr:`_changespec_grouping_mode`."""
         from ...models.changespec_groups import ChangeSpecGroupingMode
 
@@ -85,7 +87,7 @@ class AgentGroupingMixin:
             idx = order.index(self._changespec_grouping_mode)
         except ValueError:
             return order[0]
-        return order[(idx + 1) % len(order)]
+        return order[(idx + (-1 if reverse else 1)) % len(order)]
 
     def _ensure_mode_registry(self, mode: GroupingMode) -> AgentGroupFoldRegistry:
         """Return the Agents fold registry for *mode*, lazily allocating one."""
@@ -121,10 +123,17 @@ class AgentGroupingMixin:
         elif self.current_tab == "changespecs":
             self._cycle_changespec_grouping_mode()
 
-    def _cycle_agents_grouping_mode(self) -> None:
+    def action_cycle_grouping_mode_reverse(self) -> None:
+        """Advance the focused tab's grouping mode by one step in reverse."""
+        if self.current_tab == "agents":
+            self._cycle_agents_grouping_mode(reverse=True)
+        elif self.current_tab == "changespecs":
+            self._cycle_changespec_grouping_mode(reverse=True)
+
+    def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
         from ....grouping_mode_state import save_grouping_mode
 
-        next_mode = self._next_grouping_mode()
+        next_mode = self._next_grouping_mode(reverse=reverse)
         if next_mode is self._grouping_mode:
             return
         self._grouping_mode = next_mode
@@ -145,10 +154,10 @@ class AgentGroupingMixin:
             pass
         self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _cycle_changespec_grouping_mode(self) -> None:
+    def _cycle_changespec_grouping_mode(self, *, reverse: bool = False) -> None:
         from ....changespec_grouping_mode_state import save_changespec_grouping_mode
 
-        next_mode = self._next_changespec_grouping_mode()
+        next_mode = self._next_changespec_grouping_mode(reverse=reverse)
         if next_mode is self._changespec_grouping_mode:
             return
         self._changespec_grouping_mode = next_mode
