@@ -891,12 +891,12 @@ Supported date range formats:
 
 `sase agents` provides cross-project visibility into running agents. Subcommands:
 
-| Subcommand | Flags                                   | Description                                                                                                                                                                                                       |
-| ---------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                           |
-| `show`     | `name`                                  | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                  |
-| `kill`     | `name`                                  | SIGTERM a running agent by name.                                                                                                                                                                                  |
-| `tag`      | `set` / `unset` / `list`                | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set <agent> <tag>` replaces any prior tag; `tag unset <agent>` clears it; `tag list [--name <agent>]` prints tags as JSON. |
+| Subcommand | Flags                                   | Description                                                                                                                                                                                                                                  |
+| ---------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                      |
+| `show`     | `-n/--name`                             | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                             |
+| `kill`     | `-n/--name`                             | SIGTERM a running agent by name.                                                                                                                                                                                                             |
+| `tag`      | `set` / `unset` / `list`                | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set -n <agent> -t <tag>` replaces any prior tag; `tag unset -n <agent>` clears it; `tag list [-n <agent>]` prints tags as JSON (filtered when given). |
 
 ## Directory Sharding
 

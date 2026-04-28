@@ -88,6 +88,10 @@ for backwards compatibility — SDD searches both when resolving files.
 Plan files may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to the bead
 issue tracker.
 
+After writing the plan, `sase plan` touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the
+`PLANNING` status immediately rather than waiting for the next auto-refresh tick. The pulse file is consumed by the
+inotify-based artifact watcher and is harmless when no TUI is open.
+
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended

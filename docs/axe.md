@@ -167,6 +167,26 @@ axe:
 | `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)  |
 | `env`         | `dict[str, str]` | Custom environment variables passed to the chop                        |
 
+### Agent Chops and Visibility
+
+When a chop has an `agent` field, axe launches a real background agent (via the same launcher as `sase run`) instead of
+shelling out to a chop script. Configured agent chops are **visible by default** in the Agents tab — recurring infra
+agents (e.g. orchestration housekeepers) show up alongside user-launched agents so their state, retries, and last output
+are discoverable. Use the prompt-side `%hide` directive if a particular chop should remain hidden.
+
+`sase axe chop run <agent-chop>` follows the same path as the scheduled lumberjack tick, so a one-shot run records the
+same chop registry metadata as the periodic invocation.
+
+### Chop-Agent Registry
+
+Each lumberjack maintains a durable JSON registry of the agents it has launched at
+`~/.sase/axe/lumberjacks/<name>/agent_chops.json`. Records carry the lumberjack/chop names, a normalized `prompt_hash`,
+the launched PID, the agent's artifacts timestamp, and a per-launch UUID. The registry is what lets a recurring chop
+dedup against an in-flight run with the same prompt body, survive lumberjack restarts (sase-12 perf overhaul), and be
+reattributed correctly in the Agents tab. The metadata is also propagated into the agent's `agent_meta.json` via the env
+vars `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, `SASE_CHOP_RUN_ID`, and `SASE_CHOP_PROMPT_HASH` (see
+`build_chop_launch_env()` in `src/sase/axe/chop_agents.py`).
+
 ## Concurrency Management
 
 Axe uses a cross-process runner pool to enforce global concurrency limits. The `SharedRunnerPool` uses `fcntl.flock` on
@@ -188,6 +208,7 @@ control over background resource usage.
 │       ├── pid                     # Lumberjack PID
 │       ├── status.json             # Current status (updated every 5s)
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
+│       ├── agent_chops.json        # Durable registry of agents launched by this lumberjack's chops
 │       └── logs/
 │           └── output.log          # Lumberjack output log
 ├── shared/

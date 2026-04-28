@@ -198,10 +198,15 @@ Display a quick-start guide with common command examples.
 
 Run an entire epic plan end-to-end by launching one agent per phase plus a final land agent. Concretely, the command:
 
-1. Flips the epic plan bead's `is_ready_to_work` flag to `True`.
-2. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
-3. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
-4. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
+1. Validates that `<epic_id>` resolves to an issue of type `plan` and that its `is_ready_to_work` flag is not already
+   `True` — both are user-visible failure modes (a non-plan target or an already-ready plan exits with an error).
+2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase) or
+   `<epic_id>.land`, and refuses to launch when a collision exists, listing the offending artifact directories so the
+   user can revive, dismiss, or rename the orphan first. (`--dry-run` downgrades this to a warning and continues.)
+3. Flips the epic plan bead's `is_ready_to_work` flag to `True`.
+4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
+5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
+6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
    `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt.
 
@@ -213,8 +218,9 @@ Run an entire epic plan end-to-end by launching one agent per phase plus a final
 Both xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. Each generated phase and land prompt also carries a `%approve` directive, so the
 spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. If launching the
-multi-prompt fails, the pre-claims and the `is_ready_to_work` flag are rolled back best-effort so the epic can be
-retried.
+multi-prompt fails partway through, the launcher SIGTERMs any already-spawned children before rolling back the
+pre-claims and the `is_ready_to_work` flag (best-effort), so the epic can be retried without leaving zombie agents
+behind.
 
 ## Multi-Workspace Support
 

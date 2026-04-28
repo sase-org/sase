@@ -246,7 +246,13 @@ src/sase/
 │   ├── launcher.py        # Agent subprocess launcher
 │   ├── multi_prompt.py    # Multi-prompt parsing (frontmatter + segment splitting)
 │   ├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
-│   └── names.py           # Agent auto-naming utilities
+│   ├── repeat_launcher.py # %repeat fan-out / iteration variable expansion
+│   ├── running.py         # Live agent registry (PID + artifacts lookup)
+│   ├── agent_artifacts_cache.py # Cached agent metadata reads
+│   ├── dismissed_name_rewrites.py # YYmmdd-prefix dismissal/revival helpers
+│   └── names/             # Auto-naming, dedup, dismissal, claim helpers
+├── agents/                # `sase agents` subcommand handlers (status/show/kill/tag)
+├── memory/                # Dynamic-memory keyword matching (#memory injection)
 ├── axe/                   # Lumberjack-based daemon and agent runners
 │   ├── orchestrator.py    # Multi-lumberjack supervisor
 │   ├── lumberjack.py      # Single-lumberjack scheduler loop

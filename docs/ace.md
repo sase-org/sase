@@ -55,13 +55,13 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
 | `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                  |
-| `o`                 | Cycle CL grouping mode (`BY_PROJECT` → `BY_DATE` → `BY_STATUS`)                    |
+| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
 | `g` / `G`           | Scroll detail panel to top / bottom                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
 
-> **Note:** `o` ("organize") cycles the L0 grouping bucket on the Agents and CLs tabs (each tab keeps its own persisted
-> mode). On the AXE tab it is a silent no-op. See [CL Grouping and Folding](#cl-grouping-and-folding) and the Agents-tab
-> [Grouping Modes](#grouping-modes) below.
+> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
+> keeps its own persisted mode). On the AXE tab it is a silent no-op. See
+> [CL Grouping and Folding](#cl-grouping-and-folding) and the Agents-tab [Grouping Modes](#grouping-modes) below.
 
 ### CL Actions
 
@@ -72,6 +72,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `C` / `c1`-`c9` | Checkout CL (primary / workspace 1-9)                       |
 | `d`             | Show diff                                                   |
 | `e`             | Edit spec file                                              |
+| `f`             | Edit hooks (re-run / delete via hint input)                 |
 | `M`             | Mail CL                                                     |
 | `m`             | Mark / unmark current CL (auto-advances to next)            |
 | `n`             | Rename CL (non-Sub/Rev CLs only)                            |
@@ -91,11 +92,11 @@ The CLs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DA
 above each bucket. `BY_PROJECT` is the default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` and the active mode is
 persisted to `~/.sase/changespec_grouping_mode.txt`.
 
-| Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                    |
-| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner.                                                                                       |
-| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | L0 only — bucket from the latest TIMESTAMPS entry.                                                                                                                                                                       |
-| `BY_STATUS`  | `WIP` / `Draft` / `Ready` / `Mailed` / `Submitted` / `Reverted` / `Archived` | Bucket from the literal `status` field, in lifecycle order. Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings inside each status bucket. Singletons suppress their L1 banner. |
+| Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
+| ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner.                                                                                                                                                                          |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | L0 only — bucket from the latest TIMESTAMPS entry.                                                                                                                                                                                                                                                          |
+| `BY_STATUS`  | `Mailed` / `Ready` / `WIP` / `Draft` / `Submitted` / `Reverted` / `Archived` | Bucket from the literal `status` field; actionable buckets first (`Mailed` = awaiting response, `Ready` = next to mail), terminal states last. Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings inside each status bucket. Singletons suppress their L1 banner. |
 
 The active grouping mode is shown in the CLs-tab info-panel header as a `[group: <label>]` badge.
 
@@ -231,21 +232,22 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
-| `o`                 | Cycle grouping mode (`STANDARD` → `BY_DATE` → `BY_STATUS`)                                            |
+| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
 | `g`                 | Scroll to top (file, thinking, or metadata panel)                                                     |
 | `G`                 | Scroll to bottom (file, thinking, or metadata panel)                                                  |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `o` ("organize") cycles the grouping mode on the Agents and CLs tabs (each tab persists its own selection
-> independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional vim-style scroll-to-top/bottom
-> meaning on every tab. See [Grouping Modes](#grouping-modes) below.
+> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and CLs tabs (each tab
+> persists its own selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
+> vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
 ### Agent Actions
 
 | Key                 | Action                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `R`                 | Revive a previously dismissed agent                                                                           |
+| `A`                 | Open the Agent Run Log modal for the focused agent                                                            |
 | `@`                 | Run custom agent                                                                                              |
 | `a`                 | Toggle auto-approve / answer HITL                                                                             |
 | `n`                 | Name agent                                                                                                    |
@@ -743,6 +745,20 @@ without an explicit `%name` directive. Names are allocated sequentially, reusing
 enables the resume-by-name workflow: press `r` on a running named agent to queue a follow-up that waits for it to finish
 and then loads its conversation history.
 
+### Provider/Model Suffixes
+
+When the same base name is shared by multiple co-launched agents (e.g. multi-model fan-out via the `%model:` directive),
+the rendered display name carries a short `.<provider>` or `.<provider>(<model>)` suffix so each row is distinguishable.
+Provider suffixes are supplied by the LLM provider plugins via the `llm_provider_short_name` hook (built-in defaults:
+`cld` for Claude, `cdx` for Codex, `gem` for Gemini; `jet` ships in the `sase-google` plugin). Model-name shorthands
+come from the `llm_model_short_aliases` hook (e.g. `opus`, `sonnet`, `haiku`) and are resolved against the configured
+model so the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns
+omit the suffix.
+
+When an agent is revived (`R`) or re-claims a name through an explicit `%name:` directive, the auto-namer detects an
+existing live claim and allocates the next free slot rather than colliding — the freshly revived/claimed agent always
+gets a unique name even if the user didn't pick one.
+
 ### Per-Step Naming for Multi-Agent Workflows
 
 When a workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive dotted names
@@ -854,6 +870,10 @@ When a workflow uses the `%plan` directive, the agent enters a planning phase be
 Plan files generated by the agent are displayed in the file panel alongside other agent artifacts. Plan approval
 notifications include the LLM provider and model name, so users can see which model proposed the plan (visible in both
 the TUI notification modal and Telegram delivery).
+
+When `sase plan` writes the plan, it also touches `~/.sase/.ace_refresh_pulse` to wake any running TUI immediately —
+PLANNING status appears without waiting for the next auto-refresh tick. The pulse file is consumed by the inotify
+artifact watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
