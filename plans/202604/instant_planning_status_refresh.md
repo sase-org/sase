@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 14:14:48
-status: wip
+status: done
 ---
 
 # Instant `PLANNING` status refresh after `sase plan`

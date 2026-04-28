@@ -69,6 +69,18 @@ def handle_plan_command(plan_file: str) -> NoReturn:
         f.flush()
         os.fsync(f.fileno())
 
+    # Pulse a file at a path the ACE inotify watcher actually sees.
+    # ``ArtifactWatcher`` is non-recursive and only watches direct children of
+    # ``<project>/artifacts/``; the marker write three levels deeper never
+    # wakes it, so the Agents tab waits up to ``FULL_SANITY_REFRESH_SECONDS``
+    # to reflect ``PLANNING``.  Touching this pulse fires ``IN_MODIFY`` /
+    # ``IN_CREATE`` and triggers an async refresh within the coalesce window.
+    pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
+    try:
+        pulse_path.write_text(str(time.time()), encoding="utf-8")
+    except OSError:
+        pass
+
     # Kill the agent runner's process group (which includes the claude
     # subprocess).  We cannot use our own process group because Claude Code
     # spawns Bash-tool subprocesses in an isolated process group — the
