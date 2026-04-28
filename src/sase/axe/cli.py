@@ -128,13 +128,21 @@ def _run_agent_chop_oneshot(chop: ChopConfig) -> None:
     """Run an agent chop as a one-shot launch."""
     from sase.agent.launcher import launch_agent_from_cwd
 
+    from .chop_agents import build_chop_launch_env, record_chop_agent_launch_result
+
     assert chop.agent is not None
+    extra_env = build_chop_launch_env(
+        lumberjack_name="_oneshot",
+        chop_name=chop.name,
+        prompt=chop.agent,
+    )
     try:
-        result = launch_agent_from_cwd(chop.agent)
+        result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    record_chop_agent_launch_result(result=result, prompt=chop.agent, env=extra_env)
     print(f"Agent started for chop '{chop.name}' (PID {result.pid})")
     sys.exit(0)
 

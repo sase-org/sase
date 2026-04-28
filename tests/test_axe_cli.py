@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.cli import (
+    _run_agent_chop_oneshot,
     handle_axe_chop_list,
     handle_axe_lumberjack_list,
     handle_axe_lumberjack_status,
@@ -122,6 +123,36 @@ def test_handle_axe_chop_list_deduplicates(
     lines = [line for line in output.strip().split("\n") if line.strip()]
     assert len(lines) == 2  # name + indented description
     assert "shared_chop" in output
+
+
+# --- _run_agent_chop_oneshot Tests ---
+
+
+def test_oneshot_agent_chop_passes_chop_env_metadata(
+    temp_state_dir: Path,
+) -> None:
+    """One-shot ``sase axe chop run`` records chop metadata like the scheduled path."""
+    chop = ChopConfig(name="my_agent", description="", agent="some_agent")
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 4242
+
+    with (
+        patch(
+            "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
+        ) as mock_launch,
+        patch("sase.axe.chop_agents.record_chop_agent_launch_result"),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _run_agent_chop_oneshot(chop)
+
+    assert exc_info.value.code == 0
+    extra_env = mock_launch.call_args.kwargs["extra_env"]
+    assert extra_env["SASE_CHOP_LUMBERJACK"] == "_oneshot"
+    assert extra_env["SASE_CHOP_NAME"] == "my_agent"
+    assert extra_env["SASE_CHOP_RUN_ID"]
+    assert extra_env["SASE_CHOP_PROMPT_HASH"]
+    assert "SASE_AGENT_AUTO_DISMISS" not in extra_env
 
 
 # --- handle_axe_lumberjack_list Tests ---

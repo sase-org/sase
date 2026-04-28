@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +45,25 @@ def prompt_hash(prompt: str) -> str:
     """Return a stable hash for a prompt after whitespace normalization."""
     normalized = "\n".join(line.rstrip() for line in prompt.strip().splitlines())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def build_chop_launch_env(
+    *, lumberjack_name: str, chop_name: str, prompt: str | None
+) -> dict[str, str]:
+    """Build env vars that identify a chop-launched agent.
+
+    Used by both the scheduled lumberjack path and one-shot
+    ``sase axe chop run`` so chop registry/dedup metadata is recorded
+    consistently regardless of how a configured agent chop was launched.
+    """
+    env = {
+        ENV_CHOP_LUMBERJACK: lumberjack_name,
+        ENV_CHOP_NAME: chop_name,
+        ENV_CHOP_RUN_ID: uuid.uuid4().hex,
+    }
+    if prompt is not None:
+        env[ENV_CHOP_PROMPT_HASH] = prompt_hash(prompt)
+    return env
 
 
 def _chop_agent_env_from_process_env(

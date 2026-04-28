@@ -309,6 +309,87 @@ def test_agent_chop_launches_after_previous_completes(
 
 
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_every_agent_chop_is_not_auto_dismissed(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Recurring agent chops launch visibly: no SASE_AGENT_AUTO_DISMISS env var."""
+    config = LumberjackConfig(
+        name="recurring",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="my_agent",
+                description="",
+                agent="some_agent",
+                run_every=3600,
+            )
+        ],
+    )
+    lumberjack = Lumberjack("recurring", config, axe_config)
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 12345
+
+    with patch(
+        "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
+    ) as mock_launch:
+        result = lumberjack._launch_agent_chop(config.chops[0])
+
+    assert result.success is True
+    extra_env = mock_launch.call_args.kwargs["extra_env"]
+    assert "SASE_AGENT_AUTO_DISMISS" not in extra_env
+    # Registry/dedup metadata is still preserved.
+    assert extra_env["SASE_CHOP_LUMBERJACK"] == "recurring"
+    assert extra_env["SASE_CHOP_NAME"] == "my_agent"
+    assert extra_env["SASE_CHOP_RUN_ID"]
+    assert extra_env["SASE_CHOP_PROMPT_HASH"]
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_visible_run_every_agent_chop_is_still_deduped_by_registry(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A visible recurring chop is still deduped by a live registry record."""
+    config = LumberjackConfig(
+        name="recurring_dedup",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="my_agent",
+                description="",
+                agent="some_agent",
+                run_every=3600,
+            )
+        ],
+    )
+    first_lumberjack = Lumberjack("recurring_dedup", config, axe_config)
+    launch_result = AgentLaunchResult(
+        pid=12345,
+        workspace_num=7,
+        workspace_dir="/tmp/ws7",
+        output_path="/tmp/out",
+        project_file="/tmp/projects/proj/proj.gp",
+        project_name="proj",
+        workflow_name="ace(run)-260101_120000",
+        cl_name="proj",
+        timestamp="260101_120000",
+    )
+
+    with patch("sase.agent.launcher.launch_agent_from_cwd", return_value=launch_result):
+        result = first_lumberjack._launch_agent_chop(config.chops[0])
+
+    assert result.success is True
+
+    restarted_lumberjack = Lumberjack("recurring_dedup", config, axe_config)
+    with patch("sase.axe.chop_agents.is_process_running", return_value=True):
+        assert restarted_lumberjack._is_agent_eligible(config.chops[0]) is False
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_agent_chop_registry_skips_after_lumberjack_restart(
     mock_find: MagicMock,
     temp_state_dir: Path,

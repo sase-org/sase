@@ -11,7 +11,6 @@ import signal
 import subprocess
 import time
 import traceback
-import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -33,10 +32,7 @@ from .chop_script_context import (
 )
 from .chop_script_runner import discover_chop_script, run_chop_script
 from .chop_agents import (
-    ENV_CHOP_LUMBERJACK,
-    ENV_CHOP_NAME,
-    ENV_CHOP_PROMPT_HASH,
-    ENV_CHOP_RUN_ID,
+    build_chop_launch_env,
     get_live_chop_agent_records,
     prompt_hash,
     record_chop_agent_launch_result,
@@ -333,14 +329,11 @@ class Lumberjack:
 
     def _chop_launch_env(self, chop: ChopConfig) -> dict[str, str]:
         """Build env vars that identify a chop-launched workflow."""
-        env = {
-            ENV_CHOP_LUMBERJACK: self.name,
-            ENV_CHOP_NAME: chop.name,
-            ENV_CHOP_RUN_ID: uuid.uuid4().hex,
-        }
-        if chop.agent is not None:
-            env[ENV_CHOP_PROMPT_HASH] = prompt_hash(chop.agent)
-        return env
+        return build_chop_launch_env(
+            lumberjack_name=self.name,
+            chop_name=chop.name,
+            prompt=chop.agent,
+        )
 
     def _resolve_gate_cwd(self, chop: ChopConfig) -> str | None:
         """Resolve the CWD for a gate command from the agent prompt's VCS ref.
@@ -410,12 +403,7 @@ class Lumberjack:
         try:
             from sase.agent.launcher import launch_agent_from_cwd
 
-            # Pass auto-dismiss via extra_env to avoid mutating os.environ
-            # (not thread-safe). This ensures recurring run_every agents
-            # don't accumulate as "done" entries.
             extra_env = self._chop_launch_env(chop)
-            if chop.run_every is not None:
-                extra_env["SASE_AGENT_AUTO_DISMISS"] = "1"
             result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
             record_chop_agent_launch_result(
                 result=result,

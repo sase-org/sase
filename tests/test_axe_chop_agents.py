@@ -13,10 +13,35 @@ from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.chop_agents import (
     ENV_CHOP_LUMBERJACK,
     ENV_CHOP_NAME,
+    ENV_CHOP_PROMPT_HASH,
     ENV_CHOP_RUN_ID,
     agent_meta_from_chop_env,
+    build_chop_launch_env,
     get_live_chop_agent_records,
+    prompt_hash,
 )
+
+
+def test_build_chop_launch_env() -> None:
+    """Both scheduled and one-shot paths can build matching chop env vars."""
+    env = build_chop_launch_env(
+        lumberjack_name="recurring",
+        chop_name="my_agent",
+        prompt="#sase/refresh_docs",
+    )
+
+    assert env[ENV_CHOP_LUMBERJACK] == "recurring"
+    assert env[ENV_CHOP_NAME] == "my_agent"
+    assert env[ENV_CHOP_RUN_ID]
+    assert env[ENV_CHOP_PROMPT_HASH] == prompt_hash("#sase/refresh_docs")
+    assert "SASE_AGENT_AUTO_DISMISS" not in env
+
+
+def test_build_chop_launch_env_unique_run_ids() -> None:
+    """Each invocation produces a fresh run id."""
+    env_a = build_chop_launch_env(lumberjack_name="lj", chop_name="c", prompt="prompt")
+    env_b = build_chop_launch_env(lumberjack_name="lj", chop_name="c", prompt="prompt")
+    assert env_a[ENV_CHOP_RUN_ID] != env_b[ENV_CHOP_RUN_ID]
 
 
 def test_agent_meta_from_chop_env() -> None:
