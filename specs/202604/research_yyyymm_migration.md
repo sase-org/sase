@@ -1,0 +1,1 @@
+ Can you help me migrate all of the markdown files in the research/ directory to research/YYmmdd/ subdirs (see how we do this for the specs/ and plans/ directories)? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
