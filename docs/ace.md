@@ -48,15 +48,20 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Navigation
 
-| Key                 | Action                                                                |
-| ------------------- | --------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous CL                                            |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                             |
-| `'`                 | Jump to entry by hint character (current tab)                         |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal)) |
-| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                     |
-| `g` / `G`           | Scroll detail panel to top / bottom                                   |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                             |
+| Key                 | Action                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
+| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
+| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                  |
+| `o`                 | Cycle CL grouping mode (`BY_PROJECT` → `BY_DATE` → `BY_STATUS`)                    |
+| `g` / `G`           | Scroll detail panel to top / bottom                                                |
+| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
+
+> **Note:** `o` ("organize") cycles the L0 grouping bucket on the Agents and CLs tabs (each tab keeps its own persisted
+> mode). On the AXE tab it is a silent no-op. See [CL Grouping and Folding](#cl-grouping-and-folding) and the Agents-tab
+> [Grouping Modes](#grouping-modes) below.
 
 ### CL Actions
 
@@ -67,8 +72,6 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `C` / `c1`-`c9` | Checkout CL (primary / workspace 1-9)                       |
 | `d`             | Show diff                                                   |
 | `e`             | Edit spec file                                              |
-| `h`             | Edit hooks                                                  |
-| `H`             | Add hooks from failed targets                               |
 | `M`             | Mail CL                                                     |
 | `m`             | Mark / unmark current CL (auto-advances to next)            |
 | `n`             | Rename CL (non-Sub/Rev CLs only)                            |
@@ -81,6 +84,31 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `w`             | Reword CL description                                       |
 | `W`             | Add tag to CL description                                   |
 | `Y`             | Sync workspace                                              |
+
+### CL Grouping and Folding
+
+The CLs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner row
+above each bucket. `BY_PROJECT` is the default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` and the active mode is
+persisted to `~/.sase/changespec_grouping_mode.txt`.
+
+| Mode         | L0 buckets                                                                   | Notes                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner. |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | L0 only — bucket from the latest TIMESTAMPS entry.                                                                                 |
+| `BY_STATUS`  | `WIP` / `Draft` / `Ready` / `Mailed` / `Submitted` / `Reverted` / `Archived` | L0 only — bucket from the literal `status` field, in lifecycle order.                                                              |
+
+The active grouping mode is shown in the CLs-tab info-panel header as a `[group: <label>]` badge.
+
+| Key | Action                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
+| `h` | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
+| `L` | Snap to fully expanded — all banners and CL rows visible                                                                               |
+| `H` | Snap to fully collapsed — collapse every visible banner                                                                                |
+
+Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just like CL rows, and `'` jump-hints
+land on them too. After a fold change that hides the focused CL, focus snaps to the deepest collapsed ancestor banner so
+the cursor always sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
 
@@ -118,7 +146,6 @@ last lifecycle event.
 
 | Key     | Action                                          |
 | ------- | ----------------------------------------------- |
-| `L`     | Open agent run log modal                        |
 | `r`     | Run workflow on current CL                      |
 | `@`     | Run a custom agent (opens project/CL selection) |
 | `Space` | Run agent from current CL                       |
@@ -210,9 +237,9 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `o` ("organize") is the grouping-mode cycle on the Agents tab; on the CLs and AXE tabs it is a silent no-op.
-> `g`/`G` keep their conventional vim-style scroll-to-top/bottom meaning on every tab. See
-> [Grouping Modes](#grouping-modes) below.
+> **Note:** `o` ("organize") cycles the grouping mode on the Agents and CLs tabs (each tab persists its own selection
+> independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional vim-style scroll-to-top/bottom
+> meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
 ### Agent Actions
 
@@ -329,19 +356,20 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                    | Notes                                                                                      |
-| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | The "by project" default. Uses the 2-/3-level layout described above.                      |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Flat list within each bucket, sorted by `start_time` newest-first; no name-root sub-level. |
-| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage); name-root sub-level inside each bucket.      |
+| Mode        | L0 buckets                                                    | Notes                                                                                       |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | The "by project" default. Uses the 2-/3-level layout described above.                       |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Two levels: date bucket at L0, hour-of-day (`HH:00`) sub-banner at L1. Sorted newest-first. |
+| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage); name-root sub-level inside each bucket.       |
 
-In `BY_DATE` mode the bucket banner is the only level — same-base-name agents are not a meaningful sub-unit inside a
-date window, so they render as a flat newest-first list (workflow children inherit the parent's `start_time` anchor so
-they stay adjacent to the parent regardless of their own start time). In `BY_STATUS` mode the L0 banner is the status
-bucket and L1 is the name-root, with the same singleton-suppression rule as `STANDARD`. Each mode keeps its own
-per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`.
-`BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads
-visually.
+In `BY_DATE` mode the L0 date bucket is sub-grouped by **hour-of-day** so long Today/Yesterday lists are easier to scan.
+The hour anchor is `stop_time` for terminal agents and `start_time` otherwise; banners render as `HH:00` and sort
+newest-first within their date bucket. Workflow children inherit the parent's anchor so they stay adjacent regardless of
+their own start time, singleton hours suppress their sub-banner, and agents with no usable timestamp fall into a
+`(no time)` bucket that sorts last. In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with
+the same singleton-suppression rule as `STANDARD`. Each mode keeps its own per-group fold registry, so collapsing
+buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with
+semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the durable
 mode is always visible after the cycle toast fades. The selected mode is persisted to `~/.sase/grouping_mode.txt` and
@@ -633,17 +661,6 @@ restored when the TUI restarts, so the user remains marked as idle across sessio
 External tools (e.g., chop scripts) can call `is_idle()` from `sase.ace.tui_activity` to check idle status
 programmatically.
 
-## Agent Run Log Modal
-
-Press `L` on the CLs tab to open the agent run log modal. It shows all agents (running, completed, and dismissed) that
-have been associated with the current CL.
-
-| Key         | Action                      |
-| ----------- | --------------------------- |
-| `j` / `k`   | Navigate through agent list |
-| `Enter`     | Jump to agent in Agents tab |
-| `Esc` / `q` | Close modal                 |
-
 ## Jump All Modal
 
 Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across CLs, Agents, and Axe tabs
@@ -790,6 +807,20 @@ files under `~/.sase/dismissed_bundles/` and can be restored at any time. There 
 agents that can be stored.
 
 Dismiss operations are O(1) per agent — each agent is saved to its own file rather than a monolithic store.
+
+#### Dismissed-Name Prefix
+
+When an agent is dismissed it is renamed in place to `YYmmdd.<base>` — a six-digit completion-date prefix on top of the
+agent's live base name. The prefix is persisted into the dismissed bundle's `agent_name` and `cl_name`, and any visible
+agent that referenced the dismissed name (`%wait:foo`, `#resume:foo`) has those references rewritten to the prefixed
+form so cross-agent dependencies keep resolving after dismissal.
+
+If the same base name was already used by a previous dismissed agent on the same date, the new dismissal allocates a
+collision suffix (`YYmmdd.<base>.2`, `.3`, …) so historical names stay unique.
+
+On revive the prefix is stripped and any visible references to the prefixed name are rewritten back to the base name, so
+a revived agent rejoins its old peers transparently. Bare `%wait` (no target) intentionally skips dismissal-prefixed
+candidates so it always anchors on a live, visible agent.
 
 ## Agents Tab Metadata Panel
 
