@@ -182,6 +182,14 @@ class AgentDismissingMixin:
                         removed.append(step)
                         removed_identities.add(step.identity)
 
+        # Try the incremental row-removal fast path before mutating
+        # ``_agents`` / ``_agents_with_children`` so panel widgets can
+        # still locate the dismissed identities in their cached slices.
+        fast_path = (
+            hasattr(self, "_try_remove_agent_rows")
+            and self._try_remove_agent_rows(removed_identities)  # type: ignore[attr-defined]
+        )
+
         # Remove from cached unfiltered list
         self._agents_with_children = [
             a
@@ -196,7 +204,34 @@ class AgentDismissingMixin:
                 self._dismissed_agent_objects.append(agent)
                 existing_identities.add(agent.identity)
 
+        if fast_path:
+            self._apply_dismissal_in_memory_fast_finish(
+                removed_identities, prior_pos=prior_pos
+            )
+            return
+
         self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
+
+    def _apply_dismissal_in_memory_fast_finish(
+        self,
+        removed_identities: set[tuple[AgentType, str, str | None]],
+        *,
+        prior_pos: int | None,
+    ) -> None:
+        """Finish a fast-path dismissal: mutate ``_agents``, restore focus,
+        and refresh non-list widgets without rebuilding the option list.
+        """
+        self._agents = [a for a in self._agents if a.identity not in removed_identities]
+        if hasattr(self, "_invalidate_agent_panel_cache"):
+            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        if hasattr(self, "_restore_focus_after_removal"):
+            self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
+        if hasattr(self, "_refresh_tab_bar_agent_counts"):
+            self._refresh_tab_bar_agent_counts()  # type: ignore[attr-defined]
+        if self.current_tab == "agents":
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=False, defer_detail=True
+            )
 
     def _save_agent_bundle(self, agent: Agent) -> None:
         """Save a serialized bundle of agent data before artifact deletion.

@@ -131,13 +131,34 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
             self._agent_status_overrides.pop(identity, None)
             self._agent_pre_question_status.pop(identity, None)
 
+        # Try the incremental row-removal fast path before mutating
+        # ``self._agents`` -- the panel widgets read identities off their
+        # cached agent slices, which only match while the app-level list
+        # still includes the killed agents.
+        fast_path = (
+            refresh
+            and self.current_tab == "agents"  # type: ignore[attr-defined]
+            and hasattr(self, "_try_remove_agent_rows")
+            and self._try_remove_agent_rows(identities)  # type: ignore[attr-defined]
+        )
+
         self._agents = [a for a in self._agents if a.identity not in identities]  # type: ignore[attr-defined]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in identities
         ]
+        if hasattr(self, "_invalidate_agent_panel_cache"):
+            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
 
-        if refresh and self.current_tab == "agents":  # type: ignore[attr-defined]
+        if not refresh or self.current_tab != "agents":  # type: ignore[attr-defined]
+            return
+
+        if fast_path:
+            self._refresh_tab_bar_agent_counts()  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=False, defer_detail=True
+            )
+        else:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )
@@ -240,11 +261,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
 
         removed_ids = killed_ids | dismissed_ids
         self._marked_agents.clear()  # type: ignore[attr-defined]
-        self._apply_killed_agents_in_memory(removed_ids, refresh=False)
-        if self.current_tab == "agents":  # type: ignore[attr-defined]
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+        self._apply_killed_agents_in_memory(removed_ids)
 
         killed_count = len(kill_items)
         dismissed_count = len(dismiss_candidates)

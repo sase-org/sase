@@ -320,6 +320,127 @@ def build_list(
         widget._programmatic_update = False
 
 
+def try_remove_rows(
+    widget: Any,
+    removed_identities: set[tuple[AgentType, str, str | None]],
+) -> bool:
+    """Apply optimistic removes in place; return ``True`` on success.
+
+    Returns ``False`` (caller falls back to a full ``update_list`` rebuild)
+    when any conservative gate makes the in-place path unsafe:
+
+    - grouping mode is not :data:`GroupingMode.STANDARD`;
+    - a removed agent is a workflow parent with visible folded children
+      (orphan child rows would be left behind);
+    - the panel's per-row trackers don't have an entry for an identity we
+      were asked to remove.
+
+    Banner chip counts are not refreshed on the fast path — they heal on
+    the next full refresh.
+    """
+    if widget._grouping_mode is not GroupingMode.STANDARD:
+        return False
+
+    rows_to_remove: list[tuple[int, int]] = []
+    removed_local_set: set[int] = set()
+    for local_idx, agent in enumerate(widget._agents):
+        if agent.identity not in removed_identities:
+            continue
+        row = widget._row_by_agent_idx.get(local_idx)
+        if row is None:
+            return False
+        rows_to_remove.append((row, local_idx))
+        removed_local_set.add(local_idx)
+
+    if not rows_to_remove:
+        return True
+
+    # Workflow-parent gate: a parent with visible children would leave
+    # orphan rows behind. Defense-in-depth — the caller should also gate.
+    for _, local_idx in rows_to_remove:
+        agent = widget._agents[local_idx]
+        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+            for other in widget._agents:
+                if (
+                    other.is_workflow_child
+                    and other.parent_timestamp == agent.raw_suffix
+                    and other.parent_workflow == agent.workflow
+                ):
+                    return False
+
+    rows_to_remove.sort(key=lambda t: t[0], reverse=True)
+    removed_row_set = {row for row, _ in rows_to_remove}
+
+    widget._programmatic_update = True
+    try:
+        for row, _ in rows_to_remove:
+            try:
+                widget.remove_option_at_index(row)
+            except (AttributeError, IndexError):
+                widget._programmatic_update = False
+                return False
+    finally:
+        widget._programmatic_update = False
+
+    # Remap local agent indices: dropping a removed agent shifts every
+    # later agent down by 1.
+    old_to_new_local: dict[int, int] = {}
+    new_local = 0
+    for old_local in range(len(widget._agents)):
+        if old_local in removed_local_set:
+            continue
+        old_to_new_local[old_local] = new_local
+        new_local += 1
+
+    new_agents = [
+        a for li, a in enumerate(widget._agents) if li not in removed_local_set
+    ]
+
+    new_row_entries: list[tuple[int, int | None]] = []
+    new_banner_at_row: dict[int, GroupRow] = {}
+    new_row_by_agent_attempt: dict[tuple[int, int | None], int] = {}
+    new_row_by_agent_idx: dict[int, int] = {}
+    new_banner_row_by_key: dict[tuple[str, ...], int] = {}
+    new_row_render_ctx: dict[int, dict[str, Any]] = {}
+    new_row_tier_styles: dict[int, tuple[str, ...]] = {}
+
+    new_row_idx = 0
+    for old_row_idx, entry in enumerate(widget._row_entries):
+        if old_row_idx in removed_row_set:
+            continue
+        local_idx, attempt = entry
+        if local_idx == _BANNER_ROW:
+            new_row_entries.append(entry)
+            banner = widget._banner_at_row.get(old_row_idx)
+            if banner is not None:
+                new_banner_at_row[new_row_idx] = banner
+                new_banner_row_by_key[banner.group_key] = new_row_idx
+        else:
+            new_li = old_to_new_local[local_idx]
+            new_row_entries.append((new_li, attempt))
+            new_row_by_agent_attempt[(new_li, attempt)] = new_row_idx
+            if attempt is None:
+                new_row_by_agent_idx[new_li] = new_row_idx
+            ctx = widget._row_render_ctx.get(local_idx)
+            if ctx is not None:
+                new_row_render_ctx[new_li] = ctx
+            tier = widget._row_tier_styles.get(local_idx)
+            if tier is not None:
+                new_row_tier_styles[new_li] = tier
+        new_row_idx += 1
+
+    widget._agents = new_agents
+    widget._row_entries = new_row_entries
+    widget._banner_at_row = new_banner_at_row
+    widget._row_by_agent_attempt = new_row_by_agent_attempt
+    widget._row_by_agent_idx = new_row_by_agent_idx
+    widget._banner_row_by_key = new_banner_row_by_key
+    widget._row_render_ctx = new_row_render_ctx
+    widget._row_tier_styles = new_row_tier_styles
+
+    return True
+
+
 def patch_row(
     widget: Any,
     agent_idx: int,

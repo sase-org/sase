@@ -19,6 +19,7 @@ from ._agent_list_build import (
     compute_tier_styles,
     patch_row,
     resolve_row,
+    try_remove_rows,
 )
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
@@ -281,6 +282,22 @@ class AgentList(OptionList, inherit_bindings=False):
         another panel, or the index is stale).
         """
         return self._row_by_agent_idx.get(agent_idx)
+
+    def try_remove_rows(
+        self,
+        removed_identities: set[tuple[AgentType, str, str | None]],
+    ) -> bool:
+        """Apply optimistic removes in place when conservative gates hold.
+
+        Returns ``True`` when every removal landed; ``False`` when the
+        caller must fall back to a full ``update_list`` rebuild. Banner
+        chip counts may briefly drift on the fast path until the next
+        full refresh — see ``try_remove_rows`` in ``_agent_list_build``.
+        """
+        with tui_trace(
+            "widget.agent_list.try_remove_rows", count=len(removed_identities)
+        ):
+            return try_remove_rows(self, removed_identities)
 
     def patch_agent_row(
         self,

@@ -348,6 +348,76 @@ class PanelsMixin:
             pass
 
     # ---------------------------------------------------------------------
+    # Incremental row removal (Phase 4 of plans/202604/tui_perf_v2.md)
+    # ---------------------------------------------------------------------
+
+    def _try_remove_agent_rows(
+        self,
+        removed_identities: set[tuple[AgentType, str, str | None]],
+    ) -> bool:
+        """Apply optimistic removes in place across panel widgets.
+
+        Returns ``True`` when the in-place fast path landed for every
+        affected panel; ``False`` when any conservative gate failed and
+        the caller must fall back to a full ``_refresh_agents_display``.
+
+        Conservative gates (all must hold):
+
+        - the agents tab is active;
+        - no agent search query is active;
+        - grouping mode is :attr:`GroupingMode.STANDARD`;
+        - all removed identities live in a single panel;
+        - no removed agent is a workflow parent with visible folded children.
+        """
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        if not removed_identities:
+            return True
+        if self.current_tab != "agents":
+            return False
+        if getattr(self, "_agent_search_query", ""):
+            return False
+        if (
+            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+            is not GroupingMode.STANDARD
+        ):
+            return False
+
+        # All removed identities must live in a single panel widget.
+        if not hasattr(self, "query_one"):
+            return False
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+
+        panel_widgets = [w for w in container.children if isinstance(w, AgentList)]
+        target_widget: AgentList | None = None
+        for widget in panel_widgets:
+            widget_identities = {a.identity for a in widget._agents}
+            overlap = widget_identities & removed_identities
+            if not overlap:
+                continue
+            if overlap != removed_identities:
+                # Identities split across panels -- fall back.
+                return False
+            if target_widget is not None:
+                return False
+            target_widget = widget
+
+        if target_widget is None:
+            # Nothing to remove on this tab -- treat as a successful no-op
+            # so the caller can skip the full rebuild.
+            return True
+
+        if not target_widget.try_remove_rows(removed_identities):
+            return False
+
+        return True
+
+    # ---------------------------------------------------------------------
     # Single-row patch
     # ---------------------------------------------------------------------
 

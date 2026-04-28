@@ -89,6 +89,47 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
         if hasattr(self, "_nav_stops_cache"):
             self._nav_stops_cache = None
 
+    def _refresh_tab_bar_agent_counts(self) -> None:
+        """Recompute and push agent counts onto the tab bar.
+
+        Mirrors the count math in :func:`_loading_finalize.finalize_agent_list`
+        so a fast-path in-memory removal can keep the tab bar fresh
+        without going through the full finalize pipeline.
+        """
+        from textual.css.query import NoMatches
+
+        from ...widgets import TabBar
+
+        try:
+            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+        except NoMatches:
+            return
+
+        manual_running = sum(
+            1
+            for a in self._agents
+            if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
+        )
+        if getattr(self, "_has_always_visible", False):
+            hidden_running = sum(
+                1
+                for a in getattr(self, "_hideable_agents", [])
+                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
+            )
+        else:
+            hidden_running = 0
+        done_visible = sum(
+            1
+            for a in self._agents
+            if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
+        )
+        tab_bar.update_agents_count(
+            manual_running,
+            hidden_running,
+            show_hidden=not getattr(self, "hide_non_run_agents", False),
+            done_count=done_visible,
+        )
+
     def _agent_panel_index(self) -> AgentPanelIndex:
         """Memoized :class:`AgentPanelIndex` keyed on the agents-list ref.
 
