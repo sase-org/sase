@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from pathlib import Path
 from unittest.mock import patch
@@ -30,8 +31,23 @@ class _FakeApp(AgentLaunchMixin):
         self.notifications.append((msg, severity))
 
     def call_later(self, fn: object, *args: object, **kwargs: object) -> None:
-        if callable(fn):
-            fn(*args, **kwargs)
+        if not callable(fn):
+            return
+        result = fn(*args, **kwargs)
+        # The fan-out entry now schedules an ``asyncio.to_thread`` runner
+        # via ``call_later``; drive that coroutine to completion so the
+        # downstream launch path runs synchronously inside the test.
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
+
+    def request_agents_refresh(
+        self,
+        source: str,
+        *,
+        debounce_ms: int = 150,
+        latest_only: bool = True,
+    ) -> None:
+        del source, debounce_ms, latest_only
 
     def _load_agents(self) -> None:
         pass

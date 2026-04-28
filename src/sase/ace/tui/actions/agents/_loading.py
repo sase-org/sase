@@ -117,6 +117,10 @@ class AgentLoadingMixin:
     # after the last trigger.
     _agents_refresh_pending: bool
     _agents_refresh_scheduled: bool
+    # Source-aware debounce gate for ``request_agents_refresh``: True while
+    # a debounce timer is armed so a burst of fan-out spawn callbacks
+    # collapses into a single deferred ``_schedule_agents_async_refresh``.
+    _agents_refresh_debounce_armed: bool
 
     # Navigation gate (set up in startup.py). Used to defer the post-await
     # apply/render leg of `_run_agents_async_refresh` while the user is
@@ -335,6 +339,43 @@ class AgentLoadingMixin:
         self._finalize_agent_list(
             on_agents_tab, selected_identity, save_unfiltered=True
         )
+
+    def request_agents_refresh(
+        self,
+        source: str,
+        *,
+        debounce_ms: int = 150,
+        latest_only: bool = True,
+    ) -> None:
+        """Request a coalesced agents refresh.
+
+        Multiple calls within ``debounce_ms`` collapse into one refresh,
+        so launch fan-out (multi-prompt, multi-model, repeat, bulk) does
+        not schedule a refresh per spawned agent. The deferred refresh
+        still routes through :meth:`_schedule_agents_async_refresh`, so
+        the navigation-gate and last-request-wins guards in
+        :meth:`_run_agents_async_refresh` remain in force.
+
+        Args:
+            source: Tag for telemetry / debug only — currently advisory.
+            debounce_ms: Window during which subsequent requests are
+                absorbed.
+            latest_only: When True (default), an already-armed timer is
+                left in place — the deferred refresh will pick up the
+                latest on-disk state after the burst settles. When False,
+                each request restarts the debounce window.
+        """
+        del source
+        if self._agents_refresh_debounce_armed and latest_only:
+            return
+        self._agents_refresh_debounce_armed = True
+        delay = max(0.0, debounce_ms / 1000.0)
+        self.set_timer(delay, self._fire_debounced_agents_refresh)  # type: ignore[attr-defined]
+
+    def _fire_debounced_agents_refresh(self) -> None:
+        """Debounce-timer callback that posts the deferred refresh."""
+        self._agents_refresh_debounce_armed = False
+        self._schedule_agents_async_refresh()
 
     def _schedule_agents_async_refresh(self) -> None:
         """Schedule an async agent reload without blocking.
