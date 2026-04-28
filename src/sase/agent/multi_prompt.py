@@ -84,6 +84,21 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     )
 
 
+# pyvision: xprompts/pylimit_split.yml
+def build_wait_chained_multi_prompt(prompts: list[str]) -> str:
+    """Join *prompts* into a multi-prompt where every segment after the first
+    starts with a ``%wait`` directive.
+
+    Empty/whitespace-only prompts are dropped.  Returns ``""`` when no prompts
+    survive that filter, so callers can use a falsy check to skip launches.
+    """
+    cleaned = [p.strip() for p in prompts if p and p.strip()]
+    if not cleaned:
+        return ""
+    segments = [cleaned[0]] + [f"%wait\n{p}" for p in cleaned[1:]]
+    return "\n---\n".join(segments)
+
+
 def is_multi_prompt(text: str) -> bool:
     """Quick check: does *text* contain multiple prompt segments?
 

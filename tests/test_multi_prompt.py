@@ -5,6 +5,7 @@ import pytest
 from sase.agent.multi_prompt import (
     MultiPrompt,
     _LocalXPromptNameError,
+    build_wait_chained_multi_prompt,
     is_multi_prompt,
     parse_multi_prompt,
 )
@@ -176,6 +177,41 @@ def test_is_multi_prompt_false_frontmatter_only() -> None:
     """Frontmatter + single segment is not a multi-prompt."""
     text = '---\nxprompts:\n  _x: "v"\n---\nsingle segment'
     assert is_multi_prompt(text) is False
+
+
+# --- build_wait_chained_multi_prompt ---
+
+
+def test_build_wait_chain_empty() -> None:
+    assert build_wait_chained_multi_prompt([]) == ""
+
+
+def test_build_wait_chain_single_segment_has_no_wait() -> None:
+    text = build_wait_chained_multi_prompt(["#sase/pysplit:foo.py"])
+    assert text == "#sase/pysplit:foo.py"
+    assert "%wait" not in text
+
+
+def test_build_wait_chain_multiple_segments_inject_wait_after_first() -> None:
+    text = build_wait_chained_multi_prompt(
+        [
+            "#sase/pysplit:a.py",
+            "#sase/pysplit:b.py",
+            "#sase/pysplit:c.py",
+        ]
+    )
+    parsed = parse_multi_prompt(text)
+    assert parsed.segments == [
+        "#sase/pysplit:a.py",
+        "%wait\n#sase/pysplit:b.py",
+        "%wait\n#sase/pysplit:c.py",
+    ]
+
+
+def test_build_wait_chain_drops_blank_entries() -> None:
+    text = build_wait_chained_multi_prompt(["a", "", "   ", "b"])
+    parsed = parse_multi_prompt(text)
+    assert parsed.segments == ["a", "%wait\nb"]
 
 
 def test_is_multi_prompt_true_with_frontmatter() -> None:

@@ -1,13 +1,35 @@
 input:
   limits: { type: text, default: "1000 850 700" }
 steps:
-  - name: find_files
+  - name: launch_split_agents
     hidden: true
-    bash: |
-      { tools/pylimit_files-260227 src {{ limits }}; tools/pylimit_files-260227 tests {{ limits }}; } | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
-    output: { files: text }
+    python: |
+      import subprocess
 
-  - name: split_files
-    for: { file_path: "{{ find_files.files }}" }
-    agent: |
-      #sase/pysplit:{{ file_path }}
+      from sase.agent.launcher import launch_agent_from_cwd
+      from sase.agent.multi_prompt import build_wait_chained_multi_prompt
+
+      limits = "{{ limits }}".split()
+
+      files: list[str] = []
+      for tree in ("src", "tests"):
+          result = subprocess.run(
+              ["tools/pylimit_files-260227", tree, *limits],
+              capture_output=True,
+              text=True,
+              check=False,
+          )
+          files.extend(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+      unique_files = list(dict.fromkeys(files))
+
+      if not unique_files:
+          print("launched=0")
+      else:
+          per_file_prompts = [
+              f"#gh:sase #sase/pysplit:{path} %approve" for path in unique_files
+          ]
+          multi_prompt = build_wait_chained_multi_prompt(per_file_prompts)
+          launch_agent_from_cwd(multi_prompt)
+          print(f"launched={len(unique_files)}")
+    output: { launched: int }
