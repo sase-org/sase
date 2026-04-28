@@ -19,6 +19,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.jump_all_modal import JumpAllModal, JumpAllResult
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, BgCmdList
+from sase.ace.tui.widgets._changespec_list_helpers import format_changespec_option
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 
 
@@ -160,8 +161,7 @@ def test_inline_jump_on_key_uses_uppercase_event_character() -> None:
 
 
 def test_changespec_list_hint_marker_rendered() -> None:
-    widget = ChangeSpecList()
-    option = widget._format_changespec_option(
+    option = format_changespec_option(
         _make_changespec(),
         is_selected=False,
         is_marked=False,
