@@ -64,7 +64,7 @@ def _apply_dismissal_rename(
     agents_with_children_snapshot: Iterable[Agent],
     *,
     taken: set[str] | None = None,
-) -> None:
+) -> dict[str, str]:
     """Mutate *agent* (and its workflow children) to carry dismissed names.
 
     The parent's :attr:`Agent.agent_name` becomes ``YYmmdd.<base>``, where
@@ -75,6 +75,11 @@ def _apply_dismissal_rename(
     consistent. When *taken* is provided it is updated in place with newly
     allocated names so subsequent dismissals in the same batch do not
     collide; when ``None``, the allocator scans persisted state on its own.
+
+    Returns a ``{old_name: new_name}`` map for every rename performed so
+    callers can rewrite dependent wait/resume references in one pass.
+    Unnamed agents that gained a dismissed name for the first time are
+    excluded from the map — there are no preexisting references to migrate.
     """
     from ...models.agent import AgentType
     from sase.agent.names import (
@@ -82,12 +87,16 @@ def _apply_dismissal_rename(
         allocate_dismissed_name,
     )
 
+    name_map: dict[str, str] = {}
     completion_date = _completion_date_for(agent)
     base = _base_for_dismissal(agent)
     new_name = allocate_dismissed_name(base, completion_date, taken=taken)
+    old_name = agent.agent_name
     agent.agent_name = new_name
     if taken is not None:
         taken.add(new_name)
+    if old_name and old_name != new_name:
+        name_map[old_name] = new_name
 
     if (
         agent.agent_type == AgentType.WORKFLOW
@@ -101,7 +110,11 @@ def _apply_dismissal_rename(
                 and step.parent_workflow == agent.workflow
                 and step.agent_name
             ):
+                old_step = step.agent_name
                 step.agent_name = add_dismissed_prefix(step.agent_name, completion_date)
+                if old_step != step.agent_name:
+                    name_map[old_step] = step.agent_name
+    return name_map
 
 
 class AgentDismissingMixin:
@@ -307,11 +320,14 @@ class AgentDismissingMixin:
         from sase.agent.names import collect_dismissed_taken_names
 
         allocated_names: set[str] = collect_dismissed_taken_names()
+        name_map: dict[str, str] = {}
         for agent in agents:
-            _apply_dismissal_rename(
-                agent,
-                agents_with_children_snapshot,
-                taken=allocated_names,
+            name_map.update(
+                _apply_dismissal_rename(
+                    agent,
+                    agents_with_children_snapshot,
+                    taken=allocated_names,
+                )
             )
 
         for agent in agents:
@@ -331,6 +347,7 @@ class AgentDismissingMixin:
         s = "s" if count != 1 else ""
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
+        _apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
         self.call_later(  # type: ignore[attr-defined]
@@ -338,6 +355,7 @@ class AgentDismissingMixin:
             list(agents),
             set(self._dismissed_agents),
             agents_with_children_snapshot,
+            name_map,
         )
 
     async def _run_bulk_dismiss_persistence_async(
@@ -345,6 +363,7 @@ class AgentDismissingMixin:
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
+        name_map: dict[str, str],
     ) -> None:
         """Persist a batch dismissal's filesystem side effects in a worker."""
         identities = {a.identity for a in agents}
@@ -359,6 +378,7 @@ class AgentDismissingMixin:
                 agents,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
+                name_map,
             )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
@@ -390,7 +410,7 @@ class AgentDismissingMixin:
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        _apply_dismissal_rename(agent, agents_with_children_snapshot)
+        name_map = _apply_dismissal_rename(agent, agents_with_children_snapshot)
         identities = self._collect_dismissal_identities([agent])
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
@@ -403,11 +423,13 @@ class AgentDismissingMixin:
         else:
             self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory([agent])
+        _apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
         self.call_later(  # type: ignore[attr-defined]
             self._run_dismiss_persistence_async,
             agent,
             set(self._dismissed_agents),
             agents_with_children_snapshot,
+            name_map,
         )
 
     async def _run_dismiss_persistence_async(
@@ -415,6 +437,7 @@ class AgentDismissingMixin:
         agent: Agent,
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
+        name_map: dict[str, str],
     ) -> None:
         """Persist single-agent dismiss side effects in a worker thread.
 
@@ -441,6 +464,7 @@ class AgentDismissingMixin:
                 agent,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
+                name_map,
             )
         except Exception as exc:
             success = False
@@ -466,10 +490,13 @@ def persist_single_dismiss_transaction(
     agent: Agent,
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
+    name_map: dict[str, str],
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
+    from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
+    rewrite_dismissed_references(name_map)
     persist_dismiss_side_effects(agent, agents_with_children_snapshot)
     dismiss_notifications_for_agents(
         _agents_related_to_dismissal(agent, agents_with_children_snapshot)
@@ -481,10 +508,13 @@ def persist_bulk_dismiss_transaction(
     agents: list[Agent],
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
+    name_map: dict[str, str],
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
+    from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
+    rewrite_dismissed_references(name_map)
     related: list[Agent] = []
     for agent in agents:
         persist_dismiss_side_effects(agent, agents_with_children_snapshot)
@@ -494,6 +524,21 @@ def persist_bulk_dismiss_transaction(
     if related:
         dismiss_notifications_for_agents(related)
     save_dismissed_agents(dismissed_snapshot)
+
+
+def _apply_in_memory_reference_rewrites(
+    agents: Iterable[Agent],
+    name_map: dict[str, str],
+) -> None:
+    """Update each agent's ``waiting_for`` list using *name_map* in place."""
+    if not name_map:
+        return
+    for agent in agents:
+        if not agent.waiting_for:
+            continue
+        new_waiting = [name_map.get(n, n) for n in agent.waiting_for]
+        if new_waiting != agent.waiting_for:
+            agent.waiting_for = new_waiting
 
 
 def persist_dismiss_side_effects(

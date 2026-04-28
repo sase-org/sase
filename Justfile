@@ -48,7 +48,12 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase \
-        --epic-symbol 'sase-10(is_dismissed_prefixed)'
+        --epic-symbol 'sase-10(is_dismissed_prefixed)' \
+        --epic-symbol 'sase-10(rewrite_artifact_json_files)' \
+        --epic-symbol 'sase-10(rewrite_artifact_prompt)' \
+        --epic-symbol 'sase-10(rewrite_directive_text)' \
+        --epic-symbol 'sase-10(rewrite_resume_directives)' \
+        --epic-symbol 'sase-10(rewrite_wait_directives)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
