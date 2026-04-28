@@ -58,7 +58,7 @@ _RESUME_REF_RE = re.compile(
 )
 
 
-def rewrite_wait_directives(text: str, name_map: dict[str, str]) -> str:
+def _rewrite_wait_directives(text: str, name_map: dict[str, str]) -> str:
     """Rewrite ``%wait``/``%w`` argument names according to *name_map*.
 
     Multiple comma-separated names in a single directive are supported;
@@ -94,7 +94,7 @@ def rewrite_wait_directives(text: str, name_map: dict[str, str]) -> str:
     return unprotect_fenced_blocks(rewritten, fenced)
 
 
-def rewrite_resume_directives(text: str, name_map: dict[str, str]) -> str:
+def _rewrite_resume_directives(text: str, name_map: dict[str, str]) -> str:
     """Rewrite ``#resume:`` / ``#resume(<name>)`` arguments via *name_map*.
 
     Backtick-quoted forms are preserved. ``#resume_by_chat`` references a
@@ -124,10 +124,10 @@ def rewrite_resume_directives(text: str, name_map: dict[str, str]) -> str:
     return unprotect_fenced_blocks(rewritten, fenced)
 
 
-def rewrite_directive_text(text: str, name_map: dict[str, str]) -> str:
+def _rewrite_directive_text(text: str, name_map: dict[str, str]) -> str:
     """Rewrite both ``%wait``/``%w`` and ``#resume`` references via *name_map*."""
-    text = rewrite_wait_directives(text, name_map)
-    return rewrite_resume_directives(text, name_map)
+    text = _rewrite_wait_directives(text, name_map)
+    return _rewrite_resume_directives(text, name_map)
 
 
 def _rewrite_single_arg(raw_arg: str, name_map: dict[str, str]) -> str:
@@ -201,7 +201,7 @@ def _build_wait_directive(
 # ---------------------------------------------------------------------------
 
 
-def rewrite_artifact_json_files(artifact_dir: Path, name_map: dict[str, str]) -> bool:
+def _rewrite_artifact_json_files(artifact_dir: Path, name_map: dict[str, str]) -> bool:
     """Update wait references inside an artifact directory's JSON markers.
 
     Touches ``agent_meta.json`` (``wait_for``), ``waiting.json``
@@ -222,7 +222,7 @@ def rewrite_artifact_json_files(artifact_dir: Path, name_map: dict[str, str]) ->
     return changed
 
 
-def rewrite_artifact_prompt(artifact_dir: Path, name_map: dict[str, str]) -> bool:
+def _rewrite_artifact_prompt(artifact_dir: Path, name_map: dict[str, str]) -> bool:
     """Rewrite wait/resume directives inside ``raw_xprompt.md``."""
     if not name_map:
         return False
@@ -231,7 +231,7 @@ def rewrite_artifact_prompt(artifact_dir: Path, name_map: dict[str, str]) -> boo
         original = path.read_text(encoding="utf-8")
     except (FileNotFoundError, OSError):
         return False
-    rewritten = rewrite_directive_text(original, name_map)
+    rewritten = _rewrite_directive_text(original, name_map)
     if rewritten == original:
         return False
     try:
@@ -298,8 +298,8 @@ def rewrite_dismissed_references(
             for artifact_dir in ace_run_dir.iterdir():
                 if not artifact_dir.is_dir():
                     continue
-                rewrite_artifact_json_files(artifact_dir, name_map)
-                rewrite_artifact_prompt(artifact_dir, name_map)
+                _rewrite_artifact_json_files(artifact_dir, name_map)
+                _rewrite_artifact_prompt(artifact_dir, name_map)
 
     if in_memory_agents:
         for agent in in_memory_agents:

@@ -16,12 +16,12 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.dismissed_name_rewrites import (
-    rewrite_artifact_json_files,
-    rewrite_artifact_prompt,
-    rewrite_directive_text,
+    _rewrite_artifact_json_files,
+    _rewrite_artifact_prompt,
+    _rewrite_directive_text,
+    _rewrite_resume_directives,
+    _rewrite_wait_directives,
     rewrite_dismissed_references,
-    rewrite_resume_directives,
-    rewrite_wait_directives,
 )
 
 
@@ -33,32 +33,32 @@ from sase.agent.dismissed_name_rewrites import (
 class TestRewriteWaitDirectives:
     def test_colon_form_single_name(self) -> None:
         assert (
-            rewrite_wait_directives("%w:foo do thing", {"foo": "260428.foo"})
+            _rewrite_wait_directives("%w:foo do thing", {"foo": "260428.foo"})
             == "%w:260428.foo do thing"
         )
 
     def test_long_alias_colon(self) -> None:
         assert (
-            rewrite_wait_directives("%wait:foo", {"foo": "260428.foo"})
+            _rewrite_wait_directives("%wait:foo", {"foo": "260428.foo"})
             == "%wait:260428.foo"
         )
 
     def test_comma_list_partial_rewrite(self) -> None:
         # Only the matched name is rewritten; the rest stay verbatim.
         assert (
-            rewrite_wait_directives("%w:foo,bar", {"foo": "260428.foo"})
+            _rewrite_wait_directives("%w:foo,bar", {"foo": "260428.foo"})
             == "%w:260428.foo,bar"
         )
 
     def test_paren_form(self) -> None:
         assert (
-            rewrite_wait_directives("%w(foo, bar)", {"bar": "260428.bar"})
+            _rewrite_wait_directives("%w(foo, bar)", {"bar": "260428.bar"})
             == "%w(foo, 260428.bar)"
         )
 
     def test_backtick_arg(self) -> None:
         assert (
-            rewrite_wait_directives("%w:`foo`", {"foo": "260428.foo"})
+            _rewrite_wait_directives("%w:`foo`", {"foo": "260428.foo"})
             == "%w:`260428.foo`"
         )
 
@@ -66,16 +66,16 @@ class TestRewriteWaitDirectives:
         # ``foobar`` is not in the map and must not be rewritten just because
         # ``foo`` is — the directive splits on commas, exact match only.
         assert (
-            rewrite_wait_directives("%w:foobar", {"foo": "260428.foo"}) == "%w:foobar"
+            _rewrite_wait_directives("%w:foobar", {"foo": "260428.foo"}) == "%w:foobar"
         )
 
     def test_unrelated_text_unchanged(self) -> None:
         text = "Wait for foo to finish before resuming."
-        assert rewrite_wait_directives(text, {"foo": "260428.foo"}) == text
+        assert _rewrite_wait_directives(text, {"foo": "260428.foo"}) == text
 
     def test_skips_fenced_code_block(self) -> None:
         text = "```\n%w:foo\n```\nthen %w:foo runs"
-        rewritten = rewrite_wait_directives(text, {"foo": "260428.foo"})
+        rewritten = _rewrite_wait_directives(text, {"foo": "260428.foo"})
         # The fenced example stays as-is; the live directive is rewritten.
         assert "```\n%w:foo\n```" in rewritten
         assert "then %w:260428.foo runs" in rewritten
@@ -84,7 +84,7 @@ class TestRewriteWaitDirectives:
         text = (
             "%xprompts_enabled:false\n%w:foo\n%xprompts_enabled:true\nnow %w:foo here"
         )
-        rewritten = rewrite_wait_directives(text, {"foo": "260428.foo"})
+        rewritten = _rewrite_wait_directives(text, {"foo": "260428.foo"})
         # Disabled region preserves the marker pair and original directive.
         assert "%xprompts_enabled:false\n%w:foo\n%xprompts_enabled:true" in rewritten
         # Active directive is rewritten.
@@ -92,12 +92,12 @@ class TestRewriteWaitDirectives:
 
     def test_empty_map_is_noop(self) -> None:
         text = "%w:foo"
-        assert rewrite_wait_directives(text, {}) == text
+        assert _rewrite_wait_directives(text, {}) == text
 
     def test_idempotent_when_map_already_applied(self) -> None:
         # Rewriting again with the same map is a no-op once the live name is gone.
-        once = rewrite_wait_directives("%w:foo", {"foo": "260428.foo"})
-        assert rewrite_wait_directives(once, {"foo": "260428.foo"}) == once
+        once = _rewrite_wait_directives("%w:foo", {"foo": "260428.foo"})
+        assert _rewrite_wait_directives(once, {"foo": "260428.foo"}) == once
 
 
 # ---------------------------------------------------------------------------
@@ -108,40 +108,40 @@ class TestRewriteWaitDirectives:
 class TestRewriteResumeDirectives:
     def test_colon_form(self) -> None:
         assert (
-            rewrite_resume_directives("#resume:foo go", {"foo": "260428.foo"})
+            _rewrite_resume_directives("#resume:foo go", {"foo": "260428.foo"})
             == "#resume:260428.foo go"
         )
 
     def test_paren_form(self) -> None:
         assert (
-            rewrite_resume_directives("#resume(foo)", {"foo": "260428.foo"})
+            _rewrite_resume_directives("#resume(foo)", {"foo": "260428.foo"})
             == "#resume(260428.foo)"
         )
 
     def test_backtick_paren(self) -> None:
         assert (
-            rewrite_resume_directives("#resume(`foo`)", {"foo": "260428.foo"})
+            _rewrite_resume_directives("#resume(`foo`)", {"foo": "260428.foo"})
             == "#resume(`260428.foo`)"
         )
 
     def test_backtick_colon(self) -> None:
         assert (
-            rewrite_resume_directives("#resume:`foo`", {"foo": "260428.foo"})
+            _rewrite_resume_directives("#resume:`foo`", {"foo": "260428.foo"})
             == "#resume:`260428.foo`"
         )
 
     def test_resume_by_chat_untouched(self) -> None:
         # ``#resume_by_chat`` argument is a chat path, never an agent name.
         text = "#resume_by_chat:foo.md"
-        assert rewrite_resume_directives(text, {"foo": "260428.foo"}) == text
+        assert _rewrite_resume_directives(text, {"foo": "260428.foo"}) == text
 
     def test_unmapped_name_unchanged(self) -> None:
         text = "#resume:bar"
-        assert rewrite_resume_directives(text, {"foo": "260428.foo"}) == text
+        assert _rewrite_resume_directives(text, {"foo": "260428.foo"}) == text
 
     def test_skipped_in_fenced_block(self) -> None:
         text = "```\n#resume:foo\n```\n#resume:foo"
-        rewritten = rewrite_resume_directives(text, {"foo": "260428.foo"})
+        rewritten = _rewrite_resume_directives(text, {"foo": "260428.foo"})
         assert "```\n#resume:foo\n```" in rewritten
         assert rewritten.endswith("#resume:260428.foo")
 
@@ -150,7 +150,7 @@ class TestRewriteDirectiveText:
     def test_combines_wait_and_resume(self) -> None:
         text = "%w:foo then later #resume:foo"
         assert (
-            rewrite_directive_text(text, {"foo": "260428.foo"})
+            _rewrite_directive_text(text, {"foo": "260428.foo"})
             == "%w:260428.foo then later #resume:260428.foo"
         )
 
@@ -165,7 +165,7 @@ class TestRewriteArtifactJsonFiles:
         meta = tmp_path / "agent_meta.json"
         meta.write_text(json.dumps({"name": "bar", "wait_for": ["foo", "baz"]}))
 
-        changed = rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
+        changed = _rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
 
         assert changed
         data = json.loads(meta.read_text())
@@ -177,44 +177,44 @@ class TestRewriteArtifactJsonFiles:
     def test_rewrites_waiting_json(self, tmp_path: Path) -> None:
         waiting = tmp_path / "waiting.json"
         waiting.write_text(json.dumps({"waiting_for": ["foo"], "cl_name": "feature_x"}))
-        rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
+        _rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
         assert json.loads(waiting.read_text())["waiting_for"] == ["260428.foo"]
 
     def test_rewrites_ready_json(self, tmp_path: Path) -> None:
         ready = tmp_path / "ready.json"
         ready.write_text(json.dumps({"resolved_deps": ["foo", "baz"]}))
-        rewrite_artifact_json_files(tmp_path, {"baz": "260428.baz"})
+        _rewrite_artifact_json_files(tmp_path, {"baz": "260428.baz"})
         assert json.loads(ready.read_text())["resolved_deps"] == ["foo", "260428.baz"]
 
     def test_no_change_returns_false(self, tmp_path: Path) -> None:
         meta = tmp_path / "agent_meta.json"
         meta.write_text(json.dumps({"wait_for": ["bar"]}))
-        assert not rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
+        assert not _rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
 
     def test_missing_files_silent(self, tmp_path: Path) -> None:
         # Empty dir: no files — call must not raise and reports no change.
-        assert not rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
+        assert not _rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
 
     def test_corrupt_json_silent(self, tmp_path: Path) -> None:
         (tmp_path / "agent_meta.json").write_text("{not json")
-        assert not rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
+        assert not _rewrite_artifact_json_files(tmp_path, {"foo": "260428.foo"})
 
 
 class TestRewriteArtifactPrompt:
     def test_rewrites_prompt_directives(self, tmp_path: Path) -> None:
         prompt = tmp_path / "raw_xprompt.md"
         prompt.write_text("Body.\n%w:foo and #resume:foo\n")
-        changed = rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
+        changed = _rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
         assert changed
         assert prompt.read_text() == "Body.\n%w:260428.foo and #resume:260428.foo\n"
 
     def test_no_change_returns_false(self, tmp_path: Path) -> None:
         prompt = tmp_path / "raw_xprompt.md"
         prompt.write_text("plain prose only")
-        assert not rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
+        assert not _rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
 
     def test_missing_file_silent(self, tmp_path: Path) -> None:
-        assert not rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
+        assert not _rewrite_artifact_prompt(tmp_path, {"foo": "260428.foo"})
 
 
 # ---------------------------------------------------------------------------

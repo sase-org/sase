@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 21:32:28
-status: wip
+status: done
 bead_id: sase-10
 ---
 # Enforce Names for Dismissed Agents
