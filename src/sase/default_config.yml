@@ -61,6 +61,7 @@ ace:
       start_agent_from_changespec: "space"
       jump_to_agent_changespec: "enter"
       edit_panel: "E"
+      show_agent_run_log: "A"
       # Thinking panel
       toggle_thinking: "right_square_bracket"
       toggle_thinking_reverse: "left_square_bracket"

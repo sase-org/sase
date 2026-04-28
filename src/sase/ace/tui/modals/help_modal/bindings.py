@@ -73,7 +73,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.show_diff), "Show diff"),
                 (d(a.hooks_or_collapse), "Edit hooks"),
                 (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
-                (d(a.expand_all_folds), "Agent run log"),
+                (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.mail), "Mail CL"),
                 (d(a.toggle_mark), "Mark/unmark current CL"),
                 (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),

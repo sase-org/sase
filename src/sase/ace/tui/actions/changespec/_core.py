@@ -75,6 +75,17 @@ class ChangeSpecMixin(
         changespec = self.changespecs[self.current_idx]
         self._open_spec_in_editor(changespec)
 
+    def action_show_agent_run_log(self) -> None:
+        """Open the Agent Run Log modal for the current ChangeSpec."""
+        if self.current_tab != "changespecs":
+            return
+        if not self.changespecs:
+            return
+        changespec = self.changespecs[self.current_idx]
+        from ...modals.agent_run_log_modal import AgentRunLogModal
+
+        self.push_screen(AgentRunLogModal(cl_name=changespec.name))  # type: ignore[attr-defined]
+
     def _open_spec_in_editor(self, changespec: ChangeSpec) -> None:
         """Open ChangeSpec in editor with nvim enhancements."""
         import subprocess
