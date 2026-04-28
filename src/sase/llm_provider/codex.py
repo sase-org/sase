@@ -1,7 +1,11 @@
 """Codex (OpenAI CLI agent) LLM provider implementation."""
 
 import os
+import shutil
 import subprocess
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from sase.output import gemini_timer
@@ -16,6 +20,7 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "gpt-5.5",
     "small": "codex-mini-latest",
 }
+_DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 
 
 def _log_interrupt(message: str, cycle: int) -> None:
@@ -36,6 +41,52 @@ def _log_interrupt(message: str, cycle: int) -> None:
             f.write("\n")
     except OSError:
         pass
+
+
+def _real_codex_home() -> Path:
+    """Return the user's real Codex home."""
+    codex_home = os.environ.get("CODEX_HOME")
+    if codex_home:
+        return Path(codex_home).expanduser().resolve(strict=False)
+    return Path.home() / ".codex"
+
+
+def _create_shadow_codex_home(real_home: Path) -> Path:
+    """Create a disposable CODEX_HOME with a copied config and linked state."""
+    cache_root = Path.home() / ".cache" / "sase" / "codex_home"
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    shadow_home = cache_root / f"{os.getpid()}-{uuid.uuid4().hex}"
+    shadow_home.mkdir(mode=0o700)
+
+    if not real_home.exists():
+        return shadow_home
+
+    for source in real_home.iterdir():
+        dest = shadow_home / source.name
+        if source.name == "config.toml":
+            if source.exists():
+                shutil.copy2(source, dest)
+            continue
+        dest.symlink_to(source, target_is_directory=source.is_dir())
+
+    return shadow_home
+
+
+@contextmanager
+def _codex_subprocess_env() -> Iterator[dict[str, str] | None]:
+    """Yield an env for Codex, isolating config writes unless disabled."""
+    if os.environ.get(_DISABLE_SHADOW_HOME_ENV) == "1":
+        yield None
+        return
+
+    shadow_home = _create_shadow_codex_home(_real_codex_home())
+    env = os.environ.copy()
+    env["CODEX_HOME"] = str(shadow_home)
+    try:
+        yield env
+    finally:
+        shutil.rmtree(shadow_home, ignore_errors=True)
 
 
 class CodexProvider(LLMProvider):
@@ -239,24 +290,37 @@ class CodexProvider(LLMProvider):
         Returns:
             Tuple of (stdout_content, stderr_content, return_code).
         """
-        process = subprocess.Popen(
-            args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        with _codex_subprocess_env() as env:
+            if env is None:
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            else:
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=env,
+                )
 
-        # Write prompt to stdin
-        if process.stdin:
-            process.stdin.write(prompt)
-            process.stdin.close()
+            # Write prompt to stdin
+            if process.stdin:
+                process.stdin.write(prompt)
+                process.stdin.close()
 
-        start_interrupt_monitor(
-            process,
-            on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
-        )
+            start_interrupt_monitor(
+                process,
+                on_interrupt=lambda msg: setattr(
+                    self, "_pending_interrupt_message", msg
+                ),
+            )
 
-        return stream_and_parse_codex_json_output(
-            process, suppress_output=suppress_output
-        )
+            return stream_and_parse_codex_json_output(
+                process, suppress_output=suppress_output
+            )

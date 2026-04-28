@@ -212,15 +212,22 @@ When `SASE_AGENT_PLAN_MODE` is set, Codex runs a two-phase plan/implement flow:
 
 ### Environment Variables
 
-| Variable                | Description                                               |
-| ----------------------- | --------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`   | Extra CLI args for `large` tier (generic, preferred)      |
-| `SASE_LLM_SMALL_ARGS`   | Extra CLI args for `small` tier (generic, preferred)      |
-| `SASE_CODEX_LARGE_ARGS` | Extra CLI args for `large` tier (Codex-specific fallback) |
-| `SASE_CODEX_SMALL_ARGS` | Extra CLI args for `small` tier (Codex-specific fallback) |
-| `SASE_AGENT_PLAN_MODE`  | Enable two-phase plan/implement flow                      |
+| Variable                         | Description                                               |
+| -------------------------------- | --------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`            | Extra CLI args for `large` tier (generic, preferred)      |
+| `SASE_LLM_SMALL_ARGS`            | Extra CLI args for `small` tier (generic, preferred)      |
+| `SASE_CODEX_LARGE_ARGS`          | Extra CLI args for `large` tier (Codex-specific fallback) |
+| `SASE_CODEX_SMALL_ARGS`          | Extra CLI args for `small` tier (Codex-specific fallback) |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home           |
+| `SASE_AGENT_PLAN_MODE`           | Enable two-phase plan/implement flow                      |
 
 The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
+
+By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under `~/.cache/sase/codex_home/`. The shadow
+home copies `config.toml` and symlinks other Codex home entries back to the real Codex home so Codex can read auth,
+hooks, skills, logs, and caches while any config rewrites stay disposable. The shadow directory is removed after each
+Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the inherited environment directly for
+debugging or emergency compatibility.
 
 ### Timer Display
 

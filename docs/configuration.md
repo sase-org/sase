@@ -592,21 +592,27 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ### LLM Provider
 
-| Variable                   | Description                                                              |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `SASE_MODEL_TIER_OVERRIDE` | Force all LLM invocations to a specific tier (`large` or `small`).       |
-| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).         |
-| `SASE_LLM_LARGE_ARGS`      | Extra CLI args appended for `large` tier invocations (any provider).     |
-| `SASE_LLM_SMALL_ARGS`      | Extra CLI args appended for `small` tier invocations (any provider).     |
-| `SASE_CLAUDE_LARGE_ARGS`   | Claude-specific extra args for `large` tier (fallback if generic unset). |
-| `SASE_CLAUDE_SMALL_ARGS`   | Claude-specific extra args for `small` tier (fallback if generic unset). |
-| `SASE_CODEX_LARGE_ARGS`    | Codex-specific extra args for `large` tier (fallback if generic unset).  |
-| `SASE_CODEX_SMALL_ARGS`    | Codex-specific extra args for `small` tier (fallback if generic unset).  |
-| `SASE_AGENT_PLAN_MODE`     | Enable Codex two-phase plan/implement flow.                              |
-| `SASE_GEMINI_PATH`         | Path to the Gemini CLI binary (default: `gemini`).                       |
+| Variable                         | Description                                                              |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `SASE_MODEL_TIER_OVERRIDE`       | Force all LLM invocations to a specific tier (`large` or `small`).       |
+| `SASE_MODEL_SIZE_OVERRIDE`       | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).         |
+| `SASE_LLM_LARGE_ARGS`            | Extra CLI args appended for `large` tier invocations (any provider).     |
+| `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).     |
+| `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset). |
+| `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset). |
+| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).  |
+| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).  |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.              |
+| `SASE_AGENT_PLAN_MODE`           | Enable Codex two-phase plan/implement flow.                              |
+| `SASE_GEMINI_PATH`               | Path to the Gemini CLI binary (default: `gemini`).                       |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.
+
+SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default. The shadow home is created under
+`~/.cache/sase/codex_home/`, receives a copy of the real `config.toml`, symlinks other Codex home entries back to the
+real home, and is removed when the subprocess exits. This prevents Codex runtime config rewrites from dirtying the
+user-managed Codex config while preserving auth, hooks, skills, logs, and caches.
 
 ### VCS Provider
 

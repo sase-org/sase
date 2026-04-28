@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -150,3 +151,134 @@ def test_codex_provider_generic_env_args_precedence(
     assert "--generic-arg" in cmd
     assert "val1" in cmd
     assert "--codex-arg" not in cmd
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_uses_shadow_codex_home_by_default(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that Codex subprocesses receive a disposable CODEX_HOME."""
+    real_home = tmp_path / "real-codex"
+    real_home.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    env = mock_popen.call_args.kwargs["env"]
+    shadow_home = Path(env["CODEX_HOME"])
+    assert shadow_home != real_home
+    assert shadow_home.parent == tmp_path / ".cache" / "sase" / "codex_home"
+    assert not shadow_home.exists()
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test shadow config isolation and symlinks for non-config entries."""
+    real_home = tmp_path / "real-codex"
+    real_home.mkdir()
+    real_config = real_home / "config.toml"
+    real_config.write_text('model = "gpt-5.5"\n')
+    auth_file = real_home / "auth.json"
+    auth_file.write_text("{}\n")
+    skills_dir = real_home / "skills"
+    skills_dir.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    observed_shadow_home: Path | None = None
+
+    def mutate_shadow_config(
+        process: MagicMock, suppress_output: bool
+    ) -> tuple[str, str, int]:
+        nonlocal observed_shadow_home
+        observed_shadow_home = Path(mock_popen.call_args.kwargs["env"]["CODEX_HOME"])
+        shadow_config = observed_shadow_home / "config.toml"
+
+        assert shadow_config.read_text() == 'model = "gpt-5.5"\n'
+        assert not shadow_config.is_symlink()
+        assert (observed_shadow_home / "auth.json").is_symlink()
+        assert (observed_shadow_home / "auth.json").resolve() == auth_file
+        assert (observed_shadow_home / "skills").is_symlink()
+        assert (observed_shadow_home / "skills").resolve() == skills_dir
+
+        shadow_config.write_text('model = "mutated"\n')
+        return "response", "", 0
+
+    mock_stream.side_effect = mutate_shadow_config
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    assert real_config.read_text() == 'model = "gpt-5.5"\n'
+    assert observed_shadow_home is not None
+    assert not observed_shadow_home.exists()
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_cleans_shadow_home_after_failure(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that nonzero Codex results still clean up the shadow home."""
+    real_home = tmp_path / "real-codex"
+    real_home.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("", "some error", 1)
+
+    provider = CodexProvider()
+    with pytest.raises(subprocess.CalledProcessError):
+        provider.invoke("test", model_tier="large", suppress_output=True)
+
+    shadow_home = Path(mock_popen.call_args.kwargs["env"]["CODEX_HOME"])
+    assert not shadow_home.exists()
+
+
+@patch.dict(os.environ, {"SASE_CODEX_DISABLE_SHADOW_HOME": "1"})
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_shadow_home_opt_out_preserves_inherited_env(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """Test that SASE_CODEX_DISABLE_SHADOW_HOME=1 keeps Popen env inherited."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    assert "env" not in mock_popen.call_args.kwargs

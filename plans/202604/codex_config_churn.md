@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 18:36:55
-status: wip
+status: done
 ---
 # Plan: Stop Codex from Dirtying Managed Config
 
