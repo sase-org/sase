@@ -126,7 +126,7 @@ def test_by_date_missing_timestamps_lands_in_earlier_after_dated_cls() -> None:
 # --- BY_STATUS ---
 
 
-def test_by_status_emits_only_l1_banners_in_display_order() -> None:
+def test_by_status_l0_banners_in_display_order() -> None:
     cl = [
         _cs("a", status="Submitted"),
         _cs("b", status="WIP"),
@@ -140,7 +140,75 @@ def test_by_status_emits_only_l1_banners_in_display_order() -> None:
         ("Draft",),
         ("Submitted",),
     ]
+    # All names are unique — no sibling-root grouping fires.
     assert _group_keys(entries, 1) == []
+
+
+def test_by_status_emits_sibling_sub_banner_under_status_bucket() -> None:
+    cl = [
+        _cs("foobar_1", status="WIP"),
+        _cs("foobar_2", status="WIP"),
+        _cs("solo", status="WIP"),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_STATUS, now=_NOW)
+    # Status banner, then singleton ``solo`` first, then sibling-root
+    # banner, then the two foobar siblings.
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("changespec", 2),
+        ("group", 1),
+        ("changespec", 0),
+        ("changespec", 1),
+    ]
+    assert _group_keys(entries, 0) == [("WIP",)]
+    assert _group_keys(entries, 1) == [("WIP", "foobar")]
+
+
+def test_by_status_singleton_root_does_not_emit_l1_banner() -> None:
+    cl = [_cs("foobar_1", status="WIP"), _cs("baz", status="WIP")]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_STATUS, now=_NOW)
+    assert _group_keys(entries, 1) == []
+    assert ("group", 1) not in _kinds(entries)
+
+
+def test_by_status_sibling_sub_banner_scoped_to_its_bucket() -> None:
+    cl = [
+        _cs("foobar_1", status="WIP"),
+        _cs("foobar_2", status="Mailed"),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_STATUS, now=_NOW)
+    # Each sibling is alone inside its own status bucket — no L1 banner.
+    assert _group_keys(entries, 1) == []
+
+
+def test_by_status_enumerate_keys_includes_only_grouped_roots_at_l1() -> None:
+    cl = [
+        _cs("foobar_1", status="WIP"),
+        _cs("foobar_2", status="WIP"),
+        _cs("solo", status="WIP"),
+    ]
+    keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_STATUS)
+    assert ("WIP",) in keys
+    assert ("WIP", "foobar") in keys
+    assert ("WIP", "solo") not in keys
+
+
+def test_by_status_collapsed_sibling_root_hides_only_its_members() -> None:
+    cl = [
+        _cs("foobar_1", status="WIP"),
+        _cs("foobar_2", status="WIP"),
+        _cs("solo", status="WIP"),
+    ]
+    registry = GroupFoldRegistry()
+    registry.collapse(("WIP", "foobar"))
+    entries = build_changespec_tree(
+        cl, ChangeSpecGroupingMode.BY_STATUS, fold_registry=registry, now=_NOW
+    )
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("changespec", 2),
+        ("group", 1),
+    ]
 
 
 def test_by_status_keeps_input_order_within_bucket() -> None:

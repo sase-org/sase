@@ -17,7 +17,7 @@ class ChangeSpecGroupRow:
     """A banner row in the grouped CL tree.
 
     ``level`` is 0 for project / date / status banners and 1 for
-    sibling-root banners (only emitted in ``BY_PROJECT``).
+    sibling-root banners.
     ``changespec_indices`` references the input ``changespecs`` list so
     callers can show counts or jump to the first member.
     """
@@ -61,7 +61,11 @@ def enumerate_changespec_group_keys(
 
     seen: set[GroupKey] = set()
     out: list[GroupKey] = []
-    if mode is ChangeSpecGroupingMode.BY_PROJECT:
+    has_sibling_level = mode in (
+        ChangeSpecGroupingMode.BY_PROJECT,
+        ChangeSpecGroupingMode.BY_STATUS,
+    )
+    if has_sibling_level:
         root_counts: dict[tuple[str, str], int] = {}
         for k in keys:
             root_counts[(k.l0, k.sibling_root)] = (
@@ -123,12 +127,16 @@ def build_changespec_tree(
     ]
     walk = walk_order(changespecs, keys, mode, latest_map=latest_map)
 
+    has_sibling_level = mode in (
+        ChangeSpecGroupingMode.BY_PROJECT,
+        ChangeSpecGroupingMode.BY_STATUS,
+    )
     l0_indices: dict[str, list[int]] = {}
     root_indices: dict[tuple[str, str], list[int]] = {}
     for i in walk:
         k = keys[i]
         l0_indices.setdefault(k.l0, []).append(i)
-        if mode is ChangeSpecGroupingMode.BY_PROJECT and k.sibling_root:
+        if has_sibling_level and k.sibling_root:
             root_indices.setdefault((k.l0, k.sibling_root), []).append(i)
 
     entries: list[ChangeSpecTreeEntry] = []
@@ -159,7 +167,7 @@ def build_changespec_tree(
         if cur_l0_collapsed:
             continue
 
-        if mode is ChangeSpecGroupingMode.BY_PROJECT and k.sibling_root:
+        if has_sibling_level and k.sibling_root:
             siblings = root_indices.get((k.l0, k.sibling_root), [])
             if len(siblings) >= 2 and k.sibling_root != cur_root:
                 cur_root = k.sibling_root

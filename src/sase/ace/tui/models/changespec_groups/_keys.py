@@ -25,7 +25,8 @@ class _ChangeSpecKeys:
 
     ``l0`` is the level-0 group label (project name in ``BY_PROJECT``,
     bucket name in ``BY_DATE`` / ``BY_STATUS``).  ``sibling_root`` is
-    populated only in ``BY_PROJECT`` mode.
+    populated for modes that emit a sibling-root sub-banner
+    (``BY_PROJECT`` and ``BY_STATUS``); empty otherwise.
     """
 
     l0: str
@@ -67,7 +68,11 @@ def keys_for_changespec(
         l0=_l0_value_for(cs, mode, now, latest_map=latest_map),
         sibling_root=(
             sibling_root_for_changespec(cs)
-            if mode is ChangeSpecGroupingMode.BY_PROJECT
+            if mode
+            in (
+                ChangeSpecGroupingMode.BY_PROJECT,
+                ChangeSpecGroupingMode.BY_STATUS,
+            )
             else ""
         ),
     )
@@ -122,14 +127,18 @@ def walk_order(
 ) -> list[int]:
     """Return a stable permutation of CS indices grouped by *mode*.
 
-    * ``BY_PROJECT`` puts singleton sibling roots before grouped roots
-      within a project so they render directly under the project banner.
+    * ``BY_PROJECT`` and ``BY_STATUS`` put singleton sibling roots before
+      grouped roots within their L0 bucket so they render directly under
+      the L0 banner.
     * ``BY_DATE`` sorts within bucket by latest timestamp descending.
-    * ``BY_STATUS`` falls back to the input list's relative order.
     """
     # Count siblings per (l0, root) so singletons can sort first.
     root_counts: dict[tuple[str, str], int] = {}
-    if mode is ChangeSpecGroupingMode.BY_PROJECT:
+    has_sibling_level = mode in (
+        ChangeSpecGroupingMode.BY_PROJECT,
+        ChangeSpecGroupingMode.BY_STATUS,
+    )
+    if has_sibling_level:
         for k in keys:
             root_counts[(k.l0, k.sibling_root)] = (
                 root_counts.get((k.l0, k.sibling_root), 0) + 1
@@ -138,7 +147,7 @@ def walk_order(
     def sort_key(i: int) -> tuple[object, ...]:
         k = keys[i]
         l0 = _l0_sort_key(mode, k.l0)
-        if mode is ChangeSpecGroupingMode.BY_PROJECT:
+        if has_sibling_level:
             in_group = root_counts.get((k.l0, k.sibling_root), 0) >= 2
             # ``(0, "")`` for singletons so they precede grouped roots,
             # then the lowercased root name groups same-root siblings

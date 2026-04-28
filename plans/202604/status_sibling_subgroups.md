@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 10:29:31
-status: wip
+status: done
 ---
 # Plan — Sibling-Root Sub-Banners under `BY_STATUS` on the CLs Tab
 

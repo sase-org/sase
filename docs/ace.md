@@ -91,11 +91,11 @@ The CLs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DA
 above each bucket. `BY_PROJECT` is the default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` and the active mode is
 persisted to `~/.sase/changespec_grouping_mode.txt`.
 
-| Mode         | L0 buckets                                                                   | Notes                                                                                                                              |
-| ------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner. |
-| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | L0 only — bucket from the latest TIMESTAMPS entry.                                                                                 |
-| `BY_STATUS`  | `WIP` / `Draft` / `Ready` / `Mailed` / `Submitted` / `Reverted` / `Archived` | L0 only — bucket from the literal `status` field, in lifecycle order.                                                              |
+| Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner.                                                                                       |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | L0 only — bucket from the latest TIMESTAMPS entry.                                                                                                                                                                       |
+| `BY_STATUS`  | `WIP` / `Draft` / `Ready` / `Mailed` / `Submitted` / `Reverted` / `Archived` | Bucket from the literal `status` field, in lifecycle order. Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings inside each status bucket. Singletons suppress their L1 banner. |
 
 The active grouping mode is shown in the CLs-tab info-panel header as a `[group: <label>]` badge.
 
