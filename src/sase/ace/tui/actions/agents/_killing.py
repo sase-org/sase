@@ -443,11 +443,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
 
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
-                # Kill running agents first
-                for agent in killable:
-                    self._do_kill_agent(agent)
-                # Then dismiss completed agents
-                if dismissable:
-                    self._do_dismiss_all(dismissable)  # type: ignore[attr-defined]
+                self._do_bulk_kill_agents(killable, dismissable)
 
         self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
