@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 18:44:34
 status: wip
+bead_id: sase-12
 ---
 # TUI Performance v2 — Phased Implementation Plan
 
