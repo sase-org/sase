@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ...changespec import ChangeSpec
@@ -132,9 +133,22 @@ def render_grouped(
     # Walk the tree and emit Options.
     highlighted_row: int | None = None
     banner_seq = 0
+    spacer_seq = 0
+    seen_first_l0 = False
     for entry in tree:
         if entry.kind == "group" and entry.group is not None:
             group = entry.group
+            if group.level == 0:
+                if seen_first_l0:
+                    spacer = Option(
+                        Text(""),
+                        id=f"cs-spacer:{spacer_seq}",
+                        disabled=True,
+                    )
+                    spacer_seq += 1
+                    widget.add_option(spacer)
+                    widget._row_entries.append(_BANNER_ROW)
+                seen_first_l0 = True
             selectable = group.is_collapsed
             banner_hint = (
                 (banner_jump_hints or {}).get(group.group_key) if selectable else None

@@ -74,10 +74,14 @@ def test_by_status_emits_l0_banners_and_cl_rows(monkeypatch: Any) -> None:
         grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
     )
 
-    # 2 banners (WIP, Ready) + 3 CL rows = 5 options.
-    assert widget.option_count == 5
-    # _row_entries shape: BANNER, cs, cs, BANNER, cs.
-    banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
+    # 2 banners (WIP, Ready) + 1 inter-L0 spacer + 3 CL rows = 6 options.
+    assert widget.option_count == 6
+    banner_rows = [
+        i
+        for i in range(widget.option_count)
+        if widget._row_entries[i] == _BANNER_ROW
+        and not (widget.get_option_at_index(i).id or "").startswith("cs-spacer:")
+    ]
     cs_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     assert len(banner_rows) == 2
     assert len(cs_rows) == 3

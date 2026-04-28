@@ -157,7 +157,12 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     # BY_DATE → BY_STATUS: WIP and Ready buckets.
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_STATUS
-    banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
+    banner_rows = [
+        i
+        for i in range(widget.option_count)
+        if widget._row_entries[i] == _BANNER_ROW
+        and not (widget.get_option_at_index(i).id or "").startswith("cs-spacer:")
+    ]
     assert len(banner_rows) == 2
 
     # BY_STATUS → BY_PROJECT (wrap).
