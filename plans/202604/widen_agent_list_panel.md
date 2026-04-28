@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-27 20:19:19
-status: wip
+status: done
 ---
 # Plan: Widen the `sase ace` Agents-tab Agent List Panel
 
