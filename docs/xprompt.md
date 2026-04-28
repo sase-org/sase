@@ -919,13 +919,15 @@ the Agents tab. Only the parenthesized syntax triggers multi-model behavior; col
 parentheses (`%m(opus)`) always launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
-they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.claude` and
-`foo.codex`. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.claude` / `a.codex`)
-rather than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value
-unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the
-suffix: `foo.claude-opus` and `foo.claude-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a
-short alias (`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gemini-flash3` /
-`foo.gemini-flash25` rather than echoing the full model string.
+they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.cld` and `foo.cdx`.
+The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook) — `cld`,
+`gem`, `cdx`, `jet` for the built-in providers — falling back to the full provider name for plugins that don't declare
+one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`) rather than
+each agent picking its own letter independently. Single-model prompts retain their plain `%name` value unchanged. When
+two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the suffix:
+`foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a short alias
+(`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gem-flash3` /
+`foo.gem-flash25` rather than echoing the full model string.
 
 ### Multi-Value Directives
 

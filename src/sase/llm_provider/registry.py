@@ -58,6 +58,21 @@ def model_to_provider_map() -> dict[str, str]:
     return mapping
 
 
+def provider_short_name_map() -> dict[str, str]:
+    """Return ``{provider_name → short_label}`` for agent-name suffixes.
+
+    When a plugin doesn't implement ``llm_provider_short_name``, the
+    fallback is its entry-point name — preserving today's behavior for
+    plugins that haven't been updated.
+    """
+    mapping: dict[str, str] = {}
+    for name, plugin in iter_plugins():
+        method = getattr(plugin, "llm_provider_short_name", None)
+        short = method() if method is not None else None
+        mapping[name] = short or name
+    return mapping
+
+
 def model_short_alias_map() -> dict[str, str]:
     """Build a ``{model_name → short_alias}`` map from plugin metadata.
 

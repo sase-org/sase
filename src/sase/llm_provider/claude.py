@@ -59,6 +59,10 @@ class ClaudeCodeProvider(LLMProvider):
         return "claude"
 
     @hookimpl
+    def llm_provider_short_name(self) -> str:
+        return "cld"
+
+    @hookimpl
     def llm_resolve_model_name(self, model_tier: ModelTier) -> str:
         return self.resolve_model_name(model_tier)
 

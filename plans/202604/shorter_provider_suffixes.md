@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 16:15:58
-status: wip
+status: done
 ---
 # Shorter LLM Provider Suffixes in Agent Names
 

@@ -365,11 +365,13 @@ def _runtime_label_for_model(model: str) -> str:
     """
     from sase.llm_provider.registry import (
         get_default_provider_name,
+        provider_short_name_map,
         resolve_model_provider,
     )
 
     provider, _ = resolve_model_provider(model)
-    return provider or get_default_provider_name()
+    name = provider or get_default_provider_name()
+    return provider_short_name_map().get(name, name)
 
 
 def _inject_name_directive(prompt: str, name: str) -> str:

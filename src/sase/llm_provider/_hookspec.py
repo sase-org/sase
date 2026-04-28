@@ -51,6 +51,15 @@ class LLMHookSpec:
     @hookspec(firstresult=True)
     def llm_provider_name(self) -> str: ...
 
+    @hookspec(firstresult=True)
+    def llm_provider_short_name(self) -> str:
+        """Short label used in spawned-agent name suffixes (e.g. ``foo.cld``).
+
+        Should be unique across providers. When omitted, the registry
+        falls back to the provider entry-point name (``llm_provider_name``).
+        """
+        ...
+
     # --- Metadata ---
 
     @hookspec(firstresult=True)
