@@ -133,6 +133,13 @@ class StartupMixin(StateInitMixin):
             tab_bar.set_keymap_registry(self._keymap_registry)
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
             info_panel.set_keymap_registry(self._keymap_registry)
+            try:
+                cs_info_panel = self.query_one(  # type: ignore[attr-defined]
+                    "#info-panel", ChangeSpecInfoPanel
+                )
+                cs_info_panel.set_keymap_registry(self._keymap_registry)
+            except Exception:
+                log.debug("CL info panel keymap wiring skipped: widget not found")
 
             # Cache stable widget refs so hot paths skip repeat ``query_one``
             # walks. Wrapped in try/except so a missing widget never blocks

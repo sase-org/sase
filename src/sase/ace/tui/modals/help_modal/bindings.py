@@ -208,6 +208,15 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             ],
         ),
         (
+            "Grouping",
+            [
+                (
+                    d(a.cycle_grouping_mode),
+                    "Cycle: flat→proj→date→status",
+                ),
+            ],
+        ),
+        (
             f"Copy Mode ({d(cm.prefix)})",
             [
                 (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy ChangeSpec"),

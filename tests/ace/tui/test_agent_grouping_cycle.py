@@ -25,6 +25,8 @@ from sase.ace.tui.models.agent_groups import (
     build_agent_tree,
     enumerate_group_keys,
 )
+from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.group_fold import GroupFoldRegistry
 
 
 class _StubApp(AgentGroupingMixin):
@@ -40,12 +42,27 @@ class _StubApp(AgentGroupingMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
+        # CL-side state is required by the action's tab dispatch even
+        # when the test never enters the CLs branch — the dispatcher
+        # references these attributes during type-narrowing setup.
+        self._changespec_grouping_mode = ChangeSpecGroupingMode.FLAT
+        self._changespec_group_fold_registries: dict[
+            ChangeSpecGroupingMode, GroupFoldRegistry
+        ] = {ChangeSpecGroupingMode.FLAT: GroupFoldRegistry()}
+        self._changespec_group_fold_registry = self._changespec_group_fold_registries[
+            ChangeSpecGroupingMode.FLAT
+        ]
+        self._current_changespec_group_key: tuple[str, ...] | None = None
         self.refilter_calls = 0
         self.scroll_calls = 0
+        self.refresh_calls = 0
         self.notifications: list[str] = []
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
+
+    def _refresh_display(self) -> None:
+        self.refresh_calls += 1
 
     def action_scroll_to_top(self) -> None:
         self.scroll_calls += 1
@@ -228,8 +245,8 @@ def test_build_tree_after_cycle_uses_active_mode_registry() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_on_non_agents_tab_is_silent_noop() -> None:
-    """The cycle key is Agents-tab only; CLs / AXE tabs ignore it."""
+def test_cycle_on_changespecs_tab_does_not_touch_agents_state() -> None:
+    """CLs cycle goes through the CL branch; Agents grouping stays put."""
     app = _StubApp([_agent()], current_tab="changespecs")
     app.action_cycle_grouping_mode()
     assert app.scroll_calls == 0
@@ -242,7 +259,9 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
     app.action_cycle_grouping_mode()
     assert app.scroll_calls == 0
     assert app.refilter_calls == 0
+    assert app.refresh_calls == 0
     assert app._grouping_mode is GroupingMode.STANDARD
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.FLAT
 
 
 # ---------------------------------------------------------------------------

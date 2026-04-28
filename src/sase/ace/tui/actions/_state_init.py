@@ -248,6 +248,30 @@ class StateInitMixin:
         # underlying agent.
         self._current_group_key: tuple[str, ...] | None = None
 
+        # CLs-tab grouping state (mirrors the Agents-tab attributes above
+        # but with its own enum, persistence, and per-mode fold registries
+        # so cycling one tab cannot leak collapse intent into the other).
+        # Empty registry on first paint => every group expanded.
+        from ...changespec_grouping_mode_state import load_changespec_grouping_mode
+        from ..models.changespec_groups import ChangeSpecGroupingMode
+        from ..models.group_fold import GroupFoldRegistry
+
+        self._changespec_grouping_mode: ChangeSpecGroupingMode = (
+            load_changespec_grouping_mode()
+        )
+        self._changespec_group_fold_registries: dict[
+            ChangeSpecGroupingMode, GroupFoldRegistry
+        ] = {
+            self._changespec_grouping_mode: GroupFoldRegistry(),
+        }
+        self._changespec_group_fold_registry: GroupFoldRegistry = (
+            self._changespec_group_fold_registries[self._changespec_grouping_mode]
+        )
+        # Active banner focus on the CLs tab (Phase 4 will surface this on
+        # navigation; Phase 3 just needs a stable attribute to clear on
+        # mode cycle and pass through to ``ChangeSpecList.update_list``).
+        self._current_changespec_group_key: tuple[str, ...] | None = None
+
         # Tag-driven side-panel collection.  Initialized empty (untagged
         # main pane only); rebuilt by ``_load_agents`` whenever the
         # agent set changes.

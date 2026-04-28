@@ -5,6 +5,7 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from sase.ace.tui.models.fold_state import FoldLevel
 
 # Fold indicator characters per level
@@ -24,6 +25,13 @@ _FOLD_STYLES: dict[FoldLevel, str] = {
 # Label style (dimmed letter before each indicator)
 _LABEL_STYLE = "dim #808080"
 
+# Per-mode badge color, mirroring the Agents info panel palette.
+_GROUPING_MODE_STYLES: dict[str, str] = {
+    "by project": "bold #5FAFFF",
+    "by date": "bold #87D7FF",
+    "by status": "bold #FFAF87",
+}
+
 
 class ChangeSpecInfoPanel(Static):
     """Panel showing ChangeSpec position and auto-refresh countdown."""
@@ -41,6 +49,29 @@ class ChangeSpecInfoPanel(Static):
         self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
         self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
         self._fold_timestamps: FoldLevel = FoldLevel.COLLAPSED
+        # Empty string means "flat" — the badge stays hidden so the dense
+        # CL top bar is not cluttered when the user has not opted in to
+        # grouping.  Non-empty values turn the badge on.
+        self._grouping_label: str = ""
+        self._registry: KeymapRegistry = load_keymap_registry({})
+
+    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
+        """Override the keymap registry and refresh display."""
+        self._registry = registry
+        self._refresh_content()
+
+    def update_grouping_mode(self, label: str) -> None:
+        """Update the active CL grouping-strategy label.
+
+        Args:
+            label: Human-readable label.  Empty string (or ``"flat"``)
+                hides the badge so the FLAT default doesn't clutter the
+                top bar.
+        """
+        normalized = "" if label.lower() in ("", "flat") else label
+        if self._grouping_label != normalized:
+            self._grouping_label = normalized
+            self._refresh_content()
 
     def update_position(self, position: int, total: int, marked_count: int = 0) -> None:
         """Update the current position and total count.
@@ -144,6 +175,18 @@ class ChangeSpecInfoPanel(Static):
             ]:
                 text.append(label, style=_LABEL_STYLE)
                 text.append(_FOLD_CHARS[level], style=_FOLD_STYLES[level])
+
+        if self._grouping_label:
+            text.append("   ", style="")
+            text.append("[", style="dim")
+            text.append("group: ", style="dim")
+            text.append(
+                self._grouping_label,
+                style=_GROUPING_MODE_STYLES.get(self._grouping_label, "dim"),
+            )
+            key = key_display_name(self._registry.app.cycle_grouping_mode)
+            text.append(f" ({key})", style="dim")
+            text.append("]", style="dim")
 
         if self._refresh_interval > 0:
             text.append("   (auto-refresh in ", style="dim")

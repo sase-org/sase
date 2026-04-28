@@ -15,11 +15,21 @@ from ...models.changespec_graph_index import (
     ChangeSpecGraphIndex,
     build_changespec_graph_index,
 )
+from ...models.changespec_groups import ChangeSpecGroupingMode
 from ...util.trace import tui_trace
 
 log = logging.getLogger(__name__)
 
 TabName = Literal["changespecs", "agents", "axe"]
+
+# Human-readable badge text per CL grouping mode.  ``FLAT`` resolves to
+# the empty string so the info-panel badge stays hidden in flat mode.
+_CHANGESPEC_GROUPING_BADGE_LABELS: dict[ChangeSpecGroupingMode, str] = {
+    ChangeSpecGroupingMode.FLAT: "",
+    ChangeSpecGroupingMode.BY_PROJECT: "by project",
+    ChangeSpecGroupingMode.BY_DATE: "by date",
+    ChangeSpecGroupingMode.BY_STATUS: "by status",
+}
 
 
 class ChangeSpecDisplayMixin:
@@ -378,6 +388,28 @@ class ChangeSpecDisplayMixin:
 
         from ....query import query_explicitly_targets_terminal
 
+        from ...models.changespec_groups import enumerate_changespec_group_keys
+
+        grouping_mode: ChangeSpecGroupingMode = getattr(
+            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.FLAT
+        )
+        fold_registry = (
+            getattr(self, "_changespec_group_fold_registry", None)
+            if grouping_mode is not ChangeSpecGroupingMode.FLAT
+            else None
+        )
+        if fold_registry is not None:
+            # Drop collapse intent for groups whose last member dropped
+            # out of the filtered set — otherwise a key from a previous
+            # query would silently re-collapse if the same group reappeared.
+            fold_registry.clear_unknown(
+                enumerate_changespec_group_keys(self.changespecs, mode=grouping_mode)
+            )
+        current_group_key = (
+            getattr(self, "_current_changespec_group_key", None)
+            if grouping_mode is not ChangeSpecGroupingMode.FLAT
+            else None
+        )
         list_widget.update_list(  # type: ignore[attr-defined]
             self.changespecs,
             self.current_idx,
@@ -387,6 +419,9 @@ class ChangeSpecDisplayMixin:
             jump_hints=(
                 self._entry_jump_index_to_hint if self._entry_jump_mode_active else None
             ),
+            grouping_mode=grouping_mode,
+            fold_registry=fold_registry,
+            current_group_key=current_group_key,
         )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
@@ -437,4 +472,8 @@ class ChangeSpecDisplayMixin:
         info_panel.update_hidden_counts(
             self._hidden_reverted_count, self._hidden_submitted_count
         )
+        cs_mode: ChangeSpecGroupingMode = getattr(
+            self, "_changespec_grouping_mode", ChangeSpecGroupingMode.FLAT
+        )
+        info_panel.update_grouping_mode(_CHANGESPEC_GROUPING_BADGE_LABELS[cs_mode])
         info_panel.update_countdown(self._countdown_remaining, self.refresh_interval)  # type: ignore[attr-defined]
