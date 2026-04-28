@@ -679,3 +679,81 @@ def test_timestamps_display_wait_tag_for_waiting_status() -> None:
     display = agent.timestamps_display
     assert "WAIT" in display
     assert "BEGIN" not in display
+
+
+# --- Old-bundle dismissed-name synthesis (sase-10 phase 5) ---
+
+
+def test_old_bundle_synthesizes_prefixed_agent_name_from_stop_time() -> None:
+    """Bundles missing ``agent_name`` get a prefixed name from stop_time."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "feature_x",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
+        "stop_time": datetime(2026, 4, 28, 10, 30, 0).isoformat(),
+        "raw_suffix": "20260428090000",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "260428.feature_x"
+
+
+def test_old_bundle_synthesis_falls_back_to_raw_suffix_date() -> None:
+    """Without stop_time/start_time, raw_suffix supplies the date and base."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "unknown",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": None,
+        "raw_suffix": "20260501123045",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "260501.20260501123045"
+
+
+def test_old_bundle_synthesis_skips_already_prefixed_name() -> None:
+    """Bundles that already carry a prefixed name are left alone."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "foo",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
+        "raw_suffix": "20260428090000",
+        "agent_name": "260428.foo",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "260428.foo"
+
+
+def test_old_bundle_synthesis_strips_legacy_unprefixed_name() -> None:
+    """A legacy ``agent_name`` without a prefix is upgraded to the prefixed form."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "x",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
+        "raw_suffix": "20260428090000",
+        "agent_name": "foo",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "260428.foo"
+
+
+def test_old_bundle_synthesis_skips_workflow_children() -> None:
+    """Workflow children inherit identity from their parent — leave them alone."""
+    bundle = {
+        "agent_type": AgentType.WORKFLOW.value,
+        "cl_name": "feature",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": datetime(2026, 4, 28, 9, 0, 0).isoformat(),
+        "parent_timestamp": "20260428090000",
+        "raw_suffix": "20260428090000",
+        "step_index": 1,
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name is None

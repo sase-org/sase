@@ -156,6 +156,76 @@ class TestFindNamedAgent:
             result = find_named_agent("foo", only_done=True)
         assert result is None
 
+    def test_finds_dismissed_prefixed_artifact_without_done(
+        self, tmp_path: Path
+    ) -> None:
+        """Dismissal removes done.json but keeps the prefixed agent_meta.json.
+
+        Historical references like ``%w:260428.foo`` and ``#resume:260428.foo``
+        must still resolve, so dismissed-prefixed artifacts are treated as
+        completed-historical even when their done.json is gone.
+        """
+        artifact_dir = _make_agent(
+            tmp_path, "proj", "run-old", "260428.foo", pid=_DEAD_PID
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("260428.foo")
+        assert result is not None
+        assert result.is_done
+        assert result.outcome == "dismissed"
+        assert result.artifacts_dir == str(artifact_dir)
+
+    def test_finds_dismissed_name_via_bundle_when_artifact_gone(
+        self, tmp_path: Path
+    ) -> None:
+        """Bundles are the source of truth when the artifact dir is purged."""
+        bundles_dir = tmp_path / ".sase" / "dismissed_bundles" / "202604"
+        bundles_dir.mkdir(parents=True)
+        (bundles_dir / "20260428103000.json").write_text(
+            json.dumps(
+                {
+                    "agent_name": "260428.bar",
+                    "raw_suffix": "20260428103000",
+                    "cl_name": "bar",
+                }
+            )
+        )
+        with (
+            patch(
+                "sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR",
+                tmp_path / ".sase" / "dismissed_bundles",
+            ),
+            patch.object(Path, "home", return_value=tmp_path),
+        ):
+            result = find_named_agent("260428.bar")
+        assert result is not None
+        assert result.is_done
+        assert result.outcome == "dismissed"
+
+
+class TestGetMostRecentAgentName:
+    """Bare ``%wait`` should never resolve to a dismissed historical name."""
+
+    def test_skips_dismissed_prefixed_names(self, tmp_path: Path) -> None:
+        from sase.agent.names import get_most_recent_agent_name
+
+        # Older active name + newer dismissed-prefixed name. Without the
+        # filter, the dismissed entry would win because its directory
+        # name sorts later.
+        _make_agent(tmp_path, "proj", "20260427000000", "foo", done=True)
+        _make_agent(tmp_path, "proj", "20260428000000", "260428.bar", pid=_DEAD_PID)
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = get_most_recent_agent_name()
+        assert result == "foo"
+
+    def test_returns_none_when_only_dismissed_prefixed(self, tmp_path: Path) -> None:
+        from sase.agent.names import get_most_recent_agent_name
+
+        _make_agent(tmp_path, "proj", "20260428000000", "260428.foo", pid=_DEAD_PID)
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = get_most_recent_agent_name()
+        assert result is None
+
 
 class TestClaimAgentName:
     def test_preserves_done_agent_names(self, tmp_path: Path) -> None:

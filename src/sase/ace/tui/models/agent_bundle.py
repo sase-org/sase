@@ -99,4 +99,53 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
             ]
         kwargs[f.name] = value
 
-    return Agent(**kwargs)
+    agent = Agent(**kwargs)
+    _synthesize_dismissed_name(agent)
+    return agent
+
+
+def _synthesize_dismissed_name(agent: Agent) -> None:
+    """Repair old dismissed bundles missing ``agent_name``.
+
+    Older bundles were saved before the sase-10 dismissal-rename rolled
+    out and so lack ``agent_name``. Loading should produce a stable
+    prefixed name without requiring the user to revive and re-dismiss
+    them. We derive a base from ``cl_name``/``raw_suffix`` and tag it
+    with the best-known completion date.
+    """
+    from sase.agent.names import (
+        add_dismissed_prefix,
+        is_dismissed_prefixed,
+        strip_dismissed_prefix,
+    )
+
+    if agent.agent_name and is_dismissed_prefixed(agent.agent_name):
+        return
+
+    # Only synthesize for top-level agents — workflow children inherit
+    # the parent's prefixed identity through ``parent_timestamp`` and
+    # were not expected to carry an ``agent_name`` in older bundles.
+    if agent.is_workflow_child:
+        return
+
+    completion = agent.stop_time or agent.start_time
+    if completion is None and agent.raw_suffix:
+        try:
+            completion = datetime.strptime(agent.raw_suffix[:14], "%Y%m%d%H%M%S")
+        except ValueError:
+            completion = None
+    if completion is None:
+        return
+
+    base = agent.agent_name
+    if base:
+        base = strip_dismissed_prefix(base)
+    else:
+        if agent.cl_name and agent.cl_name != "unknown":
+            base = agent.cl_name
+        elif agent.raw_suffix:
+            base = agent.raw_suffix
+    if not base:
+        return
+
+    agent.agent_name = add_dismissed_prefix(base, completion)

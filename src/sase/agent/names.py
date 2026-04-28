@@ -127,11 +127,13 @@ def find_named_agent(name: str, *, only_done: bool = False) -> _NamedAgent | Non
         A NamedAgent if found, or None.
     """
     projects_dir = Path.home() / ".sase" / "projects"
-    if not projects_dir.exists():
-        return None
-
     best_match: _NamedAgent | None = None
     best_priority: tuple[int, str] = (0, "")
+
+    if not projects_dir.exists():
+        # Fall through to dismissed-bundle fallback below.
+        bundle_match = _find_named_dismissed_bundle(name)
+        return bundle_match
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -177,6 +179,12 @@ def find_named_agent(name: str, *, only_done: bool = False) -> _NamedAgent | Non
                 except (json.JSONDecodeError, OSError):
                     # done.json exists but can't be read — treat as done
                     is_done = True
+            elif is_dismissed_prefixed(name):
+                # Dismissal removes done.json but preserves the prefixed
+                # agent_meta.json. Treat such artifacts as historical so
+                # `%w:260428.foo` and `#resume:260428.foo` still resolve.
+                is_done = True
+                outcome = "dismissed"
 
             agent = _NamedAgent(
                 name=name,
@@ -206,7 +214,70 @@ def find_named_agent(name: str, *, only_done: bool = False) -> _NamedAgent | Non
                 best_match = agent
                 best_priority = priority
 
+    if best_match is None:
+        # Fall back to dismissed bundles. After dismissal the artifact
+        # directory may be partially or fully gone, but the bundle still
+        # carries the prefixed agent_name and cl_name for historical
+        # reference.
+        bundle_match = _find_named_dismissed_bundle(name)
+        if bundle_match is not None:
+            return bundle_match
+
     return best_match
+
+
+def _find_named_dismissed_bundle(name: str) -> _NamedAgent | None:
+    """Return a dismissed-bundle match for *name*, or ``None``.
+
+    Scans ``~/.sase/dismissed_bundles`` for a bundle whose ``agent_name``
+    or ``workflow_name`` equals *name*. Used as a fallback when artifact
+    directories no longer carry the metadata (e.g. dismissed agents whose
+    artifact dir was cleaned up).
+    """
+    try:
+        from sase.ace.dismissed_agents import _DISMISSED_BUNDLES_DIR
+    except Exception:
+        return None
+
+    bundles_dir = _DISMISSED_BUNDLES_DIR
+    if not bundles_dir.is_dir():
+        return None
+
+    best: _NamedAgent | None = None
+    best_ts = ""
+    try:
+        candidates = list(bundles_dir.rglob("*.json"))
+    except OSError:
+        return None
+
+    for filepath in candidates:
+        if not filepath.is_file():
+            continue
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+
+        if data.get("agent_name") != name and data.get("workflow_name") != name:
+            continue
+
+        raw_suffix = data.get("raw_suffix")
+        ts = raw_suffix if isinstance(raw_suffix, str) else filepath.stem
+        if ts <= best_ts:
+            continue
+        artifacts_dir = data.get("artifacts_dir")
+        best = _NamedAgent(
+            name=name,
+            artifacts_dir=str(artifacts_dir) if artifacts_dir else str(filepath.parent),
+            is_done=True,
+            outcome="dismissed",
+        )
+        best_ts = ts
+
+    return best
 
 
 def is_workflow_complete(name: str) -> bool | None:
@@ -416,6 +487,13 @@ def get_most_recent_agent_name() -> str | None:
 
             name = data.get("name")
             if not name:
+                continue
+
+            # Bare ``%wait`` should never resolve to a dismissed historical
+            # agent. Dismissal-prefixed names (``YYmmdd.foo``) are reserved
+            # for explicit references (``%w:260428.foo``); skip them so the
+            # bare-wait path stays anchored on visible/active agents.
+            if isinstance(name, str) and is_dismissed_prefixed(name):
                 continue
 
             candidates.append((artifact_dir.name, name))
