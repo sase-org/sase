@@ -16,6 +16,7 @@ import os
 
 from sase.agent.names._auto import (
     allocate_revived_name,
+    dedup_name,
     get_active_agent_names,
     get_active_child_names,
     get_next_auto_name,
@@ -135,6 +136,7 @@ __all__ = [
     "allocate_revived_name",
     "claim_agent_name",
     "collect_dismissed_taken_names",
+    "dedup_name",
     "find_named_agent",
     "get_active_agent_names",
     "get_active_child_names",

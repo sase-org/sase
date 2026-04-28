@@ -13,14 +13,17 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
-def _build_revive_name_map(agents: Iterable[Agent]) -> tuple[dict[str, str], list[str]]:
+def _build_revive_name_map(
+    agents: Iterable[Agent],
+) -> tuple[dict[str, str], list[tuple[str, str]]]:
     """Strip dismissal prefixes for *agents* and return ``({old: new}, taken)``.
 
     Each agent whose ``agent_name`` carries a ``YYmmdd.`` dismissal prefix is
     mutated in-place to its stripped form. When the stripped name is already
     claimed by an active agent (or by another revive in the same batch), a
-    fresh auto-name is allocated instead and the original name is appended
-    to the returned ``taken`` list so the caller can surface a notification.
+    ``<base>.<n>`` dedup'd name is allocated instead and the
+    ``(original, allocated)`` pair is appended to the returned ``taken`` list
+    so the caller can surface a notification.
     Agents without a dismissal prefix (legacy bundles) are skipped — they
     revive under their current name, mirroring the pre-prefix behaviour.
     """
@@ -31,7 +34,7 @@ def _build_revive_name_map(agents: Iterable[Agent]) -> tuple[dict[str, str], lis
     )
 
     name_map: dict[str, str] = {}
-    unavailable: list[str] = []
+    unavailable: list[tuple[str, str]] = []
     reserved = get_active_agent_names()
 
     for agent in agents:
@@ -40,7 +43,7 @@ def _build_revive_name_map(agents: Iterable[Agent]) -> tuple[dict[str, str], lis
             continue
         new, fallback = allocate_revived_name(old, reserved=reserved)
         if fallback is not None:
-            unavailable.append(fallback)
+            unavailable.append((fallback, new))
         agent.agent_name = new
         name_map[old] = new
     return name_map, unavailable
@@ -255,9 +258,9 @@ class AgentRevivalMixin:
         remove_bundle_by_identity(agent.identity, child_raw_suffixes=child_raw_suffixes)
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
-        for original in unavailable:
+        for original, allocated in unavailable:
             self.notify(  # type: ignore[attr-defined]
-                f"Original name '{original}' was taken; assigned a new auto-name",
+                f"Original name '{original}' was taken; revived as '{allocated}'",
                 severity="warning",
             )
         self._load_agents()  # type: ignore[attr-defined]
@@ -340,9 +343,9 @@ class AgentRevivalMixin:
         # Phase 4: Single notification and refresh
         count = len(valid_agents)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
-        for original in unavailable:
+        for original, allocated in unavailable:
             self.notify(  # type: ignore[attr-defined]
-                f"Original name '{original}' was taken; assigned a new auto-name",
+                f"Original name '{original}' was taken; revived as '{allocated}'",
                 severity="warning",
             )
         self._load_agents()  # type: ignore[attr-defined]

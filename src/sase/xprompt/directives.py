@@ -201,6 +201,11 @@ def extract_prompt_directives(
             prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
+    # Track whether %name was supplied with an explicit argument before any
+    # auto-fill happens. Bare ``%name`` (no arg) and auto-named flows
+    # (no %name at all) leave this False.
+    name_explicit = bool(seen.get("name"))
+
     # Auto-generate name if %name was used bare (no argument)
     if "name" in seen and not seen["name"]:
         from sase.agent.names import get_next_auto_name
@@ -319,6 +324,7 @@ def extract_prompt_directives(
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
+        name_explicit=name_explicit,
         plan="plan" in expanded_args,
         repeat_count=repeat_count,
         tag=parsed_tag,

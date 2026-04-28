@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 15:29:42
-status: wip
+status: done
 ---
 
 # Plan: Dedup agent names on revive and on explicit `%name:` claim

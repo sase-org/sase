@@ -85,6 +85,47 @@ def test_name_bare_alias_auto_generates() -> None:
     assert directives.name == "b"
 
 
+def test_name_bare_is_not_explicit() -> None:
+    """Bare %name (auto-named) leaves name_explicit=False."""
+    prompt = "%name\nDo work"
+    with patch(
+        "sase.agent.names.get_next_auto_name",
+        return_value="a",
+    ):
+        _, directives = extract_prompt_directives(prompt)
+    assert directives.name_explicit is False
+
+
+def test_no_name_directive_is_not_explicit() -> None:
+    """No %name directive leaves name_explicit=False."""
+    _, directives = extract_prompt_directives("Do work")
+    assert directives.name_explicit is False
+
+
+def test_name_with_arg_is_explicit() -> None:
+    """%name:foo sets name_explicit=True."""
+    prompt = "%name:foo\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.name == "foo"
+    assert directives.name_explicit is True
+
+
+def test_name_paren_arg_is_explicit() -> None:
+    """%name(foo) sets name_explicit=True."""
+    prompt = "%name(foo)\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.name == "foo"
+    assert directives.name_explicit is True
+
+
+def test_name_backtick_arg_is_explicit() -> None:
+    """%name:`foo` sets name_explicit=True."""
+    prompt = "%name:`foo`\nDo work"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.name == "foo"
+    assert directives.name_explicit is True
+
+
 # --- %wait directive tests ---
 
 

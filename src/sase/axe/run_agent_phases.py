@@ -149,7 +149,9 @@ def extract_directives_and_write_meta(
         if agent_name:
             from sase.agent.names import claim_agent_name
 
-            claim_agent_name(agent_name, artifacts_dir)
+            claim_agent_name(
+                agent_name, artifacts_dir, explicit=directives.name_explicit
+            )
             os.environ["SASE_AGENT_NAME"] = agent_name
 
     # Persist the %tag directive into ~/.sase/agent_tags.json so the Agents

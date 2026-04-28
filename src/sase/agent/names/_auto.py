@@ -200,6 +200,25 @@ def get_active_child_names(base: str) -> set[str]:
     return names
 
 
+def dedup_name(base: str, reserved: set[str]) -> str:
+    """Return *base* if free, else the lowest ``<base>.<n>`` (n >= 2) not in *reserved*.
+
+    Mutates *reserved* in place with the chosen name so callers can chain
+    allocations across a batch (mirrors :func:`allocate_revived_name`'s
+    ``reserved`` contract).
+    """
+    if base not in reserved:
+        reserved.add(base)
+        return base
+    n = 2
+    while True:
+        candidate = f"{base}.{n}"
+        if candidate not in reserved:
+            reserved.add(candidate)
+            return candidate
+        n += 1
+
+
 def allocate_revived_name(
     prefixed_name: str,
     *,
@@ -209,10 +228,11 @@ def allocate_revived_name(
 
     Strips the ``YYmmdd.`` prefix from *prefixed_name*. When the stripped
     name is already claimed (by *reserved* or, when ``None``, by the
-    current active-agent set), falls back to the next free auto-name and
-    returns the originally requested name as the second tuple element so
-    the caller can surface "original name was taken" feedback. When the
-    stripped name is free the second element is ``None``.
+    current active-agent set), falls back to ``<base>.<n>`` via
+    :func:`dedup_name` and returns the originally requested name as the
+    second tuple element so the caller can surface "original name was
+    taken" feedback. When the stripped name is free the second element
+    is ``None``.
 
     *reserved* is mutated in place with the allocated name so a caller
     can chain allocations across a batch revive without re-scanning.
@@ -222,6 +242,7 @@ def allocate_revived_name(
     fallback: str | None = None
     if candidate in pool:
         fallback = candidate
-        candidate = _next_available_name(pool)
-    pool.add(candidate)
+        candidate = dedup_name(candidate, pool)
+    else:
+        pool.add(candidate)
     return candidate, fallback

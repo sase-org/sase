@@ -53,6 +53,7 @@ class PromptDirectives:
     hide: bool = False
     model: str | None = None
     name: str | None = None
+    name_explicit: bool = False
     plan: bool = False
     repeat_count: int | None = None
     tag: str | None = None
