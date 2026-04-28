@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os  # noqa: F401  # kept so tests can patch `_killing.os.killpg`
+import os
+import signal
 import time
 from typing import TYPE_CHECKING
 
@@ -30,17 +31,15 @@ from ._kill_persistence import (
     persist_bulk_kill_side_effects,
     persist_kill_side_effects,
 )
-from ._kill_type_handlers import AgentKillTypeHandlersMixin
 
 log = logging.getLogger(__name__)
 
 
-class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
+class AgentKillingMixin(AgentDismissingMixin):
     """Mixin providing agent killing methods.
 
-    Inherits per-type kill methods from AgentKillTypeHandlersMixin and
-    dismissal methods from AgentDismissingMixin.
-    Type hints below declare attributes that are defined at runtime by AceApp.
+    Inherits dismissal methods from AgentDismissingMixin. Type hints below
+    declare attributes that are defined at runtime by AceApp.
     """
 
     # ChangeSpec state
@@ -56,6 +55,26 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
     _dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]]
     _kill_persistence_inflight: set[tuple[AgentType, str, str | None]]
+
+    def _kill_process_group(self, pid: int) -> bool:
+        """Kill a process group by PID.
+
+        Args:
+            pid: Process ID to kill.
+
+        Returns:
+            True if kill succeeded or process was already dead, False on error.
+        """
+        try:
+            os.killpg(pid, signal.SIGTERM)
+            return True
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            self.notify(  # type: ignore[attr-defined]
+                f"Permission denied killing PID {pid}", severity="error"
+            )
+            return False
 
     def _classify_kill_kind(self, agent: Agent) -> KillKind | None:
         """Classify the side effects needed to kill an agent."""
