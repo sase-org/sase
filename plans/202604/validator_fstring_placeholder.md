@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 12:03:27
-status: wip
+status: done
 ---
 
 # Plan: Teach the workflow validator to recognize Python f-string `{path}` placeholders

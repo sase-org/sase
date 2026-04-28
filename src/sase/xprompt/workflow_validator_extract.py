@@ -13,11 +13,13 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 # Pattern to match xprompt references (based on processor.py, extended for templates)
 # The colon-arg group adds \{\{[^}]*\}\} to handle Jinja2 template vars like {{ file_path }}
-# which appear in workflows before template rendering.
+# and \{[^}]*\} for Python f-string placeholders like {path}; both stand in for runtime
+# values so the validator counts them as a single positional arg.  Jinja `{{...}}` is
+# listed first so it wins over the single-brace alternative.
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|\{[^}]*\}|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
 # Pattern to find {{ ... }} and {% ... %} blocks (variable references)

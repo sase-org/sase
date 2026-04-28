@@ -116,8 +116,8 @@ def test_step_two_files_launches_chained_multi_prompt(
 
     assert "%name:pysplit.foo" in parsed.segments[0]
     assert "%name:pysplit.bar" in parsed.segments[1]
-    assert "#sase/pysplit:`src/foo.py`" in parsed.segments[0]
-    assert "#sase/pysplit:`src/bar.py`" in parsed.segments[1]
+    assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
+    assert "#sase/pysplit:src/bar.py" in parsed.segments[1]
     for seg in parsed.segments:
         assert "#gh:sase" in seg
         assert "%approve" in seg
@@ -144,8 +144,8 @@ def test_step_dedups_files_across_trees(
     assert len(parsed.segments) == 2
     assert "%name:pysplit.dup" in parsed.segments[0]
     assert "%name:pysplit.only" in parsed.segments[1]
-    assert "#sase/pysplit:`src/dup.py`" in parsed.segments[0]
-    assert "#sase/pysplit:`tests/only.py`" in parsed.segments[1]
+    assert "#sase/pysplit:src/dup.py" in parsed.segments[0]
+    assert "#sase/pysplit:tests/only.py" in parsed.segments[1]
 
 
 def test_step_names_same_stem_with_collision_suffix(
@@ -169,5 +169,5 @@ def test_step_names_same_stem_with_collision_suffix(
     assert len(parsed.segments) == 2
     assert "%name:pysplit.foo" in parsed.segments[0]
     assert "%name:pysplit.foo-2" in parsed.segments[1]
-    assert "#sase/pysplit:`src/foo.py`" in parsed.segments[0]
-    assert "#sase/pysplit:`tests/foo.py`" in parsed.segments[1]
+    assert "#sase/pysplit:src/foo.py" in parsed.segments[0]
+    assert "#sase/pysplit:tests/foo.py" in parsed.segments[1]

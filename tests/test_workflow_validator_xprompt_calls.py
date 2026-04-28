@@ -44,6 +44,38 @@ def testextract_xprompt_calls_plus_syntax() -> None:
     assert calls[0].named_args == {}
 
 
+def testextract_xprompt_calls_fstring_placeholder() -> None:
+    """Single-brace `{path}` placeholder counts as one positional arg."""
+    calls = extract_xprompt_calls("#foo:{path}")
+    assert len(calls) == 1
+    assert calls[0].name == "foo"
+    assert calls[0].positional_args == ["{path}"]
+    assert calls[0].named_args == {}
+
+
+def testextract_xprompt_calls_jinja_still_preferred_over_single_brace() -> None:
+    """`{{ var }}` Jinja form keeps matching ahead of the new single-brace form."""
+    calls = extract_xprompt_calls("#foo:{{ var }}")
+    assert len(calls) == 1
+    assert calls[0].name == "foo"
+    assert calls[0].positional_args == ["{{ var }}"]
+    assert calls[0].named_args == {}
+
+
+def testvalidate_xprompt_call_fstring_placeholder_satisfies_required_arg() -> None:
+    """An f-string-style colon arg satisfies a required positional input."""
+    xprompt = XPrompt(
+        name="pysplit",
+        content="{{ path }}",
+        inputs=[InputArg(name="path", type=InputType.LINE)],
+    )
+    source = 'f"#pysplit:{path}"'
+    calls = extract_xprompt_calls(source)
+    assert len(calls) == 1
+    errors = validate_xprompt_call(calls[0], xprompt, "step1")
+    assert errors == []
+
+
 def testvalidate_xprompt_call_missing_required_arg() -> None:
     """Test validation detects missing required argument."""
     xprompt = XPrompt(
