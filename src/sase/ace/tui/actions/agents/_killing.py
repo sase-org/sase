@@ -19,7 +19,7 @@ from ....changespec import ChangeSpec
 # Re-export for backwards compatibility (_loading.py imports this, tests patch it)
 from ._killing_utils import delete_agent_artifacts as delete_agent_artifacts
 from ._killing_utils import (
-    dismiss_notifications_for_agent,
+    dismiss_notifications_for_agents,
 )
 
 from ._dismissing import AgentDismissingMixin
@@ -92,6 +92,29 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                     identities.add(step.identity)
         return identities
 
+    def _agents_related_to_kill(
+        self, agent: Agent, agents_with_children_snapshot: list[Agent]
+    ) -> list[Agent]:
+        """Return agents whose notifications should be dismissed when killing ``agent``.
+
+        Includes the agent itself plus any workflow-child rows when killing a
+        workflow parent (mirroring :meth:`_collect_immediate_kill_identities`
+        but returning Agent objects so they can be passed to
+        ``dismiss_notifications_for_agents``).
+        """
+        from ...models.agent import AgentType
+
+        related: list[Agent] = [agent]
+        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+            for step in agents_with_children_snapshot:
+                if (
+                    step.is_workflow_child
+                    and step.parent_timestamp == agent.raw_suffix
+                    and step.parent_workflow == agent.workflow
+                ):
+                    related.append(step)
+        return related
+
     def _apply_killed_agents_in_memory(
         self, identities: set[AgentIdentity], *, refresh: bool = True
     ) -> None:
@@ -144,8 +167,10 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         self._notify_killed_agent(agent, kind)
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        dismiss_notifications_for_agent(agent)
-        self._refresh_notification_count()  # type: ignore[attr-defined]
+        # Snapshot the dismissed set BEFORE the optimistic mutation so re-entrant
+        # kills cannot corrupt the set the persistence worker writes back.
+        dismissed_snapshot = set(self._dismissed_agents)
+        dismissed_snapshot.update(self._collect_immediate_kill_identities(agent))
         self._apply_killed_agents_in_memory(
             self._collect_immediate_kill_identities(agent)
         )
@@ -155,6 +180,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
             agent,
             kind,
             agents_with_children_snapshot,
+            dismissed_snapshot,
         )
         log.debug(
             "agent kill immediate stage: kind=%s identity=%s elapsed=%.3fs",
@@ -215,7 +241,6 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         removed_ids = killed_ids | dismissed_ids
         self._marked_agents.clear()  # type: ignore[attr-defined]
         self._apply_killed_agents_in_memory(removed_ids, refresh=False)
-        self._refresh_notification_count()  # type: ignore[attr-defined]
         if self.current_tab == "agents":  # type: ignore[attr-defined]
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
@@ -259,6 +284,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         self._kill_persistence_inflight.update(inflight)
 
         started = time.perf_counter()
+        success = True
         try:
             await asyncio.to_thread(
                 persist_bulk_kill_side_effects,
@@ -268,6 +294,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 agents_with_children_snapshot,
             )
         except Exception as exc:
+            success = False
             self.notify(  # type: ignore[attr-defined]
                 f"Bulk kill cleanup failed: {exc}",
                 severity="error",
@@ -281,6 +308,8 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 len(dismissable),
                 time.perf_counter() - started,
             )
+            if success:
+                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _notify_killed_agent(self, agent: Agent, kind: KillKind) -> None:
         """Emit kill notification message for an already-signaled process."""
@@ -305,6 +334,7 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         agent: Agent,
         kind: KillKind,
         agents_with_children_snapshot: list[Agent] | None = None,
+        dismissed_snapshot: set[AgentIdentity] | None = None,
     ) -> None:
         """Persist kill side effects in a worker thread."""
         identity = agent.identity
@@ -315,7 +345,10 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
         started = time.perf_counter()
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
+        if dismissed_snapshot is None:
+            dismissed_snapshot = set(self._dismissed_agents)
 
+        success = True
         try:
             await asyncio.to_thread(
                 persist_kill_side_effects,
@@ -323,11 +356,16 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 kind,
                 agents_with_children_snapshot,
             )
-            # Persist the latest dismissed set snapshot after worker-side writes.
+            # Persist the dismissed-set snapshot captured on the UI thread,
+            # then rewrite the notifications file (single read+write) for
+            # this agent and any workflow-child rows hidden alongside it.
             from ....dismissed_agents import save_dismissed_agents
 
-            await asyncio.to_thread(save_dismissed_agents, set(self._dismissed_agents))
+            await asyncio.to_thread(save_dismissed_agents, dismissed_snapshot)
+            related = self._agents_related_to_kill(agent, agents_with_children_snapshot)
+            await asyncio.to_thread(dismiss_notifications_for_agents, related)
         except Exception as exc:
+            success = False
             self.notify(  # type: ignore[attr-defined]
                 f"Kill cleanup failed for {agent.display_name}: {exc}",
                 severity="error",
@@ -341,6 +379,8 @@ class AgentKillingMixin(AgentKillTypeHandlersMixin, AgentDismissingMixin):
                 identity,
                 time.perf_counter() - started,
             )
+            if success:
+                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _kill_and_dismiss_all_agents(self) -> None:
         """Kill all running agents and dismiss all done agents (double-confirm)."""

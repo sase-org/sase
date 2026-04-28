@@ -92,12 +92,16 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
             self._agents_with_children = []
             self._agents = []
             self._scheduled: list[tuple[object, tuple[object, ...]]] = []
+            self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
         def _refresh_notification_count(self) -> None:
             return
+
+        async def _refresh_notification_count_async(self) -> None:
+            self.async_count_refreshes += 1
 
         def _refresh_agents_display(
             self, *, list_changed: bool = False, defer_detail: bool = False
@@ -127,9 +131,13 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(agent)
 
-    with patch(
-        "sase.ace.tui.actions.agents._kill_persistence._persist_hook_kill"
-    ) as mock_persist_hook:
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._kill_persistence._persist_hook_kill"
+        ) as mock_persist_hook,
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
+    ):
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
         mock_persist_hook.assert_called_once_with(agent)
@@ -146,12 +154,16 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
             self._dismissed_agents = set()
             self._agents_with_children = []
             self.refresh_schedules = 0
+            self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
         def _schedule_agents_async_refresh(self) -> None:
             self.refresh_schedules += 1
+
+        async def _refresh_notification_count_async(self) -> None:
+            self.async_count_refreshes += 1
 
     app = MockApp()
     agent = Agent(
@@ -171,12 +183,17 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
             "sase.ace.tui.actions.agents._killing.persist_kill_side_effects"
         ) as mock_persist,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"
+        ) as mock_dismiss_notifs,
     ):
         asyncio.run(app._run_kill_persistence_async(agent, "hook", [agent]))
 
     mock_persist.assert_called_once_with(agent, "hook", [agent])
     mock_save.assert_called_once_with({agent.identity})
+    mock_dismiss_notifs.assert_called_once_with([agent])
     assert app.refresh_schedules == 0
+    assert app.async_count_refreshes == 1
     assert app._notifications == []
     assert app._kill_persistence_inflight == set()
 
@@ -192,12 +209,16 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
             self._dismissed_agents = set()
             self._agents_with_children = []
             self.refresh_schedules = 0
+            self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
         def _schedule_agents_async_refresh(self) -> None:
             self.refresh_schedules += 1
+
+        async def _refresh_notification_count_async(self) -> None:
+            self.async_count_refreshes += 1
 
     app = MockApp()
     agent = Agent(

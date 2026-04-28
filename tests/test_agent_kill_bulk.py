@@ -83,7 +83,9 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     assert a1.identity in app._dismissed_agents
     assert a2.identity in app._dismissed_agents
     assert app.refresh_calls == [(True, True)]
-    assert app.notification_refreshes == 1
+    # Phase 1: notification count refresh is now done in the async worker,
+    # not synchronously in _do_bulk_kill_agents.
+    assert app.notification_refreshes == 0
     assert len(app._scheduled) == 1
     callback, args = app._scheduled[0]
     assert callback == app._run_bulk_kill_persistence_async
@@ -249,12 +251,16 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
             self.refresh_schedules = 0
+            self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
         def _schedule_agents_async_refresh(self) -> None:
             self.refresh_schedules += 1
+
+        async def _refresh_notification_count_async(self) -> None:
+            self.async_count_refreshes += 1
 
     app = MockApp()
     agent = Agent(
@@ -281,6 +287,7 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 0
+    assert app.async_count_refreshes == 1
     assert app._notifications == []
     assert app._kill_persistence_inflight == set()
 
@@ -294,12 +301,16 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
             self._notifications: list[tuple[str, str]] = []
             self._kill_persistence_inflight = set()
             self.refresh_schedules = 0
+            self.async_count_refreshes = 0
 
         def notify(self, msg: str, severity: str = "information") -> None:
             self._notifications.append((msg, severity))
 
         def _schedule_agents_async_refresh(self) -> None:
             self.refresh_schedules += 1
+
+        async def _refresh_notification_count_async(self) -> None:
+            self.async_count_refreshes += 1
 
     app = MockApp()
     agent = Agent(

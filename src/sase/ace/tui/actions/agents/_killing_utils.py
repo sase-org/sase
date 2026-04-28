@@ -36,34 +36,6 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
                 pass
 
 
-def dismiss_notifications_for_agent(agent: Agent) -> None:
-    """Dismiss notifications that reference the given agent.
-
-    Handles JumpToAgent (cl_name/raw_suffix), PlanApproval and UserQuestion
-    (agent_cl_name/agent_timestamp) notification types.
-    """
-    from sase.notifications import load_notifications, mark_dismissed
-
-    for n in load_notifications():
-        if n.action == "JumpToAgent":
-            if n.action_data.get("cl_name") != agent.cl_name:
-                continue
-            n_raw_suffix = n.action_data.get("raw_suffix")
-            if n_raw_suffix is not None and n_raw_suffix != agent.raw_suffix:
-                continue
-            mark_dismissed(n.id)
-        elif n.action in ("PlanApproval", "UserQuestion"):
-            if n.action_data.get("agent_cl_name") != agent.cl_name:
-                continue
-            n_timestamp = n.action_data.get("agent_timestamp")
-            if n_timestamp is not None:
-                from ...models._timestamps import normalize_to_14_digit
-
-                if normalize_to_14_digit(n_timestamp) != agent.raw_suffix:
-                    continue
-            mark_dismissed(n.id)
-
-
 def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:
     """Dismiss notifications that reference any of the given agents.
 
