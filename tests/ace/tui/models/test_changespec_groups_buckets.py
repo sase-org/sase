@@ -126,15 +126,15 @@ def test_status_bucket_handles_empty_status() -> None:
     assert status_bucket_for_changespec(_cs("a", status="")) == ""
 
 
-def test_status_sort_index_follows_lifecycle_order() -> None:
-    """WIP -> Draft -> Ready -> Mailed -> Submitted -> Reverted -> Archived."""
+def test_status_sort_index_follows_display_order() -> None:
+    """Mailed -> Ready -> WIP -> Draft -> Submitted -> Reverted -> Archived."""
     indices = [
         status_sort_index(s)[0]
         for s in (
+            "Mailed",
+            "Ready",
             "WIP",
             "Draft",
-            "Ready",
-            "Mailed",
             "Submitted",
             "Reverted",
             "Archived",

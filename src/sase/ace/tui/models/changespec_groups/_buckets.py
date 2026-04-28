@@ -28,14 +28,16 @@ class ChangeSpecGroupingMode(Enum):
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
 
-# Lifecycle order for known base statuses.  Anything else sorts after
-# this list, alphabetically by exact text — that keeps unfamiliar /
-# suffixed labels stable instead of randomly shuffled.
-_STATUS_LIFECYCLE: tuple[str, ...] = (
+# Display order for the ``BY_STATUS`` group; surfaces actionable buckets
+# first (``Mailed`` = awaiting response, ``Ready`` = next to mail) and
+# keeps terminal states at the bottom.  Anything else sorts after this
+# list, alphabetically by exact text — that keeps unfamiliar / suffixed
+# labels stable instead of randomly shuffled.
+_STATUS_DISPLAY_ORDER: tuple[str, ...] = (
+    "Mailed",
+    "Ready",
     "WIP",
     "Draft",
-    "Ready",
-    "Mailed",
     "Submitted",
     "Reverted",
     "Archived",
@@ -170,14 +172,15 @@ def date_bucket_sort_index(bucket: str) -> int:
 
 
 def status_sort_index(status: str) -> tuple[int, str]:
-    """Lifecycle-order sort key for ``BY_STATUS`` L0 keys.
+    """Display-order sort key for ``BY_STATUS`` L0 keys.
 
-    Falls back to alphabetic ordering on the exact status text for
-    unknown / suffixed values so two ``Ready - (...)`` variants don't
+    See :data:`_STATUS_DISPLAY_ORDER` for the rationale behind the
+    ordering.  Falls back to alphabetic ordering on the exact status text
+    for unknown / suffixed values so two ``Ready - (...)`` variants don't
     randomly swap between refreshes.
     """
     base = _base_status(status)
     try:
-        return (_STATUS_LIFECYCLE.index(base), status)
+        return (_STATUS_DISPLAY_ORDER.index(base), status)
     except ValueError:
-        return (len(_STATUS_LIFECYCLE), status)
+        return (len(_STATUS_DISPLAY_ORDER), status)

@@ -126,7 +126,7 @@ def test_by_date_missing_timestamps_lands_in_earlier_after_dated_cls() -> None:
 # --- BY_STATUS ---
 
 
-def test_by_status_emits_only_l1_banners_in_lifecycle_order() -> None:
+def test_by_status_emits_only_l1_banners_in_display_order() -> None:
     cl = [
         _cs("a", status="Submitted"),
         _cs("b", status="WIP"),
@@ -135,9 +135,9 @@ def test_by_status_emits_only_l1_banners_in_lifecycle_order() -> None:
     ]
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_STATUS, now=_NOW)
     assert _group_keys(entries, 0) == [
+        ("Ready",),
         ("WIP",),
         ("Draft",),
-        ("Ready",),
         ("Submitted",),
     ]
     assert _group_keys(entries, 1) == []
