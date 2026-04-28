@@ -5,6 +5,7 @@ steps:
     hidden: true
     python: |
       import subprocess
+      from pathlib import Path
 
       from sase.agent.launcher import launch_agent_from_cwd
       from sase.agent.multi_prompt import build_wait_chained_multi_prompt
@@ -26,9 +27,17 @@ steps:
       if not unique_files:
           print("launched=0")
       else:
-          per_file_prompts = [
-              f"#gh:sase #sase/pysplit:{path} %approve" for path in unique_files
-          ]
+          seen: dict[str, int] = {}
+          per_file_prompts: list[str] = []
+          for path in unique_files:
+              stem = Path(path).stem
+              count = seen.get(stem, 0)
+              suffix = "" if count == 0 else f"-{count + 1}"
+              seen[stem] = count + 1
+              agent_name = f"pysplit.{stem}{suffix}"
+              per_file_prompts.append(
+                  f"%name:{agent_name}\n#gh:sase #sase/pysplit:{path} %approve"
+              )
           multi_prompt = build_wait_chained_multi_prompt(per_file_prompts)
           launch_agent_from_cwd(multi_prompt)
           print(f"launched={len(unique_files)}")
