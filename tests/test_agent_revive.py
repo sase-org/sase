@@ -38,6 +38,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._agents: list[Agent] = []
+        self._agents_with_children: list[Agent] = []
         self.notifications: list[tuple[str, str]] = []
         self.restored: list[tuple[tuple[AgentType, str, str | None], str | None]] = []
         self.load_count = 0
@@ -250,3 +251,223 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["plan"] is True
     assert data["plan_approved"] is True
     assert data["plan_action"] == "commit"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: dismissal-prefix stripping on revive
+# ---------------------------------------------------------------------------
+
+
+def _patch_home(tmp_path: Path) -> patch:  # type: ignore[type-arg]
+    """Point ``Path.home()`` at *tmp_path* for the duration of a test."""
+
+    def _path_home() -> Path:
+        return tmp_path
+
+    return patch.object(Path, "home", _path_home)
+
+
+def test_revive_strips_dismissal_prefix_from_named_agent(tmp_path: Path) -> None:
+    """Reviving ``260428.foo`` restores the live name ``foo`` in memory."""
+    app = FakeReviveApp()
+    agent = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        agent_name="260428.foo",
+    )
+    app._dismissed_agent_objects = [agent]
+    app._dismissed_agents = {agent.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(agent)
+
+    assert agent.agent_name == "foo"
+
+
+def test_revive_rewrites_active_agent_waiting_for(tmp_path: Path) -> None:
+    """An active agent waiting on a prefixed dismissed name is restored."""
+    app = FakeReviveApp()
+    revived = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        agent_name="260428.foo",
+    )
+    dependent = _make_agent(
+        cl_name="feature_b",
+        raw_suffix="20260428110000",
+        status="WAITING",
+        waiting_for=["260428.foo"],
+    )
+    app._dismissed_agent_objects = [revived]
+    app._dismissed_agents = {revived.identity}
+    app._agents_with_children = [dependent]
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(revived)
+
+    assert dependent.waiting_for == ["foo"]
+
+
+def test_revive_rewrites_artifact_wait_for_on_disk(tmp_path: Path) -> None:
+    """The dependent agent's ``agent_meta.json`` wait_for is rewritten."""
+    artifact_dir = (
+        tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "20260428"
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"wait_for": ["260428.foo"]})
+    )
+    (artifact_dir / "raw_xprompt.md").write_text("%w:260428.foo run it")
+
+    app = FakeReviveApp()
+    revived = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        agent_name="260428.foo",
+    )
+    app._dismissed_agent_objects = [revived]
+    app._dismissed_agents = {revived.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(revived)
+
+    assert json.loads((artifact_dir / "agent_meta.json").read_text())["wait_for"] == [
+        "foo"
+    ]
+    assert (artifact_dir / "raw_xprompt.md").read_text() == "%w:foo run it"
+
+
+def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
+    """Pre-prefix bundles (no ``YYmmdd.``) revive under their current name."""
+    app = FakeReviveApp()
+    agent = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        agent_name="foo",
+    )
+    app._dismissed_agent_objects = [agent]
+    app._dismissed_agents = {agent.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(agent)
+
+    assert agent.agent_name == "foo"
+    # No fallback-name notification was emitted.
+    assert not any(sev == "warning" for _, sev in app.notifications)
+
+
+def test_revive_with_taken_name_falls_back_to_auto_name(tmp_path: Path) -> None:
+    """When the original name is now claimed, revive picks a fresh auto-name."""
+    # Plant an active agent named "foo" so the revival sees the slot taken.
+    active_dir = (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "20260501090000"
+    )
+    active_dir.mkdir(parents=True)
+    (active_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "foo", "pid": 123456789})
+    )
+    (active_dir / "done.json").write_text(json.dumps({"outcome": "completed"}))
+
+    app = FakeReviveApp()
+    agent = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        agent_name="260428.foo",
+    )
+    app._dismissed_agent_objects = [agent]
+    app._dismissed_agents = {agent.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(agent)
+
+    assert agent.agent_name != "260428.foo"
+    assert agent.agent_name != "foo"
+    # Auto-name sequence starts at "a"; "foo" is taken so we expect "a".
+    assert agent.agent_name == "a"
+    assert any(
+        "Original name 'foo' was taken" in msg and sev == "warning"
+        for msg, sev in app.notifications
+    )
+
+
+def test_revive_workflow_parent_strips_children_prefix(tmp_path: Path) -> None:
+    """A workflow parent + children all lose their ``YYmmdd.`` prefix together."""
+    app = FakeReviveApp()
+    parent = _make_agent(
+        cl_name="feature",
+        raw_suffix="20260428100000",
+        agent_name="260428.a",
+    )
+    child = _make_agent(
+        cl_name="child_step",
+        raw_suffix="child_suffix_1",
+        parent_workflow="wf",
+        parent_timestamp="20260428100000",
+        agent_name="260428.a.1",
+    )
+    app._dismissed_agent_objects = [parent, child]
+    app._dismissed_agents = {parent.identity, child.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(parent)
+
+    assert parent.agent_name == "a"
+    assert child.agent_name == "a.1"
+
+
+def test_batch_revive_strips_prefixes_for_all_agents(tmp_path: Path) -> None:
+    """Batch revive applies prefix stripping to every revival_group member."""
+    app = FakeReviveApp()
+    parent_one = _make_agent(
+        cl_name="f1",
+        raw_suffix="20260428100000",
+        agent_name="260428.foo",
+    )
+    parent_two = _make_agent(
+        cl_name="f2",
+        raw_suffix="20260428110000",
+        workflow="wf_two",
+        agent_name="260428.bar",
+    )
+    app._dismissed_agent_objects = [parent_one, parent_two]
+    app._dismissed_agents = {parent_one.identity, parent_two.identity}
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agents([parent_one, parent_two])
+
+    assert parent_one.agent_name == "foo"
+    assert parent_two.agent_name == "bar"

@@ -4,12 +4,66 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+
+
+def _build_revive_name_map(agents: Iterable[Agent]) -> tuple[dict[str, str], list[str]]:
+    """Strip dismissal prefixes for *agents* and return ``({old: new}, taken)``.
+
+    Each agent whose ``agent_name`` carries a ``YYmmdd.`` dismissal prefix is
+    mutated in-place to its stripped form. When the stripped name is already
+    claimed by an active agent (or by another revive in the same batch), a
+    fresh auto-name is allocated instead and the original name is appended
+    to the returned ``taken`` list so the caller can surface a notification.
+    Agents without a dismissal prefix (legacy bundles) are skipped — they
+    revive under their current name, mirroring the pre-prefix behaviour.
+    """
+    from sase.agent.names import (
+        allocate_revived_name,
+        get_active_agent_names,
+        is_dismissed_prefixed,
+    )
+
+    name_map: dict[str, str] = {}
+    unavailable: list[str] = []
+    reserved = get_active_agent_names()
+
+    for agent in agents:
+        old = agent.agent_name
+        if not old or not is_dismissed_prefixed(old):
+            continue
+        new, fallback = allocate_revived_name(old, reserved=reserved)
+        if fallback is not None:
+            unavailable.append(fallback)
+        agent.agent_name = new
+        name_map[old] = new
+    return name_map, unavailable
+
+
+def _apply_revive_reference_rewrites(
+    app: AgentRevivalMixin, name_map: dict[str, str]
+) -> None:
+    """Rewrite on-disk and in-memory wait/resume references for *name_map*.
+
+    Walks the same artifact tree as the dismissal flow but in reverse
+    (``YYmmdd.foo`` → ``foo``) and updates every active agent's
+    in-memory ``waiting_for`` so the optimistic UI is consistent before
+    the next disk reload.
+    """
+    if not name_map:
+        return
+    from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
+
+    rewrite_dismissed_references(
+        name_map,
+        in_memory_agents=getattr(app, "_agents_with_children", []),
+    )
 
 
 def _is_child_of(child: Agent, parent: Agent) -> bool:
@@ -164,16 +218,22 @@ class AgentRevivalMixin:
 
         # Also revive child steps and follow-up agents (e.g. .code, .q)
         child_raw_suffixes: set[str] = set()
+        revival_group: list[Agent] = [agent]
         if not agent.is_workflow_child and agent.raw_suffix:
             for dismissed_agent in list(self._dismissed_agent_objects):
                 if _is_child_of(dismissed_agent, agent):
                     self._dismissed_agents.discard(dismissed_agent.identity)
+                    revival_group.append(dismissed_agent)
                     if dismissed_agent.raw_suffix:
                         child_raw_suffixes.add(dismissed_agent.raw_suffix)
                         revived_suffixes.add(dismissed_agent.raw_suffix)
 
         # Remove all dismissed aliases that share revived suffixes.
         self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+
+        # Strip dismissal prefixes before restoring artifacts so the
+        # rewritten markers carry the live names.
+        name_map, unavailable = _build_revive_name_map(revival_group)
 
         save_dismissed_agents(self._dismissed_agents)
 
@@ -189,10 +249,17 @@ class AgentRevivalMixin:
                         parent_artifacts_dir=agent.artifacts_dir,
                     )
 
+        _apply_revive_reference_rewrites(self, name_map)
+
         # Clean up the bundle now that artifacts are restored
         remove_bundle_by_identity(agent.identity, child_raw_suffixes=child_raw_suffixes)
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
+        for original in unavailable:
+            self.notify(  # type: ignore[attr-defined]
+                f"Original name '{original}' was taken; assigned a new auto-name",
+                severity="warning",
+            )
         self._load_agents()  # type: ignore[attr-defined]
 
         # Auto-select the revived agent in the list
@@ -225,8 +292,10 @@ class AgentRevivalMixin:
         # and collect child suffixes for bundle removal
         child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
         revived_suffixes: set[str] = set()
+        revival_group: list[AgentModel] = []
         for agent in valid_agents:
             self._dismissed_agents.discard(agent.identity)
+            revival_group.append(agent)
             if agent.raw_suffix:
                 revived_suffixes.add(agent.raw_suffix)
             child_suffixes: set[str] = set()
@@ -234,6 +303,7 @@ class AgentRevivalMixin:
                 for dismissed_agent in list(self._dismissed_agent_objects):
                     if _is_child_of(dismissed_agent, agent):
                         self._dismissed_agents.discard(dismissed_agent.identity)
+                        revival_group.append(dismissed_agent)
                         if dismissed_agent.raw_suffix:
                             child_suffixes.add(dismissed_agent.raw_suffix)
                             revived_suffixes.add(dismissed_agent.raw_suffix)
@@ -241,6 +311,11 @@ class AgentRevivalMixin:
 
         # Remove all dismissed aliases that share revived suffixes.
         self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+
+        # Strip dismissal prefixes from the full revival group in one pass
+        # so collision-free auto-name allocation can see every restored
+        # name at once.
+        name_map, unavailable = _build_revive_name_map(revival_group)
 
         # Phase 2: Single disk write for dismissed set
         save_dismissed_agents(self._dismissed_agents)
@@ -260,9 +335,16 @@ class AgentRevivalMixin:
                 child_raw_suffixes=child_suffixes_map.get(agent.identity),
             )
 
+        _apply_revive_reference_rewrites(self, name_map)
+
         # Phase 4: Single notification and refresh
         count = len(valid_agents)
         self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
+        for original in unavailable:
+            self.notify(  # type: ignore[attr-defined]
+                f"Original name '{original}' was taken; assigned a new auto-name",
+                severity="warning",
+            )
         self._load_agents()  # type: ignore[attr-defined]
 
     def _restore_agent_artifacts(

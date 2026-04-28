@@ -759,6 +759,43 @@ def allocate_dismissed_name(
         n += 1
 
 
+def get_active_agent_names() -> set[str]:
+    """Return names reserved by visible, non-dismissed agents.
+
+    Public wrapper around the internal scan used by :func:`get_next_auto_name`.
+    Revive-time callers seed their batch ``reserved`` set from this snapshot
+    so a single artifact walk is shared across every name allocation.
+    """
+    return _get_active_agent_names()
+
+
+def allocate_revived_name(
+    prefixed_name: str,
+    *,
+    reserved: set[str] | None = None,
+) -> tuple[str, str | None]:
+    """Allocate the live name for *prefixed_name* on revive.
+
+    Strips the ``YYmmdd.`` prefix from *prefixed_name*. When the stripped
+    name is already claimed (by *reserved* or, when ``None``, by the
+    current active-agent set), falls back to the next free auto-name and
+    returns the originally requested name as the second tuple element so
+    the caller can surface "original name was taken" feedback. When the
+    stripped name is free the second element is ``None``.
+
+    *reserved* is mutated in place with the allocated name so a caller
+    can chain allocations across a batch revive without re-scanning.
+    """
+    candidate = strip_dismissed_prefix(prefixed_name)
+    pool = _get_active_agent_names() if reserved is None else reserved
+    fallback: str | None = None
+    if candidate in pool:
+        fallback = candidate
+        candidate = _next_available_name(pool)
+    pool.add(candidate)
+    return candidate, fallback
+
+
 def collect_dismissed_taken_names() -> set[str]:
     """Return dismissed-prefixed names already in use across persistent state.
 
