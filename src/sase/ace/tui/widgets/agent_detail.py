@@ -111,7 +111,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
             prompt_panel.attempt_view_mode = self._attempt_view_mode
             prompt_panel.attempt_pinned_number = attempt_number
-            prompt_panel.update_display(agent)
+            prompt_panel.update_header_only(agent)
 
     def _update_display_impl(
         self,

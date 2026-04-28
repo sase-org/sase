@@ -73,6 +73,22 @@ class AgentDisplayMixin:
         with tui_trace("widget.prompt_panel.update_display"):
             self._update_display_impl(agent)
 
+    def update_header_only(self, agent: Agent) -> None:
+        """Render only the agent-details header + inline error traceback.
+
+        Phase-3 immediate path: builds the cheap, in-memory header and
+        renders it directly. Does **not** touch the artifact cache, list
+        the artifacts directory, or read prompt / reply / response files.
+        The debounced full update path is responsible for filling in the
+        prompt body, reply, thinking, and file content shortly after.
+        """
+        with tui_trace("widget.prompt_panel.update_header_only"):
+            header_text, error_tb_syntax = build_header_text(agent, cheap=True)
+            if error_tb_syntax is not None:
+                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            else:
+                self.update(header_text)  # type: ignore[attr-defined]
+
     def _update_display_impl(self, agent: Agent) -> None:
         # Attempt-pinned view: render the selected prior attempt's full error
         # + prompt + captured reply; skip all other rendering paths.

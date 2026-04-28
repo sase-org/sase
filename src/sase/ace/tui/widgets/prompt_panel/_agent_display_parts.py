@@ -150,11 +150,20 @@ def render_agent_reply_content(agent: Agent) -> list:
     return renderables
 
 
-def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
+def build_header_text(
+    agent: Agent, *, cheap: bool = False
+) -> tuple[Text, Syntax | None]:
     """Build the AGENT DETAILS header section with trailing separator.
 
     Contains agent metadata (name, workspace, model, timestamps, etc.),
     error information, and a trailing separator line.
+
+    Args:
+        agent: The agent to render a header for.
+        cheap: When True, skip any disk-touching enrichments (e.g. embedded
+            workflow metadata loaded from disk). Used by the j/k immediate
+            path so the header renders within one frame; the debounced full
+            update fills in the omitted fields.
 
     Returns:
         Tuple of (header_text, error_traceback_syntax).
@@ -231,8 +240,10 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
         header_text.append("Workflow: ", style="bold #87D7FF")
         header_text.append(f"{agent.workflow}\n")
 
-    # Embedded Workflows (if available) - only for agent/prompt steps
-    if agent.step_type not in ("bash", "python", "parallel"):
+    # Embedded Workflows (if available) - only for agent/prompt steps.
+    # Skipped on the cheap path: load_embedded_workflows touches disk, and
+    # the debounced full update will populate this field shortly after.
+    if not cheap and agent.step_type not in ("bash", "python", "parallel"):
         embedded_workflows = load_embedded_workflows(agent)
         if embedded_workflows:
             header_text.append("Embedded Workflows: ", style="bold #87D7FF")
