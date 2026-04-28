@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 10:45:10
 status: wip
+bead_id: sase-11
 ---
 # Plan: Make chop-launched agents visible and align them with `sase run -d`
 
