@@ -3,11 +3,19 @@
 Phase 6 of the TUI perf overhaul adds dedupe + caching at this layer:
 
 - ``compute_diff_cache_key`` derives a stable key from the agent identity,
-  workspace path, VCS provider, and a worktree fingerprint (``.git/index``
-  mtime/size with a 2-second TTL fallback for active agents).
+  workspace path, VCS provider, a worktree fingerprint (``.git/index``
+  mtime/size, when present), and a TTL bucket.
 - A module-level ``_diff_cache`` stores recent results so re-selecting the
-  same active agent with an unchanged worktree does not re-call
+  same active agent within a TTL window does not re-call
   ``diff_with_untracked``.
+
+The TTL bucket is the **primary** invalidation signal because the underlying
+call (``git diff HEAD`` + untracked walk) reflects the working tree, which
+``.git/index`` does not track — the index only mutates on plumbing operations
+like ``git add``/``git commit``. Without a TTL bucket the cache would stay
+permanently warm while a running agent edits files in its workspace. The
+``.git/index`` signature still acts as a secondary discriminator so a
+stage/commit during a TTL window invalidates immediately.
 """
 
 from __future__ import annotations
@@ -22,18 +30,19 @@ from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
 
 from ...models.agent import Agent
 
-# Worktree TTL fallback: when no .git/index signature is available we still
-# want a cache hit for very-recent re-selections of an active agent. Two
-# seconds is short enough that fresh edits show up quickly while still
-# absorbing rapid j/k bursts on the same agent.
-DIFF_CACHE_TTL_SECONDS = 2.0
+# Primary invalidation signal for the diff cache. ``git diff HEAD`` reflects
+# the working tree and ``.git/index`` does not change on working-tree edits,
+# so we must time-bucket cache entries to ever surface fresh edits made by a
+# running agent. ~1 s is fast enough that new edits appear within a heartbeat
+# and slow enough to absorb sub-second j/k navigation bursts.
+DIFF_CACHE_TTL_SECONDS = 1.0
 
 DiffCacheKey = tuple[
     tuple[object, ...],  # agent.identity
     str,  # workspace_dir
     str,  # vcs provider name
     tuple[int, int] | None,  # .git/index (mtime_ns, size)
-    int | None,  # 2-second TTL bucket (used only when index sig missing)
+    int,  # TTL bucket (always present)
 ]
 
 
@@ -63,10 +72,12 @@ def _resolve_workspace_dir(agent: Agent) -> str | None:
 def compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     """Build the diff cache key for an agent, or None if not derivable.
 
-    The 2-second TTL bucket is included only when the workspace has no
-    ``.git/index`` (e.g. a non-git VCS or an unborn repo). When ``.git/index``
-    is present the (mtime_ns, size) signature is precise so we don't need a
-    time-based bucket — the key changes naturally when the index moves.
+    The TTL bucket is always included — it is the primary invalidation signal
+    because ``.git/index`` does not change on working-tree edits, so an agent
+    actively editing files would otherwise produce a permanently warm cache.
+    The ``.git/index`` (mtime_ns, size) fingerprint is included as a
+    secondary discriminator so a stage/commit during a TTL window
+    invalidates the cached result immediately.
     """
     workspace_dir = _resolve_workspace_dir(agent)
     if workspace_dir is None:
@@ -77,9 +88,7 @@ def compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
         return None
     provider_name = type(provider).__name__
     fingerprint = _git_index_signature(workspace_dir)
-    ttl_bucket = (
-        int(time.time() // DIFF_CACHE_TTL_SECONDS) if fingerprint is None else None
-    )
+    ttl_bucket = int(time.time() // DIFF_CACHE_TTL_SECONDS)
     return (agent.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
 
 
@@ -129,9 +138,7 @@ def get_agent_diff(agent: Agent) -> str | None:
 
         provider_name = type(provider).__name__
         fingerprint = _git_index_signature(workspace_dir)
-        ttl_bucket = (
-            int(time.time() // DIFF_CACHE_TTL_SECONDS) if fingerprint is None else None
-        )
+        ttl_bucket = int(time.time() // DIFF_CACHE_TTL_SECONDS)
         key: DiffCacheKey = (
             agent.identity,
             workspace_dir,

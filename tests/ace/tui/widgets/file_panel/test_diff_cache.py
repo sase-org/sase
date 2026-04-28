@@ -45,15 +45,47 @@ def test_get_agent_diff_caches_on_unchanged_worktree(tmp_path: Path) -> None:
     agent = _make_running_agent()
     provider = _FakeProvider()
 
-    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
-        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
-            first = diff_mod.get_agent_diff(agent)
-            second = diff_mod.get_agent_diff(agent)
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(
+            diff_mod, "get_workspace_directory", return_value=str(workspace)
+        ):
+            with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+                first = diff_mod.get_agent_diff(agent)
+                second = diff_mod.get_agent_diff(agent)
 
     assert first == "diff for call 1"
-    # Same agent, same git index sig → no second diff_with_untracked call.
+    # Same agent, same TTL bucket and git index sig → cache hit.
     assert second == "diff for call 1"
     assert provider.calls == 1
+
+
+def test_get_agent_diff_invalidates_after_ttl(tmp_path: Path) -> None:
+    """Regression: working-tree edits must surface within DIFF_CACHE_TTL_SECONDS.
+
+    ``.git/index`` does not change on working-tree edits, so before the fix
+    the cache stayed permanently warm while a running agent edited files.
+    The TTL bucket is now the primary invalidation signal.
+    """
+    diff_mod._diff_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent()
+    provider = _FakeProvider()
+
+    t0 = 1_700_000_000.0
+    t1 = t0 + diff_mod.DIFF_CACHE_TTL_SECONDS + 0.01
+
+    with patch.object(diff_mod, "get_workspace_directory", return_value=str(workspace)):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            with patch.object(diff_mod.time, "time", return_value=t0):
+                first = diff_mod.get_agent_diff(agent)
+            # .git/index unchanged — only the working tree changed (which is
+            # what the fake provider's incrementing call count simulates).
+            with patch.object(diff_mod.time, "time", return_value=t1):
+                second = diff_mod.get_agent_diff(agent)
+
+    assert first == "diff for call 1"
+    assert second == "diff for call 2"
+    assert provider.calls == 2
 
 
 def test_get_agent_diff_invalidates_when_index_changes(tmp_path: Path) -> None:
@@ -86,15 +118,15 @@ def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
     assert key[1] == str(workspace)
     assert key[2] == "_FakeProvider"
     assert key[3] is not None  # git index signature present
-    assert key[4] is None  # TTL bucket not used when index sig exists
+    assert isinstance(key[4], int)  # TTL bucket always present
 
 
-def test_compute_diff_cache_key_uses_ttl_bucket_when_no_git_index(
+def test_compute_diff_cache_key_ttl_bucket_present_without_git_index(
     tmp_path: Path,
 ) -> None:
     workspace = tmp_path / "myproj_1"
     workspace.mkdir()
-    # No .git directory → fingerprint is None and we fall back to TTL.
+    # No .git directory → fingerprint is None; TTL bucket still present.
     agent = _make_running_agent()
     provider = _FakeProvider()
 
