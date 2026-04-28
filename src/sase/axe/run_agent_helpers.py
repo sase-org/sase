@@ -475,6 +475,13 @@ def format_qa_for_prompt(
 
     Includes every option (with checkbox state) so the follow-up agent
     can see the full ballot, not just the picked label.
+
+    The output is wrapped in ``%xprompts_enabled:false`` /
+    ``%xprompts_enabled:true`` markers so user-supplied free text in
+    answers, custom feedback, or the global note is not subject to
+    xprompt expansion (e.g. a literal ``#some_name`` in an answer is
+    preserved verbatim). The markers are stripped before the agent
+    sees the prompt.
     """
     from sase.main.qa_markdown import build_qa_markdown
 
@@ -494,8 +501,9 @@ def format_qa_for_prompt(
             match = by_text.get(q.get("question", ""))
             aligned.append(match if match is not None else {})
 
-    return build_qa_markdown(
+    body = build_qa_markdown(
         questions=questions,
         answers=aligned,
         global_note=response.get("global_note") or None,
     )
+    return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"

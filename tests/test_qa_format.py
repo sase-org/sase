@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from sase.axe.run_agent_helpers import format_qa_for_prompt
 from sase.main.qa_markdown import build_qa_markdown
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    strip_disabled_region_markers,
+    unprotect_disabled_regions,
+)
 
 
 def _q(question, options, header="", multi=False):
@@ -135,7 +142,7 @@ def test_question_text_rendered_as_blockquote() -> None:
     assert "> line two" in out
 
 
-def test_build_qa_markdown_direct_matches_format_qa_for_prompt() -> None:
+def test_build_qa_markdown_direct_matches_format_qa_for_prompt_body() -> None:
     q = _q("Pick", [("A", "a"), ("B", "b")], header="hdr", multi=True)
     questions = [q]
     answers = [{"selected": ["A"], "custom_feedback": None}]
@@ -144,7 +151,8 @@ def test_build_qa_markdown_direct_matches_format_qa_for_prompt() -> None:
     via_response = format_qa_for_prompt(
         questions, {"answers": answers, "global_note": "note"}
     )
-    assert direct == via_response
+    # The prompt-bound formatter wraps the body in disabled-region markers.
+    assert via_response == f"%xprompts_enabled:false\n{direct}\n%xprompts_enabled:true"
 
 
 def test_length_mismatch_falls_back_to_text_match() -> None:
@@ -162,9 +170,14 @@ def test_length_mismatch_falls_back_to_text_match() -> None:
     assert "- [x] **X**" in out  # q2: matched by text
 
 
-def test_tui_modal_preview_matches_prompt_section() -> None:
-    """The TUI modal's preview and the prompt-section output are byte-identical
-    for the same inputs (since both delegate to ``build_qa_markdown``)."""
+def test_tui_modal_preview_matches_prompt_section_body() -> None:
+    """The TUI modal's preview and the prompt-section body are byte-identical
+    for the same inputs (since both delegate to ``build_qa_markdown``).
+
+    The prompt-section variant additionally wraps the body in
+    ``%xprompts_enabled`` markers; the TUI preview does not (markers
+    would be visual noise in a user-facing modal).
+    """
     from sase.ace.tui.modals.user_question_modal import (
         UserQuestionModal,
         _QuestionAnswer,
@@ -192,4 +205,65 @@ def test_tui_modal_preview_matches_prompt_section() -> None:
             "global_note": "note",
         },
     )
-    assert tui_out == prompt_out
+    assert prompt_out == f"%xprompts_enabled:false\n{tui_out}\n%xprompts_enabled:true"
+
+
+def test_format_qa_for_prompt_is_wrapped_in_disabled_region_markers() -> None:
+    q = _q("Pick", [("A", "alpha")])
+    out = format_qa_for_prompt(
+        [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
+    )
+    assert out.startswith("%xprompts_enabled:false\n")
+    assert out.endswith("\n%xprompts_enabled:true")
+
+
+def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
+    """A `#some_xprompt_name` token inside the Q&A body must survive the
+    full protect → expand → unprotect → strip pipeline verbatim, because
+    the wrapping markers exempt it from xprompt expansion."""
+    from sase.xprompt.models import XPrompt
+    from sase.xprompt.processor import process_xprompt_references
+
+    q = _q("see #some_xprompt_name for context", [("A", "alpha")])
+    qa_text = format_qa_for_prompt(
+        [q], {"answers": [{"selected": ["A"]}], "global_note": ""}
+    )
+    prompt = "Original prompt.\n\n" + qa_text
+
+    # Even with a real expansion pass over the whole prompt, the token
+    # inside the protected region must not be expanded.
+    with patch("sase.xprompt.processor.get_all_xprompts") as mock_get:
+        mock_get.return_value = {
+            "some_xprompt_name": XPrompt(
+                name="some_xprompt_name",
+                content="EXPANDED-CONTENT-SHOULD-NOT-APPEAR",
+            ),
+        }
+        expanded = process_xprompt_references(prompt)
+
+    final = strip_disabled_region_markers(expanded)
+    assert "#some_xprompt_name" in final
+    assert "EXPANDED-CONTENT-SHOULD-NOT-APPEAR" not in final
+    assert "%xprompts_enabled" not in final
+
+
+def test_qa_custom_feedback_with_hash_token_preserved_verbatim() -> None:
+    """Regression: a custom-feedback string containing a literal `#fix-me`
+    is preserved verbatim through protect → unprotect → strip."""
+    q = _q("Anything to add?", [("Other", "")])
+    response = {
+        "answers": [{"selected": ["Other"], "custom_feedback": "please #fix-me later"}],
+        "global_note": "",
+    }
+    qa_text = format_qa_for_prompt([q], response)
+
+    regions: list[str] = []
+    protected = protect_disabled_regions(qa_text, regions)
+    # The user-supplied text must be hidden behind a placeholder during
+    # the would-be expansion stage.
+    assert "#fix-me" not in protected
+    restored = unprotect_disabled_regions(protected, regions)
+    final = strip_disabled_region_markers(restored)
+
+    assert "#fix-me" in final
+    assert "%xprompts_enabled" not in final
