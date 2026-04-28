@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -460,6 +461,182 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
 
     assert app.async_refreshes == 1
     assert any(sev == "error" for _, sev in app.notifications)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 dismissed-name renames
+# ---------------------------------------------------------------------------
+
+
+def _patch_isolated_home(tmp_path):  # type: ignore[no-untyped-def]
+    """Point Path.home(), bundles dir, and dismissed.json at *tmp_path*."""
+
+    def _path_home() -> Path:
+        return tmp_path
+
+    return [
+        patch.object(Path, "home", _path_home),
+        patch(
+            "sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR",
+            tmp_path / "dismissed_bundles",
+        ),
+        patch(
+            "sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE",
+            tmp_path / "dismissed_agents.json",
+        ),
+        patch(
+            "sase.ace.dismissed_agents._OLD_BUNDLES_FILE",
+            tmp_path / "old_bundles.json",
+        ),
+    ]
+
+
+def test_dismiss_renames_named_agent_with_date_prefix(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Dismissing ``foo`` on April 28 2026 yields ``260428.foo``."""
+    app = FakeDismissApp()
+    agent = _make_agent(
+        cl_name="feature_a",
+        raw_suffix="20260428100000",
+        stop_time=datetime(2026, 4, 28, 12, 0, 0),
+        agent_name="foo",
+    )
+    app._agents_with_children = [agent]
+
+    patches = _patch_isolated_home(tmp_path)
+    for p in patches:
+        p.start()
+    try:
+        app._dismiss_done_agent(agent)
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert agent.agent_name == "260428.foo"
+    # In-memory dismissed-objects list reflects the renamed agent.
+    assert app._dismissed_agent_objects == [agent]
+    assert app._dismissed_agent_objects[0].agent_name == "260428.foo"
+
+
+def test_dismiss_unnamed_agent_gets_prefixed_name(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """An agent with no ``agent_name`` still receives a non-empty prefix."""
+    app = FakeDismissApp()
+    agent = _make_agent(
+        cl_name="feature_b",
+        raw_suffix="20260428100000",
+        stop_time=datetime(2026, 4, 28, 12, 0, 0),
+    )
+    app._agents_with_children = [agent]
+
+    patches = _patch_isolated_home(tmp_path)
+    for p in patches:
+        p.start()
+    try:
+        app._dismiss_done_agent(agent)
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert agent.agent_name == "260428.feature_b"
+
+
+def test_batch_dismiss_unique_names_for_same_day_same_base(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Two same-day agents with name ``foo`` get ``260428.foo`` and ``260428.foo.2``."""
+    app = FakeDismissApp()
+    a1 = _make_agent(
+        cl_name="cl_a",
+        raw_suffix="20260428100000",
+        stop_time=datetime(2026, 4, 28, 12, 0, 0),
+        agent_name="foo",
+    )
+    a2 = _make_agent(
+        cl_name="cl_b",
+        raw_suffix="20260428110000",
+        stop_time=datetime(2026, 4, 28, 13, 0, 0),
+        agent_name="foo",
+    )
+    app._agents_with_children = [a1, a2]
+    app._agents = [a1, a2]
+
+    patches = _patch_isolated_home(tmp_path)
+    for p in patches:
+        p.start()
+    try:
+        app._do_dismiss_all([a1, a2])
+    finally:
+        for p in patches:
+            p.stop()
+
+    names = sorted(a.agent_name or "" for a in [a1, a2])
+    assert names == ["260428.foo", "260428.foo.2"]
+
+
+def test_dismiss_renames_named_workflow_children(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Workflow children with names also pick up the dismissal prefix."""
+    app = FakeDismissApp()
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="cl_a",
+        raw_suffix="20260428100000",
+        workflow="wf",
+        stop_time=datetime(2026, 4, 28, 12, 0, 0),
+        agent_name="root",
+    )
+    named_child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="cl_a",
+        raw_suffix="20260428100000_c0",
+        parent_workflow="wf",
+        parent_timestamp="20260428100000",
+        agent_name="root.plan",
+    )
+    unnamed_child = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="cl_a",
+        raw_suffix="20260428100000_c1",
+        parent_workflow="wf",
+        parent_timestamp="20260428100000",
+    )
+    app._agents_with_children = [parent, named_child, unnamed_child]
+
+    patches = _patch_isolated_home(tmp_path)
+    for p in patches:
+        p.start()
+    try:
+        app._dismiss_done_agent(parent)
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert parent.agent_name == "260428.root"
+    assert named_child.agent_name == "260428.root.plan"
+    # Children without a live name stay un-named — the rename is conservative.
+    assert unnamed_child.agent_name is None
+
+
+def test_dismiss_rename_uses_start_time_when_stop_time_missing(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    """Falls back to ``start_time`` when ``stop_time`` is None."""
+    app = FakeDismissApp()
+    agent = _make_agent(
+        cl_name="feature_c",
+        raw_suffix="20260427100000",
+        start_time=datetime(2026, 4, 27, 9, 0, 0),
+        stop_time=None,
+        agent_name="bar",
+    )
+    app._agents_with_children = [agent]
+
+    patches = _patch_isolated_home(tmp_path)
+    for p in patches:
+        p.start()
+    try:
+        app._dismiss_done_agent(agent)
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert agent.agent_name == "260427.bar"
 
 
 if __name__ == "__main__":

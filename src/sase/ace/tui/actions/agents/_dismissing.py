@@ -6,6 +6,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Iterable
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -24,6 +25,83 @@ from ._killing_utils import (
 
 log = logging.getLogger(__name__)
 AgentIdentity = tuple["AgentType", str, str | None]
+
+
+def _completion_date_for(agent: Agent) -> datetime:
+    """Return the best-known completion date for *agent*.
+
+    Used to derive the ``YYmmdd`` dismissal prefix. Falls back through
+    ``stop_time`` → ``start_time`` → parsed ``raw_suffix`` → ``now()`` so
+    partially-populated bundles still get a deterministic date.
+    """
+    if agent.stop_time is not None:
+        return agent.stop_time
+    if agent.start_time is not None:
+        return agent.start_time
+    if agent.raw_suffix:
+        try:
+            return datetime.strptime(agent.raw_suffix[:14], "%Y%m%d%H%M%S")
+        except ValueError:
+            pass
+    return datetime.now()
+
+
+def _base_for_dismissal(agent: Agent) -> str:
+    """Return a non-empty base name to use when prefixing *agent*."""
+    from sase.agent.names import strip_dismissed_prefix
+
+    if agent.agent_name:
+        return strip_dismissed_prefix(agent.agent_name)
+    if agent.cl_name and agent.cl_name != "unknown":
+        return agent.cl_name
+    if agent.raw_suffix:
+        return agent.raw_suffix
+    return "agent"
+
+
+def _apply_dismissal_rename(
+    agent: Agent,
+    agents_with_children_snapshot: Iterable[Agent],
+    *,
+    taken: set[str] | None = None,
+) -> None:
+    """Mutate *agent* (and its workflow children) to carry dismissed names.
+
+    The parent's :attr:`Agent.agent_name` becomes ``YYmmdd.<base>``, where
+    *base* is the parent's existing name when one was set, else its
+    ``cl_name``/``raw_suffix`` so unnamed dismissals still produce a
+    non-empty prefixed name. Workflow children that already carry a name
+    are reprefixed with the same date so wait/resume references remain
+    consistent. When *taken* is provided it is updated in place with newly
+    allocated names so subsequent dismissals in the same batch do not
+    collide; when ``None``, the allocator scans persisted state on its own.
+    """
+    from ...models.agent import AgentType
+    from sase.agent.names import (
+        add_dismissed_prefix,
+        allocate_dismissed_name,
+    )
+
+    completion_date = _completion_date_for(agent)
+    base = _base_for_dismissal(agent)
+    new_name = allocate_dismissed_name(base, completion_date, taken=taken)
+    agent.agent_name = new_name
+    if taken is not None:
+        taken.add(new_name)
+
+    if (
+        agent.agent_type == AgentType.WORKFLOW
+        and not agent.is_workflow_child
+        and agent.raw_suffix
+    ):
+        for step in agents_with_children_snapshot:
+            if (
+                step.is_workflow_child
+                and step.parent_timestamp == agent.raw_suffix
+                and step.parent_workflow == agent.workflow
+                and step.agent_name
+            ):
+                step.agent_name = add_dismissed_prefix(step.agent_name, completion_date)
 
 
 class AgentDismissingMixin:
@@ -226,6 +304,16 @@ class AgentDismissingMixin:
 
         agents_with_children_snapshot = list(self._agents_with_children)
 
+        from sase.agent.names import collect_dismissed_taken_names
+
+        allocated_names: set[str] = collect_dismissed_taken_names()
+        for agent in agents:
+            _apply_dismissal_rename(
+                agent,
+                agents_with_children_snapshot,
+                taken=allocated_names,
+            )
+
         for agent in agents:
             self._agent_status_overrides.pop(agent.identity, None)
             self._agent_pre_question_status.pop(agent.identity, None)
@@ -302,6 +390,7 @@ class AgentDismissingMixin:
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
+        _apply_dismissal_rename(agent, agents_with_children_snapshot)
         identities = self._collect_dismissal_identities([agent])
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
