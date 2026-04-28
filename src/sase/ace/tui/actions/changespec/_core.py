@@ -6,6 +6,7 @@ import os
 from typing import TYPE_CHECKING, Literal
 
 from ._display import ChangeSpecDisplayMixin
+from ._grouping_nav import ChangeSpecGroupingNavMixin
 from ._loading import ChangeSpecLoadingMixin
 from ._query import ChangeSpecQueryMixin
 
@@ -25,6 +26,7 @@ class ChangeSpecMixin(
     ChangeSpecLoadingMixin,
     ChangeSpecQueryMixin,
     ChangeSpecDisplayMixin,
+    ChangeSpecGroupingNavMixin,
 ):
     """Mixin providing ChangeSpec loading, filtering, and display methods."""
 

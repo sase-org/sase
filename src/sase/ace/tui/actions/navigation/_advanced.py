@@ -141,6 +141,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if self.current_tab == "agents":
             self._begin_agents_jump_mode()
             return
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "_changespec_grouping_active", lambda: False)()
+        ):
+            self._begin_changespec_jump_mode()
+            return
 
         indices = self._jump_candidate_indices()
         if not indices:
@@ -150,6 +156,38 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         )
         if not self._entry_jump_hint_to_index:
             return
+        self._entry_jump_mode_active = True
+        self._update_jump_footer()
+        self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _begin_changespec_jump_mode(self) -> None:
+        """Allocate hints across visible CLs + collapsed banners (CLs tab, grouped)."""
+        targets = self._changespec_jump_targets()  # type: ignore[attr-defined]
+        if not targets:
+            return
+        hint_to_target, _ = build_jump_hint_maps(targets)
+        if not hint_to_target:
+            return
+
+        cs_hint_to_idx: dict[str, int] = {}
+        cs_idx_to_hint: dict[int, str] = {}
+        banner_hint_to_key: dict[str, tuple[str, ...]] = {}
+        banner_key_to_hint: dict[tuple[str, ...], str] = {}
+        for hint, target in hint_to_target.items():
+            kind, payload = target
+            if kind == "changespec":
+                assert isinstance(payload, int)
+                cs_hint_to_idx[hint] = payload
+                cs_idx_to_hint[payload] = hint
+            else:
+                assert isinstance(payload, tuple)
+                banner_hint_to_key[hint] = payload
+                banner_key_to_hint[payload] = hint
+
+        self._entry_jump_hint_to_index = cs_hint_to_idx
+        self._entry_jump_index_to_hint = cs_idx_to_hint
+        self._entry_jump_hint_to_changespec_banner = banner_hint_to_key
+        self._entry_jump_changespec_banner_to_hint = banner_key_to_hint
         self._entry_jump_mode_active = True
         self._update_jump_footer()
         self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -230,6 +268,8 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._entry_jump_index_to_hint = {}
         self._entry_jump_hint_to_banner = {}
         self._entry_jump_banner_to_hint = {}
+        self._entry_jump_hint_to_changespec_banner = {}
+        self._entry_jump_changespec_banner_to_hint = {}
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         else:
@@ -326,6 +366,26 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 self._current_group_key = None
                 self.current_idx = agent_target
             self._exit_entry_jump_mode()
+            return True
+
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "_changespec_grouping_active", lambda: False)()
+        ):
+            banner_key = self._entry_jump_hint_to_changespec_banner.get(key)
+            agent_target = self._entry_jump_hint_to_index.get(key)
+            if banner_key is None and agent_target is None:
+                self._exit_entry_jump_mode()
+                return True
+            self._entry_jump_last_index[self.current_tab] = self.current_idx
+            if banner_key is not None:
+                self._current_changespec_group_key = banner_key  # type: ignore[attr-defined]
+            else:
+                assert agent_target is not None
+                self._current_changespec_group_key = None  # type: ignore[attr-defined]
+                self.current_idx = agent_target
+            self._exit_entry_jump_mode()
+            self._refresh_display()  # type: ignore[attr-defined]
             return True
 
         target = self._entry_jump_hint_to_index.get(key)

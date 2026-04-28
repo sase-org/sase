@@ -459,37 +459,53 @@ class AgentFoldingMixin:
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
     def action_expand_or_layout(self) -> None:
-        """Expand fold on agents/axe tab, or no-op on other tabs."""
+        """Expand fold on agents/axe tab, or expand CL group when grouped."""
         if self.current_tab == "agents":
             self._expand_fold()
         elif self.current_tab == "axe":
             self._expand_axe_fold()
+        elif self.current_tab == "changespecs":
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                if self._expand_changespec_group_fold():  # type: ignore[attr-defined]
+                    self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse(self) -> None:
-        """Collapse fold on agents/axe tab, or edit hooks on CLs tab."""
+        """Collapse fold on agents/axe tab, edit hooks (or collapse CL group) on CLs tab."""
         if self.current_tab == "agents":
             self._collapse_fold()
         elif self.current_tab == "axe":
             self._collapse_axe_fold()
         elif self.current_tab == "changespecs":
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                if self._collapse_changespec_group_fold():  # type: ignore[attr-defined]
+                    self._refresh_display()  # type: ignore[attr-defined]
+                return
             self.action_edit_hooks()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse all folds on agents/axe tab, or hooks from failed on CLs tab."""
+        """Collapse all folds on agents/axe tab, hooks from failed (or collapse all CL groups) on CLs tab."""
         if self.current_tab == "agents":
             self._collapse_all_folds()
         elif self.current_tab == "axe":
             self._collapse_axe_fold()
         elif self.current_tab == "changespecs":
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                if self._collapse_all_changespec_group_folds():  # type: ignore[attr-defined]
+                    self._refresh_display()  # type: ignore[attr-defined]
+                return
             self.action_hooks_from_failed()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Expand all workflow folds (agents/axe tab) or show agent run log (CLs tab)."""
+        """Expand all workflow folds (agents/axe tab); CLs tab expands all CL groups when grouped or shows agent run log."""
         if self.current_tab == "agents":
             self._expand_all_folds()
         elif self.current_tab == "axe":
             self._expand_axe_fold()
         elif self.current_tab == "changespecs":
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                if self._expand_all_changespec_group_folds():  # type: ignore[attr-defined]
+                    self._refresh_display()  # type: ignore[attr-defined]
+                return
             self._show_agent_run_log()
 
     def _show_agent_run_log(self) -> None:

@@ -162,6 +162,13 @@ class StateInitMixin:
         self._entry_jump_hint_to_banner: dict[str, BannerJumpTarget] = {}
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
 
+        # CLs-tab banner jump-hint maps for grouped mode.  Banner identity
+        # is the group key tuple — there's no panel scope on CLs so the
+        # tuple alone is sufficient.  Empty in flat mode and on tabs that
+        # don't render banner rows.
+        self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
+        self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
+
         # Entry jump-back state (' toggle)
         self._entry_jump_last_index: dict[str, int] = {}
         self._entry_jump_last_panel: dict[str, str | None] = {}

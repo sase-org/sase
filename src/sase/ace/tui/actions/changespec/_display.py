@@ -410,6 +410,12 @@ class ChangeSpecDisplayMixin:
             if grouping_mode is not ChangeSpecGroupingMode.FLAT
             else None
         )
+        banner_jump_hints = (
+            dict(getattr(self, "_entry_jump_changespec_banner_to_hint", {}) or {})
+            if self._entry_jump_mode_active
+            and grouping_mode is not ChangeSpecGroupingMode.FLAT
+            else None
+        )
         list_widget.update_list(  # type: ignore[attr-defined]
             self.changespecs,
             self.current_idx,
@@ -422,6 +428,7 @@ class ChangeSpecDisplayMixin:
             grouping_mode=grouping_mode,
             fold_registry=fold_registry,
             current_group_key=current_group_key,
+            banner_jump_hints=banner_jump_hints,
         )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 

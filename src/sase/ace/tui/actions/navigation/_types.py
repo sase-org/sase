@@ -64,6 +64,11 @@ class NavigationMixinBase:
     # because two banners in different panels can share a ``group_key``.
     _entry_jump_hint_to_banner: dict[str, BannerJumpTarget]
     _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
+    # CLs-tab banner jump-hint maps (grouped mode only).  Banner key is
+    # the tuple group identity; CLs have no panel scope.
+    _entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]]
+    _entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str]
+    _current_changespec_group_key: tuple[str, ...] | None
     # Back-jump anchor for the agents tab: ``("agent", agent_idx, panel_idx)``
     # when the cursor was on an agent row, ``("banner", panel_idx, group_key)``
     # when it was on a banner row.  Independent of

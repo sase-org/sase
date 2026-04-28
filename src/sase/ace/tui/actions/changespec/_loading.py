@@ -29,6 +29,7 @@ class ChangeSpecLoadingMixin:
     _query_submitted_count: int
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
+    _current_changespec_group_key: tuple[str, ...] | None
 
     def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
         """Return the full changespec list freshly read from disk.
@@ -242,6 +243,13 @@ class ChangeSpecLoadingMixin:
                 self._changespecs_last_name = new_changespecs[new_idx].name
             else:
                 self._changespecs_last_name = None
+        # Drop stale CL banner focus when its group's last member dropped
+        # out of the filtered set — ``_refresh_display`` will also call
+        # ``clear_unknown`` on the fold registry, but the focused banner
+        # key has to be cleared here so the renderer doesn't try to
+        # highlight a banner that no longer exists.
+        if not self._changespec_banner_focus_still_valid():  # type: ignore[attr-defined]
+            self._current_changespec_group_key = None  # type: ignore[attr-defined]
         self._update_cls_tab_count()  # type: ignore[attr-defined]
         self._refresh_display()  # type: ignore[attr-defined]
 

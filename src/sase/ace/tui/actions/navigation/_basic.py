@@ -142,6 +142,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
                 return
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                self._navigate_changespec_panel(1)  # type: ignore[attr-defined]
+                return
             if self.current_idx < len(self.changespecs) - 1:
                 self.current_idx += 1
             else:
@@ -162,6 +165,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         self._record_jk_navigation()  # type: ignore[attr-defined]
         if self.current_tab == "changespecs":
             if len(self.changespecs) == 0:
+                return
+            if self._changespec_grouping_active():  # type: ignore[attr-defined]
+                self._navigate_changespec_panel(-1)  # type: ignore[attr-defined]
                 return
             if self.current_idx > 0:
                 self.current_idx -= 1
