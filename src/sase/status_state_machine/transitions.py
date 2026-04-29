@@ -161,6 +161,7 @@ def transition_changespec_status_python(
             )
 
     # Stage 4: post-lock side effects.
+    timestamp_project_file = project_file
 
     # 4a: suffix rename (handles parent references, RUNNING field, branch
     # rename, and sibling reverts).
@@ -192,9 +193,11 @@ def transition_changespec_status_python(
             archive_file = get_archive_file_path(project_file)
 
         if plan.archive_action == ARCHIVE_ACTION_TO_ARCHIVE:
-            move_changespec_to_file(main_file, archive_file, changespec_name)
+            if move_changespec_to_file(main_file, archive_file, changespec_name):
+                timestamp_project_file = archive_file
         elif plan.archive_action == ARCHIVE_ACTION_FROM_ARCHIVE:
-            move_changespec_to_file(archive_file, main_file, changespec_name)
+            if move_changespec_to_file(archive_file, main_file, changespec_name):
+                timestamp_project_file = main_file
         else:
             raise ValueError(f"unexpected archive_action: {plan.archive_action!r}")
 
@@ -203,7 +206,7 @@ def transition_changespec_status_python(
         from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 
         add_timestamp_entry_atomic(
-            project_file,
+            timestamp_project_file,
             plan.timestamp_target_name,
             "STATUS",
             plan.timestamp_event,

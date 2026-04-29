@@ -87,6 +87,72 @@ def test_transition_changespec_status_skip_validation() -> None:
             Path(archive_file).unlink()
 
 
+def test_mailed_to_submitted_records_status_timestamp_in_archive() -> None:
+    """Mailed→Submitted records STATUS timestamp after moving to archive."""
+    from sase.ace.changespec.archive import get_archive_file_path
+
+    project_file = _create_test_project_file("Mailed")
+    archive_file = get_archive_file_path(project_file)
+
+    try:
+        success, old_status, error, _ = transition_changespec_status(
+            project_file, "Test Feature", "Submitted", validate=True
+        )
+
+        assert success is True
+        assert old_status == "Mailed"
+        assert error is None
+
+        with open(archive_file) as f:
+            archive_content = f.read()
+        assert "NAME: Test Feature" in archive_content
+        assert "STATUS: Submitted" in archive_content
+        assert "TIMESTAMPS:" in archive_content
+        assert "STATUS " in archive_content
+        assert "Mailed -> Submitted" in archive_content
+
+        with open(project_file) as f:
+            main_content = f.read()
+        assert "NAME: Test Feature" not in main_content
+
+    finally:
+        Path(project_file).unlink()
+        if Path(archive_file).exists():
+            Path(archive_file).unlink()
+
+
+def test_submitted_to_wip_records_status_timestamp_in_main_file() -> None:
+    """Submitted→WIP records STATUS timestamp after restoring from archive."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        main_file = os.path.join(tmpdir, "test.gp")
+        archive_file = os.path.join(tmpdir, "test-archive.gp")
+
+        with open(main_file, "w") as f:
+            f.write("# Test Project\n")
+        with open(archive_file, "w") as f:
+            f.write(_CHANGESPEC_TEMPLATE.format(status="Submitted"))
+
+        success, old_status, error, _ = transition_changespec_status(
+            archive_file, "Test Feature", "WIP", validate=False
+        )
+
+        assert success is True
+        assert old_status == "Submitted"
+        assert error is None
+
+        with open(main_file) as f:
+            main_content = f.read()
+        assert "NAME: Test Feature" in main_content
+        assert "STATUS: WIP" in main_content
+        assert "TIMESTAMPS:" in main_content
+        assert "STATUS " in main_content
+        assert "Submitted -> WIP" in main_content
+
+        with open(archive_file) as f:
+            archive_content = f.read()
+        assert "NAME: Test Feature" not in archive_content
+
+
 def test_transition_from_archive_to_main() -> None:
     """Test moving a ChangeSpec from archive back to main file (validate=False)."""
     with tempfile.TemporaryDirectory() as tmpdir:
