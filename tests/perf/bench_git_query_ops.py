@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
 import shutil
 import statistics
@@ -53,7 +52,13 @@ from typing import Any
 
 import pytest
 
-from sase.vcs_provider.plugins._git_query_ops import _parse_git_name_status_z
+from sase.core.git_query_facade import (
+    derive_git_workspace_name,
+    parse_git_branch_name,
+    parse_git_conflicted_files,
+    parse_git_local_changes,
+    parse_git_name_status_z,
+)
 
 pytestmark = pytest.mark.slow
 
@@ -134,7 +139,7 @@ def _measure_name_status_parser(
     warmup: int,
 ) -> dict[str, Any]:
     def s_parse() -> int:
-        return len(_parse_git_name_status_z(stream))
+        return len(parse_git_name_status_z(stream))
 
     return {
         "label": label,
@@ -152,47 +157,13 @@ def _measure_normalizers(
     runs: int,
     warmup: int,
 ) -> dict[str, Any]:
-    """Time the small normalizers Phase 5A is likely to port.
+    """Time the small normalizers through the ``sase.core`` facade.
 
-    These are not in the Python codebase as standalone helpers yet — they
-    live inline in ``GitQueryOpsMixin``. Phase 5B will extract them; the
-    benchmark uses inline reimplementations of the same logic so we have
-    a baseline to compare a Rust port against.
+    Phase 5E routes ``GitQueryOpsMixin`` through ``sase.core.git_query_facade``.
+    The benchmark calls the same public facade entry points so the numbers
+    reflect the production code path under the active backend
+    (``SASE_CORE_BACKEND`` and/or ``SASE_CORE_DUAL_RUN``).
     """
-
-    # parse_git_branch_name — current behavior in vcs_get_branch_name:
-    # strip the trailing newline; treat empty / "HEAD" as detached.
-    def parse_branch(stdout: str) -> str | None:
-        name = stdout.strip()
-        if not name or name == "HEAD":
-            return None
-        return name
-
-    # derive_git_workspace_name — current behavior in vcs_get_workspace_name:
-    # prefer the remote URL basename (sans ".git"), else the root path
-    # basename, else None.
-    def derive_workspace(remote_url: str | None, root_path: str | None) -> str | None:
-        if remote_url:
-            name = os.path.basename(remote_url)
-            if name.endswith(".git"):
-                name = name[:-4]
-            return name or None
-        if root_path:
-            name = os.path.basename(root_path)
-            return name or None
-        return None
-
-    # parse_git_conflicted_files — current behavior in
-    # vcs_get_conflicted_files: split on \n, drop blank lines.
-    def parse_conflicted(stdout: str) -> list[str]:
-        return [line for line in stdout.split("\n") if line.strip()]
-
-    # parse_git_local_changes — current behavior in vcs_has_local_changes:
-    # strip; empty -> None; non-empty -> the stripped string.
-    def parse_local_changes(stdout: str) -> str | None:
-        text = stdout.strip()
-        return text if text else None
-
     branch_inputs = ["main\n", "feature/big-rewrite\n", "HEAD\n", "\n"]
     workspace_inputs: list[tuple[str | None, str | None]] = [
         ("git@github.com:org/repo.git", "/home/u/repo"),
@@ -207,18 +178,18 @@ def _measure_normalizers(
     porcelain_input = "\n".join(f" M src/pkg/file_{i}.py" for i in range(150)) + "\n"
 
     def s_parse_branch() -> int:
-        return sum(1 for x in branch_inputs if parse_branch(x) is not None)
+        return sum(1 for x in branch_inputs if parse_git_branch_name(x) is not None)
 
     def s_derive_workspace() -> int:
-        return sum(1 for r, p in workspace_inputs if derive_workspace(r, p))
+        return sum(1 for r, p in workspace_inputs if derive_git_workspace_name(r, p))
 
     def s_parse_conflicted() -> int:
-        return len(parse_conflicted(conflicted_input))
+        return len(parse_git_conflicted_files(conflicted_input))
 
     def s_parse_local_changes() -> int:
         # Run both empty and dirty paths.
-        return int(parse_local_changes(porcelain_input) is not None) + int(
-            parse_local_changes("   \n") is not None
+        return int(parse_git_local_changes(porcelain_input) is not None) + int(
+            parse_git_local_changes("   \n") is not None
         )
 
     return {
@@ -346,7 +317,7 @@ def _measure_end_to_end_diff_name_status(
             return len(out.stdout)
 
         def s_parse_only() -> int:
-            return len(_parse_git_name_status_z(stream))
+            return len(parse_git_name_status_z(stream))
 
         def s_subprocess_plus_parse() -> int:
             out = subprocess.run(
@@ -362,7 +333,7 @@ def _measure_end_to_end_diff_name_status(
                 check=True,
                 text=True,
             )
-            return len(_parse_git_name_status_z(out.stdout))
+            return len(parse_git_name_status_z(out.stdout))
 
         return {
             "label": label,

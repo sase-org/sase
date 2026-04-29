@@ -8,6 +8,13 @@ git-based VCS plugins.
 import os
 from typing import TYPE_CHECKING
 
+from sase.core.git_query_facade import (
+    derive_git_workspace_name,
+    parse_git_branch_name,
+    parse_git_conflicted_files,
+    parse_git_local_changes,
+    parse_git_name_status_z,
+)
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
@@ -215,7 +222,7 @@ class GitQueryOpsMixin(CommandRunner):
                 "diff_name_status",
                 out.stderr.strip() or "git diff --name-status failed",
             )
-        return _parse_git_name_status_z(out.stdout)
+        return parse_git_name_status_z(out.stdout)
 
     @hookimpl
     def vcs_file_at_revision(
@@ -241,24 +248,21 @@ class GitQueryOpsMixin(CommandRunner):
         out = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd)
         if not out.success:
             return (False, "git rev-parse --abbrev-ref HEAD failed")
-        name = out.stdout.strip()
-        if not name or name == "HEAD":
-            return (True, None)
-        return (True, name)
+        return (True, parse_git_branch_name(out.stdout))
 
     @hookimpl
     def vcs_get_workspace_name(self, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["git", "config", "--get", "remote.origin.url"], cwd)
-        if out.success and out.stdout.strip():
-            url = out.stdout.strip()
-            name = os.path.basename(url)
-            if name.endswith(".git"):
-                name = name[:-4]
-            return (True, name) if name else (True, None)
+        remote_out = self._run(["git", "config", "--get", "remote.origin.url"], cwd)
+        remote_url = (
+            remote_out.stdout
+            if remote_out.success and remote_out.stdout.strip()
+            else None
+        )
+        if remote_url is not None:
+            return (True, derive_git_workspace_name(remote_url, None))
         root_out = self._run(["git", "rev-parse", "--show-toplevel"], cwd)
         if root_out.success and root_out.stdout.strip():
-            name = os.path.basename(root_out.stdout.strip())
-            return (True, name) if name else (True, None)
+            return (True, derive_git_workspace_name(None, root_out.stdout))
         return (False, "Could not determine workspace name")
 
     @hookimpl
@@ -266,8 +270,7 @@ class GitQueryOpsMixin(CommandRunner):
         out = self._run(["git", "status", "--porcelain"], cwd)
         if not out.success:
             return (False, out.stderr.strip() or "git status failed")
-        text = out.stdout.strip()
-        return (True, text if text else None)
+        return (True, parse_git_local_changes(out.stdout))
 
     @hookimpl
     def vcs_get_bug_number(self, cwd: str) -> tuple[bool, str | None]:
@@ -311,7 +314,7 @@ class GitQueryOpsMixin(CommandRunner):
         out = self._run(["git", "diff", "--name-only", "--diff-filter=U"], cwd)
         if not out.success:
             return []
-        return [line for line in out.stdout.split("\n") if line.strip()]
+        return parse_git_conflicted_files(out.stdout)
 
     @hookimpl
     def vcs_continue_sync(self, cwd: str) -> tuple[bool, str | None]:
@@ -345,42 +348,3 @@ class GitQueryOpsMixin(CommandRunner):
         new_msg = f"{current_msg}\n{tag_name}={tag_value}"
         amend_out = self._run(["git", "commit", "--amend", "-m", new_msg], cwd)
         return self._to_result(amend_out, "git commit --amend")
-
-
-def _parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
-    """Parse the NUL-delimited output of ``git diff --name-status -z``.
-
-    The output is a stream of NUL-separated fields: a status letter (e.g.
-    ``A``, ``M``, ``D``, ``R100``, ``C75``, ``T``, ``U``) followed by one
-    or two paths.  Rename/copy entries (``R``/``C``) are followed by *two*
-    paths (old, new); all other statuses are followed by exactly one.
-
-    Returns a list of ``(status_letter, path)`` tuples.  For renames and
-    copies the path is encoded as ``"<old>\\t<new>"`` so callers can split
-    it apart and decide how to surface the rename.
-    """
-    if not stdout:
-        return []
-    # `git diff -z` ends every field with a NUL; trim a trailing empty token.
-    parts = stdout.split("\0")
-    if parts and parts[-1] == "":
-        parts.pop()
-
-    result: list[tuple[str, str]] = []
-    i = 0
-    while i < len(parts):
-        status = parts[i]
-        i += 1
-        if not status:
-            continue
-        first_letter = status[0]
-        if first_letter in ("R", "C") and i + 1 < len(parts):
-            old_path = parts[i]
-            new_path = parts[i + 1]
-            i += 2
-            result.append((status, f"{old_path}\t{new_path}"))
-        elif i < len(parts):
-            path = parts[i]
-            i += 1
-            result.append((status, path))
-    return result

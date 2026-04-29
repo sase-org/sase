@@ -15,7 +15,7 @@ import pytest
 from sase.vcs_provider import VCSOperationError
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
-from sase.vcs_provider.plugins._git_query_ops import _parse_git_name_status_z
+from sase.core.git_query_facade import parse_git_name_status_z
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 _GIT_AVAILABLE = shutil.which("git") is not None
@@ -118,7 +118,7 @@ def test_diff_name_status_invalid_ref_raises_typed_error(repo: str) -> None:
 def test_parse_git_name_status_z_handles_renames_and_simple_entries() -> None:
     # status\0path\0  for simple entries; status\0old\0new\0 for renames.
     raw = "M\0a.py\0R100\0old.py\0new.py\0A\0b.py\0"
-    parsed = _parse_git_name_status_z(raw)
+    parsed = parse_git_name_status_z(raw)
     assert parsed == [
         ("M", "a.py"),
         ("R100", "old.py\tnew.py"),
@@ -127,4 +127,4 @@ def test_parse_git_name_status_z_handles_renames_and_simple_entries() -> None:
 
 
 def test_parse_git_name_status_z_empty() -> None:
-    assert _parse_git_name_status_z("") == []
+    assert parse_git_name_status_z("") == []

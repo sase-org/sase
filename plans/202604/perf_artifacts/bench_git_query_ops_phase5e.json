@@ -1,0 +1,463 @@
+{
+  "phase": "5E",
+  "description": "Git provider routed through sase.core.git_query_facade. Three runs: SASE_CORE_BACKEND=python (default), =rust, and SASE_CORE_DUAL_RUN=1.",
+  "python": {
+    "tool": "bench_git_query_ops",
+    "phase": "5A",
+    "git_available": true,
+    "platform": {
+      "python": "3.14.3",
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "unknown"
+    },
+    "workloads": [
+      {
+        "label": "synthetic_small",
+        "size_bytes": 1255,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 40.646991692483425,
+            "median_us": 41.068997234106064,
+            "p95_us": 42.08995960652828,
+            "max_us": 65.65498188138008
+          }
+        }
+      },
+      {
+        "label": "synthetic_medium",
+        "size_bytes": 26370,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 788.5450031608343,
+            "median_us": 812.6665197778493,
+            "p95_us": 840.2339881286025,
+            "max_us": 1893.7250133603811
+          }
+        }
+      },
+      {
+        "label": "synthetic_large",
+        "size_bytes": 284670,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 8493.493020068854,
+            "median_us": 9071.891981875524,
+            "p95_us": 11058.567964937538,
+            "max_us": 17488.672980107367
+          }
+        }
+      },
+      {
+        "label": "normalizers",
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_branch_name_x4": {
+            "count": 200.0,
+            "min_us": 10.739953722804785,
+            "median_us": 10.970979928970337,
+            "p95_us": 11.922966223210096,
+            "max_us": 33.68500620126724
+          },
+          "derive_git_workspace_name_x5": {
+            "count": 200.0,
+            "min_us": 13.686949387192726,
+            "median_us": 13.826007489115,
+            "p95_us": 14.097022358328104,
+            "max_us": 16.411009710282087
+          },
+          "parse_git_conflicted_files_50": {
+            "count": 200.0,
+            "min_us": 6.221991498023272,
+            "median_us": 6.371992640197277,
+            "p95_us": 6.602960638701916,
+            "max_us": 8.094997610896826
+          },
+          "parse_git_local_changes_150": {
+            "count": 200.0,
+            "min_us": 5.800975486636162,
+            "median_us": 5.8810110203921795,
+            "p95_us": 6.332003977149725,
+            "max_us": 7.4239796958863735
+          }
+        }
+      },
+      {
+        "label": "end_to_end_50",
+        "n_files_seeded": 50,
+        "stream_size_bytes": 688,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 2479.001006577164,
+            "median_us": 2865.1444881688803,
+            "p95_us": 4509.038990363479,
+            "max_us": 4535.6479822658
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 45.1859668828547,
+            "median_us": 73.34549445658922,
+            "p95_us": 79.53197928145528,
+            "max_us": 106.85401502996683
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 2544.68695493415,
+            "median_us": 3001.534496434033,
+            "p95_us": 4707.416985183954,
+            "max_us": 4842.010966967791
+          }
+        }
+      },
+      {
+        "label": "end_to_end_500",
+        "n_files_seeded": 500,
+        "stream_size_bytes": 7780,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 9495.645994320512,
+            "median_us": 10554.822511039674,
+            "p95_us": 13492.83498711884,
+            "max_us": 13841.090025380254
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 363.8449707068503,
+            "median_us": 722.2735148388892,
+            "p95_us": 820.8670187741518,
+            "max_us": 1030.6069743819535
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 10185.98402151838,
+            "median_us": 11031.786998501047,
+            "p95_us": 14232.1260063909,
+            "max_us": 14762.809965759516
+          }
+        }
+      }
+    ]
+  },
+  "rust": {
+    "tool": "bench_git_query_ops",
+    "phase": "5A",
+    "git_available": true,
+    "platform": {
+      "python": "3.14.3",
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "unknown"
+    },
+    "workloads": [
+      {
+        "label": "synthetic_small",
+        "size_bytes": 1255,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 40.09599797427654,
+            "median_us": 40.79798236489296,
+            "p95_us": 49.74502371624112,
+            "max_us": 81.66598854586482
+          }
+        }
+      },
+      {
+        "label": "synthetic_medium",
+        "size_bytes": 26370,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 783.664989285171,
+            "median_us": 797.0310107339174,
+            "p95_us": 827.3000130429864,
+            "max_us": 965.6439651735127
+          }
+        }
+      },
+      {
+        "label": "synthetic_large",
+        "size_bytes": 284670,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 8681.230014190078,
+            "median_us": 9062.183002242818,
+            "p95_us": 9848.959976807237,
+            "max_us": 12823.918019421399
+          }
+        }
+      },
+      {
+        "label": "normalizers",
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_branch_name_x4": {
+            "count": 200.0,
+            "min_us": 11.030992027372122,
+            "median_us": 11.341995559632778,
+            "p95_us": 11.452008038759232,
+            "max_us": 12.252945452928543
+          },
+          "derive_git_workspace_name_x5": {
+            "count": 200.0,
+            "min_us": 14.477991499006748,
+            "median_us": 14.577992260456085,
+            "p95_us": 14.707969967275858,
+            "max_us": 47.44000034406781
+          },
+          "parse_git_conflicted_files_50": {
+            "count": 200.0,
+            "min_us": 6.443005986511707,
+            "median_us": 6.54251198284328,
+            "p95_us": 6.743008270859718,
+            "max_us": 8.426024578511715
+          },
+          "parse_git_local_changes_150": {
+            "count": 200.0,
+            "min_us": 6.0219899751245975,
+            "median_us": 6.092013791203499,
+            "p95_us": 6.1820028349757195,
+            "max_us": 29.545975849032402
+          }
+        }
+      },
+      {
+        "label": "end_to_end_50",
+        "n_files_seeded": 50,
+        "stream_size_bytes": 688,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 2471.457002684474,
+            "median_us": 2694.983995752409,
+            "p95_us": 3921.5850410982966,
+            "max_us": 4923.166998196393
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 35.537988878786564,
+            "median_us": 36.58898640424013,
+            "p95_us": 37.27199509739876,
+            "max_us": 38.672995287925005
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 2523.9770184271038,
+            "median_us": 2782.166004180908,
+            "p95_us": 4554.112034384161,
+            "max_us": 4897.828039247543
+          }
+        }
+      },
+      {
+        "label": "end_to_end_500",
+        "n_files_seeded": 500,
+        "stream_size_bytes": 7780,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 9684.354008641094,
+            "median_us": 10220.414464129135,
+            "p95_us": 13203.273003455251,
+            "max_us": 13329.332985449582
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 369.0539742819965,
+            "median_us": 705.5014721117914,
+            "p95_us": 788.9559492468834,
+            "max_us": 949.6230049990118
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 10117.451020050794,
+            "median_us": 11002.201499650255,
+            "p95_us": 14851.39800934121,
+            "max_us": 15306.81800795719
+          }
+        }
+      }
+    ]
+  },
+  "dual_run": {
+    "tool": "bench_git_query_ops",
+    "phase": "5A",
+    "git_available": true,
+    "platform": {
+      "python": "3.14.3",
+      "system": "Linux",
+      "machine": "x86_64",
+      "processor": "unknown"
+    },
+    "workloads": [
+      {
+        "label": "synthetic_small",
+        "size_bytes": 1255,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 146.0390049032867,
+            "median_us": 148.03747762925923,
+            "p95_us": 156.38803597539663,
+            "max_us": 169.7540283203125
+          }
+        }
+      },
+      {
+        "label": "synthetic_medium",
+        "size_bytes": 26370,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 1547.7240085601807,
+            "median_us": 1587.770995683968,
+            "p95_us": 1635.4009858332574,
+            "max_us": 1802.9310158453882
+          }
+        }
+      },
+      {
+        "label": "synthetic_large",
+        "size_bytes": 284670,
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_name_status_z": {
+            "count": 200.0,
+            "min_us": 15319.422003813088,
+            "median_us": 16885.33098786138,
+            "p95_us": 21316.458005458117,
+            "max_us": 22318.13099933788
+          }
+        }
+      },
+      {
+        "label": "normalizers",
+        "runs": 200,
+        "warmup": 20,
+        "scenarios": {
+          "parse_git_branch_name_x4": {
+            "count": 200.0,
+            "min_us": 251.16000324487686,
+            "median_us": 258.9044743217528,
+            "p95_us": 281.5070329234004,
+            "max_us": 301.6549744643271
+          },
+          "derive_git_workspace_name_x5": {
+            "count": 200.0,
+            "min_us": 320.3209489583969,
+            "median_us": 329.4440102763474,
+            "p95_us": 357.061973772943,
+            "max_us": 373.9640233106911
+          },
+          "parse_git_conflicted_files_50": {
+            "count": 200.0,
+            "min_us": 75.76396455988288,
+            "median_us": 77.68801879137754,
+            "p95_us": 82.25702913478017,
+            "max_us": 109.14896847680211
+          },
+          "parse_git_local_changes_150": {
+            "count": 200.0,
+            "min_us": 136.27001317217946,
+            "median_us": 139.72201850265265,
+            "p95_us": 151.4489995315671,
+            "max_us": 176.65699124336243
+          }
+        }
+      },
+      {
+        "label": "end_to_end_50",
+        "n_files_seeded": 50,
+        "stream_size_bytes": 688,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 2519.700035918504,
+            "median_us": 2921.5315298642963,
+            "p95_us": 4732.04196896404,
+            "max_us": 5040.601012296975
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 270.0460026971996,
+            "median_us": 273.156474577263,
+            "p95_us": 291.7370293289423,
+            "max_us": 294.3319850601256
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 2801.1369868181646,
+            "median_us": 3073.241008678451,
+            "p95_us": 4799.07204862684,
+            "max_us": 5834.217998199165
+          }
+        }
+      },
+      {
+        "label": "end_to_end_500",
+        "n_files_seeded": 500,
+        "stream_size_bytes": 7780,
+        "runs": 30,
+        "warmup": 10,
+        "scenarios": {
+          "git_diff_subprocess_only": {
+            "count": 30.0,
+            "min_us": 9586.889005731791,
+            "median_us": 10405.662003904581,
+            "p95_us": 13231.577002443373,
+            "max_us": 15092.628018464893
+          },
+          "parse_git_name_status_z": {
+            "count": 30.0,
+            "min_us": 767.4749940633774,
+            "median_us": 774.3625028524548,
+            "p95_us": 818.6820195987821,
+            "max_us": 1002.9349941760302
+          },
+          "git_diff_subprocess_plus_parse": {
+            "count": 30.0,
+            "min_us": 10654.066980350763,
+            "median_us": 12450.140493456274,
+            "p95_us": 14778.279000893235,
+            "max_us": 15227.987023536116
+          }
+        }
+      }
+    ]
+  }
+}

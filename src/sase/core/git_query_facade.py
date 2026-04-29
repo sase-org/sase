@@ -120,7 +120,6 @@ def _rust_parse_git_name_status_z_impl(stdout: str) -> list[tuple[str, str]]:
     ]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     """Parse the NUL-delimited output of ``git diff --name-status -z``.
 
@@ -172,7 +171,6 @@ def _rust_parse_git_branch_name_impl(stdout: str) -> str | None:
     return rust_module.parse_git_branch_name(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_branch_name(stdout: str) -> str | None:
     """Normalize ``git rev-parse --abbrev-ref HEAD`` stdout into a branch name.
 
@@ -235,7 +233,6 @@ def _rust_derive_git_workspace_name_impl(
     return rust_module.derive_git_workspace_name(remote_url, root_path)  # type: ignore[attr-defined,no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def derive_git_workspace_name(
     remote_url: str | None, root_path: str | None
 ) -> str | None:
@@ -291,7 +288,6 @@ def _rust_parse_git_conflicted_files_impl(stdout: str) -> list[str]:
     return rust_module.parse_git_conflicted_files(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_conflicted_files(stdout: str) -> list[str]:
     """Split ``git diff --name-only --diff-filter=U`` stdout into paths.
 
@@ -335,7 +331,6 @@ def _rust_parse_git_local_changes_impl(stdout: str) -> str | None:
     return rust_module.parse_git_local_changes(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_local_changes(stdout: str) -> str | None:
     """Normalize ``git status --porcelain`` stdout into a clean/dirty signal.
 
