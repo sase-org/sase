@@ -127,6 +127,18 @@ def _sync_task(
                         "SYNC",
                         status,
                     )
+
+                    # DELTAS refresh — parent ref likely shifted after sync.
+                    try:
+                        from sase.ace.deltas import refresh_deltas_for_changespec
+
+                        refresh_deltas_for_changespec(
+                            changespec_file_path,
+                            changespec_name,
+                            workspace_dir,
+                        )
+                    except Exception:
+                        pass
                     return (True, f"Synced {changespec_name}: {message}")
                 else:
                     from sase.notifications.senders import notify_sync_result

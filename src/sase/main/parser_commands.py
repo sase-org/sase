@@ -3,6 +3,44 @@
 import argparse
 
 
+def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'changespec' subcommand parser."""
+    cs_parser = subparsers.add_parser(
+        "changespec",
+        help="ChangeSpec maintenance commands (DELTAS sync, etc.)",
+    )
+    cs_subparsers = cs_parser.add_subparsers(
+        dest="changespec_subcommand", help="ChangeSpec subcommands"
+    )
+
+    # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
+    sync_deltas_parser = cs_subparsers.add_parser(
+        "sync-deltas",
+        help="Recompute the DELTAS field for a ChangeSpec from the live VCS state",
+    )
+    sync_deltas_parser.add_argument(
+        "-c",
+        "--cl",
+        dest="cl_name",
+        required=True,
+        help="NAME of the ChangeSpec whose DELTAS should be recomputed",
+    )
+    sync_deltas_parser.add_argument(
+        "-p",
+        "--project-file",
+        dest="project_file",
+        default=None,
+        help="Path to the project .gp file (default: inferred from current workspace)",
+    )
+    sync_deltas_parser.add_argument(
+        "-w",
+        "--workspace-dir",
+        dest="workspace_dir",
+        default=None,
+        help="VCS workspace directory to query (default: current directory)",
+    )
+
+
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""
     comments_parser = subparsers.add_parser(

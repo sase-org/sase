@@ -94,6 +94,12 @@ def main() -> NoReturn:
         handler(args)
         sys.exit(0)
 
+    # --- changespec ---
+    if args.command == "changespec":
+        from .changespec_handler import handle_changespec_command
+
+        handle_changespec_command(args)
+
     # --- comments ---
     if args.command == "comments":
         from .comments_handler import handle_comments_command

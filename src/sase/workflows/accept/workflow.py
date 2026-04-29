@@ -227,6 +227,14 @@ class AcceptWorkflow(BaseWorkflow):
                 "success",
             )
 
+        # DELTAS refresh — renumbering shifts the diff base, so recompute.
+        try:
+            from sase.ace.deltas import refresh_deltas_for_changespec
+
+            refresh_deltas_for_changespec(project_file, cl_name)
+        except Exception:
+            pass
+
         return True
 
     def _run_amend_workflow(
