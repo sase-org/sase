@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import tempfile
@@ -46,6 +47,13 @@ import pytest
 from sase.ace.changespec.models import ChangeSpec
 from sase.ace.query.parser import parse_query_python
 from sase.core import parser_facade, query_facade
+from sase.core.backend import (
+    BACKEND_ENV_VAR,
+    DUAL_RUN_ENV_VAR,
+    load_rust_extension,
+)
+from sase.core.wire import to_json_dict
+from sase.core.wire_conversion import changespec_to_wire
 
 from tests.perf.bench_core_parse import _build_synthetic_bytes  # noqa: PLC2701
 
@@ -123,13 +131,35 @@ def _measure_parse_only(
     def py_facade() -> int:
         return id(query_facade.parse_query(query))
 
+    scenarios: dict[str, dict[str, float]] = {
+        "python_direct_parse": _time_calls(py_direct, runs=runs, warmup=warmup),
+        "python_facade_parse": _time_calls(py_facade, runs=runs, warmup=warmup),
+    }
+
+    rust_module = load_rust_extension()
+    if rust_module is not None:
+
+        def rust_direct() -> int:
+            return id(rust_module.parse_query(query))  # type: ignore[attr-defined]
+
+        def rust_facade() -> int:
+            os.environ[BACKEND_ENV_VAR] = "rust"
+            try:
+                return id(query_facade.parse_query(query))
+            finally:
+                os.environ.pop(BACKEND_ENV_VAR, None)
+
+        scenarios["rust_direct_parse"] = _time_calls(
+            rust_direct, runs=runs, warmup=warmup
+        )
+        scenarios["rust_facade_parse"] = _time_calls(
+            rust_facade, runs=runs, warmup=warmup
+        )
+
     return {
         "label": "parse_only",
         "query": query,
-        "scenarios": {
-            "python_direct_parse": _time_calls(py_direct, runs=runs, warmup=warmup),
-            "python_facade_parse": _time_calls(py_facade, runs=runs, warmup=warmup),
-        },
+        "scenarios": scenarios,
     }
 
 
@@ -159,21 +189,54 @@ def _measure_parse_evaluate(
                 hits += 1
         return hits
 
+    def py_batch() -> int:
+        return sum(query_facade._evaluate_query_many_python(query, specs))
+
+    scenarios: dict[str, dict[str, float]] = {
+        "python_direct_parse": _time_calls(py_direct_parse, runs=runs, warmup=warmup),
+        "python_facade_parse": _time_calls(py_facade_parse, runs=runs, warmup=warmup),
+        "python_parse_and_evaluate": _time_calls(
+            py_parse_and_eval, runs=runs, warmup=warmup
+        ),
+        "python_batch_evaluate_many": _time_calls(py_batch, runs=runs, warmup=warmup),
+    }
+
+    rust_module = load_rust_extension()
+    if rust_module is not None:
+        spec_dicts = [to_json_dict(changespec_to_wire(cs)) for cs in specs]
+
+        def rust_direct_eval() -> int:
+            return sum(rust_module.evaluate_query_many(query, spec_dicts))  # type: ignore[attr-defined]
+
+        def rust_facade_eval() -> int:
+            os.environ[BACKEND_ENV_VAR] = "rust"
+            try:
+                return sum(query_facade.evaluate_query_many(query, specs))
+            finally:
+                os.environ.pop(BACKEND_ENV_VAR, None)
+
+        def dual_run_eval() -> int:
+            os.environ[DUAL_RUN_ENV_VAR] = "1"
+            try:
+                return sum(query_facade.evaluate_query_many(query, specs))
+            finally:
+                os.environ.pop(DUAL_RUN_ENV_VAR, None)
+
+        scenarios["rust_direct_evaluate_many"] = _time_calls(
+            rust_direct_eval, runs=runs, warmup=warmup
+        )
+        scenarios["rust_facade_evaluate_many"] = _time_calls(
+            rust_facade_eval, runs=runs, warmup=warmup
+        )
+        scenarios["dual_run_evaluate_many"] = _time_calls(
+            dual_run_eval, runs=runs, warmup=warmup
+        )
+
     return {
         "label": f"synthetic_{num_specs}_specs",
         "query": query,
         "num_specs": num_specs,
-        "scenarios": {
-            "python_direct_parse": _time_calls(
-                py_direct_parse, runs=runs, warmup=warmup
-            ),
-            "python_facade_parse": _time_calls(
-                py_facade_parse, runs=runs, warmup=warmup
-            ),
-            "python_parse_and_evaluate": _time_calls(
-                py_parse_and_eval, runs=runs, warmup=warmup
-            ),
-        },
+        "scenarios": scenarios,
     }
 
 
@@ -224,7 +287,8 @@ def run_bench(
 
     report = {
         "tool": "bench_core_query",
-        "phase": "2A",
+        "phase": "2F",
+        "rust_available": load_rust_extension() is not None,
         "workloads": workloads,
     }
 

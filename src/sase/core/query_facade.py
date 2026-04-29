@@ -101,7 +101,7 @@ def evaluate_query_with_context(
     )
 
 
-def evaluate_query_many_python(
+def _evaluate_query_many_python(
     query: str,
     changespecs: list[ChangeSpec],
 ) -> list[bool]:
@@ -151,7 +151,7 @@ def evaluate_query_many(
     rust_impl = _rust_evaluate_query_many_impl if rust_module is not None else None
     return dispatch(
         operation="evaluate_query_many",
-        python_impl=evaluate_query_many_python,
+        python_impl=_evaluate_query_many_python,
         rust_impl=rust_impl,
         args=(query, changespecs),
     )

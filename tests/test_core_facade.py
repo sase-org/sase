@@ -465,7 +465,7 @@ def test_evaluate_query_many_dual_run_logs_comparison(
 
     # Compute the Python result up front so the fake can mirror it byte-for-byte
     # and the dual-run record is a "match".
-    py_expected = query_facade.evaluate_query_many_python('"example"', specs)
+    py_expected = query_facade._evaluate_query_many_python('"example"', specs)
 
     def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
         rust_calls.append(len(spec_dicts))
