@@ -2151,3 +2151,48 @@ XPromptConfigEntryModal #config-entry-hints {
     text-align: center;
     margin-top: 1;
 }
+
+/* ===== Command Palette Modal Styling ===== */
+
+CommandPaletteModal {
+    align: center middle;
+}
+
+CommandPaletteModal > Container {
+    width: 75%;
+    max-width: 110;
+    height: 70%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+CommandPaletteModal #command-palette-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+CommandPaletteModal #command-palette-filter-input {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+CommandPaletteModal #command-palette-list {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+CommandPaletteModal #command-palette-empty {
+    height: 1fr;
+    content-align: center middle;
+    color: $text-muted;
+    border: solid $secondary;
+}
+
+CommandPaletteModal #command-palette-footer {
+    text-align: center;
+    color: $text-muted;
+    height: 1;
+    margin-top: 1;
+}

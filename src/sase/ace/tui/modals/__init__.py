@@ -3,6 +3,7 @@
 from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
+from .command_palette_modal import CommandPaletteModal
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_kill_modal import (
@@ -94,6 +95,7 @@ __all__ = [
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",
+    "CommandPaletteModal",
     "CustomModelInputModal",
     "ConfirmDeleteModal",
     "ConfirmDismissAllModal",
