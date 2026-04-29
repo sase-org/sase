@@ -176,6 +176,37 @@ def test_collapse_all_collapses_visible_l0_banners() -> None:
     assert app._current_changespec_group_key == ("beta",)
 
 
+def test_collapse_all_collapses_only_deepest_visible_cl_group_level() -> None:
+    specs = [
+        _cs("foobar_1", project="proj"),
+        _cs("foobar_2", project="proj"),
+        _cs("solo", project="proj"),
+    ]
+    app = _NavApp(specs, current_idx=0)
+
+    changed = app._collapse_all_changespec_group_folds()
+    assert changed is True
+    assert not app._changespec_group_fold_registry.is_collapsed(("proj",))
+    assert app._changespec_group_fold_registry.is_collapsed(("proj", "foobar"))
+    assert app._current_changespec_group_key == ("proj", "foobar")
+
+
+def test_collapse_all_collapses_next_deepest_cl_group_level() -> None:
+    specs = [
+        _cs("foobar_1", project="proj"),
+        _cs("foobar_2", project="proj"),
+        _cs("solo", project="proj"),
+    ]
+    app = _NavApp(specs, current_idx=0)
+    app._changespec_group_fold_registry.collapse(("proj", "foobar"))
+
+    changed = app._collapse_all_changespec_group_folds()
+    assert changed is True
+    assert app._changespec_group_fold_registry.is_collapsed(("proj",))
+    assert app._changespec_group_fold_registry.is_collapsed(("proj", "foobar"))
+    assert app._current_changespec_group_key == ("proj",)
+
+
 def test_expand_all_peels_one_level_off_visible_collapsed_banners() -> None:
     app = _NavApp(_make_three_project_specs())
     app._changespec_group_fold_registry.collapse(("alpha",))

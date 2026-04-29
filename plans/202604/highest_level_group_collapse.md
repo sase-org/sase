@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 19:26:14
-status: wip
+status: done
 ---
 # Plan: `H` Collapses Only One Group Heading Level
 

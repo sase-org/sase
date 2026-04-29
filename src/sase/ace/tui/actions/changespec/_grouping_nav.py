@@ -317,12 +317,13 @@ class ChangeSpecGroupingNavMixin:
         return changed
 
     def _collapse_all_changespec_group_folds(self) -> bool:
-        """``H`` action: collapse every currently-expanded banner.
+        """``H`` action: collapse the deepest expanded visible banner level.
 
-        Snapshots the visible tree and collapses every banner row in
-        that snapshot.  Banners hidden behind an already-collapsed
-        ancestor are skipped (snapshot-at-start rule); the next ``H``
-        press picks them up.
+        Snapshots the visible tree and collapses expanded banner rows
+        only at the deepest expanded level in that snapshot.  Banners
+        hidden behind an already-collapsed ancestor are skipped
+        (snapshot-at-start rule); the next ``H`` press picks up the
+        next visible level.
         """
         registry = self._changespec_group_fold_registry
         entries = build_changespec_tree(
@@ -331,8 +332,20 @@ class ChangeSpecGroupingNavMixin:
             fold_registry=registry,
         )
         changed = False
+        deepest_expanded_group_level = max(
+            (
+                entry.group.level
+                for entry in entries
+                if entry.kind == "group"
+                and entry.group is not None
+                and not entry.group.is_collapsed
+            ),
+            default=None,
+        )
         for entry in entries:
             if entry.kind != "group" or entry.group is None:
+                continue
+            if entry.group.level != deepest_expanded_group_level:
                 continue
             if not entry.group.is_collapsed:
                 if registry.collapse(entry.group.group_key):

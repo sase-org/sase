@@ -388,9 +388,9 @@ class AgentFoldingMixin:
         """Retreat the visible tree by one level (``H`` action).
 
         On the agents tab: walk the snapshot of currently-visible
-        entries and apply a single-level collapse to each — visible
-        workflow folds step one notch toward ``COLLAPSED``, then any
-        currently-expanded banners collapse.  Rows hidden behind a
+        entries and apply a single-level collapse to each visible
+        workflow fold.  Group banners collapse only at the deepest
+        currently-expanded visible level.  Rows hidden behind a
         collapsed banner are not stepped (snapshot-at-start rule).
         Repeated presses peel one layer at a time.
         """
@@ -416,8 +416,20 @@ class AgentFoldingMixin:
                 if self._fold_manager.get(wf_key) != FoldLevel.COLLAPSED:
                     if self._fold_manager.collapse(wf_key):
                         changed = True
+            deepest_expanded_group_level = max(
+                (
+                    entry.group.level
+                    for entry in entries
+                    if entry.kind == "group"
+                    and entry.group is not None
+                    and not entry.group.is_collapsed
+                ),
+                default=None,
+            )
             for entry in entries:
                 if entry.kind != "group" or entry.group is None:
+                    continue
+                if entry.group.level != deepest_expanded_group_level:
                     continue
                 if not entry.group.is_collapsed:
                     if self._group_fold_registry.collapse(entry.group.group_key):
