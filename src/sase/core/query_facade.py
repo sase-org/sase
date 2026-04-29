@@ -1,26 +1,17 @@
 """sase.core facade for query parse/build/evaluate entry points.
 
-Wraps :mod:`sase.ace.query` behind :func:`sase.core.backend.dispatch` so the
-parse, build-context, and evaluate operations can each be replaced
-independently by a Rust implementation. The Python implementations are kept
-under ``*_python`` aliases (imported below) so tests that need to bypass
-dispatch can call them directly without re-implementing the seam.
+Wraps :mod:`sase.ace.query`. The only dispatched seam in this module is
+:func:`parse_query`, which routes to a Rust binding when the optional
+``sase_core_rs`` extension exposes ``parse_query``.
 
-Phase 2D registered a Rust implementation for :func:`parse_query` whenever
-the optional ``sase_core_rs`` extension is importable. Per-row callers
-(:func:`evaluate_query`, :func:`evaluate_query_with_context`) keep the Python
-backend because the perf gain in Phase 2 lives in the batch path; routing
-single rows through PyO3 would just pay FFI cost per spec.
-
-Phase 8B reclassified :func:`evaluate_query_many` as deferred/unported
-(see ``plans/202604/rust_backend_phase8_phase8b_handoff.md``). Even with the
-wire-conversion cost amortized outside the timed window, the Rust path stays
-6-9x slower than the optimised Python batch path because PyO3 must
-deserialize every spec dict into ``ChangeSpecWire`` on each call. The facade
-therefore routes through the Python batch implementation under all backends;
-the corresponding Rust adapter has been removed and ``sase_core_rs`` no
-longer participates in this surface until a future Rust port lands a
-persistent corpus handle that beats the Python batch path.
+Per-row callers (:func:`evaluate_query`, :func:`evaluate_query_with_context`),
+:func:`build_query_context`, and the batch :func:`evaluate_query_many` are
+intentionally Python-owned host logic and call their ``*_python``
+implementations directly. They are not "fallbacks" — see the Phase 8A
+handoff operation disposition and Phase 8B's evaluate_query_many deferral
+(``plans/202604/rust_backend_phase8_phase8b_handoff.md``): the routed Rust
+path stayed 6-9x slower than the optimised Python batch path because PyO3
+must rebuild ``ChangeSpecWire`` from a fresh dict on every call.
 """
 
 from __future__ import annotations
@@ -78,13 +69,12 @@ def parse_query(query: str) -> QueryExpr:
 
 
 def build_query_context(changespecs: list[ChangeSpec]) -> QueryEvaluationContext:
-    """Build a :class:`QueryEvaluationContext` via the active backend."""
-    return dispatch(
-        operation="build_query_context",
-        python_impl=build_query_context_python,
-        rust_unavailable="python",
-        args=(changespecs,),
-    )
+    """Build a :class:`QueryEvaluationContext`.
+
+    Intentionally Python-owned host logic — see Phase 8A handoff
+    operation disposition.
+    """
+    return build_query_context_python(changespecs)
 
 
 def evaluate_query(
@@ -92,13 +82,12 @@ def evaluate_query(
     changespec: ChangeSpec,
     all_changespecs: list[ChangeSpec] | None = None,
 ) -> bool:
-    """Evaluate ``query`` against ``changespec`` via the active backend."""
-    return dispatch(
-        operation="evaluate_query",
-        python_impl=evaluate_query_python,
-        rust_unavailable="python",
-        args=(query, changespec, all_changespecs),
-    )
+    """Evaluate ``query`` against ``changespec``.
+
+    Intentionally Python-owned host logic — see Phase 8A handoff
+    operation disposition.
+    """
+    return evaluate_query_python(query, changespec, all_changespecs)
 
 
 def evaluate_query_with_context(
@@ -106,13 +95,12 @@ def evaluate_query_with_context(
     changespec: ChangeSpec,
     ctx: QueryEvaluationContext,
 ) -> bool:
-    """Evaluate ``query`` using a shared context via the active backend."""
-    return dispatch(
-        operation="evaluate_query_with_context",
-        python_impl=evaluate_query_with_context_python,
-        rust_unavailable="python",
-        args=(query, changespec, ctx),
-    )
+    """Evaluate ``query`` using a shared context.
+
+    Intentionally Python-owned host logic — see Phase 8A handoff
+    operation disposition.
+    """
+    return evaluate_query_with_context_python(query, changespec, ctx)
 
 
 def _evaluate_query_many_python(
@@ -138,14 +126,9 @@ def evaluate_query_many(
     """Evaluate ``query`` against every ChangeSpec in one batch call.
 
     The hot-path filter API for TUI/CLI lists. Phase 8B reclassified this
-    surface as deferred/unported: the dispatcher routes to the Python batch
-    implementation regardless of ``SASE_CORE_BACKEND`` because the routed
-    Rust path remains 6-9x slower than the optimised Python batch path
-    (PyO3 must rebuild ``ChangeSpecWire`` from a fresh dict on every call).
+    surface as deferred/unported (the routed Rust path was 6-9x slower than
+    the optimised Python batch path); Phase 8C drops the dispatcher seam
+    entirely and routes directly through the Python batch implementation.
+    See ``plans/202604/rust_backend_phase8_phase8b_handoff.md``.
     """
-    return dispatch(
-        operation="evaluate_query_many",
-        python_impl=_evaluate_query_many_python,
-        rust_unavailable="python",
-        args=(query, changespecs),
-    )
+    return _evaluate_query_many_python(query, changespecs)

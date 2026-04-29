@@ -73,10 +73,14 @@ def test_evaluate_query_many_matches_with_context_for_ancestor_and_sibling(
     assert query_facade.evaluate_query_many(query, specs) == expected
 
 
-def test_unported_query_facade_apis_rust_without_impl_fall_back_to_python(
+def test_unported_query_facade_apis_call_python_directly(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Phase 8C: build_query_context / evaluate_query[_with_context] are
+    intentionally Python-owned host logic. They must call the ``*_python``
+    helpers directly without consulting backend env vars or dispatch.
+    """
     monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     specs = parser_facade.parse_project_file(str(sample_project))
     expr = raw_parse_query('"example"')

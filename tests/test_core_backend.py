@@ -16,7 +16,6 @@ from sase.core.backend import (
     RustBackendUnavailableError,
     dispatch,
     get_active_backend,
-    get_backend_display,
     is_dual_run_enabled,
     is_rust_available,
     load_rust_extension,
@@ -48,36 +47,6 @@ def test_unknown_backend_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(BACKEND_ENV_VAR, "wasm")
     with pytest.raises(ValueError, match="wasm"):
         get_active_backend()
-
-
-def test_backend_display_default_rust(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
-    display = get_backend_display()
-
-    assert display.label == "backend: Rust"
-    assert "#90BE6D" in display.style
-
-
-def test_backend_display_explicit_python(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
-    display = get_backend_display()
-
-    assert display.label == "backend: Python"
-    assert "#A9D6E5" in display.style
-
-
-def test_backend_display_dual_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-
-    display = get_backend_display()
-
-    assert display.label == "backend: Python+Rust dual"
-    assert "#CDB4DB" in display.style
 
 
 @pytest.mark.parametrize("value", ["1", "true", "yes", "on", "TRUE"])

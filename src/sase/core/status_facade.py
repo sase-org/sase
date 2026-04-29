@@ -21,11 +21,10 @@ Wraps :mod:`sase.status_state_machine` behind
   callers (notably :func:`transition_changespec_status_python`) never see
   the cross-language dict layer.
 - ``transition_changespec_status`` performs disk IO (it acquires a lock and
-  rewrites the project file). Phase 4E keeps it on the Python implementation
-  with an explicit ``rust_unavailable="python"`` fallback because dual-run on
-  this entry point would duplicate every side effect; the Rust planner
-  integration happens *inside* :func:`transition_changespec_status_python`
-  via the ``plan_status_transition`` facade above.
+  rewrites the project file). It is intentionally Python-owned host logic
+  and calls :func:`transition_changespec_status_python` directly; the Rust
+  planner integration happens *inside* that function via the
+  :func:`plan_status_transition` facade above.
 """
 
 from __future__ import annotations
@@ -179,23 +178,21 @@ def transition_changespec_status(
     validate: bool = True,
     console: Console | None = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
-    """Transition a ChangeSpec STATUS via the active backend.
+    """Transition a ChangeSpec STATUS.
 
-    Phase 4E keeps this entry point on Python with
-    ``rust_unavailable="python"``: dual-running the full transition would
-    apply every disk-bound side effect (atomic rewrites, archive moves,
-    suffix renames, mentor flag updates, VCS calls) twice. The Rust
-    planner integration happens inside
+    This entry point is intentionally Python-owned host logic: it acquires a
+    file lock and applies disk-bound side effects (atomic rewrites, archive
+    moves, suffix renames, mentor flag updates, VCS calls). The Rust planner
+    integration happens *inside*
     :func:`transition_changespec_status_python` via the
-    ``plan_status_transition`` facade entry above, so the pure decision
-    step still routes through Rust under ``SASE_CORE_BACKEND=rust`` while
-    Python remains responsible for every side effect.
+    :func:`plan_status_transition` facade entry above, so the pure decision
+    step still routes through Rust while Python remains responsible for
+    every side effect. See the Phase 8A handoff operation disposition.
     """
-    return dispatch(
-        operation="transition_changespec_status",
-        python_impl=transition_changespec_status_python,
-        rust_unavailable="python",
-        args=(project_file, changespec_name, new_status),
-        kwargs={"validate": validate, "console": console},
-        source_path=project_file,
+    return transition_changespec_status_python(
+        project_file,
+        changespec_name,
+        new_status,
+        validate=validate,
+        console=console,
     )

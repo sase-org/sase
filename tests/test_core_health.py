@@ -9,17 +9,13 @@ from typing import Any
 
 import pytest
 
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    DUAL_RUN_ENV_VAR,
-    RUST_EXTENSION_MODULE_NAME,
-)
 from sase.core.health import (
     HEALTH_ERROR,
     HEALTH_OK,
     BackendHealthReport,
     check_backend_health,
 )
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 
 def _install_fake_extension(
@@ -59,50 +55,12 @@ def _force_import_failure(monkeypatch: pytest.MonkeyPatch, exc: Exception) -> No
     monkeypatch.setattr("builtins.__import__", _raising)
 
 
-def test_python_mode_ok_without_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-    _force_import_failure(monkeypatch, ImportError("no sase_core_rs"))
-
-    report = check_backend_health()
-
-    assert report.status == HEALTH_OK
-    assert report.backend == "python"
-    assert report.rust_required is False
-    assert report.rust_extension_loaded is False
-    assert report.probe_ok is False
-    assert report.error is None
-
-
-def test_python_mode_includes_extension_when_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-    _install_fake_extension(monkeypatch)
-
-    report = check_backend_health()
-
-    assert report.status == HEALTH_OK
-    assert report.backend == "python"
-    assert report.rust_required is False
-    assert report.rust_extension_loaded is True
-    # Python mode still calls parse_query if the extension happens to be
-    # importable — so users can confirm the wheel works while staying on
-    # the Python escape hatch.
-    assert report.probe_ok is True
-
-
-def test_rust_mode_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
+def test_health_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     _install_fake_extension(monkeypatch, version="1.2.3")
 
     report = check_backend_health()
 
     assert report.status == HEALTH_OK
-    assert report.backend == "rust"
-    assert report.rust_required is True
     assert report.rust_extension_loaded is True
     assert report.rust_extension_version == "1.2.3"
     assert report.rust_extension_path == "/fake/sase_core_rs/__init__.py"
@@ -110,30 +68,24 @@ def test_rust_mode_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.error is None
 
 
-def test_rust_mode_error_when_extension_missing(
+def test_health_error_when_extension_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
     _force_import_failure(monkeypatch, ImportError("no sase_core_rs"))
 
     report = check_backend_health()
 
     assert report.status == HEALTH_ERROR
-    assert report.rust_required is True
     assert report.rust_extension_loaded is False
     assert report.error_kind == "ImportError"
     assert report.error is not None
     assert RUST_EXTENSION_MODULE_NAME in report.error
-    assert "SASE_CORE_BACKEND=python" in report.error
 
 
-def test_rust_mode_misbuilt_extension_surfaces(
+def test_health_misbuilt_extension_surfaces(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Non-``ImportError`` import failures must not be silently swallowed."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
     _force_import_failure(
         monkeypatch, RuntimeError("symbol PyInit_sase_core_rs missing")
     )
@@ -147,11 +99,9 @@ def test_rust_mode_misbuilt_extension_surfaces(
     assert "symbol PyInit_sase_core_rs missing" in report.error
 
 
-def test_rust_mode_extension_missing_parse_query(
+def test_health_extension_missing_parse_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
     _install_fake_extension(monkeypatch, omit_parse_query=True)
 
     report = check_backend_health()
@@ -164,10 +114,7 @@ def test_rust_mode_extension_missing_parse_query(
     assert "parse_query" in report.error
 
 
-def test_rust_mode_parse_query_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
+def test_health_parse_query_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     def _broken(_query: str) -> Any:
         raise ValueError("invalid token")
 
@@ -183,21 +130,9 @@ def test_rust_mode_parse_query_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "invalid token" in report.error
 
 
-def test_dual_run_flag_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-    _install_fake_extension(monkeypatch)
-
-    report = check_backend_health()
-
-    assert report.dual_run is True
-    assert report.status == HEALTH_OK
-
-
 def test_report_to_dict_is_json_serializable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     _install_fake_extension(monkeypatch)
 
     report = check_backend_health()
@@ -224,7 +159,6 @@ def _run_cli() -> int:
 def test_cli_health_human_ok(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     _install_fake_extension(monkeypatch)
     monkeypatch.setattr(sys, "argv", ["sase", "core", "health"])
 
@@ -233,14 +167,12 @@ def test_cli_health_human_ok(
 
     assert code == 0
     assert "status: ok" in out
-    assert "backend: rust" in out
     assert "rust extension loaded: yes" in out
 
 
 def test_cli_health_json_ok(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     _install_fake_extension(monkeypatch, version="9.9.9")
     monkeypatch.setattr(sys, "argv", ["sase", "core", "health", "--json"])
 
@@ -250,14 +182,12 @@ def test_cli_health_json_ok(
     assert code == 0
     payload = json.loads(out)
     assert payload["status"] == "ok"
-    assert payload["backend"] == "rust"
     assert payload["rust_extension_version"] == "9.9.9"
 
 
 def test_cli_health_short_json_flag(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     _install_fake_extension(monkeypatch)
     monkeypatch.setattr(sys, "argv", ["sase", "core", "health", "-j"])
 
@@ -272,7 +202,6 @@ def test_cli_health_short_json_flag(
 def test_cli_health_rust_missing_exits_nonzero(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     _force_import_failure(monkeypatch, ImportError("no sase_core_rs"))
     monkeypatch.setattr(sys, "argv", ["sase", "core", "health", "-j"])
 
@@ -284,23 +213,6 @@ def test_cli_health_rust_missing_exits_nonzero(
     assert payload["status"] == "error"
     assert payload["error_kind"] == "ImportError"
     assert RUST_EXTENSION_MODULE_NAME in payload["error"]
-
-
-def test_cli_python_mode_does_not_require_extension(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    _force_import_failure(monkeypatch, ImportError("no sase_core_rs"))
-    monkeypatch.setattr(sys, "argv", ["sase", "core", "health", "-j"])
-
-    code = _run_cli()
-    out = capsys.readouterr().out
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["status"] == "ok"
-    assert payload["backend"] == "python"
-    assert payload["rust_extension_loaded"] is False
 
 
 def test_cli_health_report_is_a_dataclass() -> None:

@@ -25,11 +25,6 @@
     content-align: right middle;
 }
 
-#backend-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
 #llm-override-indicator {
     width: auto;
     content-align: right middle;

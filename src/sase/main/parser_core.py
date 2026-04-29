@@ -9,7 +9,7 @@ def register_core_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase core`` subcommand parser."""
     core_parser = subparsers.add_parser(
         "core",
-        help="Inspect the sase.core backend (Python facade / optional Rust extension)",
+        help="Inspect the required sase_core_rs Rust extension",
     )
     core_subparsers = core_parser.add_subparsers(
         dest="core_subcommand", help="Core subcommands"
@@ -18,7 +18,7 @@ def register_core_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase core health [-j/--json]
     health_parser = core_subparsers.add_parser(
         "health",
-        help="Check that the active sase.core backend is loadable and working",
+        help="Check that the sase_core_rs Rust extension is installed and working",
     )
     health_parser.add_argument(
         "-j",

@@ -16,8 +16,6 @@ def _format_human(report: BackendHealthReport) -> str:
     """Render the report as a short, line-oriented human-readable block."""
     lines = [
         f"status: {report.status}",
-        f"backend: {report.backend}" + (" (dual-run)" if report.dual_run else ""),
-        f"rust required: {'yes' if report.rust_required else 'no'}",
         f"rust extension module: {report.rust_extension_module}",
         f"rust extension loaded: {'yes' if report.rust_extension_loaded else 'no'}",
     ]

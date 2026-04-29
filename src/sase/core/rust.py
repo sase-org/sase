@@ -34,7 +34,6 @@ _INSTALL_HINT = (
 )
 
 
-# pyvision: tests/test_core_rust.py
 def require_rust_extension() -> Any:
     """Import and return the ``sase_core_rs`` extension module.
 

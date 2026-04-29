@@ -58,21 +58,15 @@ SHIPPED_OPERATIONS: tuple[str, ...] = (
 )
 
 
-# Operations that intentionally route through Python under Rust mode via
-# ``rust_unavailable="python"``. Either the work is not yet ported (graph
-# index, query context / per-row evaluators), duplicating it under dual-run
-# would re-execute disk side effects (``transition_changespec_status``), or
-# Phase 8B reclassified the operation as deferred after measurement
-# (``evaluate_query_many`` — see
-# ``plans/202604/rust_backend_phase8_phase8b_handoff.md``).
-UNPORTED_OPERATIONS: tuple[str, ...] = (
-    "build_query_context",
-    "evaluate_query",
-    "evaluate_query_with_context",
-    "build_changespec_graph_index",
-    "transition_changespec_status",
-    "evaluate_query_many",
-)
+# Operations that intentionally route through Python via the dispatcher's
+# ``rust_unavailable="python"`` opt-in. Phase 8C rewired all previously
+# unported facades (build_query_context, evaluate_query,
+# evaluate_query_with_context, build_changespec_graph_index,
+# transition_changespec_status, and Phase 8B's deferred evaluate_query_many)
+# to call their Python implementations directly without consulting the
+# dispatcher, so this list is now empty. Phase 8F deletes the dispatcher
+# entirely and retires this audit.
+UNPORTED_OPERATIONS: tuple[str, ...] = ()
 
 
 def test_default_backend_is_rust(monkeypatch: pytest.MonkeyPatch) -> None:

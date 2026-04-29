@@ -28,26 +28,18 @@ from __future__ import annotations
 import importlib
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
 RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
 
+# pyvision: tests/test_core_backend.py
 class Backend(StrEnum):
     """Selected backend for sase.core dispatched operations."""
 
     PYTHON = "python"
     RUST = "rust"
-
-
-@dataclass(frozen=True)
-class BackendDisplay:
-    """Display metadata for the selected sase.core backend mode."""
-
-    label: str
-    style: str
 
 
 DEFAULT_BACKEND = Backend.RUST
@@ -63,6 +55,7 @@ class RustBackendUnavailableError(RuntimeError):
     """Raised when the Rust backend is requested but no Rust impl is registered."""
 
 
+# pyvision: tests/test_core_backend.py
 def get_active_backend() -> Backend:
     """Return the backend selected by ``SASE_CORE_BACKEND`` (default rust).
 
@@ -80,29 +73,11 @@ def get_active_backend() -> Backend:
     raise ValueError(f"Invalid {BACKEND_ENV_VAR}={raw!r}; expected 'python' or 'rust'.")
 
 
+# pyvision: tests/test_core_backend.py
 def is_dual_run_enabled() -> bool:
     """Return True when ``SASE_CORE_DUAL_RUN`` is set to a truthy value."""
     raw = os.environ.get(DUAL_RUN_ENV_VAR, "")
     return raw.strip().lower() in _TRUTHY
-
-
-def get_backend_display() -> BackendDisplay:
-    """Return concise top-bar display metadata for the active backend mode."""
-    backend = get_active_backend()
-    if is_dual_run_enabled():
-        return BackendDisplay(
-            label="backend: Python+Rust dual",
-            style="bold #1a1a1a on #CDB4DB",
-        )
-    if backend is Backend.RUST:
-        return BackendDisplay(
-            label="backend: Rust",
-            style="bold #1a1a1a on #90BE6D",
-        )
-    return BackendDisplay(
-        label="backend: Python",
-        style="bold #1a1a1a on #A9D6E5",
-    )
 
 
 # pyvision: tests/test_core_backend.py
