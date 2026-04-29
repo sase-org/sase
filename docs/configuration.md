@@ -709,7 +709,7 @@ full flow, payload, checkpoint, and resume semantics.
 | `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | ChangeSpec status override for PRs.                                                              |
 | `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.          |
 
-### `sase search`
+### `sase changespec search`
 
 | Flag           | Values                      | Default    | Description                                           |
 | -------------- | --------------------------- | ---------- | ----------------------------------------------------- |

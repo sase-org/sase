@@ -8,4 +8,4 @@ fi
 NAME="$1"
 shift
 
-sase search "&$NAME" -f plain | grep '^BUG:' | cut -d' ' -f2 | rev | cut -d'/' -f1 | rev
+sase changespec search "&$NAME" -f plain | grep '^BUG:' | cut -d' ' -f2 | rev | cut -d'/' -f1 | rev

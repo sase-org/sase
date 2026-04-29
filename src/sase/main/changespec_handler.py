@@ -326,10 +326,15 @@ def handle_changespec_command(args: argparse.Namespace) -> None:
     sub = getattr(args, "changespec_subcommand", None)
     if sub == "current":
         sys.exit(_handle_current(args))
+    if sub == "search":
+        from .search_handler import handle_search_command
+
+        handle_search_command(args)
+        return
     if sub == "sync-deltas":
         sys.exit(_handle_sync_deltas(args))
     print(
-        "Usage: sase changespec {current,sync-deltas} [-h]",
+        "Usage: sase changespec {current,search,sync-deltas} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

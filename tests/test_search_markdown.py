@@ -1,4 +1,4 @@
-"""Tests for sase search --format markdown output."""
+"""Tests for sase changespec search --format markdown output."""
 
 from io import StringIO
 

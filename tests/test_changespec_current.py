@@ -6,6 +6,8 @@ import argparse
 import json
 from typing import Any
 
+import pytest
+
 from sase.ace.changespec import ChangeSpec
 from sase.main.changespec_handler import _handle_current
 from sase.main.parser import create_parser
@@ -99,6 +101,24 @@ def test_changespec_current_parser_accepts_format_short_flag() -> None:
     assert args.command == "changespec"
     assert args.changespec_subcommand == "current"
     assert args.format == "json"
+
+
+def test_changespec_search_parser_accepts_query_and_format_short_flag() -> None:
+    args = create_parser().parse_args(
+        ["changespec", "search", '"feature" AND %y', "-f", "markdown"]
+    )
+
+    assert args.command == "changespec"
+    assert args.changespec_subcommand == "search"
+    assert args.query == '"feature" AND %y'
+    assert args.format == "markdown"
+
+
+def test_top_level_search_parser_is_not_registered() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["search", '"feature"', "-f", "markdown"])
+
+    assert exc_info.value.code == 2
 
 
 def test_changespec_current_matches_provider_url(monkeypatch: Any, capsys: Any) -> None:

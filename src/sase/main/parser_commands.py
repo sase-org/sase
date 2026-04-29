@@ -33,6 +33,25 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Path to the project .gp file (default: inferred from current workspace)",
     )
 
+    # sase changespec search <query> [-f FORMAT]
+    search_parser = cs_subparsers.add_parser(
+        "search",
+        help="Search for ChangeSpecs matching a query and display them",
+    )
+    search_parser.add_argument(
+        "query",
+        help="Query string for filtering ChangeSpecs. "
+        "Examples: '\"feature\" AND \"Ready\"', '+myproject', '!!! OR @@@'",
+    )
+    search_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["plain", "rich", "markdown"],
+        default="rich",
+        help="Output format: 'plain' for simple text, 'rich' for styled panels, "
+        "'markdown' for agent-friendly markdown (default: rich)",
+    )
+
     # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
     sync_deltas_parser = cs_subparsers.add_parser(
         "sync-deltas",
@@ -262,26 +281,4 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         const="",  # Empty string means "use most recent"
         help="Resume a previous conversation. Optionally specify history file basename or path (defaults to most recent).",
-    )
-
-
-def register_search_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'search' subcommand parser."""
-    search_parser = subparsers.add_parser(
-        "search",
-        help="Search for ChangeSpecs matching a query and display them",
-    )
-    search_parser.add_argument(
-        "query",
-        help="Query string for filtering ChangeSpecs. "
-        "Examples: '\"feature\" AND \"Ready\"', '+myproject', '!!! OR @@@'",
-    )
-    # Options for 'search' (keep sorted alphabetically by long option name)
-    search_parser.add_argument(
-        "-f",
-        "--format",
-        choices=["plain", "rich", "markdown"],
-        default="rich",
-        help="Output format: 'plain' for simple text, 'rich' for styled panels, "
-        "'markdown' for agent-friendly markdown (default: rich)",
     )

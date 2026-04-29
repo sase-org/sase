@@ -1,4 +1,4 @@
-"""Handler for the 'sase search' command."""
+"""Handler for the 'sase changespec search' command."""
 
 import argparse
 import sys
@@ -8,7 +8,7 @@ from sase.ace.query import QueryParseError
 
 
 def handle_search_command(args: argparse.Namespace) -> None:
-    """Handle the 'sase search' command."""
+    """Handle the 'sase changespec search' command."""
     from sase.ace.changespec import find_all_changespecs
     from sase.ace.query import parse_query
     from sase.core.query_facade import evaluate_query_many

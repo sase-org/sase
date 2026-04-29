@@ -213,12 +213,6 @@ def main() -> NoReturn:
     if args.command == "revert":
         handle_revert_command(args)
 
-    # --- search ---
-    if args.command == "search":
-        from .search_handler import handle_search_command
-
-        handle_search_command(args)
-
     # --- telemetry ---
     if args.command == "telemetry":
         from .telemetry_handler import handle_telemetry_command

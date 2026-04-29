@@ -180,7 +180,7 @@ sase
 | `sase restore`                 | Restore a reverted ChangeSpec by re-applying its diff                                                          |
 | `sase revert`                  | Revert a ChangeSpec by pruning its CL and archiving its diff                                                   |
 | `sase run`                     | Run a workflow, execute a query, resume a conversation, or list chat history                                   |
-| `sase search`                  | Search and filter ChangeSpecs with query expressions                                                           |
+| `sase changespec search`       | Search and filter ChangeSpecs with query expressions                                                           |
 | `sase telemetry status`        | Show telemetry configuration and service reachability                                                          |
 | `sase telemetry list`          | Display the metric catalog (filterable by subsystem and type)                                                  |
 | `sase telemetry snapshot`      | Fetch and display current metric values (rich, JSON, or Prometheus format)                                     |
