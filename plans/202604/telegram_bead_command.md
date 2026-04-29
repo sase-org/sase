@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 20:57:19
-status: wip
+status: done
 ---
 # Plan: `/bead` Telegram Slash Command
 
