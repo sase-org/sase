@@ -47,7 +47,6 @@ _READ_LIMIT_BYTES = 64 * 1024
 _SNIPPET_MAX_CHARS = 140
 
 
-# pyvision: tests/history/test_chat_catalog.py
 @dataclass(frozen=True)
 class ChatTranscriptInfo:
     """A single chat transcript entry suitable for skill summarization."""
@@ -64,7 +63,6 @@ class ChatTranscriptInfo:
     response_snippet: str | None
 
 
-# pyvision: tests/history/test_chat_catalog.py
 class ChatRefError(ValueError):
     """Raised when a chat reference cannot be resolved."""
 
@@ -154,7 +152,6 @@ def _build_info(p: Path, mtime: float, head: str) -> ChatTranscriptInfo | None:
 # ---------------------------------------------------------------------------
 
 
-# pyvision: tests/history/test_chat_catalog.py
 def list_chat_transcripts(
     limit: int | None = None,
     query: str | None = None,
@@ -203,7 +200,6 @@ def list_chat_transcripts(
     return results
 
 
-# pyvision: tests/history/test_chat_catalog.py
 def chat_info_to_json(info: ChatTranscriptInfo) -> dict[str, object]:
     """Return a stable-key-ordered dict for JSON serialization.
 
@@ -225,7 +221,6 @@ def chat_info_to_json(info: ChatTranscriptInfo) -> dict[str, object]:
     }
 
 
-# pyvision: tests/history/test_chat_catalog.py
 def resolve_chat_ref(
     agent: str | None = None,
     path: str | None = None,

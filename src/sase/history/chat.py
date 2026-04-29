@@ -349,7 +349,6 @@ def _parse_chat_turns(content: str) -> list[tuple[str, str]]:
     return [(prompt, response) for _, prompt, response in turns]
 
 
-# pyvision: public_api_methods.txt
 def extract_response_from_chat_file(file_ref: str) -> str | None:
     """Extract the most recent response text from a chat file.
 

@@ -100,6 +100,12 @@ def main() -> NoReturn:
 
         handle_changespec_command(args)
 
+    # --- chats ---
+    if args.command == "chats":
+        from .chats_handler import handle_chats_command
+
+        handle_chats_command(args)
+
     # --- comments ---
     if args.command == "comments":
         from .comments_handler import handle_comments_command
