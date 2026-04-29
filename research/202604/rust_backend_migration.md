@@ -8,10 +8,10 @@ This research is grounded in the existing performance analyses
 (`sase_perf_research.md`, `sase_perf_v2_research.md`,
 `tui_profiling_strategies.md`) and a code map of the current Python modules.
 
-**2026-04-29 update:** Phases 0–4 of this plan have shipped. The migration
-foundation is in place and the status state machine's pure decision logic is
-now routed through Rust as an opt-in alongside the parser, query, and
-agent-scan ports:
+**2026-04-29 update:** Phases 0–5 of this plan have shipped. The migration
+foundation is in place and the status state machine's pure decision logic plus
+the Git query parsers are now routed through Rust as an opt-in alongside the
+parser, query, and agent-scan ports:
 
 - `src/sase/core/` is the documented Python facade — wire records,
   `SASE_CORE_BACKEND` dispatch, `SASE_CORE_DUAL_RUN=1` parity logging,
@@ -20,18 +20,29 @@ agent-scan ports:
   built via `just rust-install` / `maturin develop --release` from
   `../sase-core/crates/sase_core_py/`).
 - `parse_project_bytes` (Phase 1), `parse_query` + `evaluate_query_many`
-  (Phase 2), `scan_agent_artifacts` (Phase 3), and the status helpers
+  (Phase 2), `scan_agent_artifacts` (Phase 3), the status helpers
   `read_status_from_lines` / `apply_status_update` / `plan_status_transition`
-  (Phase 4) are dispatched through the facade. Each has a Rust implementation
-  in `sase-core` and a golden-parity gate in CI.
+  (Phase 4), and the Git query parsers `parse_git_name_status_z` /
+  `parse_git_branch_name` / `derive_git_workspace_name` /
+  `parse_git_conflicted_files` / `parse_git_local_changes` (Phase 5) are
+  dispatched through the facade. Each has a Rust implementation in
+  `sase-core` and a golden-parity gate in CI.
 - `find_named_agent`, `is_workflow_complete`, `list_running_agents`,
   `list_all_agents`, and the TUI Agents-tab refresh consume the agent-scan
   snapshot facade rather than walking project directories directly.
-- Default backend remains `python` because the measured Rust win on the worst
-  real workload (home tree, 6.5k records) is 1.55× — short of the original 2×
-  research gate. The Rust path is shipped, parity-tested, and works under
-  `SASE_CORE_BACKEND=rust`. See
-  `plans/202604/rust_backend_phase3_agent_scan_phase3h_handoff.md`.
+- `GitQueryOpsMixin` (`vcs_diff_name_status`, `vcs_get_branch_name`,
+  `vcs_get_workspace_name`, `vcs_get_conflicted_files`,
+  `vcs_has_local_changes`) consumes `sase.core.git_query_facade` for all
+  parsing/normalization; subprocess invocation, timeouts, and mutating sync
+  paths stay on Python by design.
+- Default backend remains `python`. Phase 3 measured 1.55× on the worst real
+  agent-scan workload, Phase 4 measured ~5–7 % overhead from the Rust planner
+  round-trip, and Phase 5 confirmed subprocess fork+exec dominates Git query
+  cost so the Rust parser is neutral end-to-end. The Rust path is shipped,
+  parity-tested, and works under `SASE_CORE_BACKEND=rust`. See
+  `plans/202604/rust_backend_phase3_agent_scan_phase3h_handoff.md`,
+  `plans/202604/rust_backend_phase4_status_machine_phase4f_handoff.md`, and
+  `plans/202604/rust_backend_phase5_git_query_ops_phase5f_handoff.md`.
 
 The remainder of this document is the forward plan: deferred ports, the
 shared-core consolidation track (flip the default, verify, retire the Python
@@ -370,18 +381,81 @@ opt-in policy. See
 `plans/202604/rust_backend_phase4_status_machine.md` and the
 `*_phase4a` … `*_phase4f_handoff.md` series.
 
-### Phase 5 — Git query ops
+### Phase 5 — Git query ops *(complete; opt-in, default `python`)*
 
-Three options, in increasing scope:
+Three options were on the table:
 
-- **A.** Keep shelling out to `git`, but parse the output in Rust (`gix`'s
-  parsers, or hand-rolled). Cheapest.
+- **A.** Keep shelling out to `git`, but parse the output in Rust (hand-rolled
+  pure parsers; no `gix`). Cheapest.
 - **B.** Use `gix` directly, eliminating the `git` subprocess. Faster, no
-  fork overhead, but `gix` doesn't yet support every operation `_git_query_ops.py`
-  uses — audit first.
+  fork overhead, but `gix` doesn't yet support every operation
+  `_git_query_ops.py` uses — audit first.
 - **C.** Skip. Subprocess overhead is dwarfed by `git`'s own work for log/blame.
 
-Recommend **A** unless profiling shows fork dominance.
+Phase 5 went with **A**, narrowly scoped to the deterministic parsers that
+sit on the Git query path and excluding all mutating sync/reword/checkout
+behavior. Five pure helpers shipped behind `sase.core.git_query_facade` and
+the matching `sase_core_rs` PyO3 bindings:
+
+| facade helper                | Rust binding                  | Python source of truth (rollback path)               |
+| ---------------------------- | ----------------------------- | ---------------------------------------------------- |
+| `parse_git_name_status_z`    | yes                           | `git_query_facade.parse_git_name_status_z_python`    |
+| `parse_git_branch_name`      | yes                           | `git_query_facade.parse_git_branch_name_python`      |
+| `derive_git_workspace_name`  | yes                           | `git_query_facade.derive_git_workspace_name_python`  |
+| `parse_git_conflicted_files` | yes                           | `git_query_facade.parse_git_conflicted_files_python` |
+| `parse_git_local_changes`    | yes                           | `git_query_facade.parse_git_local_changes_python`    |
+
+What stayed on Python and why:
+
+- `CommandRunner._run`, timeouts, fetch fallback, filesystem checks, and
+  rebase-state introspection — host services that touch the OS.
+- All mutating operations: checkout, sync, rebase, branch rename,
+  commit/amend, archive/prune, stash/clean, patch application. These were
+  never in scope for a pure-parser port and remain the Git provider's
+  Python responsibility.
+- Pass-through command output (diffs, patches, file contents, commit
+  messages). No parsing/normalization happens — Rust would only add a wire
+  copy.
+
+`GitQueryOpsMixin` was rewired in Phase 5E to call the facade for the five
+helpers above; the public hookimpl shapes (`list[tuple[str, str]]` for name-
+status with rename/copy still encoded as `"<old>\t<new>"`, `(True, name|None)`
+tuples for branch/local-changes with `(True, None)` reserved for detached
+HEAD or clean trees, `[]` on `git diff` failure for conflicted files,
+remote-URL-priority workspace-name with root fallback) are byte-identical
+across both backends.
+
+**Bench summary (`bench_git_query_ops_phase5e.json`).** On
+`parse_git_name_status_z` synthetic_large (~10k entries, ~600 KB), the Rust
+binding's median is roughly the same as Python (~9 ms vs ~9 ms); at the
+500-entry workload Python parses in ~722 µs and Rust in ~705 µs while the
+underlying `git diff --name-status -z` subprocess costs ~10.5 ms. At
+`end_to_end_50` the Rust parser shaves ~37 µs vs ~73 µs of parse cost but is
+dwarfed by the ~2.7 ms subprocess. Branch-name, workspace-name, conflicted-
+file, and local-changes microbenchmarks are sub-microsecond on both
+backends. Dual-run roughly doubles parse cost as expected (3460 records
+logged across the bench during Phase 5E; mismatches = 0). Phase 5F re-ran
+the focused tests under all three backends (default Python, Rust, dual-run);
+all 75 pass on this workspace.
+
+**Rollout:** default backend stays `python`. The Rust Git query parsers are
+shipped, parity-tested under the dual-run facade, and opt-in via
+`SASE_CORE_BACKEND=rust`. No per-operation default-Rust override is
+recommended — the parser is too cheap relative to the `git` subprocess to
+justify a sibling-extension dependency at default install. The shared-core
+hygiene goal is met: the parser logic now lives in the Rust crate and is
+exercised by both the Python tests and a `tests/git_query_parity.rs` parity
+suite, ready for any future non-Python caller (server, mobile, web). See
+`plans/202604/rust_backend_phase5_git_query_ops.md` and the `*_phase5a` …
+`*_phase5f_handoff.md` series.
+
+**`gix`?** Not warranted by Phase 5 evidence. Subprocess fork+exec dominates
+end-to-end Git query cost on every measured workload, but the gap between
+the parse path and the subprocess is small enough that ripping out `git` for
+`gix` would only matter on hot loops, and Phase 5A confirmed those loops
+don't exist on the Git query surface today. If a future profile shows a
+caller invoking these helpers in a tight loop, revisit `gix` as a separate
+epic against a concrete workload — do not reopen Phase 5.
 
 ### Phase 6 — Switch sase to the Rust backend by default
 
@@ -541,7 +615,7 @@ need stable Python import surfaces.
   Keep the wire records (`wire.py`, `query_wire.py`,
   `agent_scan_wire.py`) — they are the contract Python callers consume.
 - Python implementations of operations that have **not** been ported
-  (status state machine, graph index, git query ops, anything Phase 4+).
+  (graph index, anything Phase 6+).
   Those still live in Python until their own port lands. Their facades should
   call Python directly or use a tiny local adapter; they must not import a
   deleted global backend dispatcher.

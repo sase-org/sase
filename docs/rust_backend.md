@@ -255,9 +255,33 @@ loop.
   `RustBackendUnavailableError`, dual-run match + mismatch records) plus a real-extension parity test guarded by
   `pytest.importorskip("sase_core_rs")`. `GitQueryOpsMixin` is intentionally still untouched — Phase 5E swaps the inline
   parsing for facade calls.
-- **Future phases** — Additional facade operations (graph index, status helpers, agent-status state machine) become
-  candidates for Rust re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears
-  where Rust scan time is small but Python adaptation dominates.
+- **Phase 5E** _(complete)_ — `GitQueryOpsMixin` (`vcs_diff_name_status`, `vcs_get_branch_name`,
+  `vcs_get_workspace_name`, `vcs_get_conflicted_files`, `vcs_has_local_changes`) consumes `sase.core.git_query_facade`
+  for every parsing/normalization step. The local `_parse_git_name_status_z` helper is removed; the facade is the single
+  source of truth. Public hookimpl shapes are byte-identical: name-status returns `list[tuple[str, str]]` with
+  rename/copy entries encoded as `"<old>\t<new>"`; branch and local-changes return `(True, name | None)` with
+  `(True, None)` reserved for detached HEAD or clean trees; conflicted files returns `[]` on `git diff` failure;
+  workspace name keeps remote-URL priority with the toplevel root as fallback. `tests/perf/ bench_git_query_ops.py` was
+  rewritten to import every helper from the facade so the bench reflects the production code path under the active
+  backend. The Phase 5E bench artifact (`plans/202604/perf_artifacts/bench_git_query_ops_phase5e.json`) records
+  Python-facade, Rust-facade, and dual-run numbers across `synthetic_small`/`_medium`/`_large` and
+  `end_to_end_50`/`_500` workloads.
+- **Phase 5F** _(complete)_ — Verification pass, parity sweep, and Phase 5 close-out recorded in
+  `plans/202604/rust_backend_phase5_git_query_ops_phase5f_handoff.md`. Re-ran the focused tests under default Python,
+  `SASE_CORE_BACKEND=rust`, and `SASE_CORE_DUAL_RUN=1` (75 passed in each mode); `just rust-check` and `just check` both
+  green. Dual-run log shows 3460 Git-query records across the five helpers with **0 mismatches** combined with the prior
+  parity logs for parser, query, agent scan, and status planner. **Rollout:** `SASE_CORE_BACKEND` stays `python` by
+  default; the Rust Git query parsers are shipped, parity-tested, and **opt-in**. Phase 5 evidence is consistent with
+  Phase 5A: subprocess fork+exec dominates end-to-end Git query cost so the Rust parser is neutral end-to-end on every
+  measured workload. The shared-core hygiene goal is met — the parsers now live in the Rust crate and are exercised by
+  both Python tests and `tests/git_query_parity.rs`. No per-operation default-Rust override is justified; Phase 6
+  default-flip prerequisites (wheel build, packaging story, CI dual-run on the golden corpus) are unchanged. Rollback
+  path: Python helpers remain as `*_python` exports in `git_query_facade`; setting `SASE_CORE_BACKEND=python` (the
+  default) restores the pure-Python path with no provider-side change.
+- **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
+  re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
+  is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile
+  shows a hot caller invoking these helpers in a tight loop.
 
 The migration strategy intentionally keeps the Rust core as a single crate that can be exposed through three different
 binding layers: PyO3 for the TUI/CLI (today), uniffi for mobile, and wasm for the web. See
