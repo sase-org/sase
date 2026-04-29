@@ -1,4 +1,4 @@
-"""Extra tests for query evaluator — covers _get_searchable_text edge cases."""
+"""Extra tests for query evaluator — covers get_searchable_text edge cases."""
 
 from inline_snapshot import snapshot
 
@@ -11,7 +11,7 @@ from sase.ace.changespec import (
     MentorEntry,
     MentorStatusLine,
 )
-from sase.ace.query.evaluator import _get_searchable_text, evaluate_query
+from sase.ace.query.evaluator import get_searchable_text, evaluate_query
 from sase.ace.query.parser import parse_query
 
 
@@ -47,17 +47,17 @@ def _cs(
 class TestGetSearchableTextEdgeCases:
     def test_includes_parent(self) -> None:
         cs = _cs(parent="parent_cl")
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "parent_cl" in text
 
     def test_includes_cl(self) -> None:
         cs = _cs(cl="CL-12345")
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "CL-12345" in text
 
     def test_includes_kickstart(self) -> None:
         cs = _cs(kickstart="some_kickstart")
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "some_kickstart" in text
 
     def test_hook_running_agent_with_suffix(self) -> None:
@@ -77,7 +77,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@: agent-123)" in text
 
     def test_hook_running_agent_no_suffix(self) -> None:
@@ -96,7 +96,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@)" in text
 
     def test_hook_running_process(self) -> None:
@@ -116,7 +116,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- ($: 12345)" in text
 
     def test_hook_killed_process(self) -> None:
@@ -136,7 +136,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (~$: 99999)" in text
 
     def test_comment_running_agent(self) -> None:
@@ -150,7 +150,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@: crs-agent)" in text
 
     def test_comment_running_agent_no_suffix(self) -> None:
@@ -163,7 +163,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@)" in text
 
     def test_comment_running_process(self) -> None:
@@ -177,7 +177,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- ($: 55555)" in text
 
     def test_comment_killed_process(self) -> None:
@@ -191,7 +191,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (~$: 77777)" in text
 
     def test_comment_error_suffix(self) -> None:
@@ -205,7 +205,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(!: timeout)" in text
 
     def test_comment_plain_suffix(self) -> None:
@@ -219,7 +219,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(resolved)" in text
 
     def test_mentor_running_agent(self) -> None:
@@ -241,7 +241,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@: mentor-abc)" in text
 
     def test_mentor_running_agent_no_suffix(self) -> None:
@@ -262,7 +262,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "- (@)" in text
 
     def test_mentor_error_suffix(self) -> None:
@@ -284,7 +284,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(!: crashed)" in text
 
     def test_mentor_plain_suffix(self) -> None:
@@ -305,7 +305,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(0h2m15s)" in text
 
     def test_commit_error_suffix(self) -> None:
@@ -316,7 +316,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(!: BROKE)" in text
 
     def test_commit_plain_suffix(self) -> None:
@@ -327,7 +327,7 @@ class TestGetSearchableTextEdgeCases:
                 )
             ]
         )
-        text = _get_searchable_text(cs)
+        text = get_searchable_text(cs)
         assert "(NEW PROPOSAL)" in text
 
 

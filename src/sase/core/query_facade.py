@@ -10,7 +10,7 @@ dispatch can call them directly without re-implementing the seam.
 from __future__ import annotations
 
 from sase.ace.changespec.models import ChangeSpec
-from sase.ace.query.evaluator import (
+from sase.ace.query.context import (
     QueryEvaluationContext,
     build_query_context_python,
     evaluate_query_python,

@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.query import build_query_context, evaluate_query_with_context
+from sase.ace.query import context as context_mod
 from sase.ace.query.parser import parse_query
-from sase.ace.query import evaluator as evaluator_mod
 
 
 def _cs(
@@ -52,13 +52,13 @@ def test_context_caches_searchable_text_per_changespec() -> None:
     ctx = build_query_context(specs)
     q = parse_query("alpha")
 
-    real = evaluator_mod._get_searchable_text
-    with patch.object(evaluator_mod, "_get_searchable_text", side_effect=real) as spy:
+    real = context_mod.get_searchable_text
+    with patch.object(context_mod, "get_searchable_text", side_effect=real) as spy:
         # Evaluate the same query 5 times against alpha and beta.
         for _ in range(5):
             evaluate_query_with_context(q, specs[0], ctx)
             evaluate_query_with_context(q, specs[1], ctx)
-    # _get_searchable_text should be called at most once per changespec.
+    # get_searchable_text should be called at most once per changespec.
     assert spy.call_count == 2
 
 
