@@ -42,8 +42,10 @@ through 3F will plug the snapshot into:
 - ``sase.agent.running`` (``list_running_agents`` / ``list_all_agents``)
 - ``sase.ace.tui.models._loaders._artifact_loaders`` (``load_done_agents``,
   ``load_running_home_agents``, ``enrich_agent_from_meta``)
-- ``sase.ace.tui.models._loaders._workflow_loaders`` (``load_workflow_states``,
-  ``load_workflow_agent_steps``)
+- ``sase.ace.tui.models._loaders._workflow_loaders`` (``load_workflow_states``)
+- ``sase.ace.tui.models._loaders._workflow_step_loaders``
+  (``load_workflow_agent_steps``)
+- ``sase.ace.tui.models._loaders._workflow_snapshot_loaders`` (snapshot mirrors)
 
 The wire is deliberately compact: arbitrary unknown fields from the marker
 JSON files are NOT round-tripped. If a future call site needs an extra

@@ -286,8 +286,10 @@ def _run_scenarios(
         load_running_home_agents,
     )
     from sase.ace.tui.models._loaders._workflow_loaders import (
-        load_workflow_agent_steps,
         load_workflow_states,
+    )
+    from sase.ace.tui.models._loaders._workflow_step_loaders import (
+        load_workflow_agent_steps,
     )
 
     fake_home = projects_root.parent
