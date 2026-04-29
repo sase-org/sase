@@ -252,6 +252,24 @@ def display_changespec(
                 diff_path = entry.diff.replace(str(Path.home()), "~")
                 text.append(f"{diff_path}\n", style="#87AFFF")
 
+    # DELTAS field (only display if present)
+    if changespec.deltas:
+        _DELTA_GLYPH_BY_TYPE = {"A": "+", "M": "~", "D": "-"}
+        _DELTA_GLYPH_STYLE = {
+            "A": "bold #5FD787",
+            "M": "bold #FFD787",
+            "D": "bold #FF5F5F",
+        }
+        text.append("DELTAS:\n", style="bold #87D7FF")
+        for delta in sorted(changespec.deltas, key=lambda d: d.path):
+            glyph = _DELTA_GLYPH_BY_TYPE.get(delta.change_type, "?")
+            style = _DELTA_GLYPH_STYLE.get(delta.change_type, "")
+            text.append(f"  {glyph} ", style=style)
+            dirname, basename = os.path.split(delta.path)
+            if dirname:
+                text.append(dirname + "/", style="#87AFFF")
+            text.append((basename or delta.path) + "\n", style="bold #87AFFF")
+
     # HOOKS field (only display if present)
     if changespec.hooks:
         # Lazy import to avoid circular dependency

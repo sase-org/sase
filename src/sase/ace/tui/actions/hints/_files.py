@@ -36,6 +36,7 @@ class FileViewingMixin(HintMixinBase):
             commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
             mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
             timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
+            deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
         )
 
         if not hint_mappings:  # No files available

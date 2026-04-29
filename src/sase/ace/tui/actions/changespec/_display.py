@@ -41,6 +41,7 @@ class ChangeSpecDisplayMixin:
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
+    deltas_collapsed: FoldLevel
     hide_reverted: bool
     hide_submitted: bool
     marked_indices: set[int]
@@ -239,6 +240,7 @@ class ChangeSpecDisplayMixin:
                     commits_collapsed=self.commits_collapsed,
                     mentors_collapsed=self.mentors_collapsed,
                     timestamps_collapsed=self.timestamps_collapsed,
+                    deltas_collapsed=self.deltas_collapsed,
                 )
             )
             self._hint_mappings = hint_mappings
@@ -252,6 +254,7 @@ class ChangeSpecDisplayMixin:
                 commits_collapsed=self.commits_collapsed,
                 mentors_collapsed=self.mentors_collapsed,
                 timestamps_collapsed=self.timestamps_collapsed,
+                deltas_collapsed=self.deltas_collapsed,
             )
         graph_index = self._get_changespec_graph_index()
         self._ancestor_keys, self._children_keys, self._sibling_keys = (

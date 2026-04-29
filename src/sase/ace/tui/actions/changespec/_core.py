@@ -40,6 +40,7 @@ class ChangeSpecMixin(
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
+    deltas_collapsed: FoldLevel
     hide_reverted: bool
     hide_submitted: bool
     marked_indices: set[int]

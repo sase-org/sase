@@ -158,6 +158,7 @@ class _FakeApp(ChangeSpecMixin, MarkingMixin):
         self.commits_collapsed = FoldLevel.COLLAPSED
         self.mentors_collapsed = FoldLevel.COLLAPSED
         self.timestamps_collapsed = FoldLevel.COLLAPSED
+        self.deltas_collapsed = FoldLevel.EXPANDED
 
         self.list_widget = _RecordingList()
         self.detail_widget = _RecordingDetail()

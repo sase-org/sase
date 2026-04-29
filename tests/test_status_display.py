@@ -3,6 +3,7 @@
 from io import StringIO
 
 from sase.ace.changespec import ChangeSpec
+from sase.ace.changespec.models import DeltaEntry
 from sase.ace.display import display_changespec
 from sase.ace.status import get_available_statuses
 from rich.console import Console
@@ -41,3 +42,58 @@ def test_display_changespec_without_hints_returns_empty() -> None:
     # Should be empty when hints not enabled
     assert hint_mappings == {}
     assert hook_hint_to_idx == {}
+
+
+def test_display_changespec_renders_deltas_section() -> None:
+    """display_changespec emits the DELTAS section for non-empty deltas."""
+    changespec = ChangeSpec(
+        name="test_spec",
+        description="Test description",
+        parent=None,
+        cl=None,
+        status="Ready",
+        test_targets=None,
+        kickstart=None,
+        file_path="/tmp/test.gp",
+        line_number=1,
+        deltas=[
+            DeltaEntry(path="src/added.py", change_type="A"),
+            DeltaEntry(path="src/modified.py", change_type="M"),
+            DeltaEntry(path="src/deleted.py", change_type="D"),
+        ],
+    )
+
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=False, color_system=None, width=200)
+    display_changespec(changespec, console)
+    out = buf.getvalue()
+    assert "DELTAS:" in out
+    assert "+ src/added.py" in out
+    assert "~ src/modified.py" in out
+    assert "- src/deleted.py" in out
+
+
+def test_display_changespec_omits_deltas_when_empty() -> None:
+    """display_changespec does not render DELTAS for None / empty list."""
+    changespec = ChangeSpec(
+        name="test_spec",
+        description="Test description",
+        parent=None,
+        cl=None,
+        status="Ready",
+        test_targets=None,
+        kickstart=None,
+        file_path="/tmp/test.gp",
+        line_number=1,
+        deltas=None,
+    )
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=False, color_system=None, width=200)
+    display_changespec(changespec, console)
+    assert "DELTAS:" not in buf.getvalue()
+
+    changespec.deltas = []
+    buf2 = StringIO()
+    console2 = Console(file=buf2, force_terminal=False, color_system=None, width=200)
+    display_changespec(changespec, console2)
+    assert "DELTAS:" not in buf2.getvalue()

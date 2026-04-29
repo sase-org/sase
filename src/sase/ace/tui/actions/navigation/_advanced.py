@@ -45,6 +45,8 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
         elif key == fold_keys["cycle_timestamps"]:
             self.timestamps_collapsed = cycle_forward(self.timestamps_collapsed)
+        elif key == fold_keys["cycle_deltas"]:
+            self.deltas_collapsed = cycle_forward(self.deltas_collapsed)
         elif key == fold_keys["toggle_commits"]:
             self.commits_collapsed = (
                 FoldLevel.FULLY_EXPANDED
@@ -69,6 +71,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 if self.timestamps_collapsed == FoldLevel.COLLAPSED
                 else FoldLevel.COLLAPSED
             )
+        elif key == fold_keys["toggle_deltas"]:
+            self.deltas_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.deltas_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if (
@@ -76,6 +84,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 == self.hooks_collapsed
                 == self.mentors_collapsed
                 == self.timestamps_collapsed
+                == self.deltas_collapsed
             ):
                 new_state = cycle_forward(self.commits_collapsed)
             else:
@@ -84,6 +93,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
+            self.deltas_collapsed = new_state
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (
@@ -91,6 +101,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 == self.hooks_collapsed
                 == self.mentors_collapsed
                 == self.timestamps_collapsed
+                == self.deltas_collapsed
                 == FoldLevel.COLLAPSED
             )
             new_state = (
@@ -100,6 +111,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
+            self.deltas_collapsed = new_state
         else:
             # Invalid key - cancel fold mode and restore footer
             self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -130,6 +142,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 self.hooks_collapsed,
                 self.mentors_collapsed,
                 self.timestamps_collapsed,
+                self.deltas_collapsed,
             )
         except Exception:
             pass

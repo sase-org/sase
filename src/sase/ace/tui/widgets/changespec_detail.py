@@ -22,6 +22,7 @@ from .section_builders import (
     HintTracker,
     build_comments_section,
     build_commits_section,
+    build_deltas_section,
     build_hooks_section,
     build_mentors_section,
     build_timestamps_section,
@@ -131,6 +132,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
     ) -> None:
         """Update the detail view with a new changespec.
 
@@ -141,6 +143,7 @@ class ChangeSpecDetail(Static):
             commits_collapsed: Fold level for COMMITS drawer lines
             mentors_collapsed: Fold level for MENTORS entries
             timestamps_collapsed: Fold level for TIMESTAMPS section
+            deltas_collapsed: Fold level for DELTAS section
         """
         with tui_trace("widget.changespec_detail.update_display"):
             content, _, _, _, _ = self._build_display_content(
@@ -150,6 +153,7 @@ class ChangeSpecDetail(Static):
                 commits_collapsed=commits_collapsed,
                 mentors_collapsed=mentors_collapsed,
                 timestamps_collapsed=timestamps_collapsed,
+                deltas_collapsed=deltas_collapsed,
             )
             self.update(content)
 
@@ -162,6 +166,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
     ) -> tuple[
         dict[int, str], dict[int, int], dict[int, str], dict[int, tuple[str, str]]
     ]:
@@ -178,6 +183,7 @@ class ChangeSpecDetail(Static):
             commits_collapsed: Fold level for COMMITS drawer lines
             mentors_collapsed: Fold level for MENTORS entries
             timestamps_collapsed: Fold level for TIMESTAMPS section
+            deltas_collapsed: Fold level for DELTAS section
 
         Returns:
             Tuple of:
@@ -201,6 +207,7 @@ class ChangeSpecDetail(Static):
             commits_collapsed=commits_collapsed,
             mentors_collapsed=mentors_collapsed,
             timestamps_collapsed=timestamps_collapsed,
+            deltas_collapsed=deltas_collapsed,
         )
         self.update(content)
         return hint_mappings, hook_hint_to_idx, hint_to_entry_id, mentor_hint_to_info
@@ -229,6 +236,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
     ) -> tuple[
         Panel,
         dict[int, str],
@@ -272,6 +280,14 @@ class ChangeSpecDetail(Static):
             commits_collapsed,
             hint_tracker,
             max_width=self.size.width,
+        )
+
+        # Build DELTAS section
+        hint_tracker = build_deltas_section(
+            text,
+            changespec,
+            deltas_collapsed,
+            hint_tracker,
         )
 
         # Build HOOKS section

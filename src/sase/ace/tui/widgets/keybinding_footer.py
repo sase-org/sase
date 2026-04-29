@@ -394,10 +394,12 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),
             (k("cycle_timestamps"), "timestamps"),
+            (k("cycle_deltas"), "deltas"),
             (k("toggle_commits"), "toggle commits"),
             (k("toggle_hooks"), "toggle hooks"),
             (k("toggle_mentors"), "toggle mentors"),
             (k("toggle_timestamps"), "toggle timestamps"),
+            (k("toggle_deltas"), "toggle deltas"),
             (k("cycle_all"), "all"),
             (k("toggle_all"), "toggle"),
         ]

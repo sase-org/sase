@@ -194,6 +194,7 @@ class InputProcessingMixin(HintMixinBase):
                     commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
                     mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
                     timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
+                    deltas_collapsed=self.deltas_collapsed,  # type: ignore[attr-defined]
                 )
                 self._hint_mode_active = True
                 self._hint_mode_hints_for = "hooks_latest_only"

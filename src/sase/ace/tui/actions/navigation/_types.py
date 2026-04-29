@@ -39,6 +39,7 @@ class NavigationMixinBase:
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
+    deltas_collapsed: FoldLevel
     _agents: list[Agent]
     _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
