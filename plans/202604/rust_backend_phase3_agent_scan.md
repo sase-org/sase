@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 09:18:29
-status: wip
+status: done
 bead_id: sase-18
 ---
 # Rust Backend Migration Phase 3: Agent / Artifact Filesystem Scan
