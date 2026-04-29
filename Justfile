@@ -3,6 +3,11 @@
 venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
 
+# Sibling Rust core repo. Phase 1 Rust backend is opt-in; targets that
+# operate on it print a friendly message and exit 0 when the repo is
+# missing so pure-Python contributors are never blocked.
+sase_core_dir := "../sase-core"
+
 default:
     @just --list
 
@@ -160,3 +165,71 @@ build-check: build
 dev-shell:
     @echo "Entering dev shell... (exit to return)"
     @VIRTUAL_ENV="$(pwd)/.venv" PATH="$(pwd)/.venv/bin:$$PATH" $SHELL
+
+# --- Optional Rust backend (../sase-core) ---
+# These targets are no-ops when ../sase-core is absent so pure-Python
+# installs (`just install`) keep working without a Rust toolchain.
+
+# Build and install the optional `sase_core_rs` PyO3 extension into .venv.
+# Requires `cargo` and installs `maturin` into the venv on demand.
+rust-install: _setup
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    @if ! command -v cargo > /dev/null 2>&1; then \
+        printf "[rust-install] cargo not on PATH; install rustup to build the Rust backend.\n"; \
+        exit 1; \
+    fi
+    @{{ venv_bin }}/maturin --version > /dev/null 2>&1 || uv pip install maturin
+    cd {{ sase_core_dir }}/crates/sase_core_py && \
+        {{ venv_bin }}/maturin develop --release
+
+# Run `cargo test --workspace` in ../sase-core.
+rust-test:
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-test] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    cd {{ sase_core_dir }} && cargo test --workspace
+
+# Auto-format Rust sources in ../sase-core.
+rust-fmt:
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-fmt] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    cd {{ sase_core_dir }} && cargo fmt --all
+
+# Verify Rust sources are formatted (CI mode).
+rust-fmt-check:
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-fmt-check] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    cd {{ sase_core_dir }} && cargo fmt --all -- --check
+
+# Run clippy with warnings-as-errors in ../sase-core.
+rust-clippy:
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-clippy] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    cd {{ sase_core_dir }} && cargo clippy --workspace --all-targets -- -D warnings
+
+# Run the Rust direct-parser benchmark (no Python in the loop).
+rust-bench *args:
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-bench] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    cd {{ sase_core_dir }} && cargo run --release --example bench_parse -- {{ args }}
+
+# Combined Rust check (fmt-check + clippy + tests). No-op when sibling repo absent.
+rust-check: rust-fmt-check rust-clippy rust-test
+
+# Run the Python parse_project_bytes benchmark across all available
+# backends. Reports Python-direct, Python-facade, Rust direct (if
+# `sase_core_rs` is importable), Rust-facade, and dual-run overhead.
+bench-core *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_core_parse.py {{ args }}
