@@ -1,0 +1,153 @@
+{
+  "tool": "bench_git_query_ops",
+  "phase": "5A",
+  "git_available": true,
+  "platform": {
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown"
+  },
+  "workloads": [
+    {
+      "label": "synthetic_small",
+      "size_bytes": 1255,
+      "runs": 200,
+      "warmup": 30,
+      "scenarios": {
+        "parse_git_name_status_z": {
+          "count": 200.0,
+          "min_us": 9.217008482664824,
+          "median_us": 9.663519449532032,
+          "p95_us": 10.190007742494345,
+          "max_us": 20.51901537925005
+        }
+      }
+    },
+    {
+      "label": "synthetic_medium",
+      "size_bytes": 26370,
+      "runs": 200,
+      "warmup": 30,
+      "scenarios": {
+        "parse_git_name_status_z": {
+          "count": 200.0,
+          "min_us": 179.75299851968884,
+          "median_us": 196.34951604530215,
+          "p95_us": 246.46997917443514,
+          "max_us": 371.40899803489447
+        }
+      }
+    },
+    {
+      "label": "synthetic_large",
+      "size_bytes": 284670,
+      "runs": 200,
+      "warmup": 30,
+      "scenarios": {
+        "parse_git_name_status_z": {
+          "count": 200.0,
+          "min_us": 1861.9740149006248,
+          "median_us": 1962.6719586085528,
+          "p95_us": 2300.8620482869446,
+          "max_us": 6896.987033542246
+        }
+      }
+    },
+    {
+      "label": "normalizers",
+      "runs": 200,
+      "warmup": 30,
+      "scenarios": {
+        "parse_git_branch_name_x4": {
+          "count": 200.0,
+          "min_us": 0.5710171535611153,
+          "median_us": 0.591040588915348,
+          "p95_us": 0.6210175342857838,
+          "max_us": 10.279996786266565
+        },
+        "derive_git_workspace_name_x5": {
+          "count": 200.0,
+          "min_us": 1.5629921108484268,
+          "median_us": 1.6030389815568924,
+          "p95_us": 2.0030420273542404,
+          "max_us": 2.163986209779978
+        },
+        "parse_git_conflicted_files_50": {
+          "count": 200.0,
+          "min_us": 3.0859955586493015,
+          "median_us": 3.1259842216968536,
+          "p95_us": 3.176974132657051,
+          "max_us": 3.55701195076108
+        },
+        "parse_git_local_changes_150": {
+          "count": 200.0,
+          "min_us": 0.2899905666708946,
+          "median_us": 0.3100140020251274,
+          "p95_us": 0.3399909473955631,
+          "max_us": 0.44103944674134254
+        }
+      }
+    },
+    {
+      "label": "end_to_end_50",
+      "n_files_seeded": 50,
+      "stream_size_bytes": 688,
+      "runs": 30,
+      "warmup": 15,
+      "scenarios": {
+        "git_diff_subprocess_only": {
+          "count": 30.0,
+          "min_us": 2445.459016598761,
+          "median_us": 2957.255026558414,
+          "p95_us": 4916.013975162059,
+          "max_us": 4918.189020827413
+        },
+        "parse_git_name_status_z": {
+          "count": 30.0,
+          "min_us": 17.834012396633625,
+          "median_us": 17.979007679969072,
+          "p95_us": 18.665974494069815,
+          "max_us": 19.4780295714736
+        },
+        "git_diff_subprocess_plus_parse": {
+          "count": 30.0,
+          "min_us": 2554.9770216457546,
+          "median_us": 2843.99397787638,
+          "p95_us": 4076.230979990214,
+          "max_us": 4318.494990002364
+        }
+      }
+    },
+    {
+      "label": "end_to_end_500",
+      "n_files_seeded": 500,
+      "stream_size_bytes": 7780,
+      "runs": 30,
+      "warmup": 15,
+      "scenarios": {
+        "git_diff_subprocess_only": {
+          "count": 30.0,
+          "min_us": 9940.466028638184,
+          "median_us": 11019.953002687544,
+          "p95_us": 13553.204014897346,
+          "max_us": 16397.564962971956
+        },
+        "parse_git_name_status_z": {
+          "count": 30.0,
+          "min_us": 184.7629901021719,
+          "median_us": 200.23199613206089,
+          "p95_us": 258.8540082797408,
+          "max_us": 259.21501219272614
+        },
+        "git_diff_subprocess_plus_parse": {
+          "count": 30.0,
+          "min_us": 10142.904007807374,
+          "median_us": 11452.37751188688,
+          "p95_us": 14762.591978069395,
+          "max_us": 14830.99500183016
+        }
+      }
+    }
+  ]
+}

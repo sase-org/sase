@@ -283,3 +283,11 @@ bench-agent-scan *args: _setup
 # whether the status state machine is worth porting to Rust.
 bench-status-state-machine *args: _setup
     {{ venv_bin }}/python tests/perf/bench_status_state_machine.py {{ args }}
+
+# Run the Git query-op parsers benchmark. Times parse_git_name_status_z
+# on synthetic NUL streams (small/medium/large), the smaller normalizers
+# (branch name, workspace name, conflicted files, local changes), and
+# real `git diff --name-status -z` invocations so Phase 5A can compare
+# parse cost to subprocess fork+exec cost.
+bench-git-query-ops *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_git_query_ops.py {{ args }}
