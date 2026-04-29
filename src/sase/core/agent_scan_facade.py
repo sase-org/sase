@@ -33,7 +33,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from sase.ace.tui.models._loaders._json_cache import load_json_cached
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     DONE_WORKFLOW_DIR_NAMES,
@@ -79,6 +78,15 @@ def _load_marker_json(
     stats: dict[str, int],
 ) -> Any | None:
     """Load *path* with the shared mtime cache, counting soft errors."""
+    # Lazy import: ``sase.ace.tui.models._loaders._json_cache`` lives under
+    # the TUI models package, whose ``__init__`` imports
+    # ``agent_loader``, which imports from this facade. Importing the
+    # cache helper at module top would form a load-time cycle and break
+    # ``import sase.core.agent_scan_facade`` for any caller (including
+    # the bench script and standalone scripts) that hasn't already
+    # warmed the TUI submodule.
+    from sase.ace.tui.models._loaders._json_cache import load_json_cached
+
     try:
         data = load_json_cached(path)
     except FileNotFoundError:

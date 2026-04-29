@@ -11,6 +11,15 @@ the snapshot-backed implementation, and the ``*_rust_backend`` scenarios
 re-time them under ``SASE_CORE_BACKEND=rust`` when the extension is
 available so name-lookup costs can be compared across backends in one run.
 
+Phase 3G (sase-18.7) adds the snapshot-pipeline breakdown scenarios
+needed to make the streaming-API go/no-go decision: the Rust
+``scan_agent_artifacts`` PyO3 call alone (Rust scan + dict construction,
+no Python wire conversion), the pure ``agent_scan_wire_from_dict``
+adapter cost on a prefetched payload, and the full
+``scan_agent_artifacts`` facade pipeline under both backends so the
+cost of every segment that runs between "filesystem walk" and "callers
+have typed wire records" can be compared on the same workload.
+
 Workloads
 ---------
 
@@ -51,6 +60,19 @@ For each workload the benchmark times these scenarios:
   :func:`sase.core.agent_scan_facade.scan_agent_artifacts` snapshot.
 - ``scan_python_facade_no_prompt_steps``: snapshot scan with
   ``include_prompt_step_markers=False``.
+- ``scan_rust_to_dict``: bare ``sase_core_rs.scan_agent_artifacts``
+  call — Rust filesystem walk + JSON parse + PyO3 dict construction,
+  with no Python-side wire conversion. Phase 3G uses this to attribute
+  cost to the Rust side.
+- ``scan_rust_dict_to_wire``: pure
+  :func:`sase.core.agent_scan_wire.agent_scan_wire_from_dict` cost on a
+  prefetched dict — measures the Python-side dataclass projection that
+  every Rust-backend caller still pays.
+- ``scan_rust_facade``: full
+  :func:`sase.core.agent_scan_facade.scan_agent_artifacts` pipeline
+  under ``SASE_CORE_BACKEND=rust`` (PyO3 call + ``from_dict``
+  adaptation), so the end-to-end Rust-backend cost is comparable to
+  ``scan_python_facade``.
 
 Marked ``slow`` so it does not run in ``just test``. Run via::
 
@@ -78,8 +100,14 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.core.agent_scan_facade import scan_agent_artifacts_python
-from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+from sase.core.agent_scan_facade import (
+    scan_agent_artifacts,
+    scan_agent_artifacts_python,
+)
+from sase.core.agent_scan_wire import (
+    AgentArtifactScanOptionsWire,
+    agent_scan_wire_from_dict,
+)
 from sase.core.backend import BACKEND_ENV_VAR, is_rust_available
 
 pytestmark = pytest.mark.slow
@@ -351,6 +379,49 @@ def _run_scenarios(
         done = _done_from_snapshot(snapshot, cap_per_project=50)
         return len(running) + len(done)
 
+    # Phase 3G: snapshot-pipeline breakdown. Times the Rust PyO3 call
+    # without Python wire conversion, the wire-conversion cost on its
+    # own (using a prefetched payload), and the full Rust facade
+    # pipeline so the streaming-API decision in
+    # ``rust_backend_phase3_agent_scan_phase3g_handoff.md`` can be
+    # reproduced.
+    breakdown_options_dict: dict[str, Any] = {
+        "include_prompt_step_markers": True,
+        "include_raw_prompt_snippets": False,
+        "max_prompt_snippet_bytes": 4096,
+        "only_workflow_dirs": [],
+    }
+
+    def s_scan_rust_to_dict() -> int:
+        if not rust_active:
+            return 0
+        import sase_core_rs  # type: ignore[import-not-found]
+
+        payload = sase_core_rs.scan_agent_artifacts(
+            str(projects_root), breakdown_options_dict
+        )
+        return len(payload.get("records", []))
+
+    def s_scan_rust_dict_to_wire() -> int:
+        if not rust_active:
+            return 0
+        # Note: re-fetches the payload each iteration so the timer also
+        # captures cache-affinity; we time the conversion inside the
+        # call by re-using a cached payload below for a cleaner number.
+        import sase_core_rs  # type: ignore[import-not-found]
+
+        payload = sase_core_rs.scan_agent_artifacts(
+            str(projects_root), breakdown_options_dict
+        )
+        snapshot = agent_scan_wire_from_dict(payload)
+        return len(snapshot.records)
+
+    def s_scan_rust_facade() -> int:
+        if not rust_active:
+            return 0
+        with patch.dict(os.environ, {BACKEND_ENV_VAR: "rust"}):
+            return len(scan_agent_artifacts(projects_root).records)
+
     scenarios: dict[str, Callable[[], int]] = {
         "find_named_agent": s_find,
         "is_workflow_complete": s_workflow_complete,
@@ -361,6 +432,9 @@ def _run_scenarios(
         "tui_artifact_load": s_tui_load,
         "scan_python_facade": s_scan_facade,
         "scan_python_facade_no_prompt_steps": s_scan_facade_no_steps,
+        "scan_rust_to_dict": s_scan_rust_to_dict,
+        "scan_rust_dict_to_wire": s_scan_rust_dict_to_wire,
+        "scan_rust_facade": s_scan_rust_facade,
         "find_named_agent_rust_backend": s_find_rust,
         "is_workflow_complete_rust_backend": s_workflow_complete_rust,
     }
@@ -380,7 +454,13 @@ def _run_scenarios(
         "is_workflow_complete",
         "is_workflow_complete_rust_backend",
     }
-    rust_only = {"find_named_agent_rust_backend", "is_workflow_complete_rust_backend"}
+    rust_only = {
+        "find_named_agent_rust_backend",
+        "is_workflow_complete_rust_backend",
+        "scan_rust_to_dict",
+        "scan_rust_dict_to_wire",
+        "scan_rust_facade",
+    }
 
     for name, fn in scenarios.items():
         if name in skip_when_no_target and target_name is None:

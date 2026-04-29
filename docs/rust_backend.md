@@ -132,8 +132,23 @@ loop.
   Rust impl whenever the extension is importable; `SASE_CORE_BACKEND=rust` walks the corpus through Rust and
   `SASE_CORE_DUAL_RUN=1` logs Python/Rust comparison records to `~/.sase/perf/core_dual_run.jsonl`. Callers still
   receive `AgentArtifactScanWire` dataclasses on either backend.
-- **Future phases** — Additional facade operations (graph index, status helpers) become candidates for Rust
-  re-implementation as they show up in profiles.
+- **Phase 3D** _(complete)_ — `find_named_agent` and `is_workflow_complete` consume the snapshot facade instead of
+  walking project directories directly. Liveness / dismissed-bundle fallback semantics stay in Python; only the
+  artifact-tree read is rerouted.
+- **Phase 3E** _(complete)_ — `sase agents` running/all listing (`list_running_agents`, `list_all_agents`) consumes one
+  snapshot per call and adapts records into the same output shape as before. PID liveness and workspace-claim parsing
+  remain Python-side.
+- **Phase 3F** _(complete)_ — TUI Agents-tab refresh (`_load_agents_from_all_sources`) acquires one
+  `scan_agent_artifacts` snapshot and feeds every artifact / workflow loader from it. Direct Python loaders are kept as
+  fallback / test helpers.
+- **Phase 3G** _(complete)_ — Snapshot-pipeline breakdown measurements added to `bench_agent_scan.py`
+  (`scan_rust_to_dict`, `scan_rust_dict_to_wire`, `scan_rust_facade`); decision recorded in
+  `plans/202604/rust_backend_phase3_agent_scan_phase3g_handoff.md`: keep the snapshot API, do **not** implement a batch
+  streaming API in Phase 3, do **not** introduce a long-lived artifact cache. Snapshot mode clears the research gate at
+  typical workloads and the very-large-tree gap is dominated by Rust filesystem walk itself, which streaming cannot
+  reduce.
+- **Future phases** — Phase 3H (rollout decision + handoff) lands next. Additional facade operations (graph index,
+  status helpers) become candidates for Rust re-implementation as they show up in profiles.
 
 The migration strategy intentionally keeps the Rust core as a single crate that can be exposed through three different
 binding layers: PyO3 for the TUI/CLI (today), uniffi for mobile, and wasm for the web. See
