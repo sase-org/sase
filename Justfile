@@ -233,3 +233,10 @@ rust-check: rust-fmt-check rust-clippy rust-test
 # `sase_core_rs` is importable), Rust-facade, and dual-run overhead.
 bench-core *args: _setup
     {{ venv_bin }}/python tests/perf/bench_core_parse.py {{ args }}
+
+# Run the Python query parse/evaluate benchmark. Times parse-only and
+# parse+evaluate at 100/1k/10k specs through the optimized facade path
+# so Phase 2F has a baseline to compare a future Rust query backend
+# against.
+bench-query *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_core_query.py {{ args }}
