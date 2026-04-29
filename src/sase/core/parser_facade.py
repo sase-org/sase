@@ -1,9 +1,13 @@
 """sase.core facade for ChangeSpec parsing.
 
-Phase 0A: thin wrapper around the existing Python parser, plus a
-``parse_project_bytes`` convenience that the Rust backend will eventually back.
-Phase 0B will route ``sase.ace.changespec.parser.parse_project_file`` through
-:func:`parse_project_file`.
+This is the Rust-bindable seam for ChangeSpec parsing. Callers go through
+:func:`parse_project_file` (returning Python ``ChangeSpec`` objects for
+backward compatibility) or :func:`parse_project_bytes` (returning wire
+records, the shape Phase 1's Rust ``parse_project_bytes`` will produce).
+
+Both functions delegate through :func:`sase.core.backend.dispatch`, so a
+future Rust ``sase_core_rs.parse_project_bytes`` can register itself as the
+``rust_impl`` without touching this module's signature.
 """
 
 from __future__ import annotations

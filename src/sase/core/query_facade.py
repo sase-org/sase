@@ -1,7 +1,10 @@
 """sase.core facade for query parse/build/evaluate entry points.
 
-Phase 0A: thin wrappers around :mod:`sase.ace.query`. Phase 0B routes the
-public functions through these dispatched entry points.
+Wraps :mod:`sase.ace.query` behind :func:`sase.core.backend.dispatch` so the
+parse, build-context, and evaluate operations can each be replaced
+independently by a Rust implementation. The Python implementations are kept
+under ``*_python`` aliases (imported below) so tests that need to bypass
+dispatch can call them directly without re-implementing the seam.
 """
 
 from __future__ import annotations

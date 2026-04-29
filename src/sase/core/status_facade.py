@@ -1,12 +1,18 @@
 """sase.core facade for status transitions and pure status field helpers.
 
-Phase 0A: thin wrappers around :mod:`sase.status_state_machine`. Phase 0B
-will route the public functions through these dispatched entry points.
+Wraps :mod:`sase.status_state_machine` behind
+:func:`sase.core.backend.dispatch`. Two flavors live here:
 
-The transition entry point performs disk IO (it acquires a lock and rewrites
-the project file). It is therefore not a pure-core operation in the strict
-sense, but it sits at the same seam as parser/query: a single Rust-bindable
-function over inputs the host has already gathered.
+- ``read_status_from_lines`` and ``apply_status_update`` are pure functions
+  over raw project-file lines — easy first targets for a Rust implementation.
+- ``transition_changespec_status`` performs disk IO (it acquires a lock and
+  rewrites the project file). It is not a pure-core operation in the strict
+  sense, but it sits at the same Rust-bindable seam: one function over
+  inputs the host has already gathered.
+
+Phase 1 can register Rust implementations for the pure helpers first and
+leave the IO-bearing transition on the Python side until the wire round-trip
+is proven by the dual-run logs.
 """
 
 from __future__ import annotations
@@ -48,7 +54,7 @@ def transition_changespec_status(
     changespec_name: str,
     new_status: str,
     validate: bool = True,
-    console: "Console | None" = None,
+    console: Console | None = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
     """Transition a ChangeSpec STATUS via the active backend."""
     return dispatch(

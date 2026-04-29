@@ -1,8 +1,11 @@
 """sase.core facade for ChangeSpec graph index construction.
 
-Phase 0A: thin wrapper around
-:func:`sase.ace.tui.models.changespec_graph_index.build_changespec_graph_index`.
-Phase 0B will route the public function through this dispatched entry point.
+Wraps
+:func:`sase.ace.tui.models.changespec_graph_index.build_changespec_graph_index`
+behind :func:`sase.core.backend.dispatch`. A future Rust implementation can
+build the same parent/sibling/by-name maps from wire records and register as
+``rust_impl``; the call signature stays a list of :class:`ChangeSpec` so
+existing TUI callers do not have to change.
 """
 
 from __future__ import annotations

@@ -136,3 +136,63 @@ After Phase 0 lands, a distinct agent should start Rust work in `../sase-core`:
 - Expose PyO3 bindings as an optional `sase_core_rs` module.
 - Run the Phase 0 golden corpus against both Python and Rust via `SASE_CORE_BACKEND=rust` and `SASE_CORE_DUAL_RUN=1`.
 - Do not flip the default backend until measured end-to-end wins exist.
+
+## Phase 0D Handoff (this phase)
+
+Documentation-only changes plus verification. No production behavior changed.
+
+### Files touched
+
+- `src/sase/core/__init__.py` — expanded the package docstring with explicit
+  "backend boundary" and "why Rust is optional" sections, and pointed at
+  this plan from the docstring.
+- `src/sase/core/parser_facade.py` — replaced the Phase 0A/0B-bound docstring
+  with one that describes the seam itself and how a Rust impl plugs in.
+- `src/sase/core/query_facade.py` — same treatment; called out the
+  ``*_python`` aliasing pattern that lets tests bypass dispatch.
+- `src/sase/core/graph_index_facade.py` — same treatment.
+- `src/sase/core/status_facade.py` — clarified pure helpers vs. the
+  IO-bearing transition and the recommended Rust adoption order.
+
+### Where the seam lives
+
+| Public API still in use today                                                                | Facade entry point                                            |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `sase.ace.changespec.parser.parse_project_file`                                              | `sase.core.parser_facade.parse_project_file` (+ `_bytes`)     |
+| `sase.ace.query.parser.parse_query`                                                          | `sase.core.query_facade.parse_query`                          |
+| `sase.ace.query.evaluator.build_query_context`                                               | `sase.core.query_facade.build_query_context`                  |
+| `sase.ace.query.evaluator.evaluate_query`                                                    | `sase.core.query_facade.evaluate_query`                       |
+| `sase.ace.query.evaluator.evaluate_query_with_context`                                       | `sase.core.query_facade.evaluate_query_with_context`          |
+| `sase.ace.tui.models.changespec_graph_index.build_changespec_graph_index`                    | `sase.core.graph_index_facade.build_changespec_graph_index`   |
+| `sase.status_state_machine.transitions.transition_changespec_status`                         | `sase.core.status_facade.transition_changespec_status`        |
+| `sase.status_state_machine.field_updates.read_status_from_lines` / `apply_status_update`     | `sase.core.status_facade.read_status_from_lines` / `apply_status_update` |
+
+The Python implementations remain importable under both their original
+public paths and the facade's ``_python_*`` aliases. Phase 1 should call
+through the facade entry points and register `rust_impl` arguments via
+`sase.core.backend.dispatch` rather than monkeypatching the originals.
+
+### Verification
+
+- `just install` — succeeded (editable install, dev extras).
+- Focused core tests — `pytest tests/test_core_backend.py
+  tests/test_core_dual_run.py tests/test_core_facade.py
+  tests/test_core_wire.py tests/test_core_golden.py` — **65 passed**.
+- Focused parser/query/graph/status tests — `pytest tests/test_query_parser.py
+  tests/test_query_evaluator.py tests/test_query_evaluator_extra.py
+  tests/test_query_canonicalization.py tests/test_query_property_filters.py
+  tests/test_query_selection.py
+  tests/test_status_state_machine_transitions.py
+  tests/test_status_state_machine_field_updates.py
+  tests/test_commit_parsing.py tests/test_commits_multiline_body.py
+  tests/test_deltas_parsing.py tests/test_hooks_core.py tests/test_mentors.py
+  tests/test_ancestors_children_panel.py` — **141 passed**.
+- `just check` — see commit message for the post-handoff result.
+
+### Next agent
+
+Phase 1 starts from `../sase-core` and the wire contract in
+`src/sase/core/wire.py`. The golden corpus under `tests/core_golden/` plus
+`tests/test_core_golden.py` is the cross-implementation acceptance test:
+running it with `SASE_CORE_BACKEND=rust` and `SASE_CORE_DUAL_RUN=1` once a
+Rust `parse_project_bytes` exists is the agreed proof of contract parity.
