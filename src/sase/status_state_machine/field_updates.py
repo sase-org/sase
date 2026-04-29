@@ -16,18 +16,21 @@ logger = logging.getLogger(__name__)
 def apply_status_update(lines: list[str], changespec_name: str, new_status: str) -> str:
     """Apply STATUS field update to file lines.
 
-    Public entry point — routes through :mod:`sase.core.status`. The default
-    backend dispatches back to :func:`apply_status_update_python` below.
+    Public entry point — calls
+    :func:`sase.core.status_facade.apply_status_update`, which delegates
+    directly to the Rust binding. :func:`apply_status_update_python`
+    below is the host-logic golden reference used by parity tests.
     """
     from sase.core.status_facade import apply_status_update as _facade
 
     return _facade(lines, changespec_name, new_status)
 
 
+# pyvision: tests/test_core_facade/test_status.py
 def apply_status_update_python(
     lines: list[str], changespec_name: str, new_status: str
 ) -> str:
-    """Python implementation of :func:`apply_status_update`.
+    """Host-logic golden reference for :func:`apply_status_update`.
 
     Args:
         lines: Current file lines.
@@ -155,16 +158,20 @@ def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
     """Read STATUS from file lines (unlocked helper).
 
-    Public entry point — routes through :mod:`sase.core.status`. The default
-    backend dispatches back to :func:`read_status_from_lines_python` below.
+    Public entry point — calls
+    :func:`sase.core.status_facade.read_status_from_lines`, which
+    delegates directly to the Rust binding.
+    :func:`read_status_from_lines_python` below is the host-logic golden
+    reference used by parity tests.
     """
     from sase.core.status_facade import read_status_from_lines as _facade
 
     return _facade(lines, changespec_name)
 
 
+# pyvision: tests/test_core_facade/test_status.py
 def read_status_from_lines_python(lines: list[str], changespec_name: str) -> str | None:
-    """Python implementation of :func:`read_status_from_lines`.
+    """Host-logic golden reference for :func:`read_status_from_lines`.
 
     Args:
         lines: File lines to search.

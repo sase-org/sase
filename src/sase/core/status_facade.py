@@ -1,47 +1,53 @@
 """sase.core facade for status transitions and pure status field helpers.
 
-Wraps :mod:`sase.status_state_machine` behind
-:func:`sase.core.backend.dispatch`. Three flavors live here:
+Phase 8E direct-wires the three pure status operations to ``sase_core_rs``
+without going through :func:`sase.core.backend.dispatch`. The Phase 6/7
+backend-selection plumbing (``SASE_CORE_BACKEND``, ``SASE_CORE_DUAL_RUN``)
+no longer affects these helpers; the only supported runtime is the Rust
+extension. The strict loader from :mod:`sase.core.rust` raises
+:class:`ImportError` when the wheel is missing and
+:class:`AttributeError` when the wheel is too old to expose the
+requested binding.
 
-- ``read_status_from_lines`` and ``apply_status_update`` are pure functions
-  over raw project-file lines. Phase 4D ships them as Rust-backed operations:
-  when ``sase_core_rs`` is importable the facade registers the binding as
-  ``rust_impl`` and ``SASE_CORE_BACKEND=rust`` routes through it. When the
-  extension exposes the binding ``SASE_CORE_DUAL_RUN=1`` runs both impls and
-  logs a comparison record. With no extension installed and the default
-  Python backend the facade keeps the existing pure-Python path; Rust mode
-  without the binding raises :class:`RustBackendUnavailableError`.
-- ``plan_status_transition`` is the pure decision engine introduced in
-  Phase 4E. The Python implementation lives in
-  :mod:`sase.core.status_wire_conversion`. When ``sase_core_rs`` exposes
-  ``plan_status_transition``, the facade registers it as ``rust_impl`` so
-  ``SASE_CORE_BACKEND=rust`` evaluates the transition decision in Rust and
-  ``SASE_CORE_DUAL_RUN=1`` compares the two plan dicts. The dispatcher
-  always returns the Python-typed :class:`StatusTransitionPlanWire` so
-  callers (notably :func:`transition_changespec_status_python`) never see
-  the cross-language dict layer.
-- ``transition_changespec_status`` performs disk IO (it acquires a lock and
-  rewrites the project file). It is intentionally Python-owned host logic
-  and calls :func:`transition_changespec_status_python` directly; the Rust
-  planner integration happens *inside* that function via the
+Three flavors live here:
+
+- ``read_status_from_lines`` and ``apply_status_update`` are pure
+  functions over raw project-file lines. They call
+  ``sase_core_rs.read_status_from_lines`` /
+  ``sase_core_rs.apply_status_update`` directly.
+- ``plan_status_transition`` is the pure decision engine (Phase 4E).
+  This facade marshals the request through
+  :func:`status_wire_to_json_dict`, calls
+  ``sase_core_rs.plan_status_transition``, and rebuilds the typed
+  :class:`StatusTransitionPlanWire` so callers (notably
+  :func:`transition_changespec_status_python`) never see the
+  cross-language dict layer.
+- ``transition_changespec_status`` performs disk IO (it acquires a lock
+  and rewrites the project file). It is intentionally Python-owned host
+  logic and calls :func:`transition_changespec_status_python` directly;
+  the Rust planner integration happens *inside* that function via the
   :func:`plan_status_transition` facade above.
+
+The Python golden helpers
+:func:`sase.status_state_machine.field_updates.read_status_from_lines_python`,
+:func:`sase.status_state_machine.field_updates.apply_status_update_python`,
+and :func:`sase.core.status_wire_conversion.plan_status_transition_python`
+remain in their original modules as host-logic / golden-contract
+references — they are the source of truth for the byte-for-byte parity
+tests against the Rust implementations and survive Phase 8E's facade
+re-wiring as documented host logic, not as backend fallbacks.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.core.backend import dispatch, load_rust_extension
+from sase.core.rust import require_rust_binding
 from sase.core.status_wire import (
     StatusTransitionPlanWire,
     StatusTransitionRequestWire,
     status_plan_from_dict,
     status_wire_to_json_dict,
-)
-from sase.core.status_wire_conversion import plan_status_transition_python
-from sase.status_state_machine.field_updates import (
-    apply_status_update_python,
-    read_status_from_lines_python,
 )
 from sase.status_state_machine.siblings import SiblingRevertResult
 from sase.status_state_machine.transitions import transition_changespec_status_python
@@ -50,125 +56,39 @@ if TYPE_CHECKING:
     from rich.console import Console
 
 
-def _rust_read_status_from_lines_impl(
-    lines: list[str], changespec_name: str
-) -> str | None:
-    """Adapter from ``sase_core_rs.read_status_from_lines`` to a Python ``str | None``.
-
-    The PyO3 binding accepts the same positional arguments as the Python
-    helper and returns a plain string or ``None``; the adapter exists so a
-    later import-time disappearance of the extension surfaces with a clear
-    traceback instead of an :class:`AttributeError`.
-    """
-    rust_module = load_rust_extension()
-    if rust_module is None:
-        raise RuntimeError(
-            "sase_core_rs is not importable; the Rust backend was registered "
-            "but the extension module disappeared at call time."
-        )
-    return rust_module.read_status_from_lines(lines, changespec_name)  # type: ignore[attr-defined,no-any-return]
-
-
-def _rust_apply_status_update_impl(
-    lines: list[str], changespec_name: str, new_status: str
-) -> str:
-    """Adapter from ``sase_core_rs.apply_status_update`` to a Python ``str``."""
-    rust_module = load_rust_extension()
-    if rust_module is None:
-        raise RuntimeError(
-            "sase_core_rs is not importable; the Rust backend was registered "
-            "but the extension module disappeared at call time."
-        )
-    return rust_module.apply_status_update(  # type: ignore[attr-defined,no-any-return]
-        lines, changespec_name, new_status
-    )
-
-
-def _rust_plan_status_transition_impl(
-    request: StatusTransitionRequestWire,
-) -> StatusTransitionPlanWire:
-    """Adapter from ``sase_core_rs.plan_status_transition`` to a typed plan.
-
-    The PyO3 binding accepts a request-shape dict and returns a plan-shape
-    dict; this rebuilds :class:`StatusTransitionPlanWire` via
-    :func:`status_plan_from_dict` so callers see the same Python record
-    regardless of backend.
-    """
-    rust_module = load_rust_extension()
-    if rust_module is None:
-        raise RuntimeError(
-            "sase_core_rs is not importable; the Rust backend was registered "
-            "but the extension module disappeared at call time."
-        )
-    payload: dict[str, Any] = rust_module.plan_status_transition(  # type: ignore[attr-defined]
-        status_wire_to_json_dict(request),
-    )
-    return status_plan_from_dict(payload)
-
-
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
-    """Read the STATUS field from raw project-file lines via the active backend."""
-    rust_module = load_rust_extension()
-    rust_impl = (
-        _rust_read_status_from_lines_impl
-        if rust_module is not None and hasattr(rust_module, "read_status_from_lines")
-        else None
-    )
-    return dispatch(
-        operation="read_status_from_lines",
-        python_impl=read_status_from_lines_python,
-        rust_impl=rust_impl,
-        args=(lines, changespec_name),
-    )
+    """Read the STATUS field from raw project-file lines via ``sase_core_rs``."""
+    binding = require_rust_binding("read_status_from_lines")
+    return binding(lines, changespec_name)  # type: ignore[no-any-return]
 
 
 def apply_status_update(lines: list[str], changespec_name: str, new_status: str) -> str:
-    """Return updated file content with the STATUS line rewritten."""
-    rust_module = load_rust_extension()
-    rust_impl = (
-        _rust_apply_status_update_impl
-        if rust_module is not None and hasattr(rust_module, "apply_status_update")
-        else None
-    )
-    return dispatch(
-        operation="apply_status_update",
-        python_impl=apply_status_update_python,
-        rust_impl=rust_impl,
-        args=(lines, changespec_name, new_status),
-    )
+    """Return updated file content with the STATUS line rewritten via ``sase_core_rs``."""
+    binding = require_rust_binding("apply_status_update")
+    return binding(lines, changespec_name, new_status)  # type: ignore[no-any-return]
 
 
 def plan_status_transition(
     request: StatusTransitionRequestWire,
 ) -> StatusTransitionPlanWire:
-    """Plan a status transition for one ChangeSpec via the active backend.
+    """Plan a status transition for one ChangeSpec via ``sase_core_rs``.
 
     The request is the pre-gathered host context (parent status, blocking
     children, sibling info, existing-name set) — see
     :class:`StatusTransitionRequestWire` for the contract. The returned
-    plan describes the side effects the host should execute; this function
-    performs none of them.
+    plan describes the side effects the host should execute; this
+    function performs none of them.
 
-    Phase 4E classifies ``plan_status_transition`` as a shipped Rust
-    operation: under ``SASE_CORE_BACKEND=rust`` the binding is required and
-    a missing one raises :class:`RustBackendUnavailableError`. With the
-    default Python backend the pure decision engine in
-    :mod:`sase.core.status_wire_conversion` is used, and
-    ``SASE_CORE_DUAL_RUN=1`` runs both implementations and logs a
-    comparison record.
+    Phase 8E removes the backend dispatcher from this entry point: the
+    request is marshaled through :func:`status_wire_to_json_dict`, fed to
+    the Rust binding via :func:`require_rust_binding`, and the returned
+    dict is rehydrated into a typed :class:`StatusTransitionPlanWire`. A
+    missing wheel raises :class:`ImportError`; a stale wheel without the
+    binding raises :class:`AttributeError`.
     """
-    rust_module = load_rust_extension()
-    rust_impl = (
-        _rust_plan_status_transition_impl
-        if rust_module is not None and hasattr(rust_module, "plan_status_transition")
-        else None
-    )
-    return dispatch(
-        operation="plan_status_transition",
-        python_impl=plan_status_transition_python,
-        rust_impl=rust_impl,
-        args=(request,),
-    )
+    binding = require_rust_binding("plan_status_transition")
+    payload: dict[str, Any] = binding(status_wire_to_json_dict(request))
+    return status_plan_from_dict(payload)
 
 
 def transition_changespec_status(
@@ -180,14 +100,14 @@ def transition_changespec_status(
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
     """Transition a ChangeSpec STATUS.
 
-    This entry point is intentionally Python-owned host logic: it acquires a
-    file lock and applies disk-bound side effects (atomic rewrites, archive
-    moves, suffix renames, mentor flag updates, VCS calls). The Rust planner
-    integration happens *inside*
+    This entry point is intentionally Python-owned host logic: it
+    acquires a file lock and applies disk-bound side effects (atomic
+    rewrites, archive moves, suffix renames, mentor flag updates, VCS
+    calls). The Rust planner integration happens *inside*
     :func:`transition_changespec_status_python` via the
-    :func:`plan_status_transition` facade entry above, so the pure decision
-    step still routes through Rust while Python remains responsible for
-    every side effect. See the Phase 8A handoff operation disposition.
+    :func:`plan_status_transition` facade entry above, so the pure
+    decision step still routes through Rust while Python remains
+    responsible for every side effect.
     """
     return transition_changespec_status_python(
         project_file,

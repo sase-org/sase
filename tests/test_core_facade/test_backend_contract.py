@@ -43,29 +43,38 @@ from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 # RustBackendUnavailableError when ``SASE_CORE_BACKEND=rust`` and the
 # extension cannot expose its binding. The list mirrors the operation names
 # passed to ``dispatch(operation=...)`` inside ``src/sase/core/*_facade.py``.
+#
+# Phase 8E direct-wired the status (``read_status_from_lines``,
+# ``apply_status_update``, ``plan_status_transition``) and Git query
+# (``parse_git_name_status_z``, ``parse_git_branch_name``,
+# ``derive_git_workspace_name``, ``parse_git_conflicted_files``,
+# ``parse_git_local_changes``) helpers, so they no longer flow through
+# ``dispatch(...)`` and are intentionally absent from this list. The
+# per-facade tests at ``tests/test_core_facade/test_status.py`` and
+# ``tests/test_core_git_query.py`` cover the direct-Rust contract for
+# them instead.
 SHIPPED_OPERATIONS: tuple[str, ...] = (
     "parse_project_bytes",
     "parse_query",
     "scan_agent_artifacts",
-    "read_status_from_lines",
-    "apply_status_update",
-    "plan_status_transition",
-    "parse_git_name_status_z",
-    "parse_git_branch_name",
-    "derive_git_workspace_name",
-    "parse_git_conflicted_files",
-    "parse_git_local_changes",
 )
 
 
 # Operations that intentionally route through Python via the dispatcher's
 # ``rust_unavailable="python"`` opt-in. Phase 8C rewired all previously
 # unported facades (build_query_context, evaluate_query,
-# evaluate_query_with_context, build_changespec_graph_index,
-# transition_changespec_status, and Phase 8B's deferred evaluate_query_many)
-# to call their Python implementations directly without consulting the
-# dispatcher, so this list is now empty. Phase 8F deletes the dispatcher
-# entirely and retires this audit.
+# evaluate_query_with_context, build_changespec_graph_index, and
+# Phase 8B's deferred evaluate_query_many) to call their Python
+# implementations directly without consulting the dispatcher.  Phase 8E
+# also pulled transition_changespec_status off the dispatcher (now a
+# direct call into transition_changespec_status_python documented as
+# host logic), and direct-wired the status / Git query helpers
+# (read_status_from_lines, apply_status_update, plan_status_transition,
+# parse_git_name_status_z, parse_git_branch_name,
+# derive_git_workspace_name, parse_git_conflicted_files,
+# parse_git_local_changes) to ``sase_core_rs`` via
+# :func:`sase.core.rust.require_rust_binding`. The list is therefore
+# empty; Phase 8F deletes the dispatcher entirely and retires this audit.
 UNPORTED_OPERATIONS: tuple[str, ...] = ()
 
 

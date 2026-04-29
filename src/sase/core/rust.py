@@ -54,7 +54,6 @@ def require_rust_extension() -> Any:
         ) from exc
 
 
-# pyvision: tests/test_core_rust.py
 def require_rust_binding(name: str) -> Any:
     """Return ``sase_core_rs.<name>`` or raise with operation-specific text.
 

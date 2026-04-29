@@ -4,29 +4,29 @@ The Phase 5B contract guarantees that
 :mod:`sase.core.git_query_facade` produces the exact strings exercised
 here. The Phase 5C Rust implementations must match byte-for-byte,
 including the rename/copy ``"<old>\\t<new>"`` encoding, the detached-HEAD
-sentinel handling, and the workspace-name remote-vs-root priority. The
-Phase 5D backend-dispatch tests at the bottom cover the Rust dispatch
-wiring with a fake ``sase_core_rs`` module and (when the real extension
-is installed) verify parity against the Python facade.
+sentinel handling, and the workspace-name remote-vs-root priority.
+
+Phase 8E direct-wires every helper to ``sase_core_rs``: the dispatch /
+dual-run / env-var tests are gone. The remaining tests assert the
+content contract (via the real Rust binding when installed) and the
+direct-call wiring (a missing wheel raises :class:`ImportError`; a
+stale wheel without the binding raises :class:`AttributeError`; a
+registered fake binding is called for every helper). The Python golden
+helpers in :mod:`sase.core.git_query_facade` are retained as host-logic
+references for the parity test at the bottom.
 """
 
 from __future__ import annotations
 
-import json
+import importlib
+import importlib.util
 import sys
 import types
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    DUAL_RUN_ENV_VAR,
-    RUST_EXTENSION_MODULE_NAME,
-    RustBackendUnavailableError,
-)
-from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
+from sase.core.backend import RUST_EXTENSION_MODULE_NAME
 from sase.core.git_query_facade import (
     derive_git_workspace_name,
     derive_git_workspace_name_python,
@@ -46,7 +46,12 @@ from sase.core.git_query_wire import (
     git_query_wire_to_json_dict,
 )
 
-pytestmark = pytest.mark.usefixtures("python_core_backend")
+
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec(RUST_EXTENSION_MODULE_NAME) is None,
+    reason="sase_core_rs is required for direct-Rust git facade tests.",
+)
+
 
 # ---------------------------------------------------------------------------
 # parse_git_name_status_z
@@ -96,8 +101,6 @@ def test_parse_name_status_mixed_simple_and_rename_in_one_stream() -> None:
 
 def test_parse_name_status_truncated_status_only_drops_entry() -> None:
     """A trailing status with no following path is silently dropped."""
-    # Status ``M`` with no path field — the current Python parser
-    # tolerates this and skips the entry.
     stream = "M\0a.py\0M"
     assert parse_git_name_status_z(stream) == [("M", "a.py")]
 
@@ -105,11 +108,11 @@ def test_parse_name_status_truncated_status_only_drops_entry() -> None:
 def test_parse_name_status_truncated_rename_falls_back_to_single_path() -> None:
     """A trailing rename with only one path field degrades to a single-path entry.
 
-    The current Python parser checks for two paths (``i + 1 < len(parts)``)
-    and, when that fails, falls through to the single-path branch
-    (``i < len(parts)``) so the rename is recorded with just the
-    available path. Rust must preserve this behavior — flagged in
-    Phase 5A as forgiving rather than buggy.
+    The Python golden parser checks for two paths
+    (``i + 1 < len(parts)``) and, when that fails, falls through to the
+    single-path branch (``i < len(parts)``) so the rename is recorded
+    with just the available path. Rust must preserve this behavior —
+    flagged in Phase 5A as forgiving rather than buggy.
     """
     stream = "M\0a.py\0R100\0only_one_path.py"
     assert parse_git_name_status_z(stream) == [
@@ -277,35 +280,28 @@ def test_git_query_wire_to_json_dict_handles_lists() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 5D — Backend dispatch wiring
+# Phase 8E — direct-Rust call wiring
 # ---------------------------------------------------------------------------
 
-# Fixed inputs used by every dispatch test below. Kept tiny so each test
-# is dominated by the dispatch path, not the parser.
+# Fixed inputs used by every wiring test below. Kept tiny so each test
+# is dominated by the call path, not the parser.
 _NAME_STATUS_INPUT = "M\0a.py\0R100\0old.py\0new.py\0"
-_NAME_STATUS_EXPECTED = [("M", "a.py"), ("R100", "old.py\tnew.py")]
 _BRANCH_INPUT = "feature/x\n"
-_BRANCH_EXPECTED = "feature/x"
 _WORKSPACE_REMOTE = "https://github.com/sase-org/sase_100.git"
-_WORKSPACE_EXPECTED = "sase_100"
 _CONFLICTED_INPUT = "src/a.py\n\nsrc/b.py\n"
-_CONFLICTED_EXPECTED = ["src/a.py", "src/b.py"]
 _LOCAL_CHANGES_INPUT = "M src/a.py\n"
-_LOCAL_CHANGES_EXPECTED = "M src/a.py"
 
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``load_rust_extension`` and ``is_rust_available`` see no module."""
+    """Make ``load_rust_extension`` see no module."""
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    real_import_module = importlib.import_module
 
-    def fail(name: str) -> object:
+    def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
         if name == RUST_EXTENSION_MODULE_NAME:
             raise ImportError(f"No module named {name!r}")
-        return _real_import(name)
+        return real_import_module(name, *args, **kwargs)
 
-    import importlib
-
-    _real_import = importlib.import_module
     monkeypatch.setattr(importlib, "import_module", fail)
 
 
@@ -320,82 +316,33 @@ def _install_fake_git_module(
     return fake
 
 
-# --- explicit Python backend -------------------------------------------------
-
-
-def test_dispatch_python_backend_uses_python_for_all_helpers(
+def test_facade_calls_rust_binding_for_all_helpers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no Rust extension and ``SASE_CORE_BACKEND=python``, every helper stays Python."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    _force_no_rust_extension(monkeypatch)
-
-    assert parse_git_name_status_z(_NAME_STATUS_INPUT) == _NAME_STATUS_EXPECTED
-    assert parse_git_branch_name(_BRANCH_INPUT) == _BRANCH_EXPECTED
-    assert derive_git_workspace_name(_WORKSPACE_REMOTE, None) == _WORKSPACE_EXPECTED
-    assert parse_git_conflicted_files(_CONFLICTED_INPUT) == _CONFLICTED_EXPECTED
-    assert parse_git_local_changes(_LOCAL_CHANGES_INPUT) == _LOCAL_CHANGES_EXPECTED
-
-
-def test_dispatch_python_backend_ignores_fake_rust_module(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A registered Rust binding is never called under explicit Python mode."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    rust_calls: list[str] = []
-
-    def boom(*_args: Any, **_kwargs: Any) -> Any:
-        rust_calls.append("called")
-        raise AssertionError("rust impl must not run under explicit python mode")
-
-    _install_fake_git_module(
-        monkeypatch,
-        parse_git_name_status_z=boom,
-        parse_git_branch_name=boom,
-        derive_git_workspace_name=boom,
-        parse_git_conflicted_files=boom,
-        parse_git_local_changes=boom,
-    )
-
-    assert parse_git_name_status_z(_NAME_STATUS_INPUT) == _NAME_STATUS_EXPECTED
-    assert parse_git_branch_name(_BRANCH_INPUT) == _BRANCH_EXPECTED
-    assert derive_git_workspace_name(_WORKSPACE_REMOTE, None) == _WORKSPACE_EXPECTED
-    assert parse_git_conflicted_files(_CONFLICTED_INPUT) == _CONFLICTED_EXPECTED
-    assert parse_git_local_changes(_LOCAL_CHANGES_INPUT) == _LOCAL_CHANGES_EXPECTED
-    assert rust_calls == []
-
-
-# --- Rust backend with fake module -----------------------------------------
-
-
-def test_dispatch_rust_backend_calls_rust_impl_for_all_helpers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``SASE_CORE_BACKEND=rust`` routes every helper through the fake binding."""
+    """Each facade entry point routes through the registered binding."""
     calls: dict[str, int] = {}
 
-    def fake_name_status(stdout: str) -> list[dict[str, str]]:
+    def fake_name_status(_stdout: str) -> list[dict[str, str]]:
         calls["parse_git_name_status_z"] = calls.get("parse_git_name_status_z", 0) + 1
-        # Rust binding returns dicts; the facade flattens them to tuples.
         return [{"status": "X", "path": "from-rust.py"}]
 
-    def fake_branch(stdout: str) -> str | None:
+    def fake_branch(_stdout: str) -> str | None:
         calls["parse_git_branch_name"] = calls.get("parse_git_branch_name", 0) + 1
         return "rust-branch"
 
-    def fake_workspace(remote_url: str | None, root_path: str | None) -> str | None:
+    def fake_workspace(_remote_url: str | None, _root_path: str | None) -> str | None:
         calls["derive_git_workspace_name"] = (
             calls.get("derive_git_workspace_name", 0) + 1
         )
         return "rust-workspace"
 
-    def fake_conflicted(stdout: str) -> list[str]:
+    def fake_conflicted(_stdout: str) -> list[str]:
         calls["parse_git_conflicted_files"] = (
             calls.get("parse_git_conflicted_files", 0) + 1
         )
         return ["rust-conflict.py"]
 
-    def fake_local_changes(stdout: str) -> str | None:
+    def fake_local_changes(_stdout: str) -> str | None:
         calls["parse_git_local_changes"] = calls.get("parse_git_local_changes", 0) + 1
         return "rust-dirty"
 
@@ -407,7 +354,6 @@ def test_dispatch_rust_backend_calls_rust_impl_for_all_helpers(
         parse_git_conflicted_files=fake_conflicted,
         parse_git_local_changes=fake_local_changes,
     )
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     assert parse_git_name_status_z(_NAME_STATUS_INPUT) == [("X", "from-rust.py")]
     assert parse_git_branch_name(_BRANCH_INPUT) == "rust-branch"
@@ -422,9 +368,6 @@ def test_dispatch_rust_backend_calls_rust_impl_for_all_helpers(
         "parse_git_conflicted_files": 1,
         "parse_git_local_changes": 1,
     }
-
-
-# --- Rust backend without binding -------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -449,115 +392,47 @@ def test_dispatch_rust_backend_calls_rust_impl_for_all_helpers(
         ),
     ],
 )
-def test_dispatch_rust_backend_without_binding_raises(
+def test_missing_extension_raises(
     monkeypatch: pytest.MonkeyPatch, call: Any, operation: str
 ) -> None:
-    """Each helper raises :class:`RustBackendUnavailableError` under Rust mode."""
+    """Each helper raises :class:`ImportError` when the extension is gone.
+
+    The ``operation`` parameter is unused for this case (the loader does
+    not know which binding the caller wanted yet) but is kept to match
+    the parametrize structure of :func:`test_partial_binding_raises_only_for_missing_helpers`.
+    """
+    del operation
     _force_no_rust_extension(monkeypatch)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    with pytest.raises(RustBackendUnavailableError) as excinfo:
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         call()
-    assert operation in str(excinfo.value)
 
 
-def test_dispatch_rust_backend_partial_binding_raises(
+def test_partial_binding_raises_only_for_missing_helpers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A Rust extension missing one binding still raises for that helper only."""
+    """A wheel missing one binding still raises for that helper only."""
 
-    def fake_branch(stdout: str) -> str | None:
+    def fake_branch(_stdout: str) -> str | None:
         return "rust-only-branch"
 
     _install_fake_git_module(monkeypatch, parse_git_branch_name=fake_branch)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     # Helper with the binding routes to Rust.
     assert parse_git_branch_name(_BRANCH_INPUT) == "rust-only-branch"
 
-    # Helpers without bindings still raise.
-    with pytest.raises(RustBackendUnavailableError):
+    # Helpers without bindings raise ``AttributeError`` with the missing op name.
+    with pytest.raises(AttributeError, match="parse_git_name_status_z"):
         parse_git_name_status_z(_NAME_STATUS_INPUT)
-    with pytest.raises(RustBackendUnavailableError):
+    with pytest.raises(AttributeError, match="parse_git_local_changes"):
         parse_git_local_changes(_LOCAL_CHANGES_INPUT)
-
-
-# --- Dual-run logging --------------------------------------------------------
-
-
-def test_dispatch_dual_run_logs_match_for_all_helpers(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Dual-run runs both impls, logs one record per call, returns Python output."""
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-
-    # The fake bindings mirror the Python output so every record matches.
-    def fake_name_status(stdout: str) -> list[dict[str, str]]:
-        wire = parse_git_name_status_z_python(stdout)
-        return [{"status": s, "path": p} for (s, p) in wire]
-
-    _install_fake_git_module(
-        monkeypatch,
-        parse_git_name_status_z=fake_name_status,
-        parse_git_branch_name=parse_git_branch_name_python,
-        derive_git_workspace_name=derive_git_workspace_name_python,
-        parse_git_conflicted_files=parse_git_conflicted_files_python,
-        parse_git_local_changes=parse_git_local_changes_python,
-    )
-
-    # Caller sees Python output regardless of dual-run.
-    assert parse_git_name_status_z(_NAME_STATUS_INPUT) == _NAME_STATUS_EXPECTED
-    assert parse_git_branch_name(_BRANCH_INPUT) == _BRANCH_EXPECTED
-    assert derive_git_workspace_name(_WORKSPACE_REMOTE, None) == _WORKSPACE_EXPECTED
-    assert parse_git_conflicted_files(_CONFLICTED_INPUT) == _CONFLICTED_EXPECTED
-    assert parse_git_local_changes(_LOCAL_CHANGES_INPUT) == _LOCAL_CHANGES_EXPECTED
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert [r["operation"] for r in records] == [
-        "parse_git_name_status_z",
-        "parse_git_branch_name",
-        "derive_git_workspace_name",
-        "parse_git_conflicted_files",
-        "parse_git_local_changes",
-    ]
-    assert all(r["match"] is True for r in records)
-    assert all(r["error_class"] is None for r in records)
-
-
-def test_dispatch_dual_run_records_mismatch_for_name_status(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A diverging Rust impl is captured as ``match=False`` in the JSONL log."""
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-
-    def diverging(stdout: str) -> list[dict[str, str]]:
-        return []
-
-    _install_fake_git_module(monkeypatch, parse_git_name_status_z=diverging)
-
-    # Python output is still returned to the caller.
-    assert parse_git_name_status_z(_NAME_STATUS_INPUT) == _NAME_STATUS_EXPECTED
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 1
-    assert records[0]["operation"] == "parse_git_name_status_z"
-    assert records[0]["match"] is False
 
 
 # --- Real-extension parity --------------------------------------------------
 
 
 def test_rust_extension_parity_for_all_helpers() -> None:
-    """When ``sase_core_rs`` is installed, its output matches the Python facade."""
-    rust_module = pytest.importorskip("sase_core_rs")
+    """When ``sase_core_rs`` is installed, its output matches the Python golden helpers."""
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     for binding in (
         "parse_git_name_status_z",
         "parse_git_branch_name",

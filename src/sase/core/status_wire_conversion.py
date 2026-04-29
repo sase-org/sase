@@ -95,6 +95,7 @@ def _failure_plan(
     )
 
 
+# pyvision: tests/test_core_status_wire.py
 def plan_status_transition_python(
     request: StatusTransitionRequestWire,
 ) -> StatusTransitionPlanWire:

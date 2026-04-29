@@ -1,8 +1,8 @@
-"""Tests for ``sase.core.status_facade`` (Phase 4D/4E)."""
+"""Tests for ``sase.core.status_facade`` (Phase 8E direct-Rust wiring)."""
 
 from __future__ import annotations
 
-import json
+import importlib
 import sys
 import types
 from pathlib import Path
@@ -10,12 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.core import status_facade
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    RUST_EXTENSION_MODULE_NAME,
-    RustBackendUnavailableError,
-)
-from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
+from sase.core.backend import RUST_EXTENSION_MODULE_NAME
 
 from tests.test_core_facade._helpers import (
     SAMPLE_PROJECT_TEXT,
@@ -23,10 +18,23 @@ from tests.test_core_facade._helpers import (
     install_fake_status_module,
 )
 
-pytestmark = pytest.mark.usefixtures("python_core_backend")
+
+def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make :func:`sase.core.backend.load_rust_extension` see no module."""
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    real_import_module = importlib.import_module
+
+    def fail(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if name == RUST_EXTENSION_MODULE_NAME:
+            raise ImportError(f"No module named {name!r}")
+        return real_import_module(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", fail)
 
 
 def test_status_facade_pure_helpers(sample_project: Path) -> None:
+    """The pure line helpers route through the real Rust binding by default."""
+    pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     lines = sample_project.read_text().splitlines(keepends=True)
     assert status_facade.read_status_from_lines(lines, "example") == "WIP"
     rewritten = status_facade.apply_status_update(lines, "example", "Draft")
@@ -35,36 +43,41 @@ def test_status_facade_pure_helpers(sample_project: Path) -> None:
     assert "STATUS: WIP" in "".join(lines)
 
 
-def test_status_facade_line_helpers_rust_without_binding_raises(
+def test_status_facade_line_helpers_missing_extension_raises(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Phase 4D classifies the line helpers as shipped Rust ops.
-
-    Under ``SASE_CORE_BACKEND=rust`` the facade must raise
-    :class:`RustBackendUnavailableError` instead of silently using the
-    Python implementation when the ``sase_core_rs`` binding for these
-    helpers is missing.
-    """
-    install_fake_status_module(monkeypatch)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    """When ``sase_core_rs`` is missing the strict loader raises ``ImportError``."""
+    _force_no_rust_extension(monkeypatch)
     lines = sample_project.read_text().splitlines(keepends=True)
 
-    with pytest.raises(RustBackendUnavailableError, match="read_status_from_lines"):
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         status_facade.read_status_from_lines(lines, "example")
-    with pytest.raises(RustBackendUnavailableError, match="apply_status_update"):
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         status_facade.apply_status_update(lines, "example", "Draft")
 
 
-def test_status_facade_line_helpers_rust_backend_uses_rust_impl(
+def test_status_facade_line_helpers_missing_binding_raises(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``SASE_CORE_BACKEND=rust`` calls the registered Rust line-helper bindings."""
+    """A wheel without the binding raises ``AttributeError`` with the op name."""
+    install_fake_status_module(monkeypatch)
+    lines = sample_project.read_text().splitlines(keepends=True)
+
+    with pytest.raises(AttributeError, match="read_status_from_lines"):
+        status_facade.read_status_from_lines(lines, "example")
+    with pytest.raises(AttributeError, match="apply_status_update"):
+        status_facade.apply_status_update(lines, "example", "Draft")
+
+
+def test_status_facade_line_helpers_call_rust_binding(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The facade calls the registered ``sase_core_rs`` line-helper bindings."""
     read_calls: list[tuple[list[str], str]] = []
     apply_calls: list[tuple[list[str], str, str]] = []
 
     def fake_read(lines: list[str], name: str) -> str:
         read_calls.append((list(lines), name))
-        # Sentinel so we can verify the Rust path's output reaches callers.
         return "RUST_SENTINEL"
 
     def fake_apply(lines: list[str], name: str, new_status: str) -> str:
@@ -76,7 +89,6 @@ def test_status_facade_line_helpers_rust_backend_uses_rust_impl(
         read_status_from_lines=fake_read,
         apply_status_update=fake_apply,
     )
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     lines = sample_project.read_text().splitlines(keepends=True)
     assert status_facade.read_status_from_lines(lines, "example") == "RUST_SENTINEL"
@@ -87,69 +99,14 @@ def test_status_facade_line_helpers_rust_backend_uses_rust_impl(
     assert apply_calls == [(lines, "example", "Draft")]
 
 
-def test_status_facade_line_helpers_dual_run_logs_comparison(
-    sample_project: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Dual-run runs both impls, logs one record per call, returns Python output."""
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv("SASE_CORE_DUAL_RUN", "1")
-
-    lines = sample_project.read_text().splitlines(keepends=True)
-
-    # Mirror Python output byte-for-byte so the dual-run record is a match.
-    from sase.status_state_machine.field_updates import (
-        apply_status_update_python,
-        read_status_from_lines_python,
-    )
-
-    py_read = read_status_from_lines_python(lines, "example")
-    py_apply = apply_status_update_python(lines, "example", "Draft")
-
-    read_calls: list[str] = []
-    apply_calls: list[str] = []
-
-    def fake_read(_rust_lines: list[str], name: str) -> str | None:
-        read_calls.append(name)
-        return py_read
-
-    def fake_apply(_rust_lines: list[str], name: str, _new_status: str) -> str:
-        apply_calls.append(name)
-        return py_apply
-
-    install_fake_status_module(
-        monkeypatch,
-        read_status_from_lines=fake_read,
-        apply_status_update=fake_apply,
-    )
-
-    # This Python-contract test pins the backend explicitly; dual-run still
-    # routes through both impls.
-    assert status_facade.read_status_from_lines(lines, "example") == py_read
-    assert status_facade.apply_status_update(lines, "example", "Draft") == py_apply
-    assert read_calls == ["example"]
-    assert apply_calls == ["example"]
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 2
-    ops = {rec["operation"] for rec in records}
-    assert ops == {"read_status_from_lines", "apply_status_update"}
-    for rec in records:
-        assert rec["match"] is True
-        assert rec["error_class"] is None
-
-
 def test_status_facade_line_helpers_real_extension_parity(
     sample_project: Path,
 ) -> None:
-    """When ``sase_core_rs`` is installed, Rust and Python produce identical output.
+    """When ``sase_core_rs`` is installed, Rust matches the Python golden helpers.
 
-    Skips cleanly when the optional extension is missing so pure-Python
-    contributors are never blocked.
+    The Python helpers in :mod:`sase.status_state_machine.field_updates`
+    are the host-logic golden references; this test pins their
+    byte-for-byte parity with the direct Rust binding.
     """
     pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     from sase.status_state_machine.field_updates import (
@@ -158,16 +115,10 @@ def test_status_facade_line_helpers_real_extension_parity(
     )
 
     lines = sample_project.read_text().splitlines(keepends=True)
-    rust_module = sys.modules[RUST_EXTENSION_MODULE_NAME]
-    if not hasattr(rust_module, "read_status_from_lines"):
-        pytest.skip("sase_core_rs is too old (no read_status_from_lines).")
-    if not hasattr(rust_module, "apply_status_update"):
-        pytest.skip("sase_core_rs is too old (no apply_status_update).")
-
-    assert rust_module.read_status_from_lines(  # type: ignore[attr-defined]
+    assert status_facade.read_status_from_lines(
         lines, "example"
     ) == read_status_from_lines_python(lines, "example")
-    assert rust_module.apply_status_update(  # type: ignore[attr-defined]
+    assert status_facade.apply_status_update(
         lines, "example", "Draft"
     ) == apply_status_update_python(lines, "example", "Draft")
 
@@ -175,8 +126,9 @@ def test_status_facade_line_helpers_real_extension_parity(
 # === plan_status_transition (Phase 4E) =======================================
 
 
-def test_plan_status_transition_python_backend() -> None:
-    """Explicit Python backend produces the same plan as the pure helper."""
+def test_plan_status_transition_against_python_golden() -> None:
+    """The facade output matches :func:`plan_status_transition_python` byte-for-byte."""
+    pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     from sase.core.status_wire_conversion import plan_status_transition_python
 
     request = basic_plan_request()
@@ -187,29 +139,28 @@ def test_plan_status_transition_python_backend() -> None:
     assert via_facade.status_update_target == "Draft"
 
 
-def test_plan_status_transition_rust_without_binding_raises(
+def test_plan_status_transition_missing_extension_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Phase 4E classifies the planner as a shipped Rust op.
-
-    Under ``SASE_CORE_BACKEND=rust`` a missing ``plan_status_transition``
-    binding must raise rather than silently fall through to Python.
-    """
-    install_fake_status_module(monkeypatch)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    with pytest.raises(RustBackendUnavailableError, match="plan_status_transition"):
+    """When ``sase_core_rs`` is missing the planner facade raises ``ImportError``."""
+    _force_no_rust_extension(monkeypatch)
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         status_facade.plan_status_transition(basic_plan_request())
 
 
-def test_plan_status_transition_rust_backend_uses_rust_impl(
+def test_plan_status_transition_missing_binding_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``SASE_CORE_BACKEND=rust`` calls the registered ``plan_status_transition`` binding.
+    """A wheel without the binding raises ``AttributeError`` with the op name."""
+    install_fake_status_module(monkeypatch)
+    with pytest.raises(AttributeError, match="plan_status_transition"):
+        status_facade.plan_status_transition(basic_plan_request())
 
-    The fake binding returns a sentinel plan dict (success=True with a
-    distinctive status_update_target) so we can verify the Rust path's
-    output reaches callers without a silent Python fallback.
-    """
+
+def test_plan_status_transition_calls_rust_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The facade marshals the request and rehydrates the typed plan."""
     from sase.core.status_wire import (
         STATUS_WIRE_SCHEMA_VERSION,
         SUFFIX_ACTION_NONE,
@@ -240,7 +191,6 @@ def test_plan_status_transition_rust_backend_uses_rust_impl(
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.plan_status_transition = fake_plan  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     plan = status_facade.plan_status_transition(request)
     assert plan.status_update_target == "RUST_SENTINEL"
@@ -250,51 +200,10 @@ def test_plan_status_transition_rust_backend_uses_rust_impl(
     assert captured == [status_wire_to_json_dict(request)]
 
 
-def test_plan_status_transition_dual_run_logs_comparison(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Dual-run runs both impls, logs a record, returns the Python plan."""
-    from sase.core.status_wire import status_wire_to_json_dict
-    from sase.core.status_wire_conversion import plan_status_transition_python
-
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv("SASE_CORE_DUAL_RUN", "1")
-
-    request = basic_plan_request()
-    py_plan = plan_status_transition_python(request)
-    py_plan_dict = status_wire_to_json_dict(py_plan)
-
-    rust_calls: list[dict] = []
-
-    def fake_plan(payload: dict) -> dict:
-        rust_calls.append(payload)
-        return py_plan_dict
-
-    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
-    fake.plan_status_transition = fake_plan  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-
-    plan = status_facade.plan_status_transition(request)
-    # The Python plan is what callers see, even under dual-run.
-    assert plan == py_plan
-    assert rust_calls == [status_wire_to_json_dict(request)]
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 1
-    rec = records[0]
-    assert rec["operation"] == "plan_status_transition"
-    assert rec["match"] is True
-    assert rec["error_class"] is None
-
-
 def test_plan_status_transition_rust_error_surfaces(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A Rust-side ``ValueError`` propagates instead of silently falling back."""
+    """A Rust-side ``ValueError`` propagates instead of being swallowed."""
 
     def boom(_payload: dict) -> dict:
         raise ValueError("rust planner: schema mismatch")
@@ -302,15 +211,12 @@ def test_plan_status_transition_rust_error_surfaces(
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     fake.plan_status_transition = boom  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     with pytest.raises(ValueError, match="schema mismatch"):
         status_facade.plan_status_transition(basic_plan_request())
 
 
-def test_plan_status_transition_real_extension_parity(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_plan_status_transition_real_extension_parity() -> None:
     """When ``sase_core_rs`` is installed, the Rust planner matches Python.
 
     Skips cleanly when the optional extension is missing so a pure-Python
@@ -319,7 +225,6 @@ def test_plan_status_transition_real_extension_parity(
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     if not hasattr(rust_module, "plan_status_transition"):
         pytest.skip("sase_core_rs is too old (no plan_status_transition).")
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     from sase.core.status_wire_conversion import plan_status_transition_python
 
@@ -339,9 +244,8 @@ def test_transition_changespec_status_uses_planner_facade(
     """End-to-end: the in-lock decision step routes through the planner facade.
 
     A fake plan returned by the facade must be honored by the side-effect
-    pipeline — proving the refactored
-    :func:`transition_changespec_status_python` no longer hard-codes the
-    pure decision.
+    pipeline — proving :func:`transition_changespec_status_python` no
+    longer hard-codes the pure decision.
     """
     from sase.core.status_wire import (
         STATUS_WIRE_SCHEMA_VERSION,
@@ -399,11 +303,7 @@ def test_transition_changespec_status_uses_planner_facade(
 def test_transition_changespec_status_planner_failure_skips_side_effects(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A failing plan must short-circuit before any disk writes happen.
-
-    Mirrors the Phase 4E exit criterion that "Rust rejects a transition
-    before writes occur".
-    """
+    """A failing plan must short-circuit before any disk writes happen."""
     from sase.core.status_wire import (
         STATUS_WIRE_SCHEMA_VERSION,
         StatusTransitionPlanWire,
