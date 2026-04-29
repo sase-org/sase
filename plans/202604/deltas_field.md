@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 20:29:35
-status: wip
+status: done
 bead_id: sase-13
 ---
 # Plan: DELTAS ChangeSpec Field
