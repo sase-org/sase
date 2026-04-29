@@ -133,7 +133,7 @@ def resolve_xprompt_aliases(prompt: str) -> str:
     return prompt
 
 
-def _expand_single_xprompt(
+def expand_single_xprompt(
     xprompt: XPrompt,
     positional_args: list[str],
     named_args: dict[str, str],
@@ -372,7 +372,7 @@ def process_xprompt_references(
                     positional_args, named_args
                 )
 
-                expanded = _expand_single_xprompt(
+                expanded = expand_single_xprompt(
                     xprompt, positional_args, named_args, scope=scope
                 )
 

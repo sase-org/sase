@@ -8,6 +8,12 @@
   ~/.config/sase/sase.yml (`xprompts` field).
 - **xprompt Part**: .md file → single `prompt_part` step with the file's content.
 - **xprompt Workflow**: .yml file → multiple steps (`prompt_part`, `python`, `bash`, etc.).
+- **Multi-agent xprompt**: An xprompt whose body contains `---` segment separators (outside fenced blocks). When
+  referenced as the sole content of a user-prompt segment (e.g. `sase run "#three_phase(login)"`), each body segment is
+  dispatched as its own agent via `launch_multi_prompt_agents`; all spawned agents share the same input arguments.
+  Detection and expansion live in `src/sase/agent/multi_agent_xprompt.py` and run after `parse_multi_prompt` at each
+  dispatch site (`launcher.py`, `_query.py`, TUI `_agent_launch.py`). Inline references inside another xprompt's body
+  are NOT re-split (handled by the agent runner's normal xprompt expansion).
 - **Epic work automation**: `sase bead work <epic_id>` flips the epic plan's `is_ready_to_work` flag, builds a Kahn-wave
   schedule from the epic's open phase children, pre-claims each phase bead (`status=in_progress`,
   `assignee=<phase_bead_id>` — i.e. `<epic_id>.<N>`), and hands a single `---`-separated multi-prompt to

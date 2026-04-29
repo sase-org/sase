@@ -10,7 +10,7 @@ from sase.xprompt._parsing import (
     parse_workflow_reference,
 )
 from sase.xprompt.models import XPrompt
-from sase.xprompt.processor import _expand_single_xprompt
+from sase.xprompt.processor import expand_single_xprompt
 
 # Tests for parse_named_arg
 
@@ -33,13 +33,13 @@ def testsubstitute_placeholders_jinja2_missing_var_error() -> None:
         substitute_placeholders("Hello {{ name }}!", [], {}, "test")
 
 
-# Tests for _expand_single_xprompt
+# Tests for expand_single_xprompt
 
 
-def test_expand_single_xprompt_mixed_args_jinja2() -> None:
+def testexpand_single_xprompt_mixed_args_jinja2() -> None:
     """Test expanding Jinja2 xprompt with mixed positional and named args."""
     xprompt = XPrompt(name="msg", content="{{ _1 }} says {{ message }}")
-    result = _expand_single_xprompt(xprompt, ["Alice"], {"message": "hello"})
+    result = expand_single_xprompt(xprompt, ["Alice"], {"message": "hello"})
     assert result == "Alice says hello"
 
 

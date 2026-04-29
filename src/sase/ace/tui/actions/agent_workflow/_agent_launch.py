@@ -161,9 +161,13 @@ class AgentLaunchMixin(
         # (sase run) behavior: each segment handles its own VCS resolution
         # in the agent runner, avoiding per-segment workspace allocation
         # at the TUI level.
+        from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
         from sase.agent.multi_prompt import parse_multi_prompt
 
         multi = parse_multi_prompt(prompt)
+        multi.segments = expand_multi_agent_xprompts(
+            multi.segments, multi.local_xprompts
+        )
         if len(multi.segments) > 1:
             mp_vcs_ref: tuple[str, str] | None = None
             ref_patterns = get_ref_patterns()

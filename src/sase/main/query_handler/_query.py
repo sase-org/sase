@@ -118,12 +118,28 @@ def run_query(
 
     # Parse user-prompt frontmatter for local xprompts (after history save
     # so prompt history retains the original frontmatter).
+    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
     from sase.agent.multi_prompt import parse_multi_prompt
 
     multi = parse_multi_prompt(query)
     local_xprompts = multi.local_xprompts
+    expanded_segments = expand_multi_agent_xprompts(
+        multi.segments, multi.local_xprompts
+    )
+
+    # If a multi-agent xprompt expanded into multiple segments, hand off to the
+    # spawn-based dispatch path.  Multi-agent dispatch needs subprocesses
+    # (each agent has its own workspace and artifacts dir), which the
+    # in-process foreground path cannot provide.
+    if len(expanded_segments) > len(multi.segments):
+        from sase.agent.launcher import launch_agent_from_cwd
+
+        launch_result = launch_agent_from_cwd(query)
+        print(f"Agent started (PID {launch_result.pid})")
+        return
+
     if multi.frontmatter is not None:
-        query = "\n---\n".join(multi.segments)
+        query = "\n---\n".join(expanded_segments)
 
     try:
         # Build the full prompt

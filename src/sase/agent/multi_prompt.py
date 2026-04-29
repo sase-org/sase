@@ -23,6 +23,25 @@ from sase.xprompt.models import XPrompt
 _SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
+def split_segments_protecting_fences(body: str) -> list[str]:
+    """Split *body* on ``---`` separator lines, protecting fenced code blocks.
+
+    Empty/whitespace-only segments are dropped.  Used both by
+    :func:`parse_multi_prompt` (to split user-submitted prompts) and by
+    :mod:`sase.agent.multi_agent_xprompt` (to split a multi-agent xprompt body
+    after argument substitution).
+    """
+    blocks: list[str] = []
+    protected = protect_fenced_blocks(body, blocks)
+    raw_segments = _SEGMENT_SEP_RE.split(protected)
+    segments: list[str] = []
+    for seg in raw_segments:
+        restored = unprotect_fenced_blocks(seg, blocks).strip()
+        if restored:
+            segments.append(restored)
+    return segments
+
+
 @dataclass
 class MultiPrompt:
     """Result of parsing a user prompt into frontmatter and segments."""
@@ -63,19 +82,7 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
             )
             _validate_local_xprompt_names(local_xprompts)
 
-    # Protect fenced code blocks before splitting on ---.
-    blocks: list[str] = []
-    protected = protect_fenced_blocks(body, blocks)
-
-    # Split on --- separator lines.
-    raw_segments = _SEGMENT_SEP_RE.split(protected)
-
-    # Unprotect and strip; drop empty segments.
-    segments = []
-    for seg in raw_segments:
-        restored = unprotect_fenced_blocks(seg, blocks).strip()
-        if restored:
-            segments.append(restored)
+    segments = split_segments_protecting_fences(body)
 
     return MultiPrompt(
         frontmatter=frontmatter,

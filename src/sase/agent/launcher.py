@@ -263,12 +263,17 @@ def launch_agent_from_cwd(
     assert project_name is not None
 
     # --- Multi-prompt detection ---
-    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
+    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+    from sase.agent.multi_prompt import parse_multi_prompt
 
-    if is_multi_prompt(query):
+    multi = parse_multi_prompt(query)
+    expanded_segments = expand_multi_agent_xprompts(
+        multi.segments, multi.local_xprompts
+    )
+
+    if len(expanded_segments) > 1:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
-        multi = parse_multi_prompt(query)
         # Determine cl_name from VCS refs (lightweight pattern check).
         from sase.workspace_provider import get_ref_patterns
 
@@ -289,7 +294,7 @@ def launch_agent_from_cwd(
             branch_or_workspace=mp_cl_name if mp_cl_name != project_name else None,
         )
         results = launch_multi_prompt_agents(
-            segments=multi.segments,
+            segments=expanded_segments,
             local_xprompts=multi.local_xprompts,
             cl_name=mp_cl_name,
             project_file=project_file,
