@@ -147,8 +147,16 @@ loop.
   streaming API in Phase 3, do **not** introduce a long-lived artifact cache. Snapshot mode clears the research gate at
   typical workloads and the very-large-tree gap is dominated by Rust filesystem walk itself, which streaming cannot
   reduce.
-- **Future phases** — Phase 3H (rollout decision + handoff) lands next. Additional facade operations (graph index,
-  status helpers) become candidates for Rust re-implementation as they show up in profiles.
+- **Phase 3H** _(complete)_ — Verification, rollout decision, and Phase 3 close-out recorded in
+  `plans/202604/rust_backend_phase3_agent_scan_phase3h_handoff.md`. Rollout: `SASE_CORE_BACKEND` stays `python` by
+  default; the Rust path is shipped, parity-tested, and **opt-in**. Rust scan is 1.25×–1.55× faster end-to-end at the
+  workloads measured but does not clear the 2× research gate at the worst real workload (`~/.sase/projects`, 6.5k
+  records), and no per-operation default-Rust override is justified — `is_workflow_complete` is structurally slower on
+  the snapshot path because it removes the Python short-circuit. Phase 4 (status state machine) is still on the table
+  but should be re-profiled against a realistic home tree before committing.
+- **Future phases** — Additional facade operations (graph index, status helpers, agent-status state machine) become
+  candidates for Rust re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears
+  where Rust scan time is small but Python adaptation dominates.
 
 The migration strategy intentionally keeps the Rust core as a single crate that can be exposed through three different
 binding layers: PyO3 for the TUI/CLI (today), uniffi for mobile, and wasm for the web. See
