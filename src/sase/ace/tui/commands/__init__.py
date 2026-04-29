@@ -17,6 +17,8 @@ from sase.ace.tui.commands.catalog import (
     iter_digit_commands,
     iter_mode_commands,
 )
+from sase.ace.tui.commands.context import extract_command_context
+from sase.ace.tui.commands.execute import execute_command
 from sase.ace.tui.commands.types import (
     CommandAvailability,
     CommandCategory,
@@ -36,6 +38,8 @@ __all__ = [
     "CommandSpec",
     "CommandTab",
     "build_command_catalog",
+    "execute_command",
+    "extract_command_context",
     "is_command_available",
     "iter_app_commands",
     "iter_digit_commands",

@@ -471,3 +471,33 @@ class BaseActionsMixin:
         from ..modals import XPromptBrowserModal
 
         self.push_screen(XPromptBrowserModal())  # type: ignore[attr-defined]
+
+    def action_open_command_palette(self) -> None:
+        """Open the context-aware command palette modal (bound to ``:``)."""
+        from ..commands import (
+            CommandPaletteResult,
+            build_command_catalog,
+            execute_command,
+            extract_command_context,
+            is_command_available,
+        )
+        from ..modals.command_palette_modal import CommandPaletteModal
+
+        registry = self._keymap_registry  # type: ignore[attr-defined]
+        ctx = extract_command_context(self)  # type: ignore[arg-type]
+        catalog = build_command_catalog(registry)
+        applicable = [s for s in catalog if is_command_available(s, ctx)]
+        catalog_by_id = {s.id: s for s in catalog}
+
+        def _on_dismiss(result: CommandPaletteResult | None) -> None:
+            if result is None or result.selected_id is None:
+                return
+            spec = catalog_by_id.get(result.selected_id)
+            if spec is None:
+                return
+            execute_command(self, spec)  # type: ignore[arg-type]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            CommandPaletteModal(specs=applicable, tab=ctx.tab),
+            callback=_on_dismiss,
+        )
