@@ -192,6 +192,39 @@ jobs:
       - name: Build and verify package
         run: just build-check
 
+  # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
+  # Phase 7B core-operation benchmarks against the recorded
+  # tests/perf/baselines/phase7_regression_floor.json and fails on a
+  # regression. Slow/manual end-to-end TUI/home-tree measurements stay
+  # outside this gate (see plans/202604/rust_backend_phase7_phase7e_handoff.md).
+  phase7-perf-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run Phase 7E regression floor
+        run: just phase7-perf-check
+      - name: Upload floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-perf-floor-report
+          path: plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json
+
   # Phase 6B install-smoke scaffolding, tightened in Phase 6D to invoke the
   # `sase core health` command rather than open-coded import / binding
   # probes. Proves that a fresh `sase` install resolves the `sase-core-rs`

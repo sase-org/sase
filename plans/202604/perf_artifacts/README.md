@@ -84,3 +84,9 @@ to it from the surface's handoff instead of committing the raw file.
 
 These predate the Phase 7A naming convention and stay under their original names. New artifacts produced by Phase 7B
 and 7C must follow the convention above.
+
+## Runtime-generated (gitignored)
+
+- `rust_backend_phase7_floor_check.json` — Phase 7E regression-floor report. Regenerated every time
+  `just phase7-perf-check` runs (locally or in CI) and gitignored so per-machine measurements never get committed.
+  CI uploads this file as the `phase7-perf-floor-report` artifact so a regression can be inspected post-hoc.

@@ -307,10 +307,13 @@ parity-check *args: _setup
 bench-git-query-ops *args: _setup
     {{ venv_bin }}/python tests/perf/bench_git_query_ops.py {{ args }}
 
-# Phase 7 measurement smoke wrapper. Phase 7A only exercises the helper
-# package (metadata envelope + ratio/speedup helpers) so later agents
-# can produce comparable artifacts. Phase 7E will replace this with the
-# real regression-floor invocation once the stable subset is chosen.
-phase7-perf-check: _setup
-    @printf "\n---------- Phase 7 helper smoke (sase-1e.1) ----------\n"
-    {{ venv_bin }}/pytest -q tests/perf/phase7
+# Phase 7E regression floor (sase-1e.5). Runs the stable subset of
+# Phase 7B core-operation benchmarks under default Rust + explicit
+# Python in one process and fails if the current Rust median exceeds
+# the recorded ceiling or loses to Python on a "must beat python"
+# anchor. The JSON report lands at
+# `plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json`
+# so CI can upload it on failure.
+phase7-perf-check *args: _setup
+    @printf "\n---------- Phase 7E regression floor (sase-1e.5) ----------\n"
+    {{ venv_bin }}/python tests/perf/phase7_check_regression.py {{ args }}
