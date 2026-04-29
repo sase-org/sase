@@ -133,7 +133,7 @@ def build_mentor_review_data(
 
     # Load mentor outputs from disk, matching by status line timestamps
     timestamps = (
-        {sl.timestamp for sl in mentor_entry.status_lines}
+        {sl.timestamp for sl in mentor_entry.status_lines if sl.timestamp}
         if mentor_entry.status_lines
         else set()
     )
@@ -159,7 +159,9 @@ def build_mentor_review_data(
             seen.add(key)
 
             comments: list[dict[str, str | int]] = []
-            output: MentorOutput | None = ts_output_map.get(sl.timestamp)
+            output: MentorOutput | None = (
+                ts_output_map.get(sl.timestamp) if sl.timestamp else None
+            )
             if output is not None:
                 for c in output.comments:
                     comments.append(
@@ -189,10 +191,11 @@ def build_mentor_review_data(
     all_snapshots: dict[str, str] = {}
     if mentor_entry.status_lines:
         for sl in mentor_entry.status_lines:
-            snapshots = load_file_snapshots(
-                cl_name, sl.profile_name, sl.mentor_name, sl.timestamp
-            )
-            all_snapshots.update(snapshots)
+            if sl.timestamp:
+                snapshots = load_file_snapshots(
+                    cl_name, sl.profile_name, sl.mentor_name, sl.timestamp
+                )
+                all_snapshots.update(snapshots)
 
     acceptance = load_acceptance_state(cl_name, entry_id)
     read_state = load_read_state(cl_name, entry_id)

@@ -350,7 +350,7 @@ class MentorStatusLine:
     profile_name: str  # The mentor profile name
     mentor_name: str  # The mentor name within the profile
     status: str  # RUNNING, PASSED, FAILED, COMMENTED
-    timestamp: str  # YYmmdd_HHMMSS format, for linking to chat files
+    timestamp: str | None  # YYmmdd_HHMMSS format, for linking to chat files
     duration: str | None = None  # e.g., "0h2m15s" when complete
     suffix: str | None = (
         None  # e.g., "mentor_complete-12345-251230_151429" when running

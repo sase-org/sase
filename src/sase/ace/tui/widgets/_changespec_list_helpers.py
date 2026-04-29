@@ -66,7 +66,7 @@ def compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
         if not finished_lines:
             return None
 
-        timestamps = {sl.timestamp for sl in finished_lines}
+        timestamps = {sl.timestamp for sl in finished_lines if sl.timestamp}
         cl_name = changespec.name
         outputs = load_mentor_outputs_for_commit(cl_name, timestamps)
 
@@ -93,7 +93,7 @@ def compute_mentor_stats(changespec: ChangeSpec) -> _MentorCommentStats | None:
                 continue
             seen.add(key)
 
-            output = ts_map.get(sl.timestamp)
+            output = ts_map.get(sl.timestamp) if sl.timestamp else None
             if output is None:
                 continue
 

@@ -15,6 +15,7 @@ from sase.ace.changespec.models import (
     MentorStatusLine,
     TimestampEntry,
 )
+from sase.ace.changespec.parser import parse_project_file
 from sase.core.wire import (
     CHANGESPEC_WIRE_SCHEMA_VERSION,
     ChangeSpecWire,
@@ -170,6 +171,33 @@ def test_changespec_to_wire_full_round_trip() -> None:
     assert wire.mentors[0].profiles == ["profileA"]
     assert wire.timestamps[0].event_type == "STATUS"
     assert [d.change_type for d in wire.deltas] == ["A", "M", "D"]
+
+
+def test_running_mentor_without_timestamp_serializes_as_null(tmp_path) -> None:
+    project = tmp_path / "myproj.gp"
+    project.write_text(
+        """\
+NAME: missing_mentor_timestamp
+DESCRIPTION:
+PARENT:
+PR:
+STATUS: WIP
+MENTORS:
+  (1) profileA[1/1]
+      | profileA:mentor1 - RUNNING - (@: mentor_mentor1-123-260101_130000)
+"""
+    )
+
+    cs = parse_project_file(str(project))[0]
+    wire = changespec_to_wire(cs)
+    payload = to_json_dict(wire)
+
+    assert cs.mentors is not None
+    assert cs.mentors[0].status_lines is not None
+    status_line = cs.mentors[0].status_lines[0]
+    assert status_line.timestamp is None
+    assert wire.mentors[0].status_lines[0].timestamp is None
+    assert payload["mentors"][0]["status_lines"][0]["timestamp"] is None
 
 
 def test_changespec_to_wire_default_end_line_equals_start() -> None:

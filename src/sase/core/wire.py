@@ -99,7 +99,7 @@ class MentorStatusLineWire:
     profile_name: str
     mentor_name: str
     status: str
-    timestamp: str
+    timestamp: str | None
     duration: str | None = None
     suffix: str | None = None
     suffix_type: str | None = None

@@ -526,6 +526,37 @@ def test_evaluate_query_many_rust_backend_uses_rust_impl(
     assert calls == [('"example"', len(specs))]
 
 
+def test_evaluate_query_many_rust_backend_forwards_null_mentor_timestamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "myproj.gp"
+    project.write_text(
+        """\
+NAME: missing_mentor_timestamp
+DESCRIPTION:
+PARENT:
+PR:
+STATUS: WIP
+MENTORS:
+  (1) profileA[1/1]
+      | profileA:mentor1 - RUNNING - (@: mentor_mentor1-123-260101_130000)
+"""
+    )
+    specs = parser_facade.parse_project_file(str(project))
+
+    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
+        assert query == '"missing_mentor_timestamp"'
+        status_line = spec_dicts[0]["mentors"][0]["status_lines"][0]
+        assert status_line["timestamp"] is None
+        return [True]
+
+    _install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    result = query_facade.evaluate_query_many('"missing_mentor_timestamp"', specs)
+    assert result == [True]
+
+
 def test_evaluate_query_many_rust_backend_missing_binding_raises_cleanly(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
