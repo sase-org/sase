@@ -195,6 +195,29 @@ class GitQueryOpsMixin(CommandRunner):
         return f"origin/{self._get_default_branch(cwd)}"
 
     @hookimpl
+    def vcs_diff_name_status(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str]]:
+        from sase.vcs_provider._errors import VCSOperationError
+
+        out = self._run(
+            [
+                "git",
+                "diff",
+                "--name-status",
+                "-z",
+                f"{parent_ref}..{head_ref}",
+            ],
+            cwd,
+        )
+        if not out.success:
+            raise VCSOperationError(
+                "diff_name_status",
+                out.stderr.strip() or "git diff --name-status failed",
+            )
+        return _parse_git_name_status_z(out.stdout)
+
+    @hookimpl
     def vcs_file_at_revision(
         self, revision: str, file_path: str, cwd: str
     ) -> tuple[bool, str | None]:
@@ -322,3 +345,42 @@ class GitQueryOpsMixin(CommandRunner):
         new_msg = f"{current_msg}\n{tag_name}={tag_value}"
         amend_out = self._run(["git", "commit", "--amend", "-m", new_msg], cwd)
         return self._to_result(amend_out, "git commit --amend")
+
+
+def _parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
+    """Parse the NUL-delimited output of ``git diff --name-status -z``.
+
+    The output is a stream of NUL-separated fields: a status letter (e.g.
+    ``A``, ``M``, ``D``, ``R100``, ``C75``, ``T``, ``U``) followed by one
+    or two paths.  Rename/copy entries (``R``/``C``) are followed by *two*
+    paths (old, new); all other statuses are followed by exactly one.
+
+    Returns a list of ``(status_letter, path)`` tuples.  For renames and
+    copies the path is encoded as ``"<old>\\t<new>"`` so callers can split
+    it apart and decide how to surface the rename.
+    """
+    if not stdout:
+        return []
+    # `git diff -z` ends every field with a NUL; trim a trailing empty token.
+    parts = stdout.split("\0")
+    if parts and parts[-1] == "":
+        parts.pop()
+
+    result: list[tuple[str, str]] = []
+    i = 0
+    while i < len(parts):
+        status = parts[i]
+        i += 1
+        if not status:
+            continue
+        first_letter = status[0]
+        if first_letter in ("R", "C") and i + 1 < len(parts):
+            old_path = parts[i]
+            new_path = parts[i + 1]
+            i += 2
+            result.append((status, f"{old_path}\t{new_path}"))
+        elif i < len(parts):
+            path = parts[i]
+            i += 1
+            result.append((status, path))
+    return result

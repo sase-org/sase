@@ -167,6 +167,29 @@ class VCSProvider(ABC):
             "get_default_parent_revision is not supported by this VCS provider"
         )
 
+    def diff_name_status(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str]]:
+        """Return ``(status_letter, path)`` pairs between two refs.
+
+        Status letters follow ``git diff --name-status`` conventions: ``A``
+        (added), ``M`` (modified), ``D`` (deleted), ``R`` (renamed), ``C``
+        (copied), ``T`` (type-changed), ``U`` (unmerged).  Renames/copies
+        appear as ``R<score>`` / ``C<score>`` and the row carries both the
+        old and new path; the caller is responsible for splitting renames
+        and folding unknown letters.
+
+        For renamed entries, the returned ``path`` is encoded as
+        ``"<old>\\t<new>"`` so a single tuple carries both paths without
+        introducing a richer return type.
+
+        Raises:
+            VCSOperationError: When the underlying VCS query fails.
+        """
+        raise NotImplementedError(
+            "diff_name_status is not supported by this VCS provider"
+        )
+
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str
     ) -> tuple[bool, str | None]:
