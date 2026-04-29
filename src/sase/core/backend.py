@@ -33,7 +33,6 @@ from typing import Literal
 RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
 
-# pyvision: tests/test_core_backend.py
 class Backend(StrEnum):
     """Selected backend for sase.core dispatched operations."""
 
@@ -62,7 +61,6 @@ class RustBackendUnavailableError(RuntimeError):
     """Raised when the Rust backend is requested but no Rust impl is registered."""
 
 
-# pyvision: tests/test_core_backend.py
 def get_active_backend() -> Backend:
     """Return the backend selected by ``SASE_CORE_BACKEND`` (default python).
 
@@ -80,7 +78,6 @@ def get_active_backend() -> Backend:
     raise ValueError(f"Invalid {BACKEND_ENV_VAR}={raw!r}; expected 'python' or 'rust'.")
 
 
-# pyvision: tests/test_core_backend.py
 def is_dual_run_enabled() -> bool:
     """Return True when ``SASE_CORE_DUAL_RUN`` is set to a truthy value."""
     raw = os.environ.get(DUAL_RUN_ENV_VAR, "")

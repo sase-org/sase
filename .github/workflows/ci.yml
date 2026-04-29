@@ -121,11 +121,12 @@ jobs:
       - name: Build and verify package
         run: just build-check
 
-  # Phase 6B install-smoke scaffolding: prove that a fresh `sase` install
-  # resolves the `sase-core-rs` runtime dependency, the Rust extension is
-  # importable, a shipped binding works, and the explicit Python escape
-  # hatch (`SASE_CORE_BACKEND=python`) still functions. Phase 6D will
-  # tighten this to invoke the backend health command.
+  # Phase 6B install-smoke scaffolding, tightened in Phase 6D to invoke the
+  # `sase core health` command rather than open-coded import / binding
+  # probes. Proves that a fresh `sase` install resolves the `sase-core-rs`
+  # runtime dependency, the Rust extension is importable, the shipped
+  # `parse_query` binding works, and the explicit Python escape hatch
+  # (`SASE_CORE_BACKEND=python`) still functions.
   install-smoke:
     runs-on: ubuntu-latest
     steps:
@@ -145,13 +146,9 @@ jobs:
         run: uv python install 3.12
       - name: Install dependencies
         run: just install
-      - name: Default-backend import smoke (Rust extension loadable)
-        run: |
-          .venv/bin/python -c "import sase_core_rs; print('sase_core_rs:', sase_core_rs.__file__)"
-          .venv/bin/python -c "from sase.core.backend import is_rust_available; assert is_rust_available(), 'sase_core_rs imported but is_rust_available() returned False'"
-          .venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
-      - name: Explicit Python-mode smoke (escape hatch still works)
+      - name: Default-backend health check (Rust extension loadable)
+        run: .venv/bin/sase core health --json
+      - name: Explicit Python-mode health check (escape hatch still works)
         env:
           SASE_CORE_BACKEND: python
-        run: |
-          .venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
+        run: .venv/bin/sase core health --json

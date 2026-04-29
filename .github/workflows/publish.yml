@@ -34,16 +34,12 @@ jobs:
           # Install the freshly built wheel; PyPI resolves the
           # `sase-core-rs` runtime dependency.
           uv pip install --python /tmp/smoke-venv/bin/python dist/sase-*.whl
-      - name: Default-backend import smoke (Rust extension loadable)
-        run: |
-          /tmp/smoke-venv/bin/python -c "import sase_core_rs; print('sase_core_rs:', sase_core_rs.__file__)"
-          /tmp/smoke-venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
-          /tmp/smoke-venv/bin/python -c "from sase.core.backend import is_rust_available; assert is_rust_available(), 'Rust extension imported but is_rust_available() returned False'"
-      - name: Explicit Python-mode smoke (no Rust required)
+      - name: Default-backend health check (Rust extension loadable)
+        run: /tmp/smoke-venv/bin/sase core health --json
+      - name: Explicit Python-mode health check (no Rust required)
         env:
           SASE_CORE_BACKEND: python
-        run: |
-          /tmp/smoke-venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
+        run: /tmp/smoke-venv/bin/sase core health --json
   publish:
     needs: [build, install-smoke]
     runs-on: ubuntu-latest

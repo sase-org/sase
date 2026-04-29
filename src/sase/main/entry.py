@@ -122,6 +122,12 @@ def main() -> NoReturn:
 
         handle_config_command(args)
 
+    # --- core ---
+    if args.command == "core":
+        from .core_handler import handle_core_command
+
+        handle_core_command(args)
+
     # --- file ---
     if args.command == "file":
         from .file_handler import handle_file_command

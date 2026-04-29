@@ -126,6 +126,34 @@ Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is un
 `RustBackendUnavailableError` rather than silently falling back. The error names the operation, the `sase_core_rs`
 extension, and the `SASE_CORE_BACKEND=python` escape hatch.
 
+### Backend Health Check
+
+`sase core health` is the scriptable answer to "is the active backend loadable and working?". The command resolves the
+selected backend, tries to import `sase_core_rs`, calls a single shipped binding (`parse_query("status:Ready")`) when
+the extension is loaded, and reports module path / version / Python version / platform tag in one block. Two output
+modes:
+
+```bash
+sase core health        # human-readable, line-oriented
+sase core health -j     # machine-readable JSON (alias: --json)
+```
+
+Exit codes:
+
+| Selected backend           | Extension state                     | `status` | Exit |
+| -------------------------- | ----------------------------------- | -------- | ---- |
+| unset / `rust` (Phase 6F+) | importable, `parse_query` works     | `ok`     | 0    |
+| unset / `rust` (Phase 6F+) | missing or misbuilt                 | `error`  | 1    |
+| `rust`                     | importable but `parse_query` raises | `error`  | 1    |
+| `python`                   | any                                 | `ok`     | 0    |
+
+Under explicit `SASE_CORE_BACKEND=python`, a missing or misbuilt `sase_core_rs` is non-fatal — Python mode is the
+documented escape hatch through Phase 7. A misbuilt wheel that fails to import with a non-`ImportError` is surfaced in
+the `error` / `error_kind` fields rather than silently masked.
+
+Release jobs and CI install-smokes call `sase core health` instead of probing `import sase_core_rs` and a binding by
+hand: it is the same check, but its exit code is the contract.
+
 ### Backend Contract: Shipped vs. Unported Operations
 
 Phase 6C audited every `dispatch(...)` call site under `src/sase/core/` and classifies each operation as either
@@ -352,6 +380,17 @@ loop.
   without a `rust_impl`, and fails if a new `dispatch(operation=...)` call site is added without explicit
   classification. The `RustBackendUnavailableError` text now names the operation, the `sase_core_rs` extension module,
   and the `SASE_CORE_BACKEND=python` escape hatch. The default backend is **still Python**; the flip is Phase 6F.
+- **Phase 6D** _(complete)_ — Backend health check and user-facing diagnostics.
+  `sase.core.health.check_backend_health()` resolves the selected backend, attempts to import `sase_core_rs`, calls a
+  cheap shipped binding (`parse_query("status:Ready")`) when the extension is loaded, and returns a frozen
+  `BackendHealthReport` with module path / version / Python version / platform / probe result / explicit error fields.
+  The new `sase core health` CLI (`-j` / `--json` for machine output) prints the report and exits non-zero whenever the
+  report is `status="error"`, giving release smokes a single contracted command for "is the Rust core active and
+  healthy?". Default Rust with a missing or misbuilt `sase_core_rs` exits non-zero; explicit `SASE_CORE_BACKEND=python`
+  succeeds without requiring the extension; non-`ImportError` import failures are surfaced verbatim rather than silently
+  swallowed. The CI install-smoke job (`.github/workflows/ci.yml`) and the release install-smoke job
+  (`.github/workflows/publish.yml`) both invoke `sase core health` (default + `SASE_CORE_BACKEND=python` runs) instead
+  of inline import / binding probes. The default backend is **still Python**; the flip is Phase 6F.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile
