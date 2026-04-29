@@ -263,7 +263,6 @@ class StatusFieldUpdateWire:
     new_status: str
 
 
-# pyvision: tests/test_core_status_wire.py
 def status_wire_to_json_dict(record: Any) -> Any:
     """Project a status-wire dataclass to a JSON-safe shape.
 
@@ -330,7 +329,6 @@ def status_request_from_dict(data: dict[str, Any]) -> StatusTransitionRequestWir
     )
 
 
-# pyvision: tests/test_core_status_wire.py
 def status_plan_from_dict(data: dict[str, Any]) -> StatusTransitionPlanWire:
     """Rehydrate a :class:`StatusTransitionPlanWire` from a dict.
 

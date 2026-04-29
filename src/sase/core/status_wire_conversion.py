@@ -95,7 +95,6 @@ def _failure_plan(
     )
 
 
-# pyvision: tests/test_core_status_wire.py
 def plan_status_transition_python(
     request: StatusTransitionRequestWire,
 ) -> StatusTransitionPlanWire:
@@ -268,8 +267,8 @@ def plan_status_transition_python(
         and has_suffix(changespec_name)
         and request.siblings_with_unreverted_children
     ):
-        # Reproduce the first-hit error format from
-        # ``check_siblings_for_unreverted_children``.
+        # First-hit sibling NAME — the planner doesn't carry sibling
+        # statuses on the wire, so the rejection string omits the parens.
         sibling = request.siblings_with_unreverted_children[0]
         return _failure_plan(
             request,
@@ -321,7 +320,6 @@ def plan_status_transition_python(
     )
 
 
-# pyvision: tests/test_core_status_wire.py
 def build_status_transition_request(
     project_file: str,
     changespec_name: str,

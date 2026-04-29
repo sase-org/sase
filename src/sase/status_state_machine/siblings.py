@@ -19,51 +19,6 @@ class SiblingRevertResult:
     error: str | None = None
 
 
-def check_siblings_for_unreverted_children(
-    project_file: str,
-    base_name: str,
-    excluded_name: str,
-) -> str | None:
-    """Check if any sibling WIP/Draft ChangeSpec has unreverted children.
-
-    When transitioning a WIP/Draft ChangeSpec to Ready, sibling WIP/Draft
-    ChangeSpecs will be auto-reverted. This function checks if any of those
-    siblings have unreverted children, which would block the revert operation.
-
-    Args:
-        project_file: Path to the project file.
-        base_name: The base name without suffix (e.g., "foo_bar").
-        excluded_name: The original suffixed name that is being transitioned
-            (don't check this one).
-
-    Returns:
-        Error message if any sibling has unreverted children, None otherwise.
-    """
-    from sase.ace.changespec import find_all_changespecs, parse_project_file
-    from sase.ace.revert import has_children
-    from sase.core.changespec import strip_reverted_suffix
-
-    changespecs = parse_project_file(project_file)
-    all_changespecs = find_all_changespecs()
-
-    for cs in changespecs:
-        # Skip the one being transitioned
-        if cs.name == excluded_name:
-            continue
-
-        # Check if same basename and is WIP or Draft
-        cs_base = strip_reverted_suffix(cs.name)
-        if cs_base == base_name and cs.status in ("WIP", "Draft"):
-            # Check if this sibling has unreverted children
-            if has_children(cs, all_changespecs):
-                return (
-                    f"Cannot transition '{excluded_name}' to Ready: "
-                    f"sibling ChangeSpec '{cs.name}' ({cs.status}) has unreverted children."
-                )
-
-    return None
-
-
 def revert_sibling_draft_changespecs(
     project_file: str,
     base_name: str,

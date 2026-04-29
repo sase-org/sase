@@ -206,7 +206,10 @@ TEST TARGETS: None
         assert old_status == "Draft"
         assert error is not None
         assert "Cannot transition 'Child Feature' to Ready" in error
-        assert "parent 'Parent Feature' is Draft" in error
+        # The Phase 4B planner normalizes this error to omit the parent NAME
+        # (only the parent's status is on the wire). The previous handler
+        # included the parent name; this is the deliberate Phase 4 contract.
+        assert "parent is Draft" in error
         assert (
             "Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted" in error
         )

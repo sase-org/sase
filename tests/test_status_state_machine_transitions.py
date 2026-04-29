@@ -190,14 +190,9 @@ def test_draft_to_ready_records_timestamp_with_base_name() -> None:
                 return_value=True,
             ) as mock_ts,
         ):
-            # Simulate suffix_strip_info returned by handle_ready_transition
-            with patch(
-                "sase.status_state_machine.transitions.handle_ready_transition",
-                return_value=(True, "Draft", None, ("foo__1", "foo")),
-            ):
-                success, old_status, _, _ = transition_changespec_status(
-                    project_file, "foo__1", "Ready", validate=True
-                )
+            success, old_status, _, _ = transition_changespec_status(
+                project_file, "foo__1", "Ready", validate=True
+            )
 
             assert success is True
             assert old_status == "Draft"
@@ -279,7 +274,11 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
         assert old_status == "Draft"
         assert error is not None
         assert (
-            "sibling ChangeSpec 'foo_bar__2' (Draft) has unreverted children" in error
+            # The Phase 4B planner normalizes this error to omit the sibling
+            # status — only the sibling NAME stays on the wire. The previous
+            # handler included "(Draft)"; this is the deliberate Phase 4
+            # contract.
+            "sibling ChangeSpec 'foo_bar__2' has unreverted children" in error
         )
 
     finally:
