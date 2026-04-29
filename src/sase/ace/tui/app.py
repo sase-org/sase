@@ -52,6 +52,7 @@ from .widgets import (
     ChangeSpecList,
     InactiveIndicator,
     KeybindingFooter,
+    LLMOverrideIndicator,
     NotificationIndicator,
     SearchQueryPanel,
     TabBar,
@@ -235,6 +236,7 @@ class AceApp(
             yield TabBar(id="tab-bar")
             yield TaskIndicator(id="task-indicator")
             yield BackendIndicator(id="backend-indicator")
+            yield LLMOverrideIndicator(id="llm-override-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):

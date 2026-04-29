@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 18:59:52
-status: wip
+status: done
 ---
 # Plan: Active LLM Override Indicator
 

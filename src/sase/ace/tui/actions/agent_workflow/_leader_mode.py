@@ -158,6 +158,16 @@ class LeaderModeMixin:
     def _open_temporary_llm_override_modal(self) -> None:
         """Open the Temporary LLM Override modal (leader ``,P`` by default)."""
         from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
+        from ...widgets import LLMOverrideIndicator
+
+        def _refresh_indicator() -> None:
+            try:
+                indicator = self.query_one(  # type: ignore[attr-defined]
+                    "#llm-override-indicator", LLMOverrideIndicator
+                )
+            except Exception:
+                return
+            indicator.refresh()
 
         def _on_dismissed(result: TemporaryOverrideResult | None) -> None:
             # Per-result toasts already happen in the modal for "set"; we
@@ -165,6 +175,8 @@ class LeaderModeMixin:
             # the user gets feedback even though the modal closed.
             if result is None:
                 return
+            if result.action in ("set", "cleared"):
+                _refresh_indicator()
             if result.action == "cleared":
                 self.notify("Cleared temporary LLM override")  # type: ignore[attr-defined]
 

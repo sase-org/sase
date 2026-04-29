@@ -30,6 +30,11 @@
     content-align: right middle;
 }
 
+#llm-override-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #inactive-indicator {
     width: auto;
     content-align: right middle;
