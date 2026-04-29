@@ -1,12 +1,17 @@
-# Optional Rust Backend (`sase_core_rs`)
+# Rust Backend (`sase_core_rs`)
 
 A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`,
 `scan_agent_artifacts`, the status line helpers `read_status_from_lines` / `apply_status_update`, the status transition
 planner `plan_status_transition`, and the Git query parsers `parse_git_name_status_z` / `parse_git_branch_name` /
-`derive_git_workspace_name` / `parse_git_conflicted_files` / `parse_git_local_changes`) can be served by an optional
-Rust extension built from a sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is
-**opt-in**: pure-Python installs keep working with no Rust toolchain, and every `just rust-*` target degrades to a
-friendly no-op when the sibling repo is absent.
+`derive_git_workspace_name` / `parse_git_conflicted_files` / `parse_git_local_changes`) is served by a Rust extension
+distributed as `sase-core-rs` on PyPI and built from the sibling [`sase-core`](https://github.com/sase-org/sase-core)
+repo.
+
+Starting in Phase 6, `sase` declares `sase-core-rs` as a runtime dependency, so a normal `pip install sase` (or
+`uv tool install sase`) on a supported platform installs the Rust extension automatically — no Rust toolchain required.
+The default backend is still Python through Phase 6E; Phase 6F flips the default to Rust. Until that flip, Rust mode is
+selected with `SASE_CORE_BACKEND=rust`. Pure-Python execution remains available with `SASE_CORE_BACKEND=python` and does
+not require `sase_core_rs` to be importable.
 
 `SASE_CORE_BACKEND=rust` is a hybrid per-operation mode: operations with shipped Rust bindings use Rust, while facade
 APIs that are intentionally unported use their Python implementation. Missing bindings for shipped Rust operations still
@@ -64,31 +69,51 @@ The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo wo
 
 ## Installing the Rust Backend
 
-Rust dev tools are required: install [rustup](https://rustup.rs/) so `cargo` is on `PATH`. Then clone the Rust core
-beside this repo and build the PyO3 extension into the venv that runs `sase`. There are two common cases:
+### Released `sase` (recommended for users)
+
+`sase-core-rs` is a regular runtime dependency of `sase`. A standard install pulls a prebuilt wheel for the host
+platform from PyPI; no Rust toolchain is needed:
+
+```bash
+pip install sase
+# or
+uv tool install sase
+```
+
+The Phase 6 release matrix ships wheels for CPython 3.12+ on Linux x86_64, Linux aarch64, macOS universal2, and Windows
+x86_64. After install, `python -c "import sase_core_rs"` succeeds inside the same venv that runs `sase`.
+
+### Source / development workflow
+
+`just install` automatically builds and installs `sase_core_rs` from a sibling `../sase-core` checkout when one exists
+and a Rust toolchain (`cargo`) is on `PATH`. This satisfies the `sase-core-rs` runtime dependency from local source so
+the editable `sase` install does not have to round-trip through PyPI:
 
 ```bash
 git clone https://github.com/sase-org/sase-core.git ../sase-core
+just install     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
+```
 
-# Dev workflow — installs into the repo .venv (used by `just test`, benchmarks, parity tests).
-just rust-install
+`just rust-install` remains the explicit way to (re)build only the extension, and `just rust-install-uv-tool` targets
+the uv-tool venv at `$(uv tool dir)/sase` for users who installed `sase` via `uv tool install` and want the latest local
+Rust code instead of the published wheel:
 
-# Installed-sase workflow — installs into the uv-tool venv at $(uv tool dir)/sase
-# so `SASE_CORE_BACKEND=rust sase ...` works for the user's installed `sase` CLI.
-just rust-install-uv-tool
+```bash
+just rust-install                 # repo .venv (used by `just test`, benchmarks, parity tests)
+just rust-install-uv-tool         # $(uv tool dir)/sase
+just rust-install /path/to/venv   # any other venv (pipx, system Python, custom location)
 ```
 
 Both targets install `maturin` into the target venv on demand and run `maturin develop --release` inside
-`../sase-core/crates/sase_core_py/`. After either succeeds, `python -c "import sase_core_rs"` works inside that venv.
+`../sase-core/crates/sase_core_py/`, so re-running them after a `../sase-core` update is the supported way to refresh an
+existing source install.
 
-For other install methods (pipx, system Python, a custom venv), pass the venv path explicitly:
+### Pure-Python fallback
 
-```bash
-just rust-install /path/to/venv
-```
-
-`maturin develop --release` rebuilds and replaces the extension on every run, so re-running these targets after a
-`../sase-core` update is the supported way to refresh an existing install.
+A contributor without a Rust toolchain and without a sibling `../sase-core` checkout can still develop against `sase`:
+the runtime dependency on `sase-core-rs` resolves to the published PyPI wheel, but `SASE_CORE_BACKEND=python` keeps the
+extension out of the dispatch path so a misbuilt or otherwise unloadable wheel does not block work. This escape hatch
+remains supported through Phase 7.
 
 ## Selecting the Backend at Runtime
 
@@ -278,6 +303,21 @@ loop.
   default-flip prerequisites (wheel build, packaging story, CI dual-run on the golden corpus) are unchanged. Rollback
   path: Python helpers remain as `*_python` exports in `git_query_facade`; setting `SASE_CORE_BACKEND=python` (the
   default) restores the pure-Python path with no provider-side change.
+- **Phase 6A** _(complete)_ — `sase-core-rs` packaging and release matrix landed in `../sase-core`.
+  `crates/sase_core_py` ships a maturin-managed Python distribution (`sase-core-rs`, import module `sase_core_rs`) with
+  `abi3-py312` so a single wheel per platform-architecture covers CPython 3.12 / 3.13 / 3.14. The release workflow
+  builds Linux x86_64, Linux aarch64, macOS universal2, and Windows x86_64 wheels plus an sdist on tag push, runs
+  per-runner import + parser smoke (`parse_query("status:Ready")` plus a `parse_query("(")` negative case), and
+  publishes to PyPI when a `vX.Y.Z` tag is pushed. Free-threaded CPython (`3.13t` / `3.14t`) is intentionally out of
+  scope for this release.
+- **Phase 6B** _(complete)_ — `sase` declares `sase-core-rs>=0.1.0,<0.2.0` as a runtime dependency, so a normal
+  `pip install sase` or `uv tool install sase` resolves the prebuilt Rust extension wheel from PyPI; no Rust toolchain
+  is required for users. `just install` auto-runs `just rust-install` first when a sibling `../sase-core` checkout and a
+  `cargo` toolchain are both available, so editable source dev satisfies the new dependency from local Rust without
+  round-tripping through PyPI. The publish workflow runs an install-smoke that imports `sase_core_rs` and exercises a
+  shipped binding in a fresh venv before PyPI upload, and a CI install-smoke job mirrors the same checks on every PR.
+  `SASE_CORE_BACKEND=python` remains a runtime escape hatch that does not require `sase_core_rs` to be importable. The
+  default backend is **still Python**; the flip is Phase 6F.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile

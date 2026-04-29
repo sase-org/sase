@@ -25,8 +25,17 @@ _header NAME:
     @printf "│                RUNNING: just %-25s│\n" "{{ NAME }}"
     @printf "└───────────────────────────────────────────────────────┘\n"
 
-# Install in editable mode with dev dependencies
+# Install in editable mode with dev dependencies. If a sibling
+# `../sase-core` checkout is present and a Rust toolchain is on PATH,
+# build and install `sase_core_rs` from source first so the pyproject
+# dependency on `sase-core-rs` is satisfied without round-tripping
+# through PyPI. Released `sase` wheels resolve the same dependency
+# from the published `sase-core-rs` distribution instead.
 install: _setup
+    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+        printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+        just rust-install; \
+    fi
     uv pip install -e ".[dev]"
 
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted)

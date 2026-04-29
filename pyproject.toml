@@ -18,6 +18,7 @@ dependencies = [
     "pyyaml",
     "plotext",
     "rich",
+    "sase-core-rs>=0.1.0,<0.2.0",
     "schedule",
     "textual[syntax]>=0.45.0",
 ]

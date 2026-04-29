@@ -120,3 +120,38 @@ jobs:
         run: just install
       - name: Build and verify package
         run: just build-check
+
+  # Phase 6B install-smoke scaffolding: prove that a fresh `sase` install
+  # resolves the `sase-core-rs` runtime dependency, the Rust extension is
+  # importable, a shipped binding works, and the explicit Python escape
+  # hatch (`SASE_CORE_BACKEND=python`) still functions. Phase 6D will
+  # tighten this to invoke the backend health command.
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Default-backend import smoke (Rust extension loadable)
+        run: |
+          .venv/bin/python -c "import sase_core_rs; print('sase_core_rs:', sase_core_rs.__file__)"
+          .venv/bin/python -c "from sase.core.backend import is_rust_available; assert is_rust_available(), 'sase_core_rs imported but is_rust_available() returned False'"
+          .venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
+      - name: Explicit Python-mode smoke (escape hatch still works)
+        env:
+          SASE_CORE_BACKEND: python
+        run: |
+          .venv/bin/python -c "from sase.core.query_facade import parse_query; print(parse_query('status:Ready'))"
