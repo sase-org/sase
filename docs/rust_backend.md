@@ -55,6 +55,8 @@ The facade lives at `src/sase/core/`:
 | `agent_scan_wire.py`        | Stable wire records for the agent-artifact scan snapshot                             |
 | `status_wire.py`            | Stable wire records for the status state machine (Phase 4)                           |
 | `status_wire_conversion.py` | Python plan implementation + project-file → request-wire converter                   |
+| `git_query_facade.py`       | Pure Git query parsers facade (Phase 5)                                              |
+| `git_query_wire.py`         | Stable wire records for the Git query parsers (Phase 5)                              |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
@@ -223,6 +225,17 @@ loop.
   `tests/test_core_status_lines.py` pins the `read_status_from_lines` / `apply_status_update` line behaviour. No
   production call site uses the new planner yet — Phase 4D will route the line helpers and Phase 4E will route
   `plan_status_transition` through the facade with dual-run logging.
+- **Phase 5B** _(complete)_ — Git query parser facade and wire contract pinned in `src/sase/core/git_query_facade.py`
+  and `src/sase/core/git_query_wire.py`. Five pure helpers cover the deterministic parsing and normalization pieces used
+  by `GitQueryOpsMixin`: `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
+  `parse_git_conflicted_files`, and `parse_git_local_changes`. The wire keeps a single record (`GitNameStatusEntryWire`)
+  for the only structured shape; the other helpers return primitive `str | None` / `list[str]` values. Python-only
+  golden tests at `tests/test_core_git_query.py` lock down empty/ trailing-NUL streams, simple status letters
+  (`A`/`M`/`D`/`T`/`U`), rename/copy entries with scores (`R100`/`C75`) and the legacy `"<old>\t<new>"` paired-path
+  encoding, malformed/truncated streams, branch-name detached-HEAD handling, remote URL with/without `.git` and
+  SSH-style/path-like remotes, root-path fallback, conflicted-file blank-line stripping, and clean-vs-dirty
+  `git status --porcelain` normalization. No production caller is routed through the facade yet — Phase 5C implements
+  the Rust pure parsers in `../sase-core` and Phase 5D wires `git_query_facade` into the backend dispatcher.
 - **Future phases** — Additional facade operations (graph index, status helpers, agent-status state machine) become
   candidates for Rust re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears
   where Rust scan time is small but Python adaptation dominates.

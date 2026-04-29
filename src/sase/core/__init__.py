@@ -12,6 +12,8 @@ This package also hosts the facade for the optional Rust backend (see
 - :mod:`sase.core.query_facade` — query parse / build context / evaluate.
 - :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
 - :mod:`sase.core.status_facade` — status transitions + pure status helpers.
+- :mod:`sase.core.git_query_facade` — Git query parsers (Phase 5B; pure
+  string-in / primitive-out, Python-only until Phase 5D wires Rust dispatch).
 
 The backend boundary
 --------------------
