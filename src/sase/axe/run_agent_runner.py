@@ -54,6 +54,40 @@ def _classify_exec_success(*, success: bool, outcome: str) -> bool:
     return success or outcome == "plan_rejected"
 
 
+def _prepare_workspace_if_needed(
+    *,
+    workspace_dir: str,
+    cl_name: str,
+    update_target: str,
+    project_name: str,
+    is_home_mode: bool,
+    retry_handoff: object | None,
+) -> None:
+    """Prepare a non-home workspace unless this runner must preserve it."""
+    if not update_target or is_home_mode:
+        return
+
+    if retry_handoff is not None:
+        print(
+            "=== Skipping workspace prep (retry-spawn child) — "
+            "parent's in-progress edits preserved ==="
+        )
+        print()
+        return
+
+    print("=== Preparing Workspace ===")
+    if not prepare_workspace(
+        workspace_dir,
+        cl_name,
+        update_target,
+        backup_suffix="ace",
+        project_basename=project_name,
+    ):
+        raise RuntimeError("Failed to prepare workspace")
+    print("===========================")
+    print()
+
+
 def _send_completion_notification(
     *,
     cl_name: str,
@@ -307,28 +341,26 @@ def main() -> None:
 
     try:
         try:
-            # Prepare workspace before running agent.  Skipped for:
-            # (a) home mode (no real workspace), and
-            # (b) retry spawns — the parent's in-progress edits live in the
-            #     workspace and prepare_workspace would wipe them.
-            if update_target and not is_home_mode and retry_handoff is None:
-                print("=== Preparing Workspace ===")
-                if not prepare_workspace(
-                    workspace_dir,
-                    cl_name,
-                    update_target,
-                    backup_suffix="ace",
-                    project_basename=project_name,
-                ):
-                    raise RuntimeError("Failed to prepare workspace")
-                print("===========================")
-                print()
-            elif retry_handoff is not None:
+            deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
+
+            # Prepare normal workspaces before running the agent.  Deferred
+            # %wait agents still have only their placeholder workspace here;
+            # their real workspace is claimed and prepared after the wait.
+            if deferred_workspace and not is_home_mode:
                 print(
-                    "=== Skipping workspace prep (retry-spawn child) — "
-                    "parent's in-progress edits preserved ==="
+                    "=== Skipping workspace prep "
+                    "(deferred workspace; waiting for dependencies) ==="
                 )
                 print()
+            else:
+                _prepare_workspace_if_needed(
+                    workspace_dir=workspace_dir,
+                    cl_name=cl_name,
+                    update_target=update_target,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    retry_handoff=retry_handoff,
+                )
 
             # Change to workspace directory
             os.chdir(workspace_dir)
@@ -480,6 +512,14 @@ def main() -> None:
                         workflow_name,
                         cl_name,
                         artifacts_timestamp,
+                    )
+                    _prepare_workspace_if_needed(
+                        workspace_dir=workspace_dir,
+                        cl_name=cl_name,
+                        update_target=update_target,
+                        project_name=project_name,
+                        is_home_mode=is_home_mode,
+                        retry_handoff=retry_handoff,
                     )
 
             # Resolve @name agent references in VCS tags (e.g., #gh:@a -> #gh:branch_name).

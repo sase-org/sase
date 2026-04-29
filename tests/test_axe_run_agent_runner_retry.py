@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -139,7 +140,15 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
     }
 
 
-def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
+def _run_main(
+    patches: dict[str, Any],
+    tmp_path: Path,
+    *,
+    update_target: str = "",
+    workspace_dir: Path | None = None,
+    workspace_num: str = "1",
+    env: dict[str, str] | None = None,
+) -> Path:
     """Run main() with the given patches dict. Returns the artifacts dir."""
     prompt_file = tmp_path / "prompt.txt"
     prompt_file.write_text("test prompt")
@@ -158,13 +167,13 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
         "runner",
         "test-cl",
         str(tmp_path / "project.gp"),
-        str(tmp_path),
+        str(workspace_dir or tmp_path),
         str(output_file),
-        "1",
+        workspace_num,
         "test-workflow",
         str(prompt_file),
         "20260316_120000",
-        "",  # update_target
+        update_target,
         "test-project",
         "test-cl",
         "",  # is_home_mode
@@ -172,6 +181,8 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
 
     stack: list[Any] = []
     saved_env = os.environ.copy()
+    if env:
+        os.environ.update(env)
     with patch.object(sys, "argv", argv):
         for target, value in patches.items():
             p = patch(target, value)
@@ -188,6 +199,17 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
             os.environ.clear()
             os.environ.update(saved_env)
     return adir  # type: ignore[possibly-undefined]
+
+
+def _exec_result(artifacts_dir: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        success=True,
+        outcome="completed",
+        saved_path=None,
+        diff_path=None,
+        current_artifacts_dir=artifacts_dir,
+        step_output=None,
+    )
 
 
 class TestRetryLoop:
@@ -419,3 +441,93 @@ class TestRetryLoop:
         _run_main(patches, tmp_path)
 
         assert execute_mock.call_count == 2  # 1 initial + 1 retry
+
+
+class TestDeferredWorkspacePreparation:
+    def test_claim_deferred_workspace_claims_and_returns_real_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        workspace_dir = tmp_path / "ws7"
+        release_mock = MagicMock()
+        claim_mock = MagicMock(return_value=True)
+
+        with (
+            patch("sase.running_field.release_workspace", release_mock),
+            patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+            patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
+            patch("sase.running_field.claim_workspace", claim_mock),
+            patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
+        ):
+            first_ws.return_value = 7
+            ws_dir.return_value = (str(workspace_dir), None)
+
+            workspace_num, actual_workspace_dir = claim_deferred_workspace(
+                str(tmp_path / "project.gp"),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        assert workspace_num == 7
+        assert actual_workspace_dir == str(workspace_dir)
+        release_mock.assert_called_once_with(
+            str(tmp_path / "project.gp"), 0, "test-workflow", "test-cl"
+        )
+        claim_mock.assert_called_once()
+        chdir_mock.assert_called_once_with(str(workspace_dir))
+
+    def test_deferred_wait_prepares_claimed_workspace_after_wait(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        placeholder_ws = tmp_path / "placeholder"
+        real_ws = tmp_path / "real-ws"
+        placeholder_ws.mkdir()
+        real_ws.mkdir()
+        events: list[Any] = []
+
+        wait_info = _AGENT_INFO._replace(wait_names=["dep"])
+        patches = _base_patches(artifacts_dir)
+        patches[f"{_RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=wait_info
+        )
+
+        def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+            events.append("wait")
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            events.append("claim")
+            return 3, str(real_ws)
+
+        def prepare_ws(workspace_dir: str, *_args: Any, **_kwargs: Any) -> bool:
+            events.append(("prepare", workspace_dir))
+            return True
+
+        def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            events.append(("run", ctx.workspace_num, ctx.workspace_dir))
+            return _exec_result(artifacts_dir)
+
+        patches[f"{_RUNNER}.wait_for_dependencies"] = wait_for_deps
+        patches[f"{_RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{_RUNNER}.claim_deferred_workspace"] = claim_deferred
+        patches[f"{_RUNNER}.prepare_workspace"] = prepare_ws
+        patches[f"{_RUNNER}.run_execution_loop"] = run_loop
+
+        _run_main(
+            patches,
+            tmp_path,
+            update_target="main",
+            workspace_dir=placeholder_ws,
+            workspace_num="0",
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        assert events == [
+            "wait",
+            "claim",
+            ("prepare", str(real_ws)),
+            ("run", 3, str(real_ws)),
+        ]

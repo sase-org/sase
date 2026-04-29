@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 13:21:29
-status: wip
+status: done
 ---
 # Plan: Prepare Deferred Workspaces After `%wait`
 
