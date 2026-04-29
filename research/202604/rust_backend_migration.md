@@ -8,23 +8,32 @@ This research is grounded in the existing performance analyses
 (`sase_perf_research.md`, `sase_perf_v2_research.md`,
 `tui_profiling_strategies.md`) and a code map of the current Python modules.
 
-**2026-04 update:** some Phase 0-style Python optimization work has already
-landed since this note was first drafted:
+**2026-04-29 update:** Phases 0–3 of this plan have shipped. The migration
+foundation is in place and three operations are now routed through Rust as an
+opt-in:
 
-- `src/sase/ace/changespec/cache.py` has an in-process
-  `ChangeSpecSnapshotCache` keyed by `(path, mtime_ns, size)`.
-- `src/sase/ace/query/evaluator.py` has `QueryEvaluationContext` and
-  `evaluate_query_with_context()`, so the query path no longer has to rebuild
-  all maps per row.
-- `src/sase/ace/tui/models/changespec_graph_index.py` has
-  `ChangeSpecGraphIndex` for ancestor / child / sibling lookups.
-- `src/sase/core/` exists, but today it is mostly shared utility code rather
-  than the full parser/query/state-machine facade that a Rust backend should
-  replace.
+- `src/sase/core/` is the documented Python facade — wire records,
+  `SASE_CORE_BACKEND` dispatch, `SASE_CORE_DUAL_RUN=1` parity logging,
+  golden-corpus tests. See `docs/rust_backend.md` for the user-facing surface.
+- A sibling `../sase-core/` Cargo workspace ships `sase_core_rs` (PyO3 wheel
+  built via `just rust-install` / `maturin develop --release`).
+- `parse_project_bytes` (Phase 1), `parse_query` + `evaluate_query_many`
+  (Phase 2), and `scan_agent_artifacts` (Phase 3) are dispatched through the
+  facade. Each has a Rust implementation in `sase-core` and a golden-parity
+  gate in CI.
+- `find_named_agent`, `is_workflow_complete`, `list_running_agents`,
+  `list_all_agents`, and the TUI Agents-tab refresh consume the agent-scan
+  snapshot facade rather than walking project directories directly.
+- Default backend remains `python` because the measured Rust win on the worst
+  real workload (home tree, 6.5k records) is 1.55× — short of the original 2×
+  research gate. The Rust path is shipped, parity-tested, and works under
+  `SASE_CORE_BACKEND=rust`. See
+  `plans/202604/rust_backend_phase3_agent_scan_phase3h_handoff.md`.
 
-That changes the immediate next step: do not re-land generic cache work. The
-missing foundation is now a stable **wire contract** and a backend selection
-facade that can dual-run Python and Rust implementations.
+The remainder of this document is the forward plan: deferred ports, the
+shared-core consolidation track (flip the default, verify, retire the Python
+path) the user has now committed to, and the longer-horizon server surface
+for web/mobile.
 
 ---
 
@@ -184,7 +193,7 @@ error_class
 
 ## 4. Migration order (lowest risk → highest leverage)
 
-### Phase 0 — Establish the seam in Python (no Rust yet)
+### Phase 0 — Establish the seam in Python (no Rust yet) ✅ complete
 
 Before introducing Rust, codify the boundary that Rust will replace. This makes
 every later step a 1-file swap instead of a refactor.
@@ -203,11 +212,12 @@ every later step a 1-file swap instead of a refactor.
 5. Move current TUI and CLI callers onto the facade only after the facade has
    tests. Do not make every `src/sase/ace/*` import jump to Rust directly.
 
-**Exit criterion:** TUI is unaffected; `pytest -k core` covers the seam end to
-end; `SASE_CORE_DUAL_RUN=1` has a JSONL mismatch log format before any Rust is
-merged.
+**Outcome:** `src/sase/core/` (`backend.py`, `dual_run.py`, `wire.py`,
+`parser_facade.py`, `query_facade.py`, `status_facade.py`,
+`graph_index_facade.py`) shipped with golden tests under `tests/`. Boundary
+documented in `docs/rust_backend.md`. Plan: `plans/202604/rust_backend_phase0.md`.
 
-### Phase 1 — ChangeSpec parser in Rust (highest single-file ROI)
+### Phase 1 — ChangeSpec parser in Rust (highest single-file ROI) ✅ complete
 
 The parser remains the best first Rust target, but the current in-process
 `ChangeSpecSnapshotCache` means the win must be measured on cold loads,
@@ -243,7 +253,13 @@ infrastructure (maturin, cibuildwheel matrix for linux/macOS/windows × x86_64
 after cache hits are accounted for. A parser that is 10x faster internally but
 only saves 5 ms on warm TUI refreshes is not the next bottleneck.
 
-### Phase 2 — Query evaluator + tokenizer
+**Outcome:** `parse_project_bytes` routes through `sase_core_rs` when
+`SASE_CORE_BACKEND=rust`. Cross-repo parity gate runs the golden corpus through
+both backends. Bench harness landed as `tests/perf/bench_core_parse.py` /
+`just bench-core`. See `plans/202604/rust_backend_phase1.md` and
+`plans/202604/rust_backend_phase1_handoff.md`.
+
+### Phase 2 — Query evaluator + tokenizer ✅ complete
 
 Same shape as Phase 1: pure logic, well-defined IO. The evaluator's hot path is
 regex compilation and AST eval against thousands of ChangeSpecs — Rust's
@@ -263,7 +279,14 @@ Watch out for two things:
   specs_wire)`. Calling Rust once per row will waste much of the speedup at the
   FFI boundary.
 
-### Phase 3 — Agent / artifact filesystem scan
+**Outcome:** `parse_query` and `evaluate_query_many` route through
+`sase_core_rs` when `SASE_CORE_BACKEND=rust`; hot call sites use the batched
+`evaluate_query_many` shape rather than per-row dispatch. Wire contract +
+golden corpus in `src/sase/core/query_wire*.py` and `tests/`. See
+`plans/202604/rust_backend_phase2_query.md` and
+`research/202604/rust_backend_phase2_query_handoff.md`.
+
+### Phase 3 — Agent / artifact filesystem scan ✅ complete
 
 This is the one most users will *feel*. `_lookup.py` walks
 `~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json` synchronously and
@@ -284,7 +307,18 @@ parses each. In Rust:
 This phase also unlocks **mobile/web parity**: the same scan logic, behind a
 gRPC streaming endpoint, populates the future web/mobile agent list.
 
-### Phase 4 — Status state machine
+**Outcome:** `scan_agent_artifacts` snapshot facade landed in
+`src/sase/core/agent_scan_facade.py`; `sase_core_rs.scan_agent_artifacts`
+releases the GIL during the walk and returns a JSON-shaped dict. Streaming
+was evaluated and **rejected** (Phase 3G): the bottleneck on the worst real
+workload is the Rust filesystem walk itself, which streaming cannot reduce.
+End-to-end win 1.25× (synthetic) – 1.55× (home, 6.5k records); did not clear
+the original 2× research gate, so default stayed `python` pending the
+consolidation track below. See
+`plans/202604/rust_backend_phase3_agent_scan.md` and the per-subphase
+handoffs (`*_phase3a` … `*_phase3h_handoff.md`).
+
+### Phase 4 — Status state machine *(deferred — re-profile first)*
 
 Pure state, ~1,450 LOC. Translate transitions and suffix classification to
 Rust enums + match arms. Worth doing because:
@@ -302,6 +336,13 @@ function should answer "is this transition valid and what field updates should
 exist?" and Python should continue doing atomic `.gp` writes until the parser
 and source-span contract are proven.
 
+**Status (2026-04-29):** Phase 3H recommended re-profiling on a realistic home
+tree before committing to Phase 4 as-spec'd. Snapshot scan time still
+dominates a TUI refresh on the home tree (~817 ms Rust facade vs. ~216 ms
+adaptation), so the highest-leverage future work may be shrinking the
+snapshot, not porting the state machine. Resolve this with a profiling
+spike before opening the Phase 4 epic.
+
 ### Phase 5 — Git query ops
 
 Three options, in increasing scope:
@@ -315,10 +356,169 @@ Three options, in increasing scope:
 
 Recommend **A** unless profiling shows fork dominance.
 
-### Phase 6 — Server surface for web/mobile
+### Phase 6 — Switch sase to the Rust backend by default
 
-By Phase 6, the Rust crate is the source of truth for parsing, querying, and
-scanning. To unlock the web app:
+The shared-core / mobile / web track only pays off when Rust *is* the core.
+The Phase 3H rollout decision deliberately deferred this flip because the
+end-to-end win at the worst real workload was 1.55× rather than the original
+2× gate. This phase is where that decision is revisited and the flip is
+landed for the operations already ported (parser, query, agent scan).
+
+**Prerequisites that must hold before flipping:**
+
+1. **Wheels are distributed for every supported platform.** Today
+   `sase_core_rs` is built locally via `just rust-install`. Until prebuilt
+   wheels ship for `cp312+ × {linux x86_64, linux aarch64, macOS universal2,
+   windows x86_64}`, flipping the default would force every contributor to
+   install Rust. Stand up `cibuildwheel` or maturin GH Actions and publish
+   the matrix; treat the wheel build as part of `sase`'s release pipeline.
+2. **A pure-Python install path still produces a working sase.** Either keep
+   the Python implementations behind `SASE_CORE_BACKEND=python` for one
+   release after the flip, or refuse to start with a clear error if no Rust
+   extension is available *and* the user explicitly opts back into Python.
+   Pick one and document it; do not silently fall back.
+3. **No outstanding parity drift in `core_dual_run.jsonl`.** Run a release
+   cycle with `SASE_CORE_DUAL_RUN=1` enabled in CI on the golden corpus and
+   on a sanitized home-tree fixture; mismatch count must be zero.
+4. **Acknowledged gate change.** The 2× gate was the right bar for "is it
+   worth porting?"; for "should the port be the default once it exists?" the
+   bar is "measurable user-visible win, no regressions on hot paths." Record
+   the new bar in the rollout decision so future ports inherit it.
+
+**Steps:**
+
+- Default `SASE_CORE_BACKEND` to `rust` in `src/sase/core/backend.py`. Keep
+  the env var as an escape hatch (`=python`) for the duration of the
+  release cycle.
+- Special-case the one known regression: `is_workflow_complete` is ~3×
+  slower under Rust because the snapshot model removes the Python
+  short-circuit. Either keep this single op pinned to Python via per-op
+  override, or restructure the snapshot to expose a "first matching
+  marker" early-exit. Do **not** flip the default with a known per-op
+  regression.
+- Update `docs/rust_backend.md`: Rust path is the default, opt-out is
+  `SASE_CORE_BACKEND=python`, `just rust-install` is required for
+  contributors building from source until prebuilt wheels are published.
+- CI must run the test suite under both backends until Phase 8 (removal)
+  lands. Add a `SASE_CORE_BACKEND=python` matrix job alongside the existing
+  default-backend job.
+
+**Exit criterion:** `sase` installed from a release artifact works without a
+local Rust toolchain on every supported platform; `SASE_CORE_BACKEND` is
+unset in the wild and Rust is in the hot path; no parity mismatches recorded
+in `core_dual_run.jsonl` over a release cycle; `is_workflow_complete`
+either restored to parity or explicitly pinned with a comment pointing at
+the structural cause.
+
+### Phase 7 — Verify and document the end-to-end performance improvement
+
+After the default flip, before the Python path is removed, do one
+deliberate measurement pass so the win is documented and any unexpected
+regression has time to surface.
+
+**Measurements to take:**
+
+| Where measured                            | Compare                       |
+| ----------------------------------------- | ----------------------------- |
+| `tests/perf/bench_core_parse.py`          | `python` vs `rust` facade     |
+| `tests/perf/bench_query.py` (Phase 2)     | `python` vs `rust` facade     |
+| `tests/perf/bench_agent_scan.py`          | `python` vs `rust` facade     |
+| `SASE_TUI_TRACE=1` cold-open of `sase ace`| Pre-flip baseline vs. post-flip |
+| `sase agents` cold listing on home tree   | Pre-flip baseline vs. post-flip |
+| `sase run` end-to-end startup             | Pre-flip baseline vs. post-flip |
+
+The TUI / CLI numbers are the ones that matter for the user. Bench
+microtimings are evidence, not the headline.
+
+**Deliverables:**
+
+1. **`docs/rust_backend.md` "Performance" section** with a table of medians
+   per scenario, sample size, the workstation profile they were taken on,
+   and a link to the raw `bench_*.json` artifacts. Include both the
+   synthetic and home-tree workloads.
+2. **A short before/after entry in `research/202604/`** (or update this
+   file) capturing the actual realized speedup, broken down per operation
+   and per workload size. This is what future readers will cite to decide
+   whether the migration was worth it.
+3. **Updated benchmark gate.** Codify the realized speedup as the new
+   regression floor: a CI bench job (or scheduled run) that fails if the
+   Rust facade slows down by more than X% relative to the recorded
+   numbers. This protects the win from silently eroding once the Python
+   backend is gone.
+4. **Acknowledged limits.** Record where Rust did *not* help (e.g.
+   warm-cache TUI refreshes, small synthetic workloads). Honest negative
+   results prevent a future contributor from porting an op that won't
+   move the needle.
+
+**Exit criterion:** every routed operation has a documented
+before/after median on at least one realistic workload; the regression
+floor is wired into CI; `docs/rust_backend.md` no longer reads as a
+roadmap and starts reading as a user-facing description of how sase is
+now built.
+
+### Phase 8 — Remove the Python backend and the dispatch layer
+
+Once the default has been Rust for at least one release cycle and Phase 7
+recorded clean numbers, retire the Python implementations of the ported
+operations and delete the dispatcher.
+
+**What gets removed:**
+
+- The Python implementation halves of dispatched operations: the
+  Python-side `parse_project_bytes`, `parse_query` /
+  `evaluate_query_many`, and `scan_agent_artifacts`.
+- `SASE_CORE_BACKEND` and `SASE_CORE_DUAL_RUN` env vars and every code
+  path that reads them: `src/sase/core/backend.py`,
+  `src/sase/core/dual_run.py`, the `is_rust_available()` probe, the
+  `RustBackendUnavailableError` graceful-failure path.
+- The dual-backend CI matrix job added in Phase 6.
+- `core_dual_run.jsonl` writer (the file format can stay documented as
+  historical, but new runs will not produce it).
+- Justfile aliases that exist solely for the dual-backend story
+  (`bench-core` becomes the Rust bench, etc.).
+
+**What stays:**
+
+- `sase.core` itself stays as the import surface — but each module now
+  delegates straight to `sase_core_rs` with no dispatcher in between.
+  Keep the wire records (`wire.py`, `query_wire.py`,
+  `agent_scan_wire.py`) — they are the contract Python callers consume.
+- Python implementations of operations that have **not** been ported
+  (status state machine, graph index, git query ops, anything Phase 4+).
+  Those still live in Python until their own port lands; removing the
+  facade dispatcher does not require removing them.
+- The golden corpus and parity tests, repointed to compare
+  `sase_core_rs` output against the recorded golden JSON instead of
+  comparing two live implementations. Without a Python backend to dual
+  against, the golden files become the contract.
+
+**Order of removal (one PR per step where reasonable):**
+
+1. Make `sase_core_rs` a hard install requirement (`pyproject.toml`
+   `dependencies` rather than `optional-dependencies`). Verify a fresh
+   `pip install sase` on every supported platform pulls the wheel.
+2. Delete the dispatcher and inline the Rust call inside each facade
+   module. Each `*_facade.py` becomes a thin adapter:
+   `bytes -> sase_core_rs -> wire dataclasses`.
+3. Delete the Python implementations of the ported operations.
+4. Delete `SASE_CORE_BACKEND` / `SASE_CORE_DUAL_RUN` plumbing, the
+   probe, and the `RustBackendUnavailableError` type.
+5. Delete the dual-backend CI matrix and the `python`-only test bucket.
+6. Update `docs/rust_backend.md` to describe the resulting steady
+   state: one implementation, no env vars, golden corpus as contract.
+
+**Exit criterion:** `rg "SASE_CORE_BACKEND|SASE_CORE_DUAL_RUN|is_rust_available"`
+returns nothing in `src/`; `pip install sase` requires no Rust toolchain
+on supported platforms; the test suite runs to green with no backend
+matrix; the wire-record contract is documented as the seam future ports
+target. The shared-core / mobile / web work in Phase 9 can now assume
+Rust is the only implementation.
+
+### Phase 9 — Server surface for web/mobile
+
+By the time Phase 8 lands, the Rust crate is the only implementation of
+parsing, querying, and scanning, and Python plays the role of host shell. To
+unlock the web app:
 
 - Add a `sase-server` binary (separate crate in the workspace) using
   **axum** + `tower` + **`tonic`** if gRPC is wanted, or plain JSON REST.
@@ -476,29 +676,37 @@ The fourth number is the one that decides TUI rollout.
 
 ---
 
-## 8. Recommended first concrete action
+## 8. Recommended next concrete actions
 
-1. Land **Phase 0.5** as a small PR: formal `ChangeSpecWire` /
-   `ParseErrorWire` schema, `sase.core` parser facade, JSON serialization
-   tests, and `SASE_CORE_BACKEND` / `SASE_CORE_DUAL_RUN` plumbing. No Rust yet.
-2. Build a sanitized golden corpus from real `.gp` files and query strings.
-   Include malformed specs, archive files, suffix cases, comments, mentors,
-   hooks, commits drawers, missing trailing newlines, and non-ASCII paths /
-   descriptions.
-3. Spike **Phase 1** in a branch: `rust/sase-core/` with
-   `parse_project_bytes` and PyO3 bindings, hand-built locally with
-   `maturin develop`. Run the golden corpus against it. If parity holds, wire
-   wheel builds and merge gated behind the env var (default still `python`).
-   Flip default to `rust` only after a full release cycle of dual-running.
-4. Use the perf measurements from `sase_perf_research.md` (the
-   `SASE_TUI_TRACE=1` plan) to **prove** the win on real `~/.sase/` data
-   before continuing. Skip phases that don't show wins; reorder by what
-   actually hurts.
+Phases 0–3 are done. The critical path forward is the consolidation track
+(Phases 6–8) plus a profiling spike to settle Phase 4. In rough order:
+
+1. **Stand up the wheel build.** Until prebuilt `sase_core_rs` wheels exist
+   for the supported `cp312+ × {linux x86_64, linux aarch64, macOS
+   universal2, windows x86_64}` matrix, every later step has a packaging
+   blocker. Land `cibuildwheel` (or maturin GH Actions) and publish the
+   wheel as part of the `sase` release. Smoke-test pure-Python install
+   from a fresh runner.
+2. **Re-profile a TUI cold-open and a `sase ace` refresh on a real home
+   tree** with `SASE_TUI_TRACE=1` and `SASE_CORE_BACKEND=rust`. The
+   measurement decides whether Phase 4 (status state machine) is worth
+   opening or whether snapshot-shrinking work outranks it. Phase 3H
+   explicitly punted this question.
+3. **Fix `is_workflow_complete` regression.** This is the single known
+   per-op regression on the Rust path (Phase 3H, ~3× slower because the
+   snapshot model removes the Python short-circuit). It must be resolved
+   before the default flip in Phase 6 — either by exposing an early-exit
+   primitive on the Rust scan or by pinning the operation to Python.
+4. **Open the Phase 6 epic** once the wheel build is green and the
+   regression is resolved. Default-flip is a multi-PR sequence: change
+   the default, ship a release with both backends still selectable, run
+   `SASE_CORE_DUAL_RUN=1` in CI for the cycle, then proceed to Phase 7
+   measurement and Phase 8 removal.
 
 The discipline that makes this work: **never port ahead of measurement, and
-never delete the Python implementation until two release cycles after the
-Rust one is the default.** That's how you get a gradual migration that
-doesn't take the TUI down.
+do not delete the Python implementation until the Rust default has run a
+full release cycle without parity drift.** That's how you get a gradual
+migration that doesn't take the TUI down.
 
 ---
 
