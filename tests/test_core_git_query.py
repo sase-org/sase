@@ -318,13 +318,14 @@ def _install_fake_git_module(
     return fake
 
 
-# --- default backend (Python) -----------------------------------------------
+# --- explicit Python backend -------------------------------------------------
 
 
-def test_dispatch_default_backend_uses_python_for_all_helpers(
+def test_dispatch_python_backend_uses_python_for_all_helpers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no Rust extension and the default backend, every helper stays Python."""
+    """With no Rust extension and ``SASE_CORE_BACKEND=python``, every helper stays Python."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     _force_no_rust_extension(monkeypatch)
 
     assert parse_git_name_status_z(_NAME_STATUS_INPUT) == _NAME_STATUS_EXPECTED
@@ -334,15 +335,16 @@ def test_dispatch_default_backend_uses_python_for_all_helpers(
     assert parse_git_local_changes(_LOCAL_CHANGES_INPUT) == _LOCAL_CHANGES_EXPECTED
 
 
-def test_dispatch_default_backend_ignores_fake_rust_module(
+def test_dispatch_python_backend_ignores_fake_rust_module(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A registered Rust binding is never called under the default Python backend."""
+    """A registered Rust binding is never called under explicit Python mode."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     rust_calls: list[str] = []
 
     def boom(*_args: Any, **_kwargs: Any) -> Any:
         rust_calls.append("called")
-        raise AssertionError("rust impl must not run under default backend")
+        raise AssertionError("rust impl must not run under explicit python mode")
 
     _install_fake_git_module(
         monkeypatch,

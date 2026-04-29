@@ -3,7 +3,9 @@
 The Phase 0 plan introduces a stable Python seam (`sase.core`) that future Rust
 bindings will replace one operation at a time. Selection is driven by env vars:
 
-- ``SASE_CORE_BACKEND``: ``python`` (default) or ``rust``.
+- ``SASE_CORE_BACKEND``: ``rust`` (default, Phase 6F+) or ``python``. Setting
+  ``python`` is the documented Phase 6/7 escape hatch back to the pure-Python
+  implementations.
 - ``SASE_CORE_DUAL_RUN``: when truthy, run both implementations on dispatched
   operations and log mismatches to ``~/.sase/perf/core_dual_run.jsonl`` (see
   :mod:`sase.core.dual_run`). The dispatcher always returns the Python result
@@ -48,7 +50,7 @@ class BackendDisplay:
     style: str
 
 
-DEFAULT_BACKEND = Backend.PYTHON
+DEFAULT_BACKEND = Backend.RUST
 
 BACKEND_ENV_VAR = "SASE_CORE_BACKEND"
 DUAL_RUN_ENV_VAR = "SASE_CORE_DUAL_RUN"
@@ -62,7 +64,7 @@ class RustBackendUnavailableError(RuntimeError):
 
 
 def get_active_backend() -> Backend:
-    """Return the backend selected by ``SASE_CORE_BACKEND`` (default python).
+    """Return the backend selected by ``SASE_CORE_BACKEND`` (default rust).
 
     Raises:
         ValueError: if the env var is set to an unknown value.
@@ -150,16 +152,18 @@ def dispatch[T](
     dual-run is disabled.
 
     Behavior:
-      - ``SASE_CORE_BACKEND=python`` (default), no dual-run: call ``python_impl``.
+      - ``SASE_CORE_BACKEND`` unset (default rust) or ``=rust`` with no
+        ``rust_impl``: raise :class:`RustBackendUnavailableError` by default.
+        Operations explicitly marked ``rust_unavailable="python"`` call
+        ``python_impl`` instead.
+      - ``SASE_CORE_BACKEND`` unset (default rust) or ``=rust`` with
+        ``rust_impl``: call ``rust_impl`` (and compare to Python under
+        dual-run, returning the Python result so TUI/CLI behavior cannot
+        drift).
+      - ``SASE_CORE_BACKEND=python``: call ``python_impl``.
       - ``SASE_CORE_BACKEND=python`` with ``SASE_CORE_DUAL_RUN=1`` and a
         ``rust_impl``: call both, log a comparison record, return the Python
         result. With no ``rust_impl`` available, dual-run is a no-op.
-      - ``SASE_CORE_BACKEND=rust`` with no ``rust_impl``: raise
-        :class:`RustBackendUnavailableError` by default. Operations explicitly
-        marked ``rust_unavailable="python"`` call ``python_impl`` instead.
-      - ``SASE_CORE_BACKEND=rust`` with ``rust_impl``: call ``rust_impl`` (and
-        compare to Python under dual-run, returning the Python result so
-        TUI/CLI behavior cannot drift).
     """
     call_kwargs = kwargs or {}
     backend = get_active_backend()

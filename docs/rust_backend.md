@@ -9,9 +9,9 @@ repo.
 
 Starting in Phase 6, `sase` declares `sase-core-rs` as a runtime dependency, so a normal `pip install sase` (or
 `uv tool install sase`) on a supported platform installs the Rust extension automatically — no Rust toolchain required.
-The default backend is still Python through Phase 6E; Phase 6F flips the default to Rust. Until that flip, Rust mode is
-selected with `SASE_CORE_BACKEND=rust`. Pure-Python execution remains available with `SASE_CORE_BACKEND=python` and does
-not require `sase_core_rs` to be importable.
+**Starting in Phase 6F, Rust is the default backend**: an unset `SASE_CORE_BACKEND` selects Rust for shipped operations.
+Pure-Python execution remains available through Phase 7 with `SASE_CORE_BACKEND=python`, which does not require
+`sase_core_rs` to be importable.
 
 `SASE_CORE_BACKEND=rust` is a hybrid per-operation mode: operations with shipped Rust bindings use Rust, while facade
 APIs that are intentionally unported use their Python implementation. Missing bindings for shipped Rust operations still
@@ -36,12 +36,12 @@ large search results, axe lumberjack scans), so it is the first operation routed
                 │  parser_facade · query_facade · status_*    │
                 └────────────┬───────────────────┬────────────┘
                              │                   │
-              SASE_CORE_BACKEND=python   SASE_CORE_BACKEND=rust
+              SASE_CORE_BACKEND=python   SASE_CORE_BACKEND=rust (default)
                              │                   │
                              ▼                   ▼
                 ┌──────────────────┐   ┌──────────────────────┐
                 │  Python impl     │   │  sase_core_rs (PyO3) │
-                │  (always present)│   │  optional extension  │
+                │  (escape hatch)  │   │  default extension   │
                 └──────────────────┘   └──────────────────────┘
 ```
 
@@ -117,10 +117,10 @@ remains supported through Phase 7.
 
 ## Selecting the Backend at Runtime
 
-| Env var              | Values                     | Effect                                                                                                                                                       |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SASE_CORE_BACKEND`  | `python` (default), `rust` | Selects which implementation each dispatched operation uses. Rust mode uses Rust for shipped bindings and Python for explicitly unported operations.         |
-| `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Run both impls on every dispatched op; log mismatches to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled. |
+| Env var              | Values                     | Effect                                                                                                                                                                                                       |
+| -------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SASE_CORE_BACKEND`  | `rust` (default), `python` | Selects which implementation each dispatched operation uses. Rust mode uses Rust for shipped bindings and Python for explicitly unported operations. `python` is the temporary escape hatch through Phase 7. |
+| `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Run both impls on every dispatched op; log mismatches to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled.                                                 |
 
 Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
 `RustBackendUnavailableError` rather than silently falling back. The error names the operation, the `sase_core_rs`
@@ -140,12 +140,12 @@ sase core health -j     # machine-readable JSON (alias: --json)
 
 Exit codes:
 
-| Selected backend           | Extension state                     | `status` | Exit |
-| -------------------------- | ----------------------------------- | -------- | ---- |
-| unset / `rust` (Phase 6F+) | importable, `parse_query` works     | `ok`     | 0    |
-| unset / `rust` (Phase 6F+) | missing or misbuilt                 | `error`  | 1    |
-| `rust`                     | importable but `parse_query` raises | `error`  | 1    |
-| `python`                   | any                                 | `ok`     | 0    |
+| Selected backend | Extension state                     | `status` | Exit |
+| ---------------- | ----------------------------------- | -------- | ---- |
+| unset / `rust`   | importable, `parse_query` works     | `ok`     | 0    |
+| unset / `rust`   | missing or misbuilt                 | `error`  | 1    |
+| unset / `rust`   | importable but `parse_query` raises | `error`  | 1    |
+| `python`         | any                                 | `ok`     | 0    |
 
 Under explicit `SASE_CORE_BACKEND=python`, a missing or misbuilt `sase_core_rs` is non-fatal — Python mode is the
 documented escape hatch through Phase 7. A misbuilt wheel that fails to import with a non-`ImportError` is surfaced in
@@ -414,6 +414,18 @@ loop.
   targeted Python path already eliminates the regression and the predicate runs against a tree that is rarely large
   enough to benefit from a PyO3 boundary crossing.
 
+- **Phase 6F** _(complete)_ — Default backend flipped to Rust. `DEFAULT_BACKEND` is now `Backend.RUST`, so an unset
+  `SASE_CORE_BACKEND` selects Rust; explicit `SASE_CORE_BACKEND=python` remains the documented escape hatch through
+  Phase 7. `RustBackendUnavailableError` is now the surface for shipped operations whose binding is missing under the
+  default — there is no silent fallback. The TUI backend indicator, `sase core health` exit codes, and the dual-run
+  semantics from Phase 6C–6E carry over unchanged: dual-run still returns the Python result;
+  `transition_changespec_status` and the other unported facade operations still route to Python via
+  `rust_unavailable="python"`. Tests that previously asserted "default Python" semantics now either assert "default
+  Rust" (e.g. `test_default_backend_is_rust`) or pin themselves to explicit Python where the test is exercising the
+  pure-Python implementation. `is_workflow_complete` remains on its targeted Python traversal (Phase 6E pin) regardless
+  of backend selection. Rollback is a single-line change: revert `DEFAULT_BACKEND` to `Backend.PYTHON` and ship a patch
+  release; the Python implementations are unchanged and dual-run logging continues to provide parity coverage in the
+  meantime.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile

@@ -224,7 +224,11 @@ def test_dual_run_dispatch_no_op_without_rust_impl(
     log = tmp_path / "no_rust.jsonl"
     monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log))
     monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
+    # Use explicit Python: the default (Rust) would raise
+    # RustBackendUnavailableError when no rust_impl is registered. The
+    # purpose of this test is to pin the dual-run no-op behavior, which is
+    # backend-agnostic.
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
 
     def py() -> int:
         return 99

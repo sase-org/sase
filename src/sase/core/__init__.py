@@ -19,20 +19,23 @@ The backend boundary
 --------------------
 Each facade module exposes a small set of public functions that delegate to
 :func:`sase.core.backend.dispatch`. Dispatch picks the active backend
-(``python`` by default, ``rust`` when explicitly requested) and, when
-``SASE_CORE_DUAL_RUN=1`` is set, runs both implementations to log a
-comparison record. The Python result is always what callers receive, so
-enabling dual-run cannot drift TUI/CLI behavior.
+(``rust`` by default starting in Phase 6F; ``python`` is the documented
+escape hatch) and, when ``SASE_CORE_DUAL_RUN=1`` is set, runs both
+implementations to log a comparison record. The Python result is always
+what callers receive under dual-run, so enabling it cannot drift TUI/CLI
+behavior.
 
-Why Rust is optional
---------------------
-A Rust implementation never has to exist for sase to work; that is the point
-of Phase 0. The default backend is Python, the dispatcher is the only place
-backend selection happens, and shipped Rust operations fail loudly
+Why a Python escape hatch still exists
+--------------------------------------
+The pure-Python implementations remain through Phase 7 so a patch release
+can restore the old default if a packaging or parity regression appears in
+the field. The dispatcher is the only place backend selection happens, and
+shipped Rust operations fail loudly
 (:class:`sase.core.backend.RustBackendUnavailableError`) when their expected
-binding is missing. APIs that are intentionally unported can opt into an
-explicit Python fallback under ``SASE_CORE_BACKEND=rust`` so selecting the Rust
-backend means "use Rust where shipped, Python where not yet ported."
+binding is missing — default Rust does not silently fall back to Python.
+APIs that are intentionally unported opt into an explicit Python fallback
+under Rust mode so the default backend means "use Rust where shipped,
+Python where not yet ported."
 """
 
 from sase.core.changespec import (

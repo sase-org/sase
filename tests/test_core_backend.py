@@ -23,10 +23,10 @@ from sase.core.backend import (
 )
 
 
-def test_default_backend_is_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_backend_is_rust(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-    assert get_active_backend() is Backend.PYTHON
-    assert DEFAULT_BACKEND is Backend.PYTHON
+    assert get_active_backend() is Backend.RUST
+    assert DEFAULT_BACKEND is Backend.RUST
 
 
 def test_explicit_python(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,24 +50,24 @@ def test_unknown_backend_raises(monkeypatch: pytest.MonkeyPatch) -> None:
         get_active_backend()
 
 
-def test_backend_display_default_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_backend_display_default_rust(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
-    display = get_backend_display()
-
-    assert display.label == "backend: Python"
-    assert "#A9D6E5" in display.style
-
-
-def test_backend_display_explicit_rust(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
 
     display = get_backend_display()
 
     assert display.label == "backend: Rust"
     assert "#90BE6D" in display.style
+
+
+def test_backend_display_explicit_python(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
+    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
+
+    display = get_backend_display()
+
+    assert display.label == "backend: Python"
+    assert "#A9D6E5" in display.style
 
 
 def test_backend_display_dual_run(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,8 +124,8 @@ def test_rust_available_when_extension_importable(
     assert load_rust_extension() is fake
 
 
-def test_dispatch_python_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
+def test_dispatch_python_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
 
     def py(x: int, y: int) -> int:
@@ -133,6 +133,19 @@ def test_dispatch_python_default(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def rust(_x: int, _y: int) -> int:  # pragma: no cover - must not be called
         raise AssertionError("rust impl should not run on the python path")
+
+    assert dispatch(operation="add", python_impl=py, rust_impl=rust, args=(2, 3)) == 5
+
+
+def test_dispatch_rust_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
+    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
+
+    def py(_x: int, _y: int) -> int:  # pragma: no cover - must not be called
+        raise AssertionError("python impl should not run on the default rust path")
+
+    def rust(x: int, y: int) -> int:
+        return x + y
 
     assert dispatch(operation="add", python_impl=py, rust_impl=rust, args=(2, 3)) == 5
 

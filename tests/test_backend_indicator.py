@@ -11,24 +11,28 @@ from sase.core.backend import (
 )
 
 
-def test_backend_indicator_renders_python(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_backend_indicator_renders_rust_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
-    text = BackendIndicator._build_content()
-
-    assert text.plain == " backend: Python "
-    assert "#A9D6E5" in str(text.style)
-
-
-def test_backend_indicator_renders_rust(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
 
     text = BackendIndicator._build_content()
 
     assert text.plain == " backend: Rust "
     assert "#90BE6D" in str(text.style)
+
+
+def test_backend_indicator_renders_python_when_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
+    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
+
+    text = BackendIndicator._build_content()
+
+    assert text.plain == " backend: Python "
+    assert "#A9D6E5" in str(text.style)
 
 
 def test_backend_indicator_renders_dual_run(monkeypatch: pytest.MonkeyPatch) -> None:

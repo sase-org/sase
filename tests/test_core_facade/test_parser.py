@@ -57,7 +57,8 @@ def test_parse_project_file_rust_backend_still_uses_python_parser(
 def test_parse_project_bytes_rust_unavailable_keeps_python(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """No Rust extension + default backend = Python path, unchanged behavior."""
+    """No Rust extension + explicit Python backend = Python path, unchanged behavior."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
 
     def fail(name: str) -> object:

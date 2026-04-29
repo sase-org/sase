@@ -64,8 +64,15 @@ from .agent_scan_golden.fixture_builder import (
 
 @pytest.fixture(autouse=True)
 def _clean_backend_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure each test starts with default Python backend and no dual-run."""
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
+    """Pin each test to the Python backend with no dual-run.
+
+    Phase 6F flipped the default to Rust; these tests cover the Python
+    snapshot scanner's behavior end-to-end (fixture parity, soft-error
+    counting, etc.), so we set ``SASE_CORE_BACKEND=python`` explicitly
+    rather than relying on the default. Tests that need Rust dispatch set
+    the env var themselves.
+    """
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
 
 

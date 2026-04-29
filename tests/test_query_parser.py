@@ -9,24 +9,33 @@ from sase.ace.query import (
     parse_query,
 )
 from sase.ace.query.types import ERROR_SUFFIX_QUERY
+from sase.core.backend import BACKEND_ENV_VAR
 
 
-def test_parse_error_empty_query() -> None:
-    """Test error on empty query."""
+def test_parse_error_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test error on empty query.
+
+    Pinned to explicit Python: the Rust ``parse_query`` binding raises a
+    plain ``ValueError`` with a different message shape, so this test
+    exercises the Python parser's :class:`QueryParseError` contract.
+    """
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
         parse_query("")
     assert "Empty query" in str(exc_info.value)
 
 
-def test_parse_error_unmatched_paren() -> None:
-    """Test error on unmatched parenthesis."""
+def test_parse_error_unmatched_paren(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test error on unmatched parenthesis (Python parser-specific error)."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
         parse_query('("a"')
     assert "RPAREN" in str(exc_info.value)
 
 
-def test_parse_error_missing_operand() -> None:
-    """Test error on missing operand after AND."""
+def test_parse_error_missing_operand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test error on missing operand after AND (Python parser-specific error)."""
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
         parse_query('"a" AND')
     assert "Expected" in str(exc_info.value)

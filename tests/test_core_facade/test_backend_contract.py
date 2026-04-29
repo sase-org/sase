@@ -11,9 +11,9 @@ classifies it as either:
   ``rust_unavailable="python"``, so Rust mode keeps running Python without an
   error.
 
-These tests pin the contract at the dispatcher level so a future agent flipping
-``DEFAULT_BACKEND`` cannot discover that a facade silently masked a missing
-shipped binding (the failure mode Phase 6C is meant to prevent).
+These tests pin the contract at the dispatcher level so the Phase 6F default
+flip cannot discover that a facade silently masked a missing shipped binding
+(the failure mode Phase 6C was meant to prevent and Phase 6F now relies on).
 
 The per-facade tests under ``tests/test_core_facade/test_*.py`` and
 ``tests/test_core_git_query.py`` /
@@ -72,10 +72,10 @@ UNPORTED_OPERATIONS: tuple[str, ...] = (
 )
 
 
-def test_default_backend_is_still_python(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Phase 6C must not flip the default — that is Phase 6F's job."""
+def test_default_backend_is_rust(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Phase 6F flipped the default; the contract assertion follows suit."""
     monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-    assert DEFAULT_BACKEND is Backend.PYTHON
+    assert DEFAULT_BACKEND is Backend.RUST
 
 
 @pytest.mark.parametrize("operation", SHIPPED_OPERATIONS)
@@ -147,6 +147,11 @@ def test_dispatch_dual_run_is_noop_without_rust_impl(
     log_path = tmp_path / "core_dual_run.jsonl"
     monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
     monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
+    # Pin to explicit Python: under default Rust the missing rust_impl
+    # would raise before reaching the dual-run branch, which is not what
+    # this test exercises. The dual-run no-op-without-rust_impl contract
+    # is backend-agnostic; explicit Python is the simplest way to drive it.
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
 
     calls: list[int] = []
 
@@ -154,9 +159,6 @@ def test_dispatch_dual_run_is_noop_without_rust_impl(
         calls.append(1)
         return 7
 
-    # No rust_impl, default rust_unavailable="raise" — but we are on the
-    # default Python backend, so the missing rust_impl is fine and dual-run
-    # has nothing to compare against.
     result = dispatch(operation="unported_dual_run_check", python_impl=python_impl)
     assert result == 7
     assert calls == [1]
