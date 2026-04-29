@@ -177,9 +177,10 @@ def dispatch[T](
             return python_impl(*args, **call_kwargs)
         raise RustBackendUnavailableError(
             f"Rust backend requested for {operation!r} but no Rust implementation "
-            "is registered. Unset "
-            f"{BACKEND_ENV_VAR}, install or refresh the optional sase_core_rs "
-            "extension, or mark the operation as an explicit Python fallback."
+            f"is registered. The {RUST_EXTENSION_MODULE_NAME} extension is "
+            "either not importable in this environment or does not expose this "
+            f"binding. Install or refresh {RUST_EXTENSION_MODULE_NAME}, or set "
+            f"{BACKEND_ENV_VAR}=python to use the pure-Python implementation."
         )
 
     if rust_impl is not None and is_dual_run_enabled():

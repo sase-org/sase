@@ -123,14 +123,41 @@ remains supported through Phase 7.
 | `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Run both impls on every dispatched op; log mismatches to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled. |
 
 Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
-`RustBackendUnavailableError` rather than silently falling back. For example, `parse_project_bytes`, `parse_query`,
-`evaluate_query_many`, `scan_agent_artifacts`, `read_status_from_lines`, `apply_status_update`,
-`plan_status_transition`, `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
-`parse_git_conflicted_files`, and `parse_git_local_changes` require `sase_core_rs` to expose the corresponding binding.
-Query context/per-row evaluation, graph-index construction, and the side-effecting `transition_changespec_status` are
-intentionally unported today and fall back to Python under Rust mode. `transition_changespec_status` keeps an explicit
-`rust_unavailable="python"` fallback because dual-running the full transition would duplicate every disk-bound side
-effect; the pure decision step inside it routes through Rust via `plan_status_transition` instead.
+`RustBackendUnavailableError` rather than silently falling back. The error names the operation, the `sase_core_rs`
+extension, and the `SASE_CORE_BACKEND=python` escape hatch.
+
+### Backend Contract: Shipped vs. Unported Operations
+
+Phase 6C audited every `dispatch(...)` call site under `src/sase/core/` and classifies each operation as either
+**shipped** (a Rust binding is registered when `sase_core_rs` exposes it; missing binding under Rust mode raises
+`RustBackendUnavailableError`) or **unported** (Python is the only implementation; `rust_unavailable="python"` keeps the
+operation working under Rust mode). The classification is pinned by `tests/test_core_facade/test_backend_contract.py`,
+which fails if a new `dispatch(operation=...)` call site is added without explicit classification.
+
+| Operation                      | Facade module           | Class    | Rust mode behavior with no binding                     |
+| ------------------------------ | ----------------------- | -------- | ------------------------------------------------------ |
+| `parse_project_bytes`          | `parser_facade.py`      | shipped  | raises `RustBackendUnavailableError`                   |
+| `parse_query`                  | `query_facade.py`       | shipped  | raises `RustBackendUnavailableError`                   |
+| `evaluate_query_many`          | `query_facade.py`       | shipped  | raises `RustBackendUnavailableError`                   |
+| `scan_agent_artifacts`         | `agent_scan_facade.py`  | shipped  | raises `RustBackendUnavailableError`                   |
+| `read_status_from_lines`       | `status_facade.py`      | shipped  | raises `RustBackendUnavailableError`                   |
+| `apply_status_update`          | `status_facade.py`      | shipped  | raises `RustBackendUnavailableError`                   |
+| `plan_status_transition`       | `status_facade.py`      | shipped  | raises `RustBackendUnavailableError`                   |
+| `parse_git_name_status_z`      | `git_query_facade.py`   | shipped  | raises `RustBackendUnavailableError`                   |
+| `parse_git_branch_name`        | `git_query_facade.py`   | shipped  | raises `RustBackendUnavailableError`                   |
+| `derive_git_workspace_name`    | `git_query_facade.py`   | shipped  | raises `RustBackendUnavailableError`                   |
+| `parse_git_conflicted_files`   | `git_query_facade.py`   | shipped  | raises `RustBackendUnavailableError`                   |
+| `parse_git_local_changes`      | `git_query_facade.py`   | shipped  | raises `RustBackendUnavailableError`                   |
+| `build_query_context`          | `query_facade.py`       | unported | runs Python (`rust_unavailable="python"`)              |
+| `evaluate_query`               | `query_facade.py`       | unported | runs Python (`rust_unavailable="python"`)              |
+| `evaluate_query_with_context`  | `query_facade.py`       | unported | runs Python (`rust_unavailable="python"`)              |
+| `build_changespec_graph_index` | `graph_index_facade.py` | unported | runs Python (`rust_unavailable="python"`)              |
+| `transition_changespec_status` | `status_facade.py`      | unported | runs Python (`rust_unavailable="python"`, no dual-run) |
+
+`transition_changespec_status` keeps an explicit `rust_unavailable="python"` fallback because dual-running the full
+transition would duplicate every disk-bound side effect; the pure decision step inside it routes through Rust via
+`plan_status_transition` instead. Dual-run logging is also a no-op for any operation without a registered `rust_impl`,
+so the unported set never appears in `~/.sase/perf/core_dual_run.jsonl`.
 
 `is_rust_available()` is a lazy, forgiving probe: an `ImportError` simply reports `False` so a pure-Python install is
 never broken; other import-time failures propagate so a _misbuilt_ wheel surfaces immediately.
@@ -318,6 +345,13 @@ loop.
   shipped binding in a fresh venv before PyPI upload, and a CI install-smoke job mirrors the same checks on every PR.
   `SASE_CORE_BACKEND=python` remains a runtime escape hatch that does not require `sase_core_rs` to be importable. The
   default backend is **still Python**; the flip is Phase 6F.
+- **Phase 6C** _(complete)_ — Backend contract audit and fallback tests. Every `dispatch(...)` call site under
+  `src/sase/core/` is classified as **shipped** (12 operations, missing binding raises `RustBackendUnavailableError`) or
+  **unported** (5 operations, Python via `rust_unavailable="python"`). `tests/test_core_facade/test_backend_contract.py`
+  enumerates both sets, verifies the dispatcher's contract end-to-end, pins the dual-run no-op semantics for operations
+  without a `rust_impl`, and fails if a new `dispatch(operation=...)` call site is added without explicit
+  classification. The `RustBackendUnavailableError` text now names the operation, the `sase_core_rs` extension module,
+  and the `SASE_CORE_BACKEND=python` escape hatch. The default backend is **still Python**; the flip is Phase 6F.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile
