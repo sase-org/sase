@@ -2,6 +2,13 @@
 
 Provides functions to list currently running agents across all projects
 and to kill agents by name.
+
+Phase 3E (sase-18.5) routes the artifact walks through the
+:func:`sase.core.agent_scan_facade.scan_agent_artifacts` snapshot so a
+single scan amortizes across both ``list_running_agents`` and
+``list_all_agents``. Process-liveness checks and ``.gp`` RUNNING-field
+parsing remain in Python — only the artifact walk and JSON parsing move
+behind the facade.
 """
 
 import json
@@ -11,7 +18,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.agent.names import is_process_alive, find_named_agent
+from sase.agent.names import find_named_agent, is_process_alive
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
+)
 from sase.core.time import get_timezone
 
 
@@ -47,152 +59,256 @@ class RunningAgentInfo:
     artifacts_dir: str | None = None
 
 
+_DONE_AGENTS_CAP_PER_PROJECT = 50
+
+# Only the running/done CLI listing needs ace-run records. Skipping prompt
+# step markers avoids the per-directory glob the facade would otherwise do.
+_LISTING_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    include_prompt_step_markers=False,
+    only_workflow_dirs=("ace-run",),
+)
+
+
+def _scan_listing_snapshot() -> AgentArtifactScanWire:
+    """Acquire one ace-run snapshot for the CLI listing call sites."""
+    # Local import: ``sase.core.agent_scan_facade`` pulls in the TUI loader
+    # chain at import time (for the shared mtime cache), which transitively
+    # imports ``sase.agent`` again. A module-level import here would
+    # circle back through ``sase.agent.__init__`` and fail during startup.
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    return scan_agent_artifacts(
+        Path.home() / ".sase" / "projects",
+        _LISTING_SCAN_OPTIONS,
+    )
+
+
+def _format_duration(seconds: int) -> str:
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h{minutes}m"
+    if minutes > 0:
+        return f"{minutes}m{secs}s"
+    return f"{secs}s"
+
+
+def _parse_started_at(timestamp: str) -> datetime | None:
+    try:
+        return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(
+            tzinfo=get_timezone()
+        )
+    except ValueError:
+        return None
+
+
+def _resolve_workspace_num(
+    *,
+    project_name: str,
+    project_file: str,
+    timestamp: str,
+    cache: dict[str, list],
+) -> int | None:
+    """Look up the workspace number for *timestamp* via the project's RUNNING field.
+
+    ``.gp`` parsing stays Python-only in Phase 3; we cache the result per
+    project file so a listing with N artifacts in one project still parses
+    that project's claims at most once.
+    """
+    if project_name == "home":
+        return None
+    try:
+        from sase.running_field import get_claimed_workspaces
+
+        claims = cache.get(project_file)
+        if claims is None:
+            claims = list(get_claimed_workspaces(project_file))
+            cache[project_file] = claims
+        for claim in claims:
+            if claim.artifacts_timestamp == timestamp:
+                return claim.workspace_num
+    except Exception:
+        return None
+    return None
+
+
+def _running_info_from_running_record(
+    record: AgentArtifactRecordWire,
+    *,
+    now: datetime,
+    workspace_cache: dict[str, list],
+) -> RunningAgentInfo | None:
+    """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
+    meta = record.agent_meta
+    if meta is None:
+        return None
+    if meta.parent_timestamp:
+        return None
+    wf_state = record.workflow_state
+    if wf_state is not None and not wf_state.appears_as_agent:
+        return None
+
+    pid = meta.pid
+    if pid is None and record.running is not None:
+        pid = record.running.pid
+    meta_dict: dict[str, object] = {"pid": pid, "stopped_at": meta.stopped_at}
+    if not is_process_alive(meta_dict, Path(record.artifact_dir)):
+        return None
+
+    started_at = _parse_started_at(record.timestamp)
+    duration = "?"
+    duration_seconds: int | None = None
+    if started_at is not None:
+        duration_seconds = int((now - started_at).total_seconds())
+        duration = _format_duration(duration_seconds)
+
+    workspace_num = _resolve_workspace_num(
+        project_name=record.project_name,
+        project_file=record.project_file,
+        timestamp=record.timestamp,
+        cache=workspace_cache,
+    )
+
+    return RunningAgentInfo(
+        name=meta.name,
+        project=record.project_name,
+        pid=meta.pid,
+        model=meta.model,
+        provider=meta.llm_provider,
+        workspace_num=workspace_num,
+        duration=duration,
+        approve=bool(meta.approve),
+        prompt=record.raw_prompt_snippet,
+        status="RUNNING",
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        artifacts_dir=record.artifact_dir,
+    )
+
+
+def _running_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+) -> list[RunningAgentInfo]:
+    """Build the running-agent list from *snapshot* using current Python filters."""
+    now = datetime.now(get_timezone())
+    workspace_cache: dict[str, list] = {}
+    pairs: list[tuple[str, RunningAgentInfo]] = []
+
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        if record.has_done_marker:
+            continue
+        info = _running_info_from_running_record(
+            record, now=now, workspace_cache=workspace_cache
+        )
+        if info is None:
+            continue
+        pairs.append((record.timestamp, info))
+
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    return [info for _, info in pairs]
+
+
+def _done_info_from_record(
+    record: AgentArtifactRecordWire,
+) -> RunningAgentInfo | None:
+    """Adapt a done-marker snapshot record into RunningAgentInfo, or skip."""
+    if not record.has_done_marker:
+        return None
+    done = record.done
+    if done is None:
+        return None
+
+    meta = record.agent_meta
+
+    if meta is not None and meta.parent_timestamp:
+        return None
+
+    wf_state = record.workflow_state
+    if wf_state is not None and not wf_state.appears_as_agent:
+        return None
+
+    outcome = done.outcome or "completed"
+    if outcome == "noop":
+        return None
+    status = "FAILED" if outcome == "failed" else "DONE"
+
+    started_at = _parse_started_at(record.timestamp)
+    duration = "?"
+    duration_seconds: int | None = None
+    if started_at is not None:
+        if done.finished_at is not None:
+            end = datetime.fromtimestamp(float(done.finished_at), get_timezone())
+        else:
+            end = datetime.now(get_timezone())
+        duration_seconds = int((end - started_at).total_seconds())
+        duration = _format_duration(duration_seconds)
+
+    name = (meta.name if meta is not None else None) or done.name
+    pid = (meta.pid if meta is not None else None) or done.pid
+    model = (meta.model if meta is not None else None) or done.model
+    provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
+    approve = bool((meta.approve if meta is not None else False) or done.approve)
+
+    return RunningAgentInfo(
+        name=name,
+        project=record.project_name,
+        pid=pid,
+        model=model,
+        provider=provider,
+        workspace_num=done.workspace_num,
+        duration=duration,
+        approve=approve,
+        prompt=record.raw_prompt_snippet,
+        status=status,
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        artifacts_dir=record.artifact_dir,
+    )
+
+
+def _done_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+    *,
+    cap_per_project: int,
+) -> list[RunningAgentInfo]:
+    """Build the recently-completed list from *snapshot* with per-project cap."""
+    by_project: dict[str, list[AgentArtifactRecordWire]] = {}
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        by_project.setdefault(record.project_name, []).append(record)
+
+    pairs: list[tuple[str, RunningAgentInfo]] = []
+    for project_records in by_project.values():
+        # Newest first, matching the existing ``sorted(..., reverse=True)``
+        # walk in the per-directory loop.
+        project_records.sort(key=lambda r: r.timestamp, reverse=True)
+        kept = 0
+        for record in project_records:
+            if kept >= cap_per_project:
+                break
+            info = _done_info_from_record(record)
+            if info is None:
+                continue
+            pairs.append((record.timestamp, info))
+            kept += 1
+
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    return [info for _, info in pairs]
+
+
 def list_running_agents() -> list[RunningAgentInfo]:
     """List all currently running agents across all projects.
 
-    Scans ``~/.sase/projects/*/artifacts/ace-run/*/`` for agents that
-    have no ``done.json`` and whose process is still alive.
-
-    Returns:
-        A list of RunningAgentInfo, sorted by start time (most recent first).
+    Consumes one :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
+    snapshot for ``ace-run`` records, applies the current Python filters
+    (parent-timestamp dedup, hidden-workflow skip, PID liveness), and
+    returns most-recent-first.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
-    if not projects_dir.exists():
-        return []
-
-    agents: list[tuple[str, RunningAgentInfo]] = []  # (timestamp, info)
-    now = datetime.now(get_timezone())
-
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
-            continue
-
-        project_name = project_dir.name
-
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-
-            # Skip completed agents
-            if (artifact_dir / "done.json").exists():
-                continue
-
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
-
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            if not isinstance(data, dict):
-                continue
-
-            # Follow-up agents (coder/epic steps spawned after plan
-            # approval) share their parent's name — skip duplicates.
-            if data.get("parent_timestamp"):
-                continue
-
-            # Workflow agents with appears_as_agent=False are multi-step
-            # orchestrators that shouldn't appear as separate agents.
-            wf_path = artifact_dir / "workflow_state.json"
-            if wf_path.exists():
-                try:
-                    with open(wf_path, encoding="utf-8") as f:
-                        wf_data = json.load(f)
-                    if isinstance(wf_data, dict) and not wf_data.get(
-                        "appears_as_agent", False
-                    ):
-                        continue
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-            # Verify process is alive
-            if not is_process_alive(data, artifact_dir):
-                continue
-
-            # Parse start time from directory name (YYYYmmddHHMMSS)
-            ts_str = artifact_dir.name
-            duration = "?"
-            started_at: datetime | None = None
-            duration_seconds: int | None = None
-            try:
-                start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(
-                    tzinfo=get_timezone()
-                )
-                started_at = start
-                delta = now - start
-                total_seconds = int(delta.total_seconds())
-                duration_seconds = total_seconds
-                hours, remainder = divmod(total_seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                if hours > 0:
-                    duration = f"{hours}h{minutes}m"
-                elif minutes > 0:
-                    duration = f"{minutes}m{seconds}s"
-                else:
-                    duration = f"{seconds}s"
-            except ValueError:
-                pass
-
-            # Resolve workspace number from RUNNING field
-            workspace_num: int | None = None
-            if project_name != "home":
-                try:
-                    from sase.running_field import get_claimed_workspaces
-
-                    project_file = str(project_dir / f"{project_name}.gp")
-                    for claim in get_claimed_workspaces(project_file):
-                        if claim.artifacts_timestamp == ts_str:
-                            workspace_num = claim.workspace_num
-                            break
-                except Exception:
-                    pass
-
-            # Read raw prompt (first ~200 chars)
-            prompt_snippet: str | None = None
-            raw_prompt_path = artifact_dir / "raw_xprompt.md"
-            if raw_prompt_path.exists():
-                try:
-                    prompt_snippet = raw_prompt_path.read_text(encoding="utf-8")[
-                        :200
-                    ].strip()
-                except OSError:
-                    pass
-
-            agents.append(
-                (
-                    ts_str,
-                    RunningAgentInfo(
-                        name=data.get("name"),
-                        project=project_name,
-                        pid=data.get("pid"),
-                        model=data.get("model"),
-                        provider=data.get("llm_provider"),
-                        workspace_num=workspace_num,
-                        duration=duration,
-                        approve=bool(data.get("approve")),
-                        prompt=prompt_snippet,
-                        status="RUNNING",
-                        started_at=started_at,
-                        duration_seconds=duration_seconds,
-                        artifacts_dir=str(artifact_dir),
-                    ),
-                )
-            )
-
-    # Sort by timestamp descending (most recent first)
-    agents.sort(key=lambda x: x[0], reverse=True)
-    return [info for _, info in agents]
-
-
-_DONE_AGENTS_CAP_PER_PROJECT = 50
+    snapshot = _scan_listing_snapshot()
+    return _running_from_snapshot(snapshot)
 
 
 def list_all_agents(
@@ -200,153 +316,19 @@ def list_all_agents(
 ) -> list[RunningAgentInfo]:
     """List running agents plus recently-completed DONE/FAILED agents.
 
-    Running agents are returned by :func:`list_running_agents`. Completed
-    agents are discovered by scanning ``done.json`` markers under
-    ``~/.sase/projects/*/artifacts/ace-run/*/``; at most
-    ``cap_per_project`` most-recent completed entries are returned per
-    project to keep the walk bounded on long-lived installs.
+    Acquires one scan snapshot and computes both running and completed
+    entries from it so the artifact walk happens at most once per call.
+    Per-project completed cap and ordering match the previous direct-walk
+    implementation.
 
     Returns:
         A list of RunningAgentInfo, sorted by start time (most recent
-        first). Running agents always precede completed agents within
-        the same timestamp ordering.
+        first). Running agents always precede completed agents.
     """
-    running = list_running_agents()
-
-    projects_dir = Path.home() / ".sase" / "projects"
-    if not projects_dir.exists():
-        return running
-
-    done_agents: list[tuple[str, RunningAgentInfo]] = []
-
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
-            continue
-
-        project_name = project_dir.name
-
-        artifact_dirs = sorted(
-            (d for d in ace_run_dir.iterdir() if d.is_dir()),
-            key=lambda d: d.name,
-            reverse=True,
-        )
-
-        kept = 0
-        for artifact_dir in artifact_dirs:
-            if kept >= cap_per_project:
-                break
-
-            done_path = artifact_dir / "done.json"
-            if not done_path.exists():
-                continue
-
-            try:
-                with open(done_path, encoding="utf-8") as f:
-                    done_data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            if not isinstance(done_data, dict):
-                continue
-
-            # Skip hidden workflow steps (same filter as running)
-            meta_path = artifact_dir / "agent_meta.json"
-            meta: dict[str, object] = {}
-            if meta_path.exists():
-                try:
-                    with open(meta_path, encoding="utf-8") as f:
-                        loaded = json.load(f)
-                    if isinstance(loaded, dict):
-                        meta = loaded
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-            if meta.get("parent_timestamp"):
-                continue
-
-            wf_path = artifact_dir / "workflow_state.json"
-            if wf_path.exists():
-                try:
-                    with open(wf_path, encoding="utf-8") as f:
-                        wf_data = json.load(f)
-                    if isinstance(wf_data, dict) and not wf_data.get(
-                        "appears_as_agent", False
-                    ):
-                        continue
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-            outcome = done_data.get("outcome", "completed")
-            if outcome == "noop":
-                continue
-            status = "FAILED" if outcome == "failed" else "DONE"
-
-            ts_str = artifact_dir.name
-            started_at: datetime | None = None
-            duration_seconds: int | None = None
-            duration = "?"
-            try:
-                start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(
-                    tzinfo=get_timezone()
-                )
-                started_at = start
-                finished_ts = done_data.get("finished_at")
-                if isinstance(finished_ts, (int, float)):
-                    end = datetime.fromtimestamp(float(finished_ts), get_timezone())
-                else:
-                    end = datetime.now(get_timezone())
-                total_seconds = int((end - start).total_seconds())
-                duration_seconds = total_seconds
-                hours, remainder = divmod(total_seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                if hours > 0:
-                    duration = f"{hours}h{minutes}m"
-                elif minutes > 0:
-                    duration = f"{minutes}m{seconds}s"
-                else:
-                    duration = f"{seconds}s"
-            except ValueError:
-                pass
-
-            prompt_snippet: str | None = None
-            raw_prompt_path = artifact_dir / "raw_xprompt.md"
-            if raw_prompt_path.exists():
-                try:
-                    prompt_snippet = raw_prompt_path.read_text(encoding="utf-8")[
-                        :200
-                    ].strip()
-                except OSError:
-                    pass
-
-            done_agents.append(
-                (
-                    ts_str,
-                    RunningAgentInfo(
-                        name=meta.get("name") or done_data.get("name"),  # type: ignore[arg-type]
-                        project=project_name,
-                        pid=meta.get("pid") or done_data.get("pid"),  # type: ignore[arg-type]
-                        model=meta.get("model") or done_data.get("model"),  # type: ignore[arg-type]
-                        provider=meta.get("llm_provider")
-                        or done_data.get("llm_provider"),  # type: ignore[arg-type]
-                        workspace_num=done_data.get("workspace_num"),
-                        duration=duration,
-                        approve=bool(meta.get("approve") or done_data.get("approve")),
-                        prompt=prompt_snippet,
-                        status=status,
-                        started_at=started_at,
-                        duration_seconds=duration_seconds,
-                        artifacts_dir=str(artifact_dir),
-                    ),
-                )
-            )
-            kept += 1
-
-    done_agents.sort(key=lambda x: x[0], reverse=True)
-    return running + [info for _, info in done_agents]
+    snapshot = _scan_listing_snapshot()
+    running = _running_from_snapshot(snapshot)
+    done = _done_from_snapshot(snapshot, cap_per_project=cap_per_project)
+    return running + done
 
 
 def kill_named_agent(name: str) -> _KillResult:

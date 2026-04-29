@@ -34,9 +34,16 @@ For each workload the benchmark times these scenarios:
 - ``is_workflow_complete``: current direct workflow-complete check
   (:func:`sase.agent.names._lookup.is_workflow_complete`).
 - ``list_running_agents``: current
-  :func:`sase.agent.running.list_running_agents`.
+  :func:`sase.agent.running.list_running_agents` (Phase 3E:
+  snapshot-backed).
 - ``list_all_agents``: current
-  :func:`sase.agent.running.list_all_agents`.
+  :func:`sase.agent.running.list_all_agents` (Phase 3E: snapshot-backed,
+  one snapshot per call covers running + done).
+- ``list_running_agents_shared_snapshot`` /
+  ``list_all_agents_shared_snapshot``: time only the snapshot adapter
+  inside the listing functions, separated from the snapshot acquisition
+  cost. Useful for Phase 3F to estimate the savings from sharing one
+  snapshot across multiple call sites.
 - ``tui_artifact_load``: ``load_done_agents`` + ``load_running_home_agents``
   + ``load_workflow_states`` + ``load_workflow_agent_steps`` (the artifact
   / workflow portions of ``_load_agents_from_all_sources``).
@@ -240,7 +247,12 @@ def _run_scenarios(
     scanner takes the root explicitly and is not affected by the patch.
     """
     from sase.agent.names._lookup import find_named_agent, is_workflow_complete
-    from sase.agent.running import list_all_agents, list_running_agents
+    from sase.agent.running import (
+        _done_from_snapshot,
+        _running_from_snapshot,
+        list_all_agents,
+        list_running_agents,
+    )
     from sase.ace.tui.models._loaders._artifact_loaders import (
         load_done_agents,
         load_running_home_agents,
@@ -321,11 +333,31 @@ def _run_scenarios(
         )
         return 1 if result else 0
 
+    # Phase 3E: time the running/all listing's adapter cost separately from
+    # the snapshot acquisition cost. Phase 3F (TUI loader) needs this to
+    # decide how much it can save by sharing one snapshot across call sites.
+    listing_opts = AgentArtifactScanOptionsWire(
+        include_prompt_step_markers=False,
+        only_workflow_dirs=("ace-run",),
+    )
+
+    def s_running_from_shared_snapshot() -> int:
+        snapshot = scan_agent_artifacts_python(projects_root, listing_opts)
+        return len(_running_from_snapshot(snapshot))
+
+    def s_all_from_shared_snapshot() -> int:
+        snapshot = scan_agent_artifacts_python(projects_root, listing_opts)
+        running = _running_from_snapshot(snapshot)
+        done = _done_from_snapshot(snapshot, cap_per_project=50)
+        return len(running) + len(done)
+
     scenarios: dict[str, Callable[[], int]] = {
         "find_named_agent": s_find,
         "is_workflow_complete": s_workflow_complete,
         "list_running_agents": s_list_running,
         "list_all_agents": s_list_all,
+        "list_running_agents_shared_snapshot": s_running_from_shared_snapshot,
+        "list_all_agents_shared_snapshot": s_all_from_shared_snapshot,
         "tui_artifact_load": s_tui_load,
         "scan_python_facade": s_scan_facade,
         "scan_python_facade_no_prompt_steps": s_scan_facade_no_steps,

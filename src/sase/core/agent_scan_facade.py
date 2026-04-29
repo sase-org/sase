@@ -455,7 +455,9 @@ def scan_agent_artifacts_python(
     root = Path(projects_root)
 
     if root.exists():
-        for project_dir in sorted(_safe_iterdir(root, stats_dict), key=lambda p: p.name):
+        for project_dir in sorted(
+            _safe_iterdir(root, stats_dict), key=lambda p: p.name
+        ):
             if not project_dir.is_dir():
                 continue
             stats_dict["projects_visited"] += 1
@@ -495,9 +497,7 @@ def scan_agent_artifacts_python(
     # Final sort for determinism. The walk order above already produces
     # this ordering, but a re-sort is cheap insurance against future
     # walker changes (parallel parsing, etc.).
-    records.sort(
-        key=lambda r: (r.project_name, r.workflow_dir_name, r.timestamp)
-    )
+    records.sort(key=lambda r: (r.project_name, r.workflow_dir_name, r.timestamp))
 
     stats = AgentArtifactScanStatsWire(**stats_dict)
     return AgentArtifactScanWire(
