@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 18:35:39
-status: wip
+status: done
 ---
 # Fix `install_sase_github` Resolution Of Local `sase-core-rs`
 
