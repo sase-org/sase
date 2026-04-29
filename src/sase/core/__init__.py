@@ -1,4 +1,20 @@
-"""Core utilities — split from the former sase_utils.py module."""
+"""Core utilities — split from the former sase_utils.py module.
+
+This package also hosts the Phase 0 facade for the future Rust backend (see
+``research/202604/rust_backend_migration.md``):
+
+- :mod:`sase.core.backend` — ``SASE_CORE_BACKEND`` selection + dispatch.
+- :mod:`sase.core.dual_run` — ``SASE_CORE_DUAL_RUN`` JSONL comparison logging.
+- :mod:`sase.core.wire` — stable wire records a Rust impl will produce/consume.
+- :mod:`sase.core.wire_conversion` — Python ``ChangeSpec`` -> wire records.
+- :mod:`sase.core.parser_facade` — :func:`parse_project_file` / ``_bytes``.
+- :mod:`sase.core.query_facade` — query parse / build context / evaluate.
+- :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
+- :mod:`sase.core.status_facade` — status transitions + pure status helpers.
+
+Phase 0A ships only the Python implementation; ``SASE_CORE_BACKEND=rust``
+intentionally raises :class:`sase.core.backend.RustBackendUnavailableError`.
+"""
 
 from sase.core.changespec import (
     changespec_name_to_branch,
