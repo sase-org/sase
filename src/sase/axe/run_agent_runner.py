@@ -5,10 +5,11 @@ This script is launched by the ace TUI to run custom agents in the background.
 It handles workspace cleanup and releases the workspace upon completion.
 
 The core execution loop (retry, plan approval, question handling) lives in
-``axe.run_agent_exec``.
+``axe.run_agent_exec``. Pre-execution setup helpers live in
+``axe.run_agent_runner_setup`` and post-execution helpers in
+``axe.run_agent_runner_finalize``.
 """
 
-import json
 import os
 import sys
 import time
@@ -17,161 +18,38 @@ from typing import Any
 from sase.ace.hooks import format_duration
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_phases import (
-    build_done_marker,
     claim_deferred_workspace,
     extract_directives_and_write_meta,
-    record_stop_time,
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
     wait_for_dependencies,
 )
+from sase.axe.run_agent_runner_finalize import (
+    classify_exec_success,
+    record_completion_metrics,
+    send_completion_notification,
+    write_error_done_marker,
+)
+from sase.axe.run_agent_runner_setup import (
+    apply_dynamic_memory,
+    apply_retry_chain_to_meta,
+    bump_spawn_telemetry,
+    load_retry_handoff_from_env,
+    prepare_workspace_if_needed,
+    preprocess_prompt_xprompts,
+    setup_artifacts_directory,
+    write_home_running_marker,
+)
 from sase.axe.runner_utils import (
     all_steps_hidden,
     install_sigterm_handler,
-    prepare_workspace,
     was_killed,
     write_error_report,
 )
-from sase.artifacts import (
-    convert_timestamp_to_artifacts_format,
-    create_artifacts_directory,
-)
-from sase.telemetry import init_telemetry, push_metrics, register_push_on_exit
-from sase.telemetry.metrics import (
-    AGENT_ACTIVE,
-    AGENT_KILLS,
-    AGENT_RUN_DURATION,
-    AGENT_RUNS,
-    AGENT_SPAWNS,
-    WORKSPACE_ACTIVE,
-)
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
-
-
-def _classify_exec_success(*, success: bool, outcome: str) -> bool:
-    """Map execution-loop outcomes to runner success semantics."""
-    return success or outcome == "plan_rejected"
-
-
-def _prepare_workspace_if_needed(
-    *,
-    workspace_dir: str,
-    cl_name: str,
-    update_target: str,
-    project_name: str,
-    is_home_mode: bool,
-    retry_handoff: object | None,
-) -> None:
-    """Prepare a non-home workspace unless this runner must preserve it."""
-    if not update_target or is_home_mode:
-        return
-
-    if retry_handoff is not None:
-        print(
-            "=== Skipping workspace prep (retry-spawn child) — "
-            "parent's in-progress edits preserved ==="
-        )
-        print()
-        return
-
-    print("=== Preparing Workspace ===")
-    if not prepare_workspace(
-        workspace_dir,
-        cl_name,
-        update_target,
-        backup_suffix="ace",
-        project_basename=project_name,
-    ):
-        raise RuntimeError("Failed to prepare workspace")
-    print("===========================")
-    print()
-
-
-def _send_completion_notification(
-    *,
-    cl_name: str,
-    artifacts_timestamp: str,
-    workflow_name: str,
-    success: bool,
-    agent_hidden: bool,
-    agent_name: str | None,
-    agent_model: str | None,
-    agent_llm_provider: str | None,
-    error_summary: str | None,
-    error_report_path: str | None,
-    saved_path: str | None,
-    diff_path: str | None,
-    output_path: str,
-    step_output: dict[str, Any] | None,
-    prompt: str,
-    outcome: str | None = None,
-) -> None:
-    from sase.llm_provider.registry import format_provider_model_label
-    from sase.notifications.senders import notify_workflow_complete
-
-    if outcome == "plan_rejected":
-        return
-
-    extra_files = [p for p in [saved_path, diff_path] if p]
-
-    # For failures: attach error report (first) and output log
-    if not success:
-        if error_report_path:
-            extra_files.insert(0, error_report_path)
-        if os.path.isfile(output_path):
-            extra_files.append(output_path)
-
-    agent_label = format_provider_model_label(agent_llm_provider, agent_model)
-
-    # Build notes — include error summary for failures
-    name_part = f" @{agent_name}" if agent_name else ""
-    notes = [
-        f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
-    ]
-    if not success and error_summary:
-        notes.append(error_summary)
-
-    # For failures with an error report, use ViewErrorReport action
-    # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
-    commit_message = (step_output or {}).get("meta_commit_message")
-    pr_url = (step_output or {}).get("meta_pr_url")
-
-    action: str
-    action_data: dict[str, str]
-    if not success and error_report_path:
-        action = "ViewErrorReport"
-        action_data = {
-            "error_report_path": error_report_path,
-            "cl_name": cl_name,
-            "raw_suffix": artifacts_timestamp,
-            **({"agent_name": agent_name} if agent_name else {}),
-            **({"commit_message": commit_message} if commit_message else {}),
-            **({"pr_url": pr_url} if pr_url else {}),
-        }
-    else:
-        action = "JumpToAgent"
-        action_data = {
-            "cl_name": cl_name,
-            "raw_suffix": artifacts_timestamp,
-            **({"agent_name": agent_name} if agent_name else {}),
-            **({"model": agent_model} if agent_model else {}),
-            **({"llm_provider": agent_llm_provider} if agent_llm_provider else {}),
-            "prompt": prompt,
-            **({"commit_message": commit_message} if commit_message else {}),
-            **({"pr_url": pr_url} if pr_url else {}),
-        }
-
-    notify_workflow_complete(
-        sender="user-agent",
-        cl_name=cl_name,
-        success=success,
-        notes=notes,
-        action=action,
-        action_data=action_data,
-        extra_files=extra_files,
-        silent=agent_hidden,
-    )
 
 
 def main() -> None:
@@ -249,57 +127,14 @@ def main() -> None:
     # Track running marker path for cleanup (home mode only)
     running_marker_path: str | None = None
 
-    # Compute artifacts early so error handler can write done.json
-    if is_home_mode:
-        project_name = "home"
-    else:
-        project_name = os.path.basename(os.path.dirname(project_file))
-    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-    artifacts_dir = create_artifacts_directory(
-        "ace-run",
-        project_name=project_name,
+    project_name, artifacts_timestamp, artifacts_dir = setup_artifacts_directory(
         timestamp=timestamp,
+        project_file=project_file,
+        cl_name=cl_name,
+        is_home_mode=is_home_mode,
     )
 
-    # Write initial workflow_state.json so the TUI can merge this entry as a
-    # WORKFLOW immediately, before WorkflowExecutor.execute() overwrites it.
-    _initial_state: dict[str, object] = {
-        "workflow_name": "run",
-        "status": "running",
-        "current_step_index": 0,
-        "steps": [],
-        "context": {"cl_name": cl_name},
-        "artifacts_dir": artifacts_dir,
-        "pid": os.getpid(),
-        "appears_as_agent": True,
-    }
-    with open(
-        os.path.join(artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
-    ) as f:
-        json.dump(_initial_state, f, indent=2)
-
-    # Resolve aliases before saving so the TUI shows canonical names
-    from sase.xprompt import resolve_xprompt_aliases
-
-    prompt = resolve_xprompt_aliases(prompt)
-
-    # Extract VCS workflow tag from the raw prompt before xprompt expansion.
-    # This is needed to prepend the tag to follow-up agents (.code, .epic).
-    from sase.xprompt._parsing import extract_vcs_workflow_tag
-
-    vcs_tag = extract_vcs_workflow_tag(prompt)
-
-    # Save raw xprompt for TUI display (before any preprocessing)
-    raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
-    with open(raw_xprompt_path, "w", encoding="utf-8") as f:
-        f.write(prompt)
-
-    # Expand xprompt references so directives from xprompts (e.g.,
-    # #swarm expanding to %model:opus) are available for extraction.
-    # This must happen after saving raw_xprompt.md above.
-    from sase.xprompt.processor import process_xprompt_references
-
-    prompt = process_xprompt_references(prompt)
+    prompt, vcs_tag = preprocess_prompt_xprompts(prompt, artifacts_dir)
 
     # Defaults for agent metadata (populated later, but needed by error handler)
     agent_name: str | None = None
@@ -310,34 +145,13 @@ def main() -> None:
     # Initialize current_artifacts_dir so it's always defined for cleanup
     current_artifacts_dir = artifacts_dir
 
-    # ----------------------------------------------------------------
-    # Spawn-on-retry: detect the retry handoff env var.  When set, this
+    # Spawn-on-retry: detect the retry handoff env var. When set, this
     # process is a retry child whose workspace was transferred from the
     # failing parent; we must NOT call prepare_workspace (which would
     # wipe the parent's in-progress file edits) and must record the
     # retry-chain pointers into agent_meta.json so the TUI loader can
     # build the chain.
-    # ----------------------------------------------------------------
-    from sase.axe.run_agent_retry_spawn import (
-        ENV_RETRY_ATTEMPT,
-        ENV_RETRY_CHAIN_ROOT_TIMESTAMP,
-        ENV_RETRY_HANDOFF,
-        ENV_RETRY_OF_TIMESTAMP,
-        RetryHandoff,
-    )
-
-    retry_handoff_path = os.environ.get(ENV_RETRY_HANDOFF)
-    retry_handoff: RetryHandoff | None = None
-    if retry_handoff_path:
-        retry_handoff = RetryHandoff.read_from_path(retry_handoff_path)
-        if retry_handoff is not None:
-            print("=== Retry-Spawn Handoff Loaded ===")
-            print(f"  parent: {retry_handoff.parent_timestamp}")
-            print(f"  retry attempt: #{retry_handoff.retry_attempt}")
-            print(f"  chain root: {retry_handoff.chain_root_timestamp}")
-            print(f"  category: {retry_handoff.error_category}")
-            print("==================================")
-            print()
+    retry_handoff = load_retry_handoff_from_env()
 
     try:
         try:
@@ -353,7 +167,7 @@ def main() -> None:
                 )
                 print()
             else:
-                _prepare_workspace_if_needed(
+                prepare_workspace_if_needed(
                     workspace_dir=workspace_dir,
                     cl_name=cl_name,
                     update_target=update_target,
@@ -365,44 +179,12 @@ def main() -> None:
             # Change to workspace directory
             os.chdir(workspace_dir)
 
-            # Generate dynamic memory before agent starts.  This is the early
-            # pass — it produces the user-visible snapshot, writes the
-            # dynamic_memory.json artifact, and appends the `### DYNAMIC
-            # MEMORY` section to the prompt.  The on-disk files written here
-            # may be wiped by embedded-workflow pre-steps (e.g. `hg clean`)
-            # that run later; preprocess_prompt_late() re-writes them
-            # immediately before file-reference validation via
-            # rewrite_dynamic_memory_for_prompt().
-            from sase.memory.dynamic import generate_dynamic_memory
-
-            dynamic_result = generate_dynamic_memory(prompt, project_name)
-            if dynamic_result.matched:
-                artifact = [
-                    {
-                        "name": m.name,
-                        "keywords_matched": m.keywords_matched,
-                        "content": m.content,
-                    }
-                    for m in dynamic_result.matched
-                ]
-                with open(
-                    os.path.join(artifacts_dir, "dynamic_memory.json"),
-                    "w",
-                    encoding="utf-8",
-                ) as f:
-                    json.dump(artifact, f, indent=2)
-
-                print("=== Dynamic Memory ===")
-                for m in dynamic_result.matched:
-                    kws = ", ".join(m.keywords_matched)
-                    print(f"  + {m.name}  (matched: {kws})")
-                print("======================")
-                print()
-
-                # Inject dynamic memory section into the prompt
-                from sase.memory.dynamic import format_dynamic_memory_section
-
-                prompt = prompt + "\n\n" + format_dynamic_memory_section(dynamic_result)
+            # Generate dynamic memory before agent starts. The on-disk files
+            # written here may be wiped by embedded-workflow pre-steps (e.g.
+            # `hg clean`); preprocess_prompt_late() re-writes them via
+            # rewrite_dynamic_memory_for_prompt() before file-reference
+            # validation.
+            prompt = apply_dynamic_memory(prompt, project_name, artifacts_dir)
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
@@ -415,73 +197,31 @@ def main() -> None:
             agent_hidden = info.hidden
             agent_meta = info.meta
 
-            # If we're a retry spawn child, record the retry-chain backward
-            # pointer + attempt number into agent_meta.json so the TUI
-            # loader can render the chain ancestry.
-            if retry_handoff is not None:
-                agent_meta["retry_of_timestamp"] = retry_handoff.parent_timestamp
-                agent_meta["retry_attempt"] = retry_handoff.retry_attempt
-                agent_meta["retry_chain_root_timestamp"] = (
-                    retry_handoff.chain_root_timestamp
-                )
-                agent_meta["retry_error_category"] = retry_handoff.error_category
-                meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-                with open(meta_path, "w", encoding="utf-8") as _f:
-                    json.dump(agent_meta, _f, indent=2)
-            else:
-                # Honor env var fallback (e.g. for tests) when no handoff file.
-                env_retry_attempt = os.environ.get(ENV_RETRY_ATTEMPT)
-                env_retry_of = os.environ.get(ENV_RETRY_OF_TIMESTAMP)
-                env_retry_root = os.environ.get(ENV_RETRY_CHAIN_ROOT_TIMESTAMP)
-                if env_retry_attempt and env_retry_of:
-                    try:
-                        agent_meta["retry_attempt"] = int(env_retry_attempt)
-                        agent_meta["retry_of_timestamp"] = env_retry_of
-                        if env_retry_root:
-                            agent_meta["retry_chain_root_timestamp"] = env_retry_root
-                        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-                        with open(meta_path, "w", encoding="utf-8") as _f:
-                            json.dump(agent_meta, _f, indent=2)
-                    except ValueError:
-                        pass
+            apply_retry_chain_to_meta(
+                retry_handoff=retry_handoff,
+                agent_meta=agent_meta,
+                artifacts_dir=artifacts_dir,
+            )
 
-            # Track spawn counter + active agent gauge. These live here (not
-            # in launcher.py) because init_telemetry() has already run in this
-            # process and agent_llm_provider is now known from directives.
-            AGENT_SPAWNS.labels(
-                llm_provider=agent_llm_provider or "", project=project_name
-            ).inc()
-            AGENT_ACTIVE.labels(
-                llm_provider=agent_llm_provider or "", project=project_name
-            ).inc()
-            # Track active workspace gauge here (not in claim_workspace which
-            # runs in the launcher process where telemetry is not initialized).
-            if not is_home_mode:
-                WORKSPACE_ACTIVE.labels(project=project_name).inc()
-            # Push immediately so the pushgateway reflects the active state
-            # (the atexit push only fires after gauges are decremented to 0).
-            push_metrics(
-                job="agent_runner",
-                grouping_key={"workflow": workflow_name, "instance": timestamp},
+            bump_spawn_telemetry(
+                agent_llm_provider=agent_llm_provider,
+                project_name=project_name,
+                is_home_mode=is_home_mode,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
             )
 
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
-                running_marker_path = os.path.join(artifacts_dir, "running.json")
-                running_marker: dict[str, Any] = {
-                    "cl_name": cl_name,
-                    "pid": os.getpid(),
-                    "timestamp": timestamp,
-                    "prompt": prompt,
-                }
-                if agent_model:
-                    running_marker["model"] = agent_model
-                if agent_llm_provider:
-                    running_marker["llm_provider"] = agent_llm_provider
-                if agent_vcs_provider:
-                    running_marker["vcs_provider"] = agent_vcs_provider
-                with open(running_marker_path, "w", encoding="utf-8") as f:
-                    json.dump(running_marker, f, indent=2)
+                running_marker_path = write_home_running_marker(
+                    artifacts_dir=artifacts_dir,
+                    cl_name=cl_name,
+                    timestamp=timestamp,
+                    prompt=prompt,
+                    agent_model=agent_model,
+                    agent_llm_provider=agent_llm_provider,
+                    agent_vcs_provider=agent_vcs_provider,
+                )
 
             # Wait for dependencies if %wait directives are present
             has_wait = (
@@ -513,7 +253,7 @@ def main() -> None:
                         cl_name,
                         artifacts_timestamp,
                     )
-                    _prepare_workspace_if_needed(
+                    prepare_workspace_if_needed(
                         workspace_dir=workspace_dir,
                         cl_name=cl_name,
                         update_target=update_target,
@@ -554,7 +294,7 @@ def main() -> None:
 
             exec_result = run_execution_loop(ctx, prompt)
             exec_outcome = exec_result.outcome
-            success = _classify_exec_success(
+            success = classify_exec_success(
                 success=exec_result.success,
                 outcome=exec_outcome,
             )
@@ -572,67 +312,40 @@ def main() -> None:
             error_summary = f"{type(e).__qualname__}: {e}"
             error_traceback_str = traceback.format_exc()
             AGENT_KILLS.labels(reason="error").inc()
-            # Write error done marker so TUI can display the error
-            try:
-                error_done = build_done_marker(
-                    cl_name,
-                    project_file,
-                    timestamp,
-                    artifacts_timestamp,
-                    workspace_num,
-                    output_path,
-                    "failed",
-                    agent_name=agent_name,
-                    agent_model=agent_model,
-                    agent_llm_provider=agent_llm_provider,
-                    agent_vcs_provider=agent_vcs_provider,
-                    agent_hidden=agent_hidden,
-                    error=f"{type(e).__qualname__}: {e}",
-                    traceback_str=traceback.format_exc(),
-                )
-                done_path = os.path.join(current_artifacts_dir, "done.json")
-                with open(done_path, "w", encoding="utf-8") as f:
-                    json.dump(error_done, f, indent=2)
-            except Exception:
-                pass  # Best effort
+            write_error_done_marker(
+                current_artifacts_dir=current_artifacts_dir,
+                cl_name=cl_name,
+                project_file=project_file,
+                timestamp=timestamp,
+                artifacts_timestamp=artifacts_timestamp,
+                workspace_num=workspace_num,
+                output_path=output_path,
+                agent_name=agent_name,
+                agent_model=agent_model,
+                agent_llm_provider=agent_llm_provider,
+                agent_vcs_provider=agent_vcs_provider,
+                agent_hidden=agent_hidden,
+                error=error_summary,
+                traceback_str=error_traceback_str,
+            )
 
         end_time = time.time()
         elapsed_seconds = int(end_time - start_time)
         duration = format_duration(elapsed_seconds)
 
-        # Record Prometheus agent lifecycle metrics
-        _provider = agent_llm_provider or ""
-        AGENT_RUNS.labels(
-            llm_provider=_provider,
-            status="ok" if success else "error",
-            workflow=workflow_name,
-        ).inc()
-        AGENT_RUN_DURATION.labels(
-            llm_provider=_provider, workflow=workflow_name
-        ).observe(end_time - start_time)
-        AGENT_ACTIVE.labels(llm_provider=_provider, project=project_name).dec()
-
-        # Record stop time in agent_meta.json for TUI timestamp display
-        record_stop_time(artifacts_dir, current_artifacts_dir)
-
-        # Log structured agent run record
-        try:
-            from sase.logs.run_log import log_agent_run
-
-            log_agent_run(
-                workflow=workflow_name,
-                project=project_name,
-                branch_or_workspace=cl_name,
-                workspace_num=workspace_num,
-                model=agent_model,
-                llm_provider=agent_llm_provider,
-                duration_seconds=end_time - start_time,
-                status="success" if success else "failed",
-                artifacts_dir=current_artifacts_dir,
-                prompt_preview=prompt[:100] if prompt else None,
-            )
-        except Exception:
-            pass  # Best effort
+        record_completion_metrics(
+            success=success,
+            duration_seconds=end_time - start_time,
+            agent_llm_provider=agent_llm_provider,
+            agent_model=agent_model,
+            workflow_name=workflow_name,
+            project_name=project_name,
+            cl_name=cl_name,
+            workspace_num=workspace_num,
+            artifacts_dir=artifacts_dir,
+            current_artifacts_dir=current_artifacts_dir,
+            prompt=prompt,
+        )
 
         print()
         print(f"Agent completed with status: {'SUCCESS' if success else 'FAILED'}")
@@ -704,7 +417,7 @@ def main() -> None:
         # Also skip when every step in the workflow was hidden (e.g. for-loops
         # over empty lists) — there's nothing useful to report.
         if not was_killed() and not all_steps_hidden(current_artifacts_dir):
-            _send_completion_notification(
+            send_completion_notification(
                 cl_name=cl_name,
                 artifacts_timestamp=artifacts_timestamp,
                 workflow_name=workflow_name,

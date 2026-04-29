@@ -89,6 +89,8 @@ class _WorkflowResult:
 
 
 _RUNNER = "sase.axe.run_agent_runner"
+_SETUP = "sase.axe.run_agent_runner_setup"
+_FINALIZE = "sase.axe.run_agent_runner_finalize"
 _EXEC = "sase.axe.run_agent_exec"
 _RETRY = "sase.axe.run_agent_exec_retry"
 
@@ -100,18 +102,18 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
     prepare_ws_mock = MagicMock(return_value=True)
     return {
         # --- runner module ---
-        f"{_RUNNER}.prepare_workspace": prepare_ws_mock,
+        f"{_SETUP}.prepare_workspace": prepare_ws_mock,
         f"{_RUNNER}.extract_directives_and_write_meta": MagicMock(
             return_value=_AGENT_INFO
         ),
-        f"{_RUNNER}.convert_timestamp_to_artifacts_format": MagicMock(
+        f"{_SETUP}.convert_timestamp_to_artifacts_format": MagicMock(
             return_value="20260316_120000"
         ),
-        f"{_RUNNER}.create_artifacts_directory": MagicMock(return_value=artifacts_dir),
+        f"{_SETUP}.create_artifacts_directory": MagicMock(return_value=artifacts_dir),
         # Prevent tests from writing real notifications to the store
         "sase.notifications.senders.append_notification": MagicMock(),
         f"{_RUNNER}.format_duration": MagicMock(return_value="1s"),
-        f"{_RUNNER}.record_stop_time": MagicMock(),
+        f"{_FINALIZE}.record_stop_time": MagicMock(),
         f"{_RUNNER}.was_killed": was_killed_mock,
         f"{_RUNNER}.all_steps_hidden": MagicMock(return_value=True),
         # --- exec module (execution loop) ---
@@ -156,7 +158,7 @@ def _run_main(
     output_file.write_text("")
 
     # Ensure the artifacts directory exists (read from mock)
-    artifacts_dir_mock = patches.get(f"{_RUNNER}.create_artifacts_directory")
+    artifacts_dir_mock = patches.get(f"{_SETUP}.create_artifacts_directory")
     if artifacts_dir_mock:
         adir = Path(artifacts_dir_mock.return_value)
         adir.mkdir(parents=True, exist_ok=True)
@@ -513,7 +515,7 @@ class TestDeferredWorkspacePreparation:
         patches[f"{_RUNNER}.wait_for_dependencies"] = wait_for_deps
         patches[f"{_RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{_RUNNER}.claim_deferred_workspace"] = claim_deferred
-        patches[f"{_RUNNER}.prepare_workspace"] = prepare_ws
+        patches[f"{_SETUP}.prepare_workspace"] = prepare_ws
         patches[f"{_RUNNER}.run_execution_loop"] = run_loop
 
         _run_main(

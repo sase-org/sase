@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_runner import (
-    _classify_exec_success,
-    _send_completion_notification,
+from sase.axe.run_agent_runner_finalize import (
+    classify_exec_success,
+    send_completion_notification,
 )
 
 
@@ -41,7 +41,7 @@ def base_kwargs(tmp_path):
 def test_hidden_agent_forwards_silent_true(base_kwargs):
     base_kwargs["agent_hidden"] = True
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
-        _send_completion_notification(**base_kwargs)
+        send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_count == 1
     assert mock_notify.call_args.kwargs["silent"] is True
@@ -50,7 +50,7 @@ def test_hidden_agent_forwards_silent_true(base_kwargs):
 def test_visible_agent_forwards_silent_false(base_kwargs):
     base_kwargs["agent_hidden"] = False
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
-        _send_completion_notification(**base_kwargs)
+        send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_count == 1
     assert mock_notify.call_args.kwargs["silent"] is False
@@ -62,7 +62,7 @@ def test_hidden_agent_failure_still_silent(base_kwargs):
     base_kwargs["success"] = False
     base_kwargs["error_summary"] = "boom"
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
-        _send_completion_notification(**base_kwargs)
+        send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["silent"] is True
     assert mock_notify.call_args.kwargs["success"] is False
@@ -73,14 +73,14 @@ def test_plan_rejected_suppresses_completion_notification(base_kwargs):
     base_kwargs["outcome"] = "plan_rejected"
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
-        _send_completion_notification(**base_kwargs)
+        send_completion_notification(**base_kwargs)
 
     mock_notify.assert_not_called()
 
 
 def test_plan_rejected_classifies_as_runner_success():
-    assert _classify_exec_success(success=False, outcome="plan_rejected") is True
+    assert classify_exec_success(success=False, outcome="plan_rejected") is True
 
 
 def test_real_failure_stays_runner_failure():
-    assert _classify_exec_success(success=False, outcome="killed") is False
+    assert classify_exec_success(success=False, outcome="killed") is False
