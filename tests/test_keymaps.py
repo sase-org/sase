@@ -194,9 +194,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 78 configurable + 10 digit = 88 bindings."""
+    """build_app_bindings produces 79 configurable + 10 digit = 89 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 88
+    assert len(bindings) == 89
 
 
 def test_build_app_bindings_priority() -> None:
@@ -278,6 +278,16 @@ def test_leader_mode_includes_mark_inactive() -> None:
 
 
 # --- Source-of-truth consistency ---
+
+
+def test_open_command_palette_default_binding() -> None:
+    """``:`` is bound to the new open_command_palette action by default.
+
+    Phase 1 of the command palette plan: every keymap (including the
+    one that opens the palette itself) lives in default_config.yml.
+    """
+    reg = load_keymap_registry({})
+    assert reg.app.open_command_palette == "colon"
 
 
 def test_default_config_covers_all_app_keymaps() -> None:

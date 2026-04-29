@@ -110,6 +110,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("cycle_grouping_mode", "Cycle Grouping", False),
     ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
     ("show_agent_run_log", "Agent Run Log", False),
+    ("open_command_palette", "Command Palette", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -146,6 +147,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "enter": "Enter",
     "tilde": "~",
     "semicolon": ";",
+    "colon": ":",
 }
 
 
@@ -265,6 +267,7 @@ class AppKeymaps:
     show_notifications: str
     show_help: str
     browse_xprompts: str
+    open_command_palette: str
     # Workspace mode prefixes
     checkout: str
     start_checkout_mode: str
