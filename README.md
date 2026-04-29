@@ -160,6 +160,7 @@ sase
 | `sase bead sync`               | Sync bead database with git                                                                                    |
 | `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
 | `sase bead work`               | Launch phase + land agents for an epic plan (pre-claims phases, builds Kahn-wave multi-prompt)                 |
+| `sase changespec sync-deltas`  | Recompute the DELTAS field for a ChangeSpec from the live VCS state                                            |
 | `sase chats list`              | List recent agent chat transcripts (pretty table or JSON)                                                      |
 | `sase chats show`              | Show a chat transcript by agent name, path, or basename                                                        |
 | `sase comments`                | Preview mentor comments from JSON with syntax-highlighted code context                                         |
@@ -272,7 +273,14 @@ src/sase/
 │   ├── core.py            # Config file discovery, deep-merge, and loading
 │   ├── mentor.py          # Mentor profile configuration
 │   └── metahook.py        # Metahook configuration
-├── core/                  # Shared core utilities
+├── core/                  # Public Python facade for core APIs (Rust-backable)
+│   ├── backend.py         # Backend dispatcher (selects Python vs Rust impl)
+│   ├── parser_facade.py   # parse_project_file / parse_project_bytes seam
+│   ├── wire.py            # Stable wire record types across the Rust boundary
+│   ├── wire_conversion.py # Python ChangeSpec ↔ wire record serialization
+│   ├── dual_run.py        # Optional Python+Rust comparison logging
+│   ├── query_facade.py    # Query parse/build/evaluate facade
+│   ├── status_facade.py   # Status transition helpers facade
 │   ├── time.py            # Time formatting and parsing
 │   ├── paths.py           # Path resolution helpers
 │   ├── shell.py           # Shell command utilities
@@ -362,6 +370,13 @@ just clean         # Remove build artifacts
 just build         # Build wheel + sdist
 ```
 
+### Optional Rust Backend
+
+A subset of the core APIs (currently `parse_project_bytes`) can be served by an optional Rust extension,
+[`sase_core_rs`](docs/rust_backend.md), built from a sibling `../sase-core` repo. The Rust backend is opt-in:
+pure-Python contributors are never blocked, and the `just rust-*` targets are no-ops when the sibling repo is absent.
+See [`docs/rust_backend.md`](docs/rust_backend.md) for build instructions, dispatch semantics, and benchmarking.
+
 ## Documentation
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
@@ -378,6 +393,7 @@ just build         # Build wheel + sdist
 - [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
+- [`docs/rust_backend.md`](docs/rust_backend.md) — Optional Rust core (`sase_core_rs`) build, dispatch, and benchmarks
 - [`docs/sdd.md`](docs/sdd.md) — Spec-Driven Development (SDD)
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
 - [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation

@@ -24,6 +24,8 @@ COMMITS:
   <COMMIT_ENTRIES>
 TIMESTAMPS:
   <TIMESTAMP_ENTRIES>
+DELTAS:
+  <DELTA_ENTRIES>
 HOOKS:
   <HOOK_ENTRIES>
 COMMENTS:
@@ -331,6 +333,39 @@ TIMESTAMPS:
 Timestamps use the format `[YYMMDD_HHMMSS]` (square-bracketed, matching the HOOKS field format) and are recorded
 atomically by sase — this section is not manually edited. Multiple events of the same type may appear (e.g., multiple
 COMMITs or STATUS transitions).
+
+### DELTAS
+
+A computed summary of files added, modified, or deleted by this CL relative to its parent. The section is maintained
+automatically by sase from VCS state — it is not edited by hand.
+
+**Entry format:**
+
+```
+DELTAS:
+  + path/to/added_file.py
+  ~ path/to/modified_file.py
+  - path/to/deleted_file.py
+```
+
+| Glyph | Change type | Notes                                                                             |
+| ----- | ----------- | --------------------------------------------------------------------------------- |
+| `+`   | Added       | File introduced by this CL (`A` from VCS).                                        |
+| `~`   | Modified    | File edited (`M`); also covers copy/typechange/unmerged statuses with a log warn. |
+| `-`   | Deleted     | File removed (`D`).                                                               |
+
+Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the target path. Entries are sorted
+alphabetically by path. The section is omitted entirely when there are no deltas.
+
+**When DELTAS is recomputed:** a refresh runs after commit creation, rewind, sync, proposal accept, and proposal rebase.
+The refresh is best-effort — if the VCS query fails, the existing DELTAS section is left untouched and the parent
+workflow proceeds.
+
+**Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS for a single ChangeSpec from the
+current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags override the inferred defaults.
+
+In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has three fold levels: collapsed
+(hidden), expanded (one-line `+A ~M -D (N files)` summary), and fully expanded (full alphabetical list).
 
 ### HOOKS
 
