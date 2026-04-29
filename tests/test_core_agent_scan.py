@@ -142,6 +142,27 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.wait_duration == 3600.0
 
 
+def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
+    timestamp = "2026-04-27T11:05:00Z"
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["plan_submitted_at"] = timestamp
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = _record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.plan_submitted_at == [timestamp]
+
+
 def test_done_record_parses_done_marker(fixture_root: Path) -> None:
     snapshot = scan_agent_artifacts(fixture_root)
     rec = _record_by_timestamp(snapshot, TS_ACE_RUN_DONE)

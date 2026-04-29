@@ -1,8 +1,14 @@
 """Tests for Agent.timestamps_display."""
 
+import json
 from datetime import datetime
+from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._loaders._artifact_loaders import (
+    load_done_agents_from_snapshot,
+)
+from sase.core.agent_scan_facade import scan_agent_artifacts_python
 
 
 def test_timestamps_display_with_plan_and_code() -> None:
@@ -150,3 +156,36 @@ def test_timestamps_display_wait_tag_for_waiting_status() -> None:
     display = agent.timestamps_display
     assert "WAIT" in display
     assert "BEGIN" not in display
+
+
+def test_snapshot_agent_timestamps_display_includes_scalar_plan(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = (
+        tmp_path / "projects" / "myproj" / "artifacts" / "ace-run" / "20260427110000"
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"plan_submitted_at": "2026-04-27T11:05:00Z"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "completed",
+                "cl_name": "feature_plan",
+                "project_file": "/tmp/myproj.gp",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = scan_agent_artifacts_python(tmp_path / "projects")
+    agents = load_done_agents_from_snapshot(snapshot, {}, {})
+
+    assert len(agents) == 1
+    tags = [
+        line.strip().split(" | ")[0].strip()
+        for line in agents[0].timestamps_display.split("\n")
+    ]
+    assert tags == ["BEGIN", "PLAN"]

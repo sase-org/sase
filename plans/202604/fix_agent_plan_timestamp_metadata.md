@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 11:35:47
-status: wip
+status: done
 ---
 # Plan: Preserve PLAN timestamps in Agents metadata
 

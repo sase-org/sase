@@ -144,6 +144,8 @@ def _coerce_str(value: Any) -> str | None:
 
 
 def _coerce_str_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
     if isinstance(value, list):
         return [v for v in value if isinstance(v, str)]
     return []
