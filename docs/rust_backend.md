@@ -225,6 +225,137 @@ never blocked.
 `just rust-bench` runs a Rust-only `cargo bench` example for measurements that exclude the Python interpreter from the
 loop.
 
+## Performance
+
+Phase 7 captured a deliberate measurement pass after the Phase 6F default flip: every shipped Rust-backed core operation
+under explicit Python and default Rust, plus the user-facing TUI / CLI surfaces named in the migration plan. The raw
+JSON artifacts live under `plans/202604/perf_artifacts/`; tables in this section summarize the medians a reader should
+expect when running the same harnesses against the same backend.
+
+### Workstation profile
+
+All numbers below come from a single capture machine (Phase 7B + 7C, 2026-04-29):
+
+- Linux x86_64, CPython 3.14.3.
+- `sase-core-rs` editable install built from a sibling `../sase-core/` checkout via `just rust-install`; metadata in
+  every artifact's `metadata.rust_module_path` / `metadata.rust_module_version` records the exact extension probed.
+- Default-Rust runs use an unset `SASE_CORE_BACKEND`; explicit-Python runs set `SASE_CORE_BACKEND=python` at process
+  launch (env-pinned, never toggled mid-process).
+- Sample sizes per scenario are recorded inline below and pinned in each artifact's `metadata.runs` / `metadata.warmup`.
+  End-to-end TUI/CLI runs are 10–12 samples; microbenchmarks are 20–200 samples per scenario.
+
+Read the tables as: `speedup` is `python_median / rust_median`, so `2.0×` means default Rust is twice as fast as
+explicit Python on that workload, and `0.5×` means default Rust is half as fast.
+
+### Core operations (Phase 7B microbenchmarks)
+
+Driver: `tests/perf/phase7/run_phase7b.py`. One `*_summary.json` artifact per shipped operation under
+`plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`; each artifact embeds the Phase 7A `Phase7Metadata`
+envelope, the relevant scenario summaries, and pre-computed `(workload, scenario)` comparison rows.
+
+| Operation                    | Workload                 | Scenario                   | py median | rust median |   speedup |
+| ---------------------------- | ------------------------ | -------------------------- | --------: | ----------: | --------: |
+| `parse_project_bytes`        | golden_myproj            | facade                     |    296 µs |      124 µs |  **2.4×** |
+| `parse_project_bytes`        | synthetic_200_specs      | facade                     |   26.7 ms |     19.1 ms |  **1.4×** |
+| `parse_query`                | parse_only               | direct                     |   12.3 µs |      5.8 µs |  **2.1×** |
+| `evaluate_query_many`        | synthetic_1000_specs     | facade                     |   4.03 ms |     74.7 ms | **0.05×** |
+| `evaluate_query_many`        | synthetic_10000_specs    | facade                     |   68.1 ms |      831 ms | **0.08×** |
+| `scan_agent_artifacts`       | synthetic_6p_200pp       | scan_facade                |    145 ms |      120 ms | **1.21×** |
+| `read_status_from_lines`     | synthetic_200_specs_pure | read_status_from_lines     |    182 µs |      349 µs |     0.52× |
+| `apply_status_update`        | synthetic_200_specs_pure | apply_status_update        |    256 µs |      377 µs |     0.68× |
+| `plan_status_transition`     | synthetic_200_specs_pure | plan_status_transition     |   8.66 µs |    18.78 µs |     0.46× |
+| `parse_git_name_status_z`    | synthetic_medium (1k)    | parse_git_name_status_z    |    626 µs |      880 µs |     0.71× |
+| `parse_git_branch_name`      | normalizers_x4           | parse_git_branch_name      |   8.74 µs |    10.40 µs |     0.84× |
+| `derive_git_workspace_name`  | normalizers_x5           | derive_git_workspace_name  |   11.7 µs |     13.5 µs |     0.87× |
+| `parse_git_conflicted_files` | normalizers_50_lines     | parse_git_conflicted_files |   5.35 µs |     6.83 µs |     0.78× |
+| `parse_git_local_changes`    | normalizers_150_entries  | parse_git_local_changes    |   4.51 µs |     5.68 µs |     0.79× |
+
+The full per-percentile data (min / median / p95 / max) is in each artifact's `workloads[].baseline` /
+`workloads[].candidate`; the `comparisons[]` rows pre-compute `ratio`, `speedup`, and `percent_delta` for every
+`(workload, scenario)` pair.
+
+### End-to-end TUI / CLI surfaces (Phase 7C)
+
+Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)` invocation under
+`plans/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents status` rows sit
+in the gitignored `plans/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific tree.
+
+| Surface                      | Workload                          | runs | default_rust | explicit_python |   speedup |
+| ---------------------------- | --------------------------------- | ---- | -----------: | --------------: | --------: |
+| `sase_run_startup`           | `import_run_query_cold`           | 12   |     249.3 ms |        252.6 ms |     1.01× |
+| `sase_agents_status_listing` | `synthetic_8_projects_25_agents`  | 12   |     298.5 ms |        774.5 ms | **2.59×** |
+| `sase_agents_status_listing` | `home_tree` (local-only artifact) | 5    |     885.8 ms |      1,799.7 ms | **2.03×** |
+| `sase_ace_cold_open`         | `synthetic_100_cs_50_agents`      | 10   |   1,472.5 ms |      1,237.4 ms |     0.84× |
+
+`sase_run_startup` measures cold subprocess `python -c "from sase.main.query_handler._query import run_query"`; it
+deliberately stops at the dispatcher's provider boundary, never resolves a provider, never touches the network, and
+never claims a workspace. The `metadata.extra.boundary` field in the artifact records this scope so a future agent can
+push the boundary further toward provider resolution without invalidating the comparison.
+
+### Where Rust helps, where Rust does not help yet
+
+**Wins that users feel:**
+
+- `sase agents status -j` cold listing is the headline default-Rust win — ~2.6× on the synthetic 8×25 tree and ~2.0× on
+  this workstation's home tree. The cold subprocess wall-time is dominated by `scan_agent_artifacts`, which Phase 3
+  ported to Rust. The `local_only/` home-tree artifacts confirm the synthetic numbers are not a fixture artifact; they
+  generalise to a realistic `~/.sase/projects/` of comparable depth.
+- `parse_project_bytes` is a clean ~2.4× win on small files and ~1.4× on a 200-spec synthetic file. Both the raw Rust
+  call and the dispatched `facade` path beat Python at every workload size measured, so the win survives PyO3 wire
+  conversion.
+- `parse_query` direct parsing is a ~2.1× win on the parse-only workload. The `synthetic_*_specs` evaluator workloads in
+  `bench_core_query` deliberately fold parse cost into `evaluate_query_many` and so do not re-time `rust_facade_parse`;
+  that is intentional, not a regression.
+
+**Honest negative results (do not paper over):**
+
+- `evaluate_query_many` is dramatically slower under default Rust than the optimized Python batch path (8 µs/spec vs 4–7
+  µs/spec at 100 specs, scaling worse at 10k). The cause is per-call wire conversion (`changespec_to_wire` +
+  `to_json_dict`) for every spec on every facade call — marshaling overhead dominates the actual evaluation. The shipped
+  Rust path is **not** an end-to-end win on the default backend today; the win is upstream (parse) and inside the TUI's
+  other pipelines. Phase 8 should not remove the Python implementation until either the wire conversion is amortized or
+  the comparison is rerun against the optimized batch path.
+- `sase ace` cold open is ~19 % slower under default Rust on the synthetic Pilot harness. The harness mocks
+  `find_all_changespecs`, so the Rust scan/parse hot paths are not exercised; what remains is AceApp / Pilot constructor
+  cost plus per-call PyO3 dispatch overhead at small inputs. Phase 7E keeps this surface out of the hard PR floor; treat
+  it as a known small-input dispatch tax, not a regression in the routed Rust operation.
+- The status-line helpers (`read_status_from_lines`, `apply_status_update`, `plan_status_transition`) and the small Git
+  normalizers (`parse_git_branch_name`, `derive_git_workspace_name`, `parse_git_conflicted_files`,
+  `parse_git_local_changes`) are 13–55 % slower under default Rust than Python on the inputs they actually see in
+  production. These are dispatch-overhead-dominated cores at sub-10-µs absolute cost; the gap is single-digit
+  microseconds and is invisible against the surrounding subprocess / atomic-write cost. Phase 4 / Phase 5 accepted this
+  — those operations route through Rust to keep the facade contract honest, not because Rust is faster on them.
+- `parse_git_name_status_z` is consistently ~25–30 % slower under default Rust on synthetic streams, but the end-to-end
+  `git diff --name-status -z` workloads in `bench_git_query_ops` show parse is single-digit microseconds next to
+  multi-millisecond subprocess cost, so the delta is invisible to users.
+- `sase run` startup is backend-neutral at the cold-import scope: the cost users pay before the dispatcher can call any
+  LLM is dominated by Python interpreter startup + sase package import, and routing through Rust vs Python inside
+  `sase.core` does not show up because `run_query` is not exercised at import time. Treat `sase_run_startup` as an
+  import-bloat sentinel rather than a Rust win/loss surface.
+
+### Phase 7 support note
+
+Use this checklist when triaging a Phase 6/7 backend issue:
+
+- **Confirm which backend is active.** `sase core health` (or `sase core health -j` for scripts) prints the resolved
+  backend, the `sase_core_rs` module path / version, and the result of a single shipped binding call. Exit code 0 means
+  Rust mode loaded and worked; non-zero means default Rust failed to load and the user is now relying on the Phase 6/7
+  escape hatch. Explicit `SASE_CORE_BACKEND=python sase core health` always exits 0 because Python mode does not require
+  `sase_core_rs` to be importable.
+- **Read the dual-run logs.** `SASE_CORE_DUAL_RUN=1` writes per-call comparison records to
+  `~/.sase/perf/core_dual_run.jsonl`. Each record contains `operation`, `match`, durations for both impls, and the first
+  divergent path when `match: false`. The CI `parity-gate` job uploads the same shape as `parity-artifacts/` so a
+  regression can be diagnosed without a local repro. Dual-run is parity tooling, not a normal production mode — do not
+  leave it on for everyday TUI launches.
+- **Recognise a wheel-load failure.** A misbuilt or missing `sase_core_rs` under default Rust surfaces as
+  `RustBackendUnavailableError` from a shipped operation, or as `sase core health` exit code 1 with `error_kind` /
+  `error` fields naming the underlying `ImportError`. The publish-workflow `install-smoke` re-runs `sase core health` in
+  both modes on every release and dumps `pip list` plus `sase_core_rs.__file__` / `__version__` on failure.
+- **Use the temporary Python escape hatch when needed.** `export SASE_CORE_BACKEND=python` keeps the dispatcher off the
+  Rust path for every shipped operation, including the operations whose Rust binding has failed to load. This is the
+  documented escape hatch through Phase 7 only — Phase 8 deletes both the env var and the Python implementations once
+  one release cycle has shown clean parity numbers and a stable performance floor.
+
 ## Verifying The Backend
 
 A handful of commands cover "is my install healthy?" end-to-end:
@@ -523,10 +654,15 @@ deleted so a future rollback to the pre-Phase 8 layout can be reconstructed from
   3.12/3.14 + `parity-gate` + `install-smoke`), and the `is_workflow_complete` Phase 6E pin (targeted Python traversal,
   ~3× faster than the snapshot path, no Rust early-exit binding required). Phase 7 (measurement and benchmark gate) is
   restated as the immediate next track. See `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
-- **Phase 7** _(open)_ — Measurement and benchmark-floor pass. After the default flip, before the Python implementations
-  are removed, capture realized speedups end-to-end (`tests/perf/bench_core_*.py`, `SASE_TUI_TRACE=1` cold open,
-  `sase agents` cold listing, `sase run` startup), record them in this document's `Performance` section, and codify the
-  regression floor as a CI bench gate so the win cannot silently erode after Phase 8 closes the Python escape hatch.
+- **Phase 7** _(in progress)_ — Measurement and benchmark-floor pass. After the default flip, before the Python
+  implementations are removed, capture realized speedups end-to-end (`tests/perf/bench_core_*.py`, `SASE_TUI_TRACE=1`
+  cold open, `sase agents` cold listing, `sase run` startup), record them in this document's `Performance` section, and
+  codify the regression floor as a CI bench gate so the win cannot silently erode after Phase 8 closes the Python escape
+  hatch. **Subphase status:** 7A (measurement contract), 7B (core operation microbenchmarks), 7C (end-to-end TUI/CLI
+  measurements), and 7D (this document's `Performance` section + research narrative) are complete; 7E (CI regression
+  floor) and 7F (verification close-out) remain open. The committed Phase 7 artifacts live under
+  `plans/202604/perf_artifacts/`; per-subphase handoffs live next to the plan as
+  `plans/202604/rust_backend_phase7_phase7{a,b,c,d}_handoff.md`.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile

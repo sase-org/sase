@@ -107,6 +107,23 @@ the CI parity gate, and the user-facing rollback playbook are all in place:
   project-wide patch release) from the post-Phase 8 wheel-fix path. The
   Phase 6H close-out record lives in
   `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
+- **Phase 7 measurement landed for 7A–7D.** `tests/perf/phase7/` locked the
+  artifact contract; Phase 7B captured per-operation microbenchmarks for
+  every shipped Rust core op (`plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`);
+  Phase 7C captured `sase ace`, `sase agents status`, and `sase run`
+  startup under both backends. The user-facing tables, methodology, and
+  support-note now live in `docs/rust_backend.md` under `Performance`; the
+  research-side gate-vs-realised analysis lives in
+  `research/202604/rust_backend_phase7_performance.md`. Headline outcomes:
+  `sase agents status -j` is **2.59× / 2.03×** faster on synthetic 8×25 /
+  home tree as a cold subprocess; `parse_project_bytes` is 2.4× / 1.4× on
+  golden / synthetic_200; `parse_query` direct parse is 2.1×;
+  `evaluate_query_many` is **0.05×–0.08× on the routed path** (per-call
+  wire conversion regression — Phase 8 should not delete the Python half
+  until amortised); `sase ace` cold open is 0.84× on a Pilot harness that
+  mocks the Rust scan/parse hot paths (small-input dispatch tax, not a
+  routed-op regression). Phase 7E (CI regression floor) and Phase 7F
+  (close-out) remain open.
 
 The remainder of this document is the forward plan: Phase 7 measurement, the
 Phase 8 removal of the Python implementations of ported operations, deferred
@@ -615,6 +632,18 @@ the structural cause.
 After the default flip, before the Python path is removed, do one
 deliberate measurement pass so the win is documented and any unexpected
 regression has time to surface.
+
+**Status (2026-04-29):** Phase 7A–7D landed. The artifact contract is in
+`tests/perf/phase7/`; per-operation summaries and end-to-end captures
+sit under `plans/202604/perf_artifacts/`; the user-facing tables and
+support note are in `docs/rust_backend.md` under `Performance`; the
+research-side gate-vs-realised analysis lives in
+`research/202604/rust_backend_phase7_performance.md`. Phase 7E (CI
+regression floor) and Phase 7F (close-out) are still open. The forward
+plan below is preserved for those subphases; the table of "measurements
+to take" should now be read as "measurements taken" — see the linked
+performance-research record for the realised medians and the
+implications for Phase 8 sequencing.
 
 **Measurements to take:**
 
