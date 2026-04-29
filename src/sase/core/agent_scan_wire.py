@@ -448,6 +448,88 @@ def agent_scan_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
+def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
+    return AgentArtifactScanOptionsWire(
+        include_prompt_step_markers=bool(data.get("include_prompt_step_markers", True)),
+        include_raw_prompt_snippets=bool(data.get("include_raw_prompt_snippets", True)),
+        max_prompt_snippet_bytes=int(data.get("max_prompt_snippet_bytes", 200)),
+        only_workflow_dirs=tuple(data.get("only_workflow_dirs") or ()),
+    )
+
+
+def _stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
+    return AgentArtifactScanStatsWire(
+        projects_visited=int(data.get("projects_visited", 0)),
+        artifact_dirs_visited=int(data.get("artifact_dirs_visited", 0)),
+        marker_files_parsed=int(data.get("marker_files_parsed", 0)),
+        json_decode_errors=int(data.get("json_decode_errors", 0)),
+        os_errors=int(data.get("os_errors", 0)),
+        prompt_step_markers_parsed=int(data.get("prompt_step_markers_parsed", 0)),
+    )
+
+
+def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
+    agent_meta = data.get("agent_meta")
+    done = data.get("done")
+    running = data.get("running")
+    waiting = data.get("waiting")
+    workflow_state = data.get("workflow_state")
+    plan_path = data.get("plan_path")
+    return AgentArtifactRecordWire(
+        project_name=data["project_name"],
+        project_dir=data["project_dir"],
+        project_file=data["project_file"],
+        workflow_dir_name=data["workflow_dir_name"],
+        artifact_dir=data["artifact_dir"],
+        timestamp=data["timestamp"],
+        agent_meta=AgentMetaWire(**agent_meta) if isinstance(agent_meta, dict) else None,
+        done=DoneMarkerWire(**done) if isinstance(done, dict) else None,
+        running=RunningMarkerWire(**running) if isinstance(running, dict) else None,
+        waiting=WaitingMarkerWire(**waiting) if isinstance(waiting, dict) else None,
+        workflow_state=(
+            _workflow_state_from_dict(workflow_state)
+            if isinstance(workflow_state, dict)
+            else None
+        ),
+        plan_path=PlanPathMarkerWire(**plan_path) if isinstance(plan_path, dict) else None,
+        prompt_steps=[
+            PromptStepMarkerWire(**step) for step in data.get("prompt_steps") or []
+        ],
+        raw_prompt_snippet=data.get("raw_prompt_snippet"),
+        has_done_marker=bool(data.get("has_done_marker", False)),
+    )
+
+
+def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:
+    raw_steps = data.get("steps") or []
+    steps = [WorkflowStepStateWire(**step) for step in raw_steps]
+    payload = {k: v for k, v in data.items() if k != "steps"}
+    return WorkflowStateWire(steps=steps, **payload)
+
+
+def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
+    """Rehydrate an :class:`AgentArtifactScanWire` from a JSON-safe dict.
+
+    Inverse of :func:`agent_scan_wire_to_json_dict`. Used by the facade's
+    Rust adapter (the PyO3 binding returns plain Python dicts/lists) and
+    by tests that round-trip the snapshot through JSON.
+
+    Missing optional fields fall back to dataclass defaults; unknown keys
+    raise ``TypeError`` from the dataclass constructors so a wire-version
+    drift surfaces immediately.
+    """
+    options = _options_from_dict(data.get("options") or {})
+    stats = _stats_from_dict(data.get("stats") or {})
+    records = [_record_from_dict(r) for r in data.get("records") or []]
+    return AgentArtifactScanWire(
+        schema_version=int(data["schema_version"]),
+        projects_root=data["projects_root"],
+        options=options,
+        stats=stats,
+        records=records,
+    )
+
+
 __all__ = [
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
     "DONE_WORKFLOW_DIR_NAMES",
@@ -466,5 +548,6 @@ __all__ = [
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",
+    "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
 ]

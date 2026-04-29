@@ -52,8 +52,9 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    agent_scan_wire_from_dict,
 )
-from sase.core.backend import dispatch
+from sase.core.backend import dispatch, load_rust_extension
 
 _RAW_PROMPT_FILE = "raw_xprompt.md"
 
@@ -508,6 +509,39 @@ def scan_agent_artifacts_python(
     )
 
 
+def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
+    return {
+        "include_prompt_step_markers": options.include_prompt_step_markers,
+        "include_raw_prompt_snippets": options.include_raw_prompt_snippets,
+        "max_prompt_snippet_bytes": options.max_prompt_snippet_bytes,
+        "only_workflow_dirs": list(options.only_workflow_dirs),
+    }
+
+
+def _rust_scan_agent_artifacts_impl(
+    projects_root: Path | str,
+    options: AgentArtifactScanOptionsWire,
+) -> AgentArtifactScanWire:
+    """Adapter from ``sase_core_rs.scan_agent_artifacts`` to typed wire records.
+
+    The PyO3 binding returns a plain dict in the
+    :func:`agent_scan_wire_to_json_dict` shape; this rebuilds the Python
+    dataclasses via :func:`agent_scan_wire_from_dict` so callers see the
+    same return type regardless of backend.
+    """
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    payload: dict[str, Any] = rust_module.scan_agent_artifacts(  # type: ignore[attr-defined]
+        str(projects_root),
+        _options_to_dict(options),
+    )
+    return agent_scan_wire_from_dict(payload)
+
+
 # pyvision: tests/test_core_agent_scan.py
 def scan_agent_artifacts(
     projects_root: Path | str,
@@ -521,11 +555,24 @@ def scan_agent_artifacts(
     ``Path.home() / ".sase" / "projects"`` — passing it explicitly keeps
     the contract testable and lets future shells (server, mobile) supply
     a different root without Rust reading global config.
+
+    Phase 3C registers a Rust implementation when the optional
+    ``sase_core_rs`` extension is importable. The Rust binding releases
+    the GIL during the filesystem walk and returns the same wire shape
+    the Python implementation produces; callers see
+    :class:`AgentArtifactScanWire` either way.
     """
     opts = options or AgentArtifactScanOptionsWire()
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_scan_agent_artifacts_impl
+        if rust_module is not None and hasattr(rust_module, "scan_agent_artifacts")
+        else None
+    )
     return dispatch(
         operation="scan_agent_artifacts",
         python_impl=scan_agent_artifacts_python,
+        rust_impl=rust_impl,
         args=(projects_root, opts),
     )
 

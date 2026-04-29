@@ -1,17 +1,24 @@
-"""Golden parity tests for the agent-artifact scan facade (Phase 3A).
+"""Golden parity tests for the agent-artifact scan facade (Phase 3A/C).
 
 Pins the snapshot wire shape, error counters, and ordering produced by
 :func:`sase.core.agent_scan_facade.scan_agent_artifacts` against the
 synthetic corpus in :mod:`tests.agent_scan_golden`. A future
 ``sase_core_rs`` implementation must reproduce these snapshots — until
 then they pin the Python scanner so refactors can't drift silently.
+
+Phase 3C tests at the bottom cover the Rust backend dispatch wiring with
+a fake ``sase_core_rs`` module and (when the real extension is
+installed) verify parity against the Python facade.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
+import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,9 +30,16 @@ from sase.core.agent_scan_facade import (
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
+    agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
 )
-from sase.core.backend import BACKEND_ENV_VAR, DUAL_RUN_ENV_VAR
+from sase.core.backend import (
+    BACKEND_ENV_VAR,
+    DUAL_RUN_ENV_VAR,
+    RUST_EXTENSION_MODULE_NAME,
+    RustBackendUnavailableError,
+)
+from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 
 from .agent_scan_golden import (
     EXPECTED_DECODE_ERRORS,
@@ -336,6 +350,180 @@ def test_unsupported_workflow_dirs_are_skipped(tmp_path: Path) -> None:
     # was found.
     assert snapshot.stats.projects_visited == 1
     assert snapshot.stats.artifact_dirs_visited == 0
+
+
+def _install_fake_scan_module(
+    monkeypatch: pytest.MonkeyPatch,
+    scan_fn,
+) -> types.ModuleType:
+    """Register a fake ``sase_core_rs`` exposing ``scan_agent_artifacts``."""
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.scan_agent_artifacts = scan_fn  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    return fake
+
+
+def _python_snapshot_as_dict(
+    projects_root: str, options_dict: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Compute the Python facade snapshot and return it as a JSON-safe dict.
+
+    Used by fake Rust modules to mirror what a real binding would emit.
+    """
+    if options_dict is not None:
+        opts = AgentArtifactScanOptionsWire(
+            include_prompt_step_markers=bool(
+                options_dict.get("include_prompt_step_markers", True)
+            ),
+            include_raw_prompt_snippets=bool(
+                options_dict.get("include_raw_prompt_snippets", True)
+            ),
+            max_prompt_snippet_bytes=int(
+                options_dict.get("max_prompt_snippet_bytes", 200)
+            ),
+            only_workflow_dirs=tuple(options_dict.get("only_workflow_dirs") or ()),
+        )
+    else:
+        opts = AgentArtifactScanOptionsWire()
+    snapshot = scan_agent_artifacts_python(projects_root, opts)
+    return agent_scan_wire_to_json_dict(snapshot)
+
+
+def test_scan_agent_artifacts_rust_unavailable_keeps_python(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No Rust extension + default backend = Python path, unchanged behavior."""
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+
+    def fail(name: str) -> object:
+        raise ImportError(f"No module named {name!r}")
+
+    monkeypatch.setattr("importlib.import_module", fail)
+    snapshot = scan_agent_artifacts(fixture_root)
+    assert sorted(r.timestamp for r in snapshot.records)
+
+
+def test_scan_agent_artifacts_rust_without_impl_raises(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``SASE_CORE_BACKEND=rust`` with no extension raises a clear error."""
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+
+    def fail(name: str) -> object:
+        raise ImportError(f"No module named {name!r}")
+
+    monkeypatch.setattr("importlib.import_module", fail)
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    with pytest.raises(RustBackendUnavailableError):
+        scan_agent_artifacts(fixture_root)
+
+
+def test_scan_agent_artifacts_rust_backend_uses_rust_impl(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``SASE_CORE_BACKEND=rust`` calls the registered Rust binding."""
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+
+    def fake_scan(
+        projects_root: str, options: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        calls.append((projects_root, options))
+        return _python_snapshot_as_dict(projects_root, options)
+
+    _install_fake_scan_module(monkeypatch, fake_scan)
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+
+    assert len(calls) == 1
+    assert calls[0][0] == str(fixture_root)
+    # The facade always passes a populated options dict so the Rust side
+    # never has to guess defaults.
+    assert calls[0][1] is not None
+    assert calls[0][1]["include_prompt_step_markers"] is True
+    # Rust output is rehydrated into the same dataclass shape callers
+    # already consume from the Python path.
+    assert sorted(r.timestamp for r in snapshot.records) == sorted(EXPECTED_TIMESTAMPS)
+    assert snapshot.schema_version == AGENT_SCAN_WIRE_SCHEMA_VERSION
+
+
+def test_scan_agent_artifacts_dual_run_logs_comparison(
+    fixture_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Dual-run runs both impls, logs one record, returns Python output."""
+    log_path = tmp_path / "core_dual_run.jsonl"
+    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
+    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
+
+    rust_calls: list[str] = []
+
+    def fake_scan(
+        projects_root: str, options: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        rust_calls.append(projects_root)
+        return _python_snapshot_as_dict(projects_root, options)
+
+    _install_fake_scan_module(monkeypatch, fake_scan)
+
+    snapshot = scan_agent_artifacts(fixture_root)
+
+    # Python output is what the caller sees, even under dual-run.
+    assert sorted(r.timestamp for r in snapshot.records) == sorted(EXPECTED_TIMESTAMPS)
+    assert rust_calls == [str(fixture_root)]
+
+    records = [
+        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
+    ]
+    assert len(records) == 1
+    rec = records[0]
+    assert rec["operation"] == "scan_agent_artifacts"
+    assert rec["match"] is True
+    assert rec["error_class"] is None
+
+
+def test_scan_agent_artifacts_dual_run_records_mismatch(
+    fixture_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Mismatched Rust output is logged with ``match=False``."""
+    log_path = tmp_path / "core_dual_run.jsonl"
+    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
+    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
+
+    def fake_scan(
+        projects_root: str, options: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        # Drop all records so the comparison must fail.
+        payload = _python_snapshot_as_dict(projects_root, options)
+        payload["records"] = []
+        return payload
+
+    _install_fake_scan_module(monkeypatch, fake_scan)
+
+    scan_agent_artifacts(fixture_root)
+
+    records = [
+        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
+    ]
+    assert len(records) == 1
+    assert records[0]["match"] is False
+
+
+def test_rust_extension_parity(fixture_root: Path) -> None:
+    """When ``sase_core_rs`` is installed, its output matches the Python facade."""
+    rust_module = pytest.importorskip("sase_core_rs")
+    if not hasattr(rust_module, "scan_agent_artifacts"):
+        pytest.skip("sase_core_rs is too old (no scan_agent_artifacts).")
+
+    py_snapshot = scan_agent_artifacts_python(fixture_root)
+    raw = rust_module.scan_agent_artifacts(str(fixture_root), None)
+    rust_snapshot = agent_scan_wire_from_dict(raw)
+    assert agent_scan_wire_to_json_dict(rust_snapshot) == agent_scan_wire_to_json_dict(
+        py_snapshot
+    )
 
 
 def test_unreadable_artifact_dir_is_counted(tmp_path: Path) -> None:

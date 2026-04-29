@@ -1,9 +1,10 @@
 # Optional Rust Backend (`sase_core_rs`)
 
-A subset of sase's core APIs (currently `parse_project_bytes`) can be served by an optional Rust extension built from a
-sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is **opt-in**: pure-Python installs
-keep working with no Rust toolchain, and every `just rust-*` target degrades to a friendly no-op when the sibling repo
-is absent.
+A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`, and
+`scan_agent_artifacts`) can be served by an optional Rust extension built from a sibling
+[`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is **opt-in**: pure-Python installs keep
+working with no Rust toolchain, and every `just rust-*` target degrades to a friendly no-op when the sibling repo is
+absent.
 
 ## Why a Rust Backend?
 
@@ -123,6 +124,14 @@ loop.
   (`agent_scan_facade.py`), golden parity tests against a synthetic corpus (`tests/agent_scan_golden/`), and a baseline
   benchmark (`tests/perf/bench_agent_scan.py`, `just bench-agent-scan`). No Rust code yet — Phase 3B implements the
   pure-Rust scanner in `../sase-core`.
+- **Phase 3B** _(complete)_ — Pure-Rust snapshot scanner in `../sase-core/crates/sase_core/src/agent_scan/`. Mirrors the
+  Phase 3A wire records, produces the same JSON shape, and ships its own fixture-built parity tests so `cargo test`
+  works without a Python toolchain.
+- **Phase 3C** _(complete)_ — `sase_core_rs.scan_agent_artifacts(projects_root, options)` PyO3 binding releases the GIL
+  during the filesystem walk and returns the snapshot as a plain dict. The `scan_agent_artifacts` facade registers the
+  Rust impl whenever the extension is importable; `SASE_CORE_BACKEND=rust` walks the corpus through Rust and
+  `SASE_CORE_DUAL_RUN=1` logs Python/Rust comparison records to `~/.sase/perf/core_dual_run.jsonl`. Callers still
+  receive `AgentArtifactScanWire` dataclasses on either backend.
 - **Future phases** — Additional facade operations (graph index, status helpers) become candidates for Rust
   re-implementation as they show up in profiles.
 
