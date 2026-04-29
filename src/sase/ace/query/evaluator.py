@@ -533,6 +533,19 @@ def build_query_context(
 ) -> QueryEvaluationContext:
     """Build a :class:`QueryEvaluationContext` for the given ChangeSpec list.
 
+    Public entry point — routes through :mod:`sase.core.query`. The default
+    backend dispatches back to :func:`build_query_context_python` below.
+    """
+    from sase.core.query_facade import build_query_context as _facade
+
+    return _facade(changespecs)
+
+
+def build_query_context_python(
+    changespecs: list[ChangeSpec],
+) -> QueryEvaluationContext:
+    """Python implementation of :func:`build_query_context`.
+
     Computes name and status maps eagerly (cheap, used by every row).
     Searchable text and ancestor results are filled lazily inside
     :func:`evaluate_query_with_context` so they are only paid for the rows
@@ -667,8 +680,23 @@ def evaluate_query_with_context(
 ) -> bool:
     """Evaluate ``query`` against ``changespec`` using a shared context.
 
-    Equivalent to :func:`evaluate_query` but reuses the cached name map,
-    status map, searchable text, and ancestor memo from ``ctx``.
+    Public entry point — routes through :mod:`sase.core.query`. The default
+    backend dispatches back to :func:`evaluate_query_with_context_python` below.
+    """
+    from sase.core.query_facade import evaluate_query_with_context as _facade
+
+    return _facade(query, changespec, ctx)
+
+
+def evaluate_query_with_context_python(
+    query: QueryExpr,
+    changespec: ChangeSpec,
+    ctx: QueryEvaluationContext,
+) -> bool:
+    """Python implementation of :func:`evaluate_query_with_context`.
+
+    Reuses the cached name map, status map, searchable text, and ancestor
+    memo from ``ctx``.
     """
     return _evaluate_with_context(query, changespec, ctx)
 
@@ -680,6 +708,28 @@ def evaluate_query(
 ) -> bool:
     """Evaluate a query expression against a ChangeSpec.
 
+    Public entry point — routes through :mod:`sase.core.query`. The default
+    backend dispatches back to :func:`evaluate_query_python` below.
+
+    Examples:
+        >>> from .parser import parse_query
+        >>> query = parse_query('"feature"')
+        >>> cs = ChangeSpec(name="my_feature", ...)
+        >>> evaluate_query(query, cs)
+        True
+    """
+    from sase.core.query_facade import evaluate_query as _facade
+
+    return _facade(query, changespec, all_changespecs)
+
+
+def evaluate_query_python(
+    query: QueryExpr,
+    changespec: ChangeSpec,
+    all_changespecs: list[ChangeSpec] | None = None,
+) -> bool:
+    """Python implementation of :func:`evaluate_query`.
+
     Args:
         query: The parsed query expression.
         changespec: The ChangeSpec to evaluate against.
@@ -688,13 +738,6 @@ def evaluate_query(
 
     Returns:
         True if the ChangeSpec matches the query, False otherwise.
-
-    Examples:
-        >>> from .parser import parse_query
-        >>> query = parse_query('"feature"')
-        >>> cs = ChangeSpec(name="my_feature", ...)
-        >>> evaluate_query(query, cs)
-        True
     """
     searchable_text = _get_searchable_text(changespec)
     return _evaluate(query, searchable_text, changespec, all_changespecs)

@@ -9,11 +9,11 @@ from __future__ import annotations
 from sase.ace.changespec.models import ChangeSpec
 from sase.ace.query.evaluator import (
     QueryEvaluationContext,
-    build_query_context as _python_build_query_context,
-    evaluate_query as _python_evaluate_query,
-    evaluate_query_with_context as _python_evaluate_query_with_context,
+    build_query_context_python,
+    evaluate_query_python,
+    evaluate_query_with_context_python,
 )
-from sase.ace.query.parser import parse_query as _python_parse_query
+from sase.ace.query.parser import parse_query_python
 from sase.ace.query.types import QueryExpr
 from sase.core.backend import dispatch
 
@@ -22,7 +22,7 @@ def parse_query(query: str) -> QueryExpr:
     """Parse a query string into a :class:`QueryExpr` via the active backend."""
     return dispatch(
         operation="parse_query",
-        python_impl=_python_parse_query,
+        python_impl=parse_query_python,
         args=(query,),
     )
 
@@ -31,7 +31,7 @@ def build_query_context(changespecs: list[ChangeSpec]) -> QueryEvaluationContext
     """Build a :class:`QueryEvaluationContext` via the active backend."""
     return dispatch(
         operation="build_query_context",
-        python_impl=_python_build_query_context,
+        python_impl=build_query_context_python,
         args=(changespecs,),
     )
 
@@ -44,7 +44,7 @@ def evaluate_query(
     """Evaluate ``query`` against ``changespec`` via the active backend."""
     return dispatch(
         operation="evaluate_query",
-        python_impl=_python_evaluate_query,
+        python_impl=evaluate_query_python,
         args=(query, changespec, all_changespecs),
     )
 
@@ -57,6 +57,6 @@ def evaluate_query_with_context(
     """Evaluate ``query`` using a shared context via the active backend."""
     return dispatch(
         operation="evaluate_query_with_context",
-        python_impl=_python_evaluate_query_with_context,
+        python_impl=evaluate_query_with_context_python,
         args=(query, changespec, ctx),
     )

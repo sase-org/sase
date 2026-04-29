@@ -284,14 +284,8 @@ class _Parser:
 def parse_query(query: str) -> QueryExpr:
     """Parse a query string into an AST.
 
-    Args:
-        query: The query string to parse.
-
-    Returns:
-        The parsed query expression tree.
-
-    Raises:
-        QueryParseError: If the query is malformed.
+    Public entry point — routes through :mod:`sase.core.query`. The default
+    backend dispatches back to :func:`parse_query_python` below.
 
     Examples:
         >>> parse_query('"foobar"')
@@ -302,6 +296,23 @@ def parse_query(query: str) -> QueryExpr:
 
         >>> parse_query('"a" AND "b"')
         AndExpr(operands=[StringMatch(value='a', ...), StringMatch(value='b', ...)])
+    """
+    from sase.core.query_facade import parse_query as _facade
+
+    return _facade(query)
+
+
+def parse_query_python(query: str) -> QueryExpr:
+    """Python implementation of :func:`parse_query`.
+
+    Args:
+        query: The query string to parse.
+
+    Returns:
+        The parsed query expression tree.
+
+    Raises:
+        QueryParseError: If the query is malformed.
     """
     parser = _Parser(query)
     return parser.parse()

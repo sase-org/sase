@@ -9,7 +9,7 @@ Phase 0B will route ``sase.ace.changespec.parser.parse_project_file`` through
 from __future__ import annotations
 
 from sase.ace.changespec.models import ChangeSpec
-from sase.ace.changespec.parser import parse_project_file as _python_parse_project_file
+from sase.ace.changespec.parser import parse_project_file_python
 from sase.core.backend import dispatch
 from sase.core.wire import ChangeSpecWire
 from sase.core.wire_conversion import changespec_to_wire
@@ -19,7 +19,7 @@ def parse_project_file(file_path: str) -> list[ChangeSpec]:
     """Parse all ChangeSpecs from a project file via the active backend."""
     return dispatch(
         operation="parse_project_file",
-        python_impl=_python_parse_project_file,
+        python_impl=parse_project_file_python,
         args=(file_path,),
         source_path=file_path,
     )
@@ -45,7 +45,7 @@ def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
         with tempfile.NamedTemporaryFile("wb", suffix=".gp", delete=True) as tmp:
             tmp.write(data)
             tmp.flush()
-            specs = _python_parse_project_file(tmp.name)
+            specs = parse_project_file_python(tmp.name)
         # Rewrite file_path on the wire record to the caller-supplied path so
         # downstream consumers see the canonical project file.
         wires: list[ChangeSpecWire] = []

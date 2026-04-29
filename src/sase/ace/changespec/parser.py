@@ -335,6 +335,18 @@ def _parse_changespec_from_lines(
 def parse_project_file(file_path: str) -> list[ChangeSpec]:
     """Parse all ChangeSpecs from a project file.
 
+    Public entry point — routes through the :mod:`sase.core` facade so the
+    Rust backend can later replace the Python implementation. The default
+    backend dispatches back to :func:`parse_project_file_python` below.
+    """
+    from sase.core.parser_facade import parse_project_file as _facade
+
+    return _facade(file_path)
+
+
+def parse_project_file_python(file_path: str) -> list[ChangeSpec]:
+    """Python implementation of :func:`parse_project_file`.
+
     Args:
         file_path: Path to the project markdown file
 

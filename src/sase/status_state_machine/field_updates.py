@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 def apply_status_update(lines: list[str], changespec_name: str, new_status: str) -> str:
     """Apply STATUS field update to file lines.
 
+    Public entry point — routes through :mod:`sase.core.status`. The default
+    backend dispatches back to :func:`apply_status_update_python` below.
+    """
+    from sase.core.status_facade import apply_status_update as _facade
+
+    return _facade(lines, changespec_name, new_status)
+
+
+def apply_status_update_python(
+    lines: list[str], changespec_name: str, new_status: str
+) -> str:
+    """Python implementation of :func:`apply_status_update`.
+
     Args:
         lines: Current file lines.
         changespec_name: NAME of the ChangeSpec to update.
@@ -141,6 +154,17 @@ def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
 
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
     """Read STATUS from file lines (unlocked helper).
+
+    Public entry point — routes through :mod:`sase.core.status`. The default
+    backend dispatches back to :func:`read_status_from_lines_python` below.
+    """
+    from sase.core.status_facade import read_status_from_lines as _facade
+
+    return _facade(lines, changespec_name)
+
+
+def read_status_from_lines_python(lines: list[str], changespec_name: str) -> str | None:
+    """Python implementation of :func:`read_status_from_lines`.
 
     Args:
         lines: File lines to search.

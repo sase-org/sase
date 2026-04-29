@@ -10,7 +10,7 @@ from __future__ import annotations
 from sase.ace.changespec.models import ChangeSpec
 from sase.ace.tui.models.changespec_graph_index import (
     ChangeSpecGraphIndex,
-    build_changespec_graph_index as _python_build_changespec_graph_index,
+    build_changespec_graph_index_python,
 )
 from sase.core.backend import dispatch
 
@@ -21,6 +21,6 @@ def build_changespec_graph_index(
     """Build a :class:`ChangeSpecGraphIndex` via the active backend."""
     return dispatch(
         operation="build_changespec_graph_index",
-        python_impl=_python_build_changespec_graph_index,
+        python_impl=build_changespec_graph_index_python,
         args=(changespecs,),
     )

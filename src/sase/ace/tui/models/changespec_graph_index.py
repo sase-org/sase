@@ -45,7 +45,21 @@ class ChangeSpecGraphIndex:
 def build_changespec_graph_index(
     changespecs: list[ChangeSpec],
 ) -> ChangeSpecGraphIndex:
-    """Build a :class:`ChangeSpecGraphIndex` for ``changespecs``."""
+    """Build a :class:`ChangeSpecGraphIndex` for ``changespecs``.
+
+    Public entry point — routes through :mod:`sase.core.graph_index`. The
+    default backend dispatches back to :func:`build_changespec_graph_index_python`
+    below.
+    """
+    from sase.core.graph_index_facade import build_changespec_graph_index as _facade
+
+    return _facade(changespecs)
+
+
+def build_changespec_graph_index_python(
+    changespecs: list[ChangeSpec],
+) -> ChangeSpecGraphIndex:
+    """Python implementation of :func:`build_changespec_graph_index`."""
     name_map: dict[str, ChangeSpec] = {}
     children_by_parent: dict[str, list[ChangeSpec]] = {}
     status_by_name: dict[str, str] = {}

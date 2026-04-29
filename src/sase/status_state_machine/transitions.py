@@ -34,8 +34,25 @@ def transition_changespec_status(
     validate: bool = True,
     console: "Console | None" = None,
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
+    """Transition a ChangeSpec to a new STATUS.
+
+    Public entry point — routes through :mod:`sase.core.status`. The default
+    backend dispatches back to :func:`transition_changespec_status_python`
+    below.
     """
-    Transition a ChangeSpec to a new STATUS with optional validation.
+    from sase.core.status_facade import transition_changespec_status as _facade
+
+    return _facade(project_file, changespec_name, new_status, validate, console)
+
+
+def transition_changespec_status_python(
+    project_file: str,
+    changespec_name: str,
+    new_status: str,
+    validate: bool = True,
+    console: "Console | None" = None,
+) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
+    """Python implementation of :func:`transition_changespec_status`.
 
     Acquires a lock for the entire read-validate-write cycle.
 
