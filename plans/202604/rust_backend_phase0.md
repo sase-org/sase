@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 23:51:28
 status: wip
+bead_id: sase-14
 ---
 # Rust Backend Migration Phase 0 Plan
 
