@@ -563,6 +563,7 @@ These work on all tabs:
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
+| `:`                 | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
@@ -576,6 +577,38 @@ These work on all tabs:
 When quitting (`q` or `Q`) while background tasks are still running (task queue workers or background command slots), a
 confirmation dialog appears showing the count of active tasks and asking whether to kill them and quit. Declining the
 dialog cancels the quit and returns to the TUI.
+
+## Command Palette
+
+Press `:` from any tab to open the **Command Palette** — a context-aware modal listing every keymapped action that is
+currently runnable. The palette is the discovery surface for the TUI: rather than memorizing every chord, you can search
+by command label, key sequence (e.g. `%n`, `,t`, `zc`), category, or alias.
+
+**Behavior:**
+
+- Only commands applicable to the current tab and selected entry are shown by default. For example, CL diff appears only
+  when a CL is selected; AXE start/stop appears only on the AXE tab; agent-specific actions appear only when an agent
+  row (not a group banner) is focused.
+- Each row shows the keybinding, the command label, and a category badge such as `Navigation`, `CL Actions`,
+  `Agent Actions`, `Copy`, or `Leader`.
+- A title-bar badge (`CLs`, `Agents`, or `AXE`) reflects the current tab.
+
+**Keybindings inside the palette:**
+
+| Key                 | Action                                       |
+| ------------------- | -------------------------------------------- |
+| `Type`              | Filter commands (case-insensitive substring) |
+| `↑` / `↓`           | Move highlight                               |
+| `Ctrl+P` / `Ctrl+N` | Move highlight                               |
+| `Enter`             | Run the highlighted command                  |
+| `Esc`               | Close without running anything               |
+
+The palette delegates execution to the same handlers that the keybindings use, so behavior matches pressing the chord
+directly. Selecting a built-in mode subcommand (e.g. `%n` to copy an agent name) runs the action without forcing you
+through the transient prefix mode. Custom modes defined in `sase.yml` are also represented per-command.
+
+The `:` binding follows your configured keymap. To rebind it, set `ace.keymaps.app.open_command_palette` in
+`~/.config/sase/sase.yml`.
 
 ## Temporary Model Override
 
