@@ -172,9 +172,12 @@ dev-shell:
 # These targets are no-ops when ../sase-core is absent so pure-Python
 # installs (`just install`) keep working without a Rust toolchain.
 
-# Build and install the optional `sase_core_rs` PyO3 extension into .venv.
-# Requires `cargo` and installs `maturin` into the venv on demand.
-rust-install: _setup
+# Build and install the optional `sase_core_rs` PyO3 extension into a venv
+# (defaults to the repo `.venv`). Requires `cargo` and installs `maturin`
+# into the target venv on demand. Pass an explicit venv path to install
+# into any other venv (e.g. `just rust-install /path/to/venv`); see also
+# `rust-install-uv-tool` for the uv-tool case.
+rust-install VENV=venv_dir_abs: _setup
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
         exit 0; \
@@ -183,11 +186,31 @@ rust-install: _setup
         printf "[rust-install] cargo not on PATH; install rustup to build the Rust backend.\n"; \
         exit 1; \
     fi
-    @{{ venv_bin_abs }}/maturin --version > /dev/null 2>&1 || uv pip install maturin
+    @if [ ! -x "{{ VENV }}/bin/python" ]; then \
+        printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
+        exit 1; \
+    fi
+    @{{ VENV }}/bin/maturin --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     cd {{ sase_core_dir }}/crates/sase_core_py && \
-        VIRTUAL_ENV={{ venv_dir_abs }} \
+        VIRTUAL_ENV={{ VENV }} \
         PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
-        {{ venv_bin_abs }}/maturin develop --release
+        {{ VENV }}/bin/maturin develop --release
+
+# Build and install `sase_core_rs` into the uv-tool venv for `sase`
+# (typically ~/.local/share/uv/tools/sase). Use this when you installed
+# sase via `uv tool install` and want `SASE_CORE_BACKEND=rust sase ...`
+# to work outside this repo's `.venv`.
+rust-install-uv-tool:
+    @if ! command -v uv > /dev/null 2>&1; then \
+        printf "[rust-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
+        exit 0; \
+    fi
+    @TOOL_VENV="$(uv tool dir)/sase"; \
+     if [ ! -x "$TOOL_VENV/bin/python" ]; then \
+         printf "[rust-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
+         exit 0; \
+     fi; \
+     just rust-install "$TOOL_VENV"
 
 # Run `cargo test --workspace` in ../sase-core.
 rust-test:

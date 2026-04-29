@@ -55,15 +55,30 @@ The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo wo
 ## Installing the Rust Backend
 
 Rust dev tools are required: install [rustup](https://rustup.rs/) so `cargo` is on `PATH`. Then clone the Rust core
-beside this repo and build the PyO3 extension into the active venv:
+beside this repo and build the PyO3 extension into the venv that runs `sase`. There are two common cases:
 
 ```bash
 git clone https://github.com/sase-org/sase-core.git ../sase-core
-just rust-install   # builds + installs sase_core_rs via maturin develop --release
+
+# Dev workflow — installs into the repo .venv (used by `just test`, benchmarks, parity tests).
+just rust-install
+
+# Installed-sase workflow — installs into the uv-tool venv at $(uv tool dir)/sase
+# so `SASE_CORE_BACKEND=rust sase ...` works for the user's installed `sase` CLI.
+just rust-install-uv-tool
 ```
 
-`just rust-install` installs `maturin` into `.venv` on demand and runs `maturin develop --release` inside
-`../sase-core/crates/sase_core_py/`. After it succeeds, `python -c "import sase_core_rs"` works inside the venv.
+Both targets install `maturin` into the target venv on demand and run `maturin develop --release` inside
+`../sase-core/crates/sase_core_py/`. After either succeeds, `python -c "import sase_core_rs"` works inside that venv.
+
+For other install methods (pipx, system Python, a custom venv), pass the venv path explicitly:
+
+```bash
+just rust-install /path/to/venv
+```
+
+`maturin develop --release` rebuilds and replaces the extension on every run, so re-running these targets after a
+`../sase-core` update is the supported way to refresh an existing install.
 
 ## Selecting the Backend at Runtime
 
@@ -87,17 +102,18 @@ the file from disk would defeat the perf rationale. Callers that want the Rust p
 Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so pure-Python contributors are
 never blocked.
 
-| Target                  | Description                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------- |
-| `just rust-install`     | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing) |
-| `just rust-test`        | `cargo test --workspace` in `../sase-core`                                                   |
-| `just rust-fmt`         | Auto-format Rust sources with `cargo fmt --all`                                              |
-| `just rust-fmt-check`   | CI-mode formatting verification (`cargo fmt --all -- --check`)                               |
-| `just rust-clippy`      | `cargo clippy --workspace --all-targets -- -D warnings`                                      |
-| `just rust-check`       | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                          |
-| `just rust-bench`       | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)           |
-| `just bench-core`       | Python `parse_project_bytes` benchmark across all available backends                         |
-| `just bench-agent-scan` | Python agent-artifact scan benchmark vs current direct loaders (Phase 3 baseline)            |
+| Target                      | Description                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `just rust-install`         | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing)                |
+| `just rust-install-uv-tool` | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install` |
+| `just rust-test`            | `cargo test --workspace` in `../sase-core`                                                                  |
+| `just rust-fmt`             | Auto-format Rust sources with `cargo fmt --all`                                                             |
+| `just rust-fmt-check`       | CI-mode formatting verification (`cargo fmt --all -- --check`)                                              |
+| `just rust-clippy`          | `cargo clippy --workspace --all-targets -- -D warnings`                                                     |
+| `just rust-check`           | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                         |
+| `just rust-bench`           | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                          |
+| `just bench-core`           | Python `parse_project_bytes` benchmark across all available backends                                        |
+| `just bench-agent-scan`     | Python agent-artifact scan benchmark vs current direct loaders (Phase 3 baseline)                           |
 
 ## Benchmarking
 
