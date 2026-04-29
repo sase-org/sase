@@ -160,6 +160,7 @@ sase
 | `sase bead sync`               | Sync bead database with git                                                                                    |
 | `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
 | `sase bead work`               | Launch phase + land agents for an epic plan (pre-claims phases, builds Kahn-wave multi-prompt)                 |
+| `sase changespec current`      | Render the ChangeSpec for the current workspace (markdown / plain / JSON)                                      |
 | `sase changespec sync-deltas`  | Recompute the DELTAS field for a ChangeSpec from the live VCS state                                            |
 | `sase chats list`              | List recent agent chat transcripts (pretty table or JSON)                                                      |
 | `sase chats show`              | Show a chat transcript by agent name, path, or basename                                                        |
@@ -168,6 +169,7 @@ sase
 | `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
+| `sase core health`             | Check that the active `sase.core` backend (Python or Rust) is loadable and working (`-j` for JSON)             |
 | `sase file list`               | JSON file/directory candidates rooted at `--path` (used by editor `<C-t>` completion)                          |
 | `sase file-history list`       | JSON array of recently-referenced paths (most recent first; consumed by editor plugins)                        |
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
