@@ -2,11 +2,13 @@
 
 These helpers are the only place :mod:`sase.ace.query` Python types touch the
 wire shape defined in :mod:`sase.core.query_wire`. Phase 2A uses them to pin
-parity tests; Phase 2D will use the inverse direction to consume the dict
-shape returned by the Rust ``sase_core_rs`` PyO3 binding.
+parity tests; Phase 2D uses :func:`query_expr_wire_from_dict` to consume the
+dict shape returned by the Rust ``sase_core_rs`` PyO3 binding.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from sase.ace.query.tokenizer import Token, TokenType
 from sase.ace.query.types import (
@@ -132,7 +134,6 @@ def query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
     raise TypeError(f"Unknown query expression type: {type(expr)!r}")
 
 
-# pyvision: tests/test_core_query_golden.py
 def query_expr_from_wire(wire: QueryExprWire) -> QueryExpr:
     """Inverse of :func:`query_expr_to_wire`.
 
@@ -170,6 +171,31 @@ def query_expr_from_wire(wire: QueryExprWire) -> QueryExpr:
             )
         return OrExpr(operands=[query_expr_from_wire(op) for op in wire.operands])
     raise ValueError(f"Unknown query expression kind: {wire.kind!r}")
+
+
+def query_expr_wire_from_dict(record: dict[str, Any]) -> QueryExprWire:
+    """Rebuild a :class:`QueryExprWire` from the Rust PyO3 dict shape.
+
+    The Rust ``sase_core_rs.parse_query`` binding returns dicts in the
+    rectangular shape Python expects (``kind`` plus all of ``value``,
+    ``case_sensitive``, the three ``is_*`` flags, ``property_key``, and
+    ``operands``). This helper wraps that into the typed
+    :class:`QueryExprWire` so downstream code can use
+    :func:`query_expr_from_wire` unchanged.
+    """
+    operands = tuple(
+        query_expr_wire_from_dict(op) for op in record.get("operands") or ()
+    )
+    return QueryExprWire(
+        kind=record["kind"],
+        value=record.get("value", ""),
+        case_sensitive=bool(record.get("case_sensitive", False)),
+        is_error_suffix=bool(record.get("is_error_suffix", False)),
+        is_running_agent=bool(record.get("is_running_agent", False)),
+        is_running_process=bool(record.get("is_running_process", False)),
+        property_key=record.get("property_key"),
+        operands=operands,
+    )
 
 
 # pyvision: tests/test_core_query_golden.py
