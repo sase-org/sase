@@ -70,7 +70,7 @@ _WIRE_TO_TOKEN_TYPE: dict[str, TokenType] = {
 }
 
 
-# pyvision: tests/test_core_query_golden.py
+# pyvision: tests/test_core_query_golden_wire.py
 def token_to_wire(token: Token) -> QueryTokenWire:
     """Project a tokenizer :class:`Token` to its wire record."""
     return QueryTokenWire(
@@ -82,7 +82,7 @@ def token_to_wire(token: Token) -> QueryTokenWire:
     )
 
 
-# pyvision: tests/test_core_query_golden.py
+# pyvision: tests/test_core_query_golden_wire.py
 def token_from_wire(wire: QueryTokenWire) -> Token:
     """Inverse of :func:`token_to_wire`."""
     return Token(
@@ -94,7 +94,7 @@ def token_from_wire(wire: QueryTokenWire) -> Token:
     )
 
 
-# pyvision: tests/test_core_query_golden.py
+# pyvision: tests/test_core_query_golden_wire.py
 def query_expr_to_wire(expr: QueryExpr) -> QueryExprWire:
     """Project a :class:`QueryExpr` AST to its tagged wire shape.
 
@@ -198,7 +198,7 @@ def query_expr_wire_from_dict(record: dict[str, Any]) -> QueryExprWire:
     )
 
 
-# pyvision: tests/test_core_query_golden.py
+# pyvision: tests/test_core_query_golden_wire.py
 def build_query_program_wire(source: str, expr: QueryExpr) -> QueryProgramWire:
     """Bundle a parsed expression into a :class:`QueryProgramWire`."""
     return QueryProgramWire(
