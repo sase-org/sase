@@ -102,6 +102,15 @@ def _load_marker_json(
     return data
 
 
+def _marker_exists(path: Path, stats: dict[str, int]) -> bool:
+    """Return whether *path* exists, counting inaccessible paths as soft errors."""
+    try:
+        return path.exists()
+    except OSError:
+        stats["os_errors"] += 1
+        return False
+
+
 def _coerce_int(value: Any) -> int | None:
     if isinstance(value, bool):  # bool is an int subclass; reject it.
         return None
@@ -353,7 +362,7 @@ def _scan_artifact_dir(
     )
 
     done_path = artifact_dir / "done.json"
-    has_done_marker = done_path.exists()
+    has_done_marker = _marker_exists(done_path, stats)
     done_data = _load_object(done_path) if has_done_marker else None
     done = _done_marker_from_dict(done_data) if done_data is not None else None
     if has_done_marker and done is None:
