@@ -6,12 +6,21 @@ independently by a Rust implementation. The Python implementations are kept
 under ``*_python`` aliases (imported below) so tests that need to bypass
 dispatch can call them directly without re-implementing the seam.
 
-Phase 2D registers Rust implementations for :func:`parse_query` and the new
-batch facade :func:`evaluate_query_many` whenever the optional
-``sase_core_rs`` extension is importable. Per-row callers
+Phase 2D registered a Rust implementation for :func:`parse_query` whenever
+the optional ``sase_core_rs`` extension is importable. Per-row callers
 (:func:`evaluate_query`, :func:`evaluate_query_with_context`) keep the Python
 backend because the perf gain in Phase 2 lives in the batch path; routing
 single rows through PyO3 would just pay FFI cost per spec.
+
+Phase 8B reclassified :func:`evaluate_query_many` as deferred/unported
+(see ``plans/202604/rust_backend_phase8_phase8b_handoff.md``). Even with the
+wire-conversion cost amortized outside the timed window, the Rust path stays
+6-9x slower than the optimised Python batch path because PyO3 must
+deserialize every spec dict into ``ChangeSpecWire`` on each call. The facade
+therefore routes through the Python batch implementation under all backends;
+the corresponding Rust adapter has been removed and ``sase_core_rs`` no
+longer participates in this surface until a future Rust port lands a
+persistent corpus handle that beats the Python batch path.
 """
 
 from __future__ import annotations
@@ -32,8 +41,6 @@ from sase.core.query_wire_conversion import (
     query_expr_from_wire,
     query_expr_wire_from_dict,
 )
-from sase.core.wire import to_json_dict
-from sase.core.wire_conversion import changespec_to_wire
 
 
 def _rust_parse_query_impl(query: str) -> QueryExpr:
@@ -116,31 +123,12 @@ def _evaluate_query_many_python(
 
     Parses the query once and evaluates against every ChangeSpec using a
     shared :class:`QueryEvaluationContext` so name/status/searchable maps
-    are computed only once per list, matching the Rust path's contract.
+    are computed only once per list. This is the authoritative implementation
+    for :func:`evaluate_query_many` after Phase 8B's deferral decision.
     """
     expr = parse_query_python(query)
     ctx = build_query_context_python(changespecs)
     return [evaluate_query_with_context_python(expr, cs, ctx) for cs in changespecs]
-
-
-def _rust_evaluate_query_many_impl(
-    query: str, changespecs: list[ChangeSpec]
-) -> list[bool]:
-    """Adapter that projects ChangeSpecs to wire dicts and calls Rust.
-
-    Conversion goes through :func:`changespec_to_wire` and
-    :func:`to_json_dict` so the dict shape matches what the PyO3
-    binding's serde deserializer expects (`ChangeSpecWire` JSON form).
-    """
-    rust_module = load_rust_extension()
-    if rust_module is None:
-        raise RuntimeError(
-            "sase_core_rs is not importable; the Rust backend was registered "
-            "but the extension module disappeared at call time."
-        )
-    spec_dicts = [to_json_dict(changespec_to_wire(cs)) for cs in changespecs]
-    results = rust_module.evaluate_query_many(query, spec_dicts)  # type: ignore[attr-defined]
-    return list(results)
 
 
 def evaluate_query_many(
@@ -149,20 +137,15 @@ def evaluate_query_many(
 ) -> list[bool]:
     """Evaluate ``query`` against every ChangeSpec in one batch call.
 
-    The hot-path filter API for TUI/CLI lists. The Rust implementation,
-    when registered, compiles the query once and walks the list inside one
-    FFI call. Under ``SASE_CORE_DUAL_RUN=1`` Python and Rust both run and
-    a comparison record is logged; the Python result is what callers see.
+    The hot-path filter API for TUI/CLI lists. Phase 8B reclassified this
+    surface as deferred/unported: the dispatcher routes to the Python batch
+    implementation regardless of ``SASE_CORE_BACKEND`` because the routed
+    Rust path remains 6-9x slower than the optimised Python batch path
+    (PyO3 must rebuild ``ChangeSpecWire`` from a fresh dict on every call).
     """
-    rust_module = load_rust_extension()
-    rust_impl = (
-        _rust_evaluate_query_many_impl
-        if rust_module is not None and hasattr(rust_module, "evaluate_query_many")
-        else None
-    )
     return dispatch(
         operation="evaluate_query_many",
         python_impl=_evaluate_query_many_python,
-        rust_impl=rust_impl,
+        rust_unavailable="python",
         args=(query, changespecs),
     )

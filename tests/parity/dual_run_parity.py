@@ -48,7 +48,6 @@ GOLDEN_PROJECT = REPO_ROOT / "tests" / "core_golden" / "myproj.gp"
 SHIPPED_OPERATIONS: tuple[str, ...] = (
     "parse_project_bytes",
     "parse_query",
-    "evaluate_query_many",
     "scan_agent_artifacts",
     "read_status_from_lines",
     "apply_status_update",

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from sase.core.backend import (
     RUST_EXTENSION_MODULE_NAME,
     RustBackendUnavailableError,
 )
-from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 
 from tests.test_core_facade._helpers import install_fake_query_module
 
@@ -90,6 +88,33 @@ def test_unported_query_facade_apis_rust_without_impl_fall_back_to_python(
     assert query_facade.evaluate_query_with_context(expr, specs[0], ctx) is True
 
 
+def test_evaluate_query_many_under_rust_runs_python_after_phase8b_deferral(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 8B reclassified ``evaluate_query_many`` as deferred/unported.
+
+    Even with ``SASE_CORE_BACKEND=rust`` the facade must execute the Python
+    batch implementation. We assert that with a fake Rust module exposing
+    ``evaluate_query_many`` the binding is *not* called — the facade no
+    longer registers a ``rust_impl`` for this surface.
+    """
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    specs = parser_facade.parse_project_file(str(sample_project))
+    rust_calls: list[tuple[str, int]] = []
+
+    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
+        rust_calls.append((query, len(spec_dicts)))
+        return [False] * len(spec_dicts)
+
+    install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
+
+    expected = query_facade._evaluate_query_many_python('"example"', specs)
+    result = query_facade.evaluate_query_many('"example"', specs)
+    assert result == expected
+    assert rust_calls == []
+
+
 def test_parse_query_rust_without_impl_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -147,104 +172,36 @@ def test_parse_query_rust_backend_missing_binding_raises_cleanly(
         query_facade.parse_query('"x"')
 
 
-def test_evaluate_query_many_rust_backend_uses_rust_impl(
-    sample_project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The batch facade routes through the Rust binding under ``rust``."""
-    specs = parser_facade.parse_project_file(str(sample_project))
-    # Sentinel result so we can verify the Rust path's output reaches callers
-    # without colliding with the Python evaluator's natural output.
-    sentinel = [False, True]
-
-    calls: list[tuple[str, int]] = []
-
-    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
-        calls.append((query, len(spec_dicts)))
-        return list(sentinel)
-
-    install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    result = query_facade.evaluate_query_many('"example"', specs)
-    assert result == sentinel
-    assert calls == [('"example"', len(specs))]
-
-
-def test_evaluate_query_many_rust_backend_forwards_null_mentor_timestamp(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project = tmp_path / "myproj.gp"
-    project.write_text(
-        """\
-NAME: missing_mentor_timestamp
-DESCRIPTION:
-PARENT:
-PR:
-STATUS: WIP
-MENTORS:
-  (1) profileA[1/1]
-      | profileA:mentor1 - RUNNING - (@: mentor_mentor1-123-260101_130000)
-"""
-    )
-    specs = parser_facade.parse_project_file(str(project))
-
-    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
-        assert query == '"missing_mentor_timestamp"'
-        status_line = spec_dicts[0]["mentors"][0]["status_lines"][0]
-        assert status_line["timestamp"] is None
-        return [True]
-
-    install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    result = query_facade.evaluate_query_many('"missing_mentor_timestamp"', specs)
-    assert result == [True]
-
-
-def test_evaluate_query_many_rust_backend_missing_binding_raises_cleanly(
-    sample_project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    specs = parser_facade.parse_project_file(str(sample_project))
-    install_fake_query_module(monkeypatch, parse_query=lambda _query: {})
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    with pytest.raises(RustBackendUnavailableError, match="evaluate_query_many"):
-        query_facade.evaluate_query_many('"example"', specs)
-
-
-def test_evaluate_query_many_dual_run_logs_comparison(
+def test_evaluate_query_many_dual_run_is_noop_after_phase8b_deferral(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Dual-run runs both impls, logs one record, returns Python output."""
+    """Dual-run produces no record for the deferred ``evaluate_query_many``.
+
+    Phase 8B removed the Rust adapter from the facade. With no ``rust_impl``
+    registered, ``SASE_CORE_DUAL_RUN=1`` must be a no-op for this surface
+    even when ``sase_core_rs`` exposes a binding — the facade no longer
+    consults the extension.
+    """
+    from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
+
     log_path = tmp_path / "core_dual_run.jsonl"
     monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
     monkeypatch.setenv("SASE_CORE_DUAL_RUN", "1")
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     specs = parser_facade.parse_project_file(str(sample_project))
-    rust_calls: list[int] = []
-
-    # Compute the Python result up front so the fake can mirror it byte-for-byte
-    # and the dual-run record is a "match".
-    py_expected = query_facade._evaluate_query_many_python('"example"', specs)
+    rust_calls: list[tuple[str, int]] = []
 
     def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
-        rust_calls.append(len(spec_dicts))
-        assert query == '"example"'
-        return list(py_expected)
+        rust_calls.append((query, len(spec_dicts)))
+        return [False] * len(spec_dicts)
 
     install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
 
+    expected = query_facade._evaluate_query_many_python('"example"', specs)
     result = query_facade.evaluate_query_many('"example"', specs)
-    assert result == py_expected
-    assert rust_calls == [len(specs)]
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 1
-    rec = records[0]
-    assert rec["operation"] == "evaluate_query_many"
-    assert rec["match"] is True
-    assert rec["error_class"] is None
+    assert result == expected
+    assert rust_calls == []
+    assert not log_path.exists() or log_path.read_text() == ""

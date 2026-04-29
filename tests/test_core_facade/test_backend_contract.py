@@ -46,7 +46,6 @@ from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 SHIPPED_OPERATIONS: tuple[str, ...] = (
     "parse_project_bytes",
     "parse_query",
-    "evaluate_query_many",
     "scan_agent_artifacts",
     "read_status_from_lines",
     "apply_status_update",
@@ -61,14 +60,18 @@ SHIPPED_OPERATIONS: tuple[str, ...] = (
 
 # Operations that intentionally route through Python under Rust mode via
 # ``rust_unavailable="python"``. Either the work is not yet ported (graph
-# index, query context / per-row evaluators) or duplicating it under dual-run
-# would re-execute disk side effects (``transition_changespec_status``).
+# index, query context / per-row evaluators), duplicating it under dual-run
+# would re-execute disk side effects (``transition_changespec_status``), or
+# Phase 8B reclassified the operation as deferred after measurement
+# (``evaluate_query_many`` — see
+# ``plans/202604/rust_backend_phase8_phase8b_handoff.md``).
 UNPORTED_OPERATIONS: tuple[str, ...] = (
     "build_query_context",
     "evaluate_query",
     "evaluate_query_with_context",
     "build_changespec_graph_index",
     "transition_changespec_status",
+    "evaluate_query_many",
 )
 
 
