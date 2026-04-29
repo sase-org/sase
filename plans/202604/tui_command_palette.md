@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 17:41:24
-status: wip
+status: done
 bead_id: sase-1d
 ---
 # Plan: Add a Context-Aware Command Palette to the Ace TUI
