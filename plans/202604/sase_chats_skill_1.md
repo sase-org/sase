@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 00:45:21
-status: wip
+status: done
 bead_id: sase-15
 ---
 # Plan: `/sase_chats` Skill for Agent Chat Transcript Access
