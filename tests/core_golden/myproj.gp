@@ -1,0 +1,53 @@
+## ChangeSpec
+NAME: alpha
+DESCRIPTION:
+  Initial feature work.
+  Spans multiple lines.
+PARENT:
+PR: https://example.test/repo/pull/1
+BUG: BUG-100
+STATUS: Submitted
+TEST TARGETS: tests/test_alpha.py
+KICKSTART:
+  Kick this off carefully.
+COMMITS:
+  (1) [run] Initial Commit
+      | CHAT: ~/.sase/chats/alpha.md (0s)
+      | DIFF: ~/.sase/diffs/alpha.diff
+HOOKS:
+  just lint
+      | (1) [260101_120000] PASSED (3s)
+COMMENTS:
+  [critique] ~/.sase/comments/alpha.json - (!: Unresolved Critique Comments)
+MENTORS:
+  (1) profileA[1/1]
+      | [260101_130000] profileA:mentor1 - PASSED - (1m0s)
+TIMESTAMPS:
+  260101_120000 STATUS WIP -> Submitted
+DELTAS:
+  + src/alpha.py
+  ~ src/util.py
+
+
+NAME: beta
+DESCRIPTION: Sibling feature.
+PARENT: alpha
+PR:
+STATUS: WIP
+
+
+NAME: beta__260102_010101
+DESCRIPTION: Reverted retry of beta.
+PARENT: alpha
+PR:
+STATUS: Reverted
+
+
+NAME: gamma
+DESCRIPTION: Ready feature with running agent.
+PARENT:
+PR:
+STATUS: Ready
+HOOKS:
+  just test
+      | (1) [260103_140000] RUNNING - (@: ace-260103_140000)
