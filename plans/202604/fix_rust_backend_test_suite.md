@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 19:01:43
-status: wip
+status: done
 ---
 # Plan: Fix Rust backend test-suite hermeticity
 

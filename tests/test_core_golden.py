@@ -30,6 +30,8 @@ from sase.core import (
 from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
 
+pytestmark = pytest.mark.usefixtures("python_core_backend")
+
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
 _PROJECT_GP = _CORPUS_DIR / "myproj.gp"
 _ARCHIVE_GP = _CORPUS_DIR / "myproj-archive.gp"

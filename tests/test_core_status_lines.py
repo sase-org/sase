@@ -8,7 +8,11 @@ strings exercised here. The Phase 4C Rust implementations must match.
 
 from __future__ import annotations
 
+import pytest
+
 from sase.core.status_facade import apply_status_update, read_status_from_lines
+
+pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 
 _PROJECT_LINES = [

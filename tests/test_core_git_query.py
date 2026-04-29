@@ -46,6 +46,8 @@ from sase.core.git_query_wire import (
     git_query_wire_to_json_dict,
 )
 
+pytestmark = pytest.mark.usefixtures("python_core_backend")
+
 # ---------------------------------------------------------------------------
 # parse_git_name_status_z
 # ---------------------------------------------------------------------------

@@ -4,12 +4,16 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.status_state_machine import transition_changespec_status
 from sase.status_state_machine.field_updates import (
     _apply_bug_update,
     _apply_cl_update,
     _apply_description_update,
 )
+
+pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 
 def _create_test_project_file_with_suffix(

@@ -104,6 +104,19 @@ def _clear_core_backend_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
 
 
+@pytest.fixture
+def python_core_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin facade-dispatch tests to the pure-Python core backend.
+
+    Use this for tests whose contract is helper/provider behavior rather than
+    backend selection. Tests that exercise Rust mode or dual-run should still
+    set those env vars explicitly in the test body.
+    """
+    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
+    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
+    monkeypatch.delenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, raising=False)
+
+
 @pytest.fixture(autouse=True)
 def _mock_system_clipboard():
     """Prevent tests from touching the real system clipboard."""

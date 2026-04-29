@@ -23,6 +23,8 @@ from tests.test_core_facade._helpers import (
     install_fake_status_module,
 )
 
+pytestmark = pytest.mark.usefixtures("python_core_backend")
+
 
 def test_status_facade_pure_helpers(sample_project: Path) -> None:
     lines = sample_project.read_text().splitlines(keepends=True)
@@ -123,7 +125,8 @@ def test_status_facade_line_helpers_dual_run_logs_comparison(
         apply_status_update=fake_apply,
     )
 
-    # Default backend is python; dual-run still routes through both impls.
+    # This Python-contract test pins the backend explicitly; dual-run still
+    # routes through both impls.
     assert status_facade.read_status_from_lines(lines, "example") == py_read
     assert status_facade.apply_status_update(lines, "example", "Draft") == py_apply
     assert read_calls == ["example"]
@@ -172,8 +175,8 @@ def test_status_facade_line_helpers_real_extension_parity(
 # === plan_status_transition (Phase 4E) =======================================
 
 
-def test_plan_status_transition_python_default_backend() -> None:
-    """Default backend produces the same plan as the pure Python helper."""
+def test_plan_status_transition_python_backend() -> None:
+    """Explicit Python backend produces the same plan as the pure helper."""
     from sase.core.status_wire_conversion import plan_status_transition_python
 
     request = basic_plan_request()
@@ -305,13 +308,19 @@ def test_plan_status_transition_rust_error_surfaces(
         status_facade.plan_status_transition(basic_plan_request())
 
 
-def test_plan_status_transition_real_extension_parity() -> None:
+def test_plan_status_transition_real_extension_parity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """When ``sase_core_rs`` is installed, the Rust planner matches Python.
 
     Skips cleanly when the optional extension is missing so a pure-Python
     checkout is never blocked.
     """
-    pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "plan_status_transition"):
+        pytest.skip("sase_core_rs is too old (no plan_status_transition).")
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
     from sase.core.status_wire_conversion import plan_status_transition_python
 
     request = basic_plan_request(
