@@ -19,7 +19,7 @@ from datetime import datetime
 import schedule
 from rich.console import Console
 
-from sase.ace.query import QueryExpr, parse_query
+from sase.ace.query import parse_query
 from sase.core.time import get_timezone
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
@@ -88,9 +88,11 @@ class Lumberjack:
         self.config = config
         self.axe_config = axe_config
 
-        self.parsed_query: QueryExpr | None = None
+        # Parse upfront so a bad query fails the lumberjack at construction
+        # time rather than mid-cycle. The check runner re-parses internally
+        # via the batch facade, so we keep only the raw string here.
         if axe_config.query:
-            self.parsed_query = parse_query(axe_config.query)
+            parse_query(axe_config.query)
 
         self.console = Console(record=True, force_terminal=True)
         self.scheduler = schedule.Scheduler()
@@ -101,7 +103,7 @@ class Lumberjack:
         self._running = True
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
-        self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
+        self._check_runner = CheckCycleRunner(axe_config.query or None, self._log)
         # Track running agent processes per chop (singleton per chop)
         self._agent_pids: dict[str, set[int]] = {}
         # Load persisted chop last-run timestamps for time-based run_every

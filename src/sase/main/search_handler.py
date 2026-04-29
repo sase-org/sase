@@ -10,20 +10,18 @@ from sase.ace.query import QueryParseError
 def handle_search_command(args: argparse.Namespace) -> None:
     """Handle the 'sase search' command."""
     from sase.ace.changespec import find_all_changespecs
-    from sase.ace.query import evaluate_query, parse_query
+    from sase.ace.query import parse_query
+    from sase.core.query_facade import evaluate_query_many
 
     try:
-        parsed_query = parse_query(args.query)
+        parse_query(args.query)
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
     all_changespecs = find_all_changespecs()
-    matching = [
-        cs
-        for cs in all_changespecs
-        if evaluate_query(parsed_query, cs, all_changespecs)
-    ]
+    mask = evaluate_query_many(args.query, all_changespecs)
+    matching = [cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep]
 
     if not matching:
         print("No ChangeSpecs match the query.")

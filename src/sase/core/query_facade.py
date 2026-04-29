@@ -148,9 +148,7 @@ def evaluate_query_many(
     a comparison record is logged; the Python result is what callers see.
     """
     rust_module = load_rust_extension()
-    rust_impl = (
-        _rust_evaluate_query_many_impl if rust_module is not None else None
-    )
+    rust_impl = _rust_evaluate_query_many_impl if rust_module is not None else None
     return dispatch(
         operation="evaluate_query_many",
         python_impl=evaluate_query_many_python,

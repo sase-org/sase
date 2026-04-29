@@ -50,10 +50,10 @@ def axe_config() -> AxeConfig:
 def test_lumberjack_with_query(
     temp_state_dir: Path, lumberjack_config: LumberjackConfig
 ) -> None:
-    """Test that Lumberjack parses query from config."""
+    """Test that Lumberjack accepts a parseable query and forwards it to the check runner."""
     config = AxeConfig(query='"test"')
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, config)
-    assert lumberjack.parsed_query is not None
+    assert lumberjack._check_runner.query == '"test"'
 
 
 # --- Tick Execution Tests ---

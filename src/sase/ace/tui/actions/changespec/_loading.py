@@ -17,6 +17,7 @@ class ChangeSpecLoadingMixin:
     changespecs: list[ChangeSpec]
     current_idx: int
     parsed_query: QueryExpr
+    query_string: str
     hide_reverted: bool
     hide_submitted: bool
     marked_indices: set[int]
@@ -76,24 +77,26 @@ class ChangeSpecLoadingMixin:
     def _filter_changespecs_impl(
         self, changespecs: list[ChangeSpec]
     ) -> list[ChangeSpec]:
+        from sase.core.query_facade import evaluate_query_many
+
         from ....changespec import get_base_status
-        from ....query import build_query_context, evaluate_query_with_context
+        from ....query import build_query_context
         from ....query.evaluator import (
             query_explicitly_targets_submitted,
             query_explicitly_targets_terminal,
         )
 
-        # Build context once per refresh: name_map, status_map, plus
-        # lazy searchable_text / ancestor_memo reused across rows.
+        # Status map drives the hide-toggle logic below. Building the
+        # context here is cheap (eager name/status maps only) and keeps
+        # the lazy searchable_text/ancestor_memo path warm if anything
+        # calls evaluate_query_with_context elsewhere on this list.
         ctx = build_query_context(changespecs)
         status_map = ctx.status_map
 
-        # First apply the query filter
-        result = [
-            cs
-            for cs in changespecs
-            if evaluate_query_with_context(self.parsed_query, cs, ctx)
-        ]
+        # Single batch evaluation per refresh — one FFI hop when the
+        # Rust backend is registered, instead of one dispatch per row.
+        mask = evaluate_query_many(self.query_string, changespecs)
+        result = [cs for cs, keep in zip(changespecs, mask, strict=True) if keep]
 
         # Count reverted/archived and submitted in query results (for tab bar)
         self._query_reverted_count = 0

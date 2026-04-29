@@ -61,7 +61,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     from sase.ace.changespec import find_all_changespecs
-    from sase.ace.query import evaluate_query, parse_query
+    from sase.core.query_facade import evaluate_query_many
 
     query: str = getattr(args, "query", "") or config.query
 
@@ -78,9 +78,9 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     all_changespecs = find_all_changespecs()
     filtered_changespecs = all_changespecs
     if query:
-        parsed = parse_query(query)
+        mask = evaluate_query_many(query, all_changespecs)
         filtered_changespecs = [
-            cs for cs in all_changespecs if evaluate_query(parsed, cs, all_changespecs)
+            cs for cs, keep in zip(all_changespecs, mask, strict=True) if keep
         ]
 
     state_dir = ensure_lumberjack_dirs("_oneshot")

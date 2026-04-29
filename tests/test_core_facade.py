@@ -116,6 +116,78 @@ def test_evaluate_query_many_matches_per_row(sample_project: Path) -> None:
     assert query_facade.evaluate_query_many('"example"', specs) == expected
 
 
+_ANCESTRY_PROJECT_TEXT = """\
+NAME: root
+DESCRIPTION: Root of the chain.
+PARENT:
+PR:
+STATUS: Draft
+
+NAME: middle
+DESCRIPTION: Middle of the chain.
+PARENT: root
+PR:
+STATUS: WIP
+
+NAME: leaf
+DESCRIPTION: Leaf of the chain.
+PARENT: middle
+PR:
+STATUS: Ready
+
+NAME: family
+DESCRIPTION: Base member of the family.
+PARENT:
+PR:
+STATUS: WIP
+
+NAME: family__260102_010101
+DESCRIPTION: Reverted retry sibling.
+PARENT:
+PR:
+STATUS: Reverted
+
+NAME: unrelated
+DESCRIPTION: No relation.
+PARENT:
+PR:
+STATUS: Mailed
+"""
+
+
+@pytest.fixture
+def ancestry_project(tmp_path: Path) -> Path:
+    target = tmp_path / "ancestry.gp"
+    target.write_text(_ANCESTRY_PROJECT_TEXT)
+    return target
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "ancestor:root",
+        "ancestor:middle",
+        "^root",
+        "sibling:family",
+        "sibling:family__260102_010101",
+        "^root AND %w",
+        "sibling:family OR ancestor:middle",
+        "!ancestor:root",
+    ],
+)
+def test_evaluate_query_many_matches_with_context_for_ancestor_and_sibling(
+    ancestry_project: Path, query: str
+) -> None:
+    """Batch results match the per-row context path for ancestor/sibling filters."""
+    specs = parser_facade.parse_project_file(str(ancestry_project))
+    expr = raw_parse_query(query)
+    ctx = raw_evaluator.build_query_context(specs)
+    expected = [
+        raw_evaluator.evaluate_query_with_context(expr, cs, ctx) for cs in specs
+    ]
+    assert query_facade.evaluate_query_many(query, specs) == expected
+
+
 def test_graph_index_facade_matches_python(sample_project: Path) -> None:
     specs = parser_facade.parse_project_file(str(sample_project))
     via_facade = graph_index_facade.build_changespec_graph_index(specs)

@@ -16,7 +16,6 @@ from sase.ace.changespec import (
 )
 from sase.ace.cl_status import is_parent_submitted
 from sase.ace.comments import is_timestamp_suffix
-from sase.ace.query import QueryExpr, evaluate_query
 from sase.ace.scheduler.checks_runner import (
     CHECK_TYPE_CL_SUBMITTED,
     CHECK_TYPE_REVIEWER_COMMENTS,
@@ -25,6 +24,7 @@ from sase.ace.scheduler.checks_runner import (
     start_reviewer_comments_check,
 )
 from sase.ace.sync_cache import should_check, update_last_checked
+from sase.core.query_facade import evaluate_query_many
 from sase.core.time import get_timezone
 from sase.running_field import get_workspace_directory
 
@@ -44,16 +44,16 @@ class CheckCycleRunner:
 
     def __init__(
         self,
-        parsed_query: QueryExpr | None,
+        query: str | None,
         log_callback: LogCallback,
     ) -> None:
         """Initialize the check cycle runner.
 
         Args:
-            parsed_query: Parsed query for filtering ChangeSpecs (or None for all).
+            query: Query string for filtering ChangeSpecs (or None/empty for all).
             log_callback: Callback function for logging messages.
         """
-        self.parsed_query = parsed_query
+        self.query = query or None
         self._log = log_callback
         self._first_cycle = True
 
@@ -89,12 +89,11 @@ class CheckCycleRunner:
             skipped = len(all_changespecs) - len(unlocked)
             self._log(f"Skipping {skipped} changespec(s) due to edit lock", None)
 
-        if not self.parsed_query:
+        if not self.query:
             return unlocked
 
-        return [
-            cs for cs in unlocked if evaluate_query(self.parsed_query, cs, unlocked)
-        ]
+        mask = evaluate_query_many(self.query, unlocked)
+        return [cs for cs, keep in zip(unlocked, mask, strict=True) if keep]
 
     def is_leaf_cl(self, changespec: ChangeSpec) -> bool:
         """Check if a ChangeSpec is a leaf CL (no parent or parent is submitted)."""
