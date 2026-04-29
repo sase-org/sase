@@ -240,3 +240,11 @@ bench-core *args: _setup
 # against.
 bench-query *args: _setup
     {{ venv_bin }}/python tests/perf/bench_core_query.py {{ args }}
+
+# Run the Python agent-artifact scan benchmark. Times the new scan
+# facade against the existing direct loaders (find_named_agent,
+# list_running_agents, list_all_agents, TUI artifact/workflow
+# loaders) so Phase 3 has a baseline to compare a future Rust scan
+# backend against.
+bench-agent-scan *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_agent_scan.py {{ args }}

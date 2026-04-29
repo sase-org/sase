@@ -45,6 +45,8 @@ The facade lives at `src/sase/core/`:
 | `query_facade.py`       | Query parse / build / evaluate facade                                                |
 | `status_facade.py`      | Status transition helpers facade                                                     |
 | `graph_index_facade.py` | `build_changespec_graph_index()` facade                                              |
+| `agent_scan_facade.py`  | `scan_agent_artifacts()` snapshot facade (Phase 3)                                   |
+| `agent_scan_wire.py`    | Stable wire records for the agent-artifact scan snapshot                             |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
@@ -84,16 +86,17 @@ the file from disk would defeat the perf rationale. Callers that want the Rust p
 Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so pure-Python contributors are
 never blocked.
 
-| Target                | Description                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| `just rust-install`   | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing) |
-| `just rust-test`      | `cargo test --workspace` in `../sase-core`                                                   |
-| `just rust-fmt`       | Auto-format Rust sources with `cargo fmt --all`                                              |
-| `just rust-fmt-check` | CI-mode formatting verification (`cargo fmt --all -- --check`)                               |
-| `just rust-clippy`    | `cargo clippy --workspace --all-targets -- -D warnings`                                      |
-| `just rust-check`     | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                          |
-| `just rust-bench`     | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)           |
-| `just bench-core`     | Python `parse_project_bytes` benchmark across all available backends                         |
+| Target                  | Description                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `just rust-install`     | Build + install `sase_core_rs` via `maturin develop --release` (installs maturin if missing) |
+| `just rust-test`        | `cargo test --workspace` in `../sase-core`                                                   |
+| `just rust-fmt`         | Auto-format Rust sources with `cargo fmt --all`                                              |
+| `just rust-fmt-check`   | CI-mode formatting verification (`cargo fmt --all -- --check`)                               |
+| `just rust-clippy`      | `cargo clippy --workspace --all-targets -- -D warnings`                                      |
+| `just rust-check`       | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                          |
+| `just rust-bench`       | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)           |
+| `just bench-core`       | Python `parse_project_bytes` benchmark across all available backends                         |
+| `just bench-agent-scan` | Python agent-artifact scan benchmark vs current direct loaders (Phase 3 baseline)            |
 
 ## Benchmarking
 
@@ -114,7 +117,13 @@ loop.
   existing public APIs routed through the facade with no behavior change.
 - **Phase 1** _(complete)_ — Optional `sase_core_rs` extension wired into `parse_project_bytes`; cross-repo parity gate;
   dev-workflow Justfile targets; Python core parse benchmark.
-- **Future phases** — Additional facade operations (query, graph index, status helpers) become candidates for Rust
+- **Phase 2A** _(complete)_ — Query wire contract, golden corpus, and benchmark in place; Rust query backend opt-in
+  pending the rollout decision in Phase 2F.
+- **Phase 3A** _(complete)_ — Agent-artifact scan wire contract (`agent_scan_wire.py`), pure-Python facade
+  (`agent_scan_facade.py`), golden parity tests against a synthetic corpus (`tests/agent_scan_golden/`), and a baseline
+  benchmark (`tests/perf/bench_agent_scan.py`, `just bench-agent-scan`). No Rust code yet — Phase 3B implements the
+  pure-Rust scanner in `../sase-core`.
+- **Future phases** — Additional facade operations (graph index, status helpers) become candidates for Rust
   re-implementation as they show up in profiles.
 
 The migration strategy intentionally keeps the Rust core as a single crate that can be exposed through three different
