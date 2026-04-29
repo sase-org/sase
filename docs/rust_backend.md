@@ -391,6 +391,29 @@ loop.
   swallowed. The CI install-smoke job (`.github/workflows/ci.yml`) and the release install-smoke job
   (`.github/workflows/publish.yml`) both invoke `sase core health` (default + `SASE_CORE_BACKEND=python` runs) instead
   of inline import / binding probes. The default backend is **still Python**; the flip is Phase 6F.
+- **Phase 6E** _(complete)_ — `is_workflow_complete` regression resolution. Phase 3D had routed
+  `sase.agent.names._lookup.is_workflow_complete` through the snapshot facade, which turned the predicate into a
+  full-tree scan even though the predicate only needs artifacts whose `workflow_name` matches the queried name. Phase 6E
+  pins the function to a targeted Python traversal that walks `~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json`
+  directly and only opens marker files for the matching workflow, regardless of `SASE_CORE_BACKEND`. `find_named_agent`
+  keeps the snapshot path because it consumes the snapshot data more broadly. A new regression test
+  (`tests/test_agent_names_workflow.py::test_backend_does_not_route_through_snapshot`) asserts the targeted path is in
+  effect under each backend selection by patching `scan_agent_artifacts` to raise. The Phase 6E micro-benchmark
+  (`tests/perf/bench_workflow_complete.py`, 6×200 synthetic workload, 10 workflows, target = `wf_0`) records the new
+  numbers:
+
+  | Backend mode | `is_workflow_complete` (Phase 6E) | snapshot-then-filter (pre-6E shape) |
+  | ------------ | --------------------------------: | ----------------------------------: |
+  | python       |                             34 ms |                              102 ms |
+  | rust         |                             34 ms |                               88 ms |
+  | dual_run     |                             33 ms |                              188 ms |
+
+  The targeted path is ~3× faster than the previous Python snapshot-backed path, ~2.6× faster than the Rust
+  snapshot-backed path, and immune to the dual-run amplification that doubled the snapshot cost. The default backend is
+  **still Python**; the flip is Phase 6F. A Rust early-exit binding for this predicate was considered and rejected: the
+  targeted Python path already eliminates the regression and the predicate runs against a tree that is rarely large
+  enough to benefit from a PyO3 boundary crossing.
+
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile

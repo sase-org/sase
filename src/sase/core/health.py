@@ -165,9 +165,7 @@ def check_backend_health() -> BackendHealthReport:
         rust_extension_module=RUST_EXTENSION_MODULE_NAME,
         rust_extension_loaded=rust_loaded,
         rust_extension_path=_module_path(rust_module) if rust_loaded else None,
-        rust_extension_version=(
-            _module_version(rust_module) if rust_loaded else None
-        ),
+        rust_extension_version=(_module_version(rust_module) if rust_loaded else None),
         python_version=sys.version.split()[0],
         platform=platform.platform(),
         probe_query=_HEALTH_PROBE_QUERY,

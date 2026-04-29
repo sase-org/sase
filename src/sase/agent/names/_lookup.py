@@ -1,13 +1,21 @@
 """Find named agents and inspect workflow completion status.
 
-Consumes the agent-artifact snapshot produced by
-:func:`sase.core.agent_scan_facade.scan_agent_artifacts` so name lookup
-benefits from a single backend-dispatched walk of
+:func:`find_named_agent` consumes the agent-artifact snapshot produced
+by :func:`sase.core.agent_scan_facade.scan_agent_artifacts` so name
+lookup benefits from a single backend-dispatched walk of
 ``~/.sase/projects/*/artifacts/ace-run/*`` rather than independently
 re-walking the tree per call.
 
+:func:`is_workflow_complete` deliberately does NOT use the snapshot
+facade. The snapshot path materializes wire records for every artifact
+in the tree before any predicate can run, which Phase 3H measured as a
+~3× regression on this hot path. Phase 6E pins it to a targeted
+direct-walk Python implementation that only loads
+``agent_meta.json`` files matching ``workflow_name == name``. See
+``docs/rust_backend.md`` and the Phase 6E handoff for details.
+
 Process liveness, dismissed-bundle fallback, and dismissal-prefix
-semantics stay in Python — Phase 3D moves the read path only.
+semantics stay in Python.
 """
 
 from __future__ import annotations
@@ -218,9 +226,15 @@ def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:
 def is_workflow_complete(name: str) -> bool | None:
     """Check whether all agents in a multi-agent workflow have completed.
 
-    Consults the snapshot returned by
-    :func:`sase.core.agent_scan_facade.scan_agent_artifacts` for agents
-    whose ``workflow_name`` matches *name*.
+    Walks ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
+    directly and only loads files whose ``workflow_name`` matches
+    *name*. Bypasses :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
+    on purpose: the snapshot facade has to materialize wire records for
+    every artifact in the tree before any predicate can run, which Phase
+    3H measured as a ~3× regression for this hot path against the old
+    short-circuiting walk (see Phase 6E and the Phase 3H structural
+    snapshot regression in ``docs/rust_backend.md``). The targeted path
+    runs regardless of ``SASE_CORE_BACKEND``.
 
     Returns:
         ``True`` — root has ``done.json`` and no child is still alive without one.
@@ -231,34 +245,59 @@ def is_workflow_complete(name: str) -> bool | None:
     if not projects_dir.exists():
         return None
 
-    from sase.core.agent_scan_facade import scan_agent_artifacts
-
-    snapshot = scan_agent_artifacts(projects_dir, _ace_run_scan_options())
-
-    # Collect all agents in this workflow
-    workflow_records: list[AgentArtifactRecordWire] = []
-    for record in snapshot.records:
-        if record.workflow_dir_name != "ace-run":
-            continue
-        meta = record.agent_meta
-        if meta is None:
-            continue
-        if meta.workflow_name == name:
-            workflow_records.append(record)
-
-    if not workflow_records:
+    # (artifact_dir, agent_meta dict)
+    workflow_agents: list[tuple[Path, dict[str, Any]]] = []
+    try:
+        project_iter = projects_dir.iterdir()
+    except OSError:
         return None
 
-    # Find the root agent (no parent_timestamp)
-    root: AgentArtifactRecordWire | None = None
-    children: list[AgentArtifactRecordWire] = []
-    for record in workflow_records:
-        meta = record.agent_meta
-        assert meta is not None  # filtered above
-        if meta.parent_timestamp:
-            children.append(record)
+    for project_dir in project_iter:
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        try:
+            artifact_iter = ace_run_dir.iterdir()
+        except OSError:
+            continue
+
+        for artifact_dir in artifact_iter:
+            if not artifact_dir.is_dir():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            if data.get("workflow_name") != name:
+                continue
+
+            workflow_agents.append((artifact_dir, data))
+
+    if not workflow_agents:
+        return None
+
+    # Find the root agent (no parent_timestamp).
+    root: tuple[Path, dict[str, Any]] | None = None
+    children: list[tuple[Path, dict[str, Any]]] = []
+    for artifact_dir, meta in workflow_agents:
+        if meta.get("parent_timestamp"):
+            children.append((artifact_dir, meta))
         else:
-            root = record
+            root = (artifact_dir, meta)
 
     if root is None:
         # No root found — the root's workflow_name may have been
@@ -268,11 +307,11 @@ def is_workflow_complete(name: str) -> bool | None:
         # resolution via find_named_agent.
         return None
 
-    root_dir = Path(root.artifact_dir)
-    root_done = root.has_done_marker
+    root_dir, root_meta = root
+    root_done = (root_dir / "done.json").exists()
 
     if not root_done:
-        if is_process_alive(_meta_dict(root), root_dir):
+        if is_process_alive(root_meta, root_dir):
             # Root still running — may write done.json later
             return False
         # Root is dead without done.json (crashed/killed between
@@ -283,9 +322,10 @@ def is_workflow_complete(name: str) -> bool | None:
             return False
 
     # Root is done (or dead without done.json) — check all children
-    for child in children:
-        child_dir = Path(child.artifact_dir)
-        if not child.has_done_marker and is_process_alive(_meta_dict(child), child_dir):
+    for child_dir, child_meta in children:
+        if (child_dir / "done.json").exists():
+            continue
+        if is_process_alive(child_meta, child_dir):
             # Child is still alive and hasn't finished
             return False
 

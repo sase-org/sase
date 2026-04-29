@@ -1,0 +1,47 @@
+{
+  "tool": "bench_workflow_complete",
+  "phase": "6E",
+  "projects": 6,
+  "per_project": 200,
+  "workflows": 10,
+  "runs": 5,
+  "warmup": 2,
+  "scenarios": {
+    "backend=python::is_workflow_complete": {
+      "count": 5.0,
+      "min_ms": 33.84719300083816,
+      "median_ms": 34.05594202922657,
+      "max_ms": 34.54883303493261
+    },
+    "backend=python::snapshot_then_filter": {
+      "count": 5.0,
+      "min_ms": 98.95078500267118,
+      "median_ms": 102.34271100489423,
+      "max_ms": 118.82730800425634
+    },
+    "backend=rust::is_workflow_complete": {
+      "count": 5.0,
+      "min_ms": 31.845803023315966,
+      "median_ms": 34.08677101833746,
+      "max_ms": 34.77120801107958
+    },
+    "backend=rust::snapshot_then_filter": {
+      "count": 5.0,
+      "min_ms": 85.21787001518533,
+      "median_ms": 88.44641200266778,
+      "max_ms": 90.62072302913293
+    },
+    "backend=dual_run::is_workflow_complete": {
+      "count": 5.0,
+      "min_ms": 31.663966015912592,
+      "median_ms": 32.97201299574226,
+      "max_ms": 33.603217045310885
+    },
+    "backend=dual_run::snapshot_then_filter": {
+      "count": 5.0,
+      "min_ms": 183.46317601390183,
+      "median_ms": 188.40494100004435,
+      "max_ms": 213.57018098933622
+    }
+  }
+}
