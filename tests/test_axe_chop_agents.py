@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -97,7 +98,11 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     )
 
     assert result.pid == 4321
-    assert mock_popen.call_args.kwargs["start_new_session"] is True
+    popen_kwargs = mock_popen.call_args.kwargs
+    assert popen_kwargs["stdin"] == subprocess.DEVNULL
+    assert popen_kwargs["stdout"].name == str(output_path)
+    assert popen_kwargs["stderr"] == subprocess.STDOUT
+    assert popen_kwargs["start_new_session"] is True
     records = get_live_chop_agent_records("hooks", chop_name="split")
     assert len(records) == 1
     assert records[0].pid == 4321

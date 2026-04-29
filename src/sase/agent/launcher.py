@@ -133,6 +133,7 @@ def spawn_agent_subprocess(
                 "1" if is_home_mode else "",
             ],
             cwd=workspace_dir,
+            stdin=subprocess.DEVNULL,
             stdout=output_file,
             stderr=subprocess.STDOUT,
             start_new_session=True,
