@@ -12,8 +12,15 @@ from .base import OptionListNavigationMixin
 CUSTOM_SENTINEL = "__custom__"
 
 
-def _build_model_options() -> list[Option | None]:
-    """Build the option list items grouped by provider."""
+def _build_model_options(*, include_default_option: bool = True) -> list[Option | None]:
+    """Build the option list items grouped by provider.
+
+    Args:
+        include_default_option: If True (default), prepend the
+            ``"Same as planner"`` option that returns ``None``.
+            Callers like the temporary-override modal that have no
+            "use planner default" semantics pass ``False`` to omit it.
+    """
     from sase.llm_provider.registry import model_to_provider_map
 
     # Group models by provider, preserving insertion order
@@ -21,12 +28,15 @@ def _build_model_options() -> list[Option | None]:
     for model, provider in model_to_provider_map().items():
         provider_models.setdefault(provider, []).append(model)
 
-    items: list[Option | None] = [
-        Option("Same as planner", id="__default__"),
-    ]
+    items: list[Option | None] = []
+    if include_default_option:
+        items.append(Option("Same as planner", id="__default__"))
 
+    first_section = not include_default_option
     for provider, models in provider_models.items():
-        items.append(None)  # separator
+        if not first_section:
+            items.append(None)  # separator
+        first_section = False
         items.append(
             Option(f"  {provider.upper()}", id=f"__header_{provider}__", disabled=True)
         )
@@ -40,7 +50,15 @@ def _build_model_options() -> list[Option | None]:
 
 
 class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
-    """Modal for selecting a coder LLM model."""
+    """Modal for selecting a coder LLM model.
+
+    Args:
+        title: Heading shown above the list.
+        include_default_option: If True (default), include the
+            ``"Same as planner"`` option whose selection dismisses with
+            ``None``.  Pass ``False`` for callers (e.g. the temporary
+            override modal) where ``None`` only ever means *cancel*.
+    """
 
     _option_list_id = "model-picker-list"
 
@@ -49,14 +67,26 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         ("enter", "select_model", "Select"),
     ]
 
+    def __init__(
+        self,
+        *,
+        title: str = "Select Coder Model",
+        include_default_option: bool = True,
+    ) -> None:
+        super().__init__()
+        self._title = title
+        self._include_default_option = include_default_option
+
     def compose(self) -> ComposeResult:
         with Container(id="model-picker-container"):
             yield Static(
-                "[bold cyan]Select Coder Model[/bold cyan]",
+                f"[bold cyan]{self._title}[/bold cyan]",
                 id="model-picker-title",
             )
             yield OptionList(
-                *_build_model_options(),
+                *_build_model_options(
+                    include_default_option=self._include_default_option,
+                ),
                 id="model-picker-list",
             )
             yield Static(

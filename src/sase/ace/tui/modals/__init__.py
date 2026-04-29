@@ -51,6 +51,10 @@ from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .task_queue_modal import TaskQueueModal
+from .temporary_llm_override_modal import (
+    TemporaryLLMOverrideModal,
+    TemporaryOverrideResult,
+)
 from .mentor_profile_select_modal import MentorProfileSelectModal
 from .mentor_review_models import (
     MentorApplyResult,
@@ -127,6 +131,8 @@ __all__ = [
     "TabName",
     "TagInputModal",
     "TaskQueueModal",
+    "TemporaryLLMOverrideModal",
+    "TemporaryOverrideResult",
     "WaitModal",
     "UserQuestionModal",
     "UserQuestionResult",

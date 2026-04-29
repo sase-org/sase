@@ -146,9 +146,32 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["temporary_llm_override"]:
+            self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
+
+    def _open_temporary_llm_override_modal(self) -> None:
+        """Open the Temporary LLM Override modal (leader ``,P`` by default)."""
+        from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
+
+        def _on_dismissed(result: TemporaryOverrideResult | None) -> None:
+            # Per-result toasts already happen in the modal for "set"; we
+            # only need to surface the "cleared" / cancelled cases here so
+            # the user gets feedback even though the modal closed.
+            if result is None:
+                return
+            if result.action == "cleared":
+                self.notify("Cleared temporary LLM override")  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            TemporaryLLMOverrideModal(),
+            callback=_on_dismissed,
+        )
 
     def _update_leader_footer(self, *, current_tab: TabName = "changespecs") -> None:
         """Update the footer to show leader mode bindings.

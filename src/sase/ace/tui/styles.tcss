@@ -354,6 +354,86 @@ ModelPickerModal {
 }
 
 
+/* Temporary LLM Override Modal styling */
+TemporaryLLMOverrideModal {
+    align: center middle;
+}
+
+#override-container {
+    width: 52;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#override-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#override-body {
+    height: auto;
+}
+
+#override-state-line {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.override-action-row {
+    height: 1;
+}
+
+.override-spacer {
+    height: 1;
+}
+
+
+_DurationPickerModal {
+    align: center middle;
+}
+
+#override-duration-container {
+    width: 48;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#override-duration-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#override-duration-body {
+    height: auto;
+}
+
+.override-duration-row {
+    height: 1;
+}
+
+.override-duration-spacer {
+    height: 1;
+}
+
+#override-duration-custom-input {
+    margin-top: 1;
+}
+
+#override-duration-custom-error {
+    color: $error;
+    height: auto;
+    margin-top: 1;
+}
+
+
 /* Custom Model Input Modal styling */
 CustomModelInputModal {
     align: center middle;

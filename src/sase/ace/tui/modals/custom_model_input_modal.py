@@ -18,24 +18,42 @@ class _ModelInput(Input):
 
 
 class CustomModelInputModal(ModalScreen[str | None]):
-    """Modal for entering a custom provider/model string."""
+    """Modal for entering a custom provider/model string.
+
+    Args:
+        title: Heading shown above the input.
+        hint: Format hint shown below the heading.
+        placeholder: Input placeholder text.
+    """
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
     ]
 
+    def __init__(
+        self,
+        *,
+        title: str = "Enter Custom Model",
+        hint: str = "Format: provider/model  or  model",
+        placeholder: str = "e.g. codex/o3-preview",
+    ) -> None:
+        super().__init__()
+        self._title = title
+        self._hint = hint
+        self._placeholder = placeholder
+
     def compose(self) -> ComposeResult:
         with Container(id="custom-model-container"):
             yield Label(
-                "[bold cyan]Enter Custom Model[/bold cyan]",
+                f"[bold cyan]{self._title}[/bold cyan]",
                 id="custom-model-title",
             )
             yield Label(
-                "Format: provider/model  or  model",
+                self._hint,
                 id="custom-model-hint",
             )
             yield _ModelInput(
-                placeholder="e.g. codex/o3-preview",
+                placeholder=self._placeholder,
                 id="custom-model-input",
             )
             yield Label(
