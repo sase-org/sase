@@ -90,7 +90,7 @@ ace:
       show_notifications: "i"
       show_help: "question_mark"
       browse_xprompts: "number_sign"
-      open_command_palette: "colon"
+      open_command_palette: "colon,semicolon"
       # Workspace mode prefixes
       checkout: "C"
       start_checkout_mode: "c"

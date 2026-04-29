@@ -12,10 +12,12 @@ from sase.ace.tui.keymaps import (
     ModeKeymaps,
     _BINDING_META,
     build_app_bindings,
+    footer_key_display,
     key_display_name,
     load_builtin_app_defaults,
     load_keymap_registry,
 )
+from sase.ace.tui.modals.help_modal.bindings import cls_bindings
 
 
 def _default_app_keymaps(**overrides: str) -> AppKeymaps:
@@ -218,6 +220,14 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
+def test_build_app_bindings_preserves_compound_key() -> None:
+    """Compound Textual binding strings stay on the single configured action."""
+    km = _default_app_keymaps(open_command_palette="colon,semicolon")
+    bindings = build_app_bindings(km)
+    by_action = {b.action: b for b in bindings}
+    assert by_action["open_command_palette"].key == "colon,semicolon"
+
+
 def test_build_app_bindings_digit_keys() -> None:
     """Digit bindings 0-9 are always appended."""
     bindings = build_app_bindings(_default_app_keymaps())
@@ -259,6 +269,27 @@ def test_key_display_passthrough() -> None:
     assert key_display_name("G") == "G"
 
 
+def test_key_display_compound_alternatives() -> None:
+    """Compound app bindings render as alternatives, not a key sequence."""
+    assert key_display_name("colon,semicolon") == ": / ;"
+
+
+def test_footer_key_display_compound_alternatives() -> None:
+    """Compound app bindings keep footer formatting per alternative."""
+    assert footer_key_display("colon,space") == ": / <space>"
+
+
+def test_help_modal_displays_command_palette_alternatives() -> None:
+    """The help modal uses the same readable display for compound app bindings."""
+    reg = load_keymap_registry({})
+    entries = [
+        entry
+        for _section_name, section_entries in cls_bindings(reg)
+        for entry in section_entries
+    ]
+    assert (": / ;", "Open command palette") in entries
+
+
 # --- KeymapRegistry defaults ---
 
 
@@ -281,13 +312,13 @@ def test_leader_mode_includes_mark_inactive() -> None:
 
 
 def test_open_command_palette_default_binding() -> None:
-    """``:`` is bound to the new open_command_palette action by default.
+    """``:`` and ``;`` are bound to open_command_palette by default.
 
     Phase 1 of the command palette plan: every keymap (including the
     one that opens the palette itself) lives in default_config.yml.
     """
     reg = load_keymap_registry({})
-    assert reg.app.open_command_palette == "colon"
+    assert reg.app.open_command_palette == "colon,semicolon"
 
 
 def test_default_config_covers_all_app_keymaps() -> None:

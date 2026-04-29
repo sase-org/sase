@@ -63,6 +63,37 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
             assert "AXE" in modal._build_title().plain
 
 
+async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> None:
+    """Pressing ``;`` opens the palette from each non-CL tab."""
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(
+            query="test_feature",
+            changespecs=[make_changespec()],
+        ) as page:
+            await page.press("tab")
+            await page.expect_state("tab", "agents")
+
+            await page.press("semicolon")
+            await page.expect_modal("CommandPaletteModal")
+            modal = page.app.screen
+            assert isinstance(modal, CommandPaletteModal)
+            assert modal._tab == "agents"
+            await page.press("escape")
+            await page.expect_no_modal()
+
+            await page.press("tab")
+            await page.expect_state("tab", "axe")
+
+            await page.press("semicolon")
+            await page.expect_modal("CommandPaletteModal")
+            modal = page.app.screen
+            assert isinstance(modal, CommandPaletteModal)
+            assert modal._tab == "axe"
+
+
 async def test_palette_executes_refresh_from_agents_tab() -> None:
     """Selecting refresh from the Agents-tab palette calls ``action_refresh``."""
     with (

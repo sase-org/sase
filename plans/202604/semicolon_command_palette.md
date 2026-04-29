@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 19:46:23
-status: wip
+status: done
 ---
 # Plan: Make `;` Also Open the Ace Command Palette
 

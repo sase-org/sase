@@ -19,10 +19,12 @@ from sase.ace.tui.keymaps.types import (
     _BUILTIN_MODE_CLASSES,
     _KEY_DISPLAY,
     _MODE_PREFIX_ACTIONS,
-    KeymapRegistry,
     AppKeymaps,
+    KeymapRegistry,
     ModeKeymaps,
     is_valid_key,
+    normalize_key_binding,
+    split_key_alternatives,
 )
 
 # Re-import _BINDING_META so build_app_bindings can use it.
@@ -148,21 +150,25 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     # Invalid key validation: revert unrecognised keys to defaults.
     for fname in sorted(user_overridden):
-        if not is_valid_key(app_kwargs[fname]):
+        key = app_kwargs[fname]
+        if not is_valid_key(key):
             default_val = builtin_defaults[fname]
             log.warning(
                 "Invalid key %r for action %r; reverting to default %r",
-                app_kwargs[fname],
+                key,
                 fname,
                 default_val,
             )
             app_kwargs[fname] = default_val
             user_overridden.discard(fname)
+        else:
+            app_kwargs[fname] = normalize_key_binding(key)
 
     # Duplicate key detection: revert user overrides that conflict.
     key_to_actions: dict[str, list[str]] = {}
     for fname, key_val in app_kwargs.items():
-        key_to_actions.setdefault(key_val, []).append(fname)
+        for key_part in split_key_alternatives(key_val):
+            key_to_actions.setdefault(key_part, []).append(fname)
 
     for key_val, actions in key_to_actions.items():
         if len(actions) <= 1:
@@ -269,7 +275,11 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     # --- Prefix conflict detection for custom modes ---
     # Warn if a custom mode's prefix collides with an app binding.
-    app_keys: set[str] = {getattr(registry.app, f.name) for f in fields(AppKeymaps)}
+    app_keys: set[str] = {
+        key_part
+        for f in fields(AppKeymaps)
+        for key_part in split_key_alternatives(getattr(registry.app, f.name))
+    }
     for mode_name, mode in registry.modes.items():
         if mode_name in _BUILTIN_MODE_CLASSES:
             continue
@@ -325,6 +335,12 @@ def key_display_name(textual_key: str) -> str:
         ``"ctrl+d"`` -> ``"Ctrl+D"``
         ``"j"`` -> ``"j"``
     """
+    alternatives = split_key_alternatives(textual_key)
+    if not alternatives or alternatives == ("",):
+        return ""
+    if len(alternatives) > 1:
+        return " / ".join(key_display_name(alternative) for alternative in alternatives)
+    textual_key = alternatives[0]
     if textual_key in _KEY_DISPLAY:
         return _KEY_DISPLAY[textual_key]
     if textual_key.startswith("ctrl+"):
@@ -340,6 +356,11 @@ def footer_key_display(textual_key: str) -> str:
     ``"Enter"`` -> ``"<enter>"``).  Single chars and ``Ctrl+X`` /
     ``Shift+X`` pass through unchanged.
     """
+    alternatives = split_key_alternatives(textual_key)
+    if len(alternatives) > 1:
+        return " / ".join(
+            footer_key_display(alternative) for alternative in alternatives
+        )
     name = key_display_name(textual_key)
     if len(name) == 1 or name.startswith(("Ctrl+", "Shift+")):
         return name

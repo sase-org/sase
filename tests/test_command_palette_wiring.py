@@ -342,6 +342,21 @@ async def test_colon_opens_command_palette_modal() -> None:
             await page.expect_modal("CommandPaletteModal")
 
 
+async def test_semicolon_opens_command_palette_modal() -> None:
+    """Pressing ``;`` from the CLs tab opens the same palette modal."""
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(
+            query="test_feature",
+            changespecs=[make_changespec()],
+        ) as page:
+            await page.expect_state("tab", "changespecs")
+            await page.press("semicolon")
+            await page.expect_modal("CommandPaletteModal")
+
+
 async def test_palette_escape_dismisses_without_side_effects() -> None:
     """Esc closes the palette and leaves no app-state changes behind."""
     with (

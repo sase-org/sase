@@ -23,6 +23,8 @@ from sase.ace.tui.keymaps.types import (
     ModeKeymaps,
     _BINDING_META,
     is_valid_key,
+    normalize_key_binding,
+    split_key_alternatives,
 )
 
 __all__ = [
@@ -41,4 +43,6 @@ __all__ = [
     "key_display_name",
     "load_builtin_app_defaults",
     "load_keymap_registry",
+    "normalize_key_binding",
+    "split_key_alternatives",
 ]

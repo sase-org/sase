@@ -27,6 +27,19 @@ def test_valid_named_keys_accepted() -> None:
     assert is_valid_key("f12")
 
 
+def test_compound_key_alternatives_accepted() -> None:
+    """Comma-separated Textual binding alternatives are valid."""
+    assert is_valid_key("colon,semicolon")
+    assert is_valid_key("ctrl+d,shift+tab")
+
+
+def test_compound_key_with_invalid_alternative_rejected() -> None:
+    """Every segment of a compound binding must be a valid key."""
+    assert not is_valid_key("colon,not_a_real_key")
+    assert not is_valid_key("colon,")
+    assert not is_valid_key("colon,colon")
+
+
 def test_empty_string_key_invalid() -> None:
     """Empty string is not a valid key and reverts to default."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": ""}}})
@@ -82,3 +95,44 @@ def test_both_overrides_duplicate_revert_both() -> None:
     )
     assert reg.app.next_changespec == "j"  # default
     assert reg.app.prev_changespec == "k"  # default
+
+
+def test_compound_key_conflict_reverts_override() -> None:
+    """A key inside a compound binding conflicts like a normal app key."""
+    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "semicolon"}}})
+    assert reg.app.open_command_palette == "colon,semicolon"
+    assert reg.app.next_changespec == "j"
+
+
+def test_compound_key_conflict_logs_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Compound-key duplicate conflicts emit the existing duplicate warning."""
+    with caplog.at_level(logging.WARNING):
+        load_keymap_registry({"keymaps": {"app": {"next_changespec": "semicolon"}}})
+    assert any("Duplicate key" in r.message for r in caplog.records)
+
+
+def test_custom_mode_prefix_conflicts_with_compound_app_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Custom mode prefixes compare against each key in a compound app binding."""
+    with caplog.at_level(logging.WARNING):
+        load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "my_mode": {
+                            "prefix": "semicolon",
+                            "keys": {
+                                "do_thing": {
+                                    "key": "t",
+                                    "shell": "echo hi",
+                                },
+                            },
+                        },
+                    },
+                }
+            }
+        )
+    assert any("prefix 'semicolon' conflicts" in r.message for r in caplog.records)

@@ -53,12 +53,12 @@ def test_app_command_spec_uses_configured_key() -> None:
     assert by_id["app.next_changespec"].key_display == "B"
 
 
-def test_open_command_palette_command_uses_colon() -> None:
-    """The palette opener command picks up the default ``colon`` key."""
+def test_open_command_palette_command_uses_default_alternatives() -> None:
+    """The palette opener command picks up both default key alternatives."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.open_command_palette"]
-    assert spec.key_sequence == ("colon",)
-    assert spec.key_display == ":"
+    assert spec.key_sequence == ("colon,semicolon",)
+    assert spec.key_display == ": / ;"
 
 
 # --- Digit commands ---
@@ -206,6 +206,11 @@ def test_format_key_sequence_special_keys_concat() -> None:
 def test_format_key_sequence_multichar_space_joined() -> None:
     """Multi-char keys (e.g. ``ctrl+d``) get space-joined for readability."""
     assert _format_key_sequence(("ctrl+d", "x")) == "Ctrl+D x"
+
+
+def test_format_key_sequence_compound_binding_displays_alternatives() -> None:
+    """A compound app binding is formatted as alternatives."""
+    assert _format_key_sequence(("colon,semicolon",)) == ": / ;"
 
 
 # --- Source-of-truth guard ---

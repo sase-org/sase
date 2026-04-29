@@ -151,8 +151,18 @@ _KEY_DISPLAY: dict[str, str] = {
 }
 
 
-def is_valid_key(key: str) -> bool:
-    """Check whether *key* is a recognised Textual key name."""
+def split_key_alternatives(key: str) -> tuple[str, ...]:
+    """Split a Textual binding string into its comma-separated alternatives."""
+    return tuple(part.strip() for part in key.split(","))
+
+
+def normalize_key_binding(key: str) -> str:
+    """Normalize whitespace around comma-separated key alternatives."""
+    return ",".join(split_key_alternatives(key))
+
+
+def _is_valid_single_key(key: str) -> bool:
+    """Check whether *key* is a recognised single Textual key name."""
     if not key:
         return False
     # Single alphanumeric character.
@@ -167,8 +177,23 @@ def is_valid_key(key: str) -> bool:
     # ctrl+ or shift+ prefix with a valid suffix.
     if key.startswith(("ctrl+", "shift+")):
         suffix = key.split("+", 1)[1]
-        return is_valid_key(suffix)
+        return _is_valid_single_key(suffix)
     return False
+
+
+def is_valid_key(key: str) -> bool:
+    """Check whether *key* is a recognised Textual key binding.
+
+    Textual ``Binding`` accepts comma-separated alternatives such as
+    ``"colon,semicolon"``. Treat those as a single configurable binding
+    whose individual alternatives must each be valid Textual keys.
+    """
+    alternatives = split_key_alternatives(key)
+    return (
+        bool(alternatives)
+        and len(set(alternatives)) == len(alternatives)
+        and all(_is_valid_single_key(alternative) for alternative in alternatives)
+    )
 
 
 # ---------------------------------------------------------------------------
