@@ -201,17 +201,29 @@ def format_provider_model_label(
 
 
 def get_default_provider_name() -> str:
-    """Get the default provider name from configuration.
+    """Get the effective default provider name.
 
-    Returns the configured default if set.  Otherwise walks registered
-    plugins in ``llm_autodetect_priority`` order (ascending) and picks
-    the first whose ``llm_autodetect_cli_name`` is on ``PATH``.  A
-    plugin returning ``None`` from ``llm_autodetect_cli_name`` is always
-    eligible (used by gemini as the final fallback).
+    An active temporary LLM override (see
+    :mod:`sase.llm_provider.temporary_override`) wins over both the
+    configured default and autodetect — it represents an explicit, recent
+    user choice.  When no override is active, falls back to the configured
+    default if set; otherwise walks registered plugins in
+    ``llm_autodetect_priority`` order (ascending) and picks the first
+    whose ``llm_autodetect_cli_name`` is on ``PATH``.  A plugin returning
+    ``None`` from ``llm_autodetect_cli_name`` is always eligible (used by
+    gemini as the final fallback).
 
     Raises:
         RuntimeError: If no plugin declares an autodetect priority.
     """
+    # Lazy import to avoid an import cycle: temporary_override imports
+    # from this module's siblings via __init__.py.
+    from .temporary_override import get_active_temporary_override
+
+    override = get_active_temporary_override()
+    if override is not None:
+        return override.provider
+
     config = get_llm_provider_config()
     provider = config.get("provider")
     if provider:

@@ -187,8 +187,10 @@ def run_query(
 
             from sase.llm_provider.registry import (
                 get_default_provider_name,
-                get_provider,
                 resolve_model_provider,
+            )
+            from sase.llm_provider.temporary_override import (
+                resolve_effective_default_provider_model,
             )
 
             if directives.model:
@@ -197,9 +199,9 @@ def run_query(
                 )
                 agent_llm_provider = resolved_provider or get_default_provider_name()
             else:
-                agent_llm_provider = get_default_provider_name()
-                provider = get_provider()
-                agent_model = provider.resolve_model_name()
+                agent_llm_provider, agent_model = (
+                    resolve_effective_default_provider_model()
+                )
 
             from sase.vcs_provider._registry import detect_vcs
 

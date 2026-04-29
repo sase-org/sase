@@ -177,7 +177,9 @@ def test_run_query_writes_initial_workflow_state(tmp_path: Path) -> None:
     )()
     mock_directives = type("D", (), {"model": None})()
     mock_provider_inst = type(
-        "P", (), {"resolve_model_name": lambda self: "test-model"}
+        "P",
+        (),
+        {"resolve_model_name": lambda self, model_tier="large": "test-model"},
     )()
 
     with (

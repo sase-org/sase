@@ -141,6 +141,17 @@ def invoke_agent(
         if resolved_provider:
             provider_name = resolved_provider
 
+    # Apply active temporary override only when neither an explicit
+    # %model directive nor an explicit provider_name was supplied.
+    # Explicit caller intent always wins over the temporary default.
+    if not model_override and not provider_name:
+        from .temporary_override import get_active_temporary_override
+
+        active = get_active_temporary_override()
+        if active is not None:
+            provider_name = active.provider
+            model_override = active.model
+
     # 2. Build display label
     if model_override:
         agent_type_with_tier = f"{agent_type} [{model_override}]"

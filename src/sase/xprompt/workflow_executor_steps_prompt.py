@@ -240,8 +240,10 @@ class PromptStepMixin:
         # Resolve model and LLM provider for TUI display in the step marker
         from sase.llm_provider.registry import (
             get_default_provider_name,
-            get_provider,
             resolve_model_provider,
+        )
+        from sase.llm_provider.temporary_override import (
+            resolve_effective_default_provider_model,
         )
 
         step_model = effective_directives.model
@@ -249,8 +251,7 @@ class PromptStepMixin:
             resolved_provider, step_model = resolve_model_provider(step_model)
             step_llm_provider = resolved_provider or get_default_provider_name()
         else:
-            step_llm_provider = get_default_provider_name()
-            step_model = get_provider().resolve_model_name()
+            step_llm_provider, step_model = resolve_effective_default_provider_model()
 
         # Save initial marker to show step is running in TUI
         step_state.status = StepStatus.IN_PROGRESS

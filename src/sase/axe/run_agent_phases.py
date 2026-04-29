@@ -47,8 +47,10 @@ def extract_directives_and_write_meta(
     """
     from sase.llm_provider.registry import (
         get_default_provider_name,
-        get_provider,
         resolve_model_provider,
+    )
+    from sase.llm_provider.temporary_override import (
+        resolve_effective_default_provider_model,
     )
     from sase.vcs_provider._registry import detect_vcs
     from sase.xprompt import process_xprompt_references
@@ -102,9 +104,7 @@ def extract_directives_and_write_meta(
         resolved_provider, agent_model = resolve_model_provider(agent_model)
         agent_llm_provider = resolved_provider or get_default_provider_name()
     else:
-        agent_llm_provider = get_default_provider_name()
-        provider = get_provider()
-        agent_model = provider.resolve_model_name()
+        agent_llm_provider, agent_model = resolve_effective_default_provider_model()
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:
