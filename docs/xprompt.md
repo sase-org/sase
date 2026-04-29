@@ -596,6 +596,7 @@ them as `/sase_<name>`:
 | -------------------- | ------------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently-running sase agents (status, kill, show)                                      |
 | `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                       |
+| `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chats list` and `sase chats show`             |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase search …`, exact-name lookup, and safe edit rules  |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos) |
 | `sase_hg_commit`     | Mercurial counterpart of `sase_git_commit` (deployed only for Gemini)                             |

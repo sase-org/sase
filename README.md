@@ -160,6 +160,8 @@ sase
 | `sase bead sync`               | Sync bead database with git                                                                                    |
 | `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
 | `sase bead work`               | Launch phase + land agents for an epic plan (pre-claims phases, builds Kahn-wave multi-prompt)                 |
+| `sase chats list`              | List recent agent chat transcripts (pretty table or JSON)                                                      |
+| `sase chats show`              | Show a chat transcript by agent name, path, or basename                                                        |
 | `sase comments`                | Preview mentor comments from JSON with syntax-highlighted code context                                         |
 | `sase commit`                  | Create a commit with formatted CL description and metadata                                                     |
 | `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |
@@ -252,6 +254,7 @@ src/sase/
 │   ├── dismissed_name_rewrites.py # YYmmdd-prefix dismissal/revival helpers
 │   └── names/             # Auto-naming, dedup, dismissal, claim helpers
 ├── agents/                # `sase agents` subcommand handlers (status/show/kill/tag)
+├── chats/                 # `sase chats` subcommand handlers (list/show transcripts)
 ├── memory/                # Dynamic-memory keyword matching (#memory injection)
 ├── axe/                   # Lumberjack-based daemon and agent runners
 │   ├── orchestrator.py    # Multi-lumberjack supervisor

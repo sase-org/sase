@@ -898,6 +898,15 @@ Supported date range formats:
 | `kill`     | `-n/--name`                             | SIGTERM a running agent by name.                                                                                                                                                                                                             |
 | `tag`      | `set` / `unset` / `list`                | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set -n <agent> -t <tag>` replaces any prior tag; `tag unset -n <agent>` clears it; `tag list [-n <agent>]` prints tags as JSON (filtered when given). |
 
+### `sase chats`
+
+`sase chats` discovers and inspects saved agent chat transcripts. Subcommands:
+
+| Subcommand | Flags                                                     | Description                                                                                              |
+| ---------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `list`     | `-j/--json`, `-l/--limit`, `-q/--query`                   | List recent transcripts. `-j` emits the stable JSON shape consumed by the `/sase_chats` skill.           |
+| `show`     | `-n/--agent`, `-p/--path`, `-b/--basename`, `-f/--format` | Show one transcript by agent name, path, or basename. `--format` accepts `raw`, `resume`, or `response`. |
+
 ## Directory Sharding
 
 A fresh install writes agent artifacts (chat logs, notifications, prompt history, workflow state, etc.) directly under
