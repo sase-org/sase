@@ -24,7 +24,7 @@ from sase.ace.changespec.models import ChangeSpec
 from sase.ace.changespec.parser import parse_project_file as raw_parse_project_file
 from sase.ace.changespec.parser import parse_project_file_python
 from sase.ace.query import evaluator as raw_evaluator
-from sase.ace.query.parser import parse_query as raw_parse_query
+from sase.ace.query.parser import parse_query_python as raw_parse_query
 from sase.ace.tui.models.changespec_graph_index import (
     build_changespec_graph_index as raw_build_graph_index,
 )

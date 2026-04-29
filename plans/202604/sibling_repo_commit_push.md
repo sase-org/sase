@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 12:23:30
-status: wip
+status: done
 ---
 # Plan: Fix sibling repo commit/push guidance
 
