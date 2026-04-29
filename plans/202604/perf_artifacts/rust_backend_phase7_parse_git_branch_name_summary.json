@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "tool": "bench_git_query_ops",
+    "surface": "parse_git_branch_name",
+    "workload": "normalizers",
+    "backend": "summary",
+    "runs": 200,
+    "warmup": 20,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "python_run_extra": {
+        "small": 50,
+        "medium": 1000,
+        "large": 10000,
+        "skip_e2e": false,
+        "backend_label": "python"
+      },
+      "rust_run_extra": {
+        "small": 50,
+        "medium": 1000,
+        "large": 10000,
+        "skip_e2e": false,
+        "backend_label": "default_rust"
+      }
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "normalizers",
+      "size": {
+        "scenario_name": "parse_git_branch_name_x4"
+      },
+      "baseline": {
+        "parse_git_branch_name": {
+          "count": 200.0,
+          "min_us": 8.625967893749475,
+          "median_us": 8.737028110772371,
+          "p95_us": 8.977018296718597,
+          "max_us": 10.279007256031036
+        }
+      },
+      "candidate": {
+        "parse_git_branch_name": {
+          "count": 200.0,
+          "min_us": 10.249961633235216,
+          "median_us": 10.404502972960472,
+          "p95_us": 10.941002983599901,
+          "max_us": 33.704040106385946
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "parse_git_branch_name",
+          "workload": "normalizers",
+          "scenario": "parse_git_branch_name",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 8.737028110772371e-06,
+          "candidate_median_s": 1.0404502972960472e-05,
+          "ratio": 1.190851493327826,
+          "speedup": 0.8397352697652561,
+          "percent_delta": 19.085149332782603,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

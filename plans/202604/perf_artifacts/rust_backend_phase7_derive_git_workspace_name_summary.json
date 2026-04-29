@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "tool": "bench_git_query_ops",
+    "surface": "derive_git_workspace_name",
+    "workload": "normalizers",
+    "backend": "summary",
+    "runs": 200,
+    "warmup": 20,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "python_run_extra": {
+        "small": 50,
+        "medium": 1000,
+        "large": 10000,
+        "skip_e2e": false,
+        "backend_label": "python"
+      },
+      "rust_run_extra": {
+        "small": 50,
+        "medium": 1000,
+        "large": 10000,
+        "skip_e2e": false,
+        "backend_label": "default_rust"
+      }
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "normalizers",
+      "size": {
+        "scenario_name": "derive_git_workspace_name_x5"
+      },
+      "baseline": {
+        "derive_git_workspace_name": {
+          "count": 200.0,
+          "min_us": 11.411961168050766,
+          "median_us": 11.671974789351225,
+          "p95_us": 11.893047485500574,
+          "max_us": 39.255013689398766
+        }
+      },
+      "candidate": {
+        "derive_git_workspace_name": {
+          "count": 200.0,
+          "min_us": 13.304990716278553,
+          "median_us": 13.445969671010971,
+          "p95_us": 13.646029401570559,
+          "max_us": 15.880039427429438
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "derive_git_workspace_name",
+          "workload": "normalizers",
+          "scenario": "derive_git_workspace_name",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.1671974789351225e-05,
+          "candidate_median_s": 1.3445969671010971e-05,
+          "ratio": 1.1519875525500816,
+          "speedup": 0.8680649350649351,
+          "percent_delta": 15.198755255008155,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

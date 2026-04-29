@@ -69,8 +69,13 @@ import pytest
 from sase.core.backend import BACKEND_ENV_VAR, is_rust_available
 from sase.core.status_facade import (
     apply_status_update,
+    plan_status_transition,
     read_status_from_lines,
     transition_changespec_status,
+)
+from sase.core.status_wire import (
+    STATUS_WIRE_SCHEMA_VERSION,
+    StatusTransitionRequestWire,
 )
 from sase.status_state_machine.constants import (
     is_valid_transition,
@@ -193,6 +198,21 @@ def _measure_pure(
     def s_apply_status() -> str:
         return apply_status_update(lines, target_name, "Ready")
 
+    plan_request = StatusTransitionRequestWire(
+        schema_version=STATUS_WIRE_SCHEMA_VERSION,
+        changespec_name=target_name,
+        old_status="WIP",
+        new_status="Ready",
+        validate=True,
+        parent_status=None,
+        blocking_children=(),
+        siblings_with_unreverted_children=(),
+        existing_names=("spec-a", "spec-b", "spec-c"),
+    )
+
+    def s_plan_status_transition() -> bool:
+        return plan_status_transition(plan_request).success
+
     def _run(scenarios: dict[str, Callable[[], Any]]) -> dict[str, Any]:
         out: dict[str, Any] = {}
         for name, fn in scenarios.items():
@@ -204,6 +224,7 @@ def _measure_pure(
         "remove_workspace_suffix": s_remove_workspace_suffix,
         "read_status_from_lines": s_read_status,
         "apply_status_update": s_apply_status,
+        "plan_status_transition": s_plan_status_transition,
     }
     py_results = _with_backend_env("python", lambda: _run(py_scenarios))
 
@@ -213,6 +234,7 @@ def _measure_pure(
         rust_scenarios: dict[str, Callable[[], Any]] = {
             "read_status_from_lines": s_read_status,
             "apply_status_update": s_apply_status,
+            "plan_status_transition": s_plan_status_transition,
         }
         rust_results = _with_backend_env("rust", lambda: _run(rust_scenarios))
 

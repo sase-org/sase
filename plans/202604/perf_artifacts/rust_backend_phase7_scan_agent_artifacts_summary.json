@@ -1,0 +1,136 @@
+{
+  "metadata": {
+    "tool": "bench_agent_scan",
+    "surface": "scan_agent_artifacts",
+    "workload": "synthetic_6p_200pp",
+    "backend": "summary",
+    "runs": 10,
+    "warmup": 2,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "projects": 6,
+      "per_project": 200,
+      "workflow_fraction": 0.25,
+      "include_home": false
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "synthetic_6p_200pp",
+      "size": {
+        "projects_root": "/tmp/tmpc_9a0_s_/projects",
+        "target_name": "proj001_agent_0000",
+        "workflow_name": "wf_0"
+      },
+      "baseline": {
+        "scan_facade": {
+          "count": 10.0,
+          "min_ms": 144.18010000372306,
+          "median_ms": 145.13437598361634,
+          "p95_ms": 165.40283797075972,
+          "max_ms": 165.40283797075972
+        },
+        "scan_facade_no_prompt_steps": {
+          "count": 10.0,
+          "min_ms": 111.99975799536332,
+          "median_ms": 114.69144598231651,
+          "p95_ms": 128.5559079842642,
+          "max_ms": 128.5559079842642
+        }
+      },
+      "candidate": {
+        "scan_facade": {
+          "count": 10.0,
+          "min_ms": 113.3445450104773,
+          "median_ms": 119.98871198738925,
+          "p95_ms": 141.07077597873285,
+          "max_ms": 141.07077597873285
+        },
+        "scan_rust_to_dict": {
+          "count": 10.0,
+          "min_ms": 90.81888198852539,
+          "median_ms": 103.89342199778184,
+          "p95_ms": 120.40693499147892,
+          "max_ms": 120.40693499147892
+        },
+        "scan_rust_dict_to_wire": {
+          "count": 10.0,
+          "min_ms": 114.45753899170086,
+          "median_ms": 118.02390601951629,
+          "p95_ms": 142.2651270404458,
+          "max_ms": 142.2651270404458
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "scan_agent_artifacts",
+          "workload": "synthetic_6p_200pp",
+          "scenario": "scan_facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.14513437598361634,
+          "candidate_median_s": 0.11998871198738925,
+          "ratio": 0.8267421909812347,
+          "speedup": 1.2095669132515556,
+          "percent_delta": -17.32578090187653,
+          "notes": []
+        },
+        {
+          "surface": "scan_agent_artifacts",
+          "workload": "synthetic_6p_200pp",
+          "scenario": "scan_facade_no_prompt_steps",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.11469144598231651,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "scan_agent_artifacts",
+          "workload": "synthetic_6p_200pp",
+          "scenario": "scan_rust_to_dict",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": null,
+          "candidate_median_s": 0.10389342199778184,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "baseline missing"
+          ]
+        },
+        {
+          "surface": "scan_agent_artifacts",
+          "workload": "synthetic_6p_200pp",
+          "scenario": "scan_rust_dict_to_wire",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": null,
+          "candidate_median_s": 0.11802390601951629,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "baseline missing"
+          ]
+        }
+      ]
+    }
+  ]
+}

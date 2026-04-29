@@ -1,0 +1,274 @@
+{
+  "metadata": {
+    "tool": "bench_core_query",
+    "surface": "parse_query",
+    "workload": "parse_only",
+    "backend": "summary",
+    "runs": 20,
+    "warmup": 3,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "spec_sizes": [
+        100,
+        1000,
+        10000
+      ]
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "parse_only",
+      "size": {
+        "num_specs": null,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.016852980479598045,
+          "median_ms": 0.017662998288869858,
+          "p95_ms": 0.019497994799166918,
+          "max_ms": 0.020129024051129818
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.0115020084194839,
+          "median_ms": 0.012307980796322227,
+          "p95_ms": 0.014147022739052773,
+          "max_ms": 0.014738005120307207
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.01995899947360158,
+          "median_ms": 0.02110601053573191,
+          "p95_ms": 0.02163200406357646,
+          "max_ms": 0.022252032067626715
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.005259993486106396,
+          "median_ms": 0.005770998541265726,
+          "p95_ms": 0.006371992640197277,
+          "max_ms": 0.007263035513460636
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "parse_query",
+          "workload": "parse_only",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.7662998288869858e-05,
+          "candidate_median_s": 2.110601053573191e-05,
+          "ratio": 1.1949279612981467,
+          "speedup": 0.8368705331103135,
+          "percent_delta": 19.49279612981467,
+          "notes": []
+        },
+        {
+          "surface": "parse_query",
+          "workload": "parse_only",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.2307980796322227e-05,
+          "candidate_median_s": 5.770998541265726e-06,
+          "ratio": 0.4688826410088461,
+          "speedup": 2.1327298401331385,
+          "percent_delta": -53.111735899115395,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "label": "synthetic_100_specs",
+      "size": {
+        "num_specs": 100,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.016582023818045855,
+          "median_ms": 0.017613492673262954,
+          "p95_ms": 0.019257015082985163,
+          "max_ms": 0.019297003746032715
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.011061027180403471,
+          "median_ms": 0.01185797736980021,
+          "p95_ms": 0.014106975868344307,
+          "max_ms": 0.03681000089272857
+        }
+      },
+      "candidate": {
+        "facade": {},
+        "direct": {}
+      },
+      "comparisons": [
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_100_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.7613492673262954e-05,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_100_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.185797736980021e-05,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "synthetic_1000_specs",
+      "size": {
+        "num_specs": 1000,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.012725009582936764,
+          "median_ms": 0.013025011867284775,
+          "p95_ms": 0.01373601844534278,
+          "max_ms": 0.014076998922973871
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.008376024197787046,
+          "median_ms": 0.008525996236130595,
+          "p95_ms": 0.009518000297248363,
+          "max_ms": 0.009858980774879456
+        }
+      },
+      "candidate": {
+        "facade": {},
+        "direct": {}
+      },
+      "comparisons": [
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_1000_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.3025011867284775e-05,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_1000_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 8.525996236130595e-06,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "synthetic_10000_specs",
+      "size": {
+        "num_specs": 10000,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.012473028618842363,
+          "median_ms": 0.013020006008446217,
+          "p95_ms": 0.013496028259396553,
+          "max_ms": 0.013655982911586761
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.008466013241559267,
+          "median_ms": 0.008716480806469917,
+          "p95_ms": 0.009518000297248363,
+          "max_ms": 0.009908981155604124
+        }
+      },
+      "candidate": {
+        "facade": {},
+        "direct": {}
+      },
+      "comparisons": [
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_10000_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 1.3020006008446217e-05,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "parse_query",
+          "workload": "synthetic_10000_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 8.716480806469917e-06,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        }
+      ]
+    }
+  ]
+}

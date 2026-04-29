@@ -1,0 +1,226 @@
+{
+  "metadata": {
+    "tool": "bench_core_parse",
+    "surface": "parse_project_bytes",
+    "workload": "golden_myproj",
+    "backend": "summary",
+    "runs": 20,
+    "warmup": 3,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "num_specs": 200
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "golden_myproj",
+      "size": {
+        "size_bytes": 1019,
+        "runs": 20,
+        "warmup": 3
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.23040000814944506,
+          "median_ms": 0.2959399716928601,
+          "p95_ms": 0.30896003590896726,
+          "max_ms": 0.31217600917443633
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.11592102237045765,
+          "median_ms": 0.12084099580533803,
+          "p95_ms": 0.1367810182273388,
+          "max_ms": 0.14428503345698118
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.10469998233020306,
+          "median_ms": 0.12434751261025667,
+          "p95_ms": 0.12881599832326174,
+          "max_ms": 0.14072895282879472
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 0.052319024689495564,
+          "median_ms": 0.058120989706367254,
+          "p95_ms": 0.06923195905983448,
+          "max_ms": 0.06941298488527536
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "parse_project_bytes",
+          "workload": "golden_myproj",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.0002959399716928601,
+          "candidate_median_s": 0.00012434751261025667,
+          "ratio": 0.4201781594387329,
+          "speedup": 2.379942835048313,
+          "percent_delta": -57.98218405612672,
+          "notes": []
+        },
+        {
+          "surface": "parse_project_bytes",
+          "workload": "golden_myproj",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.00012084099580533803,
+          "candidate_median_s": 5.8120989706367254e-05,
+          "ratio": 0.48097079405067117,
+          "speedup": 2.0791283220715644,
+          "percent_delta": -51.90292059493289,
+          "notes": []
+        }
+      ],
+      "raw_python_scenarios": {
+        "python_direct": {
+          "count": 20.0,
+          "min_ms": 0.11592102237045765,
+          "median_ms": 0.12084099580533803,
+          "p95_ms": 0.1367810182273388,
+          "max_ms": 0.14428503345698118
+        },
+        "python_facade": {
+          "count": 20.0,
+          "min_ms": 0.23040000814944506,
+          "median_ms": 0.2959399716928601,
+          "p95_ms": 0.30896003590896726,
+          "max_ms": 0.31217600917443633
+        }
+      },
+      "raw_rust_scenarios": {
+        "rust_direct": {
+          "count": 20.0,
+          "min_ms": 0.052319024689495564,
+          "median_ms": 0.058120989706367254,
+          "p95_ms": 0.06923195905983448,
+          "max_ms": 0.06941298488527536
+        },
+        "rust_facade": {
+          "count": 20.0,
+          "min_ms": 0.10469998233020306,
+          "median_ms": 0.12434751261025667,
+          "p95_ms": 0.12881599832326174,
+          "max_ms": 0.14072895282879472
+        }
+      }
+    },
+    {
+      "label": "synthetic_200_specs",
+      "size": {
+        "size_bytes": 132898,
+        "runs": 20,
+        "warmup": 3
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 19.968312000855803,
+          "median_ms": 26.67380598722957,
+          "p95_ms": 44.90573896327987,
+          "max_ms": 46.634308993816376
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 14.540422998834401,
+          "median_ms": 17.690445034531876,
+          "p95_ms": 21.66599204065278,
+          "max_ms": 25.71833902038634
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 16.554206027649343,
+          "median_ms": 19.116180017590523,
+          "p95_ms": 22.852908994536847,
+          "max_ms": 37.192937976215035
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 11.138548026792705,
+          "median_ms": 13.056916010100394,
+          "p95_ms": 16.045516007579863,
+          "max_ms": 29.708592977840453
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "parse_project_bytes",
+          "workload": "synthetic_200_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.02667380598722957,
+          "candidate_median_s": 0.019116180017590523,
+          "ratio": 0.7166648818973431,
+          "speedup": 1.3953523121609335,
+          "percent_delta": -28.333511810265687,
+          "notes": []
+        },
+        {
+          "surface": "parse_project_bytes",
+          "workload": "synthetic_200_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.017690445034531876,
+          "candidate_median_s": 0.013056916010100394,
+          "ratio": 0.7380773058344886,
+          "speedup": 1.3548716267185252,
+          "percent_delta": -26.192269416551138,
+          "notes": []
+        }
+      ],
+      "raw_python_scenarios": {
+        "python_direct": {
+          "count": 20.0,
+          "min_ms": 14.540422998834401,
+          "median_ms": 17.690445034531876,
+          "p95_ms": 21.66599204065278,
+          "max_ms": 25.71833902038634
+        },
+        "python_facade": {
+          "count": 20.0,
+          "min_ms": 19.968312000855803,
+          "median_ms": 26.67380598722957,
+          "p95_ms": 44.90573896327987,
+          "max_ms": 46.634308993816376
+        }
+      },
+      "raw_rust_scenarios": {
+        "rust_direct": {
+          "count": 20.0,
+          "min_ms": 11.138548026792705,
+          "median_ms": 13.056916010100394,
+          "p95_ms": 16.045516007579863,
+          "max_ms": 29.708592977840453
+        },
+        "rust_facade": {
+          "count": 20.0,
+          "min_ms": 16.554206027649343,
+          "median_ms": 19.116180017590523,
+          "p95_ms": 22.852908994536847,
+          "max_ms": 37.192937976215035
+        }
+      }
+    }
+  ]
+}

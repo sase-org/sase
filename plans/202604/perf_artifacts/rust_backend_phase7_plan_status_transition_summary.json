@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "tool": "bench_status_state_machine",
+    "surface": "plan_status_transition",
+    "workload": "golden_myproj_pure",
+    "backend": "summary",
+    "runs": 200,
+    "warmup": 20,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "num_specs": 200
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "golden_myproj_pure",
+      "size": {
+        "size_bytes": 1019,
+        "lines": 53,
+        "target_name": "beta"
+      },
+      "baseline": {
+        "plan_status_transition": {
+          "count": 200.0,
+          "min_us": 8.537026587873697,
+          "median_us": 8.64703906700015,
+          "p95_us": 8.937029633671045,
+          "max_us": 30.737952329218388
+        }
+      },
+      "candidate": {
+        "plan_status_transition": {
+          "count": 200.0,
+          "min_us": 18.355029169470072,
+          "median_us": 18.741004168987274,
+          "p95_us": 24.056003894656897,
+          "max_us": 41.53902409598231
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "plan_status_transition",
+          "workload": "golden_myproj_pure",
+          "scenario": "plan_status_transition",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 8.64703906700015e-06,
+          "candidate_median_s": 1.8741004168987274e-05,
+          "ratio": 2.1673319645922384,
+          "speedup": 0.4613967847736421,
+          "percent_delta": 116.73319645922385,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "label": "synthetic_200_specs_pure",
+      "size": {
+        "size_bytes": 128808,
+        "lines": 5398,
+        "target_name": "spec-199"
+      },
+      "baseline": {
+        "plan_status_transition": {
+          "count": 200.0,
+          "min_us": 8.556002285331488,
+          "median_us": 8.656992577016354,
+          "p95_us": 8.836970664560795,
+          "max_us": 9.22702020034194
+        }
+      },
+      "candidate": {
+        "plan_status_transition": {
+          "count": 200.0,
+          "min_us": 18.435006495565176,
+          "median_us": 18.775986973196268,
+          "p95_us": 19.207014702260494,
+          "max_us": 45.616994611918926
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "plan_status_transition",
+          "workload": "synthetic_200_specs_pure",
+          "scenario": "plan_status_transition",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 8.656992577016354e-06,
+          "candidate_median_s": 1.8775986973196268e-05,
+          "ratio": 2.1688810295442624,
+          "speedup": 0.46106724452752745,
+          "percent_delta": 116.88810295442624,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

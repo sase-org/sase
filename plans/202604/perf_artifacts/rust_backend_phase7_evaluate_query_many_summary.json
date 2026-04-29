@@ -1,0 +1,282 @@
+{
+  "metadata": {
+    "tool": "bench_core_query",
+    "surface": "evaluate_query_many",
+    "workload": "synthetic_100_specs",
+    "backend": "summary",
+    "runs": 20,
+    "warmup": 3,
+    "timestamp": "2026-04-29T22:17:59Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_104/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "spec_sizes": [
+        100,
+        1000,
+        10000
+      ]
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "label": "synthetic_100_specs",
+      "size": {
+        "num_specs": 100,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 0.49213902093470097,
+          "median_ms": 0.5000300006940961,
+          "p95_ms": 0.5609110230579972,
+          "max_ms": 0.5727929528802633
+        },
+        "parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 0.6349110044538975,
+          "median_ms": 0.6759654788766056,
+          "p95_ms": 0.7181409746408463,
+          "max_ms": 0.7375280256383121
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 7.218134996946901,
+          "median_ms": 7.810412527760491,
+          "p95_ms": 9.43791400641203,
+          "max_ms": 16.44878403749317
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 4.286832001525909,
+          "median_ms": 4.626680485671386,
+          "p95_ms": 6.968770991079509,
+          "max_ms": 8.147850981913507
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_100_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.0005000300006940961,
+          "candidate_median_s": 0.007810412527760491,
+          "ratio": 15.619887840567142,
+          "speedup": 0.06402094625819613,
+          "percent_delta": 1461.9887840567142,
+          "notes": []
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_100_specs",
+          "scenario": "parse_and_evaluate",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.0006759654788766056,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_100_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": null,
+          "candidate_median_s": 0.004626680485671386,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "baseline missing"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "synthetic_1000_specs",
+      "size": {
+        "num_specs": 1000,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 3.755295998416841,
+          "median_ms": 4.029961477499455,
+          "p95_ms": 6.562957016285509,
+          "max_ms": 7.12427799589932
+        },
+        "parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 4.699349985457957,
+          "median_ms": 4.753266490297392,
+          "p95_ms": 4.920863022562116,
+          "max_ms": 4.945910011883825
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 70.89360198006034,
+          "median_ms": 74.68499799142592,
+          "p95_ms": 85.01794998301193,
+          "max_ms": 89.14898399962112
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 43.50297199562192,
+          "median_ms": 44.427656481275335,
+          "p95_ms": 46.45719099789858,
+          "max_ms": 47.18114295974374
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_1000_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.004029961477499455,
+          "candidate_median_s": 0.07468499799142592,
+          "ratio": 18.532434716414983,
+          "speedup": 0.053959450838602256,
+          "percent_delta": 1753.2434716414982,
+          "notes": []
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_1000_specs",
+          "scenario": "parse_and_evaluate",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.004753266490297392,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_1000_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": null,
+          "candidate_median_s": 0.044427656481275335,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "baseline missing"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "synthetic_10000_specs",
+      "size": {
+        "num_specs": 10000,
+        "query": "\"feature\" OR status:Ready"
+      },
+      "baseline": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 63.11029498465359,
+          "median_ms": 68.07368903537281,
+          "p95_ms": 77.58861902402714,
+          "max_ms": 88.41586601920426
+        },
+        "parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 65.91522000962868,
+          "median_ms": 77.93036746443249,
+          "p95_ms": 89.39583599567413,
+          "max_ms": 94.38748302636668
+        }
+      },
+      "candidate": {
+        "facade": {
+          "count": 20.0,
+          "min_ms": 762.0234809583053,
+          "median_ms": 830.9235109772999,
+          "p95_ms": 1498.6736809951253,
+          "max_ms": 1564.4474099972285
+        },
+        "direct": {
+          "count": 20.0,
+          "min_ms": 414.0785429626703,
+          "median_ms": 439.342758996645,
+          "p95_ms": 834.0423090266995,
+          "max_ms": 841.558443964459
+        }
+      },
+      "comparisons": [
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_10000_specs",
+          "scenario": "facade",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.06807368903537281,
+          "candidate_median_s": 0.8309235109772999,
+          "ratio": 12.20623595917552,
+          "speedup": 0.08192533745411439,
+          "percent_delta": 1120.6235959175522,
+          "notes": []
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_10000_specs",
+          "scenario": "parse_and_evaluate",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": 0.07793036746443249,
+          "candidate_median_s": null,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "candidate missing"
+          ]
+        },
+        {
+          "surface": "evaluate_query_many",
+          "workload": "synthetic_10000_specs",
+          "scenario": "direct",
+          "baseline_label": "explicit_python",
+          "candidate_label": "default_rust",
+          "baseline_median_s": null,
+          "candidate_median_s": 0.439342758996645,
+          "ratio": null,
+          "speedup": null,
+          "percent_delta": null,
+          "notes": [
+            "baseline missing"
+          ]
+        }
+      ]
+    }
+  ]
+}
