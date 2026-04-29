@@ -83,6 +83,7 @@ def _codex_subprocess_env() -> Iterator[dict[str, str] | None]:
     shadow_home = _create_shadow_codex_home(_real_codex_home())
     env = os.environ.copy()
     env["CODEX_HOME"] = str(shadow_home)
+    env["CODEX_PROJECT_DIR"] = os.getcwd()
     try:
         yield env
     finally:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 13:27:23
-status: wip
+status: done
 ---
 # Plan: Fix Codex Sibling Commit Stop Hook
 

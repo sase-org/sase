@@ -186,6 +186,39 @@ def test_codex_provider_uses_shadow_codex_home_by_default(
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_sets_project_dir_with_shadow_home(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test Codex subprocesses receive shadow home and current project dir."""
+    real_home = tmp_path / "real-codex"
+    real_home.mkdir()
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(project_dir)
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert Path(env["CODEX_HOME"]).parent == (
+        tmp_path / ".cache" / "sase" / "codex_home"
+    )
+    assert env["CODEX_PROJECT_DIR"] == str(project_dir)
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
 def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
