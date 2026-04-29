@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 02:51:00
 status: wip
+bead_id: sase-17
 ---
 # Rust Backend Migration Phase 2 Query Plan
 
