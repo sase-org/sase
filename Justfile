@@ -306,3 +306,11 @@ parity-check *args: _setup
 # parse cost to subprocess fork+exec cost.
 bench-git-query-ops *args: _setup
     {{ venv_bin }}/python tests/perf/bench_git_query_ops.py {{ args }}
+
+# Phase 7 measurement smoke wrapper. Phase 7A only exercises the helper
+# package (metadata envelope + ratio/speedup helpers) so later agents
+# can produce comparable artifacts. Phase 7E will replace this with the
+# real regression-floor invocation once the stable subset is chosen.
+phase7-perf-check: _setup
+    @printf "\n---------- Phase 7 helper smoke (sase-1e.1) ----------\n"
+    {{ venv_bin }}/pytest -q tests/perf/phase7
