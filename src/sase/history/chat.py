@@ -62,7 +62,7 @@ def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None
     if xprompt_name == "resume_by_chat":
         path = os.path.expanduser(argument)
         if not path.endswith(".md"):
-            resolved = _resolve_chat_file_path(path)
+            resolved = resolve_chat_file_path(path)
             return resolved
         return path if os.path.exists(path) else None
 
@@ -181,7 +181,7 @@ def generate_chat_filename(
 def get_chat_file_path(basename: str) -> str:
     """Return the sharded write path for a chat history file.
 
-    For reads, prefer :func:`_resolve_chat_file_path` which also handles
+    For reads, prefer :func:`resolve_chat_file_path` which also handles
     legacy (unsharded) paths and cross-shard lookup.
     """
     if not basename.endswith(".md"):
@@ -189,7 +189,7 @@ def get_chat_file_path(basename: str) -> str:
     return sharded_path("chats", basename, ensure=False)
 
 
-def _resolve_chat_file_path(basename: str) -> str | None:
+def resolve_chat_file_path(basename: str) -> str | None:
     """Find an existing chat history file by basename.
 
     Checks the expected shard (from the filename timestamp), legacy
@@ -398,7 +398,7 @@ def load_chat_for_resume(
     if file_ref.startswith("/") or file_ref.startswith("~"):
         abs_path = os.path.expanduser(file_ref)
     else:
-        abs_path = _resolve_chat_file_path(file_ref) or get_chat_file_path(file_ref)
+        abs_path = resolve_chat_file_path(file_ref) or get_chat_file_path(file_ref)
     _visited.add(abs_path)
 
     turns = _parse_chat_turns(content)
@@ -449,7 +449,7 @@ def _load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
         file_path = os.path.expanduser(file_ref)
     else:
         # Treat as basename — search shards + legacy top-level.
-        resolved = _resolve_chat_file_path(file_ref)
+        resolved = resolve_chat_file_path(file_ref)
         if resolved is None:
             raise FileNotFoundError(f"Chat history file not found: {file_ref}")
         file_path = resolved
