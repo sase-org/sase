@@ -13,8 +13,8 @@ sase that I know about:
 - The sase.yml files that I use to configure sase can be found in the ~/.local/share/chezmoi/home/dot_config/sase/
   directory.
 
-IMPORTANT: After committing to this repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the
-chezmoi files will not be applied to the system (i.e. copied to their proper locations).
+IMPORTANT: After committing to this repo, you MUST run the `chezmoi apply --force` command. Otherwise, the changes to
+the chezmoi files will not be applied to the system (i.e. copied to their proper locations).
 
 ## Plugin Repos
 
