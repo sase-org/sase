@@ -275,3 +275,11 @@ bench-query *args: _setup
 # backend against.
 bench-agent-scan *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_scan.py {{ args }}
+
+# Run the Python status state machine benchmark. Times the pure
+# line-based helpers (read_status_from_lines, apply_status_update,
+# is_valid_transition, remove_workspace_suffix) and the
+# transition_changespec_status orchestrator so Phase 4A can decide
+# whether the status state machine is worth porting to Rust.
+bench-status-state-machine *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_status_state_machine.py {{ args }}

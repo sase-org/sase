@@ -1,0 +1,114 @@
+{
+  "tool": "bench_agent_scan",
+  "phase": "3A",
+  "workloads": [
+    {
+      "label": "synthetic_4p_40pp",
+      "projects_root": "/tmp/tmpj7cahrkd/projects",
+      "runs": 5,
+      "warmup": 2,
+      "target_name": "proj001_agent_0000",
+      "workflow_name": "wf_0",
+      "scenarios": {
+        "find_named_agent": {
+          "count": 5.0,
+          "min_ms": 180.7983840117231,
+          "median_ms": 187.5304639688693,
+          "p95_ms": 202.67592300660908,
+          "max_ms": 202.67592300660908
+        },
+        "is_workflow_complete": {
+          "count": 5.0,
+          "min_ms": 0.14609901700168848,
+          "median_ms": 0.14895404456183314,
+          "p95_ms": 0.15801098197698593,
+          "max_ms": 0.15801098197698593
+        },
+        "list_running_agents": {
+          "count": 5.0,
+          "min_ms": 0.16663799760863185,
+          "median_ms": 0.17478299560025334,
+          "p95_ms": 0.1916459877975285,
+          "max_ms": 0.1916459877975285
+        },
+        "list_all_agents": {
+          "count": 5.0,
+          "min_ms": 0.15817198436707258,
+          "median_ms": 0.1614979701116681,
+          "p95_ms": 0.16440398758277297,
+          "max_ms": 0.16440398758277297
+        },
+        "list_running_agents_shared_snapshot": {
+          "count": 5.0,
+          "min_ms": 14.130110968835652,
+          "median_ms": 14.197911019437015,
+          "p95_ms": 14.783910010010004,
+          "max_ms": 14.783910010010004
+        },
+        "list_all_agents_shared_snapshot": {
+          "count": 5.0,
+          "min_ms": 14.893579005729407,
+          "median_ms": 14.942912035621703,
+          "p95_ms": 17.40380103001371,
+          "max_ms": 17.40380103001371
+        },
+        "tui_artifact_load": {
+          "count": 5.0,
+          "min_ms": 0.19448099192231894,
+          "median_ms": 0.19834900740534067,
+          "p95_ms": 0.21308701252564788,
+          "max_ms": 0.21308701252564788
+        },
+        "scan_python_facade": {
+          "count": 5.0,
+          "min_ms": 17.208406003192067,
+          "median_ms": 20.075347973033786,
+          "p95_ms": 21.581885986961424,
+          "max_ms": 21.581885986961424
+        },
+        "scan_python_facade_no_prompt_steps": {
+          "count": 5.0,
+          "min_ms": 13.589159992989153,
+          "median_ms": 13.990405015647411,
+          "p95_ms": 14.1315630171448,
+          "max_ms": 14.1315630171448
+        },
+        "scan_rust_to_dict": {
+          "count": 5.0,
+          "min_ms": 9.57930600270629,
+          "median_ms": 10.635890997946262,
+          "p95_ms": 14.281401003245264,
+          "max_ms": 14.281401003245264
+        },
+        "scan_rust_dict_to_wire": {
+          "count": 5.0,
+          "min_ms": 12.34064600430429,
+          "median_ms": 12.389388983137906,
+          "p95_ms": 12.534123961813748,
+          "max_ms": 12.534123961813748
+        },
+        "scan_rust_facade": {
+          "count": 5.0,
+          "min_ms": 13.53439298691228,
+          "median_ms": 13.560735038481653,
+          "p95_ms": 13.74712900724262,
+          "max_ms": 13.74712900724262
+        },
+        "find_named_agent_rust_backend": {
+          "count": 5.0,
+          "min_ms": 180.91399502009153,
+          "median_ms": 184.75814198609442,
+          "p95_ms": 197.4187979940325,
+          "max_ms": 197.4187979940325
+        },
+        "is_workflow_complete_rust_backend": {
+          "count": 5.0,
+          "min_ms": 0.5964880110695958,
+          "median_ms": 0.6024999893270433,
+          "p95_ms": 0.6120079779066145,
+          "max_ms": 0.6120079779066145
+        }
+      }
+    }
+  ]
+}

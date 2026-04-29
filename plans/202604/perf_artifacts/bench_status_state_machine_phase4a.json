@@ -1,0 +1,199 @@
+{
+  "tool": "bench_status_state_machine",
+  "phase": "4A",
+  "rust_available": true,
+  "platform": {
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown"
+  },
+  "workloads": [
+    {
+      "label": "golden_myproj_pure",
+      "size_bytes": 1019,
+      "lines": 53,
+      "target_name": "beta",
+      "runs": 200,
+      "warmup": 30,
+      "scenarios_python_backend": {
+        "is_valid_transition": {
+          "count": 200.0,
+          "min_us": 3.345950972288847,
+          "median_us": 3.3660326153039932,
+          "p95_us": 3.406952600926161,
+          "max_us": 24.676963221281767
+        },
+        "remove_workspace_suffix": {
+          "count": 200.0,
+          "min_us": 1.0319636203348637,
+          "median_us": 1.0619987733662128,
+          "p95_us": 1.0820222087204456,
+          "max_us": 1.193024218082428
+        },
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 2.4239998310804367,
+          "median_us": 2.4539767764508724,
+          "p95_us": 2.695014700293541,
+          "max_us": 3.13599593937397
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 4.108005668967962,
+          "median_us": 4.167959559708834,
+          "p95_us": 4.258006811141968,
+          "max_us": 5.309993866831064
+        }
+      },
+      "scenarios_rust_backend": {
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 2.5139888748526573,
+          "median_us": 2.544955350458622,
+          "p95_us": 2.5850022211670876,
+          "max_us": 2.735003363341093
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 4.17797127738595,
+          "median_us": 4.247995093464851,
+          "p95_us": 4.327972419559956,
+          "max_us": 5.2800169214606285
+        }
+      }
+    },
+    {
+      "label": "golden_myproj_transition",
+      "size_bytes": 1019,
+      "target_name": "beta",
+      "runs": 30,
+      "warmup": 15,
+      "scenarios_python_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 212.57594926282763,
+          "median_us": 215.17049754038453,
+          "p95_us": 243.31500753760338,
+          "max_us": 249.16604161262512
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 357.72303817793727,
+          "median_us": 371.04799412190914,
+          "p95_us": 396.27699879929423,
+          "max_us": 398.99098919704556
+        }
+      },
+      "scenarios_rust_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 223.56701083481312,
+          "median_us": 225.11451970785856,
+          "p95_us": 241.8010262772441,
+          "max_us": 244.57700783386827
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 360.45798333361745,
+          "median_us": 368.1575180962682,
+          "p95_us": 385.3249945677817,
+          "max_us": 391.6370333172381
+        }
+      }
+    },
+    {
+      "label": "synthetic_200_specs_pure",
+      "size_bytes": 128808,
+      "lines": 5398,
+      "target_name": "spec-199",
+      "runs": 200,
+      "warmup": 30,
+      "scenarios_python_backend": {
+        "is_valid_transition": {
+          "count": 200.0,
+          "min_us": 3.3460091799497604,
+          "median_us": 3.376975655555725,
+          "p95_us": 3.4559634514153004,
+          "max_us": 3.657012712210417
+        },
+        "remove_workspace_suffix": {
+          "count": 200.0,
+          "min_us": 1.04197533801198,
+          "median_us": 1.0619987733662128,
+          "p95_us": 1.1129886843264103,
+          "max_us": 1.2420350685715675
+        },
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 176.84802878648043,
+          "median_us": 178.99100203067064,
+          "p95_us": 194.05101193115115,
+          "max_us": 253.1440113671124
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 241.77099112421274,
+          "median_us": 253.77448764629662,
+          "p95_us": 391.1369713023305,
+          "max_us": 596.2679861113429
+        }
+      },
+      "scenarios_rust_backend": {
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 180.52401719614863,
+          "median_us": 184.87300258129835,
+          "p95_us": 195.5730258487165,
+          "max_us": 225.78099742531776
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 249.01604047045112,
+          "median_us": 254.03450126759708,
+          "p95_us": 294.8230248875916,
+          "max_us": 653.7979934364557
+        }
+      }
+    },
+    {
+      "label": "synthetic_200_specs_transition",
+      "size_bytes": 128808,
+      "target_name": "spec-199",
+      "runs": 30,
+      "warmup": 15,
+      "scenarios_python_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 1665.3990023769438,
+          "median_us": 1705.2199982572347,
+          "p95_us": 3464.132023509592,
+          "max_us": 3634.727036114782
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 12386.202986817807,
+          "median_us": 12499.1390039213,
+          "p95_us": 13392.884051427245,
+          "max_us": 13530.588010326028
+        }
+      },
+      "scenarios_rust_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 1648.8070250488818,
+          "median_us": 1672.6174799259752,
+          "p95_us": 1724.9530064873397,
+          "max_us": 1731.4950237050653
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 12287.664983887225,
+          "median_us": 12481.378973461688,
+          "p95_us": 14582.544972654432,
+          "max_us": 18162.55896119401
+        }
+      }
+    }
+  ]
+}
