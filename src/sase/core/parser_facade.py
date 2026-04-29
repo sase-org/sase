@@ -52,7 +52,7 @@ def _rust_parse_project_bytes_impl(file_path: str, data: bytes) -> list[ChangeSp
     return [changespec_wire_from_dict(record) for record in raw]
 
 
-# pyvision: tests/test_core_facade.py
+# pyvision: tests/test_core_facade/test_parser.py
 def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
     """Parse a project file's bytes into wire records.
 
