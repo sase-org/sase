@@ -6,7 +6,6 @@ from .models import DeltaEntry
 _TYPE_TO_GLYPH = {"A": "+", "M": "~", "D": "-"}
 
 
-# pyvision: tests/test_deltas_parsing.py
 def format_deltas_field(deltas: list[DeltaEntry]) -> list[str]:
     """Format a DELTAS field as on-disk lines.
 
