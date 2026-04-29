@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 13:08:12
-status: wip
+status: done
 ---
 # Plan: Restore CLs Tab Auto-Refresh Visibility
 

@@ -177,22 +177,28 @@ class ChangeSpecInfoPanel(Static):
                 text.append(label, style=_LABEL_STYLE)
                 text.append(_FOLD_CHARS[level], style=_FOLD_STYLES[level])
 
+        second_line = Text()
         if self._grouping_label:
-            text.append("   ", style="")
-            text.append("[", style="dim")
-            text.append("group: ", style="dim")
-            text.append(
+            second_line.append("[", style="dim")
+            second_line.append("group: ", style="dim")
+            second_line.append(
                 self._grouping_label,
                 style=_GROUPING_MODE_STYLES.get(self._grouping_label, "dim"),
             )
             key = key_display_name(self._registry.app.cycle_grouping_mode)
-            text.append(f" ({key})", style="dim")
-            text.append("]", style="dim")
+            second_line.append(f" ({key})", style="dim")
+            second_line.append("]", style="dim")
 
         if self._refresh_interval > 0:
-            text.append("   (auto-refresh in ", style="dim")
-            text.append(f"{self._seconds_remaining}s", style="#87AFFF")
-            text.append(")", style="dim")
+            if second_line.plain:
+                second_line.append("   ", style="")
+            second_line.append("(auto-refresh in ", style="dim")
+            second_line.append(f"{self._seconds_remaining}s", style="#87AFFF")
+            second_line.append(")", style="dim")
+
+        if second_line.plain:
+            text.append("\n")
+            text.append_text(second_line)
 
         return text
 

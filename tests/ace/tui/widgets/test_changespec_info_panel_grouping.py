@@ -56,3 +56,35 @@ def test_by_status_label_renders_badge() -> None:
     plain = _collect_text(panel)
     assert "group:" in plain
     assert "by status" in plain
+
+
+def test_status_and_grouping_render_on_separate_lines() -> None:
+    panel = ChangeSpecInfoPanel()
+    panel._current_position = 2
+    panel._total_count = 5
+    panel._hidden_reverted = 1
+    panel._hidden_submitted = 1
+    panel._seconds_remaining = 7
+    panel._refresh_interval = 10
+
+    lines = _collect_text(panel).splitlines()
+
+    assert lines[0].startswith("ChangeSpec: 2/5")
+    assert "+1X" in lines[0]
+    assert "+1S" in lines[0]
+    assert "group:" not in lines[0]
+    assert "auto-refresh" not in lines[0]
+    assert lines[1].startswith("[group: by project (o)]")
+    assert "(auto-refresh in 7s)" in lines[1]
+
+
+def test_update_countdown_keeps_countdown_on_second_line() -> None:
+    panel = ChangeSpecInfoPanel()
+
+    with patch.object(panel, "update") as update:
+        panel.update_countdown(4, 10)
+
+    rendered = update.call_args.args[0]
+    lines = rendered.plain.splitlines()
+    assert lines[0] == "ChangeSpec: 0/0"
+    assert "(auto-refresh in 4s)" in lines[1]

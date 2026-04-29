@@ -53,8 +53,8 @@
 }
 
 #info-panel {
-    height: auto;
-    max-height: 1;
+    height: 2;
+    max-height: 2;
     padding: 0 1;
     background: $surface;
 }
