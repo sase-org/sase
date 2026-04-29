@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 17:52:06
 status: proposed
+bead_id: sase-1e
 ---
 
 # Rust Backend Migration Phase 7: Measurement, Documentation, And Regression Floor
