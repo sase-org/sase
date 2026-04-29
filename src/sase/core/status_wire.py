@@ -360,9 +360,7 @@ def status_plan_from_dict(data: dict[str, Any]) -> StatusTransitionPlanWire:
             None if data.get("suffixed_name") is None else str(data["suffixed_name"])
         ),
         base_name=(None if data.get("base_name") is None else str(data["base_name"])),
-        mentor_draft_action=str(
-            data.get("mentor_draft_action", MENTOR_ACTION_NONE)
-        ),
+        mentor_draft_action=str(data.get("mentor_draft_action", MENTOR_ACTION_NONE)),
         archive_action=str(data.get("archive_action", ARCHIVE_ACTION_NONE)),
         timestamp_event=(
             None

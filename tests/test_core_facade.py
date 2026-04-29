@@ -209,34 +209,154 @@ def test_status_facade_pure_helpers(sample_project: Path) -> None:
     assert "STATUS: WIP" in "".join(lines)
 
 
-def test_status_facade_rust_without_impl_falls_back_to_python(
+def _install_fake_status_module(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    read_status_from_lines=None,
+    apply_status_update=None,
+) -> types.ModuleType:
+    """Register a fake ``sase_core_rs`` exposing the Phase 4D line helpers."""
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    if read_status_from_lines is not None:
+        fake.read_status_from_lines = read_status_from_lines  # type: ignore[attr-defined]
+    if apply_status_update is not None:
+        fake.apply_status_update = apply_status_update  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    return fake
+
+
+def test_status_facade_line_helpers_rust_without_binding_raises(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Phase 4D classifies the line helpers as shipped Rust ops.
+
+    Under ``SASE_CORE_BACKEND=rust`` the facade must raise
+    :class:`RustBackendUnavailableError` instead of silently using the
+    Python implementation when the ``sase_core_rs`` binding for these
+    helpers is missing.
+    """
+    _install_fake_status_module(monkeypatch)
     monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     lines = sample_project.read_text().splitlines(keepends=True)
-    assert status_facade.read_status_from_lines(lines, "example") == "WIP"
-    rewritten = status_facade.apply_status_update(lines, "example", "Draft")
-    assert "STATUS: Draft" in rewritten
 
-    success, old_status, error, sibling_results = (
-        status_facade.transition_changespec_status(
-            str(sample_project),
-            "example",
-            "Draft",
-            validate=True,
-        )
+    with pytest.raises(RustBackendUnavailableError, match="read_status_from_lines"):
+        status_facade.read_status_from_lines(lines, "example")
+    with pytest.raises(RustBackendUnavailableError, match="apply_status_update"):
+        status_facade.apply_status_update(lines, "example", "Draft")
+
+
+def test_status_facade_line_helpers_rust_backend_uses_rust_impl(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``SASE_CORE_BACKEND=rust`` calls the registered Rust line-helper bindings."""
+    read_calls: list[tuple[list[str], str]] = []
+    apply_calls: list[tuple[list[str], str, str]] = []
+
+    def fake_read(lines: list[str], name: str) -> str:
+        read_calls.append((list(lines), name))
+        # Sentinel so we can verify the Rust path's output reaches callers.
+        return "RUST_SENTINEL"
+
+    def fake_apply(lines: list[str], name: str, new_status: str) -> str:
+        apply_calls.append((list(lines), name, new_status))
+        return "RUST_REWRITTEN"
+
+    _install_fake_status_module(
+        monkeypatch,
+        read_status_from_lines=fake_read,
+        apply_status_update=fake_apply,
     )
-    assert success is True
-    assert old_status == "WIP"
-    assert error is None
-    assert sibling_results == []
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    lines = sample_project.read_text().splitlines(keepends=True)
+    assert status_facade.read_status_from_lines(lines, "example") == "RUST_SENTINEL"
     assert (
-        status_facade.read_status_from_lines(
-            sample_project.read_text().splitlines(keepends=True),
-            "example",
-        )
-        == "Draft"
+        status_facade.apply_status_update(lines, "example", "Draft") == "RUST_REWRITTEN"
     )
+    assert read_calls == [(lines, "example")]
+    assert apply_calls == [(lines, "example", "Draft")]
+
+
+def test_status_facade_line_helpers_dual_run_logs_comparison(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Dual-run runs both impls, logs one record per call, returns Python output."""
+    log_path = tmp_path / "core_dual_run.jsonl"
+    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
+    monkeypatch.setenv("SASE_CORE_DUAL_RUN", "1")
+
+    lines = sample_project.read_text().splitlines(keepends=True)
+
+    # Mirror Python output byte-for-byte so the dual-run record is a match.
+    from sase.status_state_machine.field_updates import (
+        apply_status_update_python,
+        read_status_from_lines_python,
+    )
+
+    py_read = read_status_from_lines_python(lines, "example")
+    py_apply = apply_status_update_python(lines, "example", "Draft")
+
+    read_calls: list[str] = []
+    apply_calls: list[str] = []
+
+    def fake_read(_rust_lines: list[str], name: str) -> str | None:
+        read_calls.append(name)
+        return py_read
+
+    def fake_apply(_rust_lines: list[str], name: str, _new_status: str) -> str:
+        apply_calls.append(name)
+        return py_apply
+
+    _install_fake_status_module(
+        monkeypatch,
+        read_status_from_lines=fake_read,
+        apply_status_update=fake_apply,
+    )
+
+    # Default backend is python; dual-run still routes through both impls.
+    assert status_facade.read_status_from_lines(lines, "example") == py_read
+    assert status_facade.apply_status_update(lines, "example", "Draft") == py_apply
+    assert read_calls == ["example"]
+    assert apply_calls == ["example"]
+
+    records = [
+        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
+    ]
+    assert len(records) == 2
+    ops = {rec["operation"] for rec in records}
+    assert ops == {"read_status_from_lines", "apply_status_update"}
+    for rec in records:
+        assert rec["match"] is True
+        assert rec["error_class"] is None
+
+
+def test_status_facade_line_helpers_real_extension_parity(
+    sample_project: Path,
+) -> None:
+    """When ``sase_core_rs`` is installed, Rust and Python produce identical output.
+
+    Skips cleanly when the optional extension is missing so pure-Python
+    contributors are never blocked.
+    """
+    pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    from sase.status_state_machine.field_updates import (
+        apply_status_update_python,
+        read_status_from_lines_python,
+    )
+
+    lines = sample_project.read_text().splitlines(keepends=True)
+    rust_module = sys.modules[RUST_EXTENSION_MODULE_NAME]
+    assert hasattr(rust_module, "read_status_from_lines")
+    assert hasattr(rust_module, "apply_status_update")
+
+    assert rust_module.read_status_from_lines(  # type: ignore[attr-defined]
+        lines, "example"
+    ) == read_status_from_lines_python(lines, "example")
+    assert rust_module.apply_status_update(  # type: ignore[attr-defined]
+        lines, "example", "Draft"
+    ) == apply_status_update_python(lines, "example", "Draft")
 
 
 def test_unported_query_facade_apis_rust_without_impl_fall_back_to_python(

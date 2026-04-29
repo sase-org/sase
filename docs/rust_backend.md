@@ -1,10 +1,10 @@
 # Optional Rust Backend (`sase_core_rs`)
 
-A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`, and
-`scan_agent_artifacts`) can be served by an optional Rust extension built from a sibling
-[`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is **opt-in**: pure-Python installs keep
-working with no Rust toolchain, and every `just rust-*` target degrades to a friendly no-op when the sibling repo is
-absent.
+A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`,
+`scan_agent_artifacts`, and the status line helpers `read_status_from_lines` / `apply_status_update`) can be served by
+an optional Rust extension built from a sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust
+backend is **opt-in**: pure-Python installs keep working with no Rust toolchain, and every `just rust-*` target degrades
+to a friendly no-op when the sibling repo is absent.
 
 `SASE_CORE_BACKEND=rust` is a hybrid per-operation mode: operations with shipped Rust bindings use Rust, while facade
 APIs that are intentionally unported use their Python implementation. Missing bindings for shipped Rust operations still
@@ -95,9 +95,9 @@ just rust-install /path/to/venv
 
 Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
 `RustBackendUnavailableError` rather than silently falling back. For example, `parse_project_bytes`, `parse_query`,
-`evaluate_query_many`, and `scan_agent_artifacts` require `sase_core_rs` to expose the corresponding binding. Query
-context/per-row evaluation, graph-index construction, and status helpers are intentionally unported today and fall back
-to Python under Rust mode.
+`evaluate_query_many`, `scan_agent_artifacts`, `read_status_from_lines`, and `apply_status_update` require
+`sase_core_rs` to expose the corresponding binding. Query context/per-row evaluation, graph-index construction, and the
+side-effecting `transition_changespec_status` are intentionally unported today and fall back to Python under Rust mode.
 
 `is_rust_available()` is a lazy, forgiving probe: an `ImportError` simply reports `False` so a pure-Python install is
 never broken; other import-time failures propagate so a _misbuilt_ wheel surfaces immediately.
@@ -179,6 +179,17 @@ loop.
   records), and no per-operation default-Rust override is justified — `is_workflow_complete` is structurally slower on
   the snapshot path because it removes the Python short-circuit. Phase 4 (status state machine) is still on the table
   but should be re-profiled against a realistic home tree before committing.
+- **Phase 4C** _(complete)_ — Pure Rust status module landed in `../sase-core/crates/sase_core/src/status/` (constants,
+  name suffix helpers, line-based field updates, and the pure-decision planner) with serde-compatible wire structs that
+  mirror Phase 4B byte-for-byte. PyO3 bindings on `sase_core_rs` expose `remove_workspace_suffix`,
+  `is_valid_status_transition`, `read_status_from_lines`, `apply_status_update`, and `plan_status_transition`. No
+  production caller is routed through Rust yet — `status_facade.py` continues to dispatch every operation to Python.
+- **Phase 4D** _(complete)_ — `status_facade.read_status_from_lines` and `status_facade.apply_status_update` register
+  the Rust bindings as `rust_impl` whenever `sase_core_rs` is importable. `SASE_CORE_BACKEND=rust` routes both line
+  helpers through Rust; missing bindings under rust mode raise `RustBackendUnavailableError` (the line helpers are now
+  classified as shipped Rust operations). `SASE_CORE_DUAL_RUN=1` runs both impls and logs comparison records to
+  `~/.sase/perf/core_dual_run.jsonl`. `transition_changespec_status` stays on Python with the
+  `rust_unavailable="python"` fallback; the Rust planner integration is the Phase 4E target.
 - **Phase 4B** _(complete)_ — Status wire contract pinned in `src/sase/core/status_wire.py`
   (`StatusTransitionRequestWire` / `StatusTransitionPlanWire` / `ChangespecChildWire`, plus `StatusFieldReadWire` and
   `StatusFieldUpdateWire` for the line helpers). The Python decision engine

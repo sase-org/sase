@@ -68,9 +68,7 @@ def _format_invalid_transition_error(
     )
 
 
-def _classify_archive_action(
-    old_status: str | None, new_status: str
-) -> str:
+def _classify_archive_action(old_status: str | None, new_status: str) -> str:
     """Reproduce the archive-class compare from ``transition_changespec_status_python``.
 
     The original code does ``old_status in ARCHIVE_STATUSES`` on the raw
@@ -260,9 +258,7 @@ def plan_status_transition_python(
     if validate and not is_valid_transition(old_status, new_status):
         return _failure_plan(
             request,
-            _format_invalid_transition_error(
-                changespec_name, old_status, new_status
-            ),
+            _format_invalid_transition_error(changespec_name, old_status, new_status),
         )
 
     # 3) Sibling-unreverted-children check on WIP/Draft -> Ready with suffix.
@@ -396,9 +392,7 @@ def build_status_transition_request(
             and cs.status not in ("WIP", "Draft", "Reverted")
         ]
         blocking_children = tuple(
-            ChangespecChildWire(
-                name=cs.name, status=remove_workspace_suffix(cs.status)
-            )
+            ChangespecChildWire(name=cs.name, status=remove_workspace_suffix(cs.status))
             for cs in invalid_children
         )
 
