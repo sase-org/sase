@@ -40,18 +40,20 @@ large search results, axe lumberjack scans), so it is the first operation routed
 
 The facade lives at `src/sase/core/`:
 
-| Module                  | Purpose                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `backend.py`            | `SASE_CORE_BACKEND` dispatcher; `is_rust_available()`; `RustBackendUnavailableError` |
-| `parser_facade.py`      | `parse_project_file` compatibility API / Rust-eligible `parse_project_bytes` parser  |
-| `wire.py`               | Stable wire record types that cross the Python ↔ Rust boundary                       |
-| `wire_conversion.py`    | Python `ChangeSpec` ↔ wire record serialization                                      |
-| `dual_run.py`           | Optional Python+Rust comparison logging (`SASE_CORE_DUAL_RUN=1`)                     |
-| `query_facade.py`       | Query parse / build / evaluate facade                                                |
-| `status_facade.py`      | Status transition helpers facade                                                     |
-| `graph_index_facade.py` | `build_changespec_graph_index()` facade                                              |
-| `agent_scan_facade.py`  | `scan_agent_artifacts()` snapshot facade (Phase 3)                                   |
-| `agent_scan_wire.py`    | Stable wire records for the agent-artifact scan snapshot                             |
+| Module                      | Purpose                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `backend.py`                | `SASE_CORE_BACKEND` dispatcher; `is_rust_available()`; `RustBackendUnavailableError` |
+| `parser_facade.py`          | `parse_project_file` compatibility API / Rust-eligible `parse_project_bytes` parser  |
+| `wire.py`                   | Stable wire record types that cross the Python ↔ Rust boundary                       |
+| `wire_conversion.py`        | Python `ChangeSpec` ↔ wire record serialization                                      |
+| `dual_run.py`               | Optional Python+Rust comparison logging (`SASE_CORE_DUAL_RUN=1`)                     |
+| `query_facade.py`           | Query parse / build / evaluate facade                                                |
+| `status_facade.py`          | Status transition helpers facade                                                     |
+| `graph_index_facade.py`     | `build_changespec_graph_index()` facade                                              |
+| `agent_scan_facade.py`      | `scan_agent_artifacts()` snapshot facade (Phase 3)                                   |
+| `agent_scan_wire.py`        | Stable wire records for the agent-artifact scan snapshot                             |
+| `status_wire.py`            | Stable wire records for the status state machine (Phase 4)                           |
+| `status_wire_conversion.py` | Python plan implementation + project-file → request-wire converter                   |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
@@ -177,6 +179,16 @@ loop.
   records), and no per-operation default-Rust override is justified — `is_workflow_complete` is structurally slower on
   the snapshot path because it removes the Python short-circuit. Phase 4 (status state machine) is still on the table
   but should be re-profiled against a realistic home tree before committing.
+- **Phase 4B** _(complete)_ — Status wire contract pinned in `src/sase/core/status_wire.py`
+  (`StatusTransitionRequestWire` / `StatusTransitionPlanWire` / `ChangespecChildWire`, plus `StatusFieldReadWire` and
+  `StatusFieldUpdateWire` for the line helpers). The Python decision engine
+  `plan_status_transition_python(request) -> StatusTransitionPlanWire` and the project-file converter
+  `build_status_transition_request(...)` live in `src/sase/core/status_wire_conversion.py`. Golden parity tests at
+  `tests/test_core_status_wire.py` lock down validation, workspace/legacy suffix stripping, parent/child constraints,
+  Ready→Draft suffix-append planning, Draft/WIP→Ready suffix-strip planning, terminal statuses, and `validate=False`.
+  `tests/test_core_status_lines.py` pins the `read_status_from_lines` / `apply_status_update` line behaviour. No
+  production call site uses the new planner yet — Phase 4D will route the line helpers and Phase 4E will route
+  `plan_status_transition` through the facade with dual-run logging.
 - **Future phases** — Additional facade operations (graph index, status helpers, agent-status state machine) become
   candidates for Rust re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears
   where Rust scan time is small but Python adaptation dominates.
