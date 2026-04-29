@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models._loaders._artifact_loaders import (
+from sase.ace.tui.models._loaders._done_loaders import (
     load_done_agents_from_snapshot,
 )
 from sase.core.agent_scan_facade import scan_agent_artifacts_python

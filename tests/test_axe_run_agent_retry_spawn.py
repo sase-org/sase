@@ -498,7 +498,7 @@ class TestDoneJsonRetriedStatus:
     def test_failed_with_retried_as_timestamp_displays_retried_status(
         self, tmp_path: Path
     ) -> None:
-        from sase.ace.tui.models._loaders._artifact_loaders import (
+        from sase.ace.tui.models._loaders._done_loaders import (
             _load_done_agent_for_dir,
         )
 
@@ -527,7 +527,7 @@ class TestDoneJsonRetriedStatus:
         assert agent.retry_error_category == "context_overflow"
 
     def test_failed_without_retry_displays_plain_failed(self, tmp_path: Path) -> None:
-        from sase.ace.tui.models._loaders._artifact_loaders import (
+        from sase.ace.tui.models._loaders._done_loaders import (
             _load_done_agent_for_dir,
         )
 
@@ -549,7 +549,7 @@ class TestDoneJsonRetriedStatus:
         assert agent.retried_as_timestamp is None
 
     def test_plan_rejected_displays_plan_rejected(self, tmp_path: Path) -> None:
-        from sase.ace.tui.models._loaders._artifact_loaders import (
+        from sase.ace.tui.models._loaders._done_loaders import (
             _load_done_agent_for_dir,
         )
 

@@ -281,8 +281,8 @@ def _run_scenarios(
         list_all_agents,
         list_running_agents,
     )
-    from sase.ace.tui.models._loaders._artifact_loaders import (
-        load_done_agents,
+    from sase.ace.tui.models._loaders._done_loaders import load_done_agents
+    from sase.ace.tui.models._loaders._running_loaders import (
         load_running_home_agents,
     )
     from sase.ace.tui.models._loaders._workflow_loaders import (

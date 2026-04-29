@@ -53,7 +53,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
             return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models._loaders._artifact_loaders.get_claimed_workspaces",
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
         patch(

@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.tui.models._loaders._artifact_loaders import enrich_agent_from_meta
+from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
 from sase.ace.tui.models.agent import Agent, AgentType
 
 

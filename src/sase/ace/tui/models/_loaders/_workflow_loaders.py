@@ -14,7 +14,7 @@ from sase.core.agent_scan_wire import (
 )
 
 from ....hooks.processes import is_process_running
-from ._artifact_loaders import (
+from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
     enrich_agent_from_meta,
 )

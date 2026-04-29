@@ -20,7 +20,7 @@ def test_load_all_agents_with_running_claims() -> None:
             return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models._loaders._artifact_loaders.get_claimed_workspaces",
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
@@ -69,7 +69,7 @@ def test_load_all_agents_filters_hook_processes() -> None:
             return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models._loaders._artifact_loaders.get_claimed_workspaces",
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
@@ -115,7 +115,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
             return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models._loaders._artifact_loaders.get_claimed_workspaces",
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
