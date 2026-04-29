@@ -1,5 +1,11 @@
 # Rust Backend (`sase_core_rs`)
 
+> **Phase 8 in progress.** Phase 8 of the Rust backend migration is removing the `SASE_CORE_BACKEND` /
+> `SASE_CORE_DUAL_RUN` plumbing entirely; ported facades will call `sase_core_rs` directly through the strict loader in
+> `src/sase/core/rust.py`. This document still describes the Phase 6/7 dispatcher; sections that reference
+> `SASE_CORE_BACKEND`, `SASE_CORE_DUAL_RUN`, or `dispatch` will be rewritten in Phase 8G. Plan:
+> `plans/202604/rust_backend_phase8.md`.
+
 A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`,
 `scan_agent_artifacts`, the status line helpers `read_status_from_lines` / `apply_status_update`, the status transition
 planner `plan_status_transition`, and the Git query parsers `parse_git_name_status_z` / `parse_git_branch_name` /
