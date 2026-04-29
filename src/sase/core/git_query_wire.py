@@ -91,7 +91,6 @@ def git_query_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
-# pyvision: tests/test_core_git_query.py
 def git_name_status_entry_from_dict(data: dict[str, Any]) -> GitNameStatusEntryWire:
     """Rehydrate a :class:`GitNameStatusEntryWire` from a JSON-safe dict.
 

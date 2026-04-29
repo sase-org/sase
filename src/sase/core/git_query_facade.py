@@ -21,18 +21,25 @@ The five Phase 5 helpers are:
 - :func:`parse_git_local_changes` — normalize ``git status --porcelain``
   stdout into ``str | None`` (clean → ``None``).
 
-Phase 5B keeps every helper on the Python implementation. No
-``sase_core_rs`` import happens here yet — the facade is intentionally
-shaped so Phase 5C can register Rust ``rust_impl`` callbacks one at a
-time without changing call sites. Phase 5D will route the helpers
-through :func:`sase.core.backend.dispatch` once the bindings exist.
+Phase 5D classifies all five helpers as **shipped** Rust operations:
+when ``sase_core_rs`` is importable and exposes the matching binding,
+:func:`sase.core.backend.dispatch` registers it as ``rust_impl`` and
+``SASE_CORE_BACKEND=rust`` routes through Rust. A missing binding under
+Rust mode raises :class:`sase.core.backend.RustBackendUnavailableError`
+rather than silently falling back. ``SASE_CORE_DUAL_RUN=1`` runs both
+implementations on every dispatched call and logs a comparison record
+to ``~/.sase/perf/core_dual_run.jsonl``.
 """
 
 from __future__ import annotations
 
 import os
 
-from sase.core.git_query_wire import GitNameStatusEntryWire
+from sase.core.backend import dispatch, load_rust_extension
+from sase.core.git_query_wire import (
+    GitNameStatusEntryWire,
+    git_name_status_entry_from_dict,
+)
 
 
 def _parse_git_name_status_z_python(stdout: str) -> list[GitNameStatusEntryWire]:
@@ -76,6 +83,44 @@ def _parse_git_name_status_z_python(stdout: str) -> list[GitNameStatusEntryWire]
 
 
 # pyvision: tests/test_core_git_query.py
+def parse_git_name_status_z_python(stdout: str) -> list[tuple[str, str]]:
+    """Public Python implementation of :func:`parse_git_name_status_z`.
+
+    Flattens the wire records produced by
+    :func:`_parse_git_name_status_z_python` into the legacy
+    ``list[tuple[str, str]]`` shape that ``vcs_diff_name_status``
+    consumes. Exposed at module scope (rather than as a closure inside
+    :func:`parse_git_name_status_z`) so the dual-run comparator and
+    parity tests can call it directly without going through the
+    backend dispatcher.
+    """
+    entries = _parse_git_name_status_z_python(stdout)
+    return [(entry.status, entry.path) for entry in entries]
+
+
+def _rust_parse_git_name_status_z_impl(stdout: str) -> list[tuple[str, str]]:
+    """Adapter from ``sase_core_rs.parse_git_name_status_z`` to flat tuples.
+
+    The PyO3 binding returns ``list[dict]`` (``{"status": ..., "path": ...}``).
+    The adapter rehydrates each dict via
+    :func:`git_name_status_entry_from_dict` and flattens to
+    ``list[tuple[str, str]]`` so the public facade output is
+    backend-independent.
+    """
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    raw: list[dict[str, str]] = rust_module.parse_git_name_status_z(stdout)  # type: ignore[attr-defined]
+    return [
+        (entry.status, entry.path)
+        for entry in (git_name_status_entry_from_dict(item) for item in raw)
+    ]
+
+
+# pyvision: tests/test_core_git_query.py
 def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     """Parse the NUL-delimited output of ``git diff --name-status -z``.
 
@@ -84,13 +129,47 @@ def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     carry their two paths joined by a literal tab character (``"<old>\\t<new>"``)
     so callers can split them apart without losing information.
 
-    Phase 5B keeps the implementation in Python. The wire records
-    produced internally by :func:`_parse_git_name_status_z_python` are
-    flattened back into tuples here so the public API stays
-    tuple-compatible with current call sites.
+    Routes through :func:`sase.core.backend.dispatch`: under
+    ``SASE_CORE_BACKEND=rust`` (with the Rust extension installed) the
+    call is served by ``sase_core_rs.parse_git_name_status_z`` and its
+    dict output is flattened into the legacy tuple shape inside
+    :func:`_rust_parse_git_name_status_z_impl`. Under
+    ``SASE_CORE_DUAL_RUN=1`` both implementations run and the results
+    are compared after flattening, so the comparison key is the public
+    tuple shape the call site sees.
     """
-    entries = _parse_git_name_status_z_python(stdout)
-    return [(entry.status, entry.path) for entry in entries]
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_parse_git_name_status_z_impl
+        if rust_module is not None and hasattr(rust_module, "parse_git_name_status_z")
+        else None
+    )
+    return dispatch(
+        operation="parse_git_name_status_z",
+        python_impl=parse_git_name_status_z_python,
+        rust_impl=rust_impl,
+        args=(stdout,),
+    )
+
+
+# pyvision: tests/test_core_git_query.py
+def parse_git_branch_name_python(stdout: str) -> str | None:
+    """Pure-Python implementation of :func:`parse_git_branch_name`."""
+    name = stdout.strip()
+    if not name or name == "HEAD":
+        return None
+    return name
+
+
+def _rust_parse_git_branch_name_impl(stdout: str) -> str | None:
+    """Adapter from ``sase_core_rs.parse_git_branch_name`` to ``str | None``."""
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    return rust_module.parse_git_branch_name(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
 # pyvision: tests/test_core_git_query.py
@@ -99,12 +178,61 @@ def parse_git_branch_name(stdout: str) -> str | None:
 
     Returns ``None`` when the stripped stdout is empty or equals
     ``"HEAD"`` (detached-HEAD state in the Git provider's contract).
-    Otherwise returns the trimmed branch name verbatim.
+    Otherwise returns the trimmed branch name verbatim. Routes through
+    the backend dispatcher; see :func:`parse_git_name_status_z` for the
+    Rust mode / dual-run contract.
     """
-    name = stdout.strip()
-    if not name or name == "HEAD":
-        return None
-    return name
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_parse_git_branch_name_impl
+        if rust_module is not None and hasattr(rust_module, "parse_git_branch_name")
+        else None
+    )
+    return dispatch(
+        operation="parse_git_branch_name",
+        python_impl=parse_git_branch_name_python,
+        rust_impl=rust_impl,
+        args=(stdout,),
+    )
+
+
+# pyvision: tests/test_core_git_query.py
+def derive_git_workspace_name_python(
+    remote_url: str | None, root_path: str | None
+) -> str | None:
+    """Pure-Python implementation of :func:`derive_git_workspace_name`."""
+    if remote_url is not None:
+        url = remote_url.strip()
+        if url:
+            # Use forward-slash splitting so SSH-style ``git@host:owner/repo.git``
+            # and URLs with ``://`` schemes both fall back to the trailing
+            # path segment that ``os.path.basename`` would produce.
+            name = url.rsplit("/", 1)[-1]
+            if name.endswith(".git"):
+                name = name[:-4]
+            if name:
+                return name
+            return None
+    if root_path is not None:
+        root = root_path.strip()
+        if root:
+            name = os.path.basename(root)
+            if name:
+                return name
+    return None
+
+
+def _rust_derive_git_workspace_name_impl(
+    remote_url: str | None, root_path: str | None
+) -> str | None:
+    """Adapter from ``sase_core_rs.derive_git_workspace_name``."""
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    return rust_module.derive_git_workspace_name(remote_url, root_path)  # type: ignore[attr-defined,no-any-return]
 
 
 # pyvision: tests/test_core_git_query.py
@@ -127,26 +255,40 @@ def derive_git_workspace_name(
     - Returning ``None`` indicates neither input produced a non-empty
       name; the Git provider surfaces this as a soft "could not
       determine workspace name" failure.
+
+    Routes through the backend dispatcher; see
+    :func:`parse_git_name_status_z` for the Rust mode / dual-run
+    contract.
     """
-    if remote_url is not None:
-        url = remote_url.strip()
-        if url:
-            # Use forward-slash splitting so SSH-style ``git@host:owner/repo.git``
-            # and URLs with ``://`` schemes both fall back to the trailing
-            # path segment that ``os.path.basename`` would produce.
-            name = url.rsplit("/", 1)[-1]
-            if name.endswith(".git"):
-                name = name[:-4]
-            if name:
-                return name
-            return None
-    if root_path is not None:
-        root = root_path.strip()
-        if root:
-            name = os.path.basename(root)
-            if name:
-                return name
-    return None
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_derive_git_workspace_name_impl
+        if rust_module is not None and hasattr(rust_module, "derive_git_workspace_name")
+        else None
+    )
+    return dispatch(
+        operation="derive_git_workspace_name",
+        python_impl=derive_git_workspace_name_python,
+        rust_impl=rust_impl,
+        args=(remote_url, root_path),
+    )
+
+
+# pyvision: tests/test_core_git_query.py
+def parse_git_conflicted_files_python(stdout: str) -> list[str]:
+    """Pure-Python implementation of :func:`parse_git_conflicted_files`."""
+    return [line for line in stdout.split("\n") if line.strip()]
+
+
+def _rust_parse_git_conflicted_files_impl(stdout: str) -> list[str]:
+    """Adapter from ``sase_core_rs.parse_git_conflicted_files``."""
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    return rust_module.parse_git_conflicted_files(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
 # pyvision: tests/test_core_git_query.py
@@ -156,9 +298,41 @@ def parse_git_conflicted_files(stdout: str) -> list[str]:
     The Git provider expects an empty list when ``stdout`` is empty (or
     contains only blank lines) so callers do not have to special-case
     "no conflicts". Whitespace-only lines are dropped; non-empty paths
-    are preserved verbatim (no rstrip beyond the line split).
+    are preserved verbatim (no rstrip beyond the line split). Routes
+    through the backend dispatcher; see :func:`parse_git_name_status_z`
+    for the Rust mode / dual-run contract.
     """
-    return [line for line in stdout.split("\n") if line.strip()]
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_parse_git_conflicted_files_impl
+        if rust_module is not None
+        and hasattr(rust_module, "parse_git_conflicted_files")
+        else None
+    )
+    return dispatch(
+        operation="parse_git_conflicted_files",
+        python_impl=parse_git_conflicted_files_python,
+        rust_impl=rust_impl,
+        args=(stdout,),
+    )
+
+
+# pyvision: tests/test_core_git_query.py
+def parse_git_local_changes_python(stdout: str) -> str | None:
+    """Pure-Python implementation of :func:`parse_git_local_changes`."""
+    text = stdout.strip()
+    return text if text else None
+
+
+def _rust_parse_git_local_changes_impl(stdout: str) -> str | None:
+    """Adapter from ``sase_core_rs.parse_git_local_changes``."""
+    rust_module = load_rust_extension()
+    if rust_module is None:
+        raise RuntimeError(
+            "sase_core_rs is not importable; the Rust backend was registered "
+            "but the extension module disappeared at call time."
+        )
+    return rust_module.parse_git_local_changes(stdout)  # type: ignore[attr-defined,no-any-return]
 
 
 # pyvision: tests/test_core_git_query.py
@@ -168,16 +342,33 @@ def parse_git_local_changes(stdout: str) -> str | None:
     Returns ``None`` when the stripped stdout is empty (clean tree); the
     original stripped text otherwise so the Git provider can echo it
     back as a dirty-tree summary. Mirrors the behavior of
-    ``vcs_has_local_changes`` on a successful command run.
+    ``vcs_has_local_changes`` on a successful command run. Routes
+    through the backend dispatcher; see :func:`parse_git_name_status_z`
+    for the Rust mode / dual-run contract.
     """
-    text = stdout.strip()
-    return text if text else None
+    rust_module = load_rust_extension()
+    rust_impl = (
+        _rust_parse_git_local_changes_impl
+        if rust_module is not None and hasattr(rust_module, "parse_git_local_changes")
+        else None
+    )
+    return dispatch(
+        operation="parse_git_local_changes",
+        python_impl=parse_git_local_changes_python,
+        rust_impl=rust_impl,
+        args=(stdout,),
+    )
 
 
 __all__ = [
     "derive_git_workspace_name",
+    "derive_git_workspace_name_python",
     "parse_git_branch_name",
+    "parse_git_branch_name_python",
     "parse_git_conflicted_files",
+    "parse_git_conflicted_files_python",
     "parse_git_local_changes",
+    "parse_git_local_changes_python",
     "parse_git_name_status_z",
+    "parse_git_name_status_z_python",
 ]

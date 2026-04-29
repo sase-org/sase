@@ -1,11 +1,12 @@
 # Optional Rust Backend (`sase_core_rs`)
 
 A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `evaluate_query_many`,
-`scan_agent_artifacts`, the status line helpers `read_status_from_lines` / `apply_status_update`, and the status
-transition planner `plan_status_transition`) can be served by an optional Rust extension built from a sibling
-[`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is **opt-in**: pure-Python installs keep
-working with no Rust toolchain, and every `just rust-*` target degrades to a friendly no-op when the sibling repo is
-absent.
+`scan_agent_artifacts`, the status line helpers `read_status_from_lines` / `apply_status_update`, the status transition
+planner `plan_status_transition`, and the Git query parsers `parse_git_name_status_z` / `parse_git_branch_name` /
+`derive_git_workspace_name` / `parse_git_conflicted_files` / `parse_git_local_changes`) can be served by an optional
+Rust extension built from a sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. The Rust backend is
+**opt-in**: pure-Python installs keep working with no Rust toolchain, and every `just rust-*` target degrades to a
+friendly no-op when the sibling repo is absent.
 
 `SASE_CORE_BACKEND=rust` is a hybrid per-operation mode: operations with shipped Rust bindings use Rust, while facade
 APIs that are intentionally unported use their Python implementation. Missing bindings for shipped Rust operations still
@@ -98,12 +99,13 @@ just rust-install /path/to/venv
 
 Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
 `RustBackendUnavailableError` rather than silently falling back. For example, `parse_project_bytes`, `parse_query`,
-`evaluate_query_many`, `scan_agent_artifacts`, `read_status_from_lines`, `apply_status_update`, and
-`plan_status_transition` require `sase_core_rs` to expose the corresponding binding. Query context/per-row evaluation,
-graph-index construction, and the side-effecting `transition_changespec_status` are intentionally unported today and
-fall back to Python under Rust mode. `transition_changespec_status` keeps an explicit `rust_unavailable="python"`
-fallback because dual-running the full transition would duplicate every disk-bound side effect; the pure decision step
-inside it routes through Rust via `plan_status_transition` instead.
+`evaluate_query_many`, `scan_agent_artifacts`, `read_status_from_lines`, `apply_status_update`,
+`plan_status_transition`, `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
+`parse_git_conflicted_files`, and `parse_git_local_changes` require `sase_core_rs` to expose the corresponding binding.
+Query context/per-row evaluation, graph-index construction, and the side-effecting `transition_changespec_status` are
+intentionally unported today and fall back to Python under Rust mode. `transition_changespec_status` keeps an explicit
+`rust_unavailable="python"` fallback because dual-running the full transition would duplicate every disk-bound side
+effect; the pure decision step inside it routes through Rust via `plan_status_transition` instead.
 
 `is_rust_available()` is a lazy, forgiving probe: an `ImportError` simply reports `False` so a pure-Python install is
 never broken; other import-time failures propagate so a _misbuilt_ wheel surfaces immediately.
@@ -236,6 +238,23 @@ loop.
   SSH-style/path-like remotes, root-path fallback, conflicted-file blank-line stripping, and clean-vs-dirty
   `git status --porcelain` normalization. No production caller is routed through the facade yet — Phase 5C implements
   the Rust pure parsers in `../sase-core` and Phase 5D wires `git_query_facade` into the backend dispatcher.
+- **Phase 5C** _(complete)_ — Pure Rust Git query parser module landed in `../sase-core/crates/sase_core/src/git_query/`
+  (wire struct + the five pinned parsers) with serde-compatible output and inline + `tests/git_query_parity.rs` cases
+  that mirror `tests/test_core_git_query.py` byte-for-byte. PyO3 bindings on `sase_core_rs` expose
+  `parse_git_name_status_z` (returning `list[dict]`), `parse_git_branch_name`, `derive_git_workspace_name`,
+  `parse_git_conflicted_files`, and `parse_git_local_changes`. No production caller is routed through Rust yet —
+  `git_query_facade.py` continues to dispatch every operation to Python.
+- **Phase 5D** _(complete)_ — `git_query_facade` registers the five `sase_core_rs` Git query bindings as `rust_impl`
+  callbacks whenever the extension is importable. `SASE_CORE_BACKEND=rust` routes every helper through Rust, including
+  rehydrating the Rust `parse_git_name_status_z` dict output back into the legacy `list[tuple[str, str]]` shape so call
+  sites are backend-independent. Missing bindings under Rust mode raise `RustBackendUnavailableError` (the helpers are
+  classified as shipped Rust operations). `SASE_CORE_DUAL_RUN=1` runs both implementations on every dispatched call and
+  logs comparison records to `~/.sase/perf/core_dual_run.jsonl`, with the comparison key being the public tuple shape
+  for `parse_git_name_status_z` and primitives for the other four. `tests/test_core_git_query.py` adds backend-dispatch
+  tests with a fake `sase_core_rs` module (default-Python pass-through, Rust routing, missing-binding
+  `RustBackendUnavailableError`, dual-run match + mismatch records) plus a real-extension parity test guarded by
+  `pytest.importorskip("sase_core_rs")`. `GitQueryOpsMixin` is intentionally still untouched — Phase 5E swaps the inline
+  parsing for facade calls.
 - **Future phases** — Additional facade operations (graph index, status helpers, agent-status state machine) become
   candidates for Rust re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears
   where Rust scan time is small but Python adaptation dominates.
