@@ -145,9 +145,7 @@ def find_first_diff_path(
     if isinstance(python_result, list) and isinstance(rust_result, list):
         if len(python_result) != len(rust_result):
             return prefix or "."
-        for i, (py_v, rs_v) in enumerate(
-            zip(python_result, rust_result, strict=False)
-        ):
+        for i, (py_v, rs_v) in enumerate(zip(python_result, rust_result, strict=False)):
             sub = find_first_diff_path(py_v, rs_v, f"{prefix}/{i}")
             if sub is not None:
                 return sub
