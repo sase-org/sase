@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 19:30:38
-status: wip
+status: done
 ---
 # Plan: Fix CI dependency resolution for `sase-core-rs`
 

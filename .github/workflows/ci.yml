@@ -9,15 +9,25 @@ on:
 permissions:
   contents: read
 
+env:
+  SASE_CORE_DIR: ${{ github.workspace }}/sase-core
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -78,10 +88,17 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -115,10 +132,17 @@ jobs:
       SASE_CORE_BACKEND: python
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -142,10 +166,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -174,10 +205,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -201,10 +239,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
@@ -235,10 +280,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install just
         run: |
           curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz

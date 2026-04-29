@@ -5,17 +5,27 @@ venv_bin := venv_dir / "bin"
 venv_dir_abs := justfile_directory() / venv_dir
 venv_bin_abs := justfile_directory() / venv_bin
 
-# Sibling Rust core repo. Phase 1 Rust backend is opt-in; targets that
-# operate on it print a friendly message and exit 0 when the repo is
-# missing so pure-Python contributors are never blocked.
-sase_core_dir := "../sase-core"
+# Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
+# checking out sase-core inside the Actions workspace.
+sase_core_dir := env_var_or_default("SASE_CORE_DIR", "../sase-core")
 
 default:
     @just --list
 
-# Bootstrap .venv if it doesn't exist
-_setup:
+# Bootstrap .venv if it doesn't exist.
+_venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
+
+# Bootstrap .venv and install editable dev dependencies. Build the local
+# Rust extension first when a source checkout and Rust toolchain are
+# available, because `sase[dev]` depends on the `sase-core-rs` distribution.
+_setup: _venv
+    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+        {{ venv_bin }}/python -c "import sase_core_rs" > /dev/null 2>&1 || { \
+            printf "[setup] Building sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
+            just rust-install; \
+        }; \
+    fi
     @{{ venv_bin }}/mypy --version > /dev/null 2>&1 || uv pip install --reinstall-package mypy -e ".[dev]"
 
 # Print a box header for a top-level command (private helper)
@@ -25,13 +35,13 @@ _header NAME:
     @printf "│                RUNNING: just %-25s│\n" "{{ NAME }}"
     @printf "└───────────────────────────────────────────────────────┘\n"
 
-# Install in editable mode with dev dependencies. If a sibling
-# `../sase-core` checkout is present and a Rust toolchain is on PATH,
-# build and install `sase_core_rs` from source first so the pyproject
-# dependency on `sase-core-rs` is satisfied without round-tripping
-# through PyPI. Released `sase` wheels resolve the same dependency
-# from the published `sase-core-rs` distribution instead.
-install: _setup
+# Install in editable mode with dev dependencies. If a local sase-core
+# checkout is present and a Rust toolchain is on PATH, build and install
+# `sase_core_rs` from source first so the pyproject dependency on
+# `sase-core-rs` is satisfied before editable resolution. Released `sase`
+# wheels resolve the same dependency from the published `sase-core-rs`
+# distribution instead.
+install: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
         printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just rust-install; \
@@ -178,15 +188,15 @@ dev-shell:
     @VIRTUAL_ENV="$(pwd)/.venv" PATH="$(pwd)/.venv/bin:$$PATH" $SHELL
 
 # --- Optional Rust backend (../sase-core) ---
-# These targets are no-ops when ../sase-core is absent so pure-Python
-# installs (`just install`) keep working without a Rust toolchain.
+# Rust-only helper targets are no-ops when the configured sase-core
+# checkout is absent.
 
 # Build and install the optional `sase_core_rs` PyO3 extension into a venv
 # (defaults to the repo `.venv`). Requires `cargo` and installs `maturin`
 # into the target venv on demand. Pass an explicit venv path to install
 # into any other venv (e.g. `just rust-install /path/to/venv`); see also
 # `rust-install-uv-tool` for the uv-tool case.
-rust-install VENV=venv_dir_abs: _setup
+rust-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
         exit 0; \
