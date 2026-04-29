@@ -111,6 +111,32 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     assert parent.status == "PLANNING"
 
 
+def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
+    """A rejected plan is terminal, not another plan awaiting approval."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="PLAN REJECTED",
+        start_time=datetime(2026, 4, 17, 16, 33, 26),
+        raw_suffix="20260417163326",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 4, 17, 16, 45, 16),
+        parent_timestamp="20260417163326",
+        role_suffix=".2",
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN REJECTED"
+
+
 def test_apply_status_overrides_done_with_active_code_followup_becomes_plan_approved() -> (
     None
 ):

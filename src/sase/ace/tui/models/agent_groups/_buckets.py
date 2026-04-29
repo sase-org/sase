@@ -60,7 +60,7 @@ _STATUS_BUCKETS: tuple[str, ...] = (
 #   * ``FAILED`` without ``retried_as_timestamp`` (handled by the
 #     ``startswith("FAILED")`` branch below, not by this frozenset)
 #
-# ``PLAN DONE`` and ``EPIC CREATED`` are post-plan handoff states: the
+# ``PLAN DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are post-plan handoff states: the
 # planning work is finished and any code work has been spun off, so they
 # read as **Done**.  ``PLAN APPROVED`` is an actively executing state and
 # reads as **Running**.  All ``WAITING`` variants land in **Waiting**
@@ -71,7 +71,9 @@ _NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
 #: ``stop_time``.  Shared by :func:`status_bucket_for` (which maps these
 #: into the ``Done`` bucket) and :func:`walk_anchors` (which sorts these
 #: by ``stop_time`` rather than ``start_time``).
-_TERMINAL_STATUSES: frozenset[str] = frozenset({"DONE", "PLAN DONE", "EPIC CREATED"})
+_TERMINAL_STATUSES: frozenset[str] = frozenset(
+    {"DONE", "PLAN DONE", "PLAN REJECTED", "EPIC CREATED"}
+)
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from
 # plans/202604/agents_tab_query_filters.md — covers the statuses where the
@@ -108,7 +110,8 @@ def date_bucket_for(agent: Agent, now: datetime) -> str:
 def hour_anchor_time(agent: Agent) -> datetime | None:
     """Return the datetime an agent's hour bucket should anchor on.
 
-    Terminal agents (``DONE`` / ``PLAN DONE`` / ``EPIC CREATED``) anchor on
+    Terminal agents (``DONE`` / ``PLAN DONE`` / ``PLAN REJECTED`` /
+    ``EPIC CREATED``) anchor on
     ``stop_time`` (falling back to ``start_time`` when missing); everything
     else anchors on ``start_time``.  Mirrors :func:`walk_anchors` so the
     hour banner emitted for an agent always agrees with the anchor used

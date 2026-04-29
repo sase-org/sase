@@ -366,6 +366,10 @@ def _load_done_agent_for_dir(
                 status = "FAILED"
             error_message = data.get("error")
             error_traceback = data.get("traceback")
+        elif outcome == "plan_rejected":
+            status = "PLAN REJECTED"
+            error_message = None
+            error_traceback = None
         else:
             status = "DONE"
             error_message = None

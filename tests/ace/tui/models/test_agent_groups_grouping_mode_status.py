@@ -34,6 +34,11 @@ def test_status_bucket_plan_done_is_done() -> None:
     assert _status_bucket_for(_agent(status="PLAN DONE")) == "Done"
 
 
+def test_status_bucket_plan_rejected_is_done() -> None:
+    """``PLAN REJECTED`` is a terminal plan decision, not active planning."""
+    assert _status_bucket_for(_agent(status="PLAN REJECTED")) == "Done"
+
+
 def test_status_bucket_epic_created_is_done() -> None:
     """``EPIC CREATED`` is a post-plan handoff state — code work has been spun off."""
     assert _status_bucket_for(_agent(status="EPIC CREATED")) == "Done"

@@ -60,6 +60,7 @@ class _AgentExecResult:
     """Result from the execution loop."""
 
     success: bool
+    outcome: str = "completed"
     saved_path: str | None = None
     diff_path: str | None = None
     current_artifacts_dir: str = ""
@@ -269,6 +270,7 @@ def _finalize_loop(
 
     return _AgentExecResult(
         success=state.loop_outcome == "completed",
+        outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,
         current_artifacts_dir=state.current_artifacts_dir,

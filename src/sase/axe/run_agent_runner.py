@@ -49,6 +49,11 @@ from sase.telemetry.metrics import (
 install_sigterm_handler("agent", soft=True)
 
 
+def _classify_exec_success(*, success: bool, outcome: str) -> bool:
+    """Map execution-loop outcomes to runner success semantics."""
+    return success or outcome == "plan_rejected"
+
+
 def _send_completion_notification(
     *,
     cl_name: str,
@@ -66,9 +71,13 @@ def _send_completion_notification(
     output_path: str,
     step_output: dict[str, Any] | None,
     prompt: str,
+    outcome: str | None = None,
 ) -> None:
     from sase.llm_provider.registry import format_provider_model_label
     from sase.notifications.senders import notify_workflow_complete
+
+    if outcome == "plan_rejected":
+        return
 
     extra_files = [p for p in [saved_path, diff_path] if p]
 
@@ -189,6 +198,7 @@ def main() -> None:
     saved_path: str | None = None
     diff_path: str | None = None
     step_output: dict[str, Any] | None = None
+    exec_outcome = ""
     error_summary: str | None = None
     error_traceback_str: str | None = None
 
@@ -503,7 +513,11 @@ def main() -> None:
             )
 
             exec_result = run_execution_loop(ctx, prompt)
-            success = exec_result.success
+            exec_outcome = exec_result.outcome
+            success = _classify_exec_success(
+                success=exec_result.success,
+                outcome=exec_outcome,
+            )
             saved_path = exec_result.saved_path
             diff_path = exec_result.diff_path
             current_artifacts_dir = exec_result.current_artifacts_dir
@@ -666,6 +680,7 @@ def main() -> None:
                 output_path=output_path,
                 step_output=step_output,
                 prompt=prompt,
+                outcome=exec_outcome,
             )
 
     sys.exit(0 if success else 1)

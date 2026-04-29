@@ -10,7 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_runner import _send_completion_notification
+from sase.axe.run_agent_runner import (
+    _classify_exec_success,
+    _send_completion_notification,
+)
 
 
 @pytest.fixture
@@ -63,3 +66,21 @@ def test_hidden_agent_failure_still_silent(base_kwargs):
 
     assert mock_notify.call_args.kwargs["silent"] is True
     assert mock_notify.call_args.kwargs["success"] is False
+
+
+def test_plan_rejected_suppresses_completion_notification(base_kwargs):
+    base_kwargs["success"] = True
+    base_kwargs["outcome"] = "plan_rejected"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        _send_completion_notification(**base_kwargs)
+
+    mock_notify.assert_not_called()
+
+
+def test_plan_rejected_classifies_as_runner_success():
+    assert _classify_exec_success(success=False, outcome="plan_rejected") is True
+
+
+def test_real_failure_stays_runner_failure():
+    assert _classify_exec_success(success=False, outcome="killed") is False

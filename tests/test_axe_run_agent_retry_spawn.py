@@ -548,6 +548,26 @@ class TestDoneJsonRetriedStatus:
         assert agent.status == "FAILED"
         assert agent.retried_as_timestamp is None
 
+    def test_plan_rejected_displays_plan_rejected(self, tmp_path: Path) -> None:
+        from sase.ace.tui.models._loaders._artifact_loaders import (
+            _load_done_agent_for_dir,
+        )
+
+        artifact_dir = tmp_path / "20260424120000"
+        artifact_dir.mkdir()
+        done = {
+            "cl_name": "branch-x",
+            "project_file": str(tmp_path / "project.gp"),
+            "outcome": "plan_rejected",
+            "workspace_num": 7,
+            "output_path": str(tmp_path / "out.log"),
+        }
+        (artifact_dir / "done.json").write_text(json.dumps(done))
+
+        agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+        assert agent is not None
+        assert agent.status == "PLAN REJECTED"
+
 
 # ---------------------------------------------------------------------------
 # ProviderRetryConfig spawn_new_agent merge precedence

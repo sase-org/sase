@@ -125,6 +125,8 @@ def format_agent_option(
         text.append(agent.status, style="bold #FFD700")  # Gold
     elif agent.status in ("DONE", "PLAN DONE"):
         text.append(agent.status, style="bold #5FD75F")  # Green
+    elif agent.status == "PLAN REJECTED":
+        text.append(agent.status, style="bold #D7AF5F")  # Muted gold
     elif agent.status == "EPIC CREATED":
         text.append(agent.status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":

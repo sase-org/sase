@@ -472,6 +472,7 @@ class AgentRevivalMixin:
             "DONE",
             "PLAN DONE",
             "PLAN COMMITTED",
+            "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",
         }:
@@ -493,6 +494,7 @@ class AgentRevivalMixin:
             "DONE",
             "PLAN DONE",
             "PLAN COMMITTED",
+            "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",
         }:
@@ -587,7 +589,12 @@ class AgentRevivalMixin:
         Mirrors the fields that load_done_agents() reads so revived agents
         appear identical to their originals.
         """
-        outcome = "failed" if agent.status == "FAILED" else "completed"
+        if agent.status == "FAILED":
+            outcome = "failed"
+        elif agent.status == "PLAN REJECTED":
+            outcome = "plan_rejected"
+        else:
+            outcome = "completed"
         data: dict[str, Any] = {
             "status": "DONE",
             "cl_name": agent.cl_name,
@@ -681,6 +688,7 @@ class AgentRevivalMixin:
             "PLAN APPROVED",
             "PLAN COMMITTED",
             "PLAN DONE",
+            "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",
             "QUESTION",
