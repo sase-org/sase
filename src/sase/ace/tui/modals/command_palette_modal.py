@@ -25,6 +25,7 @@ from sase.ace.tui.commands import (
     CommandPaletteResult,
     CommandSpec,
     CommandTab,
+    sort_specs_by_category,
 )
 
 from .base import FilterInput
@@ -175,9 +176,10 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         tab: CommandTab = "changespecs",
     ) -> None:
         super().__init__()
-        self._all_specs: list[CommandSpec] = list(specs)
+        ordered = sort_specs_by_category(specs)
+        self._all_specs: list[CommandSpec] = ordered
         self._tab: CommandTab = tab
-        self._filtered_specs: list[CommandSpec] = list(specs)
+        self._filtered_specs: list[CommandSpec] = list(ordered)
 
     # -------- compose / mount --------
 

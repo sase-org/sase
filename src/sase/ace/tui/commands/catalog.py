@@ -23,6 +23,7 @@ from dataclasses import fields
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.commands.types import (
+    CATEGORY_ORDER,
     CommandCategory,
     CommandExecutor,
     CommandSpec,
@@ -312,6 +313,7 @@ _LEADER_LABELS: dict[str, str] = {
     "prompt_history": "Prompt history",
     "prompt_history_cancelled": "Prompt history (cancelled)",
     "jump_to_notification": "Jump to notification",
+    "temporary_llm_override": "Temporary model override",
 }
 
 _BANG_LABELS: dict[str, str] = {
@@ -535,3 +537,34 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(iter_digit_commands())
     catalog.extend(iter_mode_commands(registry))
     return catalog
+
+
+def sort_specs_by_category(specs: list[CommandSpec]) -> list[CommandSpec]:
+    """Return *specs* reordered to mirror the help modal sections.
+
+    Uses :data:`CATEGORY_ORDER` as the primary key and the original
+    list position as a stable tie-breaker so commands in the same
+    category keep their catalog order. Categories not listed in
+    :data:`CATEGORY_ORDER` sort to the end in their existing order.
+    """
+    order = {cat: i for i, cat in enumerate(CATEGORY_ORDER)}
+    fallback = len(order)
+    indexed = list(enumerate(specs))
+    indexed.sort(key=lambda t: (order.get(t[1].category, fallback), t[0]))
+    return [s for _, s in indexed]
+
+
+def get_command_by_id(
+    catalog: list[CommandSpec], command_id: str
+) -> CommandSpec | None:
+    """Return the :class:`CommandSpec` with the given id or ``None``.
+
+    Lookup helper used by footer/help to source labels and key
+    displays from the same catalog the palette renders, keeping the
+    three surfaces in sync without each one re-deriving keys from the
+    raw registry.
+    """
+    for spec in catalog:
+        if spec.id == command_id:
+            return spec
+    return None

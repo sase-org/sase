@@ -62,6 +62,38 @@ CommandCategory = Literal[
 """Stable category labels grouped by the help modal's existing structure."""
 
 
+CATEGORY_ORDER: tuple[CommandCategory, ...] = (
+    "Navigation",
+    "Tabs",
+    "CL Actions",
+    "ChangeSpec Edits",
+    "Proposals & Sync",
+    "Folding",
+    "Marking",
+    "Agents",
+    "Axe",
+    "Grouping",
+    "Display",
+    "Tree Navigation",
+    "Workspace",
+    "Modes",
+    "Queries",
+    "Saved Queries",
+    "Fold",
+    "Copy",
+    "Leader",
+    "Bang",
+    "Custom",
+    "Misc",
+)
+"""Display order that mirrors the help modal sections.
+
+Used by the palette modal to group rows by category in a stable,
+help-aligned order rather than alphabetic. Categories not listed here
+sort to the end in their existing order (Python stable sort).
+"""
+
+
 # ---------------------------------------------------------------------------
 # Executor descriptor
 # ---------------------------------------------------------------------------
