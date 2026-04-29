@@ -18,14 +18,12 @@ when the wheel is missing.
 from __future__ import annotations
 
 import os
-from enum import Enum
-from typing import Callable, TypeVar
-
-T = TypeVar("T")
+from collections.abc import Callable
+from enum import StrEnum
 
 
 # pyvision: tests/test_core_backend.py
-class Backend(str, Enum):
+class Backend(StrEnum):
     """Selected backend for sase.core dispatched operations."""
 
     PYTHON = "python"
@@ -80,7 +78,7 @@ def is_rust_available() -> bool:
     return False
 
 
-def dispatch(
+def dispatch[T](
     operation: str,
     *,
     python_impl: Callable[..., T],

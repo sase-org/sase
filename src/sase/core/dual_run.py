@@ -33,12 +33,11 @@ import json
 import os
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, TypeVar
-
-T = TypeVar("T")
+from typing import Any
 
 DUAL_RUN_LOG_FILENAME = "core_dual_run.jsonl"
 DUAL_RUN_LOG_SUBDIR = "perf"
@@ -116,7 +115,7 @@ def compute_input_hash(*parts: Any) -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # pyvision: tests/test_core_dual_run.py
@@ -146,7 +145,9 @@ def find_first_diff_path(
     if isinstance(python_result, list) and isinstance(rust_result, list):
         if len(python_result) != len(rust_result):
             return prefix or "."
-        for i, (py_v, rs_v) in enumerate(zip(python_result, rust_result)):
+        for i, (py_v, rs_v) in enumerate(
+            zip(python_result, rust_result, strict=False)
+        ):
             sub = find_first_diff_path(py_v, rs_v, f"{prefix}/{i}")
             if sub is not None:
                 return sub
@@ -154,7 +155,7 @@ def find_first_diff_path(
     return prefix or "."
 
 
-def run_with_comparison(
+def run_with_comparison[T](
     *,
     operation: str,
     python_impl: Callable[..., T],
