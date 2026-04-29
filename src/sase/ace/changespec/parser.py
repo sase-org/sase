@@ -6,6 +6,7 @@ from .models import (
     ChangeSpec,
     CommentEntry,
     CommitEntry,
+    DeltaEntry,
     HookEntry,
     MentorEntry,
     TimestampEntry,
@@ -15,6 +16,7 @@ from .section_parsers import (
     build_commit_entry,
     parse_comments_line,
     parse_commits_line,
+    parse_deltas_line,
     parse_hooks_line,
     parse_mentors_line,
     parse_timestamps_line,
@@ -44,6 +46,7 @@ class _ParserState:
         self.mentor_entries: list[MentorEntry] = []
         self.current_mentor_entry: MentorEntry | None = None
         self.timestamp_entries: list[TimestampEntry] = []
+        self.delta_entries: list[DeltaEntry] = []
 
         # Metadata
         self.line_number = start_idx + 1  # Convert to 1-based line numbering
@@ -58,6 +61,7 @@ class _ParserState:
         self.in_comments = False
         self.in_mentors = False
         self.in_timestamps = False
+        self.in_deltas = False
 
     def reset_section_flags(self) -> None:
         """Reset all section flags to False."""
@@ -69,6 +73,7 @@ class _ParserState:
         self.in_comments = False
         self.in_mentors = False
         self.in_timestamps = False
+        self.in_deltas = False
 
     def save_pending_entries(self) -> None:
         """Save any pending entries before switching sections or finalizing."""
@@ -109,6 +114,7 @@ class _ParserState:
                 comments=self.comment_entries if self.comment_entries else None,
                 mentors=self.mentor_entries if self.mentor_entries else None,
                 timestamps=self.timestamp_entries if self.timestamp_entries else None,
+                deltas=self.delta_entries if self.delta_entries else None,
             )
         return None
 
@@ -208,6 +214,12 @@ def _parse_section_header(state: _ParserState, line: str) -> bool:
         state.in_timestamps = True
         return True
 
+    if line.startswith("DELTAS:"):
+        state.save_pending_entries()
+        state.reset_section_flags()
+        state.in_deltas = True
+        return True
+
     if line.startswith("TEST TARGETS:"):
         state.save_pending_entries()
         state.reset_section_flags()
@@ -230,6 +242,8 @@ def _parse_section_content(state: _ParserState, line: str) -> None:
         state.timestamp_entries = parse_timestamps_line(
             line, stripped, state.timestamp_entries
         )
+    elif state.in_deltas:
+        state.delta_entries = parse_deltas_line(line, stripped, state.delta_entries)
     elif state.in_hooks:
         state.current_hook_entry, state.hook_entries = parse_hooks_line(
             line, stripped, state.current_hook_entry, state.hook_entries

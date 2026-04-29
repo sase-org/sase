@@ -8,6 +8,7 @@ from ..hooks.test_targets import expand_test_target_shorthand
 from .models import (
     CommentEntry,
     CommitEntry,
+    DeltaEntry,
     HookEntry,
     HookStatusLine,
     MentorEntry,
@@ -15,6 +16,9 @@ from .models import (
     TimestampEntry,
 )
 from .suffix_utils import parse_suffix_prefix
+
+
+_DELTA_GLYPH_TO_TYPE = {"+": "A", "~": "M", "-": "D"}
 
 
 class CommitEntryDict(TypedDict, total=False):
@@ -393,6 +397,35 @@ def parse_commits_line(
     # (blank lines or other content will be ignored)
 
     return current_commit_entry, commit_entries
+
+
+def parse_deltas_line(
+    line: str,
+    stripped: str,
+    delta_entries: list[DeltaEntry],
+) -> list[DeltaEntry]:
+    """Parse a single line in DELTAS section.
+
+    Format: ``  <glyph> <path>`` where glyph is ``+``, ``~``, or ``-``.
+
+    Args:
+        line: The original line (with leading whitespace and trailing newline).
+        stripped: The stripped line content.
+        delta_entries: List of completed delta entries.
+
+    Returns:
+        Updated delta_entries list.
+    """
+    del stripped  # path may contain trailing whitespace; match raw line instead.
+    if not (line.startswith("  ") and not line.startswith("   ")):
+        return delta_entries
+    match = re.match(r"^  ([+~\-]) (.+)$", line.rstrip("\n"))
+    if match:
+        glyph = match.group(1)
+        path = match.group(2)
+        change_type = _DELTA_GLYPH_TO_TYPE[glyph]
+        delta_entries.append(DeltaEntry(path=path, change_type=change_type))
+    return delta_entries
 
 
 def parse_timestamps_line(

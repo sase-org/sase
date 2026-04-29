@@ -404,6 +404,25 @@ class CommentEntry:
 
 
 @dataclass
+class DeltaEntry:
+    """Represents a single entry in the DELTAS field.
+
+    Format in file (single-character status glyph + path):
+      + path/to/added_file.py
+      ~ path/to/modified_file.py
+      - path/to/deleted_file.py
+
+    The on-disk glyphs map to long-form change types stored on the dataclass:
+      "+" -> "A" (added)
+      "~" -> "M" (modified)
+      "-" -> "D" (deleted)
+    """
+
+    path: str
+    change_type: str  # "A" (added), "M" (modified), "D" (deleted)
+
+
+@dataclass
 class TimestampEntry:
     """Represents a single entry in the TIMESTAMPS field.
 
@@ -440,6 +459,7 @@ class ChangeSpec:
     comments: list[CommentEntry] | None = None
     mentors: list[MentorEntry] | None = None
     timestamps: list[TimestampEntry] | None = None
+    deltas: list[DeltaEntry] | None = None
 
     @property
     def project_basename(self) -> str:
