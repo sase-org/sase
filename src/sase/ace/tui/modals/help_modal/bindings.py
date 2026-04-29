@@ -204,6 +204,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'temporary_llm_override'))}",
+                    "Temporary model override",
+                ),
             ],
         ),
         (
@@ -391,6 +395,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'temporary_llm_override'))}",
+                    "Temporary model override",
+                ),
             ],
         ),
         (
@@ -552,6 +560,10 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
+                ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'temporary_llm_override'))}",
+                    "Temporary model override",
                 ),
             ],
         ),

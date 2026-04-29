@@ -172,6 +172,11 @@ llm_provider:
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                      |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                      |
 
+The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
+override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are
+deleted on next read. See [docs/llms.md](llms.md#temporary-default-override) for the resolution order, state-file
+format, and precedence relative to `SASE_MODEL_TIER_OVERRIDE`.
+
 #### `llm_provider.retry`
 
 Per-provider retry and fallback configuration. See [docs/llms.md](llms.md#retry-and-fallback) for the full retry flow

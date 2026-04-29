@@ -14,6 +14,7 @@ orchestration layer that handles preprocessing, invocation, and postprocessing.
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Model Tier System](#model-tier-system)
+- [Temporary Default Override](#temporary-default-override)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Prompt Preprocessing Pipeline](#prompt-preprocessing-pipeline)
@@ -342,6 +343,92 @@ use the specified tier regardless of what the caller requests.
 2. `SASE_MODEL_SIZE_OVERRIDE` env var (legacy, same values)
 3. `--model-tier` / `--model-size` CLI flag (sets the env var)
 4. Caller's `model_tier` parameter (default: `"large"`)
+
+## Temporary Default Override
+
+In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
+temporary session-level default. This is the override the ACE `,P` chord writes (see
+[docs/ace.md](ace.md#temporary-model-override) for the TUI flow).
+
+The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
+affect:
+
+- Already-running agents — they keep whatever provider/model they were launched with.
+- Explicit `%model` prompt directives — they still take precedence.
+- An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
+- `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` — those force a tier across all invocations regardless of this
+  override; they layer on top, not under.
+
+### Resolution Order (default provider/model)
+
+When no `%model` directive and no explicit `provider_name` are present, the default is resolved as:
+
+1. **Active temporary override** at `~/.sase/llm_override.json` (if not expired).
+2. `llm_provider.provider` from the merged `sase.yml` config.
+3. Auto-detection (claude on PATH, then codex, else gemini).
+
+A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
+the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the
+configured default.
+
+### State File
+
+```json
+{
+  "provider": "codex",
+  "model": "o3",
+  "raw_model": "codex/o3",
+  "created_at": 1777470000.0,
+  "expires_at": 1777473600.0,
+  "source": "ace"
+}
+```
+
+| Field        | Type            | Description                                                             |
+| ------------ | --------------- | ----------------------------------------------------------------------- |
+| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"gemini"`).        |
+| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).          |
+| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"` or just `"o3"`).                 |
+| `created_at` | `float`         | Unix timestamp when the override was set.                               |
+| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
+| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
+
+Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: an expired or unparseable file is
+deleted on next access, so a forgotten override never lingers past its `expires_at`, even with no TUI running.
+
+### Model Resolution
+
+The user-supplied `raw_model` is normalized through the same rules as `%model`:
+
+- `provider/model` selects the provider explicitly (e.g. `codex/o3`).
+- A bare known model name infers its provider from plugin metadata (e.g. `sonnet` → claude).
+- An unknown bare model is accepted and runs on the current default provider, matching `%model` behavior.
+
+### Duration Parsing
+
+Durations accept compact unit suffixes: `15m`, `1h`, `1h30m`, `90m`, `2h15m30s`. Bare integers are interpreted as
+minutes (`45` → 45 minutes). The case-insensitive sentinel `until cleared` (or `until_cleared`) means "no expiry —
+persists until the user clears it from the TUI or another sase process clears the state file."
+
+### Public API
+
+The override primitives live in `src/sase/llm_provider/temporary_override.py`:
+
+| Function                                     | Purpose                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `get_active_temporary_override(now=None)`    | Read the active override (auto-deletes expired/malformed files). |
+| `set_temporary_override(raw, dur, source=)`  | Write a new override, replacing any existing one.                |
+| `clear_temporary_override()`                 | Remove the override file. Safe to call when nothing is active.   |
+| `parse_override_duration(value)`             | Parse a user-facing duration string into seconds (or `None`).    |
+| `resolve_effective_default_provider_model()` | Centralized helper used by metadata pre-resolution paths.        |
+
+### Examples
+
+- ACE chord `,P`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
+  CODEX(o3) for the next hour.
+- ACE chord `,P`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
+- ACE chord `,P`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
+  config / autodetect.
 
 ## Environment Variables
 

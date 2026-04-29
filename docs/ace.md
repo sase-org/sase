@@ -180,18 +180,19 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                            |
-| ---------- | ----------------------------------------------------------------- |
-| `,!`       | Run command using current CL context                              |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)    |
-| `,h`       | Run agent (home directory)                                        |
-| `,m`       | Review mentors (opens Mentor Review modal)                        |
-| `,M`       | Kill running mentors                                              |
-| `,r`       | Show runners info                                                 |
-| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal)) |
-| `,<space>` | Run agent from current CL (skips project selection)               |
-| `,.`       | Open prompt history modal for the last CL                         |
-| `,>`       | Open prompt history modal with cancelled prompts visible          |
+| Key        | Action                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `,!`       | Run command using current CL context                                                          |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
+| `,h`       | Run agent (home directory)                                                                    |
+| `,m`       | Review mentors (opens Mentor Review modal)                                                    |
+| `,M`       | Kill running mentors                                                                          |
+| `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,r`       | Show runners info                                                                             |
+| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
+| `,<space>` | Run agent from current CL (skips project selection)                                           |
+| `,.`       | Open prompt history modal for the last CL                                                     |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
@@ -446,17 +447,18 @@ cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                      |
-| ---------- | --------------------------------------------------------------------------- |
-| `,h`       | Run agent (home directory)                                                  |
-| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)        |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)       |
-| `,r`       | Edit prompt and relaunch agent (retry without killing)                      |
-| `,x`       | Kill agent & edit prompt                                                    |
-| `,X`       | Kill & dismiss every agent (running and completed) in the focused tag panel |
-| `,<space>` | Run agent from current agent's CL (skips selection)                         |
-| `,.`       | Open prompt history modal for the last CL                                   |
-| `,>`       | Open prompt history modal with cancelled prompts visible                    |
+| Key        | Action                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `,h`       | Run agent (home directory)                                                                    |
+| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
+| `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |
+| `,x`       | Kill agent & edit prompt                                                                      |
+| `,X`       | Kill & dismiss every agent (running and completed) in the focused tag panel                   |
+| `,<space>` | Run agent from current agent's CL (skips selection)                                           |
+| `,.`       | Open prompt history modal for the last CL                                                     |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 ### Bang Mode (`!` prefix)
 
@@ -497,10 +499,11 @@ cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                     |
-| ---- | -------------------------- |
-| `,h` | Run agent (home directory) |
-| `,r` | Show runners info          |
+| Key  | Action                                                                                        |
+| ---- | --------------------------------------------------------------------------------------------- |
+| `,h` | Run agent (home directory)                                                                    |
+| `,P` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
+| `,r` | Show runners info                                                                             |
 
 ### Bang Mode (`!` prefix)
 
@@ -573,6 +576,40 @@ These work on all tabs:
 When quitting (`q` or `Q`) while background tasks are still running (task queue workers or background command slots), a
 confirmation dialog appears showing the count of active tasks and asking whether to kill them and quit. Declining the
 dialog cancels the quit and returns to the TUI.
+
+## Temporary Model Override
+
+Press `,P` from any tab to open the **Temporary Model Override** modal. It sets a session-level default provider/model
+for new agent launches without editing `~/.config/sase/sase.yml`.
+
+**When no override is active**, the modal shows the current resolved default (e.g. `Default: CLAUDE(opus)`) and offers a
+**Set override** action. Pick a known model from the provider-grouped picker, or use **Custom...** to enter a freeform
+`provider/model` (e.g. `codex/o3`). Then choose a duration — quick options are `15m`, `30m`, `1h`, `2h`, `4h`, or
+`Until cleared` — or type a custom duration like `45m`, `1h30m`, `90m`. Confirming writes the override and shows a toast
+like `Temporary LLM override: CODEX(o3) for 1h`.
+
+**When an override is active**, the modal shows an active badge (`Active: CODEX(o3) expires in 47m`) and offers **Change
+override** and **Clear override**. Clearing removes the active state immediately, even if the override was created by a
+different ACE instance, an earlier session, or another sase process.
+
+### Behavior
+
+- The override applies only to the **default** provider/model. Explicit prompt directives (`%model:codex/o3`) and an
+  explicit `provider_name` argument always win.
+- Already-running agents keep their current provider/model. Only **new** launches use the override.
+- The override is persisted to `~/.sase/llm_override.json` so all sase processes on the same machine see it. Reads are
+  best-effort self-cleaning: expired or malformed state files are deleted on next access.
+- `Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit.
+- The temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`. A concrete temporary model override takes the
+  full provider/model path; the tier override only applies when no concrete override is active.
+
+### Examples
+
+- `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
+- `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
+- `Until cleared` — leave the override active across sessions; clear it later from the same `,P` modal.
+
+See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
 
 ## Notifications Modal
 
