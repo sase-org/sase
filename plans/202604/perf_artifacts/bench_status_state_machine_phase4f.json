@@ -1,0 +1,199 @@
+{
+  "tool": "bench_status_state_machine",
+  "phase": "4A",
+  "rust_available": true,
+  "platform": {
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown"
+  },
+  "workloads": [
+    {
+      "label": "golden_myproj_pure",
+      "size_bytes": 1019,
+      "lines": 53,
+      "target_name": "beta",
+      "runs": 200,
+      "warmup": 30,
+      "scenarios_python_backend": {
+        "is_valid_transition": {
+          "count": 200.0,
+          "min_us": 3.375986125320196,
+          "median_us": 3.4160329960286617,
+          "p95_us": 3.456021659076214,
+          "max_us": 6.39201607555151
+        },
+        "remove_workspace_suffix": {
+          "count": 200.0,
+          "min_us": 1.0319636203348637,
+          "median_us": 1.0519870556890965,
+          "p95_us": 1.0820222087204456,
+          "max_us": 1.192034687846899
+        },
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 3.6070123314857483,
+          "median_us": 3.7070130929350853,
+          "p95_us": 3.8470025174319744,
+          "max_us": 4.98996814712882
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 5.400972440838814,
+          "median_us": 5.460984539240599,
+          "p95_us": 5.551031790673733,
+          "max_us": 19.397004507482052
+        }
+      },
+      "scenarios_rust_backend": {
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 5.200039595365524,
+          "median_us": 5.299982149153948,
+          "p95_us": 5.391018930822611,
+          "max_us": 5.64096262678504
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 5.65103255212307,
+          "median_us": 5.770998541265726,
+          "p95_us": 5.831010639667511,
+          "max_us": 6.06197863817215
+        }
+      }
+    },
+    {
+      "label": "golden_myproj_transition",
+      "size_bytes": 1019,
+      "target_name": "beta",
+      "runs": 30,
+      "warmup": 15,
+      "scenarios_python_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 371.73996679484844,
+          "median_us": 376.1884872801602,
+          "p95_us": 473.1430090032518,
+          "max_us": 475.177017506212
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 364.64602453634143,
+          "median_us": 373.527524061501,
+          "p95_us": 398.1600166298449,
+          "max_us": 409.1110313311219
+        }
+      },
+      "scenarios_rust_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 392.09896931424737,
+          "median_us": 397.15299499221146,
+          "p95_us": 430.3510067984462,
+          "max_us": 497.15902423486114
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 390.1040181517601,
+          "median_us": 394.0169990528375,
+          "p95_us": 425.1910140737891,
+          "max_us": 494.1429942846298
+        }
+      }
+    },
+    {
+      "label": "synthetic_200_specs_pure",
+      "size_bytes": 128808,
+      "lines": 5398,
+      "target_name": "spec-199",
+      "runs": 200,
+      "warmup": 30,
+      "scenarios_python_backend": {
+        "is_valid_transition": {
+          "count": 200.0,
+          "min_us": 3.3259857445955276,
+          "median_us": 3.406952600926161,
+          "p95_us": 3.467022906988859,
+          "max_us": 5.560985300689936
+        },
+        "remove_workspace_suffix": {
+          "count": 200.0,
+          "min_us": 1.0319636203348637,
+          "median_us": 1.0519870556890965,
+          "p95_us": 1.101987436413765,
+          "max_us": 1.1919764801859856
+        },
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 170.3249872662127,
+          "median_us": 176.69700901024044,
+          "p95_us": 331.7130031064153,
+          "max_us": 405.8049526065588
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 237.95495508238673,
+          "median_us": 244.4059937261045,
+          "p95_us": 262.9919908940792,
+          "max_us": 307.8969893977046
+        }
+      },
+      "scenarios_rust_backend": {
+        "read_status_from_lines": {
+          "count": 200.0,
+          "min_us": 284.07201170921326,
+          "median_us": 293.24498609639704,
+          "p95_us": 399.72300874069333,
+          "max_us": 4719.47796177119
+        },
+        "apply_status_update": {
+          "count": 200.0,
+          "min_us": 316.414050757885,
+          "median_us": 322.1950028091669,
+          "p95_us": 342.55400532856584,
+          "max_us": 363.9850183390081
+        }
+      }
+    },
+    {
+      "label": "synthetic_200_specs_transition",
+      "size_bytes": 128808,
+      "target_name": "spec-199",
+      "runs": 30,
+      "warmup": 15,
+      "scenarios_python_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 12661.290005780756,
+          "median_us": 13031.440030317754,
+          "p95_us": 13915.39303585887,
+          "max_us": 14030.012011062354
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 12725.762033369392,
+          "median_us": 13446.106982883066,
+          "p95_us": 17091.42600884661,
+          "max_us": 17351.281945593655
+        }
+      },
+      "scenarios_rust_backend": {
+        "transition_changespec_status_wip_to_draft": {
+          "count": 30.0,
+          "min_us": 13251.89700582996,
+          "median_us": 14051.30248167552,
+          "p95_us": 15217.740030493587,
+          "max_us": 20858.61802333966
+        },
+        "transition_changespec_status_wip_to_ready": {
+          "count": 30.0,
+          "min_us": 13415.088993497193,
+          "median_us": 14101.842971285805,
+          "p95_us": 15162.292984314263,
+          "max_us": 20762.934000231326
+        }
+      }
+    }
+  ]
+}

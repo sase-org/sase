@@ -8,9 +8,10 @@ This research is grounded in the existing performance analyses
 (`sase_perf_research.md`, `sase_perf_v2_research.md`,
 `tui_profiling_strategies.md`) and a code map of the current Python modules.
 
-**2026-04-29 update:** Phases 0–3 of this plan have shipped. The migration
-foundation is in place and three operations are now routed through Rust as an
-opt-in:
+**2026-04-29 update:** Phases 0–4 of this plan have shipped. The migration
+foundation is in place and the status state machine's pure decision logic is
+now routed through Rust as an opt-in alongside the parser, query, and
+agent-scan ports:
 
 - `src/sase/core/` is the documented Python facade — wire records,
   `SASE_CORE_BACKEND` dispatch, `SASE_CORE_DUAL_RUN=1` parity logging,
@@ -19,9 +20,10 @@ opt-in:
   built via `just rust-install` / `maturin develop --release` from
   `../sase-core/crates/sase_core_py/`).
 - `parse_project_bytes` (Phase 1), `parse_query` + `evaluate_query_many`
-  (Phase 2), and `scan_agent_artifacts` (Phase 3) are dispatched through the
-  facade. Each has a Rust implementation in `sase-core` and a golden-parity
-  gate in CI.
+  (Phase 2), `scan_agent_artifacts` (Phase 3), and the status helpers
+  `read_status_from_lines` / `apply_status_update` / `plan_status_transition`
+  (Phase 4) are dispatched through the facade. Each has a Rust implementation
+  in `sase-core` and a golden-parity gate in CI.
 - `find_named_agent`, `is_workflow_complete`, `list_running_agents`,
   `list_all_agents`, and the TUI Agents-tab refresh consume the agent-scan
   snapshot facade rather than walking project directories directly.
@@ -328,30 +330,45 @@ consolidation track below. See
 `plans/202604/rust_backend_phase3_agent_scan.md` and the per-subphase
 handoffs (`*_phase3a` … `*_phase3h_handoff.md`).
 
-### Phase 4 — Status state machine *(deferred — re-profile first)*
+### Phase 4 — Status state machine *(complete; opt-in, default `python`)*
 
-Pure state, ~1,450 LOC. Translate transitions and suffix classification to
-Rust enums + match arms. Worth doing because:
+Pure decision logic ported to `../sase-core/crates/sase_core/src/status/`
+behind a structured wire contract (`StatusTransitionRequestWire` /
+`StatusTransitionPlanWire`). PyO3 exposes `is_valid_status_transition`,
+`remove_workspace_suffix`, `read_status_from_lines`, `apply_status_update`,
+and `plan_status_transition` on `sase_core_rs`. Python keeps every side
+effect: file lock, atomic write, archive moves, mentor flag mutation,
+suffix branch rename, sibling reverts, timestamp recording, and VCS calls.
 
-- It's frequently called during artifact replays.
-- An enum-based encoding makes the transition table machine-checkable
-  (`assert!(matches!(...))`) — bugs that currently slip through Python tests
-  become compile errors.
+`transition_changespec_status_python` was refactored into four explicit
+stages — in-lock input gathering, pure decision (Rust-routable planner),
+in-lock side effects (STATUS line rewrite + mentor flags), and post-lock
+side effects (suffix renames, archive moves, timestamp). Under
+`SASE_CORE_BACKEND=rust` the planner runs in Rust; side effects always run
+in Python exactly once. Under `SASE_CORE_DUAL_RUN=1` the planner facade
+compares the two plan dicts before any side effects fire — disk writes are
+never duplicated.
 
-Lower urgency than Phases 1–3 because it's not the bottleneck; do it once the
-build pipeline is mature.
+The motivation for Phase 4 was shared-core hygiene rather than
+user-perceived latency. The Phase 4A benchmark already showed pure
+decision cost was sub-microsecond and the orchestrator was dominated by
+side effects Phase 4 deliberately leaves on Python. The Phase 4F re-run
+(`bench_status_state_machine_phase4f.json`) confirmed the Rust path adds
+a small wire round-trip cost (~5–7 % on the synthetic 200-spec
+transition workload) and Python remains the sensible default for the
+default backend. The end-to-end transition wall clock is dominated by
+`parse_project_file`, `find_all_changespecs`, and the locked atomic
+write; the planner change is invisible at user-perceived scales.
 
-Port the transition table before porting file mutation helpers. The Rust
-function should answer "is this transition valid and what field updates should
-exist?" and Python should continue doing atomic `.gp` writes until the parser
-and source-span contract are proven.
-
-**Status (2026-04-29):** Phase 3H recommended re-profiling on a realistic home
-tree before committing to Phase 4 as-spec'd. Snapshot scan time still
-dominates a TUI refresh on the home tree (~817 ms Rust facade vs. ~216 ms
-adaptation), so the highest-leverage future work may be shrinking the
-snapshot, not porting the state machine. Resolve this with a profiling
-spike before opening the Phase 4 epic.
+**Rollout:** default backend stays `python`. The Rust planner is shipped,
+parity-tested under the dual-run facade, and opt-in via
+`SASE_CORE_BACKEND=rust`. No per-operation default-Rust override is
+recommended — the planner is too cheap to motivate the dependency on a
+sibling Rust extension at default install. The line helpers
+`read_status_from_lines` and `apply_status_update` follow the same
+opt-in policy. See
+`plans/202604/rust_backend_phase4_status_machine.md` and the
+`*_phase4a` … `*_phase4f_handoff.md` series.
 
 ### Phase 5 — Git query ops
 
@@ -746,8 +763,8 @@ The fourth number is the one that decides TUI rollout.
 
 ## 8. Recommended next concrete actions
 
-Phases 0–3 are done. The critical path forward is the consolidation track
-(Phases 6–8) plus a profiling spike to settle Phase 4. In rough order:
+Phases 0–4 are done. The critical path forward is the consolidation track
+(Phases 6–8). In rough order:
 
 1. **Stand up the wheel build.** Until prebuilt `sase_core_rs` wheels exist
    for the supported `cp312+ × {linux x86_64, linux aarch64, macOS
@@ -758,9 +775,9 @@ Phases 0–3 are done. The critical path forward is the consolidation track
    temporary pure-Python fallback from fresh runners.
 2. **Re-profile a TUI cold-open and a `sase ace` refresh on a real home
    tree** with `SASE_TUI_TRACE=1` and `SASE_CORE_BACKEND=rust`. The
-   measurement decides whether Phase 4 (status state machine) is worth
-   opening or whether snapshot-shrinking work outranks it. Phase 3H
-   explicitly punted this question.
+   snapshot adaptation cost (the dominant remaining bottleneck per
+   Phase 3H) is the most likely next port; the status state machine port
+   landed in Phase 4 but did not move user-perceived latency.
 3. **Fix `is_workflow_complete` regression.** This is the single known
    per-op regression on the Rust path (Phase 3H, ~3× slower because the
    snapshot model removes the Python short-circuit). It must be resolved

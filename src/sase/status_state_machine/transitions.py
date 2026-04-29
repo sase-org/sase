@@ -41,8 +41,6 @@ from sase.core.status_wire import (
     SUFFIX_ACTION_NONE,
     SUFFIX_ACTION_STRIP,
 )
-from sase.core.status_wire_conversion import build_status_transition_request
-
 from .field_updates import apply_status_update, read_status_from_lines
 from .siblings import SiblingRevertResult
 from .suffix import handle_suffix_append, handle_suffix_strip
@@ -97,6 +95,7 @@ def transition_changespec_status_python(
         Tuple of (success, old_status, error_msg, sibling_revert_results).
     """
     from sase.core.status_facade import plan_status_transition
+    from sase.core.status_wire_conversion import build_status_transition_request
 
     sibling_results: list[SiblingRevertResult] = []
 

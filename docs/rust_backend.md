@@ -202,6 +202,17 @@ loop.
   — so the planner is the only step that crosses the Rust boundary. Side effects remain entirely on Python and run
   exactly once per transition, regardless of backend. `SASE_CORE_DUAL_RUN=1` compares plans before any side effects fire
   (a failing Rust plan short-circuits the transition before the atomic write).
+- **Phase 4F** _(complete)_ — Verification, performance decision, and Phase 4 close-out recorded in
+  `plans/202604/rust_backend_phase4_status_machine_phase4f_handoff.md`. The Phase 4A benchmark was re-run on the
+  refactored implementation under both backends (`bench_status_state_machine_phase4f.json`); the Rust planner adds a
+  small wire round-trip cost (~5–7 % on the synthetic 200-spec transition workload) that is invisible at user-perceived
+  scales because the orchestrator is dominated by `parse_project_file`, `find_all_changespecs`, and the locked atomic
+  write. The dual-run facade was exercised against the golden corpus; 84 `plan_status_transition` records, zero
+  mismatches. **Rollout:** `SASE_CORE_BACKEND` stays `python` by default; the Rust planner and line helpers are shipped,
+  parity-tested, and **opt-in**. No per-operation default-Rust override is justified — the planner is too cheap to
+  motivate a sibling-extension dependency at default install. A circular-import fix in
+  `sase/status_state_machine/transitions.py` (deferring `build_status_transition_request` to function scope) was
+  required to unbreak top-level `from sase.core.status_facade import …` after the Phase 4E refactor.
 - **Phase 4B** _(complete)_ — Status wire contract pinned in `src/sase/core/status_wire.py`
   (`StatusTransitionRequestWire` / `StatusTransitionPlanWire` / `ChangespecChildWire`, plus `StatusFieldReadWire` and
   `StatusFieldUpdateWire` for the line helpers). The Python decision engine
