@@ -68,6 +68,9 @@ jobs:
       - name: Check Markdown formatting
         run: just fmt-md-check
 
+  # Phase 6G default-backend test matrix: SASE_CORE_BACKEND unset routes
+  # every shipped operation through the Rust binding (Phase 6F default).
+  # Coverage is collected from the 3.12 leg as before.
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -90,7 +93,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
         run: just install
-      - name: Run tests
+      - name: Run tests (default backend = Rust)
         run: just test-cov
       - name: Upload coverage
         if: matrix.python-version == '3.12'
@@ -98,6 +101,74 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+
+  # Phase 6G explicit-Python escape-hatch matrix. Covers the
+  # `SASE_CORE_BACKEND=python` path that stays supported through Phase 7.
+  # Running on the supported oldest and newest Python versions keeps cost
+  # bounded; the full default-backend matrix above carries 3.13.
+  test-python-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
+    env:
+      SASE_CORE_BACKEND: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: just install
+      - name: Run tests (explicit SASE_CORE_BACKEND=python)
+        run: just test
+
+  # Phase 6G dual-run parity gate. Exercises every shipped Rust binding
+  # under `SASE_CORE_DUAL_RUN=1` against the committed golden corpus and
+  # a sanitized synthetic ~/.sase/projects fixture, then fails if any
+  # comparison record reports `match: false`. The JSONL log and JSON
+  # summary are uploaded so a regression can be inspected post-hoc.
+  parity-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run dual-run parity gate
+        run: |
+          mkdir -p parity-artifacts
+          .venv/bin/python tests/parity/dual_run_parity.py \
+            --log-path parity-artifacts/core_dual_run.jsonl \
+            --summary-path parity-artifacts/parity_summary.json
+      - name: Upload parity artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-artifacts
+          path: parity-artifacts/
 
   build:
     runs-on: ubuntu-latest
