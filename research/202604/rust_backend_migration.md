@@ -16,7 +16,8 @@ opt-in:
   `SASE_CORE_BACKEND` dispatch, `SASE_CORE_DUAL_RUN=1` parity logging,
   golden-corpus tests. See `docs/rust_backend.md` for the user-facing surface.
 - A sibling `../sase-core/` Cargo workspace ships `sase_core_rs` (PyO3 wheel
-  built via `just rust-install` / `maturin develop --release`).
+  built via `just rust-install` / `maturin develop --release` from
+  `../sase-core/crates/sase_core_py/`).
 - `parse_project_bytes` (Phase 1), `parse_query` + `evaluate_query_many`
   (Phase 2), and `scan_agent_artifacts` (Phase 3) are dispatched through the
   facade. Each has a Rust implementation in `sase-core` and a golden-parity
@@ -189,6 +190,11 @@ first_diff_path
 error_class
 ```
 
+Once Rust becomes the default, keep the same discipline for one release cycle
+but invert the purpose: dual-run is now a release-candidate safety rail, not a
+normal production mode. Capture aggregate mismatch counts in CI logs and in the
+rollout handoff; do not require every local TUI launch to pay the dual-run cost.
+
 ---
 
 ## 4. Migration order (lowest risk → highest leverage)
@@ -224,7 +230,9 @@ The parser remains the best first Rust target, but the current in-process
 changed-file refreshes, and commands that bypass the TUI cache. It is still
 mostly pure: bytes in, wire struct out, no global IO.
 
-- Create `rust/sase-core/` cargo workspace.
+- Create the Rust Cargo workspace. The original plan assumed
+  `rust/sase-core/` in-tree; the implementation landed as sibling repo
+  `../sase-core/`.
 - Implement `parse_changespec(&[u8]) -> ChangeSpec` matching
   `section_parsers.py` semantics. Lean on `winnow` or `nom` for the section
   state machine; `serde` for downstream serialization.
@@ -239,8 +247,8 @@ mostly pure: bytes in, wire struct out, no global IO.
 - Behind the `SASE_CORE_BACKEND=rust` flag, route Python calls to the
   extension. Run the golden tests against both backends in CI to prove
   equivalence.
-- Ship as a separate wheel (`sase-core-rs`) that `sase` depends on but works
-  without (Python fallback stays).
+- Ship as a separate extension distribution (`sase_core_rs`) that `sase` can
+  use when present while the Python fallback stays available during rollout.
 - Add a Rust-side benchmark with `criterion` for a realistic project/archive
   corpus and a Python benchmark that includes FFI conversion cost. The FFI
   number is the one that matters to the TUI.
@@ -256,7 +264,9 @@ only saves 5 ms on warm TUI refreshes is not the next bottleneck.
 **Outcome:** `parse_project_bytes` routes through `sase_core_rs` when
 `SASE_CORE_BACKEND=rust`. Cross-repo parity gate runs the golden corpus through
 both backends. Bench harness landed as `tests/perf/bench_core_parse.py` /
-`just bench-core`. See `plans/202604/rust_backend_phase1.md` and
+`just bench-core`. The landed workspace is the sibling repo
+`../sase-core/` rather than an in-tree `rust/` directory. See
+`plans/202604/rust_backend_phase1.md` and
 `plans/202604/rust_backend_phase1_handoff.md`.
 
 ### Phase 2 — Query evaluator + tokenizer ✅ complete
@@ -366,21 +376,32 @@ landed for the operations already ported (parser, query, agent scan).
 
 **Prerequisites that must hold before flipping:**
 
-1. **Wheels are distributed for every supported platform.** Today
+1. **The dependency story is explicit.** Decide whether the Phase 6 release
+   depends on a separately published `sase_core_rs` distribution, vendors the
+   Rust extension into the `sase` wheel, or uses a workspace/submodule release
+   job. Do this before changing defaults so packaging failures look like
+   release failures, not runtime backend bugs.
+2. **Wheels are distributed for every supported platform.** Today
    `sase_core_rs` is built locally via `just rust-install`. Until prebuilt
    wheels ship for `cp312+ × {linux x86_64, linux aarch64, macOS universal2,
    windows x86_64}`, flipping the default would force every contributor to
    install Rust. Stand up `cibuildwheel` or maturin GH Actions and publish
    the matrix; treat the wheel build as part of `sase`'s release pipeline.
-2. **A pure-Python install path still produces a working sase.** Either keep
+3. **A pure-Python install path still produces a working sase.** Either keep
    the Python implementations behind `SASE_CORE_BACKEND=python` for one
    release after the flip, or refuse to start with a clear error if no Rust
    extension is available *and* the user explicitly opts back into Python.
    Pick one and document it; do not silently fall back.
-3. **No outstanding parity drift in `core_dual_run.jsonl`.** Run a release
+4. **No outstanding parity drift in `core_dual_run.jsonl`.** Run a release
    cycle with `SASE_CORE_DUAL_RUN=1` enabled in CI on the golden corpus and
    on a sanitized home-tree fixture; mismatch count must be zero.
-4. **Acknowledged gate change.** The 2× gate was the right bar for "is it
+5. **Known Rust-only test isolation is handled.** The focused Phase 3H
+   `SASE_CORE_BACKEND=rust` run intentionally excluded tests that assert
+   `parse_project_file()` has no Rust implementation. Before flipping the
+   suite-wide default, either rewrite those tests to set their own backend env
+   or split them into an explicit "unsupported operation" bucket. Do not let a
+   global Rust CI job fail on tests whose contract is "this op is Python-only."
+6. **Acknowledged gate change.** The 2× gate was the right bar for "is it
    worth porting?"; for "should the port be the default once it exists?" the
    bar is "measurable user-visible win, no regressions on hot paths." Record
    the new bar in the rollout decision so future ports inherit it.
@@ -402,6 +423,15 @@ landed for the operations already ported (parser, query, agent scan).
 - CI must run the test suite under both backends until Phase 8 (removal)
   lands. Add a `SASE_CORE_BACKEND=python` matrix job alongside the existing
   default-backend job.
+- Add a cheap backend health check to the CLI startup path used by release
+  smoke tests: import `sase_core_rs`, call `parse_query("!!!")`, and fail with
+  the package version / platform tag if the extension cannot load. Runtime
+  user errors should say "the Rust extension failed to load" rather than
+  surfacing a raw `ImportError`.
+- Record a rollback plan in the Phase 6 handoff: while the Python backend is
+  still present, rollback is a patch release that restores
+  `DEFAULT_BACKEND=python`; after Phase 8, rollback is a wheel/package fix
+  because there is no Python implementation to fall back to.
 
 **Exit criterion:** `sase` installed from a release artifact works without a
 local Rust toolchain on every supported platform; `SASE_CORE_BACKEND` is
@@ -421,7 +451,7 @@ regression has time to surface.
 | Where measured                            | Compare                       |
 | ----------------------------------------- | ----------------------------- |
 | `tests/perf/bench_core_parse.py`          | `python` vs `rust` facade     |
-| `tests/perf/bench_query.py` (Phase 2)     | `python` vs `rust` facade     |
+| `tests/perf/bench_core_query.py` / `just bench-query` | `python` vs `rust` facade |
 | `tests/perf/bench_agent_scan.py`          | `python` vs `rust` facade     |
 | `SASE_TUI_TRACE=1` cold-open of `sase ace`| Pre-flip baseline vs. post-flip |
 | `sase agents` cold listing on home tree   | Pre-flip baseline vs. post-flip |
@@ -449,6 +479,11 @@ microtimings are evidence, not the headline.
    warm-cache TUI refreshes, small synthetic workloads). Honest negative
    results prevent a future contributor from porting an op that won't
    move the needle.
+5. **Rollout telemetry / support note.** Add a small troubleshooting section:
+   how to confirm which backend is active, where dual-run logs live during the
+   rollout window, what error means "wheel did not load," and which env var to
+   set for the temporary Python fallback. This turns performance verification
+   into something supportable outside the migration team.
 
 **Exit criterion:** every routed operation has a documented
 before/after median on at least one realistic workload; the regression
@@ -460,7 +495,9 @@ now built.
 
 Once the default has been Rust for at least one release cycle and Phase 7
 recorded clean numbers, retire the Python implementations of the ported
-operations and delete the dispatcher.
+operations and delete the dispatcher for those operations. This does **not**
+mean every `src/sase/core/*_facade.py` disappears: unported operations still
+need stable Python import surfaces.
 
 **What gets removed:**
 
@@ -468,9 +505,10 @@ operations and delete the dispatcher.
   Python-side `parse_project_bytes`, `parse_query` /
   `evaluate_query_many`, and `scan_agent_artifacts`.
 - `SASE_CORE_BACKEND` and `SASE_CORE_DUAL_RUN` env vars and every code
-  path that reads them: `src/sase/core/backend.py`,
-  `src/sase/core/dual_run.py`, the `is_rust_available()` probe, the
-  `RustBackendUnavailableError` graceful-failure path.
+  path that reads them for ported operations: `src/sase/core/dual_run.py`,
+  the `is_rust_available()` probe, the `RustBackendUnavailableError`
+  graceful-failure path, and the backend-selection branch in the parser,
+  query, and agent-scan facades.
 - The dual-backend CI matrix job added in Phase 6.
 - `core_dual_run.jsonl` writer (the file format can stay documented as
   historical, but new runs will not produce it).
@@ -480,13 +518,15 @@ operations and delete the dispatcher.
 **What stays:**
 
 - `sase.core` itself stays as the import surface — but each module now
-  delegates straight to `sase_core_rs` with no dispatcher in between.
+  delegates straight to `sase_core_rs` for ported operations with no dispatcher
+  in between.
   Keep the wire records (`wire.py`, `query_wire.py`,
   `agent_scan_wire.py`) — they are the contract Python callers consume.
 - Python implementations of operations that have **not** been ported
   (status state machine, graph index, git query ops, anything Phase 4+).
-  Those still live in Python until their own port lands; removing the
-  facade dispatcher does not require removing them.
+  Those still live in Python until their own port lands. Their facades should
+  call Python directly or use a tiny local adapter; they must not import a
+  deleted global backend dispatcher.
 - The golden corpus and parity tests, repointed to compare
   `sase_core_rs` output against the recorded golden JSON instead of
   comparing two live implementations. Without a Python backend to dual
@@ -497,22 +537,26 @@ operations and delete the dispatcher.
 1. Make `sase_core_rs` a hard install requirement (`pyproject.toml`
    `dependencies` rather than `optional-dependencies`). Verify a fresh
    `pip install sase` on every supported platform pulls the wheel.
-2. Delete the dispatcher and inline the Rust call inside each facade
-   module. Each `*_facade.py` becomes a thin adapter:
+2. Split the current `src/sase/core/backend.py` responsibilities before
+   deleting it: ported facades get direct Rust imports, while unported facades
+   (`status_facade.py`, `graph_index_facade.py`, future Phase 4+) are rewired
+   to call their Python implementations directly.
+3. Inline the Rust call inside each ported facade. Parser/query/agent-scan
+   adapters become thin adapters such as
    `bytes -> sase_core_rs -> wire dataclasses`.
-3. Delete the Python implementations of the ported operations.
-4. Delete `SASE_CORE_BACKEND` / `SASE_CORE_DUAL_RUN` plumbing, the
-   probe, and the `RustBackendUnavailableError` type.
-5. Delete the dual-backend CI matrix and the `python`-only test bucket.
-6. Update `docs/rust_backend.md` to describe the resulting steady
+4. Delete the Python implementations of the ported operations.
+5. Delete `SASE_CORE_BACKEND` / `SASE_CORE_DUAL_RUN` plumbing, the
+   probe, `dual_run.py`, and the `RustBackendUnavailableError` type.
+6. Delete the dual-backend CI matrix and the `python`-only test bucket.
+7. Update `docs/rust_backend.md` to describe the resulting steady
    state: one implementation, no env vars, golden corpus as contract.
 
 **Exit criterion:** `rg "SASE_CORE_BACKEND|SASE_CORE_DUAL_RUN|is_rust_available"`
-returns nothing in `src/`; `pip install sase` requires no Rust toolchain
-on supported platforms; the test suite runs to green with no backend
-matrix; the wire-record contract is documented as the seam future ports
-target. The shared-core / mobile / web work in Phase 9 can now assume
-Rust is the only implementation.
+returns nothing in `src/`; no facade imports `sase.core.backend`; `pip install
+sase` requires no Rust toolchain on supported platforms; the test suite runs to
+green with no backend matrix; the wire-record contract is documented as the
+seam future ports target. The shared-core / mobile / web work in Phase 9 can
+now assume Rust is the only implementation for parser, query, and agent scan.
 
 ### Phase 9 — Server surface for web/mobile
 
@@ -546,15 +590,20 @@ unlock the web app:
 This is the part that bites teams trying incremental Rust migration:
 
 - **`maturin develop`** during local dev — installs the extension into the
-  active venv. Add to `just install` so contributors don't have to know.
+  active venv. Today this is `just rust-install`, which is intentionally
+  separate because the backend is opt-in. When Phase 6 flips the default,
+  either make `just install` install the extension when `../sase-core` exists
+  or make the released wheel dependency reliable enough that contributors do
+  not need a local Rust build for normal Python work.
 - **`cibuildwheel`** (or maturin's GH Actions) for the wheel matrix. Target
   cp312+ × {linux x86_64, linux aarch64, macOS universal2, windows x86_64}.
   Skip musllinux unless someone asks.
-- **Pure-Python fallback stays installable.** The Rust extension is an
-  optional accelerator selected at import time. If the wheel for a platform
-  isn't available, `pip install sase` still works; perf is just Python-speed.
-  Codify this with a smoke test that runs the suite under
-  `SASE_CORE_BACKEND=python`.
+- **Fallback policy changes by phase.** Through Phase 7, pure-Python fallback
+  stays installable: if the Rust wheel is absent, `pip install sase` still
+  works and `SASE_CORE_BACKEND=python` is the escape hatch. Phase 8 deliberately
+  ends that policy for the ported operations, so the packaging gate must move
+  from "fallback exists" to "release artifacts always contain a loadable Rust
+  extension."
 - **CI parity test:** every PR runs the golden corpus through both backends
   and compares JSON outputs byte-for-byte.
 - **Normal CPython vs. free-threaded CPython:** this repo requires Python
@@ -569,7 +618,7 @@ This is the part that bites teams trying incremental Rust migration:
 - **Lockfile and toolchain policy:** add `rust-toolchain.toml` and commit
   `Cargo.lock` for reproducible app builds. Keep Rust MSRV explicit; otherwise
   contributor failures will look like packaging failures.
-- **Cargo workspace layout:**
+- **Cargo workspace layout:** the original in-tree target was:
   ```
   rust/
     Cargo.toml          # workspace
@@ -579,24 +628,33 @@ This is the part that bites teams trying incremental Rust migration:
     sase-core-wasm/     # wasm-bindgen subset
     sase-server/        # axum binary
   ```
+  The implementation that landed lives in the sibling `../sase-core/` repo:
+  ```
+  ../sase-core/
+    Cargo.toml
+    crates/sase_core/      # pure Rust core
+    crates/sase_core_py/   # PyO3 extension module `sase_core_rs`
+  ```
+  Future UniFFI / WASM / server crates should be added there unless the project
+  deliberately moves Rust into this repo.
 
 Keep `sase-core` `no_std`-friendly where possible (it isn't really, given
 filesystem code, but the parsers can be). That makes the WASM build trivial.
 
-Practical `Justfile` additions once Rust lands:
+Current / practical `Justfile` targets for the sibling Rust repo:
 
 ```make
 rust-test:
-    cargo test --workspace
+    cd ../sase-core && cargo test --workspace
 
 rust-fmt:
-    cargo fmt --all
+    cd ../sase-core && cargo fmt --all
 
 rust-check:
-    cargo clippy --workspace --all-targets -- -D warnings
+    cd ../sase-core && cargo clippy --workspace --all-targets -- -D warnings
 
-core-rs-develop:
-    uv run maturin develop -m rust/sase-core-py/Cargo.toml
+rust-install:
+    cd ../sase-core/crates/sase_core_py && uv run maturin develop --release
 ```
 
 ---
@@ -673,6 +731,15 @@ The fourth number is the one that decides TUI rollout.
   parse cache, include schema version, parser version, source file signature,
   and platform-independent path identity. Otherwise parser upgrades will produce
   subtle stale reads.
+- **Removal order can strand unported facades.** `status_facade.py` and
+  `graph_index_facade.py` currently import the shared dispatcher even though
+  they have no Rust implementation. Phase 8 must rewire those modules before
+  deleting `backend.py`, or a parser/query/scan cleanup will break unrelated
+  Python-only APIs.
+- **Operational observability.** During the default flip, users need one clear
+  way to answer "am I on Rust?" and maintainers need one clear signal for
+  extension load failures. Add a smoke-test command or health log before the
+  env-var escape hatch is removed.
 
 ---
 
@@ -684,9 +751,10 @@ Phases 0–3 are done. The critical path forward is the consolidation track
 1. **Stand up the wheel build.** Until prebuilt `sase_core_rs` wheels exist
    for the supported `cp312+ × {linux x86_64, linux aarch64, macOS
    universal2, windows x86_64}` matrix, every later step has a packaging
-   blocker. Land `cibuildwheel` (or maturin GH Actions) and publish the
-   wheel as part of the `sase` release. Smoke-test pure-Python install
-   from a fresh runner.
+   blocker. Land `cibuildwheel` (or maturin GH Actions) in `../sase-core` or
+   in this repo's release workflow, publish/load the wheel as part of the
+   `sase` release, and smoke-test both release-artifact install and the
+   temporary pure-Python fallback from fresh runners.
 2. **Re-profile a TUI cold-open and a `sase ace` refresh on a real home
    tree** with `SASE_TUI_TRACE=1` and `SASE_CORE_BACKEND=rust`. The
    measurement decides whether Phase 4 (status state machine) is worth
@@ -702,6 +770,10 @@ Phases 0–3 are done. The critical path forward is the consolidation track
    the default, ship a release with both backends still selectable, run
    `SASE_CORE_DUAL_RUN=1` in CI for the cycle, then proceed to Phase 7
    measurement and Phase 8 removal.
+5. **Before Phase 8, remove the dispatcher dependency from unported facades.**
+   `status_facade.py` and `graph_index_facade.py` should be direct Python
+   adapters unless and until their Rust ports land. This keeps "delete backend
+   switching logic" from becoming an accidental cross-module breakage.
 
 The discipline that makes this work: **never port ahead of measurement, and
 do not delete the Python implementation until the Rust default has run a
