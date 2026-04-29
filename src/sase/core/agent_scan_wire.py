@@ -482,7 +482,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         workflow_dir_name=data["workflow_dir_name"],
         artifact_dir=data["artifact_dir"],
         timestamp=data["timestamp"],
-        agent_meta=AgentMetaWire(**agent_meta) if isinstance(agent_meta, dict) else None,
+        agent_meta=AgentMetaWire(**agent_meta)
+        if isinstance(agent_meta, dict)
+        else None,
         done=DoneMarkerWire(**done) if isinstance(done, dict) else None,
         running=RunningMarkerWire(**running) if isinstance(running, dict) else None,
         waiting=WaitingMarkerWire(**waiting) if isinstance(waiting, dict) else None,
@@ -491,7 +493,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             if isinstance(workflow_state, dict)
             else None
         ),
-        plan_path=PlanPathMarkerWire(**plan_path) if isinstance(plan_path, dict) else None,
+        plan_path=PlanPathMarkerWire(**plan_path)
+        if isinstance(plan_path, dict)
+        else None,
         prompt_steps=[
             PromptStepMarkerWire(**step) for step in data.get("prompt_steps") or []
         ],

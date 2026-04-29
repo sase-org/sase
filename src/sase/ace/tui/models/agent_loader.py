@@ -1,6 +1,13 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from datetime import datetime
+from pathlib import Path
+
+from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_wire import (
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
+)
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -13,19 +20,47 @@ from ._dedup import (
 )
 from ._loaders import (
     get_all_project_files,
-    get_workflow_timestamp_dirs,
+    get_workflow_timestamp_dirs,  # noqa: F401  re-exported for fallback callers
     load_agents_from_comments,
     load_agents_from_hooks,
     load_agents_from_mentors,
     load_agents_from_running_field,
-    load_done_agents,
-    load_running_home_agents,
-    load_workflow_agent_steps,
-    load_workflow_agents,
-    load_workflow_states,
+    load_done_agents,  # noqa: F401  re-exported for fallback/tests
+    load_done_agents_from_snapshot,
+    load_running_home_agents,  # noqa: F401  re-exported for fallback/tests
+    load_running_home_agents_from_snapshot,
+    load_workflow_agent_steps,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_agent_steps_from_snapshot,
+    load_workflow_agents,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_agents_from_snapshot,
+    load_workflow_states,  # noqa: F401  re-exported for fallback/tests
+    load_workflow_states_from_snapshot,  # noqa: F401  re-exported for fallback/tests
 )
 from .agent import Agent, AgentType
 from .workflow import WorkflowEntry
+
+
+_TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    include_prompt_step_markers=True,
+    # The TUI reads prompt-step markers (workflow agent steps + meta_*
+    # propagation) but does not render the raw_xprompt.md snippet; skip
+    # the snippet read to keep the scan compact.
+    include_raw_prompt_snippets=False,
+)
+
+
+def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
+    """Return one fresh artifact-tree snapshot for the TUI loader.
+
+    Single-purpose seam between :func:`_load_agents_from_all_sources` and
+    :func:`scan_agent_artifacts` so tests can replace the snapshot with a
+    fixture without having to patch every individual ``_from_snapshot``
+    consumer.
+    """
+    return scan_agent_artifacts(
+        Path.home() / ".sase" / "projects",
+        _TUI_SCAN_OPTIONS,
+    )
 
 
 def _get_status_priority(status: str) -> int:
@@ -98,31 +133,38 @@ def _load_agents_from_all_sources(
         if cs.cl:
             cl_by_cl_name[cs.name] = cs.cl
 
-    # 1. Load from RUNNING field
+    # 1. Load from RUNNING field (snapshot-independent; reads project .gp files).
     agents.extend(
         load_agents_from_running_field(project_files, bug_by_cl_name, cl_by_cl_name)
     )
 
+    # Acquire a single artifact snapshot for every artifact-tree consumer
+    # below. Phase 3F replaces independent walks of done/running/workflow
+    # subtrees with one ``scan_agent_artifacts()`` snapshot so the
+    # filesystem (and, in Rust mode, the FFI conversion) only pays the
+    # walking + JSON parsing cost once per refresh.
+    artifact_snapshot = _scan_artifacts_for_loader()
+
     # 1a. Load completed (DONE) agents
-    agents.extend(load_done_agents(bug_by_cl_name, cl_by_cl_name))
+    agents.extend(
+        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
+    )
 
     # 1b. Load running home mode agents (from running.json markers)
-    agents.extend(load_running_home_agents())
+    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
 
     # 1d. Load workflow agent steps first — also collects meta_* fields
     # per parent timestamp so load_workflow_agents() can skip redundant
     # prompt_step_*.json reads.
-    # Cache the directory traversal so both loaders share a single scan.
-    wf_timestamp_dirs = get_workflow_timestamp_dirs()
-    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps(
-        timestamp_dirs=wf_timestamp_dirs,
+    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
+        artifact_snapshot
     )
 
     # 1c. Load workflow entries as agents (with pre-collected meta fields)
     agents.extend(
-        load_workflow_agents(
+        load_workflow_agents_from_snapshot(
+            artifact_snapshot,
             step_meta_by_parent=step_meta_by_parent,
-            timestamp_dirs=wf_timestamp_dirs,
         )
     )
 

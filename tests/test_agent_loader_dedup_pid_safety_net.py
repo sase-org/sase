@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
 def test_pid_dedup_safety_net() -> None:
@@ -47,23 +48,27 @@ def test_pid_dedup_safety_net() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[running_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[workflow_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -125,23 +130,27 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[fix_hook_agent, vcs_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -204,23 +213,27 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[plan_agent, code_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -275,23 +288,27 @@ def test_pid_reuse_keeps_both_running_agents_with_different_suffix() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[agent_a, agent_b],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -342,23 +359,27 @@ def test_pid_reuse_merges_running_agents_with_same_suffix() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[agent_a, agent_b],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -408,23 +429,27 @@ def test_pid_reuse_merges_running_agents_with_missing_suffix() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[agent_a, agent_b],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(

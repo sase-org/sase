@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
 def _make_snapshot() -> list[ChangeSpec]:
@@ -35,15 +36,19 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
     with (
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs") as mock_find,
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
@@ -55,11 +60,11 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
@@ -88,11 +93,15 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
@@ -104,11 +113,11 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(

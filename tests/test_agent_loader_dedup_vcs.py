@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
 def test_embedded_vcs_removed_by_axe_pid() -> None:
@@ -50,23 +51,27 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[axe_agent, hg_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -128,23 +133,27 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[axe_agent, hg_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -205,23 +214,27 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[hg_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[axe_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -279,23 +292,27 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
             return_value=[],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[hg_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[fix_hook_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(
@@ -370,23 +387,27 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_hidden() -> None:
             return_value=[mock_cs],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
             return_value=[hg_agent],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
         patch(

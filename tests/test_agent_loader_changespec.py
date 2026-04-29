@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
 def test_load_all_agents_with_summarize_agents() -> None:
@@ -43,17 +44,27 @@ def test_load_all_agents_with_summarize_agents() -> None:
             return_value=[mock_cs],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
-        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):
@@ -103,17 +114,27 @@ def test_load_all_agents_with_mentor_agents() -> None:
             return_value=[mock_cs],
         ),
         patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
-        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):
@@ -158,14 +179,24 @@ def test_load_all_agents_with_crs_agents() -> None:
             "sase.ace.tui.models.agent_loader.find_all_changespecs",
             return_value=[mock_cs],
         ),
-        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
             return_value=([], {}),
         ),
     ):

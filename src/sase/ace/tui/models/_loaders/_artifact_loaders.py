@@ -8,6 +8,15 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sase.running_field import get_claimed_workspaces
+from sase.core.agent_scan_wire import (
+    DONE_WORKFLOW_DIR_NAMES,
+    DONE_WORKFLOW_DIR_PREFIXES,
+    AgentArtifactRecordWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    PromptStepMarkerWire,
+    WaitingMarkerWire,
+)
 from sase.core.time import get_timezone
 
 from ....hooks.processes import is_process_running
@@ -500,6 +509,288 @@ def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
         if agent.step_output is None:
             agent.step_output = {}
         agent.step_output.update(meta_fields)
+
+
+def _is_done_record(record: AgentArtifactRecordWire) -> bool:
+    """Return True iff *record* lives under a workflow dir that holds done agents."""
+    name = record.workflow_dir_name
+    if name in DONE_WORKFLOW_DIR_NAMES:
+        return True
+    return any(name.startswith(p) for p in DONE_WORKFLOW_DIR_PREFIXES)
+
+
+def enrich_agent_from_meta_wire(
+    agent: Agent,
+    meta: AgentMetaWire | None,
+    waiting: WaitingMarkerWire | None,
+) -> None:
+    """Snapshot-aware mirror of :func:`enrich_agent_from_meta`.
+
+    Mirrors every field assignment performed by the filesystem-backed
+    helper so callers using a snapshot get identical Agent state. When
+    *meta* is ``None`` the function is a no-op (matching the original's
+    early-return when ``agent_meta.json`` is missing or unreadable).
+    """
+    if meta is None:
+        return
+
+    if meta.model:
+        agent.model = meta.model
+    if meta.llm_provider:
+        agent.llm_provider = meta.llm_provider
+    if meta.vcs_provider:
+        agent.vcs_provider = meta.vcs_provider
+    if meta.name:
+        agent.agent_name = meta.name
+    if meta.wait_for:
+        agent.waiting_for = list(meta.wait_for)
+    if meta.approve:
+        agent.approve = True
+    if meta.hidden:
+        agent.hidden = True
+    if meta.role_suffix:
+        agent.role_suffix = meta.role_suffix
+    if meta.parent_timestamp and agent.parent_timestamp is None:
+        agent.parent_timestamp = meta.parent_timestamp
+    if meta.workspace_num is not None and agent.workspace_num is None:
+        agent.workspace_num = meta.workspace_num
+
+    if meta.retry_of_timestamp:
+        agent.retry_of_timestamp = meta.retry_of_timestamp
+    if meta.retry_attempt is not None:
+        agent.retry_attempt = meta.retry_attempt
+    if meta.retry_chain_root_timestamp:
+        agent.retry_chain_root_timestamp = meta.retry_chain_root_timestamp
+    if meta.retried_as_timestamp:
+        agent.retried_as_timestamp = meta.retried_as_timestamp
+    if meta.retry_terminal:
+        agent.retry_terminal = True
+    if meta.retry_error_category:
+        agent.retry_error_category = meta.retry_error_category
+
+    def _append(values: list[str], target: list[datetime]) -> None:
+        for value in values:
+            try:
+                target.append(_parse_utc_to_eastern(value))
+            except ValueError:
+                continue
+
+    _append(meta.plan_submitted_at, agent.plan_times)
+    _append(meta.feedback_submitted_at, agent.feedback_times)
+    _append(meta.questions_submitted_at, agent.questions_times)
+    for ts in meta.retry_started_at:
+        try:
+            agent.retry_times.append(_parse_utc_to_eastern(ts))
+        except ValueError:
+            continue
+    if meta.run_started_at:
+        try:
+            agent.run_start_time = _parse_utc_to_eastern(meta.run_started_at)
+        except ValueError:
+            pass
+    if meta.stopped_at:
+        try:
+            agent.stop_time = _parse_utc_to_eastern(meta.stopped_at)
+        except ValueError:
+            pass
+
+    # waiting.json overrides RUNNING → WAITING and updates wait fields.
+    # The filesystem helper only consults waiting.json when agent_meta
+    # was successfully read; mirror that gate by handling it after the
+    # meta-driven assignments.
+    if waiting is not None and agent.status == "RUNNING":
+        agent.status = "WAITING"
+        if waiting.waiting_for:
+            agent.waiting_for = list(waiting.waiting_for)
+        if waiting.wait_duration is not None:
+            agent.wait_duration = waiting.wait_duration
+        if waiting.wait_until:
+            agent.wait_until = waiting.wait_until
+
+    if agent.wait_duration is None and meta.wait_duration is not None:
+        agent.wait_duration = meta.wait_duration
+    if agent.wait_until is None and meta.wait_until:
+        agent.wait_until = meta.wait_until
+
+    if meta.plan and agent.status == "RUNNING":
+        if meta.plan_approved:
+            if meta.plan_action == "commit":
+                agent.status = "PLAN COMMITTED"
+            elif meta.plan_action == "epic":
+                agent.status = "EPIC APPROVED"
+            else:
+                agent.status = "PLAN APPROVED"
+        else:
+            agent.status = "PLANNING"
+
+
+def _enrich_agent_from_prompt_markers_wire(
+    agent: Agent,
+    prompt_steps: list[PromptStepMarkerWire],
+) -> None:
+    """Snapshot-aware mirror of :func:`_enrich_agent_from_prompt_markers`.
+
+    Collects ``meta_*`` fields from each prompt step's ``output`` dict and
+    merges them into ``agent.step_output``. Records in the snapshot are
+    already sorted by ``file_name`` (matching the filesystem ``glob`` +
+    ``sorted`` order) so iteration order is deterministic.
+    """
+    meta_fields: dict[str, str] = {}
+    for step in prompt_steps:
+        output = step.output
+        if not isinstance(output, dict):
+            continue
+        for k, v in output.items():
+            if k.startswith("meta_") and v:
+                meta_fields[k] = str(v)
+    if meta_fields:
+        if agent.step_output is None:
+            agent.step_output = {}
+        agent.step_output.update(meta_fields)
+
+
+def _build_done_agent_from_record(
+    record: AgentArtifactRecordWire,
+    bug_by_cl_name: dict[str, str | None],
+    cl_by_cl_name: dict[str, str | None],
+) -> Agent | None:
+    """Snapshot-aware mirror of :func:`_load_done_agent_for_dir`."""
+    if not record.has_done_marker:
+        return None
+    done = record.done
+    if done is None:
+        return None
+    timestamp_str = record.timestamp
+    start_time = parse_timestamp_14_digit(timestamp_str)
+
+    cl_name = done.cl_name or "unknown"
+    outcome = done.outcome or "completed"
+    if outcome == "noop":
+        return None
+    if outcome == "failed":
+        if done.retried_as_timestamp:
+            status = "FAILED (RETRIED)"
+        else:
+            status = "FAILED"
+        error_message = done.error
+        error_traceback = done.traceback
+    elif outcome == "plan_rejected":
+        status = "PLAN REJECTED"
+        error_message = None
+        error_traceback = None
+    else:
+        status = "DONE"
+        error_message = None
+        error_traceback = None
+    extra_files = [done.plan_path] if done.plan_path else []
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file=done.project_file or "",
+        status=status,
+        start_time=start_time,
+        workflow=record.workflow_dir_name,
+        raw_suffix=timestamp_str,
+        response_path=done.response_path,
+        diff_path=done.diff_path,
+        extra_files=extra_files,
+        step_output=done.step_output,
+        workspace_num=done.workspace_num,
+        bug=bug_by_cl_name.get(cl_name),
+        cl_num=cl_by_cl_name.get(cl_name),
+        error_message=error_message,
+        error_traceback=error_traceback,
+        output_path=done.output_path,
+        model=done.model,
+        llm_provider=done.llm_provider,
+        vcs_provider=done.vcs_provider,
+        agent_name=done.name,
+        hidden=bool(done.hidden),
+        approve=bool(done.approve),
+    )
+
+    if done.retried_as_timestamp:
+        agent.retried_as_timestamp = done.retried_as_timestamp
+    if done.retry_chain_root_timestamp:
+        agent.retry_chain_root_timestamp = done.retry_chain_root_timestamp
+    if done.retry_error_category:
+        agent.retry_error_category = done.retry_error_category
+
+    enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
+    _enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
+    return agent
+
+
+def load_done_agents_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+    bug_by_cl_name: dict[str, str | None],
+    cl_by_cl_name: dict[str, str | None],
+) -> list[Agent]:
+    """Snapshot-aware mirror of :func:`load_done_agents`.
+
+    Iterates pre-walked artifact records from a single
+    :class:`AgentArtifactScanWire` instead of re-walking the filesystem.
+    """
+    agents: list[Agent] = []
+    for record in snapshot.records:
+        if not _is_done_record(record):
+            continue
+        agent = _build_done_agent_from_record(record, bug_by_cl_name, cl_by_cl_name)
+        if agent is not None:
+            agents.append(agent)
+    return agents
+
+
+def load_running_home_agents_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+) -> list[Agent]:
+    """Snapshot-aware mirror of :func:`load_running_home_agents`.
+
+    Same selection filter (project ``home``, workflow ``ace-run``) and
+    same liveness gate (``is_process_running``) as the filesystem helper.
+    Stale ``running.json`` markers are still cleaned up best-effort to
+    keep behavior parity, but the cleanup uses the absolute artifact
+    path embedded in the record rather than rebuilding it.
+    """
+    agents: list[Agent] = []
+    home_project_file = str(Path.home() / ".sase" / "projects" / "home" / "home.gp")
+    for record in snapshot.records:
+        if record.project_name != "home":
+            continue
+        if record.workflow_dir_name != "ace-run":
+            continue
+        running = record.running
+        if running is None:
+            continue
+        pid = running.pid
+        if pid is None or not is_process_running(pid):
+            running_file = Path(record.artifact_dir) / "running.json"
+            try:
+                running_file.unlink()
+            except OSError:
+                pass
+            continue
+
+        start_time = parse_timestamp_14_digit(record.timestamp)
+        cl_name = running.cl_name or "~"
+        agent = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=cl_name,
+            project_file=home_project_file,
+            status="RUNNING",
+            start_time=start_time,
+            workflow="ace(run)",
+            pid=pid,
+            raw_suffix=record.timestamp,
+            model=running.model,
+            llm_provider=running.llm_provider,
+            vcs_provider=running.vcs_provider,
+        )
+        enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
+        _enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
+        agents.append(agent)
+    return agents
 
 
 def load_running_home_agents() -> list[Agent]:
