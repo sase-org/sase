@@ -2,6 +2,8 @@
 
 venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
+venv_dir_abs := justfile_directory() / venv_dir
+venv_bin_abs := justfile_directory() / venv_bin
 
 # Sibling Rust core repo. Phase 1 Rust backend is opt-in; targets that
 # operate on it print a friendly message and exit 0 when the repo is
@@ -181,9 +183,11 @@ rust-install: _setup
         printf "[rust-install] cargo not on PATH; install rustup to build the Rust backend.\n"; \
         exit 1; \
     fi
-    @{{ venv_bin }}/maturin --version > /dev/null 2>&1 || uv pip install maturin
+    @{{ venv_bin_abs }}/maturin --version > /dev/null 2>&1 || uv pip install maturin
     cd {{ sase_core_dir }}/crates/sase_core_py && \
-        {{ venv_bin }}/maturin develop --release
+        VIRTUAL_ENV={{ venv_dir_abs }} \
+        PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
+        {{ venv_bin_abs }}/maturin develop --release
 
 # Run `cargo test --workspace` in ../sase-core.
 rust-test:

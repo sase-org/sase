@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 11:32:10
-status: wip
+status: done
 ---
 # Plan: Fix `just rust-install` venv path handling
 
