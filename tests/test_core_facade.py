@@ -1,12 +1,13 @@
 """Tests for the sase.core facade modules.
 
-Phase 0A: each facade should call the existing Python implementation by
-default and behave identically to it. ``SASE_CORE_BACKEND=rust`` should
-fail clearly because no Rust implementation is registered.
+Each facade should call the existing Python implementation by default and
+behave identically to it. Operations configured for backend dispatch should
+fail clearly under ``SASE_CORE_BACKEND=rust`` when no Rust implementation is
+registered.
 
-Phase 1D: when ``sase_core_rs`` is importable, ``parse_project_bytes``
-routes to the Rust binding under ``SASE_CORE_BACKEND=rust`` and dual-run
-logs a comparison record.
+When ``sase_core_rs`` is importable, ``parse_project_bytes`` routes to the Rust
+binding under ``SASE_CORE_BACKEND=rust`` and dual-run logs a comparison record.
+The file-path ``parse_project_file`` API stays Python-only for compatibility.
 """
 
 from __future__ import annotations
@@ -80,12 +81,14 @@ def test_parse_project_bytes_returns_wire_records(sample_project: Path) -> None:
     assert all(w.file_path == str(sample_project) for w in wires)
 
 
-def test_parse_project_file_rust_without_impl_raises(
+def test_parse_project_file_rust_backend_still_uses_python_parser(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    with pytest.raises(RustBackendUnavailableError):
-        parser_facade.parse_project_file(str(sample_project))
+    via_facade = parser_facade.parse_project_file(str(sample_project))
+    direct = parse_project_file_python(str(sample_project))
+    assert [cs.name for cs in via_facade] == [cs.name for cs in direct]
+    assert all(isinstance(cs, ChangeSpec) for cs in via_facade)
 
 
 def test_query_parse_and_evaluate_match_python(

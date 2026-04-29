@@ -39,7 +39,7 @@ The facade lives at `src/sase/core/`:
 | Module                  | Purpose                                                                              |
 | ----------------------- | ------------------------------------------------------------------------------------ |
 | `backend.py`            | `SASE_CORE_BACKEND` dispatcher; `is_rust_available()`; `RustBackendUnavailableError` |
-| `parser_facade.py`      | `parse_project_file` / `parse_project_bytes` — the first dispatched operation        |
+| `parser_facade.py`      | `parse_project_file` compatibility API / Rust-eligible `parse_project_bytes` parser  |
 | `wire.py`               | Stable wire record types that cross the Python ↔ Rust boundary                       |
 | `wire_conversion.py`    | Python `ChangeSpec` ↔ wire record serialization                                      |
 | `dual_run.py`           | Optional Python+Rust comparison logging (`SASE_CORE_DUAL_RUN=1`)                     |

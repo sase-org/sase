@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 11:50:51
-status: wip
+status: done
 ---
 # Plan: Keep `parse_project_file` usable under `SASE_CORE_BACKEND=rust`
 

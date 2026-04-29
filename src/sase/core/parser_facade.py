@@ -3,15 +3,13 @@
 This is the Rust-bindable seam for ChangeSpec parsing. Callers go through
 :func:`parse_project_file` (returning Python ``ChangeSpec`` objects for
 backward compatibility) or :func:`parse_project_bytes` (returning wire
-records, the shape Phase 1's Rust ``parse_project_bytes`` will produce).
+records, the shape Rust ``parse_project_bytes`` produces).
 
-Both functions delegate through :func:`sase.core.backend.dispatch`. Phase 1D
-wires the ``sase_core_rs.parse_project_bytes`` PyO3 binding in as the
-``rust_impl`` for :func:`parse_project_bytes` whenever the extension module
-is importable. :func:`parse_project_file` keeps the Python implementation for
-now: switching it to the bytes-via-Rust path would bypass the dual-run
-comparison logging by reading the file twice on disk, which is exactly the
-metric Phase 1 wants to keep clean.
+:func:`parse_project_bytes` delegates through :func:`sase.core.backend.dispatch`.
+The ``sase_core_rs.parse_project_bytes`` PyO3 binding is registered as the
+``rust_impl`` whenever the extension module is importable. :func:`parse_project_file`
+is a Python-only compatibility API: switching it to the bytes-via-Rust path
+would bypass the dual-run comparison logging by reading the file twice on disk.
 """
 
 from __future__ import annotations
@@ -26,20 +24,15 @@ from sase.core.wire_conversion import changespec_to_wire, changespec_wire_from_d
 
 
 def parse_project_file(file_path: str) -> list[ChangeSpec]:
-    """Parse all ChangeSpecs from a project file via the active backend.
+    """Parse all ChangeSpecs from a project file using the Python parser.
 
-    Phase 1D keeps this on the Python backend even when ``sase_core_rs`` is
-    available. The Rust binding consumes bytes, not file paths; routing
-    through it here would either re-read the file (defeating the perf
-    rationale) or drop dual-run comparison fidelity. The bytes-shaped
-    :func:`parse_project_bytes` is the Rust-eligible entry point.
+    This file-path API intentionally remains usable even when
+    ``SASE_CORE_BACKEND=rust``. The Rust binding consumes bytes, not file
+    paths; routing through it here would either re-read the file or drop
+    dual-run comparison fidelity. The bytes-shaped :func:`parse_project_bytes`
+    is the Rust-eligible entry point.
     """
-    return dispatch(
-        operation="parse_project_file",
-        python_impl=parse_project_file_python,
-        args=(file_path,),
-        source_path=file_path,
-    )
+    return parse_project_file_python(file_path)
 
 
 def _rust_parse_project_bytes_impl(file_path: str, data: bytes) -> list[ChangeSpecWire]:
