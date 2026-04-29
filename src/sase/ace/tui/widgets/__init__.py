@@ -7,6 +7,7 @@ from .file_panel import FileTrimChanged
 from .ancestors_children_panel import AncestorsChildrenPanel
 from .axe_dashboard import AxeDashboard
 from .axe_info_panel import AxeInfoPanel
+from .backend_indicator import BackendIndicator
 from .bgcmd_list import BgCmdList
 from .changespec_detail import ChangeSpecDetail, SearchQueryPanel
 from .changespec_info_panel import ChangeSpecInfoPanel
@@ -28,6 +29,7 @@ __all__ = [
     "AncestorsChildrenPanel",
     "AxeDashboard",
     "AxeInfoPanel",
+    "BackendIndicator",
     "BgCmdList",
     "ChangeSpecDetail",
     "ChangeSpecInfoPanel",

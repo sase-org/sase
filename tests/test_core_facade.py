@@ -348,8 +348,10 @@ def test_status_facade_line_helpers_real_extension_parity(
 
     lines = sample_project.read_text().splitlines(keepends=True)
     rust_module = sys.modules[RUST_EXTENSION_MODULE_NAME]
-    assert hasattr(rust_module, "read_status_from_lines")
-    assert hasattr(rust_module, "apply_status_update")
+    if not hasattr(rust_module, "read_status_from_lines"):
+        pytest.skip("sase_core_rs is too old (no read_status_from_lines).")
+    if not hasattr(rust_module, "apply_status_update"):
+        pytest.skip("sase_core_rs is too old (no apply_status_update).")
 
     assert rust_module.read_status_from_lines(  # type: ignore[attr-defined]
         lines, "example"

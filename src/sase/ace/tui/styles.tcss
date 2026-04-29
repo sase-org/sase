@@ -25,6 +25,11 @@
     content-align: right middle;
 }
 
+#backend-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #inactive-indicator {
     width: auto;
     content-align: right middle;

@@ -45,6 +45,7 @@ from .widgets import (
     AncestorsChildrenPanel,
     AxeDashboard,
     AxeInfoPanel,
+    BackendIndicator,
     BgCmdList,
     ChangeSpecDetail,
     ChangeSpecInfoPanel,
@@ -233,6 +234,7 @@ class AceApp(
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
             yield TaskIndicator(id="task-indicator")
+            yield BackendIndicator(id="backend-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):

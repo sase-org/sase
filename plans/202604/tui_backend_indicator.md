@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 13:40:57
-status: wip
+status: done
 ---
 # TUI Backend Indicator Plan
 
