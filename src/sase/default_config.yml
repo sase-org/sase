@@ -292,8 +292,8 @@ xprompts:
 
       Make sure that each phase bead has the appropriate dependencies set up.
 
-      After committing the bead-creation work, run `sase bead work <epic_id>` (using the new plan bead's ID) to mark
-      the epic as ready to work.
+      After committing the bead-creation work, run `sase bead work <epic_id> --yes` (using the new plan bead's ID) to
+      mark the epic as ready to work and skip the launch confirmation prompt for this automated kickoff.
   bd/next:
     input:
       prompt: { type: text, default: "" }

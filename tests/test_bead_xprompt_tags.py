@@ -55,6 +55,9 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert XPromptTag.create_epic_bead in prompts["bd/new_epic"].tags
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
+    assert (
+        "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
+    )
 
 
 # ── User overrides win via precedence chain ────────────────────────────
