@@ -239,11 +239,10 @@ class StateInitMixin:
         # points at the active mode's slot; the cycle action swaps it
         # in via :meth:`_ensure_mode_registry` so existing call sites
         # (loading, folding, display) keep reading a single attribute.
-        from ...grouping_mode_state import load_grouping_mode
         from ..models.agent_group_fold import AgentGroupFoldRegistry
         from ..models.agent_groups import GroupingMode
 
-        self._grouping_mode: GroupingMode = load_grouping_mode()
+        self._grouping_mode: GroupingMode = GroupingMode.STANDARD
         self._group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry] = {
             self._grouping_mode: AgentGroupFoldRegistry(),
         }
@@ -257,15 +256,14 @@ class StateInitMixin:
         self._current_group_key: tuple[str, ...] | None = None
 
         # CLs-tab grouping state (mirrors the Agents-tab attributes above
-        # but with its own enum, persistence, and per-mode fold registries
-        # so cycling one tab cannot leak collapse intent into the other).
+        # but with its own enum and per-mode fold registries so cycling
+        # one tab cannot leak collapse intent into the other).
         # Empty registry on first paint => every group expanded.
-        from ...changespec_grouping_mode_state import load_changespec_grouping_mode
         from ..models.changespec_groups import ChangeSpecGroupingMode
         from ..models.group_fold import GroupFoldRegistry
 
         self._changespec_grouping_mode: ChangeSpecGroupingMode = (
-            load_changespec_grouping_mode()
+            ChangeSpecGroupingMode.BY_PROJECT
         )
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry

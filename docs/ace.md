@@ -60,7 +60,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
-> keeps its own persisted mode). On the AXE tab it is a silent no-op. See
+> keeps its own in-session mode). On the AXE tab it is a silent no-op. See
 > [CL Grouping and Folding](#cl-grouping-and-folding) and the Agents-tab [Grouping Modes](#grouping-modes) below.
 
 ### CL Actions
@@ -89,8 +89,8 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 ### CL Grouping and Folding
 
 The CLs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner row
-above each bucket. `BY_PROJECT` is the default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` and the active mode is
-persisted to `~/.sase/changespec_grouping_mode.txt`.
+above each bucket. `BY_PROJECT` is the startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current
+session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -244,8 +244,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and CLs tabs (each tab
-> persists its own selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
+> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and CLs tabs (each tab keeps
+> its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
 > vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
 ### Agent Actions
@@ -379,12 +379,12 @@ the same singleton-suppression rule as `STANDARD`. Each mode keeps its own per-g
 buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with
 semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
 
-The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the durable
-mode is always visible after the cycle toast fades. The selected mode is persisted to `~/.sase/grouping_mode.txt` and
-restored on the next TUI launch (mirroring the `last_selection.txt` precedent), so cycling once is durable. **Waiting**
-holds agents that are blocked but progressing on their own — `WAITING` with a `wait_until` timer (`%wait:5m`,
-`%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps the strict "you need to act" semantics:
-a `WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on the user.
+The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
+session mode is always visible after the cycle toast fades. Each TUI launch starts in by-project grouping; cycling only
+changes the current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a
+`wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Needs Attention** keeps the
+strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's
+parked waiting on the user.
 
 ### Agent Row Glyphs
 

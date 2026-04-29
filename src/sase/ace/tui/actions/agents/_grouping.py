@@ -131,13 +131,10 @@ class AgentGroupingMixin:
             self._cycle_changespec_grouping_mode(reverse=True)
 
     def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
-        from ....grouping_mode_state import save_grouping_mode
-
         next_mode = self._next_grouping_mode(reverse=reverse)
         if next_mode is self._grouping_mode:
             return
         self._grouping_mode = next_mode
-        save_grouping_mode(next_mode)
         # Swap the active fold registry so existing call sites (loading,
         # folding, display) continue to read ``_group_fold_registry``.
         self._group_fold_registry = self._ensure_mode_registry(next_mode)
@@ -155,13 +152,10 @@ class AgentGroupingMixin:
         self._refilter_agents()  # type: ignore[attr-defined]
 
     def _cycle_changespec_grouping_mode(self, *, reverse: bool = False) -> None:
-        from ....changespec_grouping_mode_state import save_changespec_grouping_mode
-
         next_mode = self._next_changespec_grouping_mode(reverse=reverse)
         if next_mode is self._changespec_grouping_mode:
             return
         self._changespec_grouping_mode = next_mode
-        save_changespec_grouping_mode(next_mode)
         self._changespec_group_fold_registry = self._ensure_changespec_mode_registry(
             next_mode
         )

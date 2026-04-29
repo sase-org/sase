@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 11:44:59
-status: wip
+status: done
 ---
 # Plan: Default ACE Grouping to By Project on Startup
 

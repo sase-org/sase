@@ -9,15 +9,13 @@ Covers Phase 3 of the CLs-tab ChangeSpec grouping feature
 * Banner focus is reset on every cycle.
 * Non-CL tabs (Agents / AXE) ignore the CL cycle helper, and AXE is a
   silent no-op for the public action even if the focused tab.
-* Persistence writes through to the CL state file (separate from the
-  Agents state file).
+* Cycling is session-local and does not write grouping-mode state files.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -186,31 +184,19 @@ def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Persistence
+# No persistence
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_persists_new_mode(tmp_path: Path) -> None:
-    test_file = tmp_path / "cs.txt"
-    with patch(
-        "sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE", test_file
-    ):
-        app = _StubApp()
-        app.action_cycle_grouping_mode()
-        assert test_file.read_text() == ChangeSpecGroupingMode.BY_DATE.value
-
-
-def test_cycle_does_not_persist_to_agents_state_file(tmp_path: Path) -> None:
-    cs_file = tmp_path / "cs.txt"
-    agents_file = tmp_path / "agents.txt"
-    with (
-        patch("sase.ace.changespec_grouping_mode_state._GROUPING_MODE_FILE", cs_file),
-        patch("sase.ace.grouping_mode_state._GROUPING_MODE_FILE", agents_file),
-    ):
-        app = _StubApp()
-        app.action_cycle_grouping_mode()
-        assert cs_file.exists()
-        assert not agents_file.exists()
+def test_cycle_does_not_create_grouping_mode_files(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = _StubApp()
+    app.action_cycle_grouping_mode()
+    assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
+    assert not (tmp_path / ".sase" / "changespec_grouping_mode.txt").exists()
+    assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
 
 
 # ---------------------------------------------------------------------------

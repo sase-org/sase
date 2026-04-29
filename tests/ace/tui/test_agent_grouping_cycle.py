@@ -15,7 +15,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -265,17 +264,19 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Persistence on cycle
+# No persistence on cycle
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_persists_new_mode(tmp_path: Path) -> None:
-    """After cycling, the new mode is written to disk."""
-    test_file = tmp_path / "grouping_mode.txt"
-    with patch("sase.ace.grouping_mode_state._GROUPING_MODE_FILE", test_file):
-        app = _StubApp([_agent()])
-        app.action_cycle_grouping_mode()
-        assert test_file.read_text() == GroupingMode.BY_DATE.value
+def test_cycle_does_not_create_grouping_mode_file(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Cycling is session-local; it no longer writes the selected mode."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = _StubApp([_agent()])
+    app.action_cycle_grouping_mode()
+    assert app._grouping_mode is GroupingMode.BY_DATE
+    assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
 
 
 # ---------------------------------------------------------------------------
