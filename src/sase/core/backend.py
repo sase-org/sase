@@ -9,10 +9,10 @@ bindings will replace one operation at a time. Selection is driven by env vars:
   :mod:`sase.core.dual_run`). The dispatcher always returns the Python result
   while dual-run is enabled.
 
-Phase 0A ships only the Python implementation. Selecting the Rust backend
-without Rust available raises :class:`RustBackendUnavailableError` rather than
-silently falling back; that protects future rollouts from a quiet regression
-when the wheel is missing.
+Selecting the Rust backend is strict by default: shipped Rust operations raise
+:class:`RustBackendUnavailableError` when their binding is missing rather than
+silently falling back. Individual operations that are intentionally unported can
+opt into Python fallback with ``rust_unavailable="python"``.
 
 Phase 1D introduces the optional ``sase_core_rs`` PyO3 extension module.
 :func:`is_rust_available` lazy-imports it so a missing wheel never breaks
@@ -27,6 +27,7 @@ import importlib
 import os
 from collections.abc import Callable
 from enum import StrEnum
+from typing import Literal
 
 RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
@@ -112,6 +113,7 @@ def dispatch[T](
     *,
     python_impl: Callable[..., T],
     rust_impl: Callable[..., T] | None = None,
+    rust_unavailable: Literal["raise", "python"] = "raise",
     args: tuple = (),
     kwargs: dict | None = None,
     source_path: str | None = None,
@@ -128,19 +130,28 @@ def dispatch[T](
         ``rust_impl``: call both, log a comparison record, return the Python
         result. With no ``rust_impl`` available, dual-run is a no-op.
       - ``SASE_CORE_BACKEND=rust`` with no ``rust_impl``: raise
-        :class:`RustBackendUnavailableError`.
+        :class:`RustBackendUnavailableError` by default. Operations explicitly
+        marked ``rust_unavailable="python"`` call ``python_impl`` instead.
       - ``SASE_CORE_BACKEND=rust`` with ``rust_impl``: call ``rust_impl`` (and
         compare to Python under dual-run, returning the Python result so
         TUI/CLI behavior cannot drift).
     """
     call_kwargs = kwargs or {}
     backend = get_active_backend()
+    if rust_unavailable not in {"raise", "python"}:
+        raise ValueError(
+            f"Invalid rust_unavailable={rust_unavailable!r}; expected "
+            "'raise' or 'python'."
+        )
 
     if backend is Backend.RUST and rust_impl is None:
+        if rust_unavailable == "python":
+            return python_impl(*args, **call_kwargs)
         raise RustBackendUnavailableError(
             f"Rust backend requested for {operation!r} but no Rust implementation "
-            "is registered (Phase 0A ships Python only). Unset "
-            f"{BACKEND_ENV_VAR} or install the optional sase_core_rs extension."
+            "is registered. Unset "
+            f"{BACKEND_ENV_VAR}, install or refresh the optional sase_core_rs "
+            "extension, or mark the operation as an explicit Python fallback."
         )
 
     if rust_impl is not None and is_dual_run_enabled():

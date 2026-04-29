@@ -82,7 +82,11 @@ def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
         return wires
 
     rust_module = load_rust_extension()
-    rust_impl = _rust_parse_project_bytes_impl if rust_module is not None else None
+    rust_impl = (
+        _rust_parse_project_bytes_impl
+        if rust_module is not None and hasattr(rust_module, "parse_project_bytes")
+        else None
+    )
 
     return dispatch(
         operation="parse_project_bytes",

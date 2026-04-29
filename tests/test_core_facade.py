@@ -1,9 +1,10 @@
 """Tests for the sase.core facade modules.
 
 Each facade should call the existing Python implementation by default and
-behave identically to it. Operations configured for backend dispatch should
-fail clearly under ``SASE_CORE_BACKEND=rust`` when no Rust implementation is
-registered.
+behave identically to it. Shipped Rust operations configured for backend
+dispatch should fail clearly under ``SASE_CORE_BACKEND=rust`` when no Rust
+implementation is registered; intentionally unported facade operations fall
+back to Python.
 
 When ``sase_core_rs`` is importable, ``parse_project_bytes`` routes to the Rust
 binding under ``SASE_CORE_BACKEND=rust`` and dual-run logs a comparison record.
@@ -208,16 +209,64 @@ def test_status_facade_pure_helpers(sample_project: Path) -> None:
     assert "STATUS: WIP" in "".join(lines)
 
 
-def test_status_facade_rust_without_impl_raises(
+def test_status_facade_rust_without_impl_falls_back_to_python(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     lines = sample_project.read_text().splitlines(keepends=True)
-    with pytest.raises(RustBackendUnavailableError):
-        status_facade.read_status_from_lines(lines, "example")
+    assert status_facade.read_status_from_lines(lines, "example") == "WIP"
+    rewritten = status_facade.apply_status_update(lines, "example", "Draft")
+    assert "STATUS: Draft" in rewritten
+
+    success, old_status, error, sibling_results = (
+        status_facade.transition_changespec_status(
+            str(sample_project),
+            "example",
+            "Draft",
+            validate=True,
+        )
+    )
+    assert success is True
+    assert old_status == "WIP"
+    assert error is None
+    assert sibling_results == []
+    assert (
+        status_facade.read_status_from_lines(
+            sample_project.read_text().splitlines(keepends=True),
+            "example",
+        )
+        == "Draft"
+    )
 
 
-def test_query_facade_rust_without_impl_raises(
+def test_unported_query_facade_apis_rust_without_impl_fall_back_to_python(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    specs = parser_facade.parse_project_file(str(sample_project))
+    expr = raw_parse_query('"example"')
+    ctx = query_facade.build_query_context(specs)
+    direct_ctx = raw_evaluator.build_query_context(specs)
+
+    assert set(ctx.name_map) == set(direct_ctx.name_map)
+    assert query_facade.evaluate_query(expr, specs[0], specs) is True
+    assert query_facade.evaluate_query_with_context(expr, specs[0], ctx) is True
+
+
+def test_graph_index_facade_rust_without_impl_falls_back_to_python(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    specs = parser_facade.parse_project_file(str(sample_project))
+    via_facade = graph_index_facade.build_changespec_graph_index(specs)
+    direct = raw_build_graph_index(specs)
+    assert set(via_facade.name_map.keys()) == set(direct.name_map.keys())
+    assert via_facade.get_children("example") == direct.get_children("example")
+
+
+def test_parse_query_rust_without_impl_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """parse_query routes to the Rust binding only when the extension is
@@ -331,6 +380,20 @@ def test_parse_project_bytes_rust_backend_uses_rust_impl(
     assert all(w.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION for w in wires)
 
 
+def test_parse_project_bytes_rust_backend_missing_binding_raises_cleanly(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    with pytest.raises(RustBackendUnavailableError, match="parse_project_bytes"):
+        parser_facade.parse_project_bytes(
+            str(sample_project),
+            sample_project.read_bytes(),
+        )
+
+
 def test_parse_project_bytes_dual_run_logs_comparison(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -430,6 +493,16 @@ def test_parse_query_rust_backend_uses_rust_impl(
     assert type(expr) is type(raw_parse_query('"x"'))
 
 
+def test_parse_query_rust_backend_missing_binding_raises_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_query_module(monkeypatch)
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    with pytest.raises(RustBackendUnavailableError, match="parse_query"):
+        query_facade.parse_query('"x"')
+
+
 def test_evaluate_query_many_rust_backend_uses_rust_impl(
     sample_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -451,6 +524,17 @@ def test_evaluate_query_many_rust_backend_uses_rust_impl(
     result = query_facade.evaluate_query_many('"example"', specs)
     assert result == sentinel
     assert calls == [('"example"', len(specs))]
+
+
+def test_evaluate_query_many_rust_backend_missing_binding_raises_cleanly(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    specs = parser_facade.parse_project_file(str(sample_project))
+    _install_fake_query_module(monkeypatch, parse_query=lambda _query: {})
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    with pytest.raises(RustBackendUnavailableError, match="evaluate_query_many"):
+        query_facade.evaluate_query_many('"example"', specs)
 
 
 def test_evaluate_query_many_dual_run_logs_comparison(

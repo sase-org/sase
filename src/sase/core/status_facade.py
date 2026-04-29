@@ -36,6 +36,7 @@ def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None
     return dispatch(
         operation="read_status_from_lines",
         python_impl=read_status_from_lines_python,
+        rust_unavailable="python",
         args=(lines, changespec_name),
     )
 
@@ -45,6 +46,7 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
     return dispatch(
         operation="apply_status_update",
         python_impl=apply_status_update_python,
+        rust_unavailable="python",
         args=(lines, changespec_name, new_status),
     )
 
@@ -60,6 +62,7 @@ def transition_changespec_status(
     return dispatch(
         operation="transition_changespec_status",
         python_impl=transition_changespec_status_python,
+        rust_unavailable="python",
         args=(project_file, changespec_name, new_status),
         kwargs={"validate": validate, "console": console},
         source_path=project_file,

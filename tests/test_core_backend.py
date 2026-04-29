@@ -118,6 +118,25 @@ def test_dispatch_rust_without_impl_raises(
         dispatch(operation="noop", python_impl=py)
 
 
+def test_dispatch_rust_without_impl_can_fallback_to_python(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+
+    def py(x: int) -> int:
+        return x + 1
+
+    assert (
+        dispatch(
+            operation="python_only",
+            python_impl=py,
+            rust_unavailable="python",
+            args=(2,),
+        )
+        == 3
+    )
+
+
 def test_dispatch_rust_with_impl(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)

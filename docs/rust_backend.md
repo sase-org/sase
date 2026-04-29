@@ -6,6 +6,10 @@ A subset of sase's core APIs (currently `parse_project_bytes`, `parse_query` / `
 working with no Rust toolchain, and every `just rust-*` target degrades to a friendly no-op when the sibling repo is
 absent.
 
+`SASE_CORE_BACKEND=rust` is a hybrid per-operation mode: operations with shipped Rust bindings use Rust, while facade
+APIs that are intentionally unported use their Python implementation. Missing bindings for shipped Rust operations still
+raise `RustBackendUnavailableError`, so a stale or absent extension cannot make Rust mode appear to exercise Rust.
+
 ## Why a Rust Backend?
 
 The `sase.core` package is a stable Python facade carved out specifically so individual operations can be re-served by
@@ -84,11 +88,14 @@ just rust-install /path/to/venv
 
 | Env var              | Values                     | Effect                                                                                                                                                       |
 | -------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SASE_CORE_BACKEND`  | `python` (default), `rust` | Selects which implementation each dispatched operation uses                                                                                                  |
+| `SASE_CORE_BACKEND`  | `python` (default), `rust` | Selects which implementation each dispatched operation uses. Rust mode uses Rust for shipped bindings and Python for explicitly unported operations.         |
 | `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Run both impls on every dispatched op; log mismatches to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled. |
 
-Selecting `SASE_CORE_BACKEND=rust` when `sase_core_rs` is not importable raises `RustBackendUnavailableError` rather
-than silently falling back — this is intentional, so a missing wheel cannot quietly mask a regression in production.
+Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
+`RustBackendUnavailableError` rather than silently falling back. For example, `parse_project_bytes`, `parse_query`,
+`evaluate_query_many`, and `scan_agent_artifacts` require `sase_core_rs` to expose the corresponding binding. Query
+context/per-row evaluation, graph-index construction, and status helpers are intentionally unported today and fall back
+to Python under Rust mode.
 
 `is_rust_available()` is a lazy, forgiving probe: an `ImportError` simply reports `False` so a pure-Python install is
 never broken; other import-time failures propagate so a _misbuilt_ wheel surfaces immediately.

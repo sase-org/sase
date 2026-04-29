@@ -395,12 +395,13 @@ landed for the operations already ported (parser, query, agent scan).
 4. **No outstanding parity drift in `core_dual_run.jsonl`.** Run a release
    cycle with `SASE_CORE_DUAL_RUN=1` enabled in CI on the golden corpus and
    on a sanitized home-tree fixture; mismatch count must be zero.
-5. **Known Rust-only test isolation is handled.** The focused Phase 3H
-   `SASE_CORE_BACKEND=rust` run intentionally excluded tests that assert
-   `parse_project_file()` has no Rust implementation. Before flipping the
-   suite-wide default, either rewrite those tests to set their own backend env
-   or split them into an explicit "unsupported operation" bucket. Do not let a
-   global Rust CI job fail on tests whose contract is "this op is Python-only."
+5. **Per-operation fallback policy is explicit.** `SASE_CORE_BACKEND=rust`
+   must mean "Rust for shipped operations, Python for intentionally unported
+   facades" before a suite-wide default flip. Shipped operations keep strict
+   missing-binding failures; unported query context/per-row evaluation,
+   graph-index, and status APIs opt into Python fallback. Tests should assert
+   both halves of that contract instead of maintaining an unsupported-operation
+   bucket for unported facades.
 6. **Acknowledged gate change.** The 2× gate was the right bar for "is it
    worth porting?"; for "should the port be the default once it exists?" the
    bar is "measurable user-visible win, no regressions on hot paths." Record
@@ -731,11 +732,11 @@ The fourth number is the one that decides TUI rollout.
   parse cache, include schema version, parser version, source file signature,
   and platform-independent path identity. Otherwise parser upgrades will produce
   subtle stale reads.
-- **Removal order can strand unported facades.** `status_facade.py` and
-  `graph_index_facade.py` currently import the shared dispatcher even though
-  they have no Rust implementation. Phase 8 must rewire those modules before
-  deleting `backend.py`, or a parser/query/scan cleanup will break unrelated
-  Python-only APIs.
+- **Removal order can strand unported facades.** `status_facade.py`,
+  `graph_index_facade.py`, and the unported query evaluation helpers currently
+  use an explicit Python-fallback dispatch policy. Phase 8 must rewire those
+  modules before deleting `backend.py`, or a parser/query/scan cleanup will
+  break unrelated Python-only APIs.
 - **Operational observability.** During the default flip, users need one clear
   way to answer "am I on Rust?" and maintainers need one clear signal for
   extension load failures. Add a smoke-test command or health log before the
@@ -771,9 +772,10 @@ Phases 0–3 are done. The critical path forward is the consolidation track
    `SASE_CORE_DUAL_RUN=1` in CI for the cycle, then proceed to Phase 7
    measurement and Phase 8 removal.
 5. **Before Phase 8, remove the dispatcher dependency from unported facades.**
-   `status_facade.py` and `graph_index_facade.py` should be direct Python
-   adapters unless and until their Rust ports land. This keeps "delete backend
-   switching logic" from becoming an accidental cross-module breakage.
+   `status_facade.py`, `graph_index_facade.py`, and unported query
+   context/per-row evaluation helpers should be direct Python adapters unless
+   and until their Rust ports land. This keeps "delete backend switching
+   logic" from becoming an accidental cross-module breakage.
 
 The discipline that makes this work: **never port ahead of measurement, and
 do not delete the Python implementation until the Rust default has run a

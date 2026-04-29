@@ -1,6 +1,6 @@
 """Core utilities — split from the former sase_utils.py module.
 
-This package also hosts the Phase 0 facade for the future Rust backend (see
+This package also hosts the facade for the optional Rust backend (see
 ``research/202604/rust_backend_migration.md`` and
 ``plans/202604/rust_backend_phase0.md``):
 
@@ -26,16 +26,11 @@ Why Rust is optional
 --------------------
 A Rust implementation never has to exist for sase to work; that is the point
 of Phase 0. The default backend is Python, the dispatcher is the only place
-backend selection happens, and a missing Rust extension fails loudly
-(:class:`sase.core.backend.RustBackendUnavailableError`) instead of silently
-falling back. Phase 1 will add an optional ``sase_core_rs`` PyO3 extension
-that registers itself as the ``rust_impl`` argument for one operation at a
-time, starting with :func:`parse_project_bytes`. Consumers of the facade do
-not need to change when that happens.
-
-Phase 0 status: only the Python implementation ships;
-``SASE_CORE_BACKEND=rust`` intentionally raises
-:class:`sase.core.backend.RustBackendUnavailableError`.
+backend selection happens, and shipped Rust operations fail loudly
+(:class:`sase.core.backend.RustBackendUnavailableError`) when their expected
+binding is missing. APIs that are intentionally unported can opt into an
+explicit Python fallback under ``SASE_CORE_BACKEND=rust`` so selecting the Rust
+backend means "use Rust where shipped, Python where not yet ported."
 """
 
 from sase.core.changespec import (

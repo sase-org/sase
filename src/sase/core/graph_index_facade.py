@@ -25,5 +25,6 @@ def build_changespec_graph_index(
     return dispatch(
         operation="build_changespec_graph_index",
         python_impl=build_changespec_graph_index_python,
+        rust_unavailable="python",
         args=(changespecs,),
     )

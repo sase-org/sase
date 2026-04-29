@@ -57,7 +57,11 @@ def _rust_parse_query_impl(query: str) -> QueryExpr:
 def parse_query(query: str) -> QueryExpr:
     """Parse a query string into a :class:`QueryExpr` via the active backend."""
     rust_module = load_rust_extension()
-    rust_impl = _rust_parse_query_impl if rust_module is not None else None
+    rust_impl = (
+        _rust_parse_query_impl
+        if rust_module is not None and hasattr(rust_module, "parse_query")
+        else None
+    )
     return dispatch(
         operation="parse_query",
         python_impl=parse_query_python,
@@ -71,6 +75,7 @@ def build_query_context(changespecs: list[ChangeSpec]) -> QueryEvaluationContext
     return dispatch(
         operation="build_query_context",
         python_impl=build_query_context_python,
+        rust_unavailable="python",
         args=(changespecs,),
     )
 
@@ -84,6 +89,7 @@ def evaluate_query(
     return dispatch(
         operation="evaluate_query",
         python_impl=evaluate_query_python,
+        rust_unavailable="python",
         args=(query, changespec, all_changespecs),
     )
 
@@ -97,6 +103,7 @@ def evaluate_query_with_context(
     return dispatch(
         operation="evaluate_query_with_context",
         python_impl=evaluate_query_with_context_python,
+        rust_unavailable="python",
         args=(query, changespec, ctx),
     )
 
@@ -148,7 +155,11 @@ def evaluate_query_many(
     a comparison record is logged; the Python result is what callers see.
     """
     rust_module = load_rust_extension()
-    rust_impl = _rust_evaluate_query_many_impl if rust_module is not None else None
+    rust_impl = (
+        _rust_evaluate_query_many_impl
+        if rust_module is not None and hasattr(rust_module, "evaluate_query_many")
+        else None
+    )
     return dispatch(
         operation="evaluate_query_many",
         python_impl=_evaluate_query_many_python,

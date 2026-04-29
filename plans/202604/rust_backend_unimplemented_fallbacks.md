@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 11:58:25
-status: wip
+status: done
 ---
 # Plan: make unported Rust backend facade methods fall back to Python
 
