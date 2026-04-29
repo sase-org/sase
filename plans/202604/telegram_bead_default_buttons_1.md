@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-28 21:34:03
-status: wip
+status: done
 ---
 # Plan: Default `/bead` (no args) → Inline-Keyboard Picker of Open Beads
 
