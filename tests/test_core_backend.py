@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import sys
+import types
+
 import pytest
 
 from sase.core.backend import (
     BACKEND_ENV_VAR,
     DEFAULT_BACKEND,
     DUAL_RUN_ENV_VAR,
+    RUST_EXTENSION_MODULE_NAME,
     Backend,
     RustBackendUnavailableError,
     dispatch,
     get_active_backend,
     is_dual_run_enabled,
     is_rust_available,
+    load_rust_extension,
 )
 
 
@@ -61,9 +66,31 @@ def test_dual_run_unset_is_false(monkeypatch: pytest.MonkeyPatch) -> None:
     assert is_dual_run_enabled() is False
 
 
-def test_rust_not_available_in_phase_0a() -> None:
-    """Phase 0A guarantee: no Rust impl is wired up yet."""
+def test_rust_unavailable_when_extension_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without ``sase_core_rs`` installed, the probe returns ``False``.
+
+    The probe must swallow ``ImportError`` so a pure-Python install never
+    breaks startup.
+    """
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    monkeypatch.setattr(
+        "importlib.import_module",
+        lambda name: (_ for _ in ()).throw(ImportError(f"No module named {name!r}")),
+    )
     assert is_rust_available() is False
+    assert load_rust_extension() is None
+
+
+def test_rust_available_when_extension_importable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a fake ``sase_core_rs`` is registered, the probe returns ``True``."""
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    assert is_rust_available() is True
+    assert load_rust_extension() is fake
 
 
 def test_dispatch_python_default(monkeypatch: pytest.MonkeyPatch) -> None:

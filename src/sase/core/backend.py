@@ -13,13 +13,22 @@ Phase 0A ships only the Python implementation. Selecting the Rust backend
 without Rust available raises :class:`RustBackendUnavailableError` rather than
 silently falling back; that protects future rollouts from a quiet regression
 when the wheel is missing.
+
+Phase 1D introduces the optional ``sase_core_rs`` PyO3 extension module.
+:func:`is_rust_available` lazy-imports it so a missing wheel never breaks
+startup, and the per-operation facade (currently
+:func:`sase.core.parser_facade.parse_project_bytes`) registers a
+``rust_impl`` only when the import succeeds.
 """
 
 from __future__ import annotations
 
+import importlib
 import os
 from collections.abc import Callable
 from enum import StrEnum
+
+RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
 
 # pyvision: tests/test_core_backend.py
@@ -70,12 +79,32 @@ def is_dual_run_enabled() -> bool:
 
 # pyvision: tests/test_core_backend.py
 def is_rust_available() -> bool:
-    """Return True when a Rust implementation is importable.
+    """Return True when the optional ``sase_core_rs`` extension is importable.
 
-    Phase 0A: always ``False``. Phase 1 will probe an optional ``sase_core_rs``
-    extension module here.
+    The probe is intentionally lazy and forgiving: any ``ImportError`` (the
+    wheel is not installed) returns ``False`` so a pure-Python install is
+    never broken by a missing Rust extension. Other import-time failures
+    propagate so a misbuilt wheel does not silently disable the Rust
+    backend.
     """
-    return False
+    try:
+        importlib.import_module(RUST_EXTENSION_MODULE_NAME)
+    except ImportError:
+        return False
+    return True
+
+
+def load_rust_extension() -> object | None:
+    """Return the imported Rust extension module, or ``None`` if missing.
+
+    Centralizes the import so callers (the facade modules) share one
+    definition of "the Rust extension" and never branch on the module name
+    in their own code.
+    """
+    try:
+        return importlib.import_module(RUST_EXTENSION_MODULE_NAME)
+    except ImportError:
+        return None
 
 
 def dispatch[T](

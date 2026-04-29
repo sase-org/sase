@@ -27,6 +27,7 @@ from sase.core.wire import (
 )
 from sase.core.wire_conversion import (
     changespec_to_wire,
+    changespec_wire_from_dict,
     comment_entry_to_wire,
     commit_entry_to_wire,
     delta_entry_to_wire,
@@ -249,6 +250,62 @@ def test_parse_error_wire_optional_position() -> None:
     assert payload["line"] is None
     assert payload["column"] is None
     assert payload["kind"] == "invalid-status"
+
+
+def test_changespec_wire_from_dict_round_trips_full_record() -> None:
+    """Rust emits dicts; ``changespec_wire_from_dict`` rehydrates them.
+
+    Round-trip a fully populated wire record through ``to_json_dict`` and
+    back: the result must equal the original dataclass tree.
+    """
+    cs = _full_changespec()
+    wire = changespec_to_wire(cs, end_line=99)
+    payload = to_json_dict(wire)
+
+    rehydrated = changespec_wire_from_dict(payload)
+    assert rehydrated == wire
+
+
+def test_changespec_wire_from_dict_rejects_unknown_schema_version() -> None:
+    """Unsupported schema versions are explicit errors, not silent drift."""
+    payload = {
+        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION + 1,
+        "name": "x",
+        "project_basename": "p",
+        "file_path": "p.gp",
+        "source_span": {"file_path": "p.gp", "start_line": 1, "end_line": 1},
+        "status": "WIP",
+        "parent": None,
+        "cl_or_pr": None,
+        "bug": None,
+        "description": "",
+    }
+    try:
+        changespec_wire_from_dict(payload)
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+    else:
+        raise AssertionError("expected ValueError on bumped schema_version")
+
+
+def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
+    """Rust may serialize empty lists implicitly (None); accept either form."""
+    payload = {
+        "schema_version": CHANGESPEC_WIRE_SCHEMA_VERSION,
+        "name": "x",
+        "project_basename": "p",
+        "file_path": "p.gp",
+        "source_span": {"file_path": "p.gp", "start_line": 1, "end_line": 1},
+        "status": "WIP",
+        "parent": None,
+        "cl_or_pr": None,
+        "bug": None,
+        "description": "",
+    }
+    wire = changespec_wire_from_dict(payload)
+    assert wire.test_targets == []
+    assert wire.commits == []
+    assert wire.deltas == []
 
 
 def test_empty_changespec_collections_become_empty_lists() -> None:
