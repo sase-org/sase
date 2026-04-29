@@ -1,11 +1,20 @@
 """Find named agents and inspect workflow completion status.
 
-Scans artifact directories across all projects to find agents by their
-assigned name (via %name directive or manual TUI naming).
+Consumes the agent-artifact snapshot produced by
+:func:`sase.core.agent_scan_facade.scan_agent_artifacts` so name lookup
+benefits from a single backend-dispatched walk of
+``~/.sase/projects/*/artifacts/ace-run/*`` rather than independently
+re-walking the tree per call.
+
+Process liveness, dismissed-bundle fallback, and dismissal-prefix
+semantics stay in Python — Phase 3D moves the read path only.
 """
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.names._common import (
     NamedAgent,
@@ -13,12 +22,55 @@ from sase.agent.names._common import (
     is_process_alive,
 )
 
+if TYPE_CHECKING:
+    from sase.core.agent_scan_wire import AgentArtifactRecordWire
+
+
+def _ace_run_scan_options() -> Any:
+    """Return the scan-facade options for ace-run-only name lookups.
+
+    Imported lazily to avoid the agent-scan facade pulling in the TUI
+    loader package at ``sase.agent`` import time (the loader package
+    transitively depends back on ``sase.agent.names``).
+    """
+    from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+
+    return AgentArtifactScanOptionsWire(
+        only_workflow_dirs=("ace-run",),
+        include_prompt_step_markers=False,
+        include_raw_prompt_snippets=False,
+    )
+
+
+def _projects_root() -> Path:
+    return Path.home() / ".sase" / "projects"
+
+
+def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
+    """Project the record's ``agent_meta`` fields needed by ``is_process_alive``.
+
+    ``is_process_alive`` only reads ``pid`` and ``stopped_at``; the wire
+    carries both. Returning a dict keeps the helper untouched and avoids
+    re-reading ``agent_meta.json`` from disk.
+    """
+    meta = record.agent_meta
+    if meta is None:
+        return {}
+    out: dict[str, Any] = {}
+    if meta.pid is not None:
+        out["pid"] = meta.pid
+    if meta.stopped_at is not None:
+        out["stopped_at"] = meta.stopped_at
+    return out
+
 
 def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None:
     """Find a named agent by scanning all project artifacts.
 
-    Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
-    for an agent whose ``"name"`` or ``"workflow_name"`` field matches *name*.
+    Consults the snapshot returned by
+    :func:`sase.core.agent_scan_facade.scan_agent_artifacts` for every
+    ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json`` whose
+    ``"name"`` or ``"workflow_name"`` field matches *name*.
 
     Prefers running (non-done) agents over completed ones.  Exact ``name``
     matches take priority over ``workflow_name`` matches.  Among workflow
@@ -26,97 +78,76 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
 
     Args:
         name: The agent name to search for.
+        only_done: When True, ignore running candidates and return only
+            historical/done matches.
 
     Returns:
         A NamedAgent if found, or None.
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = _projects_root()
+    if not projects_dir.exists():
+        # Fall through to dismissed-bundle fallback below.
+        return _find_named_dismissed_bundle(name)
+
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    snapshot = scan_agent_artifacts(projects_dir, _ace_run_scan_options())
+
     best_match: NamedAgent | None = None
     best_priority: tuple[int, str] = (0, "")
 
-    if not projects_dir.exists():
-        # Fall through to dismissed-bundle fallback below.
-        bundle_match = _find_named_dismissed_bundle(name)
-        return bundle_match
-
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        meta = record.agent_meta
+        if meta is None:
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        exact = meta.name == name
+        workflow = meta.workflow_name == name
+        if not exact and not workflow:
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
+        artifact_dir = Path(record.artifact_dir)
+        is_done = False
+        outcome: str | None = None
+        if record.has_done_marker:
+            is_done = True
+            if record.done is not None:
+                outcome = record.done.outcome
+        elif is_dismissed_prefixed(name):
+            # Dismissal removes done.json but preserves the prefixed
+            # agent_meta.json. Treat such artifacts as historical so
+            # `%w:260428.foo` and `#resume:260428.foo` still resolve.
+            is_done = True
+            outcome = "dismissed"
 
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
+        agent = NamedAgent(
+            name=name,
+            artifacts_dir=str(artifact_dir),
+            is_done=is_done,
+            outcome=outcome,
+        )
 
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
+        # Running agents take priority — return immediately,
+        # but only if the process is actually alive.  Parent-phase
+        # artifacts (e.g. .plan) share the agent name yet never
+        # write done.json; without a liveness check we'd return
+        # them as "running" and block wait resolution forever.
+        # For workflow matches, only return the root agent
+        # (no parent_timestamp) to avoid matching intermediate steps.
+        if not is_done:
+            if not only_done and is_process_alive(_meta_dict(record), artifact_dir):
+                if exact or not meta.parent_timestamp:
+                    return agent
+            continue
 
-            if not isinstance(data, dict):
-                continue
-
-            exact = data.get("name") == name
-            workflow = data.get("workflow_name") == name
-
-            if not exact and not workflow:
-                continue
-
-            # Found a named agent — check if it's done
-            done_path = artifact_dir / "done.json"
-            is_done = False
-            outcome: str | None = None
-            if done_path.exists():
-                try:
-                    with open(done_path, encoding="utf-8") as f:
-                        done_data = json.load(f)
-                    is_done = True
-                    outcome = done_data.get("outcome")
-                except (json.JSONDecodeError, OSError):
-                    # done.json exists but can't be read — treat as done
-                    is_done = True
-            elif is_dismissed_prefixed(name):
-                # Dismissal removes done.json but preserves the prefixed
-                # agent_meta.json. Treat such artifacts as historical so
-                # `%w:260428.foo` and `#resume:260428.foo` still resolve.
-                is_done = True
-                outcome = "dismissed"
-
-            agent = NamedAgent(
-                name=name,
-                artifacts_dir=str(artifact_dir),
-                is_done=is_done,
-                outcome=outcome,
-            )
-
-            # Running agents take priority — return immediately,
-            # but only if the process is actually alive.  Parent-phase
-            # artifacts (e.g. .plan) share the agent name yet never
-            # write done.json; without a liveness check we'd return
-            # them as "running" and block wait resolution forever.
-            # For workflow matches, only return the root agent
-            # (no parent_timestamp) to avoid matching intermediate steps.
-            if not is_done:
-                if not only_done and is_process_alive(data, artifact_dir):
-                    if exact or not data.get("parent_timestamp"):
-                        return agent
-                continue
-
-            # Done agent — prefer exact matches over workflow matches,
-            # and most recent timestamp within each category.
-            ts = artifact_dir.name
-            priority = (1 if exact else 0, ts)
-            if priority > best_priority:
-                best_match = agent
-                best_priority = priority
+        # Done agent — prefer exact matches over workflow matches,
+        # and most recent timestamp within each category.
+        priority = (1 if exact else 0, record.timestamp)
+        if priority > best_priority:
+            best_match = agent
+            best_priority = priority
 
     if best_match is None:
         # Fall back to dismissed bundles. After dismissal the artifact
@@ -187,59 +218,47 @@ def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:
 def is_workflow_complete(name: str) -> bool | None:
     """Check whether all agents in a multi-agent workflow have completed.
 
-    Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
-    for agents whose ``workflow_name`` matches *name*.
+    Consults the snapshot returned by
+    :func:`sase.core.agent_scan_facade.scan_agent_artifacts` for agents
+    whose ``workflow_name`` matches *name*.
 
     Returns:
         ``True`` — root has ``done.json`` and no child is still alive without one.
         ``False`` — workflow exists but isn't fully complete.
         ``None`` — no agents with ``workflow_name == name`` found (not a workflow).
     """
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = _projects_root()
     if not projects_dir.exists():
         return None
 
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    snapshot = scan_agent_artifacts(projects_dir, _ace_run_scan_options())
+
     # Collect all agents in this workflow
-    workflow_agents: list[tuple[Path, dict[str, object]]] = []
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    workflow_records: list[AgentArtifactRecordWire] = []
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
             continue
-
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        meta = record.agent_meta
+        if meta is None:
             continue
+        if meta.workflow_name == name:
+            workflow_records.append(record)
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
-
-            meta_path = artifact_dir / "agent_meta.json"
-            if not meta_path.exists():
-                continue
-
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            if not isinstance(data, dict):
-                continue
-
-            if data.get("workflow_name") == name:
-                workflow_agents.append((artifact_dir, data))
-
-    if not workflow_agents:
+    if not workflow_records:
         return None
 
     # Find the root agent (no parent_timestamp)
-    root: tuple[Path, dict[str, object]] | None = None
-    children: list[tuple[Path, dict[str, object]]] = []
-    for artifact_dir, meta in workflow_agents:
-        if meta.get("parent_timestamp"):
-            children.append((artifact_dir, meta))
+    root: AgentArtifactRecordWire | None = None
+    children: list[AgentArtifactRecordWire] = []
+    for record in workflow_records:
+        meta = record.agent_meta
+        assert meta is not None  # filtered above
+        if meta.parent_timestamp:
+            children.append(record)
         else:
-            root = (artifact_dir, meta)
+            root = record
 
     if root is None:
         # No root found — the root's workflow_name may have been
@@ -249,11 +268,11 @@ def is_workflow_complete(name: str) -> bool | None:
         # resolution via find_named_agent.
         return None
 
-    root_dir, root_meta = root
-    root_done = (root_dir / "done.json").exists()
+    root_dir = Path(root.artifact_dir)
+    root_done = root.has_done_marker
 
     if not root_done:
-        if is_process_alive(root_meta, root_dir):
+        if is_process_alive(_meta_dict(root), root_dir):
             # Root still running — may write done.json later
             return False
         # Root is dead without done.json (crashed/killed between
@@ -264,9 +283,9 @@ def is_workflow_complete(name: str) -> bool | None:
             return False
 
     # Root is done (or dead without done.json) — check all children
-    for child_dir, child_meta in children:
-        child_done = (child_dir / "done.json").exists()
-        if not child_done and is_process_alive(child_meta, child_dir):
+    for child in children:
+        child_dir = Path(child.artifact_dir)
+        if not child.has_done_marker and is_process_alive(_meta_dict(child), child_dir):
             # Child is still alive and hasn't finished
             return False
 

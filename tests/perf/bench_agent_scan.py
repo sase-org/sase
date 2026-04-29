@@ -4,6 +4,13 @@ Phase 3A (sase-18.1) of `../sase_100/plans/202604/rust_backend_phase3_agent_scan
 Establishes the Python baseline measurements that subsequent phases must
 beat to justify routing call sites through the Rust scanner.
 
+Phase 3D (sase-18.4) reroutes ``find_named_agent`` and
+``is_workflow_complete`` through the snapshot facade; the
+``find_named_agent`` / ``is_workflow_complete`` scenarios below now reflect
+the snapshot-backed implementation, and the ``*_rust_backend`` scenarios
+re-time them under ``SASE_CORE_BACKEND=rust`` when the extension is
+available so name-lookup costs can be compared across backends in one run.
+
 Workloads
 ---------
 
@@ -52,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import tempfile
@@ -65,6 +73,7 @@ import pytest
 
 from sase.core.agent_scan_facade import scan_agent_artifacts_python
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+from sase.core.backend import BACKEND_ENV_VAR, is_rust_available
 
 pytestmark = pytest.mark.slow
 
@@ -288,6 +297,30 @@ def _run_scenarios(
         opts = AgentArtifactScanOptionsWire(include_prompt_step_markers=False)
         return len(scan_agent_artifacts_python(projects_root, opts).records)
 
+    def _with_backend(backend: str, fn: Callable[[], Any]) -> Any:
+        with patch.dict(os.environ, {BACKEND_ENV_VAR: backend}):
+            return fn()
+
+    rust_active = is_rust_available()
+
+    def s_find_rust() -> int:
+        name = target_name
+        if name is None or not rust_active:
+            return 0
+        result = _with_fake_home(
+            lambda: _with_backend("rust", lambda: find_named_agent(name))
+        )
+        return 1 if result is not None else 0
+
+    def s_workflow_complete_rust() -> int:
+        name = workflow_name
+        if name is None or not rust_active:
+            return 0
+        result = _with_fake_home(
+            lambda: _with_backend("rust", lambda: is_workflow_complete(name))
+        )
+        return 1 if result else 0
+
     scenarios: dict[str, Callable[[], int]] = {
         "find_named_agent": s_find,
         "is_workflow_complete": s_workflow_complete,
@@ -296,6 +329,8 @@ def _run_scenarios(
         "tui_artifact_load": s_tui_load,
         "scan_python_facade": s_scan_facade,
         "scan_python_facade_no_prompt_steps": s_scan_facade_no_steps,
+        "find_named_agent_rust_backend": s_find_rust,
+        "is_workflow_complete_rust_backend": s_workflow_complete_rust,
     }
 
     results: dict[str, Any] = {
@@ -308,11 +343,21 @@ def _run_scenarios(
         "scenarios": {},
     }
 
+    skip_when_no_target = {"find_named_agent", "find_named_agent_rust_backend"}
+    skip_when_no_workflow = {
+        "is_workflow_complete",
+        "is_workflow_complete_rust_backend",
+    }
+    rust_only = {"find_named_agent_rust_backend", "is_workflow_complete_rust_backend"}
+
     for name, fn in scenarios.items():
-        if name in {"find_named_agent", "is_workflow_complete"} and (
-            (name == "find_named_agent" and target_name is None)
-            or (name == "is_workflow_complete" and workflow_name is None)
-        ):
+        if name in skip_when_no_target and target_name is None:
+            results["scenarios"][name] = {"count": 0.0}
+            continue
+        if name in skip_when_no_workflow and workflow_name is None:
+            results["scenarios"][name] = {"count": 0.0}
+            continue
+        if name in rust_only and not rust_active:
             results["scenarios"][name] = {"count": 0.0}
             continue
         results["scenarios"][name] = _time_calls(fn, runs=runs, warmup=warmup)

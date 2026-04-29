@@ -542,7 +542,6 @@ def _rust_scan_agent_artifacts_impl(
     return agent_scan_wire_from_dict(payload)
 
 
-# pyvision: tests/test_core_agent_scan.py
 def scan_agent_artifacts(
     projects_root: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
