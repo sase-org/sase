@@ -117,10 +117,10 @@ remains supported through Phase 7.
 
 ## Selecting the Backend at Runtime
 
-| Env var              | Values                     | Effect                                                                                                                                                                                                       |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SASE_CORE_BACKEND`  | `rust` (default), `python` | Selects which implementation each dispatched operation uses. Rust mode uses Rust for shipped bindings and Python for explicitly unported operations. `python` is the temporary escape hatch through Phase 7. |
-| `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Run both impls on every dispatched op; log mismatches to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled.                                                 |
+| Env var              | Values                     | Effect                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SASE_CORE_BACKEND`  | `rust` (default), `python` | Selects which implementation each dispatched operation uses. Rust mode uses Rust for shipped bindings and Python for explicitly unported operations. `python` is the temporary escape hatch through Phase 7.                                                                                                                                           |
+| `SASE_CORE_DUAL_RUN` | `1` / `true` / `yes`       | Parity/safety rail: run both impls on every dispatched op and log comparison records to `~/.sase/perf/core_dual_run.jsonl`. The Python result is always returned while dual-run is enabled. Used by the CI parity gate (`tests/parity/dual_run_parity.py`) and available locally for ad-hoc verification, not intended for normal production sessions. |
 
 Selecting `SASE_CORE_BACKEND=rust` when a shipped Rust operation's binding is unavailable raises
 `RustBackendUnavailableError` rather than silently falling back. The error names the operation, the `sase_core_rs`
@@ -224,6 +224,84 @@ never blocked.
 
 `just rust-bench` runs a Rust-only `cargo bench` example for measurements that exclude the Python interpreter from the
 loop.
+
+## Verifying The Backend
+
+A handful of commands cover "is my install healthy?" end-to-end:
+
+```bash
+sase core health             # default-Rust health: status + module path + version + platform
+sase core health -j          # same, JSON for scripting
+SASE_CORE_BACKEND=python sase core health   # confirm explicit-Python escape hatch works without sase_core_rs
+
+just check                   # full lint + type + test pass on the active backend
+just parity-check            # run tests/parity/dual_run_parity.py against the golden corpus + sanitized home tree
+just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
+```
+
+The parity gate exits non-zero if any non-divergent shipped operation produces a `match: false` record, no records at
+all, or a Rust-side exception. `parse_project_bytes` is the only documented divergence — the Python parser does not
+track `source_span.end_line`; the gate still requires it to produce records, and `tests/test_core_parity_smoke.py` pins
+the alternative byte-for-byte contract. The CI `parity-gate` job uploads `parity-artifacts/` (the JSONL log + summary)
+on every run, so a regression can be inspected post-hoc.
+
+CI also runs the full test suite on both backends through Phase 7 (`.github/workflows/ci.yml`): the `test` job runs the
+default-Rust backend across CPython 3.12 / 3.13 / 3.14, and `test-python-backend` runs `SASE_CORE_BACKEND=python` on
+3.12 / 3.14. The publish workflow's `install-smoke` job installs the built `sase` wheel into a fresh venv and runs
+`sase core health` in both backend modes; on failure it dumps `pip list`, Python/platform info, and
+`sase_core_rs.__file__` / `__version__` so missing-wheel or ABI-mismatch failures are diagnosable from the build log
+without a manual repro.
+
+## Rollback
+
+The Phase 6/7 release cycle keeps the Python implementations in place precisely so the default flip is reversible
+without a Rust rebuild. The rollback procedure depends on which phase is active when a problem is reported:
+
+### During Phase 6/7 (Python implementations still ship)
+
+**Per-user immediate mitigation (no release):**
+
+```bash
+export SASE_CORE_BACKEND=python   # selects pure-Python; no sase_core_rs required for any shipped operation
+sase core health                  # confirms python mode is selected and reports status="ok"
+```
+
+This is the documented escape hatch. It works for everything Phase 6 routes through Rust (`parse_project_bytes`,
+`parse_query`, `evaluate_query_many`, `scan_agent_artifacts`, `read_status_from_lines`, `apply_status_update`,
+`plan_status_transition`, `parse_git_name_status_z`, `parse_git_branch_name`, `derive_git_workspace_name`,
+`parse_git_conflicted_files`, `parse_git_local_changes`) and does not require `sase_core_rs` to be importable.
+
+**Project-wide rollback (patch release):**
+
+1. Revert `DEFAULT_BACKEND` in `src/sase/core/backend.py` to `Backend.PYTHON`.
+2. Update `tests/test_core_backend.py::test_default_backend_is_rust` (and the matching display/dispatch tests) to assert
+   the Python default again. The Phase 6F handoff (`plans/202604/rust_backend_phase6_phase6f_handoff.md`) lists every
+   test that paired with the flip; reverting them is the inverse of that change.
+3. Update the `## Selecting the Backend at Runtime` table here so `python (default)` reads as the default again.
+4. Cut a patch release. The `sase-core-rs` runtime dependency stays declared so `import sase_core_rs` still works for
+   anyone who explicitly opts back into Rust with `SASE_CORE_BACKEND=rust`; nothing about the wheel layout or `sase`
+   packaging needs to change.
+5. Keep `SASE_CORE_DUAL_RUN=1` running in CI so the parity record stays current. Re-enable the flip once the triggering
+   regression is fixed.
+
+The Python implementations, dual-run logging, parity gate, and `sase core health` exit codes are all unchanged by the
+revert — the rollback is one constant and the matching tests, nothing more.
+
+### After Phase 8 (Python implementations removed)
+
+After Phase 8, the Python implementation halves of the ported operations are deleted, so rollback is a wheel/package fix
+rather than a constant flip:
+
+- A Rust-side regression is fixed and re-released as a `sase-core-rs` patch version that `sase` depends on. The pinned
+  range is updated in `pyproject.toml` and a `sase` patch release pulls the corrected wheel.
+- For an operation where parity drifted before Phase 8 closed, the only safe path is to revert the Phase 8 PR(s) that
+  removed the Python halves before the patch release, then redo Phase 7 verification before re-attempting Phase 8.
+- The `SASE_CORE_BACKEND=python` env var is removed alongside the Python implementations, so it cannot be used as a user
+  mitigation post-Phase 8. This is by design — the env var is a Phase 6/7 release-cycle escape hatch only.
+
+The handoff at `plans/202604/rust_backend_phase6_phase6h_handoff.md` records the exact test list / file list to flip
+during the Phase 6/7 rollback path; the Phase 8 entry in `research/202604/rust_backend_migration.md` records what gets
+deleted so a future rollback to the pre-Phase 8 layout can be reconstructed from git history.
 
 ## Roadmap
 
@@ -426,6 +504,29 @@ loop.
   of backend selection. Rollback is a single-line change: revert `DEFAULT_BACKEND` to `Backend.PYTHON` and ship a patch
   release; the Python implementations are unchanged and dual-run logging continues to provide parity coverage in the
   meantime.
+- **Phase 6G** _(complete)_ — CI matrix, parity gate, and release smoke. `.github/workflows/ci.yml` now runs the full
+  pytest suite on both backends through Phase 7: the `test` job runs default-Rust across CPython 3.12 / 3.13 / 3.14, and
+  `test-python-backend` runs `SASE_CORE_BACKEND=python` on 3.12 / 3.14. A new `parity-gate` job runs
+  `tests/parity/dual_run_parity.py` against the golden corpus and the sanitized synthetic home-tree fixture
+  (`tests/agent_scan_golden/fixture_builder`) under `SASE_CORE_DUAL_RUN=1`, fails on any mismatch for non-divergent
+  shipped operations, and uploads `parity-artifacts/` (JSONL log + JSON summary) for post-hoc inspection. The
+  `parse_project_bytes` documented divergence (Phase 1F end-line gap) is allow-listed in `DOCUMENTED_DIVERGENCE` and
+  pinned by `tests/test_core_parity_smoke.py`. `publish.yml`'s `install-smoke` job adds an `if: failure()` diagnostic
+  step that re-runs the health checks, dumps `pip list`, Python/platform info, and `sase_core_rs.__file__` /
+  `__version__` so missing-wheel and ABI-mismatch failures are diagnosable from the build log alone. Local mirror:
+  `just parity-check`. See `plans/202604/rust_backend_phase6_phase6g_handoff.md`.
+- **Phase 6H** _(complete)_ — Documentation, rollback plan, and Phase 6 close-out. `docs/rust_backend.md` is restated in
+  the production-default voice (this page) with explicit `Verifying The Backend` and `Rollback` sections covering both
+  the Phase 6/7 reversible path and the post-Phase 8 wheel-fix path. `research/202604/rust_backend_migration.md` is
+  updated to mark Phase 6 complete, record the packaging decision (`sase-core-rs` as a separate PyPI distribution;
+  `sase` declares it as a runtime dependency), the CI matrix shape (default-Rust 3.12/3.13/3.14 plus explicit-Python
+  3.12/3.14 + `parity-gate` + `install-smoke`), and the `is_workflow_complete` Phase 6E pin (targeted Python traversal,
+  ~3× faster than the snapshot path, no Rust early-exit binding required). Phase 7 (measurement and benchmark gate) is
+  restated as the immediate next track. See `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
+- **Phase 7** _(open)_ — Measurement and benchmark-floor pass. After the default flip, before the Python implementations
+  are removed, capture realized speedups end-to-end (`tests/perf/bench_core_*.py`, `SASE_TUI_TRACE=1` cold open,
+  `sase agents` cold listing, `sase run` startup), record them in this document's `Performance` section, and codify the
+  regression floor as a CI bench gate so the win cannot silently erode after Phase 8 closes the Python escape hatch.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile
