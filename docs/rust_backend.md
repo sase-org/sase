@@ -654,15 +654,17 @@ deleted so a future rollback to the pre-Phase 8 layout can be reconstructed from
   3.12/3.14 + `parity-gate` + `install-smoke`), and the `is_workflow_complete` Phase 6E pin (targeted Python traversal,
   ~3× faster than the snapshot path, no Rust early-exit binding required). Phase 7 (measurement and benchmark gate) is
   restated as the immediate next track. See `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
-- **Phase 7** _(in progress)_ — Measurement and benchmark-floor pass. After the default flip, before the Python
-  implementations are removed, capture realized speedups end-to-end (`tests/perf/bench_core_*.py`, `SASE_TUI_TRACE=1`
-  cold open, `sase agents` cold listing, `sase run` startup), record them in this document's `Performance` section, and
-  codify the regression floor as a CI bench gate so the win cannot silently erode after Phase 8 closes the Python escape
-  hatch. **Subphase status:** 7A (measurement contract), 7B (core operation microbenchmarks), 7C (end-to-end TUI/CLI
-  measurements), and 7D (this document's `Performance` section + research narrative) are complete; 7E (CI regression
-  floor) and 7F (verification close-out) remain open. The committed Phase 7 artifacts live under
+- **Phase 7** _(complete)_ — Measurement and benchmark-floor pass. After the default flip, before the Python
+  implementations are removed, every shipped Rust-backed core operation and the three end-to-end CLI/TUI surfaces were
+  measured under explicit Python and default Rust; the user-facing tables and support note live above in `Performance`,
+  the research-side analysis in `research/202604/rust_backend_phase7_performance.md`. The CI regression floor is now
+  wired through `tests/perf/baselines/phase7_regression_floor.json`, `tests/perf/phase7_check_regression.py`, and the
+  `phase7-perf-floor` GitHub Actions job (invoked by `just phase7-perf-check`); the JSON floor-check report is uploaded
+  on every run. **Subphase status:** 7A (measurement contract), 7B (core operation microbenchmarks), 7C (end-to-end
+  TUI/CLI measurements), 7D (this document's `Performance` section + research narrative), 7E (CI regression floor), and
+  7F (verification close-out) are all complete. The committed Phase 7 artifacts live under
   `plans/202604/perf_artifacts/`; per-subphase handoffs live next to the plan as
-  `plans/202604/rust_backend_phase7_phase7{a,b,c,d}_handoff.md`.
+  `plans/202604/rust_backend_phase7_phase7{a,b,c,d,e,f}_handoff.md`.
 - **Future phases** — Additional facade operations (graph index, agent-status state machine) become candidates for Rust
   re-implementation as they show up in profiles. Re-evaluate streaming only if a workload appears where Rust scan time
   is small but Python adaptation dominates. `gix` remains out of scope for the Git query surface unless a future profile

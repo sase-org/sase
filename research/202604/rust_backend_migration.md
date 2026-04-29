@@ -107,12 +107,12 @@ the CI parity gate, and the user-facing rollback playbook are all in place:
   project-wide patch release) from the post-Phase 8 wheel-fix path. The
   Phase 6H close-out record lives in
   `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
-- **Phase 7 measurement landed for 7A–7D.** `tests/perf/phase7/` locked the
-  artifact contract; Phase 7B captured per-operation microbenchmarks for
-  every shipped Rust core op (`plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`);
+- **Phase 7 complete.** `tests/perf/phase7/` locked the artifact contract;
+  Phase 7B captured per-operation microbenchmarks for every shipped Rust
+  core op (`plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`);
   Phase 7C captured `sase ace`, `sase agents status`, and `sase run`
   startup under both backends. The user-facing tables, methodology, and
-  support-note now live in `docs/rust_backend.md` under `Performance`; the
+  support-note live in `docs/rust_backend.md` under `Performance`; the
   research-side gate-vs-realised analysis lives in
   `research/202604/rust_backend_phase7_performance.md`. Headline outcomes:
   `sase agents status -j` is **2.59× / 2.03×** faster on synthetic 8×25 /
@@ -122,8 +122,15 @@ the CI parity gate, and the user-facing rollback playbook are all in place:
   wire conversion regression — Phase 8 should not delete the Python half
   until amortised); `sase ace` cold open is 0.84× on a Pilot harness that
   mocks the Rust scan/parse hot paths (small-input dispatch tax, not a
-  routed-op regression). Phase 7E (CI regression floor) and Phase 7F
-  (close-out) remain open.
+  routed-op regression). Phase 7E wired the CI regression floor
+  (`tests/perf/baselines/phase7_regression_floor.json` + the
+  `phase7-perf-floor` GitHub Actions job invoking `just phase7-perf-check`);
+  Phase 7F re-ran the full verification matrix (`just phase7-perf-check`,
+  `just parity-check`, `just check`, `SASE_CORE_BACKEND=python just test`,
+  `just rust-check`, and `sase core health --json` under both backends) and
+  recorded the close-out in
+  `plans/202604/rust_backend_phase7_phase7f_handoff.md`. Phase 8 (Python
+  implementation removal) now has a clean starting point.
 
 The remainder of this document is the forward plan: Phase 7 measurement, the
 Phase 8 removal of the Python implementations of ported operations, deferred
@@ -633,17 +640,19 @@ After the default flip, before the Python path is removed, do one
 deliberate measurement pass so the win is documented and any unexpected
 regression has time to surface.
 
-**Status (2026-04-29):** Phase 7A–7D landed. The artifact contract is in
-`tests/perf/phase7/`; per-operation summaries and end-to-end captures
-sit under `plans/202604/perf_artifacts/`; the user-facing tables and
-support note are in `docs/rust_backend.md` under `Performance`; the
-research-side gate-vs-realised analysis lives in
-`research/202604/rust_backend_phase7_performance.md`. Phase 7E (CI
-regression floor) and Phase 7F (close-out) are still open. The forward
-plan below is preserved for those subphases; the table of "measurements
-to take" should now be read as "measurements taken" — see the linked
-performance-research record for the realised medians and the
-implications for Phase 8 sequencing.
+**Status (2026-04-29):** Phase 7 complete. Phase 7A–7D landed the
+measurement contract, per-operation microbenchmarks, end-to-end captures,
+and the user-facing performance documentation. Phase 7E wired the CI
+regression floor (`tests/perf/baselines/phase7_regression_floor.json`,
+`tests/perf/phase7_check_regression.py`, `just phase7-perf-check`, and the
+`phase7-perf-floor` GitHub Actions job that uploads the floor-check JSON
+report on every run). Phase 7F re-ran the full verification matrix and
+recorded the close-out in
+`plans/202604/rust_backend_phase7_phase7f_handoff.md`. The forward plan
+below is preserved as historical context; the table of "measurements to
+take" should be read as "measurements taken" — see the linked
+performance-research record for the realised medians and the implications
+for Phase 8 sequencing.
 
 **Measurements to take:**
 
