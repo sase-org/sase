@@ -37,6 +37,7 @@ Use xprompts when you want to:
 - [XPrompt Aliases](#xprompt-aliases)
 - [Recursive Expansion](#recursive-expansion)
 - [Multi-Agent Prompts](#multi-agent-prompts)
+  - [Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out)
 - [Relationship to Workflows](#relationship-to-workflows)
 
 ## CLI Subcommands
@@ -1044,7 +1045,9 @@ iterations (to guard against circular references).
 
 ## Multi-Agent Prompts
 
-A single prompt can launch multiple agents sequentially by using YAML frontmatter and `---` segment separators.
+A single prompt can launch multiple agents sequentially by using YAML frontmatter and `---` segment separators. The same
+`---`-separator convention also applies inside an xprompt body — see
+[Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out) below.
 
 ### Frontmatter-Defined Local XPrompts
 
@@ -1105,6 +1108,52 @@ share the `_common` local xprompt.
 - `---` inside fenced code blocks is not treated as a separator.
 - When a multi-agent prompt is saved to prompt history, each individual segment is also saved as a separate entry. This
   allows segments to appear independently in the prompt history picker for reuse.
+
+### Multi-Agent XPrompts (Library-Defined Fan-Out)
+
+An xprompt itself can be a "multi-agent xprompt": its body contains `---` separators (outside fenced blocks), and
+referencing it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The
+spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in.
+
+```
+# xprompts/three_phase.md
+---
+input:
+  target: word
+---
+%name:plan
+Draft a plan for {{ target }}.
+---
+%name:code
+%wait:plan
+Implement {{ target }} following the plan.
+---
+%name:review
+%wait:code
+Review the {{ target }} implementation and propose follow-ups.
+```
+
+Invoking it:
+
+```bash
+sase run "#three_phase(login)"
+```
+
+…dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
+sequentially; without `%wait` they would run in parallel.
+
+Detection happens at dispatch time (after standard `parse_multi_prompt`), in `src/sase/agent/multi_agent_xprompt.py`,
+and applies at every dispatch site (`sase run`, the TUI agent launcher, the query handler).
+
+#### Rules and Limitations
+
+- A multi-agent xprompt reference must be the **only** content in its user-prompt segment. Mixing the reference with
+  other prose raises a usage error — split your prompt manually if you need surrounding text.
+- Fan-out is one level deep. An inline `#name(args)` reference **inside another xprompt's body** is NOT re-split into
+  segments; it is expanded by the agent runner's normal xprompt expansion as a single block.
+- `---` inside fenced code blocks in the xprompt body is not treated as a separator.
+- Recursive fan-out (a multi-agent xprompt body whose own segments reference more multi-agent xprompts) is bounded by a
+  depth cap and will raise if exceeded.
 
 ## Relationship to Workflows
 
