@@ -13,6 +13,26 @@ def register_changespec_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="changespec_subcommand", help="ChangeSpec subcommands"
     )
 
+    # sase changespec current [-f FORMAT] [-p <project_file>]
+    current_parser = cs_subparsers.add_parser(
+        "current",
+        help="Show the ChangeSpec associated with the current VCS checkout",
+    )
+    current_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["markdown", "plain", "json"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    current_parser.add_argument(
+        "-p",
+        "--project-file",
+        dest="project_file",
+        default=None,
+        help="Path to the project .gp file (default: inferred from current workspace)",
+    )
+
     # sase changespec sync-deltas -c <cl_name> [-p <project_file>]
     sync_deltas_parser = cs_subparsers.add_parser(
         "sync-deltas",

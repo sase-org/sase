@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 14:47:39
-status: wip
+status: done
 ---
 # Plan: `sase changespec current` and `/sase_changespecs` guidance
 
