@@ -61,3 +61,8 @@ CLAUDE.local.md
 
 # Override global gitignore rule that ignores 'core'
 !src/sase/core/
+
+# Phase 7 perf artifacts that capture private home-tree data; keep raw
+# JSON local and link to it from the surface's handoff per
+# plans/202604/perf_artifacts/README.md.
+plans/202604/perf_artifacts/local_only/

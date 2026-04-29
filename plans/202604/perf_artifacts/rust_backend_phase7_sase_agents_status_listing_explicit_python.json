@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "tool": "bench_phase7_e2e",
+    "surface": "sase_agents_status_listing",
+    "workload": "synthetic_8_projects_25_agents",
+    "backend": "explicit_python",
+    "runs": 12,
+    "warmup": 2,
+    "timestamp": "2026-04-29T22:19:04Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "~/projects/github/sase-org/sase_103/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "workload_kind": "synthetic",
+      "projects": 8,
+      "per_project": 25
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "workload": "synthetic_8_projects_25_agents",
+      "scenarios": {
+        "sase_agents_status_j": {
+          "count": 12.0,
+          "min_ms": 762.3426679638214,
+          "median_ms": 774.5021499868017,
+          "p95_ms": 798.0503209982999,
+          "max_ms": 802.7846760232933
+        }
+      }
+    }
+  ]
+}

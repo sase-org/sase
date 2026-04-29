@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "tool": "bench_phase7_e2e",
+    "surface": "sase_ace_cold_open",
+    "workload": "synthetic_100_cs_50_agents",
+    "backend": "default_rust",
+    "runs": 10,
+    "warmup": 3,
+    "timestamp": "2026-04-29T22:21:43Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "~/projects/github/sase-org/sase_103/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "harness": "bench_tui_trace._run_scenario (in-process Pilot)",
+      "boundary": "AceApp constructor + first Pilot pause; Python imports are warm",
+      "cs_count": 100,
+      "agent_count": 50
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "workload": "synthetic_100_cs_50_agents",
+      "scenarios": {
+        "cold_start": {
+          "count": 10.0,
+          "min_ms": 1341.1362579790875,
+          "median_ms": 1472.509725484997,
+          "p95_ms": 2075.100088957697,
+          "max_ms": 2075.100088957697
+        }
+      }
+    }
+  ]
+}

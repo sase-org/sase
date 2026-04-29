@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "tool": "bench_phase7_e2e",
+    "surface": "sase_run_startup",
+    "workload": "import_run_query_cold",
+    "backend": "default_rust",
+    "runs": 12,
+    "warmup": 2,
+    "timestamp": "2026-04-29T22:18:26Z",
+    "git_sha": "e0f3b4a9f0f4",
+    "git_dirty": true,
+    "python": "3.14.3",
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "rust_available": true,
+    "rust_module_path": "~/projects/github/sase-org/sase_103/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "extra": {
+      "boundary": "subprocess python -c 'from sase.main.query_handler._query import run_query'; provider invocation NOT exercised",
+      "interpreter": "~/projects/github/sase-org/sase_103/.venv/bin/python"
+    },
+    "phase": "7"
+  },
+  "workloads": [
+    {
+      "workload": "import_run_query_cold",
+      "scenarios": {
+        "import_run_query_cold": {
+          "count": 12.0,
+          "min_ms": 238.69564599590376,
+          "median_ms": 249.31832699803635,
+          "p95_ms": 269.29501100676134,
+          "max_ms": 274.97874898836017
+        }
+      }
+    }
+  ]
+}
