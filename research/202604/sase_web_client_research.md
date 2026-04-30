@@ -36,6 +36,14 @@ the first useful web client without solving the main SASE constraints:
 filesystem access, local process control, plugin execution, and parity with
 the existing TUI.
 
+The MVP also depends on a few non-negotiable engineering details that the
+rest of this note specifies: filesystem watching via the `notify` crate for
+SSE invalidation, a singleton-discovery `~/.sase/run/server.json` so
+`sase web` reattaches instead of forking servers, command-shaped mutations
+with explicit cancellation/idempotency, plugin enumeration via
+`GET /api/plugins`, and DNS-rebinding mitigation via `Host` header
+validation in addition to the local session token.
+
 ## Current SASE context
 
 ### Rust migration state
@@ -335,6 +343,32 @@ Assessment:
 Good later packaging layer. Keep the first client as a local browser SPA served
 by `sase-server`; then wrap the same UI in Tauri if users want a desktop app.
 
+### Option H: HTMX or server-rendered HTML
+
+Pros:
+
+- Minimal client-side JS; the Rust server returns HTML fragments via `askama`
+  or `maud` templates.
+- Fastest path to a v0 if frontend bandwidth is constrained.
+- Plays well with axum's response types and SSE-driven DOM swaps.
+
+Cons:
+
+- Reproducing TanStack Virtual / Query ergonomics for large agent and
+  ChangeSpec lists is noticeably harder.
+- Views that combine keyboard navigation state with frequent server pushes
+  degrade — the SPA model handles that split more cleanly.
+- A future Tauri shell, mobile client, or third-party tool cannot reuse
+  server-rendered HTML the way it can reuse a typed JSON API.
+- Rich artifact viewers (PDF, image, diff) are awkward without a real client
+  framework, which is one of the main reasons to build a web client at all.
+
+Assessment:
+
+Tempting for a one-developer prototype, but the SPA + JSON-API split keeps
+client options open at modest upfront cost. Reconsider if frontend headcount
+stays at zero for an extended period.
+
 ## Frontend stack options
 
 ### Vite + React + TypeScript SPA
@@ -478,6 +512,27 @@ Recommended first endpoint slices:
 8. A tiny mutation set: kill/dismiss/tag agent, transition ChangeSpec, launch
    one simple workflow.
 
+### API versioning and stability
+
+The OpenAPI schema is a public contract once the web client ships, even if
+"public" means "consumed by the SPA, sase-nvim, and a future Tauri shell".
+
+- Prefix all endpoints with `/api/v1/`. Adding `v2` later is cheaper than
+  back-porting a versioning scheme.
+- Treat additive changes (new endpoints, optional fields) as compatible.
+  Treat field renames, type changes, and removals as breaking — bump the
+  major version or run both shapes during a deprecation window.
+- Snapshot the OpenAPI JSON in this repo. CI fails if the generated schema
+  drifts from the snapshot without an explicit acknowledgment commit, the
+  same way golden corpora gate Rust core changes (commit `732c546b`).
+- Tie the schema version to the `sase-server` version in `/api/health`. A
+  stale browser tab can detect upgrades and prompt for a refresh.
+- Avoid leaking internal Rust enum variants as wire values; wrap them in
+  string-typed unions documented in OpenAPI so renaming an internal type
+  does not break the contract.
+- Mark experimental endpoints with `x-experimental: true`; the SPA refuses
+  them unless built with a matching feature flag.
+
 ## Live updates
 
 Start with **server-sent events**:
@@ -503,6 +558,162 @@ data: {"command_id":"...","line":"..."}
 Use polling as a fallback if SSE is flaky on a user's platform. Add WebSockets
 only when the UI has real bidirectional needs such as interactive terminal
 sessions or streamed agent/stdin control.
+
+SSE details that the MVP cannot skip:
+
+- **Heartbeat**: send a comment frame (`: ping`) every ~15 seconds so proxies
+  and idle-connection killers do not drop the stream.
+- **Reconnection**: clients send `Last-Event-ID`; the server replays the
+  small backlog of invalidation events from a ring buffer (e.g. last 256
+  events). Replay is best-effort, not durable — clients must be able to
+  refetch canonical state on reconnect anyway.
+- **Per-stream filtering**: `/api/events?topics=changespecs,agents` lets the
+  SPA subscribe only to topics it cares about. Without this, a logs page
+  pays for project-wide invalidation traffic.
+- **Backpressure**: if a client falls behind, drop oldest invalidation
+  events (they are coalescable hints) but never drop `command_progress`
+  frames silently — close the stream and force a reconnect instead.
+
+## Filesystem change detection
+
+SSE invalidation is only useful if the server can actually notice when project
+state changes. SASE state is filesystem-centric:
+
+- ChangeSpec drawers in `~/.sase/projects/<project>.gp` and
+  `<project>-archive.gp`.
+- Agent artifacts under `~/.sase/projects/<project>/agents/<id>/`.
+- Workspace claims, locks, and `agent_meta.json` updates.
+- File-reference history at `~/.sase/file_reference_history.json`.
+
+Recommended approach:
+
+- Use the **notify** crate (v6+) for cross-platform inotify/FSEvents/ReadDirectoryChangesW
+  watches in the Rust server.
+- Watch a small set of well-known roots: `~/.sase/projects/`, the active
+  project workspace roots, and `~/.sase/notifications/`.
+- Debounce events (~250 ms) and coalesce to coarse invalidation classes:
+  `changespecs_changed`, `agents_changed`, `notifications_changed`.
+- For per-agent log tailing, fall back to mtime polling at the file level —
+  watching every artifact directly scales poorly on macOS and over network
+  filesystems.
+- Raise the Linux inotify watch limit only with documented user opt-in;
+  prefer coarser directory watches otherwise.
+
+Pitfalls:
+
+- Editors that write atomic-rename files produce CREATE+DELETE pairs; dedupe
+  by canonical path.
+- Network filesystems (e.g. SSHFS-mounted `~/.sase/`) often deliver no
+  events; expose a polling fallback toggle.
+- The TUI and `sase` CLI may rewrite `.gp` files mid-edit; the server
+  re-reads on event but tolerates short partial-write windows by retrying
+  on parse failure rather than emitting a `changed` event for the failed
+  intermediate state.
+
+## Server lifecycle, discovery, and singletons
+
+`sase web` should not start a new server every time. Pattern:
+
+1. Resolve a per-user runtime dir (`$XDG_RUNTIME_DIR/sase/` or `~/.sase/run/`).
+2. Read `server.json` if present:
+   `{pid, port, token, started_at, version, schema_version}`.
+3. If the recorded process is alive and `/api/health` succeeds on that port,
+   reuse it; open the browser at the existing server with a one-time
+   bootstrap nonce.
+4. Otherwise, start a new server, write `server.json` atomically (write to a
+   temp file then rename), and reap stale entries on startup if the recorded
+   pid is dead.
+
+Rationale:
+
+- Avoids two browser tabs pointed at unrelated server instances.
+- Keeps SSE/state coherent with editor plugins or other `sase web`
+  invocations.
+- Matches existing SASE patterns where the filesystem is canonical and PIDs
+  are advisory.
+
+Multi-project: a single server serves all projects under `~/.sase/projects/`.
+The active project is a route/search parameter, not a server-level singleton.
+This avoids an N-server explosion when users switch projects often.
+
+Lifecycle commands:
+
+- `sase web` — start or attach.
+- `sase web --status` — print PID, port, health, and version.
+- `sase web stop` — graceful SIGTERM, fall back to SIGKILL after a timeout.
+- `sase web logs` — tail the server log file.
+
+Server idle behavior: keep running until explicitly stopped. SASE users
+already accept long-lived background processes (planners, retrying agents),
+so this is consistent.
+
+## Concurrency with TUI and CLI
+
+Multiple SASE processes can edit shared state simultaneously: the TUI is
+likely open, `sase` CLI invocations run from editor plugins, agents append
+to their own artifact dirs, and the web server's command bridge spawns
+more `sase` subprocesses. The web client must not assume it is the only
+writer.
+
+Rules:
+
+- All mutations go through the same code paths the CLI/TUI use (CLI
+  subprocess or shared adapter). The web server never writes `.gp` files
+  or agent artifacts directly.
+- Treat the filesystem as the source of truth; the server keeps no
+  authoritative in-memory model. After a mutation, refetch.
+- Use existing SASE locks where they exist (`~/.sase/locks/`, workspace
+  claim files); do not invent a new web-only locking layer.
+- For optimistic UI in TanStack Query, validate against a server-supplied
+  `ETag` or `version` derived from the parsed `.gp` file revision. On
+  conflict, return a structured `conflict` error and force a refetch.
+- Surface conflicts visibly: if the TUI moves a ChangeSpec while the web
+  user is editing it, the web UI should prompt rather than silently
+  overwrite.
+
+This is also why command-shaped mutations matter: a `:transition` command
+re-validates preconditions atomically, while a generic `PATCH` over
+arbitrary fields cannot.
+
+## Command execution model
+
+The `:transition`, `:kill`, `:tag`, and `:launch` style endpoints imply a
+runtime model the MVP must define explicitly.
+
+Lifecycle:
+
+1. Client POSTs a command. Server validates, mints a `command_id`, and
+   either returns synchronously (fast commands like `:tag`) or returns
+   `202 Accepted` with the `command_id` (slow commands like `:launch`).
+2. Server spawns the work: a CLI subprocess, an adapter call, or a native
+   Rust handler.
+3. Progress streams via SSE on `/api/events?topic=command&id=<command_id>`.
+4. The terminal result is fetchable at `GET /api/commands/{command_id}` and
+   is retained for a short TTL so a browser refresh recovers state.
+
+Concrete requirements:
+
+- **Cancellation**: `POST /api/commands/{command_id}:cancel`. CLI bridge
+  commands map to SIGTERM → SIGKILL with a deadline; native handlers
+  observe a tokio cancellation token.
+- **stdout/stderr streaming**: capture both, tag lines with stream and
+  timestamp, push as SSE `command_progress` frames. Cap line length and
+  per-command buffer size to prevent unbounded memory.
+- **Idempotency keys**: clients send a UUID (`Idempotency-Key` header);
+  server dedupes within the TTL so a retried POST does not double-launch
+  a workflow.
+- **Audit log**: every command writes a record to a server-side log
+  (`~/.sase/run/web_commands.jsonl`). This is the equivalent of CLI
+  scrollback for the web user, and it survives browser refresh.
+- **Command catalog**: `GET /api/commands` returns a static catalog of
+  available command kinds and their JSON-schema input shapes. This is
+  what enables a generated command palette without hard-coding command
+  lists in the SPA, and it is also how plugins contribute new commands
+  (see "Plugin surface").
+
+Long agent log streams (the `sase run` stream) are not commands; they are
+agent artifacts and stream from `/api/agents/{id}/logs` with `Last-Event-ID`
+support so reconnects do not re-deliver everything.
 
 ## Local security model
 
@@ -532,6 +743,190 @@ ssh -L 8765:127.0.0.1:<server-port> host
 ```
 
 Do not design LAN or hosted access in the first phase.
+
+### Additional hardening
+
+- **DNS rebinding**: validate the `Host` header against an allowlist
+  (`127.0.0.1:<port>`, `localhost:<port>`). A malicious site that resolves
+  its hostname to 127.0.0.1 cannot proceed if the server rejects unfamiliar
+  Hosts, even before token checks fail.
+- **Content-Security-Policy**: serve a strict CSP for the SPA assets
+  (`default-src 'self'`, `connect-src 'self'`, no inline scripts beyond a
+  hashed bootstrap, no third-party origins). This blunts XSS impact even if
+  the SPA accidentally renders unsanitized agent output.
+- **Rate limiting**: per-token rate limits on `/api/*` so a runaway script
+  in another tab cannot saturate the server. tower-governor or a custom
+  tower layer handles this in axum.
+- **Subresource isolation**: serve uploaded/agent-rendered HTML from a
+  separate sandbox path (or a `srcdoc` iframe with `sandbox` attributes).
+  Agent output is not trusted content.
+- **Token rotation**: rotate the session token on `sase web stop`/restart;
+  do not persist it across server restarts. A leaked token expires the
+  moment the server does.
+- **Storage hygiene**: the SPA stores the token in memory after bootstrap,
+  not in `localStorage`. Persisted UI prefs go to the server, not browser
+  storage.
+
+## Plugin surface in the web client
+
+SASE plugins (`sase-github`, `sase-google`, `sase-telegram`, `sase-nvim`)
+contribute commands, hooks, providers, and skills via Python entry points.
+The web client cannot ignore them — the GitHub plugin alone owns most of
+the ChangeSpec mailing/landing flow.
+
+Constraints:
+
+- Plugins are loaded by the Python process. The Rust server cannot load
+  them.
+- Plugin commands must surface through the CLI bridge or a long-lived
+  Python "host adapter" daemon — a single Python process the server talks
+  to over a Unix socket / stdio JSON-RPC.
+- The web UI does not hard-code plugin command lists. `GET /api/plugins`
+  enumerates installed plugins and the commands they contribute,
+  introspected from the Python side once at startup.
+
+Implications for the recommendation:
+
+- Option C's CLI subprocess bridge is correct for the MVP, but per-command
+  subprocess startup cost (~150-400 ms) becomes painful when the user is
+  clicking around. The next step after MVP is a single long-lived Python
+  host adapter that the Rust server proxies command calls through.
+- Plugin authors should not need to write web-specific code. As long as a
+  plugin command has a typed argument schema and a structured result, the
+  web UI renders a generic form for it — similar to how Ace duration
+  modals already abstract over commands (commit `12cd9c9c`).
+
+## Keyboard-first UX and TUI parity
+
+The TUI is keyboard-first. SASE users navigate, group, search, and act on
+ChangeSpecs and agents without touching a mouse. A web client that requires
+mousing will feel like a regression even if it is prettier.
+
+Targets:
+
+- Global command palette (`Ctrl+K` / `Cmd+K`) populated from
+  `GET /api/commands`, exposing the same actions as the Ace command palette.
+- Vim-style `j/k` navigation in lists, `gg`/`G` jumps, `/` for search,
+  `Enter` to open detail, `Esc` to close. Configurable.
+- Leader-mode chords mirroring the TUI keymap in
+  `src/sase/default_config.yml`. Pull the same keymap source so web and
+  TUI do not drift.
+- Focus management that survives async refetches — TanStack Query refetch
+  must not steal focus from the active row.
+- Visible hotkey hints on hover and a `?` cheatsheet overlay.
+
+Implementation notes:
+
+- Use a small focus/keymap library (e.g. `react-hotkeys-hook`) or a custom
+  reducer. Avoid a heavyweight command-system framework.
+- Use `aria-activedescendant` rather than per-row `tabindex` for large
+  virtualized lists; managing N tabindexes does not scale.
+- Pair every keyboard action with a visible mouse affordance — power users
+  type, but new users explore.
+
+Themes: match the TUI's default light/dark palettes for the first release
+to make context-switching painless. Visual refresh is a Phase 9D+ concern.
+
+## TUI relationship and migration
+
+Adding a web client is not a deprecation of the TUI. The explicit position
+should be:
+
+- The TUI remains a first-class client. SSH-only environments, tmux-heavy
+  workflows, and the existing user base are well-served by it.
+- The web client adds capabilities the TUI cannot match: rich artifacts,
+  multi-pane layouts, search/scroll ergonomics, future mobile/remote use.
+- Both clients converge on the **same wire contracts** — the OpenAPI
+  schema, command catalog, grouping strategies, and persisted preferences.
+  The TUI does not need to be rewritten on top of the HTTP API immediately,
+  but new features should be specified at the contract level so both
+  clients can implement them.
+
+Anti-goals for Phase 9:
+
+- Do not block TUI development on web availability.
+- Do not split persisted state into "web settings" vs. "TUI settings". Use
+  one source of truth — the existing `~/.sase/` layout and the persistence
+  work from commit `58fac1c2`.
+- Do not maintain two divergent command catalogs. The web catalog is the
+  truth; the TUI either reads it or is regenerated from it.
+
+When (and only when) the web client demonstrably covers daily TUI workflows,
+revisit whether the TUI should switch to consuming the local HTTP server.
+That is a Phase 10+ question, not a Phase 9 commitment.
+
+## Cost and usage visibility
+
+Recent commits (`80a8911e feat: show default model in ACE indicator`,
+`58fac1c2 feat: persist ACE grouping strategies`) point at a growing surface
+for model and runtime metadata in the UI. The web client is a much better
+home for this than the TUI:
+
+- Render per-agent token/cost estimates next to status, leveraging
+  structured fields already emitted into agent artifacts.
+- Render run/retry chains (see "Retry chain" in `memory/short/glossary.md`)
+  as a visual graph rather than a flat list — `retry_chain_root_timestamp`
+  makes this trivial to construct.
+- Show provider/model defaults at the project level so users can see, for
+  example, which projects pinned a non-default model and which are using
+  the global default.
+- Surface failed retries and their causes (Prompt-too-long, provider
+  errors) with deep links into the retry artifacts.
+
+This does not require new core work. It requires the web wire records to
+expose existing fields; the contract is the constraint, not the data.
+
+## Developer workflow
+
+Day-to-day iteration matters as much as the architecture. Recommended
+setup:
+
+- `just web-install`: `npm ci` (or `pnpm install`) inside `web/`.
+- `just web-server-install`: `cargo build -p sase_server` from
+  `../sase-core`, invoked transparently by `sase web` when binaries are
+  stale (mirroring commit `ee0336cd`'s pattern for `sase_core_rs`).
+- `just web-dev`: starts `sase-server` on a fixed dev port and a Vite dev
+  server with `vite.config.ts` proxying `/api`, `/events`, and `/static`
+  to it. Hot reload for the SPA; `cargo watch` for the server.
+- Generated artifacts:
+  - OpenAPI JSON regenerated by a `cargo test` snapshot in `sase_server`.
+  - `web/src/api/schema.d.ts` regenerated by a `just web-types` target
+    that runs `openapi-typescript` against the OpenAPI snapshot.
+- A pre-commit / CI check ensures the SPA's TypeScript types match the
+  current OpenAPI snapshot. Drift between server and client types is the
+  most common bug class for this architecture.
+
+Cross-repo dev (`../sase-core` and this repo) needs documentation in
+`docs/web_dev.md`. Without it, contributors waste time chasing stale
+binaries or mismatched contracts.
+
+Editor plugins (sase-nvim et al.) already use the file-history JSON
+helpers (see `memory/short/build_and_run.md`); they should keep using the
+CLI contract. The web server and editor plugins are peers, not layered.
+
+## Telemetry and observability
+
+The Rust server should be instrumentable from day one — debugging behind an
+HTTP boundary is harder than debugging in-process Python.
+
+- Use the **tracing** crate with `tracing-subscriber` for structured logs.
+  Default to JSON logs in `~/.sase/run/sase-server.log` with a
+  console-friendly pretty layer toggled by `--log-format=pretty`.
+- Add a request-scoped `x-request-id` header to every API response and
+  surface it in error responses for client-side bug reports.
+- For metrics, expose an opt-in `/api/metrics` Prometheus endpoint behind
+  the same token. Reuse decisions from
+  `research/202604/prometheus_telemetry.md` rather than inventing a new
+  metrics surface.
+- Track command outcomes (count, duration, exit code) and SSE subscriber
+  counts. These are the two surfaces most likely to misbehave.
+- Plumb `OTEL_*` env vars through to enable optional OpenTelemetry export
+  for users who already run a local collector.
+
+Privacy: telemetry is local-only by default. There is no server-side
+phone-home in Phase 9. Any future hosted telemetry decision must be
+cross-referenced with the local-first stance in this note's executive
+summary.
 
 ## Packaging and repo layout
 
@@ -624,6 +1019,12 @@ Cross-repo:
 | Agent/ChangeSpec lists get huge | Use server-side filters plus TanStack Virtual; do not render all rows as DOM nodes. |
 | Event stream races produce stale UI | Treat SSE as invalidation hints; TanStack Query refetches canonical snapshots. |
 | Packaging binary with Python release is non-trivial | Source prototype first; ship prebuilt server binary only after MVP validation. |
+| Filesystem watching unreliable on macOS / network FS | Coalesced notify watches plus a per-platform polling fallback toggle; never assume push delivery. |
+| Two `sase web` invocations create two servers/tabs | Singleton discovery via `~/.sase/run/server.json`; reattach when a healthy server already exists. |
+| TUI/CLI/web write conflicts on `.gp` files | Mutate only via shared CLI/adapter paths; ETag/version-checked commands with structured `conflict` errors. |
+| Long commands hang the UI | Async command lifecycle with `command_id`, SSE progress, explicit cancel endpoint, and idempotency keys. |
+| Plugin commands invisible in web | `GET /api/plugins` enumerates entry-point-contributed commands; generic command palette renders them. |
+| OpenAPI/TS-types drift silently | CI fails when the generated schema differs from the snapshot without an acknowledgment commit. |
 
 ## Staged implementation
 
@@ -700,9 +1101,14 @@ rewrite host logic just because a new UI exists.
 Local sources:
 
 - `research/202604/rust_backend_migration.md`
+- `research/202604/prometheus_telemetry.md`
+- `research/202604/notification_panel_improvements.md`
+- `research/202604/tui_image_pdf_support.md`
 - `docs/rust_backend.md`
 - `plans/202604/rust_backend_phase8_phase8g_handoff.md`
-- `research/202604/tui_image_pdf_support.md`
+- `memory/short/glossary.md` (Retry chain, ChangeSpec, xprompt definitions)
+- `memory/short/build_and_run.md` (editor-integration JSON helpers)
+- `src/sase/default_config.yml` (TUI keymap source)
 - `../sase-core/Cargo.toml`
 - `../sase-core/README.md`
 - Recent git commits listed in the table above.
@@ -710,10 +1116,16 @@ Local sources:
 External sources:
 
 - axum docs: <https://docs.rs/axum/latest/axum/>
+- tower-http docs: <https://docs.rs/tower-http/latest/tower_http/>
+- tower-governor (rate limiting): <https://docs.rs/tower_governor/latest/tower_governor/>
+- tracing crate: <https://docs.rs/tracing/latest/tracing/>
+- notify (filesystem watch) docs: <https://docs.rs/notify/latest/notify/>
 - utoipa docs: <https://docs.rs/utoipa/latest/utoipa/>
 - tonic docs: <https://docs.rs/tonic/latest/tonic/>
 - Tauri 2 docs: <https://v2.tauri.app/>
+- HTMX overview: <https://htmx.org/docs/>
 - Vite guide: <https://vite.dev/guide/>
+- Vite dev-server proxy reference: <https://vite.dev/config/server-options#server-proxy>
 - TanStack Router type-safety docs: <https://tanstack.com/router/latest/docs/guide/type-safety>
 - TanStack Query overview: <https://tanstack.com/query/latest/docs/framework/react/overview>
 - TanStack Virtual docs: <https://tanstack.com/virtual/latest/docs/introduction>
@@ -721,3 +1133,5 @@ External sources:
 - openapi-typescript docs: <https://openapi-ts.dev/introduction>
 - rspc overview: <https://www.rspc.dev/>
 - ts-rs docs: <https://docs.rs/ts-rs/latest/ts_rs/>
+- MDN Server-Sent Events: <https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events>
+- OWASP DNS-rebinding guidance: <https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html>
