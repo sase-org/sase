@@ -9,14 +9,19 @@ This module provides a replacement for the legacy snippet system, adding:
 """
 
 from ._parsing import (
+    XPromptReference,
+    XPromptReferenceArgKind,
+    XPromptReferenceMarker,
     escape_for_xprompt,
     extract_project_from_vcs_tag,
     extract_vcs_workflow_tag,
+    iter_xprompt_references,
     parse_workflow_reference,
     replace_ref_in_vcs_tag,
     replace_vcs_workflow_tags,
     strip_hitl_suffix,
     strip_vcs_workflow_tag,
+    xprompt_reference_from_match,
 )
 from .directives import PromptDirectives, extract_prompt_directives
 from .loader import (
@@ -67,6 +72,7 @@ from .workflow_models import (
     Workflow,
     WorkflowError,
     WorkflowExecutionError,
+    WorkflowKind,
     WorkflowState,
     WorkflowStep,
     WorkflowValidationError,
@@ -78,6 +84,9 @@ __all__ = [
     "InputArg",
     "InputType",
     "OutputSpec",
+    "XPromptReference",
+    "XPromptReferenceArgKind",
+    "XPromptReferenceMarker",
     "XPrompt",
     "XPromptValidationError",
     "create_anonymous_workflow",
@@ -101,11 +110,13 @@ __all__ = [
     "escape_for_xprompt",
     "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",
+    "iter_xprompt_references",
     "parse_workflow_reference",
     "replace_ref_in_vcs_tag",
     "replace_vcs_workflow_tags",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
+    "xprompt_reference_from_match",
     # Directives
     "PromptDirectives",
     "extract_prompt_directives",
@@ -131,6 +142,7 @@ __all__ = [
     "WorkflowError",
     "WorkflowExecutionError",
     "WorkflowExecutor",
+    "WorkflowKind",
     "WorkflowState",
     "WorkflowStep",
     "WorkflowValidationError",

@@ -23,6 +23,14 @@ class StepStatus(Enum):
     SKIPPED = "skipped"
 
 
+class WorkflowKind(Enum):
+    """How a workflow participates in xprompt reference syntax."""
+
+    SIMPLE_XPROMPT = "simple_xprompt"
+    EMBEDDABLE_WORKFLOW = "embeddable_workflow"
+    STANDALONE_WORKFLOW = "standalone_workflow"
+
+
 @dataclass
 class LoopConfig:
     """Configuration for repeat:/until: and while: loops.
@@ -246,6 +254,14 @@ class Workflow:
         - Executed as direct prompts when run standalone
         """
         return len(self.steps) == 1 and self.has_prompt_part()
+
+    def prompt_kind(self) -> WorkflowKind:
+        """Classify this workflow for xprompt reference semantics."""
+        if self.is_simple_xprompt():
+            return WorkflowKind.SIMPLE_XPROMPT
+        if self.has_prompt_part():
+            return WorkflowKind.EMBEDDABLE_WORKFLOW
+        return WorkflowKind.STANDALONE_WORKFLOW
 
 
 @dataclass
