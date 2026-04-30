@@ -37,6 +37,7 @@ from .actions import (
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
+from .graphics import GraphicsCapability
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 from .widgets import (
     AgentDetail,
@@ -178,6 +179,7 @@ class AceApp(
         refresh_interval: int = 10,
         auto_start_axe: bool = True,
         restart_axe: bool = False,
+        graphics_capability: GraphicsCapability | None = None,
     ) -> None:
         """Initialize the ace TUI app.
 
@@ -187,8 +189,13 @@ class AceApp(
             refresh_interval: Auto-refresh interval in seconds (0 to disable)
             auto_start_axe: Whether to auto-start the axe daemon on startup
             restart_axe: Whether to restart the axe daemon on startup
+            graphics_capability: Terminal graphics support detected before run()
         """
         super().__init__()
+        self.graphics_capability = (
+            graphics_capability
+            or GraphicsCapability.unavailable("terminal graphics were not probed")
+        )
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,

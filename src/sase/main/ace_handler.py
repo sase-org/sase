@@ -39,6 +39,8 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         profiler.start()
 
     try:
+        from sase.ace.tui.graphics import detect_graphics_capability
+
         # Resolve model tier: prefer --model-tier, fall back to --model-size
         model_tier_override = getattr(args, "model_tier", None)
         if model_tier_override is None:
@@ -46,6 +48,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             if old_size is not None:
                 model_tier_override = {"big": "large", "little": "small"}[old_size]
 
+        graphics_capability = detect_graphics_capability()
         app = AceApp(
             query=args.query,
             model_tier_override=cast(
@@ -54,6 +57,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             refresh_interval=args.refresh_interval,
             auto_start_axe=not getattr(args, "no_axe", False),
             restart_axe=getattr(args, "restart_axe", False),
+            graphics_capability=graphics_capability,
         )
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")
