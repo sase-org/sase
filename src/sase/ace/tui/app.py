@@ -72,7 +72,7 @@ _MAX_LIST_WIDTH = 80
 
 # Width bounds for agent list panel
 _MIN_AGENT_LIST_WIDTH = 60
-_MAX_AGENT_LIST_WIDTH = 110
+_MAX_AGENT_LIST_WIDTH = 130
 
 
 class AceApp(
