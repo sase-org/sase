@@ -21,10 +21,11 @@ _venv:
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
 _setup: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        {{ venv_bin }}/python -c "import sase_core_rs" > /dev/null 2>&1 || { \
-            printf "[setup] Building sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
+        if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
+            printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
             just rust-install; \
-        }; \
+            {{ venv_bin }}/python tools/validate_sase_core_rs; \
+        fi; \
     fi
     @{{ venv_bin }}/mypy --version > /dev/null 2>&1 || uv pip install --reinstall-package mypy -e ".[dev]"
 

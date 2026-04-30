@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 21:51:41
-status: wip
+status: done
 ---
 # Fix stale `sase_core_rs` setup checks
 

@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Validate that the installed ``sase_core_rs`` wheel matches this checkout."""
+
+from __future__ import annotations
+
+import importlib
+import json
+import sys
+import tempfile
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+
+REQUIRED_BINDINGS = (
+    "parse_project_bytes",
+    "parse_query",
+    "scan_agent_artifacts",
+    "read_status_from_lines",
+    "apply_status_update",
+    "plan_status_transition",
+    "parse_git_name_status_z",
+    "parse_git_branch_name",
+    "derive_git_workspace_name",
+    "parse_git_conflicted_files",
+    "parse_git_local_changes",
+)
+
+
+def _error(message: str) -> None:
+    print(f"[validate_sase_core_rs] {message}", file=sys.stderr)
+
+
+def _load_extension() -> ModuleType | None:
+    try:
+        return importlib.import_module("sase_core_rs")
+    except Exception as exc:
+        _error(f"cannot import sase_core_rs: {exc}")
+        return None
+
+
+def _validate_bindings(module: ModuleType) -> bool:
+    missing = [
+        name
+        for name in REQUIRED_BINDINGS
+        if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        _error("missing required binding(s): " + ", ".join(missing))
+        return False
+    return True
+
+
+def _scan_probe_options() -> dict[str, Any]:
+    return {
+        "include_prompt_step_markers": False,
+        "include_raw_prompt_snippets": False,
+        "max_prompt_snippet_bytes": 200,
+        "only_workflow_dirs": [],
+    }
+
+
+def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
+    timestamp = "2026-04-27T11:05:00Z"
+    artifact_timestamp = "20260427110500"
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-probe-") as tmp:
+        projects_root = Path(tmp) / "projects"
+        project_dir = projects_root / "probe"
+        artifact_dir = project_dir / "artifacts" / "ace-run" / artifact_timestamp
+        artifact_dir.mkdir(parents=True)
+        (project_dir / "probe.gp").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "probe",
+                    "plan": True,
+                    "plan_submitted_at": timestamp,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        try:
+            snapshot = module.scan_agent_artifacts(
+                str(projects_root),
+                _scan_probe_options(),
+            )
+        except Exception as exc:
+            _error(f"scan_agent_artifacts probe failed: {exc}")
+            return False
+
+    if not isinstance(snapshot, dict):
+        _error("scan_agent_artifacts probe returned a non-dict payload")
+        return False
+
+    records = snapshot.get("records")
+    if not isinstance(records, list):
+        _error("scan_agent_artifacts probe payload has no records list")
+        return False
+
+    matches = [
+        r
+        for r in records
+        if isinstance(r, dict) and r.get("timestamp") == artifact_timestamp
+    ]
+    if len(matches) != 1:
+        _error(
+            "scan_agent_artifacts probe did not return exactly one record "
+            f"for timestamp {artifact_timestamp}"
+        )
+        return False
+
+    agent_meta = matches[0].get("agent_meta")
+    if not isinstance(agent_meta, dict):
+        _error("scan_agent_artifacts probe record has no agent_meta dict")
+        return False
+
+    actual = agent_meta.get("plan_submitted_at")
+    if actual != [timestamp]:
+        _error(
+            "scan_agent_artifacts probe did not normalize scalar "
+            f"plan_submitted_at to a list: got {actual!r}"
+        )
+        return False
+
+    return True
+
+
+def main() -> int:
+    module = _load_extension()
+    if module is None:
+        return 1
+    if not _validate_bindings(module):
+        return 1
+    if not _validate_scalar_plan_timestamp(module):
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
