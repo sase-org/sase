@@ -6,12 +6,12 @@ import asyncio
 import logging
 import time
 from collections.abc import Iterable
-from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
@@ -27,94 +27,98 @@ log = logging.getLogger(__name__)
 AgentIdentity = tuple["AgentType", str, str | None]
 
 
-def _completion_date_for(agent: Agent) -> datetime:
-    """Return the best-known completion date for *agent*.
-
-    Used to derive the ``YYmmdd`` dismissal prefix. Falls back through
-    ``stop_time`` → ``start_time`` → parsed ``raw_suffix`` → ``now()`` so
-    partially-populated bundles still get a deterministic date.
-    """
-    if agent.stop_time is not None:
-        return agent.stop_time
-    if agent.start_time is not None:
-        return agent.start_time
-    if agent.raw_suffix:
-        try:
-            return datetime.strptime(agent.raw_suffix[:14], "%Y%m%d%H%M%S")
-        except ValueError:
-            pass
-    return datetime.now()
+def _agent_wire_identity(agent: Agent) -> tuple[str, str, str | None]:
+    return (agent.agent_type.value, agent.cl_name, agent.raw_suffix)
 
 
-def _base_for_dismissal(agent: Agent) -> str:
-    """Return a non-empty base name to use when prefixing *agent*."""
-    from sase.agent.names import strip_dismissed_prefix
-
-    if agent.agent_name:
-        return strip_dismissed_prefix(agent.agent_name)
-    if agent.cl_name and agent.cl_name != "unknown":
-        return agent.cl_name
-    if agent.raw_suffix:
-        return agent.raw_suffix
-    return "agent"
-
-
-def _apply_dismissal_rename(
-    agent: Agent,
-    agents_with_children_snapshot: Iterable[Agent],
-    *,
-    taken: set[str] | None = None,
-) -> dict[str, str]:
-    """Mutate *agent* (and its workflow children) to carry dismissed names.
-
-    The parent's :attr:`Agent.agent_name` becomes ``YYmmdd.<base>``, where
-    *base* is the parent's existing name when one was set, else its
-    ``cl_name``/``raw_suffix`` so unnamed dismissals still produce a
-    non-empty prefixed name. Workflow children that already carry a name
-    are reprefixed with the same date so wait/resume references remain
-    consistent. When *taken* is provided it is updated in place with newly
-    allocated names so subsequent dismissals in the same batch do not
-    collide; when ``None``, the allocator scans persisted state on its own.
-
-    Returns a ``{old_name: new_name}`` map for every rename performed so
-    callers can rewrite dependent wait/resume references in one pass.
-    Unnamed agents that gained a dismissed name for the first time are
-    excluded from the map — there are no preexisting references to migrate.
-    """
-    from ...models.agent import AgentType
-    from sase.agent.names import (
-        add_dismissed_prefix,
-        allocate_dismissed_name,
+def _wire_identity_key(identity: Any) -> tuple[str, str, str | None]:
+    return (
+        str(identity.agent_type),
+        str(identity.cl_name),
+        identity.raw_suffix,
     )
 
-    name_map: dict[str, str] = {}
-    completion_date = _completion_date_for(agent)
-    base = _base_for_dismissal(agent)
-    new_name = allocate_dismissed_name(base, completion_date, taken=taken)
-    old_name = agent.agent_name
-    agent.agent_name = new_name
-    if taken is not None:
-        taken.add(new_name)
-    if old_name and old_name != new_name:
-        name_map[old_name] = new_name
 
-    if (
-        agent.agent_type == AgentType.WORKFLOW
-        and not agent.is_workflow_child
-        and agent.raw_suffix
-    ):
-        for step in agents_with_children_snapshot:
-            if (
-                step.is_workflow_child
-                and step.parent_timestamp == agent.raw_suffix
-                and step.parent_workflow == agent.workflow
-                and step.agent_name
-            ):
-                old_step = step.agent_name
-                step.agent_name = add_dismissed_prefix(step.agent_name, completion_date)
-                if old_step != step.agent_name:
-                    name_map[old_step] = step.agent_name
+def _agent_identity_from_wire(identity: Any) -> AgentIdentity:
+    from ...models.agent import AgentType
+
+    return (
+        AgentType(str(identity.agent_type)),
+        str(identity.cl_name),
+        identity.raw_suffix,
+    )
+
+
+def _plan_dismissal_side_effects(
+    agents: list[Agent],
+    agents_with_children_snapshot: list[Agent],
+    *,
+    taken_dismissed_names: set[str] | None = None,
+) -> AgentCleanupPlanWire:
+    """Return a Rust/Python cleanup plan for dismissal side effects."""
+    from sase.core.agent_cleanup_facade import (
+        agents_to_cleanup_targets,
+        plan_agent_cleanup,
+    )
+    from sase.core.agent_cleanup_wire import (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        CLEANUP_MODE_DISMISS_COMPLETED,
+        CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        AgentCleanupIdentityWire,
+        AgentCleanupRequestWire,
+    )
+
+    identities = tuple(
+        AgentCleanupIdentityWire(
+            agent_type=agent.agent_type.value,
+            cl_name=agent.cl_name,
+            raw_suffix=agent.raw_suffix,
+        )
+        for agent in agents
+    )
+    request = AgentCleanupRequestWire(
+        schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_DISMISS_COMPLETED,
+        identities=identities,
+        taken_dismissed_names=tuple(sorted(taken_dismissed_names or ())),
+    )
+    return plan_agent_cleanup(
+        agents_to_cleanup_targets(agents_with_children_snapshot),
+        request,
+    )
+
+
+def apply_dismissal_rename_intents(
+    agents_with_children_snapshot: list[Agent],
+    plan: object,
+) -> dict[str, str]:
+    """Mutate agent names according to cleanup rename intents."""
+    by_identity = {
+        _agent_wire_identity(agent): agent for agent in agents_with_children_snapshot
+    }
+    name_map: dict[str, str] = {}
+    side_effects = getattr(plan, "side_effects", None)
+    for intent in getattr(side_effects, "dismissal_rename_allocations", ()):
+        agent = by_identity.get(_wire_identity_key(intent.identity))
+        if agent is None:
+            continue
+        old_name = agent.agent_name
+        agent.agent_name = intent.new_name
+        if old_name and old_name != intent.new_name:
+            name_map[old_name] = intent.new_name
+    if not name_map:
+        return dict(getattr(side_effects, "wait_reference_rewrite_map", ()) or ())
     return name_map
+
+
+def dismissed_identities_from_plan(plan: object) -> set[AgentIdentity]:
+    side_effects = getattr(plan, "side_effects", None)
+    identities = {
+        _agent_identity_from_wire(identity)
+        for identity in getattr(side_effects, "dismissed_index_additions", ())
+    }
+    return identities
 
 
 class AgentDismissingMixin:
@@ -361,8 +365,6 @@ class AgentDismissingMixin:
         a worker thread. The Textual event loop returns to the user before
         any persistence runs.
         """
-        from ...models.agent import AgentType
-
         if not agents:
             return
 
@@ -371,34 +373,27 @@ class AgentDismissingMixin:
         from sase.agent.names import collect_dismissed_taken_names
 
         allocated_names: set[str] = collect_dismissed_taken_names()
-        name_map: dict[str, str] = {}
-        for agent in agents:
-            name_map.update(
-                _apply_dismissal_rename(
-                    agent,
-                    agents_with_children_snapshot,
-                    taken=allocated_names,
-                )
-            )
+        cleanup_plan = _plan_dismissal_side_effects(
+            agents,
+            agents_with_children_snapshot,
+            taken_dismissed_names=allocated_names,
+        )
+        name_map = apply_dismissal_rename_intents(
+            agents_with_children_snapshot,
+            cleanup_plan,
+        )
+        dismissed_identities = dismissed_identities_from_plan(cleanup_plan)
 
-        for agent in agents:
-            self._agent_status_overrides.pop(agent.identity, None)
-            self._agent_pre_question_status.pop(agent.identity, None)
-            self._dismissed_agents.add(agent.identity)
-            if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
-                for step in agents_with_children_snapshot:
-                    if (
-                        step.is_workflow_child
-                        and step.parent_timestamp == agent.raw_suffix
-                        and step.parent_workflow == agent.workflow
-                    ):
-                        self._dismissed_agents.add(step.identity)
+        for identity in dismissed_identities:
+            self._agent_status_overrides.pop(identity, None)
+            self._agent_pre_question_status.pop(identity, None)
+        self._dismissed_agents.update(dismissed_identities)
 
         count = len(agents)
         s = "s" if count != 1 else ""
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
-        _apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
+        apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
         self.call_later(  # type: ignore[attr-defined]
@@ -406,6 +401,7 @@ class AgentDismissingMixin:
             list(agents),
             set(self._dismissed_agents),
             agents_with_children_snapshot,
+            cleanup_plan,
             name_map,
         )
 
@@ -414,7 +410,8 @@ class AgentDismissingMixin:
         agents: list[Agent],
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
-        name_map: dict[str, str],
+        cleanup_plan: object | None = None,
+        name_map: dict[str, str] | None = None,
     ) -> None:
         """Persist a batch dismissal's filesystem side effects in a worker."""
         identities = {a.identity for a in agents}
@@ -429,7 +426,8 @@ class AgentDismissingMixin:
                 agents,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
-                name_map,
+                name_map or {},
+                cleanup_plan,
             )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
@@ -461,8 +459,17 @@ class AgentDismissingMixin:
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        name_map = _apply_dismissal_rename(agent, agents_with_children_snapshot)
-        identities = self._collect_dismissal_identities([agent])
+        cleanup_plan = _plan_dismissal_side_effects(
+            [agent],
+            agents_with_children_snapshot,
+        )
+        name_map = apply_dismissal_rename_intents(
+            agents_with_children_snapshot,
+            cleanup_plan,
+        )
+        identities = dismissed_identities_from_plan(cleanup_plan)
+        if not identities:
+            identities = self._collect_dismissal_identities([agent])
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
             self._agent_pre_question_status.pop(identity, None)
@@ -474,12 +481,13 @@ class AgentDismissingMixin:
         else:
             self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory([agent])
-        _apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
+        apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
         self.call_later(  # type: ignore[attr-defined]
             self._run_dismiss_persistence_async,
             agent,
             set(self._dismissed_agents),
             agents_with_children_snapshot,
+            cleanup_plan,
             name_map,
         )
 
@@ -488,7 +496,8 @@ class AgentDismissingMixin:
         agent: Agent,
         dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
-        name_map: dict[str, str],
+        cleanup_plan: object | None = None,
+        name_map: dict[str, str] | None = None,
     ) -> None:
         """Persist single-agent dismiss side effects in a worker thread.
 
@@ -515,7 +524,8 @@ class AgentDismissingMixin:
                 agent,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
-                name_map,
+                name_map or {},
+                cleanup_plan,
             )
         except Exception as exc:
             success = False
@@ -542,16 +552,21 @@ def persist_single_dismiss_transaction(
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     name_map: dict[str, str],
+    cleanup_plan: object | None = None,
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
     from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
     rewrite_dismissed_references(name_map)
-    persist_dismiss_side_effects(agent, agents_with_children_snapshot)
-    dismiss_notifications_for_agents(
-        _agents_related_to_dismissal(agent, agents_with_children_snapshot)
-    )
+    if not persist_cleanup_side_effect_intents(
+        cleanup_plan,
+        agents_with_children_snapshot,
+    ):
+        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+        dismiss_notifications_for_agents(
+            _agents_related_to_dismissal(agent, agents_with_children_snapshot)
+        )
     save_dismissed_agents(dismissed_snapshot)
 
 
@@ -560,24 +575,105 @@ def persist_bulk_dismiss_transaction(
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     name_map: dict[str, str],
+    cleanup_plan: object | None = None,
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
     from ....dismissed_agents import save_dismissed_agents
     from sase.agent.dismissed_name_rewrites import rewrite_dismissed_references
 
     rewrite_dismissed_references(name_map)
-    related: list[Agent] = []
-    for agent in agents:
-        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
-        related.extend(
-            _agents_related_to_dismissal(agent, agents_with_children_snapshot)
-        )
-    if related:
-        dismiss_notifications_for_agents(related)
+    if not persist_cleanup_side_effect_intents(
+        cleanup_plan,
+        agents_with_children_snapshot,
+    ):
+        related: list[Agent] = []
+        for agent in agents:
+            persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+            related.extend(
+                _agents_related_to_dismissal(agent, agents_with_children_snapshot)
+            )
+        if related:
+            dismiss_notifications_for_agents(related)
     save_dismissed_agents(dismissed_snapshot)
 
 
-def _apply_in_memory_reference_rewrites(
+def persist_cleanup_side_effect_intents(
+    cleanup_plan: object | None,
+    agents_with_children_snapshot: list[Agent],
+) -> bool:
+    """Execute host-owned side effects described by a cleanup intent plan."""
+    side_effects = getattr(cleanup_plan, "side_effects", None)
+    if side_effects is None:
+        return False
+
+    has_intents = any(
+        getattr(side_effects, attr, ())
+        for attr in (
+            "bundle_save_candidates",
+            "artifact_delete_paths",
+            "workspace_release_requests",
+            "notification_dismiss_candidates",
+        )
+    )
+    if not has_intents:
+        return False
+
+    from ....dismissed_agents import save_dismissed_bundle
+    from sase.running_field import release_workspace
+
+    by_identity = {
+        _agent_wire_identity(agent): agent for agent in agents_with_children_snapshot
+    }
+
+    for intent in getattr(side_effects, "bundle_save_candidates", ()):
+        agent = by_identity.get(_wire_identity_key(intent.identity))
+        if agent is not None and not agent._from_changespec:
+            save_dismissed_bundle(agent)
+
+    for intent in getattr(side_effects, "workspace_release_requests", ()):
+        workspace = intent.workspace
+        workflow = intent.workflow
+        if intent.lookup_workflow and workflow is not None:
+            workspace = find_workflow_workspace_from_running_field(
+                intent.project_file,
+                workflow,
+                intent.cl_name,
+            )
+        if workspace is None:
+            continue
+        agent = by_identity.get(_wire_identity_key(intent.identity))
+        if (
+            workflow is not None
+            and agent is not None
+            and agent.agent_type.value == "workflow"
+        ):
+            release_workspace(intent.project_file, workspace, f"workflow({workflow})")
+        else:
+            release_workspace(
+                intent.project_file,
+                workspace,
+                workflow if agent is None else agent.workflow,
+                intent.cl_name if agent is None else agent.cl_name,
+            )
+
+    for intent in getattr(side_effects, "artifact_delete_paths", ()):
+        delete_agent_artifacts(intent.artifacts_dir)
+
+    notification_agents = [
+        agent
+        for agent in agents_with_children_snapshot
+        if _agent_wire_identity(agent)
+        in {
+            _wire_identity_key(intent.identity)
+            for intent in getattr(side_effects, "notification_dismiss_candidates", ())
+        }
+    ]
+    if notification_agents:
+        dismiss_notifications_for_agents(notification_agents)
+    return True
+
+
+def apply_in_memory_reference_rewrites(
     agents: Iterable[Agent],
     name_map: dict[str, str],
 ) -> None:

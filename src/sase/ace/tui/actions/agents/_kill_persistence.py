@@ -9,7 +9,10 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
-from ._dismissing import persist_dismiss_side_effects
+from ._dismissing import (
+    persist_cleanup_side_effect_intents,
+    persist_dismiss_side_effects,
+)
 from ._killing_utils import (
     delete_agent_artifacts,
     dismiss_notifications_for_agents,
@@ -50,20 +53,28 @@ def persist_bulk_kill_side_effects(
     dismissable: list[Agent],
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
+    cleanup_plan: object | None = None,
 ) -> None:
     """Apply filesystem/project-file side effects for a bulk kill operation."""
     from ....dismissed_agents import save_dismissed_agents
 
+    consumed_intents = persist_cleanup_side_effect_intents(
+        cleanup_plan,
+        agents_with_children_snapshot,
+    )
     for item in kill_items:
+        if consumed_intents and item.kind in {"running", "workflow"}:
+            continue
         persist_kill_side_effects(
             item.agent,
             item.kind,
             agents_with_children_snapshot,
         )
-    for agent in dismissable:
-        persist_dismiss_side_effects(agent, agents_with_children_snapshot)
+    if not consumed_intents:
+        for agent in dismissable:
+            persist_dismiss_side_effects(agent, agents_with_children_snapshot)
 
-    if kill_items or dismissable:
+    if not consumed_intents and (kill_items or dismissable):
         dismiss_notifications_for_agents(
             [item.agent for item in kill_items] + list(dismissable)
         )

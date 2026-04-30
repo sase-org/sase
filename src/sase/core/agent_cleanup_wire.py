@@ -74,6 +74,7 @@ class AgentCleanupTargetWire:
     raw_suffix: str | None = None
     project_file: str | None = None
     artifacts_dir: str | None = None
+    from_changespec: bool = False
     workspace: int | None = None
     tag: str | None = None
     agent_name: str | None = None
@@ -96,6 +97,7 @@ class AgentCleanupRequestWire:
     tag: str | None = None
     identities: tuple[AgentCleanupIdentityWire, ...] = ()
     include_pidless_as_dismissable: bool = False
+    taken_dismissed_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -141,6 +143,66 @@ class AgentCleanupCountsWire:
 
 
 @dataclass(frozen=True)
+class AgentCleanupDismissalRenameIntentWire:
+    """One dismissal-time name allocation."""
+
+    identity: AgentCleanupIdentityWire
+    old_name: str | None
+    new_name: str
+
+
+@dataclass(frozen=True)
+class AgentCleanupBundleSaveIntentWire:
+    """One agent whose revive bundle should be saved by the host."""
+
+    identity: AgentCleanupIdentityWire
+
+
+@dataclass(frozen=True)
+class AgentCleanupArtifactDeleteIntentWire:
+    """One artifact directory whose loader markers should be removed."""
+
+    identity: AgentCleanupIdentityWire
+    artifacts_dir: str
+
+
+@dataclass(frozen=True)
+class AgentCleanupWorkspaceReleaseIntentWire:
+    """One workspace release request for host-side project-file mutation."""
+
+    identity: AgentCleanupIdentityWire
+    project_file: str
+    workspace: int | None = None
+    workflow: str | None = None
+    cl_name: str | None = None
+    lookup_workflow: bool = False
+
+
+@dataclass(frozen=True)
+class AgentCleanupNotificationDismissIntentWire:
+    """One notification agent key to dismiss after cleanup succeeds."""
+
+    identity: AgentCleanupIdentityWire
+    cl_name: str
+    raw_suffix: str | None = None
+
+
+@dataclass(frozen=True)
+class AgentCleanupSideEffectsWire:
+    """Deterministic side-effect intents for host-side execution."""
+
+    dismissed_index_additions: tuple[AgentCleanupIdentityWire, ...] = ()
+    bundle_save_candidates: tuple[AgentCleanupBundleSaveIntentWire, ...] = ()
+    artifact_delete_paths: tuple[AgentCleanupArtifactDeleteIntentWire, ...] = ()
+    workspace_release_requests: tuple[AgentCleanupWorkspaceReleaseIntentWire, ...] = ()
+    notification_dismiss_candidates: tuple[
+        AgentCleanupNotificationDismissIntentWire, ...
+    ] = ()
+    dismissal_rename_allocations: tuple[AgentCleanupDismissalRenameIntentWire, ...] = ()
+    wait_reference_rewrite_map: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class AgentCleanupPlanWire:
     """Complete pure cleanup plan."""
 
@@ -153,6 +215,9 @@ class AgentCleanupPlanWire:
     counts: AgentCleanupCountsWire = field(default_factory=AgentCleanupCountsWire)
     confirmation_severity: str = CONFIRMATION_SEVERITY_NONE
     summary_lines: tuple[str, ...] = ()
+    side_effects: AgentCleanupSideEffectsWire = field(
+        default_factory=AgentCleanupSideEffectsWire
+    )
 
 
 def agent_cleanup_wire_to_json_dict(record: Any) -> Any:
@@ -201,6 +266,7 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         artifacts_dir=(
             None if data.get("artifacts_dir") is None else str(data["artifacts_dir"])
         ),
+        from_changespec=bool(data.get("from_changespec", False)),
         workspace=None if data.get("workspace") is None else int(data["workspace"]),
         tag=None if data.get("tag") is None else str(data["tag"]),
         agent_name=None if data.get("agent_name") is None else str(data["agent_name"]),
@@ -240,6 +306,9 @@ def cleanup_request_from_dict(data: dict[str, Any]) -> AgentCleanupRequestWire:
         include_pidless_as_dismissable=bool(
             data.get("include_pidless_as_dismissable", False)
         ),
+        taken_dismissed_names=tuple(
+            str(name) for name in data.get("taken_dismissed_names") or ()
+        ),
     )
 
 
@@ -252,6 +321,7 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
             f"agent cleanup wire schema mismatch: got {schema}, "
             f"expected {AGENT_CLEANUP_WIRE_SCHEMA_VERSION}"
         )
+    side_effect_data = data.get("side_effects") or {}
     return AgentCleanupPlanWire(
         schema_version=schema,
         selected_identities=tuple(
@@ -298,6 +368,71 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
             data.get("confirmation_severity", CONFIRMATION_SEVERITY_NONE)
         ),
         summary_lines=tuple(str(line) for line in data.get("summary_lines") or ()),
+        side_effects=AgentCleanupSideEffectsWire(
+            dismissed_index_additions=tuple(
+                _identity_from_dict(item)
+                for item in side_effect_data.get("dismissed_index_additions") or ()
+            ),
+            bundle_save_candidates=tuple(
+                AgentCleanupBundleSaveIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                )
+                for item in side_effect_data.get("bundle_save_candidates") or ()
+            ),
+            artifact_delete_paths=tuple(
+                AgentCleanupArtifactDeleteIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                    artifacts_dir=str(item["artifacts_dir"]),
+                )
+                for item in side_effect_data.get("artifact_delete_paths") or ()
+            ),
+            workspace_release_requests=tuple(
+                AgentCleanupWorkspaceReleaseIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                    project_file=str(item["project_file"]),
+                    workspace=(
+                        None
+                        if item.get("workspace") is None
+                        else int(item["workspace"])
+                    ),
+                    workflow=(
+                        None if item.get("workflow") is None else str(item["workflow"])
+                    ),
+                    cl_name=(
+                        None if item.get("cl_name") is None else str(item["cl_name"])
+                    ),
+                    lookup_workflow=bool(item.get("lookup_workflow", False)),
+                )
+                for item in side_effect_data.get("workspace_release_requests") or ()
+            ),
+            notification_dismiss_candidates=tuple(
+                AgentCleanupNotificationDismissIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                    cl_name=str(item["cl_name"]),
+                    raw_suffix=(
+                        None
+                        if item.get("raw_suffix") is None
+                        else str(item["raw_suffix"])
+                    ),
+                )
+                for item in side_effect_data.get("notification_dismiss_candidates")
+                or ()
+            ),
+            dismissal_rename_allocations=tuple(
+                AgentCleanupDismissalRenameIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                    old_name=(
+                        None if item.get("old_name") is None else str(item["old_name"])
+                    ),
+                    new_name=str(item["new_name"]),
+                )
+                for item in side_effect_data.get("dismissal_rename_allocations") or ()
+            ),
+            wait_reference_rewrite_map=tuple(
+                (str(old), str(new))
+                for old, new in side_effect_data.get("wait_reference_rewrite_map") or ()
+            ),
+        ),
     )
 
 
@@ -328,13 +463,19 @@ __all__ = [
     "SKIPPED_UNKNOWN_KILL_KIND",
     "SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY",
     "AgentCleanupCountsWire",
+    "AgentCleanupArtifactDeleteIntentWire",
+    "AgentCleanupBundleSaveIntentWire",
     "AgentCleanupDismissItemWire",
+    "AgentCleanupDismissalRenameIntentWire",
     "AgentCleanupIdentityWire",
     "AgentCleanupKillItemWire",
+    "AgentCleanupNotificationDismissIntentWire",
     "AgentCleanupPlanWire",
     "AgentCleanupRequestWire",
+    "AgentCleanupSideEffectsWire",
     "AgentCleanupSkippedItemWire",
     "AgentCleanupTargetWire",
+    "AgentCleanupWorkspaceReleaseIntentWire",
     "agent_cleanup_wire_to_json_dict",
     "cleanup_plan_from_dict",
     "cleanup_request_from_dict",

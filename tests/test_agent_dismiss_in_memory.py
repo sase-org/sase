@@ -226,8 +226,9 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
-        ) as mock_persist,
+            "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
+            return_value=True,
+        ) as mock_persist_intents,
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
@@ -236,8 +237,9 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
 
-    mock_persist.assert_called_once_with(agent, [agent])
-    mock_dismiss_many.assert_called_once_with([agent])
+    mock_persist_intents.assert_called_once()
+    assert mock_persist_intents.call_args[0][1] == [agent]
+    mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once_with({agent.identity})
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
@@ -345,8 +347,9 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
-        ) as mock_persist,
+            "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
+            return_value=True,
+        ) as mock_persist_intents,
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
@@ -355,8 +358,9 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
 
-    mock_persist.assert_called_once_with(parent, [parent, child])
-    mock_dismiss_many.assert_called_once_with([parent, child])
+    mock_persist_intents.assert_called_once()
+    assert mock_persist_intents.call_args[0][1] == [parent, child]
+    mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once_with({parent.identity, child.identity})
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
@@ -425,8 +429,9 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"
-        ) as mock_persist,
+            "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
+            return_value=True,
+        ) as mock_persist_intents,
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
@@ -435,10 +440,9 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
         callback, args = app._scheduled[0]
         asyncio.run(callback(*args))  # type: ignore[misc]
 
-    assert mock_persist.call_count == 2
-    mock_dismiss_many.assert_called_once()
-    related_arg = mock_dismiss_many.call_args[0][0]
-    assert {agent.identity for agent in related_arg} == {a1.identity, a2.identity}
+    mock_persist_intents.assert_called_once()
+    assert mock_persist_intents.call_args[0][1] == [a1, a2]
+    mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once()
     assert mock_save.call_args[0][0] == {a1.identity, a2.identity}
 

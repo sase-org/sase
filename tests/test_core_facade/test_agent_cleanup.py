@@ -321,6 +321,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     )
     assert target.status == "FAILED"
     assert target.workspace == 7
+    assert target.from_changespec is False
     assert target.tag == "triage"
     assert target.agent_name == "friendly"
     assert target.display_name == "convert"
@@ -364,6 +365,91 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
         ) == 2
+
+
+def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> None:
+    parent = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="workflow",
+        status="DONE",
+        pid=None,
+        raw_suffix="20260428100000",
+        workflow="release",
+        agent_name="root",
+        artifacts_dir="/tmp/parent",
+    )
+    child = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="child",
+        status="DONE",
+        pid=None,
+        raw_suffix="20260428100000_c0",
+        workflow="release",
+        parent_workflow="release",
+        parent_timestamp="20260428100000",
+        agent_name="root.plan",
+        artifacts_dir="/tmp/child",
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_DISMISS_COMPLETED,
+        identities=(_id(parent),),
+    )
+
+    plan = plan_agent_cleanup_python(
+        agents_to_cleanup_targets([parent, child]), request
+    )
+
+    assert [
+        intent.new_name for intent in plan.side_effects.dismissal_rename_allocations
+    ] == ["260430.root", "260430.root.plan"]
+    assert dict(plan.side_effects.wait_reference_rewrite_map) == {
+        "root": "260430.root",
+        "root.plan": "260430.root.plan",
+    }
+    assert [
+        item.identity.cl_name for item in plan.side_effects.bundle_save_candidates
+    ] == [
+        "workflow",
+        "child",
+    ]
+    assert [item.artifacts_dir for item in plan.side_effects.artifact_delete_paths] == [
+        "/tmp/parent",
+        "/tmp/child",
+    ]
+
+
+def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
+    running = _agent(cl_name="running", status="RUNNING", pid=101, workspace_num=9)
+    done = _agent(
+        cl_name="done",
+        status="DONE",
+        pid=None,
+        agent_name="done-name",
+        raw_suffix="20260428110000",
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(running), _id(done)),
+        include_pidless_as_dismissable=False,
+    )
+
+    plan = plan_agent_cleanup_python(
+        agents_to_cleanup_targets([running, done]), request
+    )
+
+    assert [item.identity.cl_name for item in plan.kill_items] == ["running"]
+    assert [item.cl_name for item in plan.side_effects.dismissed_index_additions] == [
+        "done",
+        "running",
+    ]
+    assert [
+        item.workspace for item in plan.side_effects.workspace_release_requests
+    ] == [9]
+    assert [
+        intent.new_name for intent in plan.side_effects.dismissal_rename_allocations
+    ] == ["260430.done-name"]
 
 
 def test_plan_agent_cleanup_uses_rust_binding_when_available(

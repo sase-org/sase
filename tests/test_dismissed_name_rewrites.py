@@ -2,7 +2,7 @@
 
 Covers the prompt-text and structured-data helpers in
 ``sase.agent.dismissed_name_rewrites`` plus the wiring that hands a name
-map from :func:`_apply_dismissal_rename` to dependent agents and the
+map from the cleanup intent planner to dependent agents and the
 asynchronous persistence transactions.
 """
 

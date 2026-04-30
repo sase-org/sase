@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
+from datetime import datetime
 from typing import Any
 
 from sase.core.agent_cleanup_wire import (
@@ -40,13 +41,19 @@ from sase.core.agent_cleanup_wire import (
     SKIPPED_UNKNOWN_KILL_KIND,
     SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY,
     AgentCleanupCountsWire,
+    AgentCleanupArtifactDeleteIntentWire,
+    AgentCleanupBundleSaveIntentWire,
     AgentCleanupDismissItemWire,
+    AgentCleanupDismissalRenameIntentWire,
     AgentCleanupIdentityWire,
     AgentCleanupKillItemWire,
+    AgentCleanupNotificationDismissIntentWire,
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
+    AgentCleanupSideEffectsWire,
     AgentCleanupSkippedItemWire,
     AgentCleanupTargetWire,
+    AgentCleanupWorkspaceReleaseIntentWire,
     agent_cleanup_wire_to_json_dict,
     cleanup_plan_from_dict,
     cleanup_request_from_dict,
@@ -55,7 +62,9 @@ from sase.core.agent_cleanup_wire import (
 from sase.core.rust import require_rust_binding
 
 
-def _as_target(target: AgentCleanupTargetWire | dict[str, Any]) -> AgentCleanupTargetWire:
+def _as_target(
+    target: AgentCleanupTargetWire | dict[str, Any],
+) -> AgentCleanupTargetWire:
     if isinstance(target, AgentCleanupTargetWire):
         return target
     return cleanup_target_from_dict(target)
@@ -104,6 +113,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         raw_suffix=raw_suffix,
         project_file=agent.project_file,
         artifacts_dir=artifacts_dir,
+        from_changespec=bool(getattr(agent, "_from_changespec", False)),
         workspace=agent.effective_workspace_num,
         tag=agent.tag,
         agent_name=agent.agent_name,
@@ -116,8 +126,9 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
     )
 
 
-# pyvision: tests/test_core_facade/test_agent_cleanup.py
-def agents_to_cleanup_targets(agents: Iterable[Any]) -> tuple[AgentCleanupTargetWire, ...]:
+def agents_to_cleanup_targets(
+    agents: Iterable[Any],
+) -> tuple[AgentCleanupTargetWire, ...]:
     """Convert an iterable of TUI ``Agent`` objects to cleanup target wires."""
 
     return tuple(agent_to_cleanup_target(agent) for agent in agents)
@@ -206,6 +217,258 @@ def _push_summary_line(lines: list[str], count: int, noun: str) -> None:
     lines.append(f"{count} {noun}{suffix}")
 
 
+def _is_dismissed_prefixed(name: str) -> bool:
+    return len(name) > 7 and name[:6].isdigit() and name[6] == "."
+
+
+def _strip_dismissed_prefix(name: str) -> str:
+    if _is_dismissed_prefixed(name):
+        return name[7:]
+    return name
+
+
+def _completion_date_prefix(target: AgentCleanupTargetWire) -> str:
+    for value in (target.stop_time, target.start_time):
+        if not value:
+            continue
+        try:
+            return datetime.fromisoformat(value).strftime("%y%m%d")
+        except ValueError:
+            pass
+    if target.raw_suffix and len(target.raw_suffix) >= 8:
+        raw = target.raw_suffix[:8]
+        if raw.isdigit():
+            return f"{raw[2:4]}{raw[4:6]}{raw[6:8]}"
+    return "000101"
+
+
+def _base_for_dismissal(target: AgentCleanupTargetWire) -> str:
+    if target.agent_name:
+        return _strip_dismissed_prefix(target.agent_name)
+    if target.identity.cl_name and target.identity.cl_name != "unknown":
+        return target.identity.cl_name
+    if target.raw_suffix:
+        return target.raw_suffix
+    return "agent"
+
+
+def _add_dismissed_prefix(name: str, date_prefix: str) -> str:
+    if _is_dismissed_prefixed(name):
+        return name
+    return f"{date_prefix}.{name}"
+
+
+def _allocate_dismissed_name(
+    base: str,
+    date_prefix: str,
+    taken: set[str],
+) -> str:
+    base = _strip_dismissed_prefix(base)
+    primary = _add_dismissed_prefix(base, date_prefix)
+    if primary not in taken:
+        taken.add(primary)
+        return primary
+    n = 2
+    while True:
+        candidate = f"{primary}.{n}"
+        if candidate not in taken:
+            taken.add(candidate)
+            return candidate
+        n += 1
+
+
+def _related_workflow_targets(
+    target: AgentCleanupTargetWire,
+    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]],
+) -> list[AgentCleanupTargetWire]:
+    related = [target]
+    if (
+        target.agent_type == "workflow"
+        and not _is_workflow_child(target)
+        and target.raw_suffix is not None
+    ):
+        related.extend(children_by_parent[(target.raw_suffix, target.workflow)])
+    return related
+
+
+def _append_unique_identity(
+    items: list[AgentCleanupIdentityWire],
+    seen: set[AgentCleanupIdentityWire],
+    target: AgentCleanupTargetWire,
+) -> None:
+    if target.identity not in seen:
+        seen.add(target.identity)
+        items.append(target.identity)
+
+
+def _build_cleanup_side_effects(
+    targets: Sequence[AgentCleanupTargetWire],
+    request: AgentCleanupRequestWire,
+    kill_items: Sequence[AgentCleanupKillItemWire],
+    dismiss_items: Sequence[AgentCleanupDismissItemWire],
+    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]],
+) -> AgentCleanupSideEffectsWire:
+    if request.mode == CLEANUP_MODE_PREVIEW_ONLY:
+        return AgentCleanupSideEffectsWire()
+
+    by_id = {target.identity: target for target in targets}
+    taken = set(request.taken_dismissed_names)
+
+    dismissed_index: list[AgentCleanupIdentityWire] = []
+    bundle_candidates: list[AgentCleanupBundleSaveIntentWire] = []
+    artifact_deletes: list[AgentCleanupArtifactDeleteIntentWire] = []
+    workspace_releases: list[AgentCleanupWorkspaceReleaseIntentWire] = []
+    notification_candidates: list[AgentCleanupNotificationDismissIntentWire] = []
+    rename_allocations: list[AgentCleanupDismissalRenameIntentWire] = []
+    rewrite_map: list[tuple[str, str]] = []
+
+    seen_index: set[AgentCleanupIdentityWire] = set()
+    seen_bundle: set[AgentCleanupIdentityWire] = set()
+    seen_artifact: set[tuple[AgentCleanupIdentityWire, str]] = set()
+    seen_workspace: set[AgentCleanupIdentityWire] = set()
+    seen_notifications: set[AgentCleanupIdentityWire] = set()
+
+    def add_bundle(target: AgentCleanupTargetWire) -> None:
+        if target.from_changespec or target.identity in seen_bundle:
+            return
+        seen_bundle.add(target.identity)
+        bundle_candidates.append(AgentCleanupBundleSaveIntentWire(target.identity))
+
+    def add_artifact(target: AgentCleanupTargetWire) -> None:
+        if not target.artifacts_dir:
+            return
+        key = (target.identity, target.artifacts_dir)
+        if key in seen_artifact:
+            return
+        seen_artifact.add(key)
+        artifact_deletes.append(
+            AgentCleanupArtifactDeleteIntentWire(target.identity, target.artifacts_dir)
+        )
+
+    def add_notification(target: AgentCleanupTargetWire) -> None:
+        if target.identity in seen_notifications:
+            return
+        seen_notifications.add(target.identity)
+        notification_candidates.append(
+            AgentCleanupNotificationDismissIntentWire(
+                target.identity,
+                target.identity.cl_name,
+                target.raw_suffix,
+            )
+        )
+
+    def add_workspace(target: AgentCleanupTargetWire, kind: str) -> None:
+        if target.identity in seen_workspace:
+            return
+        seen_workspace.add(target.identity)
+        if kind == KILL_KIND_RUNNING:
+            if target.workspace is None:
+                return
+            workspace_releases.append(
+                AgentCleanupWorkspaceReleaseIntentWire(
+                    identity=target.identity,
+                    project_file=target.project_file or "",
+                    workspace=target.workspace,
+                    workflow=target.workflow,
+                    cl_name=target.identity.cl_name,
+                    lookup_workflow=False,
+                )
+            )
+        elif kind == KILL_KIND_WORKFLOW:
+            workflow_name = (
+                target.parent_workflow or target.workflow
+                if target.is_workflow_child
+                else target.workflow
+            )
+            if workflow_name is None:
+                return
+            lookup_cl_name = (
+                target.identity.cl_name
+                if not target.is_workflow_child and target.identity.cl_name != "unknown"
+                else None
+            )
+            workspace_releases.append(
+                AgentCleanupWorkspaceReleaseIntentWire(
+                    identity=target.identity,
+                    project_file=target.project_file or "",
+                    workspace=target.workspace,
+                    workflow=workflow_name,
+                    cl_name=lookup_cl_name,
+                    lookup_workflow=target.workspace is None,
+                )
+            )
+
+    def add_renames(related: list[AgentCleanupTargetWire]) -> None:
+        if not related:
+            return
+        parent = related[0]
+        date_prefix = _completion_date_prefix(parent)
+        old_name = parent.agent_name
+        new_name = _allocate_dismissed_name(
+            _base_for_dismissal(parent),
+            date_prefix,
+            taken,
+        )
+        rename_allocations.append(
+            AgentCleanupDismissalRenameIntentWire(parent.identity, old_name, new_name)
+        )
+        if old_name and old_name != new_name:
+            rewrite_map.append((old_name, new_name))
+        if parent.agent_type != "workflow" or _is_workflow_child(parent):
+            return
+        for child in related[1:]:
+            if not child.agent_name:
+                continue
+            child_new = _add_dismissed_prefix(child.agent_name, date_prefix)
+            if child_new == child.agent_name:
+                continue
+            rename_allocations.append(
+                AgentCleanupDismissalRenameIntentWire(
+                    child.identity,
+                    child.agent_name,
+                    child_new,
+                )
+            )
+            rewrite_map.append((child.agent_name, child_new))
+
+    for dismiss in dismiss_items:
+        target = by_id.get(dismiss.identity)
+        if target is None:
+            continue
+        related = _related_workflow_targets(target, children_by_parent)
+        add_renames(related)
+        for item in related:
+            _append_unique_identity(dismissed_index, seen_index, item)
+            add_bundle(item)
+            add_artifact(item)
+            add_notification(item)
+            if item.agent_type == "workflow":
+                add_workspace(item, KILL_KIND_WORKFLOW)
+
+    for kill in kill_items:
+        target = by_id.get(kill.identity)
+        if target is None:
+            continue
+        related = _related_workflow_targets(target, children_by_parent)
+        for item in related:
+            _append_unique_identity(dismissed_index, seen_index, item)
+            add_notification(item)
+            if kill.kind == KILL_KIND_WORKFLOW:
+                add_bundle(item)
+                add_artifact(item)
+        add_workspace(target, kill.kind)
+
+    return AgentCleanupSideEffectsWire(
+        dismissed_index_additions=tuple(dismissed_index),
+        bundle_save_candidates=tuple(bundle_candidates),
+        artifact_delete_paths=tuple(artifact_deletes),
+        workspace_release_requests=tuple(workspace_releases),
+        notification_dismiss_candidates=tuple(notification_candidates),
+        dismissal_rename_allocations=tuple(rename_allocations),
+        wait_reference_rewrite_map=tuple(rewrite_map),
+    )
+
+
 # pyvision: tests/test_core_facade/test_agent_cleanup.py
 def plan_agent_cleanup_python(
     targets: Sequence[AgentCleanupTargetWire | dict[str, Any]],
@@ -234,9 +497,9 @@ def plan_agent_cleanup_python(
         for target in wire_targets
         if not _is_workflow_child(target) and target.raw_suffix is not None
     }
-    children_by_parent: dict[
-        tuple[str, str | None], list[AgentCleanupTargetWire]
-    ] = defaultdict(list)
+    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]] = (
+        defaultdict(list)
+    )
     for target in wire_targets:
         if _is_workflow_child(target) and target.parent_timestamp is not None:
             children_by_parent[
@@ -372,6 +635,14 @@ def plan_agent_cleanup_python(
     if not summary_lines:
         summary_lines.append("No agents selected for cleanup")
 
+    side_effects = _build_cleanup_side_effects(
+        wire_targets,
+        wire_request,
+        kill_items,
+        dismiss_items,
+        children_by_parent,
+    )
+
     return AgentCleanupPlanWire(
         schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
         selected_identities=tuple(selected),
@@ -382,10 +653,10 @@ def plan_agent_cleanup_python(
         counts=counts,
         confirmation_severity=confirmation_severity,
         summary_lines=tuple(summary_lines),
+        side_effects=side_effects,
     )
 
 
-# pyvision: tests/test_core_facade/test_agent_cleanup.py
 def plan_agent_cleanup(
     targets: Sequence[AgentCleanupTargetWire | dict[str, Any]],
     request: AgentCleanupRequestWire | dict[str, Any],
@@ -403,7 +674,21 @@ def plan_agent_cleanup(
         agent_cleanup_wire_to_json_dict(wire_targets),
         agent_cleanup_wire_to_json_dict(wire_request),
     )
-    return cleanup_plan_from_dict(payload)
+    plan = cleanup_plan_from_dict(payload)
+    if (plan.kill_items or plan.dismiss_items) and not any(
+        getattr(plan.side_effects, attr)
+        for attr in (
+            "dismissed_index_additions",
+            "bundle_save_candidates",
+            "artifact_delete_paths",
+            "workspace_release_requests",
+            "notification_dismiss_candidates",
+            "dismissal_rename_allocations",
+            "wait_reference_rewrite_map",
+        )
+    ):
+        return plan_agent_cleanup_python(wire_targets, wire_request)
+    return plan
 
 
 __all__ = [
