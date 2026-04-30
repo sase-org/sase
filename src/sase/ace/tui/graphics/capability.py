@@ -57,6 +57,7 @@ class GraphicsCapability:
 
 
 ProbeFunc = Callable[[PassthroughMode, float], bool]
+_PROBE_REPLY_DRAIN_TIMEOUT = 0.02
 
 
 def has_truecolor(env: Mapping[str, str] | None = None) -> bool:
@@ -171,13 +172,12 @@ def _probe_kitty_graphics(passthrough: PassthroughMode, timeout: float = 0.08) -
     )
     if passthrough == "tmux":
         query = tmux_passthrough_wrap(query)
-    # Primary DA helps distinguish "unsupported APC" from "terminal silent".
-    query += "\x1b[c"
 
     old_attrs = termios.tcgetattr(stdin_fd)
     old_flags = fcntl.fcntl(stdin_fd, fcntl.F_GETFL)
     data = bytearray()
     deadline = time.monotonic() + timeout
+    supported = False
     try:
         tty.setcbreak(stdin_fd)
         fcntl.fcntl(stdin_fd, fcntl.F_SETFL, old_flags | os.O_NONBLOCK)
@@ -194,13 +194,38 @@ def _probe_kitty_graphics(passthrough: PassthroughMode, timeout: float = 0.08) -
             if not chunk:
                 break
             data.extend(chunk)
-            if _kitty_probe_response_supported(bytes(data)):
-                return True
+            supported = _kitty_probe_response_supported(bytes(data))
+            if supported:
+                break
     finally:
+        _drain_terminal_input(stdin_fd, timeout=_PROBE_REPLY_DRAIN_TIMEOUT)
         fcntl.fcntl(stdin_fd, fcntl.F_SETFL, old_flags)
-        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+        termios.tcsetattr(stdin_fd, termios.TCSAFLUSH, old_attrs)
 
-    return _kitty_probe_response_supported(bytes(data))
+    return supported
+
+
+def _drain_terminal_input(fd: int, *, timeout: float) -> None:
+    """Consume queued probe replies before Textual starts reading stdin."""
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        remaining = max(0.0, deadline - time.monotonic())
+        try:
+            readable, _, _ = select.select([fd], [], [], remaining)
+        except OSError:
+            return
+        if not readable:
+            return
+        try:
+            chunk = os.read(fd, 4096)
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                return
+            continue
+        except OSError:
+            return
+        if not chunk:
+            return
 
 
 def _kitty_probe_response_supported(data: bytes) -> bool:
