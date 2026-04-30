@@ -452,10 +452,12 @@ class TimestampEntry:
       [YYYY-MM-DD HH:MM:SS] REWORD  description
       [YYYY-MM-DD HH:MM:SS] REWIND  (3)
       [YYYY-MM-DD HH:MM:SS] RENAME  old-name -> new-name
+      [YYYY-MM-DD HH:MM:SS] REBASE  old-parent -> new-parent
     """
 
     timestamp: str  # "YYYY-MM-DD HH:MM:SS"
-    event_type: str  # "COMMIT", "STATUS", "SYNC", "REWORD", "REWIND"
+    # "COMMIT", "STATUS", "SYNC", "REWORD", "REWIND", "RENAME", "REBASE"
+    event_type: str
     detail: str  # Event-specific detail string
 
 

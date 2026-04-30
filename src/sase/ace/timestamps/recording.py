@@ -36,7 +36,8 @@ def add_timestamp_entry_atomic(
     Args:
         project_file: Path to the ``.gp`` file.
         cl_name: NAME of the target ChangeSpec.
-        event_type: One of ``COMMIT``, ``STATUS``, ``SYNC``, ``REWORD``, ``REWIND``, ``RENAME``.
+        event_type: One of ``COMMIT``, ``STATUS``, ``SYNC``, ``REWORD``,
+            ``REWIND``, ``RENAME``, ``REBASE``.
         detail: Event-specific detail string.
 
     Returns:

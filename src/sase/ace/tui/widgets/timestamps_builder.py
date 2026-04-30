@@ -16,6 +16,7 @@ _COLOR_STATUS = "bold #FFD787"
 _COLOR_SYNC = "bold #5FD7FF"
 _COLOR_REWORD = "bold #D7AFFF"
 _COLOR_REWIND = "bold #FF8787"
+_COLOR_REBASE = "bold #FFAF5F"
 _COLOR_ARROW = "bold #808080"
 _COLOR_DETAIL = "#D7D7AF"
 
@@ -25,6 +26,7 @@ _EVENT_COLORS: dict[str, str] = {
     "SYNC": _COLOR_SYNC,
     "REWORD": _COLOR_REWORD,
     "REWIND": _COLOR_REWIND,
+    "REBASE": _COLOR_REBASE,
 }
 
 
@@ -34,7 +36,7 @@ def _render_entry(text: Text, entry: TimestampEntry) -> None:
     padded_event = entry.event_type.ljust(7)
     event_color = _EVENT_COLORS.get(entry.event_type, "")
     text.append(padded_event, style=event_color)
-    if entry.event_type == "STATUS" and " -> " in entry.detail:
+    if entry.event_type in ("STATUS", "REBASE") and " -> " in entry.detail:
         old_status, new_status = entry.detail.split(" -> ", 1)
         text.append(old_status, style=_COLOR_DETAIL)
         text.append(" -> ", style=_COLOR_ARROW)

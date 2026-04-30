@@ -135,3 +135,27 @@ class TestFullyExpanded:
         assert "STATUS" in plain
         assert "SYNC" in plain
         assert "REWIND" in plain
+
+    def test_rebase_entry_uses_rebase_color(self) -> None:
+        entries = [
+            TimestampEntry(
+                timestamp="2026-03-29 10:20:00",
+                event_type="REBASE",
+                detail="old-parent -> new-parent",
+            )
+        ]
+        cs = _make_changespec(timestamps=entries)
+        text = Text()
+        build_timestamps_section(text, cs, FoldLevel.FULLY_EXPANDED)
+
+        plain = text.plain
+        rebase_offset = plain.index("REBASE")
+        arrow_offset = plain.index(" -> ")
+        spans_at_rebase = [
+            span for span in text.spans if span.start <= rebase_offset < span.end
+        ]
+        spans_at_arrow = [
+            span for span in text.spans if span.start <= arrow_offset < span.end
+        ]
+        assert any(span.style == "bold #FFAF5F" for span in spans_at_rebase)
+        assert any(span.style == "bold #808080" for span in spans_at_arrow)

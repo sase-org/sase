@@ -486,21 +486,21 @@ def parse_timestamps_line(
         # New format: YYMMDD_HHMMSS EVENT  detail
         new_match = re.match(
             r"^(\d{6}_\d{6})\s+"
-            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME)\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME|REBASE)\s+"
             r"(.+)$",
             stripped,
         )
         # Old format: [YYYY-MM-DD HH:MM:SS] EVENT  detail
         old_match = re.match(
             r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+"
-            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME)\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME|REBASE)\s+"
             r"(.+)$",
             stripped,
         )
         # Hybrid format: [YYMMDD_HHMMSS] EVENT  detail (migration transition)
         hybrid_match = re.match(
             r"^\[(\d{6}_\d{6})\]\s+"
-            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME)\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD|REWIND|RENAME|REBASE)\s+"
             r"(.+)$",
             stripped,
         )

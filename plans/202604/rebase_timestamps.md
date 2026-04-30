@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 17:39:24
-status: wip
+status: done
 ---
 # Plan: Add REBASE ChangeSpec TIMESTAMPS Entries
 

@@ -14,11 +14,19 @@ if TYPE_CHECKING:
 _ROOT_PARENT_SENTINEL = "__root__"
 
 
+def _format_parent_for_timestamp(parent_name: str | None) -> str:
+    """Return the user-facing parent name for TIMESTAMPS entries."""
+    if not parent_name or parent_name == _ROOT_PARENT_SENTINEL:
+        return "root"
+    return parent_name
+
+
 def _rebase_task(
     changespec_name: str,
     changespec_file_path: str,
     project_basename: str,
     new_parent_name: str,
+    old_parent_name: str | None,
 ) -> tuple[bool, str]:
     """Execute rebase as a background task.
 
@@ -94,13 +102,24 @@ def _rebase_task(
         except Exception as e:
             return (False, f"Failed to update PARENT field: {e}")
 
+        from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+        old_parent_display = _format_parent_for_timestamp(old_parent_name)
+        new_parent_display = _format_parent_for_timestamp(new_parent_name)
+        add_timestamp_entry_atomic(
+            changespec_file_path,
+            changespec_name,
+            "REBASE",
+            f"{old_parent_display} -> {new_parent_display}",
+        )
+
         from sase.ace.deltas import refresh_deltas_after_commits_change
 
         refresh_deltas_after_commits_change(
             changespec_file_path, changespec_name, workspace_dir
         )
 
-        return (True, f"Rebased onto {new_parent_name}")
+        return (True, f"Rebased onto {new_parent_display}")
 
     finally:
         release_workspace(
@@ -489,10 +508,16 @@ class ProposalRebaseMixin:
         project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
         cl_name = changespec.name
         project_file = changespec.file_path
+        old_parent_name = changespec.parent
+        new_parent_display = _format_parent_for_timestamp(new_parent_name)
 
         def task_callable() -> tuple[bool, str]:
             return _rebase_task(
-                cl_name, project_file, project_basename, new_parent_name
+                cl_name,
+                project_file,
+                project_basename,
+                new_parent_name,
+                old_parent_name,
             )
 
         submitted = self._submit_background_task(  # type: ignore[attr-defined]
@@ -500,4 +525,4 @@ class ProposalRebaseMixin:
         )
 
         if submitted:
-            self.notify(f"Rebase onto {new_parent_name} started for {cl_name}")  # type: ignore[attr-defined]
+            self.notify(f"Rebase onto {new_parent_display} started for {cl_name}")  # type: ignore[attr-defined]

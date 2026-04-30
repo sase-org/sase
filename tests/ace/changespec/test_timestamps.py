@@ -33,6 +33,7 @@ TIMESTAMPS:
   260329_151500 REWORD  tag "Bug"
   260329_152000 COMMIT  (2a)
   260329_152500 REWIND  (3)
+  260329_153000 REBASE  old-parent -> new-parent
 
 
 """
@@ -46,7 +47,7 @@ TIMESTAMPS:
         assert len(changespecs) == 1
         cs = changespecs[0]
         assert cs.timestamps is not None
-        assert len(cs.timestamps) == 8
+        assert len(cs.timestamps) == 9
 
         # Verify first entry
         assert cs.timestamps[0].timestamp == "260329_143022"
@@ -72,6 +73,10 @@ TIMESTAMPS:
         # Verify REWIND entry
         assert cs.timestamps[7].event_type == "REWIND"
         assert cs.timestamps[7].detail == "(3)"
+
+        # Verify REBASE entry
+        assert cs.timestamps[8].event_type == "REBASE"
+        assert cs.timestamps[8].detail == "old-parent -> new-parent"
     finally:
         os.unlink(path)
 
@@ -183,12 +188,13 @@ def test_format_timestamps_field() -> None:
         TimestampEntry("260329_150000", "SYNC", "success"),
         TimestampEntry("260329_151000", "REWORD", "description"),
         TimestampEntry("260329_152500", "REWIND", "(3)"),
+        TimestampEntry("260329_153000", "REBASE", "old-parent -> new-parent"),
     ]
     result = format_timestamps_field(entries)
 
     assert result.startswith("TIMESTAMPS:\n")
     lines = result.strip().split("\n")
-    assert len(lines) == 6  # header + 5 entries
+    assert len(lines) == 7  # header + 6 entries
 
     # Check alignment — event type padded to 7 chars
     assert "COMMIT " in lines[1]
@@ -196,6 +202,7 @@ def test_format_timestamps_field() -> None:
     assert "SYNC   " in lines[3]
     assert "REWORD " in lines[4]
     assert "REWIND " in lines[5]
+    assert "REBASE " in lines[6]
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +429,40 @@ TIMESTAMPS:
         assert "RENAME " in new_content
         assert "old-name -> new-name" in new_content
         # Original entry still present
+        assert "COMMIT " in new_content
+    finally:
+        os.unlink(path)
+
+
+def test_add_timestamp_entry_atomic_rebase() -> None:
+    """add_timestamp_entry_atomic with REBASE event writes correctly."""
+    content = """\
+NAME: my-cl
+DESCRIPTION:
+  Some description
+PARENT: new-parent
+STATUS: WIP
+TIMESTAMPS:
+  260329_143022 COMMIT  (1)
+
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        ok = add_timestamp_entry_atomic(
+            path, "my-cl", "REBASE", "old-parent -> new-parent"
+        )
+        assert ok
+
+        with open(path) as f:
+            new_content = f.read()
+
+        assert "REBASE " in new_content
+        assert "old-parent -> new-parent" in new_content
         assert "COMMIT " in new_content
     finally:
         os.unlink(path)
