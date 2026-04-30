@@ -92,6 +92,7 @@ def _get_vcs_tag_pattern() -> re.Pattern[str]:
 
 
 _DIRECTIVE_PREFIX_RE = re.compile(r"(%\S+[\s]+)+")
+_SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
 def extract_vcs_workflow_tag(prompt: str) -> str | None:
@@ -109,6 +110,94 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
     if match:
         return match.group(0)
     return None
+
+
+def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
+    """Return whether *segment* contains any registered workspace workflow ref."""
+    from sase.workspace_provider import get_ref_patterns
+
+    if "#" not in segment:
+        return False
+
+    normalized = normalize_vcs_underscore_refs(segment)
+    return any(
+        pattern.search(normalized) is not None
+        for pattern in get_ref_patterns().values()
+    )
+
+
+def normalize_default_vcs_workflow_segment(
+    segment: str,
+    *,
+    default_vcs_prefix: str = "#cd:~",
+) -> str:
+    """Prefix *segment* with the default workspace workflow when none is present.
+
+    Leading whitespace and leading ``%directive`` tokens remain before the
+    inserted workflow tag so existing directive parsing keeps working.
+    """
+    from sase.workspace_provider import get_ref_patterns
+
+    if "cd" not in get_ref_patterns():
+        return segment
+
+    if not segment.strip() or _prompt_segment_has_vcs_workflow_ref(segment):
+        return segment
+
+    leading_ws_match = re.match(r"\s*", segment)
+    assert leading_ws_match is not None
+    leading_ws = leading_ws_match.group(0)
+    body = segment[leading_ws_match.end() :]
+
+    directive_match = _DIRECTIVE_PREFIX_RE.match(body)
+    if directive_match is None:
+        return f"{leading_ws}{default_vcs_prefix} {body}"
+
+    directive_prefix = directive_match.group(0)
+    remainder = body[directive_match.end() :]
+    return f"{leading_ws}{directive_prefix}{default_vcs_prefix} {remainder}"
+
+
+def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
+    """Split raw leading YAML frontmatter from *prompt*, preserving text."""
+    lines = prompt.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return "", prompt
+
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            return "".join(lines[: i + 1]), "".join(lines[i + 1 :])
+
+    return "", prompt
+
+
+def normalize_default_vcs_workflow(prompt: str) -> str:
+    """Normalize bare prompt segments to the explicit ``#cd:~`` workflow.
+
+    The transformation is applied per multi-prompt segment while preserving a
+    leading frontmatter block and ``---`` separators. Segments that already
+    contain any registered workspace workflow ref are left unchanged.
+    """
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+
+    frontmatter, body = _split_frontmatter_block(prompt)
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(body, fenced_blocks)
+    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
+    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
+
+    normalized_pieces: list[str] = []
+    for piece in pieces:
+        restored = unprotect_fenced_blocks(piece, fenced_blocks)
+        normalized_pieces.append(normalize_default_vcs_workflow_segment(restored))
+
+    rebuilt = normalized_pieces[0] if normalized_pieces else ""
+    for sep, piece in zip(separators, normalized_pieces[1:], strict=False):
+        rebuilt = f"{rebuilt}{sep}{piece}"
+    return f"{frontmatter}{rebuilt}"
 
 
 def strip_vcs_workflow_tag(prompt: str) -> str:
@@ -271,6 +360,8 @@ __all__ = [
     "find_shorthand_text_end",
     "iter_xprompt_references",
     "normalize_vcs_underscore_refs",
+    "normalize_default_vcs_workflow",
+    "normalize_default_vcs_workflow_segment",
     "parse_args",
     "parse_workflow_reference",
     "preprocess_shorthand_syntax",

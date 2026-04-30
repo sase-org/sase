@@ -73,6 +73,7 @@ class MultiPromptLaunchMixin:
                     self.request_agents_refresh,  # type: ignore[attr-defined]
                     "launch",
                 ),
+                default_bare_segments_to_home=ctx.is_home_mode,
             )
             self.call_later(self.request_agents_refresh, "launch")  # type: ignore[attr-defined]
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"

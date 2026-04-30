@@ -89,3 +89,52 @@ def test_replace_vcs_workflow_tags_handles_cd(monkeypatch) -> None:  # type: ign
         replace_vcs_workflow_tags(prompt, "#cd:/tmp/b")
         == "#cd:/tmp/b Fix A\n---\n#cd:/tmp/b Fix B"
     )
+
+
+def test_normalize_default_vcs_workflow_adds_cd_to_bare_prompt(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    _patch_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    assert normalize_default_vcs_workflow("Fix it") == "#cd:~ Fix it"
+
+
+def test_normalize_default_vcs_workflow_preserves_existing_ref(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    _patch_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    assert normalize_default_vcs_workflow("#git:repo Fix it") == "#git:repo Fix it"
+    assert normalize_default_vcs_workflow("#cd:~ Fix it") == "#cd:~ Fix it"
+
+
+def test_normalize_default_vcs_workflow_preserves_leading_directives(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    assert (
+        normalize_default_vcs_workflow("%n:a %wait Fix it") == "%n:a %wait #cd:~ Fix it"
+    )
+
+
+def test_normalize_default_vcs_workflow_applies_per_segment(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    _patch_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    prompt = "#gh:sase Fix A\n---\nFix B"
+    assert normalize_default_vcs_workflow(prompt) == "#gh:sase Fix A\n---\n#cd:~ Fix B"
+
+
+def test_normalize_default_vcs_workflow_preserves_frontmatter(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    _patch_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    prompt = "---\nxprompts: {}\n---\nFix it"
+    assert (
+        normalize_default_vcs_workflow(prompt) == "---\nxprompts: {}\n---\n#cd:~ Fix it"
+    )

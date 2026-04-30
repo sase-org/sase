@@ -106,6 +106,28 @@ def run_query(
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 
+    # Multi-agent xprompts must be recognized before the default #cd:~
+    # workflow tag is injected; otherwise the xprompt is no longer the sole
+    # top-level reference in its segment.
+    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+    from sase.agent.multi_prompt import parse_multi_prompt
+
+    multi_for_dispatch = parse_multi_prompt(query)
+    expanded_for_dispatch = expand_multi_agent_xprompts(
+        multi_for_dispatch.segments,
+        multi_for_dispatch.local_xprompts,
+    )
+    if len(expanded_for_dispatch) > len(multi_for_dispatch.segments):
+        from sase.agent.launcher import launch_agent_from_cwd
+
+        launch_result = launch_agent_from_cwd(query)
+        print(f"Agent started (PID {launch_result.pid})")
+        return
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    query = normalize_default_vcs_workflow(query)
+
     # Resolve VCS refs early so project-specific workflows are discoverable
     # and CWD-relative paths in workflow steps work correctly.  This mirrors
     # the TUI behavior where subprocess CWD is set before workflow execution.
@@ -141,9 +163,6 @@ def run_query(
 
     # Parse user-prompt frontmatter for local xprompts (after history save
     # so prompt history retains the original frontmatter).
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
-    from sase.agent.multi_prompt import parse_multi_prompt
-
     multi = parse_multi_prompt(query)
     local_xprompts = multi.local_xprompts
     expanded_segments = expand_multi_agent_xprompts(

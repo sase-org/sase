@@ -280,6 +280,7 @@ def launch_multi_prompt_agents(
     vcs_ref: tuple[str, str] | None,
     on_agent_spawned: Callable[[], None] | None = None,
     extra_env: dict[str, str] | None = None,
+    default_bare_segments_to_home: bool = False,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent with naming-wait between launches.
 
@@ -311,6 +312,7 @@ def launch_multi_prompt_agents(
             vcs_ref=vcs_ref,
             on_agent_spawned=on_agent_spawned,
             extra_env=extra_env,
+            default_bare_segments_to_home=default_bare_segments_to_home,
             timestamp_allocator=timestamp_allocator,
             results=results,
         )
@@ -332,6 +334,7 @@ def _spawn_segments_into(
     vcs_ref: tuple[str, str] | None,
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
+    default_bare_segments_to_home: bool,
     timestamp_allocator: _BatchTimestampAllocator,
     results: list[AgentLaunchResult],
 ) -> None:
@@ -343,8 +346,11 @@ def _spawn_segments_into(
     )
     from sase.artifacts import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
+    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 
     for i, segment in enumerate(segments):
+        if default_bare_segments_to_home:
+            segment = normalize_default_vcs_workflow_segment(segment)
         has_wait = has_wait_directive(segment)
         segment_local_xprompts = _local_xprompts_for_segment(segment, local_xprompts)
 

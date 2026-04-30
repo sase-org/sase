@@ -280,6 +280,10 @@ def launch_agent_from_cwd(
     # --- Multi-prompt detection ---
     from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
     from sase.agent.multi_prompt import parse_multi_prompt
+    from sase.xprompt._parsing import (
+        normalize_default_vcs_workflow,
+        normalize_default_vcs_workflow_segment,
+    )
 
     multi = parse_multi_prompt(query)
     expanded_segments = expand_multi_agent_xprompts(
@@ -289,13 +293,19 @@ def launch_agent_from_cwd(
     if len(expanded_segments) > 1:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
+        expanded_segments = [
+            normalize_default_vcs_workflow_segment(segment)
+            for segment in expanded_segments
+        ]
+        normalized_query = "\n---\n".join(expanded_segments)
+
         # Determine cl_name from VCS refs (lightweight pattern check).
         from sase.workspace_provider import get_ref_patterns
 
         mp_cl_name = project_name
         mp_vcs_ref: tuple[str, str] | None = None
         for wf_name, pattern in get_ref_patterns().items():
-            match = pattern.search(query)
+            match = pattern.search(normalized_query)
             if match is not None:
                 ref_value = match.group(1) or match.group(2)
                 if ref_value:
@@ -304,7 +314,7 @@ def launch_agent_from_cwd(
                     break
 
         add_or_update_prompt(
-            query,
+            normalized_query,
             project_name=project_name,
             branch_or_workspace=mp_cl_name if mp_cl_name != project_name else None,
         )
@@ -317,8 +327,11 @@ def launch_agent_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=mp_vcs_ref,
             extra_env=extra_env,
+            default_bare_segments_to_home=True,
         )
         return results[0]
+
+    query = normalize_default_vcs_workflow(query)
 
     # --- Repeat fan-out ---
     # When %r:N is present, spawn N independent agents before any further
@@ -384,6 +397,7 @@ def launch_agent_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=alt_vcs_ref,
             extra_env=extra_env,
+            default_bare_segments_to_home=True,
         )
         return results[0]
 

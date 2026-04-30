@@ -102,6 +102,42 @@ def test_launch_agent_from_cwd_cd_launches_in_target_without_workspace_claim(
     ws_dir.assert_not_called()
 
 
+def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+
+    home = str(Path.home().resolve())
+    spawn_result = MagicMock(pid=123, workspace_dir=home, workspace_num=0)
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=("/projects/repo/repo.gp", 3, "repo"),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
+    ):
+        result = launch_agent_from_cwd("do work")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["prompt"] == "#cd:~ do work"
+    assert kwargs["workspace_dir"] == home
+    assert kwargs["workspace_num"] == 0
+    assert kwargs["is_home_mode"] is True
+    assert kwargs["update_target"] == ""
+    assert kwargs["vcs_ref"] == ("cd", "~")
+    first_ws.assert_not_called()
+    ws_dir.assert_not_called()
+
+
 def test_launch_agent_from_cwd_bad_cd_path_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -150,6 +186,7 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
             project_name="base",
             is_home_mode=False,
             vcs_ref=None,
+            default_bare_segments_to_home=True,
         )
 
     calls = spawn.call_args_list
@@ -163,6 +200,54 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
     assert [c.kwargs["vcs_ref"] for c in calls] == [
         ("cd", str(dir_a)),
         ("cd", str(dir_b)),
+    ]
+    first_ws.assert_not_called()
+
+
+def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    dir_a = tmp_path / "a"
+    dir_a.mkdir()
+    home = str(Path.home().resolve())
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
+        patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
+        patch("sase.artifacts.create_artifacts_directory", return_value="/artifacts"),
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        launch_multi_prompt_agents(
+            segments=[f"#cd:{dir_a} first", "second"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.gp",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    calls = spawn.call_args_list
+    assert [c.kwargs["prompt"] for c in calls] == [
+        f"#cd:{dir_a} first",
+        "#cd:~ second",
+    ]
+    assert [c.kwargs["workspace_dir"] for c in calls] == [
+        str(dir_a.resolve()),
+        home,
+    ]
+    assert [c.kwargs["workspace_num"] for c in calls] == [0, 0]
+    assert [c.kwargs["is_home_mode"] for c in calls] == [True, True]
+    assert [c.kwargs["vcs_ref"] for c in calls] == [
+        ("cd", str(dir_a)),
+        ("cd", "~"),
     ]
     first_ws.assert_not_called()
 

@@ -134,6 +134,63 @@ class AgentLaunchMixin(
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
         from sase.xprompt.directives import has_wait_directive
+        from sase.xprompt._parsing import (
+            normalize_default_vcs_workflow,
+            normalize_default_vcs_workflow_segment,
+        )
+
+        # Detect multi-agent xprompts before injecting the default workspace
+        # ref; a multi-agent xprompt must still look like the sole top-level
+        # reference in its segment.
+        from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+        from sase.agent.multi_prompt import parse_multi_prompt
+
+        multi = parse_multi_prompt(prompt)
+        multi.segments = expand_multi_agent_xprompts(
+            multi.segments, multi.local_xprompts
+        )
+        if len(multi.segments) > 1:
+            if ctx.is_home_mode:
+                multi.segments = [
+                    normalize_default_vcs_workflow_segment(segment)
+                    for segment in multi.segments
+                ]
+            normalized_prompt = "\n---\n".join(multi.segments)
+            _vcs_prompt = normalized_prompt
+            try:
+                from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
+
+                _vcs_prompt, _ = resolve_agent_refs_in_prompt(normalized_prompt)
+            except Exception:
+                pass  # Agent not found — runner will resolve later
+
+            mp_vcs_ref: tuple[str, str] | None = None
+            ref_patterns = get_ref_patterns()
+            for wf_name, pattern in ref_patterns.items():
+                match = pattern.search(_vcs_prompt)
+                if match is not None:
+                    ref_value = match.group(1) or match.group(2)
+                    if ref_value:
+                        mp_vcs_ref = (wf_name, ref_value)
+                        ctx.display_name = ref_value
+                        ctx.history_sort_key = ref_value
+                        break
+            from sase.history.prompt import add_or_update_prompt
+
+            add_or_update_prompt(
+                normalized_prompt,
+                project_name=ctx.project_name,
+                branch_or_workspace=ctx.history_sort_key,
+            )
+            _record_prompt_file_references(normalized_prompt)
+            self._prompt_context = None
+            self.call_later(  # type: ignore[attr-defined]
+                self._launch_multi_prompt_agents, multi, ctx, mp_vcs_ref
+            )
+            return
+
+        if ctx.is_home_mode:
+            prompt = normalize_default_vcs_workflow(prompt)
 
         has_wait = has_wait_directive(prompt)
 
@@ -155,44 +212,6 @@ class AgentLaunchMixin(
             from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
 
             record_vcs_xprompt_usage(_vcs_tag.strip())
-
-        # --- Early multi-prompt detection ---
-        # Detect multi-prompts BEFORE VCS resolution to match the CLI
-        # (sase run) behavior: each segment handles its own VCS resolution
-        # in the agent runner, avoiding per-segment workspace allocation
-        # at the TUI level.
-        from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
-        from sase.agent.multi_prompt import parse_multi_prompt
-
-        multi = parse_multi_prompt(prompt)
-        multi.segments = expand_multi_agent_xprompts(
-            multi.segments, multi.local_xprompts
-        )
-        if len(multi.segments) > 1:
-            mp_vcs_ref: tuple[str, str] | None = None
-            ref_patterns = get_ref_patterns()
-            for wf_name, pattern in ref_patterns.items():
-                match = pattern.search(_vcs_prompt)
-                if match is not None:
-                    ref_value = match.group(1) or match.group(2)
-                    if ref_value:
-                        mp_vcs_ref = (wf_name, ref_value)
-                        ctx.display_name = ref_value
-                        ctx.history_sort_key = ref_value
-                        break
-            from sase.history.prompt import add_or_update_prompt
-
-            add_or_update_prompt(
-                prompt,
-                project_name=ctx.project_name,
-                branch_or_workspace=ctx.history_sort_key,
-            )
-            _record_prompt_file_references(prompt)
-            self._prompt_context = None
-            self.call_later(  # type: ignore[attr-defined]
-                self._launch_multi_prompt_agents, multi, ctx, mp_vcs_ref
-            )
-            return
 
         # Detect workspace-managing embedded workflows in home mode
         vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
