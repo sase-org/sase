@@ -109,6 +109,7 @@ def main() -> None:
     duration = "0s"
     saved_path: str | None = None
     diff_path: str | None = None
+    image_paths: list[str] = []
     step_output: dict[str, Any] | None = None
     exec_outcome = ""
     error_summary: str | None = None
@@ -300,6 +301,7 @@ def main() -> None:
             )
             saved_path = exec_result.saved_path
             diff_path = exec_result.diff_path
+            image_paths = exec_result.image_paths
             current_artifacts_dir = exec_result.current_artifacts_dir
             step_output = exec_result.step_output
 
@@ -430,6 +432,7 @@ def main() -> None:
                 error_report_path=error_report_path,
                 saved_path=saved_path,
                 diff_path=diff_path,
+                image_paths=image_paths,
                 output_path=output_path,
                 step_output=step_output,
                 prompt=prompt,

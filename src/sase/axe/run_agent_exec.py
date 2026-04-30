@@ -63,6 +63,7 @@ class _AgentExecResult:
     outcome: str = "completed"
     saved_path: str | None = None
     diff_path: str | None = None
+    image_paths: list[str] = field(default_factory=list)
     current_artifacts_dir: str = ""
     step_output: dict[str, Any] | None = None
 
@@ -131,6 +132,7 @@ def _finalize_loop(
 
     saved_path: str | None = None
     diff_path: str | None = None
+    image_paths: list[str] = []
     step_output: dict[str, Any] | None = None
 
     # Save chat history for ALL outcomes so the file referenced by
@@ -182,6 +184,25 @@ def _finalize_loop(
         step_output, diff_path = extract_step_output_and_diff_path(
             state.current_artifacts_dir
         )
+        from sase.axe.image_attachments import collect_agent_image_paths
+
+        include_head_commit = bool(
+            step_output
+            and any(
+                step_output.get(key)
+                for key in (
+                    "meta_new_commit",
+                    "meta_pr_url",
+                )
+            )
+        )
+        workspace_dir = getattr(ctx, "workspace_dir", os.getcwd())
+        image_paths = collect_agent_image_paths(
+            workspace_dir,
+            diff_path=diff_path,
+            include_head_commit=include_head_commit,
+            existing_files=[path for path in [saved_path, diff_path] if path],
+        )
 
         # Detect noop: workflow completed but launched zero agents
         completed_outcome = (
@@ -206,6 +227,7 @@ def _finalize_loop(
             step_output=step_output,
             diff_path=diff_path,
             plan_path=plan_path,
+            image_paths=image_paths,
             retry_metadata=_retry_meta,
         )
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
@@ -273,6 +295,7 @@ def _finalize_loop(
         outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,
+        image_paths=image_paths,
         current_artifacts_dir=state.current_artifacts_dir,
         step_output=step_output,
     )

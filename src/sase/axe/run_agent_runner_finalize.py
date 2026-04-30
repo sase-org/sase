@@ -9,6 +9,7 @@ import json
 import os
 from typing import Any
 
+from sase.axe.image_attachments import append_unique_paths
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
@@ -133,6 +134,7 @@ def send_completion_notification(
     error_report_path: str | None,
     saved_path: str | None,
     diff_path: str | None,
+    image_paths: list[str] | None = None,
     output_path: str,
     step_output: dict[str, Any] | None,
     prompt: str,
@@ -152,6 +154,7 @@ def send_completion_notification(
             extra_files.insert(0, error_report_path)
         if os.path.isfile(output_path):
             extra_files.append(output_path)
+    extra_files.extend(append_unique_paths(image_paths or [], extra_files))
 
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)
 
