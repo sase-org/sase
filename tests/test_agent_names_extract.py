@@ -136,3 +136,11 @@ class TestExtractDirectivesAutoDismiss:
             )
         assert result["info"].name is None
         assert "name" not in result["meta"]
+
+    def test_metadata_records_workspace_dir_without_vcs_provider(
+        self, tmp_path: Path
+    ) -> None:
+        result = _run_extract(tmp_path, env_auto_dismiss=True)
+        expected = str(tmp_path / "workspace")
+        assert result["meta"]["workspace_dir"] == expected
+        assert "vcs_provider" not in result["meta"]

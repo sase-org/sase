@@ -173,6 +173,7 @@ def load_running_home_agents_from_snapshot(
             model=running.model,
             llm_provider=running.llm_provider,
             vcs_provider=running.vcs_provider,
+            workspace_dir=running.workspace_dir,
         )
         enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
         enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
@@ -237,6 +238,7 @@ def load_running_home_agents() -> list[Agent]:
                 model=data.get("model"),
                 llm_provider=data.get("llm_provider"),
                 vcs_provider=data.get("vcs_provider"),
+                workspace_dir=data.get("workspace_dir"),
             )
             enrich_agent_from_meta(agent, str(artifact_dir))
             enrich_agent_from_prompt_markers(agent, str(artifact_dir))

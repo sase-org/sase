@@ -61,6 +61,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.llm_provider = data["llm_provider"]
     if data.get("vcs_provider"):
         agent.vcs_provider = data["vcs_provider"]
+    if data.get("workspace_dir"):
+        agent.workspace_dir = data["workspace_dir"]
     if data.get("name"):
         agent.agent_name = data["name"]
     if data.get("wait_for"):
@@ -249,6 +251,8 @@ def enrich_agent_from_meta_wire(
         agent.llm_provider = meta.llm_provider
     if meta.vcs_provider:
         agent.vcs_provider = meta.vcs_provider
+    if meta.workspace_dir:
+        agent.workspace_dir = meta.workspace_dir
     if meta.name:
         agent.agent_name = meta.name
     if meta.wait_for:

@@ -76,6 +76,7 @@ def _build_home_running(root: Path) -> None:
             "model": "claude-opus-4-7",
             "llm_provider": "claude",
             "vcs_provider": "github",
+            "workspace_dir": "/tmp/home-target",
         },
     )
     _write_json(
@@ -86,6 +87,7 @@ def _build_home_running(root: Path) -> None:
             "model": "claude-opus-4-7",
             "llm_provider": "claude",
             "vcs_provider": "github",
+            "workspace_dir": "/tmp/home-target",
             "approve": True,
             "run_started_at": "2026-04-27T10:00:00Z",
         },
@@ -104,6 +106,7 @@ def _build_ace_run_running(root: Path) -> None:
             "model": "claude-sonnet-4-6",
             "llm_provider": "claude",
             "vcs_provider": "github",
+            "workspace_dir": "/tmp/workspaces/alpha",
             "approve": False,
             "plan": True,
             "plan_approved": False,
@@ -122,6 +125,7 @@ def _build_ace_run_done(root: Path) -> None:
             "model": "claude-haiku-4-5-20251001",
             "llm_provider": "claude",
             "vcs_provider": "github",
+            "workspace_dir": "/tmp/workspaces/alpha_3",
             "stopped_at": "2026-04-27T12:05:00Z",
         },
     )
@@ -133,6 +137,7 @@ def _build_ace_run_done(root: Path) -> None:
             "cl_name": "feature_alpha",
             "project_file": "/home/u/.sase/projects/myproj/myproj.gp",
             "workspace_num": 3,
+            "workspace_dir": "/tmp/workspaces/alpha_3",
             "model": "claude-haiku-4-5-20251001",
             "llm_provider": "claude",
             "vcs_provider": "github",

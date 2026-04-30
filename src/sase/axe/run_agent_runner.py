@@ -229,6 +229,7 @@ def main() -> None:
                     agent_model=agent_model,
                     agent_llm_provider=agent_llm_provider,
                     agent_vcs_provider=agent_vcs_provider,
+                    workspace_dir=workspace_dir,
                 )
 
             # Wait for dependencies if %wait directives are present
@@ -329,6 +330,7 @@ def main() -> None:
                 timestamp=timestamp,
                 artifacts_timestamp=artifacts_timestamp,
                 workspace_num=workspace_num,
+                workspace_dir=workspace_dir,
                 output_path=output_path,
                 agent_name=agent_name,
                 agent_model=agent_model,

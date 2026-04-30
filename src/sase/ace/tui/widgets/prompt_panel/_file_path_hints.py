@@ -29,7 +29,9 @@ _FILE_PATH_RE = re.compile(
 
 
 def resolve_agent_workspace_dir(
-    workspace_num: int | None, project_file: str
+    workspace_num: int | None,
+    project_file: str,
+    workspace_dir: str | None = None,
 ) -> str | None:
     """Get workspace directory for an agent.
 
@@ -43,6 +45,11 @@ def resolve_agent_workspace_dir(
     Returns:
         Workspace directory path, or None if unavailable.
     """
+    if workspace_dir:
+        expanded = os.path.expanduser(workspace_dir)
+        if os.path.isdir(expanded):
+            return expanded.rstrip("/")
+
     if workspace_num is None or workspace_num <= 0:
         return None
 

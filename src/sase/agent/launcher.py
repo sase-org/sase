@@ -110,7 +110,14 @@ def spawn_agent_subprocess(
         subprocess_env["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
         if vcs_ref is not None:
             subprocess_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] = vcs_ref[0]
-    elif vcs_ref is not None and not is_home_mode:
+            from sase.workspace_provider import get_pre_allocated_env_prefix
+
+            prefix = get_pre_allocated_env_prefix(vcs_ref[0])
+            if prefix:
+                subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
+                subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+                subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
+    elif vcs_ref is not None:
         from sase.workspace_provider import get_pre_allocated_env_prefix
 
         prefix = get_pre_allocated_env_prefix(vcs_ref[0])

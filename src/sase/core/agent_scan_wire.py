@@ -163,6 +163,7 @@ class DoneMarkerWire:
         cl_name: ChangeSpec name recorded at completion.
         project_file: Absolute path to the project ``.gp`` file.
         workspace_num: Workspace number released on completion.
+        workspace_dir: Resolved directory the agent ran in, when recorded.
         pid: PID of the agent process at completion (informational).
         model: Last LLM model recorded.
         llm_provider: Last LLM provider recorded.
@@ -191,6 +192,7 @@ class DoneMarkerWire:
     cl_name: str | None = None
     project_file: str | None = None
     workspace_num: int | None = None
+    workspace_dir: str | None = None
     pid: int | None = None
     model: str | None = None
     llm_provider: str | None = None
@@ -231,6 +233,7 @@ class AgentMetaWire:
     role_suffix: str | None = None
     parent_timestamp: str | None = None
     workspace_num: int | None = None
+    workspace_dir: str | None = None
     approve: bool = False
     hidden: bool = False
     plan: bool = False
@@ -267,6 +270,7 @@ class RunningMarkerWire:
     model: str | None = None
     llm_provider: str | None = None
     vcs_provider: str | None = None
+    workspace_dir: str | None = None
 
 
 @dataclass(frozen=True)

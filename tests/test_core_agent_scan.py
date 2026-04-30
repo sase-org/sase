@@ -119,6 +119,7 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.plan_approved is False
     assert rec.agent_meta.wait_for == ["bob", "carol"]
     assert rec.agent_meta.wait_duration == 3600.0
+    assert rec.agent_meta.workspace_dir == "/tmp/workspaces/alpha"
 
 
 def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
@@ -150,6 +151,7 @@ def test_done_record_parses_done_marker(fixture_root: Path) -> None:
     assert rec.done.outcome == "completed"
     assert rec.done.cl_name == "feature_alpha"
     assert rec.done.workspace_num == 3
+    assert rec.done.workspace_dir == "/tmp/workspaces/alpha_3"
     assert rec.done.diff_path == "/tmp/diff_alpha.diff"
     assert rec.done.markdown_pdf_paths == ["/tmp/markdown_pdfs/notes.pdf"]
     assert rec.done.image_paths == []
@@ -196,6 +198,7 @@ def test_home_running_record_has_running_marker(fixture_root: Path) -> None:
     assert rec.running is not None
     assert rec.running.pid == 11111
     assert rec.running.cl_name == "~"
+    assert rec.running.workspace_dir == "/tmp/home-target"
     assert rec.raw_prompt_snippet == "Investigate the failing job"
 
 

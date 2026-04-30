@@ -331,6 +331,7 @@ def run_query(
                 shared_timestamp,
                 artifacts_timestamp or "",
                 workspace_num or 0,
+                os.getcwd(),
                 "",  # no output log for inline runs
                 outcome,
                 agent_model=agent_model,

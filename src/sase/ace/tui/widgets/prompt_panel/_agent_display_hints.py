@@ -96,7 +96,9 @@ class AgentHintsDisplayMixin:
             return {}
 
         workspace_dir = resolve_agent_workspace_dir(
-            agent.effective_workspace_num, agent.project_file
+            agent.effective_workspace_num,
+            agent.project_file,
+            agent.workspace_dir,
         )
         hint_counter = 1
         hint_mappings: dict[int, str] = {}

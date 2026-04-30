@@ -270,6 +270,7 @@ def write_home_running_marker(
     agent_model: str | None,
     agent_llm_provider: str | None,
     agent_vcs_provider: str | None,
+    workspace_dir: str,
 ) -> str:
     """Write ``running.json`` for home-mode agents (no workspace tracking).
 
@@ -281,6 +282,7 @@ def write_home_running_marker(
         "pid": os.getpid(),
         "timestamp": timestamp,
         "prompt": prompt,
+        "workspace_dir": workspace_dir,
     }
     if agent_model:
         running_marker["model"] = agent_model

@@ -299,7 +299,11 @@ class AgentPanelsMixin:
         from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
 
         workspace_num = 1 if use_primary else agent.effective_workspace_num
-        workspace_dir = resolve_agent_workspace_dir(workspace_num, agent.project_file)
+        workspace_dir = resolve_agent_workspace_dir(
+            workspace_num,
+            agent.project_file,
+            agent.workspace_dir if not use_primary else None,
+        )
         if not workspace_dir:
             self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
             return

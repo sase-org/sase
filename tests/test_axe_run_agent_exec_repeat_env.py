@@ -30,6 +30,7 @@ class TestRepeatIterationEnv:
         ctx = MagicMock(spec=AgentExecContext)
         ctx.cl_name = "test"
         ctx.workspace_num = 1
+        ctx.workspace_dir = str(tmp_path)
         ctx.local_xprompts = {}
         ctx.artifacts_dir = str(tmp_path)
         ctx.is_home_mode = False
@@ -75,6 +76,7 @@ class TestRepeatIterationEnv:
         ctx = MagicMock(spec=AgentExecContext)
         ctx.cl_name = "test"
         ctx.workspace_num = 1
+        ctx.workspace_dir = str(tmp_path)
         ctx.local_xprompts = {}
         ctx.artifacts_dir = str(tmp_path)
         ctx.is_home_mode = False
@@ -123,6 +125,7 @@ class TestWaitChatsInjection:
         ctx = MagicMock(spec=AgentExecContext)
         ctx.cl_name = "test"
         ctx.workspace_num = 1
+        ctx.workspace_dir = str(tmp_path)
         ctx.local_xprompts = {}
         ctx.artifacts_dir = str(tmp_path)
         ctx.is_home_mode = False
@@ -166,6 +169,7 @@ class TestWaitChatsInjection:
         ctx = MagicMock(spec=AgentExecContext)
         ctx.cl_name = "test"
         ctx.workspace_num = 1
+        ctx.workspace_dir = str(tmp_path)
         ctx.local_xprompts = {}
         ctx.artifacts_dir = str(tmp_path)
         ctx.is_home_mode = False

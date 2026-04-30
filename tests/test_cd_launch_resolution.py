@@ -138,6 +138,41 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
     ws_dir.assert_not_called()
 
 
+def test_launch_agent_from_cwd_wait_cd_stays_directory_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+
+    spawn_result = MagicMock(pid=123, workspace_dir=str(tmp_path), workspace_num=0)
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
+    ):
+        result = launch_agent_from_cwd(f"%wait:1s #cd:{tmp_path} do work")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["workspace_dir"] == str(tmp_path.resolve())
+    assert kwargs["workspace_num"] == 0
+    assert kwargs["is_home_mode"] is True
+    assert kwargs["deferred_workspace"] is True
+    assert kwargs["vcs_ref"] == ("cd", str(tmp_path))
+    first_ws.assert_not_called()
+    ws_dir.assert_not_called()
+
+
 def test_launch_agent_from_cwd_bad_cd_path_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -156,6 +191,69 @@ def test_launch_agent_from_cwd_bad_cd_path_fails(
             launch_agent_from_cwd(f"#cd:{tmp_path / 'missing'} do work")
 
     spawn.assert_not_called()
+
+
+def test_spawn_cd_sets_resolved_directory_env_without_claim(
+    tmp_path: Path,
+) -> None:
+    from sase.agent.launcher import spawn_agent_subprocess
+
+    target = tmp_path / "target"
+    target.mkdir()
+    output = tmp_path / "agent.log"
+    captured_env: dict[str, str] = {}
+
+    class _Process:
+        pid = 12345
+
+    def fake_popen(*_args: object, **kwargs: object) -> _Process:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        captured_env.update(env)
+        return _Process()
+
+    with (
+        patch("sase.core.paths.sharded_path", return_value=str(output)),
+        patch("subprocess.Popen", side_effect=fake_popen),
+        patch("sase.running_field.claim_workspace") as claim,
+        patch("sase.running_field.transfer_workspace_claim") as transfer,
+        patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
+    ):
+        spawn_agent_subprocess(
+            cl_name=str(target),
+            project_file=str(tmp_path / "home.gp"),
+            workspace_dir=str(target),
+            workspace_num=0,
+            workflow_name="ace(run)-ts",
+            prompt=f"#cd:{target} do work",
+            timestamp="20260430120000",
+            project_name="home",
+            is_home_mode=True,
+            vcs_ref=("cd", str(target)),
+        )
+
+    assert captured_env["SASE_CD_PRE_ALLOCATED"] == "1"
+    assert captured_env["SASE_CD_WORKSPACE_NUM"] == "0"
+    assert captured_env["SASE_CD_WORKSPACE_DIR"] == str(target)
+    claim.assert_not_called()
+    transfer.assert_not_called()
+
+
+def test_resolve_agent_workspace_dir_prefers_explicit_directory(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
+        resolve_agent_workspace_dir,
+    )
+
+    target = tmp_path / "target"
+    target.mkdir()
+
+    assert resolve_agent_workspace_dir(
+        0,
+        str(tmp_path / "home.gp"),
+        str(target),
+    ) == str(target)
 
 
 def test_launch_multi_prompt_agents_resolves_cd_per_segment(

@@ -141,7 +141,10 @@ def extract_directives_and_write_meta(
             agent_name = get_next_auto_name()
 
         # Build agent_meta dict
-        agent_meta: dict[str, Any] = {"pid": os.getpid()}
+        agent_meta: dict[str, Any] = {
+            "pid": os.getpid(),
+            "workspace_dir": workspace_dir,
+        }
         if agent_name:
             agent_meta["name"] = agent_name
         if directives.wait:
@@ -541,6 +544,7 @@ def build_done_marker(
     timestamp: str,
     artifacts_timestamp: str,
     workspace_num: int,
+    workspace_dir: str,
     output_path: str,
     outcome: str,
     *,
@@ -570,6 +574,7 @@ def build_done_marker(
         "artifacts_timestamp": artifacts_timestamp,
         "outcome": outcome,
         "workspace_num": workspace_num,
+        "workspace_dir": workspace_dir,
         "output_path": output_path,
     }
     if agent_name:

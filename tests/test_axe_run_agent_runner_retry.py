@@ -149,6 +149,7 @@ def _run_main(
     update_target: str = "",
     workspace_dir: Path | None = None,
     workspace_num: str = "1",
+    is_home_mode: bool = False,
     env: dict[str, str] | None = None,
 ) -> Path:
     """Run main() with the given patches dict. Returns the artifacts dir."""
@@ -178,7 +179,7 @@ def _run_main(
         update_target,
         "test-project",
         "test-cl",
-        "",  # is_home_mode
+        "1" if is_home_mode else "",
     ]
 
     stack: list[Any] = []
@@ -533,3 +534,41 @@ class TestDeferredWorkspacePreparation:
             ("prepare", str(real_ws)),
             ("run", 3, str(real_ws)),
         ]
+
+    def test_home_mode_deferred_wait_keeps_directory_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        cd_workspace = tmp_path / "cd-target"
+        cd_workspace.mkdir()
+        events: list[Any] = []
+
+        wait_info = _AGENT_INFO._replace(wait_duration=0.0)
+        patches = _base_patches(artifacts_dir)
+        patches[f"{_RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=wait_info
+        )
+
+        def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+            events.append("wait")
+
+        def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            events.append(("run", ctx.workspace_num, ctx.workspace_dir))
+            return _exec_result(artifacts_dir)
+
+        patches[f"{_RUNNER}.wait_for_dependencies"] = wait_for_deps
+        patches[f"{_RUNNER}.claim_deferred_workspace"] = MagicMock(
+            side_effect=AssertionError("cd agents must not claim deferred workspaces")
+        )
+        patches[f"{_RUNNER}.run_execution_loop"] = run_loop
+
+        _run_main(
+            patches,
+            tmp_path,
+            workspace_dir=cd_workspace,
+            workspace_num="0",
+            is_home_mode=True,
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        assert events == ["wait", ("run", 0, str(cd_workspace))]

@@ -162,12 +162,14 @@ def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
         "20260430120000",
         "20260430120000",
         1,
+        "/tmp/workspace",
         "/tmp/output.log",
         "completed",
         markdown_pdf_paths=[str(tmp_path / "notes.pdf")],
     )
 
     assert marker["markdown_pdf_paths"] == [str(tmp_path / "notes.pdf")]
+    assert marker["workspace_dir"] == "/tmp/workspace"
 
 
 def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
@@ -177,6 +179,7 @@ def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
         "20260430120000",
         "20260430120000",
         1,
+        "/tmp/workspace",
         "/tmp/output.log",
         "completed",
     )

@@ -134,6 +134,10 @@ class Agent:
     # VCS provider display name (e.g., "GitHub", "Mercurial")
     vcs_provider: str | None = None
 
+    # Resolved directory the agent ran in. This matters for directory-mode
+    # agents where workspace_num is 0 and no RUNNING-field claim exists.
+    workspace_dir: str | None = None
+
     # Agent name assigned via %name directive or manual TUI naming
     agent_name: str | None = None
 

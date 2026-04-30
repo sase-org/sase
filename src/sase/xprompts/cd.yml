@@ -10,14 +10,24 @@ input:
 steps:
   - name: setup
     python: |
+      import os
+
       from sase.workspace_provider import resolve_ref
 
       cd_ref = {{ cd_ref | tojson }}
-      resolved = resolve_ref(cd_ref, "cd")
+      pre_allocated = os.environ.get("SASE_CD_PRE_ALLOCATED") == "1"
 
-      print(f"_chdir={resolved.primary_workspace_dir}")
-      print(f"workspace_dir={resolved.primary_workspace_dir}")
-      print(f"project_name={resolved.project_name}")
+      if pre_allocated:
+          workspace_dir = os.environ["SASE_CD_WORKSPACE_DIR"]
+          project_name = "home" if cd_ref == "~" else os.path.basename(workspace_dir)
+      else:
+          resolved = resolve_ref(cd_ref, "cd")
+          workspace_dir = resolved.primary_workspace_dir
+          project_name = resolved.project_name
+
+      print(f"_chdir={workspace_dir}")
+      print(f"workspace_dir={workspace_dir}")
+      print(f"project_name={project_name}")
       print("workflow_name=cd")
     output:
       workspace_dir: path
