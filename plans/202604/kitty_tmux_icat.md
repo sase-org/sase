@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 01:53:30
-status: wip
+status: done
 ---
 # Plan: Make Kitty `icat` Work Reliably In `tm` Sessions
 
