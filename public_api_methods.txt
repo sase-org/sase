@@ -13,3 +13,6 @@ get_tui_last_activity
 is_idle
 CatalogArtifact
 CatalogStats
+ChangeSpecTagEntry
+ChangeSpecTagListing
+list_changespec_xprompt_tags
