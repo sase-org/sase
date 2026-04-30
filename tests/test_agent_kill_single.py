@@ -6,7 +6,168 @@ import asyncio
 
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+
+
+def _cleanup_plan(agent: Agent, *, action: str, kind: str = "running") -> object:
+    from sase.core.agent_cleanup_wire import (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        AgentCleanupDismissItemWire,
+        AgentCleanupIdentityWire,
+        AgentCleanupKillItemWire,
+        AgentCleanupPlanWire,
+        AgentCleanupSideEffectsWire,
+    )
+
+    identity = AgentCleanupIdentityWire(
+        agent_type=agent.agent_type.value,
+        cl_name=agent.cl_name,
+        raw_suffix=agent.raw_suffix,
+    )
+    kill_items = ()
+    dismiss_items = ()
+    if action == "kill":
+        kill_items = (
+            AgentCleanupKillItemWire(
+                identity=identity,
+                kind=kind,
+                pid=agent.pid,
+                display_name=agent.display_name,
+            ),
+        )
+    elif action == "dismiss":
+        dismiss_items = (
+            AgentCleanupDismissItemWire(
+                identity=identity,
+                display_name=agent.display_name,
+            ),
+        )
+    return AgentCleanupPlanWire(
+        schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        selected_identities=(identity,),
+        kill_items=kill_items,
+        dismiss_items=dismiss_items,
+        side_effects=AgentCleanupSideEffectsWire(
+            dismissed_index_additions=(identity,),
+        ),
+    )
+
+
+class _ActionApp(AgentsMixin):
+    def __init__(self, agent: Agent) -> None:
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self._agents = [agent]
+        self._agents_with_children = [agent]
+        self._marked_agents = set()
+        self._current_group_key = None
+        self._notifications: list[tuple[str, str]] = []
+        self.pushed: list[tuple[object, object]] = []
+
+    def notify(self, msg: str, severity: str = "information") -> None:
+        self._notifications.append((msg, severity))
+
+    def push_screen(self, modal: object, callback: object = None) -> None:
+        self.pushed.append((modal, callback))
+
+    def _get_selected_agent(self) -> Agent | None:
+        return self._agents[self.current_idx] if self._agents else None
+
+
+def test_action_kill_single_running_uses_cleanup_planner_before_confirm() -> None:
+    from sase.core.agent_cleanup_wire import (
+        CLEANUP_MODE_KILL_AND_DISMISS,
+        CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+    )
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=12345,
+        raw_suffix="run-12345",
+    )
+    app = _ActionApp(agent)
+    plan = _cleanup_plan(agent, action="kill")
+
+    with (
+        patch(
+            "sase.agent.names.collect_dismissed_taken_names",
+            return_value={"old_name"},
+        ),
+        patch(
+            "sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan
+        ) as mock_plan,
+        patch.object(app, "_do_kill_agent") as mock_do_kill,
+    ):
+        app.action_kill_agent()
+        assert app.pushed
+        app.pushed[0][1](True)  # type: ignore[index,operator]
+
+    _, request = mock_plan.call_args.args
+    assert request.scope == CLEANUP_SCOPE_EXPLICIT_IDENTITIES
+    assert request.mode == CLEANUP_MODE_KILL_AND_DISMISS
+    assert request.identities[0].raw_suffix == agent.raw_suffix
+    assert request.include_pidless_as_dismissable is True
+    assert request.taken_dismissed_names == ("old_name",)
+    mock_do_kill.assert_called_once_with(agent, plan)
+
+
+def test_action_kill_single_done_uses_planner_backed_dismiss() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="done_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow=None,
+        pid=None,
+        raw_suffix="done-12345",
+    )
+    app = _ActionApp(agent)
+    plan = _cleanup_plan(agent, action="dismiss")
+
+    with (
+        patch("sase.agent.names.collect_dismissed_taken_names", return_value=set()),
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
+        patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
+    ):
+        app.action_kill_agent()
+
+    mock_dismiss.assert_called_once_with(agent, plan)
+    assert app.pushed == []
+
+
+def test_action_kill_single_pidless_running_is_planned_as_dismissable() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="pidless_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=None,
+        raw_suffix="pidless-12345",
+    )
+    app = _ActionApp(agent)
+    plan = _cleanup_plan(agent, action="dismiss")
+
+    with (
+        patch("sase.agent.names.collect_dismissed_taken_names", return_value=set()),
+        patch(
+            "sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan
+        ) as mock_plan,
+        patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
+    ):
+        app.action_kill_agent()
+
+    _, request = mock_plan.call_args.args
+    assert request.include_pidless_as_dismissable is True
+    mock_dismiss.assert_called_once_with(agent, plan)
 
 
 def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None:

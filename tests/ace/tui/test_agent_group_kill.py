@@ -67,6 +67,39 @@ class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
             a for a in self._agents_with_children if a.identity != agent.identity
         ]
 
+    def _dismiss_planned_agent(self, agent: Agent, _cleanup_plan: object) -> None:
+        self._dismiss_done_agent(agent)
+
+    def _plan_focused_agent_cleanup(self, agent: Agent) -> object:
+        from sase.core.agent_cleanup_wire import (
+            AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            AgentCleanupDismissItemWire,
+            AgentCleanupIdentityWire,
+            AgentCleanupKillItemWire,
+            AgentCleanupPlanWire,
+        )
+
+        identity = AgentCleanupIdentityWire(
+            agent_type=agent.agent_type.value,
+            cl_name=agent.cl_name,
+            raw_suffix=agent.raw_suffix,
+        )
+        if agent.pid is None:
+            return AgentCleanupPlanWire(
+                schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+                dismiss_items=(AgentCleanupDismissItemWire(identity),),
+            )
+        return AgentCleanupPlanWire(
+            schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            kill_items=(
+                AgentCleanupKillItemWire(
+                    identity=identity,
+                    kind="running",
+                    pid=agent.pid,
+                ),
+            ),
+        )
+
     def _get_selected_agent(self) -> Agent | None:
         if 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
@@ -239,10 +272,11 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
     app = _FakeGroupKillApp([a1])
     app._current_group_key = ("nonexistent",)
 
-    # Falls through to single-agent path (DONE → dismiss without modal).
+    # Falls through to single-agent path (DONE -> dismiss without modal).
     # We just verify no group modal was pushed.
-    with patch.object(app, "_dismiss_done_agent") as mock_dismiss:
+    with patch.object(app, "_dismiss_planned_agent") as mock_dismiss:
         app.action_kill_agent()
 
-    mock_dismiss.assert_called_once_with(a1)
+    mock_dismiss.assert_called_once()
+    assert mock_dismiss.call_args.args[0] == a1
     assert app.pushed_modals == []

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
 
 from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
@@ -34,8 +35,22 @@ def persist_kill_side_effects(
     agent: Agent,
     kind: KillKind,
     agents_with_children_snapshot: list[Agent],
-) -> None:
-    """Apply filesystem/project-file side effects for a kill operation."""
+    cleanup_plan: AgentCleanupPlanWire | None = None,
+) -> bool:
+    """Apply filesystem/project-file side effects for a kill operation.
+
+    Returns True when cleanup-plan side-effect intents were executed. Hook,
+    mentor, and CRS project-file mutations still run through their Python
+    persistence paths because those status-line updates are not represented as
+    cleanup-plan intents.
+    """
+    consumed_intents = persist_cleanup_side_effect_intents(
+        cleanup_plan,
+        agents_with_children_snapshot,
+    )
+    if consumed_intents and kind in {"running", "workflow"}:
+        return True
+
     if kind == "running":
         _persist_running_kill(agent)
     elif kind == "hook":
@@ -46,6 +61,7 @@ def persist_kill_side_effects(
         _persist_crs_kill(agent)
     elif kind == "workflow":
         _persist_workflow_kill(agent, agents_with_children_snapshot)
+    return consumed_intents
 
 
 def persist_bulk_kill_side_effects(

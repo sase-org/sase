@@ -7,7 +7,7 @@ import logging
 import os
 import signal
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -27,6 +27,7 @@ from ._killing_utils import (
 from ._dismiss_cleanup import (
     apply_dismissal_rename_intents,
     apply_in_memory_reference_rewrites,
+    agent_identity_from_wire,
     dismissed_identities_from_plan,
 )
 from ._dismissing import AgentDismissingMixin
@@ -71,6 +72,43 @@ def _plan_bulk_kill_cleanup_side_effects(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         identities=identities,
+        taken_dismissed_names=tuple(sorted(collect_dismissed_taken_names())),
+    )
+    return plan_agent_cleanup(
+        agents_to_cleanup_targets(agents_with_children_snapshot),
+        request,
+    )
+
+
+def _plan_single_agent_kill_cleanup(
+    agent: Agent,
+    agents_with_children_snapshot: list[Agent],
+) -> AgentCleanupPlanWire:
+    from sase.agent.names import collect_dismissed_taken_names
+    from sase.core.agent_cleanup_facade import (
+        agents_to_cleanup_targets,
+        plan_agent_cleanup,
+    )
+    from sase.core.agent_cleanup_wire import (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        CLEANUP_MODE_KILL_AND_DISMISS,
+        CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        AgentCleanupIdentityWire,
+        AgentCleanupRequestWire,
+    )
+
+    request = AgentCleanupRequestWire(
+        schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(
+            AgentCleanupIdentityWire(
+                agent_type=agent.agent_type.value,
+                cl_name=agent.cl_name,
+                raw_suffix=agent.raw_suffix,
+            ),
+        ),
+        include_pidless_as_dismissable=True,
         taken_dismissed_names=tuple(sorted(collect_dismissed_taken_names())),
     )
     return plan_agent_cleanup(
@@ -155,6 +193,26 @@ class AgentKillingMixin(AgentDismissingMixin):
                     identities.add(step.identity)
         return identities
 
+    def _collect_planned_kill_identities(
+        self, agent: Agent, cleanup_plan: AgentCleanupPlanWire | None
+    ) -> set[AgentIdentity]:
+        """Return identities hidden immediately after a planner-backed kill."""
+        if cleanup_plan is None:
+            return self._collect_immediate_kill_identities(agent)
+
+        identities = dismissed_identities_from_plan(cleanup_plan)
+        identities.update(
+            agent_identity_from_wire(identity)
+            for identity in cleanup_plan.cascaded_workflow_children
+        )
+        if not identities:
+            return self._collect_immediate_kill_identities(agent)
+        return identities
+
+    def _plan_focused_agent_cleanup(self, agent: Agent) -> AgentCleanupPlanWire:
+        """Plan the focused-row ``x`` cleanup through the Rust-backed facade."""
+        return _plan_single_agent_kill_cleanup(agent, list(self._agents_with_children))
+
     def _agents_related_to_kill(
         self, agent: Agent, agents_with_children_snapshot: list[Agent]
     ) -> list[Agent]:
@@ -236,10 +294,16 @@ class AgentKillingMixin(AgentDismissingMixin):
         """
         self._restore_focus_after_removal(None)  # type: ignore[attr-defined]
 
-    def _do_kill_agent(self, agent: Agent) -> None:
+    def _do_kill_agent(
+        self, agent: Agent, cleanup_plan: AgentCleanupPlanWire | None = None
+    ) -> None:
         """Perform the actual agent kill after confirmation."""
         started = time.perf_counter()
-        kind = self._classify_kill_kind(agent)
+        kind: KillKind | None
+        if cleanup_plan is not None and cleanup_plan.kill_items:
+            kind = cast(KillKind, cleanup_plan.kill_items[0].kind)
+        else:
+            kind = self._classify_kill_kind(agent)
         if kind is None:
             self.notify(  # type: ignore[attr-defined]
                 f"Unknown agent type: {agent.agent_type}", severity="error"
@@ -251,13 +315,15 @@ class AgentKillingMixin(AgentDismissingMixin):
         self._notify_killed_agent(agent, kind)
 
         agents_with_children_snapshot = list(self._agents_with_children)
+        immediate_identities = self._collect_planned_kill_identities(
+            agent,
+            cleanup_plan,
+        )
         # Snapshot the dismissed set BEFORE the optimistic mutation so re-entrant
         # kills cannot corrupt the set the persistence worker writes back.
         dismissed_snapshot = set(self._dismissed_agents)
-        dismissed_snapshot.update(self._collect_immediate_kill_identities(agent))
-        self._apply_killed_agents_in_memory(
-            self._collect_immediate_kill_identities(agent)
-        )
+        dismissed_snapshot.update(immediate_identities)
+        self._apply_killed_agents_in_memory(immediate_identities)
 
         self.call_later(  # type: ignore[attr-defined]
             self._run_kill_persistence_async,
@@ -265,6 +331,7 @@ class AgentKillingMixin(AgentDismissingMixin):
             kind,
             agents_with_children_snapshot,
             dismissed_snapshot,
+            cleanup_plan,
         )
         log.debug(
             "agent kill immediate stage: kind=%s identity=%s elapsed=%.3fs",
@@ -438,6 +505,7 @@ class AgentKillingMixin(AgentDismissingMixin):
         kind: KillKind,
         agents_with_children_snapshot: list[Agent] | None = None,
         dismissed_snapshot: set[AgentIdentity] | None = None,
+        cleanup_plan: AgentCleanupPlanWire | None = None,
     ) -> None:
         """Persist kill side effects in a worker thread."""
         identity = agent.identity
@@ -453,20 +521,33 @@ class AgentKillingMixin(AgentDismissingMixin):
 
         success = True
         try:
-            await asyncio.to_thread(
-                persist_kill_side_effects,
-                agent,
-                kind,
-                agents_with_children_snapshot,
-            )
+            if cleanup_plan is None:
+                consumed_intents_result = await asyncio.to_thread(
+                    persist_kill_side_effects,
+                    agent,
+                    kind,
+                    agents_with_children_snapshot,
+                )
+            else:
+                consumed_intents_result = await asyncio.to_thread(
+                    persist_kill_side_effects,
+                    agent,
+                    kind,
+                    agents_with_children_snapshot,
+                    cleanup_plan,
+                )
+            consumed_intents = consumed_intents_result is True
             # Persist the dismissed-set snapshot captured on the UI thread,
             # then rewrite the notifications file (single read+write) for
             # this agent and any workflow-child rows hidden alongside it.
             from ....dismissed_agents import save_dismissed_agents
 
             await asyncio.to_thread(save_dismissed_agents, dismissed_snapshot)
-            related = self._agents_related_to_kill(agent, agents_with_children_snapshot)
-            await asyncio.to_thread(dismiss_notifications_for_agents, related)
+            if not consumed_intents:
+                related = self._agents_related_to_kill(
+                    agent, agents_with_children_snapshot
+                )
+                await asyncio.to_thread(dismiss_notifications_for_agents, related)
         except Exception as exc:
             success = False
             self.notify(  # type: ignore[attr-defined]

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures).
@@ -194,8 +195,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent."""
-        from ...models.agent import AgentType
-
         if agent.raw_suffix is None:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
             return
@@ -205,6 +204,19 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
             [agent],
             agents_with_children_snapshot,
         )
+        self._dismiss_planned_agent(agent, cleanup_plan, agents_with_children_snapshot)
+
+    def _dismiss_planned_agent(
+        self,
+        agent: Agent,
+        cleanup_plan: AgentCleanupPlanWire,
+        agents_with_children_snapshot: list[Agent] | None = None,
+    ) -> None:
+        """Dismiss one agent using an already-computed cleanup plan."""
+        from ...models.agent import AgentType
+
+        if agents_with_children_snapshot is None:
+            agents_with_children_snapshot = list(self._agents_with_children)
         name_map = apply_dismissal_rename_intents(
             agents_with_children_snapshot,
             cleanup_plan,

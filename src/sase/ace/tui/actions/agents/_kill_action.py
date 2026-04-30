@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ...models.agent_groups import GroupRow
     from ...modals import AgentCleanupAction, AgentCleanupPanelState
     from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
+    from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -264,6 +265,20 @@ class AgentKillMixin:
             header=header,
         )
 
+    def _notify_no_focused_cleanup_action(
+        self, plan: AgentCleanupPlanWire | None
+    ) -> None:
+        skipped_items = getattr(plan, "skipped_items", ()) if plan is not None else ()
+        skipped = next(iter(skipped_items), None)
+        if skipped is None:
+            self.notify("No selected agents can be cleaned up", severity="warning")  # type: ignore[attr-defined]
+            return
+        detail = f": {skipped.detail}" if skipped.detail else ""
+        self.notify(  # type: ignore[attr-defined]
+            f"Agent cannot be cleaned up ({skipped.reason}{detail})",
+            severity="warning",
+        )
+
     def action_kill_agent(self) -> None:
         """Kill or dismiss agent, or toggle/kill axe on AXE tab."""
         if self.current_tab == "changespecs":
@@ -294,16 +309,13 @@ class AgentKillMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Handle completed agents with dismiss (no confirmation needed)
-        from ._core import DISMISSABLE_STATUSES
-
-        if agent.status in DISMISSABLE_STATUSES:
-            self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
+        cleanup_plan = self._plan_focused_agent_cleanup(agent)  # type: ignore[attr-defined]
+        if cleanup_plan.dismiss_items and not cleanup_plan.kill_items:
+            self._dismiss_planned_agent(agent, cleanup_plan)  # type: ignore[attr-defined]
             return
 
-        if agent.pid is None:
-            # No process to kill - just dismiss the agent
-            self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
+        if not cleanup_plan.kill_items:
+            self._notify_no_focused_cleanup_action(cleanup_plan)
             return
 
         # Build description for confirmation dialog
@@ -319,7 +331,7 @@ class AgentKillMixin:
 
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
-                self._do_kill_agent(agent)  # type: ignore[attr-defined]
+                self._do_kill_agent(agent, cleanup_plan)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 11:10:29
-status: wip
+status: done
 ---
 # Plan: Route single-agent `x` cleanup through Rust planner
 
