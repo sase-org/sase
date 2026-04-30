@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 17:25:02
-status: wip
+status: done
 bead_id: sase-1l
 ---
 # Plan: ChangeSpec-Aware Epic Beads
