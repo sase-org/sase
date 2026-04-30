@@ -132,6 +132,18 @@ class VCSProvider(ABC):
         """
         return changespec_name
 
+    def resolve_current_changespec_head_ref(
+        self, changespec_name: str, project_basename: str, cwd: str
+    ) -> str:
+        """Resolve the current remote-visible head for DELTAS computation.
+
+        DELTAS refreshes may run from a workspace that is not checked out on the
+        target ChangeSpec branch.  Providers can override this to prefer a
+        freshly fetched remote-tracking ref over a stale local branch, while
+        still returning the checked-out branch when it is the requested branch.
+        """
+        return self.resolve_revision(changespec_name, project_basename, cwd)
+
     def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         """Show the patch content for a specific revision.
 

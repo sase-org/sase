@@ -67,7 +67,7 @@ def resolve_head_ref(
     cwd: str,
 ) -> str:
     """Resolve the head ref for the ChangeSpec's diff target."""
-    return vcs_provider.resolve_revision(
+    return vcs_provider.resolve_current_changespec_head_ref(
         changespec.name, changespec.project_basename, cwd
     )
 

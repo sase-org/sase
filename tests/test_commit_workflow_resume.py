@@ -45,6 +45,8 @@ def _save_checkpoint(
     method: str = "create_commit",
     payload: dict | None = None,
     completed_steps: list[str] | None = None,
+    cl_name: str | None = None,
+    project_file: str | None = None,
     cs_name: str | None = None,
     entry_id: str | None = None,
     dispatch_result: str | None = None,
@@ -54,6 +56,8 @@ def _save_checkpoint(
         payload=payload if payload is not None else {"message": "fix: bug"},
         cwd=cwd,
         completed_steps=list(completed_steps) if completed_steps else [],
+        cl_name=cl_name,
+        project_file=project_file,
         cs_name=cs_name,
         entry_id=entry_id,
         dispatch_result=dispatch_result,
@@ -132,6 +136,8 @@ def test_resume_skips_already_completed_tracking_steps(
         cwd=str(tmp_path),
         payload={"message": "fix: bug"},
         completed_steps=["dispatch", "write_result_marker"],
+        cl_name="feature",
+        project_file=str(tmp_path),
         entry_id=None,
     )
 
@@ -140,6 +146,10 @@ def test_resume_skips_already_completed_tracking_steps(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value="7",
         ) as mock_append,
+        patch(
+            "sase.workflows.commit.workflow.refresh_deltas_after_commits_change",
+            return_value=True,
+        ) as mock_refresh,
         patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
     ):
         assert CommitWorkflow.resume() == RunResult.OK
@@ -147,6 +157,7 @@ def test_resume_skips_already_completed_tracking_steps(
     # write_result_marker already done → only the final entry-id marker runs.
     assert mock_marker.call_count == 1
     mock_append.assert_called_once()
+    mock_refresh.assert_called_once_with(str(tmp_path), "feature", str(tmp_path))
 
 
 @patch("sase.workflows.utils.get_project_from_workspace", return_value=None)

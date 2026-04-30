@@ -6,6 +6,7 @@ import os
 from enum import IntEnum
 
 from sase.output import print_status
+from sase.ace.deltas import refresh_deltas_after_commits_change
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
@@ -285,6 +286,11 @@ class CommitWorkflow(BaseWorkflow):
                 )
                 cp.completed_steps.append("final_result_marker")
                 checkpoint_save(cp)
+
+            project_file = self._project_file or cp.project_file
+            cl_name = self._cl_name or cp.cl_name
+            if project_file and cl_name:
+                refresh_deltas_after_commits_change(project_file, cl_name, cp.cwd)
 
         return RunResult.OK
 

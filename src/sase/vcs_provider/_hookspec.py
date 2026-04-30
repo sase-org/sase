@@ -89,6 +89,11 @@ class VCSHookSpec:
     ) -> str: ...
 
     @hookspec(firstresult=True)
+    def vcs_resolve_current_changespec_head_ref(
+        self, changespec_name: str, project_basename: str, cwd: str
+    ) -> str: ...
+
+    @hookspec(firstresult=True)
     def vcs_show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)

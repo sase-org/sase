@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 12:38:13
-status: wip
+status: done
 ---
 # Plan: Make DELTAS Reflect Current PR State
 
