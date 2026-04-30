@@ -7,7 +7,6 @@ from __future__ import annotations
 ACTION_BADGES: dict[str | None, str] = {
     "JumpToChangeSpec": "[CL]",
     "JumpToMentorReview": "[mentor]",
-    "JumpToAgent": "[agent]",
     "Tmux": "[tmux]",
     "HITL": "[HITL]",
     "PlanApproval": "[plan]",

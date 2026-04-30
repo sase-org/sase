@@ -27,9 +27,19 @@ from .notification_modal_constants import (
     SECTIONS,
 )
 
+_REDUNDANT_AGENT_SENDERS = frozenset({"user-agent", "user-workflow"})
+
 
 class NotificationOptionMixin:
     """Build sectioned notification options and handle row jump mode."""
+
+    @staticmethod
+    def _show_sender_label(notification: Notification) -> bool:
+        """Return whether the sender prefix adds useful row context."""
+        return not (
+            notification.action == "JumpToAgent"
+            and notification.sender in _REDUNDANT_AGENT_SENDERS
+        )
 
     def _create_styled_label(
         self: Any, notification: Notification, *, hint_char: str | None = None
@@ -52,8 +62,9 @@ class NotificationOptionMixin:
         body_style = "dim" if notification.muted else ""
         bold_style = "dim" if notification.muted else "bold"
 
-        text.append(f"[{notification.sender}]", style=bold_style)
-        text.append(" ", style="")
+        if self._show_sender_label(notification):
+            text.append(f"[{notification.sender}]", style=bold_style)
+            text.append(" ", style="")
 
         if notification.notes:
             note = notification.notes[0]

@@ -1604,6 +1604,8 @@ NotificationModal #notification-left {
 NotificationModal #notification-list {
     height: 1fr;
     border: solid $secondary;
+    text-wrap: nowrap;
+    text-overflow: clip;
 }
 
 NotificationModal #notification-empty {

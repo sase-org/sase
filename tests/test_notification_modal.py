@@ -213,6 +213,34 @@ def test_styled_label_uses_asterisk_for_unread_unmuted() -> None:
     assert label.plain.startswith("* ")
 
 
+def test_agent_completion_label_omits_redundant_sender_and_action_badge() -> None:
+    """Agent completion rows spend width on the result, not duplicate labels."""
+    notification = _make_notification("n1", action="JumpToAgent")
+    notification.sender = "user-agent"
+    notification.notes = ["CODEX(gpt-5.5) @sase-1l.1 completed: ace(run)-260430_175319"]
+    notification.files = ["/tmp/chat.md", "/tmp/diff.diff"]
+    modal = NotificationModal([notification])
+
+    label = modal._create_styled_label(notification)
+
+    assert "[user-agent]" not in label.plain
+    assert "[agent]" not in label.plain
+    assert "2 files" in label.plain
+
+
+def test_error_label_keeps_sender_and_error_badge() -> None:
+    """Error rows keep their source and action badge because both add context."""
+    notification = _make_notification("n1", action="ViewErrorReport")
+    notification.sender = "user-agent"
+    notification.notes = ["Agent failed"]
+    modal = NotificationModal([notification])
+
+    label = modal._create_styled_label(notification)
+
+    assert "[user-agent]" in label.plain
+    assert "[error]" in label.plain
+
+
 def test_press_s_pushes_snooze_picker_and_passes_callback() -> None:
     """``s`` pushes the SnoozeDurationModal and registers a callback."""
     notification = _make_notification("n1", action="JumpToAgent")
