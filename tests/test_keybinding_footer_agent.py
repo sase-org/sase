@@ -30,6 +30,15 @@ def test_keybinding_footer_agent_bindings_none_agent() -> None:
     assert "x" not in binding_keys  # Kill/dismiss only when agent selected
 
 
+def test_keybinding_footer_agent_cleanup_panel_when_completed_exists() -> None:
+    """X opens cleanup when completed agents exist."""
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(None, completed_count=3)
+
+    assert ("X", "cleanup (3 done)") in bindings
+
+
 def test_keybinding_footer_agent_bindings_running_agent() -> None:
     """Test agent bindings for a running agent."""
     footer = KeybindingFooter()

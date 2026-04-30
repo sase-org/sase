@@ -1,6 +1,12 @@
 """Modal dialogs for the ace TUI."""
 
 from .agent_name_modal import AgentNameModal
+from .agent_cleanup_modal import (
+    AgentCleanupAction,
+    AgentCleanupModal,
+    AgentCleanupPanelState,
+    AgentCleanupResult,
+)
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .command_palette_modal import CommandPaletteModal
@@ -89,6 +95,10 @@ __all__ = [
     "ApproveOptionsModal",
     "ApproveOptionsResult",
     "AgentNameModal",
+    "AgentCleanupAction",
+    "AgentCleanupModal",
+    "AgentCleanupPanelState",
+    "AgentCleanupResult",
     "AgentRunLogModal",
     "AgentTagModal",
     "AgentTagModalResult",

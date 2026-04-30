@@ -420,22 +420,37 @@ class AgentKillingMixin(AgentDismissingMixin):
 
     def _kill_and_dismiss_all_agents(self) -> None:
         """Kill all running agents and dismiss all done agents (double-confirm)."""
+        self._kill_and_dismiss_agents_from(
+            self._agents_in_focused_panel(),  # type: ignore[attr-defined]
+            empty_message="No agents to kill or dismiss",
+        )
+
+    def _kill_and_dismiss_all_agents_global(self) -> None:
+        """Kill running and dismiss done agents across all loaded panels."""
+        self._kill_and_dismiss_agents_from(
+            list(self._agents),
+            empty_message="No agents to kill or dismiss",
+        )
+
+    def _kill_and_dismiss_agents_from(
+        self, agents: list[Agent], *, empty_message: str
+    ) -> None:
+        """Kill running and dismiss done agents from a candidate list."""
         from ._core import DISMISSABLE_STATUSES
 
-        panel_agents = self._agents_in_focused_panel()  # type: ignore[attr-defined]
         killable = [
             a
-            for a in panel_agents
+            for a in agents
             if a.pid is not None and a.status not in DISMISSABLE_STATUSES
         ]
         dismissable = [
             a
-            for a in panel_agents
+            for a in agents
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
         if not killable and not dismissable:
-            self.notify("No agents to kill or dismiss", severity="warning")  # type: ignore[attr-defined]
+            self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 
         # Build description showing both groups

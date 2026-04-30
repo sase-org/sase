@@ -220,6 +220,13 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
+def test_capital_x_binds_agent_cleanup_panel() -> None:
+    """Capital X is the single cleanup entry point."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+    assert by_action["open_agent_cleanup_panel"].key == "X"
+
+
 def test_build_app_bindings_preserves_compound_key() -> None:
     """Compound Textual binding strings stay on the single configured action."""
     km = _default_app_keymaps(open_command_palette="colon,semicolon")
@@ -306,6 +313,12 @@ def test_leader_mode_includes_mark_inactive() -> None:
     """LeaderModeKeymaps default includes mark_inactive bound to ``I``."""
     reg = load_keymap_registry({})
     assert reg.leader_mode.keys["mark_inactive"] == "I"
+
+
+def test_leader_mode_omits_legacy_kill_all() -> None:
+    """The Agents cleanup panel replaces the old ``,X`` cleanup command."""
+    reg = load_keymap_registry({})
+    assert "kill_all" not in reg.leader_mode.keys
 
 
 # --- Source-of-truth consistency ---

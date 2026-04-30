@@ -65,7 +65,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("scroll_prompt_up", "Scroll Prompt Up", False),
     ("next_tab", "Next Tab", True),
     ("prev_tab", "Prev Tab", True),
-    ("toggle_axe", "Start/Stop Axe", False),
+    ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Stop & Quit", False),
     ("start_custom_agent", "Run Agent", False),
     ("start_agent_from_changespec", "Run Agent (CL)", False),
@@ -262,7 +262,7 @@ class AppKeymaps:
     mark_inactive_pinned: str
     # Agent / axe
     kill_agent: str
-    toggle_axe: str
+    open_agent_cleanup_panel: str
     stop_axe_and_quit: str
     start_custom_agent: str
     start_agent_from_changespec: str
@@ -386,7 +386,6 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_home": "h",
             "agent_from_cl": "space",
             "kill_and_edit": "x",
-            "kill_all": "X",
             "mark_inactive": "I",
             "retry_edit": "r",
             "activity_info": "i",

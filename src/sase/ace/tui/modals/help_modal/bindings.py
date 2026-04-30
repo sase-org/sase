@@ -330,7 +330,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.kill_agent), "Kill/dismiss agent/group/marked"),
                 (d(a.toggle_mark), "Mark/unmark current agent"),
                 (d(a.clear_marks), "Clear all agent marks"),
-                (d(a.toggle_axe), "Dismiss all completed agents"),
+                (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (
@@ -371,10 +371,6 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_and_edit'))}",
                     "Kill agent & edit prompt",
-                ),
-                (
-                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_all'))}",
-                    "Kill & dismiss agents in panel",
                 ),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'retry_edit'))}",
@@ -542,7 +538,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             "Background Commands",
             [
                 (d(a.start_custom_agent), "Run agent"),
-                (d(a.toggle_axe), "Clear output"),
+                (d(a.open_agent_cleanup_panel), "Clear output"),
                 (d(a.run_workflow), "Re-run selected done command"),
             ],
         ),
@@ -594,7 +590,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             "Axe Control",
             [
                 (d(a.kill_agent), "Start / stop axe (or kill command)"),
-                (d(a.toggle_axe), "Clear output"),
+                (d(a.open_agent_cleanup_panel), "Clear output"),
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),
             ],
         ),

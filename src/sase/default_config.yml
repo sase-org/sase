@@ -57,7 +57,7 @@ ace:
       mark_inactive_pinned: "I"
       # Agent / axe
       kill_agent: "x"
-      toggle_axe: "X"
+      open_agent_cleanup_panel: "X"
       stop_axe_and_quit: "Q"
       start_custom_agent: "at"
       start_agent_from_changespec: "space"
@@ -152,7 +152,6 @@ ace:
           agent_home: "h"
           agent_from_cl: "space"
           kill_and_edit: "x"
-          kill_all: "X"
           mark_inactive: "I"
           retry_edit: "r"
           activity_info: "i"

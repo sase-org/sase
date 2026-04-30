@@ -88,8 +88,8 @@ class KeybindingBindingsMixin:
             if completed_count > 0:
                 bindings.append(
                     (
-                        self._kd("toggle_axe"),
-                        f"dismiss all ({completed_count})",
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
                     )
                 )
             return bindings
@@ -159,7 +159,10 @@ class KeybindingBindingsMixin:
         # Dismiss all completed (only when completed agents exist)
         if completed_count > 0:
             bindings.append(
-                (self._kd("toggle_axe"), f"dismiss all ({completed_count})")
+                (
+                    self._kd("open_agent_cleanup_panel"),
+                    f"cleanup ({completed_count} done)",
+                )
             )
 
         return bindings

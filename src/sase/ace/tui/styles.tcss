@@ -135,7 +135,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal {
     align: center middle;
 }
 
@@ -150,6 +150,51 @@ StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Conta
 
 ConfirmKillAllModal .confirmed-once {
     border: thick $error;
+}
+
+AgentCleanupModal > #agent-cleanup-container {
+    width: 92;
+    max-width: 95%;
+    height: auto;
+    max-height: 88%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentCleanupModal #agent-cleanup-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+AgentCleanupModal #agent-cleanup-summary {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+AgentCleanupModal .agent-cleanup-summary-card {
+    width: 1fr;
+    min-height: 4;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+AgentCleanupModal #agent-cleanup-actions {
+    height: auto;
+}
+
+AgentCleanupModal #agent-cleanup-list {
+    height: auto;
+    max-height: 20;
+    border: solid $secondary;
+}
+
+AgentCleanupModal #agent-cleanup-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 /* Workflow HITL Modal styling */

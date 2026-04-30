@@ -103,12 +103,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["kill_all"]:
-            if self.current_tab == "agents":
-                self._kill_and_dismiss_all_agents()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["task_queue"]:
             self._show_task_queue_modal()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]

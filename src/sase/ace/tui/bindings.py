@@ -51,8 +51,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Tab switching
     Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),
-    # Axe control (AXE tab only - global access via !x)
-    Binding("X", "toggle_axe", "Start/Stop Axe", show=False),
+    # Agent cleanup on Agents; clear output on AXE.
+    Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
     # Agent workflow (all tabs) - shows project/CL selection modals
     Binding("at", "start_custom_agent", "Run Agent", show=False),

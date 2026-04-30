@@ -274,12 +274,10 @@ def test_open_tmux_requires_workspace() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_ws))
 
 
-def test_toggle_axe_on_agents_tab_needs_completed_or_focused_agent() -> None:
+def test_agent_cleanup_panel_visible_without_agent_context() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.toggle_axe"]
-    # No completed agents and no focused agent: hidden.
-    assert not is_command_available(spec, CommandContext(tab="agents"))
-    # Completed agents exist (the "dismiss all" affordance from the footer).
+    spec = catalog["app.open_agent_cleanup_panel"]
+    assert is_command_available(spec, CommandContext(tab="agents"))
     assert is_command_available(
         spec, CommandContext(tab="agents", completed_agent_count=2)
     )

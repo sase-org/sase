@@ -306,16 +306,32 @@ class AgentDismissingMixin:
 
     def _dismiss_all_done_agents(self) -> None:
         """Dismiss all done/failed agents after user confirmation."""
+        self._dismiss_done_agents_from(
+            self._agents_in_focused_panel(),  # type: ignore[attr-defined]
+            empty_message="No agents to dismiss",
+        )
+
+    def _dismiss_all_done_agents_global(self) -> None:
+        """Dismiss all done/failed agents across all loaded panels."""
+        self._dismiss_done_agents_from(
+            list(self._agents),
+            empty_message="No agents to dismiss",
+        )
+
+    def _dismiss_done_agents_from(
+        self, agents: list[Agent], *, empty_message: str
+    ) -> None:
+        """Dismiss all done/failed agents from a candidate list."""
         from ._core import DISMISSABLE_STATUSES
 
         dismissable = [
             a
-            for a in self._agents_in_focused_panel()  # type: ignore[attr-defined]
+            for a in agents
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
         if not dismissable:
-            self.notify("No agents to dismiss", severity="warning")  # type: ignore[attr-defined]
+            self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 
         # Build description similar to ConfirmKillModal format

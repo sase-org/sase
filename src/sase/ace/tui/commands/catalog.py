@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 _ALL_TABS: tuple[CommandTab, ...] = ("changespecs", "agents", "axe")
 _CL_ONLY: tuple[CommandTab, ...] = ("changespecs",)
 _AGENTS_ONLY: tuple[CommandTab, ...] = ("agents",)
+_AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "axe")
 _CL_AGENTS: tuple[CommandTab, ...] = ("changespecs", "agents")
 
 
@@ -126,7 +127,13 @@ _APP_COMMAND_META: tuple[
     ("mark_inactive_pinned", "Mark inactive pinned", "Marking", _AGENTS_ONLY, ()),
     # Agents / Axe actions
     ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", _ALL_TABS, ()),
-    ("toggle_axe", "Toggle AXE / dismiss all", "Axe", _ALL_TABS, ()),
+    (
+        "open_agent_cleanup_panel",
+        "Open agent cleanup panel / clear AXE output",
+        "Agents",
+        _AGENTS_AXE,
+        ("cleanup", "dismiss all", "clear output"),
+    ),
     ("stop_axe_and_quit", "Stop AXE and quit", "Axe", _ALL_TABS, ()),
     ("start_custom_agent", "Run custom agent", "Agents", _ALL_TABS, ("@",)),
     (
@@ -304,7 +311,6 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_home": "Agent (home mode)",
     "agent_from_cl": "Agent from CL (quick)",
     "kill_and_edit": "Kill agent and edit",
-    "kill_all": "Kill all agents",
     "mark_inactive": "Mark inactive agents",
     "retry_edit": "Retry agent (edit)",
     "activity_info": "Activity dashboard",
@@ -327,7 +333,6 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "kill_mentors": _CL_ONLY,
     "review_mentors": _CL_ONLY,
     "kill_and_edit": _AGENTS_ONLY,
-    "kill_all": _AGENTS_ONLY,
     "retry_edit": _AGENTS_ONLY,
     "clear_comments": _CL_ONLY,
     "jump_to_notification": _AGENTS_ONLY,

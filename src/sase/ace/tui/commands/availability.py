@@ -178,10 +178,10 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     agent = ctx.agent
 
-    # bulk-state actions visible regardless of focused row.
-    if spec.id == "app.toggle_axe":
-        # On agents tab, this is the "dismiss all completed" affordance.
-        return ctx.completed_agent_count > 0 or ctx.agent is not None
+    # The cleanup panel is discoverable even when every row action inside it is
+    # currently disabled.
+    if spec.id == "app.open_agent_cleanup_panel":
+        return True
 
     if spec.id == "app.clear_marks":
         return ctx.mark_count > 0
@@ -255,7 +255,6 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     # Leader commands scoped to agents.
     if spec.id in {
         "leader.kill_and_edit",
-        "leader.kill_all",
         "leader.retry_edit",
         "leader.jump_to_notification",
     }:
@@ -280,7 +279,7 @@ def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.kill_agent":
         return True
 
-    if spec.id == "app.toggle_axe":
+    if spec.id == "app.open_agent_cleanup_panel":
         return True
 
     # Re-run is only available on a done bgcmd row.
