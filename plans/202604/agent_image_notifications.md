@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 02:35:23
 status: wip
+bead_id: sase-1i
 ---
 # Plan: Agent Image Attachments and Kitty TUI Previews
 
