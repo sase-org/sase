@@ -186,7 +186,7 @@ The modal supports live filtering as you type in the search box and displays las
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,!`       | Run command using current CL context                                                          |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
-| `,h`       | Run agent (home directory)                                                                    |
+| `,h`       | Run agent with the default `#cd:~` directory context                                          |
 | `,m`       | Review mentors (opens Mentor Review modal)                                                    |
 | `,M`       | Kill running mentors                                                                          |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
@@ -453,7 +453,7 @@ cached by raw query string so re-renders skip the parse.
 
 | Key        | Action                                                                                        |
 | ---------- | --------------------------------------------------------------------------------------------- |
-| `,h`       | Run agent (home directory)                                                                    |
+| `,h`       | Run agent with the default `#cd:~` directory context                                          |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
@@ -504,7 +504,7 @@ cached by raw query string so re-renders skip the parse.
 
 | Key  | Action                                                                                        |
 | ---- | --------------------------------------------------------------------------------------------- |
-| `,h` | Run agent (home directory)                                                                    |
+| `,h` | Run agent with the default `#cd:~` directory context                                          |
 | `,P` | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r` | Show runners info                                                                             |
 
@@ -1135,7 +1135,8 @@ the text exceeds one line.
 Press `Ctrl+T` to activate completion. The completion kind is determined by the token under the cursor:
 
 - **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`), completion shows matching
-  xprompt names from all discovery sources.
+  xprompt names from all discovery sources. Built-in workspace references such as `#cd` are included; use `#cd:<path>`
+  to run from a specific directory without VCS workspace management.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments).
@@ -1224,6 +1225,10 @@ The border subtitle shows pending operators and counts (e.g., `2d` when a delete
 Press `,.` (leader + `.`) on the CLs or Agents tab to open the prompt history modal. It displays prompts previously run
 in ACE, sorted by relevance to the current CL/agent context. Prompts shorter than two words are skipped when writing to
 history, so trivial one-word inputs (e.g. `y`, `ok`) don't clutter the list.
+
+Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
+default `#cd:~` prefix. Explicit workspace prefixes, including `#cd:<path>`, also feed the `Ctrl+N` / `Ctrl+P` MRU cycle
+when the prompt input is empty or contains only a workspace prefix.
 
 ### Keybindings
 

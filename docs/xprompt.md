@@ -215,6 +215,26 @@ agent's ChangeSpec (branch name), allowing one agent's prompt to target another 
 This is useful when chaining agents — for example, a review agent can target the branch created by a prior agent using
 `@name` instead of hardcoding the branch name.
 
+### VCS Workspace References
+
+Workspace-managing workflows use the same `#name:ref` reference syntax as xprompts, but they control where the agent
+runs before the rest of the prompt is executed.
+
+| Reference    | Behavior                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| `#cd:<path>` | Run in a local directory without reserving a numbered SASE workspace or doing VCS checkout/release work |
+| `#git:<ref>` | Run in a bare-git workspace                                                                             |
+| `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed                                          |
+| `#hg:<ref>`  | Run in a Mercurial workspace, when the Google plugin is installed                                       |
+
+Prompts that do not contain a workspace reference are normalized to `#cd:~`, so a bare prompt still runs from the home
+directory with no VCS workspace management. Use `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, `#cd:~`, or
+`#cd(.)` to choose a directory explicitly.
+
+The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
+`#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path
+matching is intentionally conservative; prefer paths without spaces for embedded workspace tags.
+
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced
 xprompts. For example, `#foo__bar` resolves to the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`.
 Single underscores are not affected. This is useful when `/` is inconvenient in certain input contexts (e.g., shell
@@ -443,20 +463,20 @@ making the system extensible — a plugin or user can override the CRS workflow 
 
 ### Available Tags
 
-| Tag                   | Description                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `vcs`                 | VCS workflow xprompt — wraps other embedded workflows, running its setup/teardown around them |
-| `crs`                 | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)          |
-| `fix_hook`            | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                        |
-| `rollover`            | Marks workflows whose embedded references carry forward to follow-up agent steps              |
-| `mentor`              | Mentor review prompt workflow                                                                 |
-| `commit`              | Commit workflow (appended by mentor review `A` key for direct commit)                         |
-| `propose`             | Propose workflow (appended by mentor review `a` key for propose-style amend)                  |
-| `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                   |
-| `diff_file`           | Injects the CL diff into the mentor prompt                                                    |
-| `create_epic_bead`    | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt             |
-| `work_phase_bead`     | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                            |
-| `land_epic`           | Final land-the-epic agent prompt used by `sase bead work` after all phases complete           |
+| Tag                   | Description                                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `vcs`                 | Workspace workflow xprompt (`#cd`, `#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
+| `crs`                 | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                          |
+| `fix_hook`            | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                        |
+| `rollover`            | Marks workflows whose embedded references carry forward to follow-up agent steps                                              |
+| `mentor`              | Mentor review prompt workflow                                                                                                 |
+| `commit`              | Commit workflow (appended by mentor review `A` key for direct commit)                                                         |
+| `propose`             | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                  |
+| `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
+| `diff_file`           | Injects the CL diff into the mentor prompt                                                                                    |
+| `create_epic_bead`    | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
+| `work_phase_bead`     | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
+| `land_epic`           | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                           |
 
 ### Defining Tags
 

@@ -64,3 +64,12 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
         ("#!sync", "#!sync", "sync")
     ]
+
+
+def test_xprompt_completion_finds_builtin_cd_workflow() -> None:
+    candidates, _ = build_xprompt_completion_candidates("#c")
+    by_name = {candidate.name: candidate for candidate in candidates}
+
+    assert "cd" in by_name
+    assert by_name["cd"].display == "#cd"
+    assert by_name["cd"].insertion == "#cd"

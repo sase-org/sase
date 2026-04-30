@@ -11,11 +11,12 @@ Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) 
 VCS plugins. The core `sase` package bundles the **BareGitWorkspacePlugin** for local bare-remote git repositories.
 Additional backends are installed as separate packages:
 
-| Package       | Plugin                   | Description                                     |
-| ------------- | ------------------------ | ----------------------------------------------- |
-| `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)        |
-| `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI) |
-| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces                            |
+| Package       | Plugin                   | Description                                       |
+| ------------- | ------------------------ | ------------------------------------------------- |
+| `sase` (core) | `CdWorkspacePlugin`      | Local directory runs via `#cd:<path>` without VCS |
+| `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)          |
+| `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI)   |
+| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces                              |
 
 Plugins register themselves via the `sase_workspace` entry point group. The plugin manager loads all registered plugins
 and dispatches operations through pluggy hooks. Most hooks use `firstresult=True` — the first plugin that returns a
@@ -32,14 +33,14 @@ prefixed with `ws_` to namespace them within the pluggy project.
 
 Each workspace plugin declares metadata about the workflow type it supports:
 
-| Field                      | Type   | Description                                                    |
-| -------------------------- | ------ | -------------------------------------------------------------- |
-| `workflow_type`            | string | Short name used in `#type:ref` prompts (e.g., `"git"`, `"gh"`) |
-| `ref_pattern`              | string | Regex matching `#type:ref` or `#type(ref)` syntax              |
-| `display_name`             | string | Human-readable name (e.g., `"Git (bare)"`, `"GitHub"`)         |
-| `pre_allocated_env_prefix` | string | Env-var prefix for pre-allocated workspace variables           |
-| `vcs_family`               | string | VCS family (e.g., `"git"`, `"hg"`)                             |
-| `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)    |
+| Field                      | Type   | Description                                                            |
+| -------------------------- | ------ | ---------------------------------------------------------------------- |
+| `workflow_type`            | string | Short name used in `#type:ref` prompts (e.g., `"cd"`, `"git"`, `"gh"`) |
+| `ref_pattern`              | string | Regex matching `#type:ref` or `#type(ref)` syntax                      |
+| `display_name`             | string | Human-readable name (e.g., `"Git (bare)"`, `"GitHub"`)                 |
+| `pre_allocated_env_prefix` | string | Env-var prefix for pre-allocated workspace variables                   |
+| `vcs_family`               | string | VCS family (e.g., `"git"`, `"hg"`)                                     |
+| `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
 
 ### ResolvedRef
 
@@ -114,6 +115,16 @@ manager. These are the primary API for consumers:
 | `get_workspace_name()`             | Get workspace/project name for a directory   |
 | `get_ref_patterns()`               | Get all registered ref patterns              |
 | `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type       |
+
+## Directory Workflow (`#cd`)
+
+The core package also registers `#cd:<path>` as a workspace workflow. It resolves a local directory, makes that
+directory the agent/workflow CWD, and deliberately skips numbered workspace allocation, checkout, diff, submit, and
+release behavior. Prompts without any workspace reference are normalized to `#cd:~`, preserving the old "run from home
+without VCS" behavior through an explicit user-facing workflow tag.
+
+Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
+and must be a directory.
 
 ## Relationship to VCS Provider
 
