@@ -26,6 +26,18 @@ class AgentLaunchResult:
     timestamp: str = ""
 
 
+def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
+    """Drop CODEX_HOME when it points at a SASE-managed temporary Codex home."""
+    codex_home = env.get("CODEX_HOME")
+    if not codex_home:
+        return
+
+    from sase.llm_provider.codex import is_sase_managed_codex_home
+
+    if is_sase_managed_codex_home(codex_home):
+        env.pop("CODEX_HOME", None)
+
+
 def spawn_agent_subprocess(
     *,
     cl_name: str,
@@ -87,6 +99,7 @@ def spawn_agent_subprocess(
 
     # Build subprocess environment (copy to avoid mutating os.environ)
     subprocess_env = dict(os.environ)
+    _remove_inherited_sase_codex_home(subprocess_env)
     if extra_env:
         subprocess_env.update(extra_env)
     subprocess_env["SASE_AGENT"] = "1"

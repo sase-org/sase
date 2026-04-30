@@ -23,6 +23,37 @@ from sase.axe.chop_agents import (
 )
 
 
+def _spawn_agent_for_env_test(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_popen: MagicMock,
+    extra_env: dict[str, str] | None = None,
+) -> None:
+    output_path = tmp_path / "out.txt"
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    tmp_dir = tmp_path / "tmp"
+    tmp_dir.mkdir()
+    mock_proc = MagicMock()
+    mock_proc.pid = 4321
+    mock_popen.return_value = mock_proc
+    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
+
+    spawn_agent_subprocess(
+        cl_name="proj",
+        project_file="/tmp/projects/proj/proj.gp",
+        workspace_dir=str(workspace_dir),
+        workspace_num=3,
+        workflow_name="ace(run)-260101_120000",
+        prompt="do work",
+        timestamp="260101_120000",
+        project_name="proj",
+        extra_env=extra_env,
+    )
+
+
 def test_build_chop_launch_env() -> None:
     """Both scheduled and one-shot paths can build matching chop env vars."""
     env = build_chop_launch_env(
@@ -60,6 +91,73 @@ def test_agent_meta_from_chop_env() -> None:
         "chop_name": "split",
         "chop_run_id": "run-1",
     }
+
+
+@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.agent.launcher.subprocess.Popen")
+def test_spawn_agent_subprocess_removes_inherited_sase_codex_home(
+    mock_popen: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Detached agents do not inherit a parent SASE Codex shadow home."""
+    inherited_shadow = tmp_path / ".cache" / "sase" / "codex_home" / "123-deadbeef"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_popen=mock_popen
+    )
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert "CODEX_HOME" not in env
+
+
+@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.agent.launcher.subprocess.Popen")
+def test_spawn_agent_subprocess_preserves_custom_codex_home(
+    mock_popen: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Detached agents keep user-managed custom CODEX_HOME values."""
+    custom_home = tmp_path / "custom-codex"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(custom_home))
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_popen=mock_popen
+    )
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert env["CODEX_HOME"] == str(custom_home)
+
+
+@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.agent.launcher.subprocess.Popen")
+def test_spawn_agent_subprocess_extra_env_codex_home_wins(
+    mock_popen: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit caller CODEX_HOME overrides are applied after sanitization."""
+    inherited_shadow = tmp_path / ".cache" / "sase" / "codex_home" / "123-deadbeef"
+    explicit_shadow = tmp_path / ".cache" / "sase" / "codex_home" / "explicit"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_popen=mock_popen,
+        extra_env={"CODEX_HOME": str(explicit_shadow)},
+    )
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert env["CODEX_HOME"] == str(explicit_shadow)
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)

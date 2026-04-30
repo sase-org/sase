@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider.base import LLMProvider
-from sase.llm_provider.codex import CodexProvider
+from sase.llm_provider.codex import CodexProvider, _real_codex_home
 
 
 def test_codex_provider_is_llm_provider() -> None:
@@ -153,6 +153,30 @@ def test_codex_provider_generic_env_args_precedence(
     assert "--codex-arg" not in cmd
 
 
+def test_real_codex_home_ignores_sase_managed_shadow_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested SASE Codex shadow home is not treated as the real home."""
+    inherited_shadow = tmp_path / ".cache" / "sase" / "codex_home" / "123-deadbeef"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
+
+    assert _real_codex_home() == tmp_path / ".codex"
+
+
+def test_real_codex_home_honors_non_sase_custom_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """User-managed custom CODEX_HOME values remain supported."""
+    custom_home = tmp_path / "custom-codex"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(custom_home))
+
+    assert _real_codex_home() == custom_home
+
+
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.gemini_timer")
@@ -265,6 +289,49 @@ def test_codex_provider_shadow_home_copies_config_and_symlinks_state(
     provider.invoke("test", model_tier="large", suppress_output=True)
 
     assert real_config.read_text() == 'model = "gpt-5.5"\n'
+    assert observed_shadow_home is not None
+    assert not observed_shadow_home.exists()
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_deleted_inherited_shadow_uses_real_home_auth(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale inherited SASE shadow still links auth from the real ~/.codex."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    auth_file = real_home / "auth.json"
+    auth_file.write_text("{}\n")
+    inherited_shadow = tmp_path / ".cache" / "sase" / "codex_home" / "123-deadbeef"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    observed_shadow_home: Path | None = None
+
+    def inspect_shadow_home(
+        process: MagicMock, suppress_output: bool
+    ) -> tuple[str, str, int]:
+        nonlocal observed_shadow_home
+        observed_shadow_home = Path(mock_popen.call_args.kwargs["env"]["CODEX_HOME"])
+
+        assert observed_shadow_home != inherited_shadow
+        assert (observed_shadow_home / "auth.json").is_symlink()
+        assert (observed_shadow_home / "auth.json").resolve() == auth_file
+        return "response", "", 0
+
+    mock_stream.side_effect = inspect_shadow_home
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
     assert observed_shadow_home is not None
     assert not observed_shadow_home.exists()
 

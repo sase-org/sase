@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 01:37:52
-status: wip
+status: done
 ---
 # Plan: Fix Codex Auth Loss From Nested Shadow Homes
 

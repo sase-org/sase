@@ -23,6 +23,18 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 
 
+def _sase_codex_shadow_home_root() -> Path:
+    """Return the root directory for SASE-managed Codex shadow homes."""
+    return (Path.home() / ".cache" / "sase" / "codex_home").resolve(strict=False)
+
+
+def is_sase_managed_codex_home(path: str | os.PathLike[str]) -> bool:
+    """Return whether *path* points inside SASE's Codex shadow-home root."""
+    candidate = Path(path).expanduser().resolve(strict=False)
+    root = _sase_codex_shadow_home_root()
+    return candidate == root or candidate.is_relative_to(root)
+
+
 def _log_interrupt(message: str, cycle: int) -> None:
     """Append an entry to the interrupt log in the artifacts directory."""
     import json
@@ -46,14 +58,14 @@ def _log_interrupt(message: str, cycle: int) -> None:
 def _real_codex_home() -> Path:
     """Return the user's real Codex home."""
     codex_home = os.environ.get("CODEX_HOME")
-    if codex_home:
+    if codex_home and not is_sase_managed_codex_home(codex_home):
         return Path(codex_home).expanduser().resolve(strict=False)
     return Path.home() / ".codex"
 
 
 def _create_shadow_codex_home(real_home: Path) -> Path:
     """Create a disposable CODEX_HOME with a copied config and linked state."""
-    cache_root = Path.home() / ".cache" / "sase" / "codex_home"
+    cache_root = _sase_codex_shadow_home_root()
     cache_root.mkdir(parents=True, exist_ok=True)
 
     shadow_home = cache_root / f"{os.getpid()}-{uuid.uuid4().hex}"
