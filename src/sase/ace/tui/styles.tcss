@@ -392,42 +392,63 @@ TemporaryLLMOverrideModal {
 }
 
 
+/* Shared Duration Choice Modal styling */
+SnoozeDurationModal,
 _DurationPickerModal {
     align: center middle;
 }
 
-#override-duration-container {
-    width: 48;
+.duration-choice-container {
+    width: 54;
     height: auto;
     border: double $primary;
     background: $surface;
-    padding: 1 2;
+    padding: 1 2 1 2;
 }
 
-#override-duration-title {
+#snooze-container {
+    width: 54;
+}
+
+#override-duration-container {
+    width: 56;
+}
+
+.duration-choice-title {
     text-align: center;
     text-style: bold;
     height: auto;
     margin-bottom: 1;
 }
 
-#override-duration-body {
+.duration-choice-body {
     height: auto;
 }
 
-.override-duration-row {
-    height: 1;
+.duration-choice-row {
+    height: auto;
+    padding: 0 0 0 0;
+    margin-bottom: 1;
 }
 
-.override-duration-spacer {
-    height: 1;
+.duration-choice-tone-primary {
+    color: $accent;
 }
 
-#override-duration-custom-input {
-    margin-top: 1;
+.duration-choice-tone-accent {
+    color: $warning;
 }
 
-#override-duration-custom-error {
+.duration-choice-spacer {
+    height: 0;
+}
+
+.duration-choice-custom-input {
+    margin-top: 0;
+    width: 100%;
+}
+
+.duration-choice-custom-error {
     color: $error;
     height: auto;
     margin-top: 1;

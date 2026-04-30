@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 21:49:01
-status: wip
+status: done
 ---
 # Snooze Duration Panel UX Plan
 

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.keymaps.types import LeaderModeKeymaps
+from sase.ace.tui.modals.duration_choice_modal import DURATION_CHOICE_CANCELLED
 from sase.ace.tui.modals.temporary_llm_override_modal import (
     TemporaryLLMOverrideModal,
     TemporaryOverrideResult,
@@ -184,13 +185,13 @@ def test_duration_preset_6_until_cleared_returns_none() -> None:
 
 
 async def test_duration_cancel_dismisses_with_cancel_sentinel() -> None:
-    """Cancel emits ``"__cancel__"`` so we can distinguish it from
+    """Cancel emits a sentinel so we can distinguish it from
     the legitimate ``None`` "until cleared" return."""
-    result: float | None | str = "sentinel"
+    result: object = "sentinel"
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(value: float | None | str) -> None:
+        def on_dismiss(value: object) -> None:
             nonlocal result
             result = value
 
@@ -199,7 +200,7 @@ async def test_duration_cancel_dismisses_with_cancel_sentinel() -> None:
         await pilot.press("escape")
         await pilot.pause()
 
-    assert result == "__cancel__"
+    assert result is DURATION_CHOICE_CANCELLED
 
 
 # ---------------------------------------------------------------------------
@@ -253,11 +254,11 @@ async def test_top_modal_x_clears_when_active() -> None:
 
 
 async def test_duration_modal_preset_dismisses() -> None:
-    result: float | None | str = "sentinel"
+    result: object = "sentinel"
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(value: float | None | str) -> None:
+        def on_dismiss(value: object) -> None:
             nonlocal result
             result = value
 

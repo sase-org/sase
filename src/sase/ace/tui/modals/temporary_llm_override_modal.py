@@ -38,7 +38,7 @@ from typing import Literal
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static
+from textual.widgets import Label, Static
 
 from sase.llm_provider import (
     TemporaryLLMOverride,
@@ -51,6 +51,12 @@ from sase.llm_provider import (
 from sase.llm_provider.registry import format_provider_model_label
 
 from .custom_model_input_modal import CustomModelInputModal
+from .duration_choice_modal import (
+    DURATION_CHOICE_CANCELLED,
+    DurationChoice,
+    DurationChoiceCancelled,
+    DurationChoiceModal,
+)
 from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
 
 
@@ -111,122 +117,71 @@ def _format_duration_chosen(seconds: float | None) -> str:
 # ---------------------------------------------------------------------------
 
 
-_DURATION_PRESETS: list[tuple[str, str, float | None]] = [
-    ("1", "15m", 15 * 60.0),
-    ("2", "30m", 30 * 60.0),
-    ("3", "1h", 60 * 60.0),
-    ("4", "2h", 2 * 60 * 60.0),
-    ("5", "4h", 4 * 60 * 60.0),
-    ("6", "Until cleared", None),
-]
+def _parse_override_custom(raw: str) -> float | None:
+    try:
+        return parse_override_duration(raw)
+    except ValueError as exc:
+        raise ValueError(f"Invalid duration: {exc}") from exc
 
 
-class _DurationPickerModal(ModalScreen["float | None | str"]):
+class _DurationPickerModal(DurationChoiceModal[float | None, DurationChoiceCancelled]):
     """Pick how long the override should last.
 
     Dismisses with one of:
 
     - ``float`` (seconds) — a finite duration was chosen.
     - ``None`` — "Until cleared" (no expiry).
-    - ``"__cancel__"`` — user cancelled.
+    - shared cancel sentinel — user cancelled.
     """
 
-    BINDINGS = [
-        ("1", "preset_1", "15m"),
-        ("2", "preset_2", "30m"),
-        ("3", "preset_3", "1h"),
-        ("4", "preset_4", "2h"),
-        ("5", "preset_5", "4h"),
-        ("6", "preset_6", "Until cleared"),
-        ("c", "open_custom", "Custom"),
-        ("escape", "cancel_or_back", "Cancel"),
-        ("q", "cancel_or_back", "Cancel"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        with Container(id="override-duration-container"):
-            with Vertical(id="override-duration-body"):
-                yield Label(
-                    "[bold cyan]Override Duration[/bold cyan]",
-                    id="override-duration-title",
-                )
-                for key, label, _ in _DURATION_PRESETS:
-                    yield Static(
-                        f"  {key}   {label}",
-                        classes="override-duration-row",
-                    )
-                yield Static("", classes="override-duration-spacer")
-                yield Static("  c   Custom…", classes="override-duration-row")
-                yield Static("", classes="override-duration-spacer")
-                yield Static("  esc  cancel", classes="override-duration-row")
-                yield Input(
-                    placeholder="e.g., 30m, 2h, 1h30m, until cleared",
-                    id="override-duration-custom-input",
-                    classes="hidden",
-                    disabled=True,
-                )
-                yield Label(
-                    "",
-                    id="override-duration-custom-error",
-                    classes="hidden",
-                )
-
-    def _dismiss_preset(self, idx: int) -> None:
-        seconds = _DURATION_PRESETS[idx][2]
-        # ModalScreen dismiss accepts ``None``; we wrap as a tuple-free
-        # union by passing seconds (may be None for "Until cleared").
-        self.dismiss(seconds)
-
-    def action_preset_1(self) -> None:
-        self._dismiss_preset(0)
-
-    def action_preset_2(self) -> None:
-        self._dismiss_preset(1)
-
-    def action_preset_3(self) -> None:
-        self._dismiss_preset(2)
-
-    def action_preset_4(self) -> None:
-        self._dismiss_preset(3)
-
-    def action_preset_5(self) -> None:
-        self._dismiss_preset(4)
-
-    def action_preset_6(self) -> None:
-        self._dismiss_preset(5)
-
-    def action_open_custom(self) -> None:
-        custom_input = self.query_one("#override-duration-custom-input", Input)
-        custom_input.disabled = False
-        custom_input.remove_class("hidden")
-        custom_input.value = ""
-        custom_input.focus()
-
-    def action_cancel_or_back(self) -> None:
-        custom_input = self.query_one("#override-duration-custom-input", Input)
-        if not custom_input.has_class("hidden") and custom_input.has_focus:
-            custom_input.add_class("hidden")
-            custom_input.disabled = True
-            custom_input.value = ""
-            error = self.query_one("#override-duration-custom-error", Label)
-            error.update("")
-            error.add_class("hidden")
-            return
-        self.dismiss("__cancel__")
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id != "override-duration-custom-input":
-            return
-        raw = event.input.value.strip()
-        error = self.query_one("#override-duration-custom-error", Label)
-        try:
-            seconds = parse_override_duration(raw)
-        except ValueError as exc:
-            error.update(f"Invalid duration: {exc}")
-            error.remove_class("hidden")
-            event.input.focus()
-            return
-        self.dismiss(seconds)
+    def __init__(self) -> None:
+        super().__init__(
+            title="Override Duration",
+            choices=[
+                DurationChoice(
+                    key="1",
+                    title="15 minutes",
+                    subtitle="Use for quick model checks.",
+                    value=15 * 60.0,
+                    tone="primary",
+                ),
+                DurationChoice(
+                    key="2",
+                    title="30 minutes",
+                    subtitle="Keep the override through a short task.",
+                    value=30 * 60.0,
+                ),
+                DurationChoice(
+                    key="3",
+                    title="1 hour",
+                    subtitle="Cover a focused coding session.",
+                    value=60 * 60.0,
+                ),
+                DurationChoice(
+                    key="4",
+                    title="2 hours",
+                    subtitle="Use for a longer implementation block.",
+                    value=2 * 60 * 60.0,
+                ),
+                DurationChoice(
+                    key="5",
+                    title="4 hours",
+                    subtitle="Keep the override for half a day.",
+                    value=4 * 60 * 60.0,
+                ),
+                DurationChoice(
+                    key="6",
+                    title="Until cleared",
+                    subtitle="Persist until you remove it.",
+                    value=None,
+                    tone="accent",
+                ),
+            ],
+            parse_custom=_parse_override_custom,
+            custom_placeholder="e.g., 30m, 2h, 1h30m, until cleared",
+            cancel_result=DURATION_CHOICE_CANCELLED,
+            id_prefix="override-duration",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -357,15 +312,14 @@ class TemporaryLLMOverrideModal(ModalScreen[TemporaryOverrideResult]):
             callback=self._on_duration_picked,
         )
 
-    def _on_duration_picked(self, result: float | None | str) -> None:
-        # ``"__cancel__"`` is the duration modal's cancel sentinel —
-        # ``None`` from that modal is a real value ("until cleared").
-        if isinstance(result, str) and result == "__cancel__":
+    def _on_duration_picked(
+        self, result: float | None | DurationChoiceCancelled
+    ) -> None:
+        # The duration modal uses a sentinel for cancel so ``None`` stays a real
+        # value ("until cleared").
+        if isinstance(result, DurationChoiceCancelled):
             return
         seconds: float | None
-        if isinstance(result, str):
-            # Defensive: any other string is unexpected — treat as cancel.
-            return
         seconds = result
         try:
             override = set_temporary_override(
