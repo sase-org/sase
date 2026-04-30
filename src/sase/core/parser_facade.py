@@ -1,21 +1,16 @@
 """sase.core facade for ChangeSpec parsing.
 
-This is the Rust-bindable seam for ChangeSpec parsing. Callers go through
-:func:`parse_project_file` (returning Python ``ChangeSpec`` objects for
-backward compatibility) or :func:`parse_project_bytes` (returning wire
-records, the shape Rust ``parse_project_bytes`` produces).
+:func:`parse_project_bytes` calls ``sase_core_rs.parse_project_bytes``
+directly through :func:`sase.core.rust.require_rust_binding` and rehydrates
+the returned dicts into :class:`ChangeSpecWire` records. The Rust extension
+is a hard runtime dependency declared in ``pyproject.toml``; a missing or
+stale wheel surfaces as :class:`ImportError` / :class:`AttributeError`.
 
-Phase 8D rewired :func:`parse_project_bytes` to call ``sase_core_rs``
-directly through :func:`sase.core.rust.require_rust_binding` and deleted
-the Python tempfile-bridge fallback. The Rust extension is a hard runtime
-dependency (declared in ``pyproject.toml``); a missing or stale wheel
-surfaces as :class:`ImportError` / :class:`AttributeError` instead of
-silently returning Python output.
-
-:func:`parse_project_file` is intentionally Python-only host logic. The
-Rust binding consumes bytes; routing the file-path API through it would
-either re-read the file or duplicate the Python parser's tokenization
-work for no measurable benefit.
+:func:`parse_project_file` returns Python :class:`ChangeSpec` objects from a
+file path and stays Python-only host logic — the Rust binding consumes
+bytes, and routing the file-path API through it would either re-read the
+file or duplicate the Python parser's tokenization work for no measurable
+benefit.
 """
 
 from __future__ import annotations
@@ -36,14 +31,7 @@ def parse_project_file(file_path: str) -> list[ChangeSpec]:
 
 # pyvision: tests/test_core_facade/test_parser.py
 def parse_project_bytes(file_path: str, data: bytes) -> list[ChangeSpecWire]:
-    """Parse a project file's bytes into wire records via ``sase_core_rs``.
-
-    Calls the Rust ``parse_project_bytes`` binding directly and rehydrates
-    the returned dicts into :class:`ChangeSpecWire` records. There is no
-    Python fallback — a missing or stale Rust extension raises an
-    :class:`ImportError` / :class:`AttributeError` from
-    :func:`require_rust_binding` rather than silently switching paths.
-    """
+    """Parse a project file's bytes into wire records via ``sase_core_rs``."""
     rust_parse_project_bytes = require_rust_binding("parse_project_bytes")
     raw: list[dict[str, Any]] = rust_parse_project_bytes(file_path, data)
     return [changespec_wire_from_dict(record) for record in raw]

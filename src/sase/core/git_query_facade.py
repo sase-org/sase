@@ -1,12 +1,12 @@
 """sase.core facade for deterministic Git query parsers.
 
-This is the Rust-bindable seam for the small parsing/normalization
-helpers shared by :class:`sase.vcs_provider.plugins._git_query_ops.GitQueryOpsMixin`.
-Each helper is a *pure function* over strings produced by ``git``; the
-host stays responsible for running the command, handling timeouts and
-process errors, touching the filesystem, and performing every mutation.
+The small parsing/normalization helpers shared by
+:class:`sase.vcs_provider.plugins._git_query_ops.GitQueryOpsMixin`. Each
+helper is a *pure function* over strings produced by ``git``; the host
+stays responsible for running the command, handling timeouts and process
+errors, touching the filesystem, and performing every mutation.
 
-The five Phase 5 helpers are:
+The five helpers are:
 
 - :func:`parse_git_name_status_z` — parse ``git diff --name-status -z``
   output into ``list[tuple[str, str]]``.
@@ -19,16 +19,10 @@ The five Phase 5 helpers are:
 - :func:`parse_git_local_changes` — normalize ``git status --porcelain``
   stdout into ``str | None`` (clean → ``None``).
 
-These helpers call ``sase_core_rs`` directly through the strict loader
-in :mod:`sase.core.rust`. The loader raises :class:`ImportError` when
-the wheel is missing and :class:`AttributeError` when the wheel is too
-old to expose the requested binding.
-
-The ``*_python`` helpers below remain as host-logic / golden-contract
-references — every parity test against the Rust output uses them as the
-byte-for-byte expectation, and they are the only practical way to keep
-Rust regressions visible in pure-Python checkouts during development.
-They are not backend fallbacks.
+These call ``sase_core_rs`` directly through
+:func:`sase.core.rust.require_rust_binding`. The ``*_python`` helpers
+below are kept as byte-for-byte golden-contract references for the parity
+tests against the Rust output.
 """
 
 from __future__ import annotations
@@ -104,11 +98,6 @@ def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     carry their two paths joined by a literal tab character
     (``"<old>\\t<new>"``) so callers can split them apart without losing
     information.
-
-    Phase 8E: calls ``sase_core_rs.parse_git_name_status_z`` via
-    :func:`require_rust_binding` and flattens the dict output into the
-    legacy tuple shape. A missing wheel raises :class:`ImportError`; a
-    stale wheel without the binding raises :class:`AttributeError`.
     """
     binding = require_rust_binding("parse_git_name_status_z")
     raw: list[dict[str, str]] = binding(stdout)

@@ -2,17 +2,16 @@
 
 :func:`find_named_agent` consumes the agent-artifact snapshot produced
 by :func:`sase.core.agent_scan_facade.scan_agent_artifacts` so name
-lookup benefits from a single backend-dispatched walk of
+lookup benefits from a single Rust filesystem walk of
 ``~/.sase/projects/*/artifacts/ace-run/*`` rather than independently
 re-walking the tree per call.
 
 :func:`is_workflow_complete` deliberately does NOT use the snapshot
-facade. The snapshot path materializes wire records for every artifact
-in the tree before any predicate can run, which Phase 3H measured as a
-~3× regression on this hot path. Phase 6E pins it to a targeted
-direct-walk Python implementation that only loads
-``agent_meta.json`` files matching ``workflow_name == name``. See
-``docs/rust_backend.md`` and the Phase 6E handoff for details.
+facade. The snapshot path would materialize wire records for every
+artifact in the tree before any predicate can run, which previously
+measured as a ~3× regression on this hot path. Instead it does a
+targeted direct-walk that only loads ``agent_meta.json`` files matching
+``workflow_name == name``.
 
 Process liveness, dismissed-bundle fallback, and dismissal-prefix
 semantics stay in Python.
@@ -227,13 +226,12 @@ def is_workflow_complete(name: str) -> bool | None:
     """Check whether all agents in a multi-agent workflow have completed.
 
     Walks ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
-    directly and only loads files whose ``workflow_name`` matches
-    *name*. Bypasses :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
-    on purpose: the snapshot facade has to materialize wire records for
-    every artifact in the tree before any predicate can run, which Phase
-    3H measured as a ~3× regression for this hot path against the old
-    short-circuiting walk (see Phase 6E and the Phase 3H structural
-    snapshot regression in ``docs/rust_backend.md``).
+    directly and only loads files whose ``workflow_name`` matches *name*.
+    Bypasses :func:`sase.core.agent_scan_facade.scan_agent_artifacts` on
+    purpose: the snapshot facade has to materialize wire records for every
+    artifact in the tree before any predicate can run, which previously
+    measured as a ~3× regression for this hot path against the
+    short-circuiting walk.
 
     Returns:
         ``True`` — root has ``done.json`` and no child is still alive without one.

@@ -1,10 +1,9 @@
 """Core health check for the required ``sase_core_rs`` extension.
 
-Phase 8C drops backend-selection language from the health surface. The check
-verifies that the Rust extension is installed and exposes a known cheap
-binding (``parse_query``) so release smokes and user scripts can branch on
-the exit code without parsing output. There is no longer a Python-mode
-escape hatch — ``sase_core_rs`` is a hard runtime dependency.
+The check verifies that the Rust extension is installed and exposes a known
+cheap binding (``parse_query``) so release smokes and user scripts can
+branch on the exit code without parsing output. ``sase_core_rs`` is a hard
+runtime dependency; there is no Python-mode escape hatch.
 
 Behavior summary:
 

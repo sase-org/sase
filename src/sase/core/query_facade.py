@@ -1,24 +1,18 @@
 """sase.core facade for query parse/build/evaluate entry points.
 
-Wraps :mod:`sase.ace.query`. The only Rust-bound seam in this module is
-:func:`parse_query`, which Phase 8D rewired to call ``sase_core_rs``
-directly through :func:`sase.core.rust.require_rust_binding`. The
-returned dict is rehydrated into the existing :class:`QueryExpr`
-dataclass tree via :func:`query_expr_wire_from_dict` /
-:func:`query_expr_from_wire`. The Python parser is no longer reachable
-through this facade after Phase 8D; tests that need the Python AST
-builder import :func:`sase.ace.query.parser.parse_query_python`
+:func:`parse_query` calls ``sase_core_rs.parse_query`` directly through
+:func:`sase.core.rust.require_rust_binding` and rehydrates the returned
+dict into the existing :class:`QueryExpr` dataclass tree. Tests that need
+the Python AST builder import :func:`sase.ace.query.parser.parse_query_python`
 directly.
 
 Per-row callers (:func:`evaluate_query`, :func:`evaluate_query_with_context`),
-:func:`build_query_context`, and the batch :func:`evaluate_query_many`
-are intentionally Python-owned host logic and call their ``*_python``
-implementations directly. They are not "fallbacks" — see the Phase 8A
-handoff operation disposition and Phase 8B's evaluate_query_many
-deferral (``plans/202604/rust_backend_phase8_phase8b_handoff.md``):
-the routed Rust path stayed 6-9x slower than the optimised Python batch
-path because PyO3 must rebuild ``ChangeSpecWire`` from a fresh dict on
-every call.
+:func:`build_query_context`, and the batch :func:`evaluate_query_many` are
+Python-owned host logic. ``evaluate_query_many`` is the deferred entry: a
+prototype Rust path was 6-9x slower than the optimised Python batch path
+because PyO3 had to rebuild ``ChangeSpecWire`` from a fresh dict on every
+call, so the public surface keeps the Python implementation until either
+the wire conversion is amortised in Rust or the call pattern changes.
 """
 
 from __future__ import annotations
@@ -42,26 +36,14 @@ from sase.core.rust import require_rust_binding
 
 
 def parse_query(query: str) -> QueryExpr:
-    """Parse a query string into a :class:`QueryExpr` via ``sase_core_rs``.
-
-    Calls the Rust ``parse_query`` binding directly and rehydrates the
-    returned dict into the existing :class:`QueryExpr` dataclass tree via
-    :func:`query_expr_wire_from_dict` / :func:`query_expr_from_wire`. The
-    Python parser is no longer reachable through this facade after
-    Phase 8D; tests that need the Python AST builder import
-    :func:`sase.ace.query.parser.parse_query_python` directly.
-    """
+    """Parse a query string into a :class:`QueryExpr` via ``sase_core_rs``."""
     rust_parse_query = require_rust_binding("parse_query")
     record: dict[str, Any] = rust_parse_query(query)
     return query_expr_from_wire(query_expr_wire_from_dict(record))
 
 
 def build_query_context(changespecs: list[ChangeSpec]) -> QueryEvaluationContext:
-    """Build a :class:`QueryEvaluationContext`.
-
-    Intentionally Python-owned host logic — see Phase 8A handoff
-    operation disposition.
-    """
+    """Build a :class:`QueryEvaluationContext` (Python-owned host logic)."""
     return build_query_context_python(changespecs)
 
 
@@ -70,11 +52,7 @@ def evaluate_query(
     changespec: ChangeSpec,
     all_changespecs: list[ChangeSpec] | None = None,
 ) -> bool:
-    """Evaluate ``query`` against ``changespec``.
-
-    Intentionally Python-owned host logic — see Phase 8A handoff
-    operation disposition.
-    """
+    """Evaluate ``query`` against ``changespec`` (Python-owned host logic)."""
     return evaluate_query_python(query, changespec, all_changespecs)
 
 
@@ -83,11 +61,7 @@ def evaluate_query_with_context(
     changespec: ChangeSpec,
     ctx: QueryEvaluationContext,
 ) -> bool:
-    """Evaluate ``query`` using a shared context.
-
-    Intentionally Python-owned host logic — see Phase 8A handoff
-    operation disposition.
-    """
+    """Evaluate ``query`` using a shared context (Python-owned host logic)."""
     return evaluate_query_with_context_python(query, changespec, ctx)
 
 
@@ -95,12 +69,10 @@ def _evaluate_query_many_python(
     query: str,
     changespecs: list[ChangeSpec],
 ) -> list[bool]:
-    """Python implementation of :func:`evaluate_query_many`.
+    """Parse ``query`` once and evaluate against every ChangeSpec.
 
-    Parses the query once and evaluates against every ChangeSpec using a
-    shared :class:`QueryEvaluationContext` so name/status/searchable maps
-    are computed only once per list. This is the authoritative implementation
-    for :func:`evaluate_query_many` after Phase 8B's deferral decision.
+    Builds a shared :class:`QueryEvaluationContext` so name/status/searchable
+    maps are computed only once per list.
     """
     expr = parse_query_python(query)
     ctx = build_query_context_python(changespecs)
@@ -113,10 +85,8 @@ def evaluate_query_many(
 ) -> list[bool]:
     """Evaluate ``query`` against every ChangeSpec in one batch call.
 
-    The hot-path filter API for TUI/CLI lists. Phase 8B reclassified this
-    surface as deferred/unported (the routed Rust path was 6-9x slower than
-    the optimised Python batch path); Phase 8C drops the dispatcher seam
-    entirely and routes directly through the Python batch implementation.
-    See ``plans/202604/rust_backend_phase8_phase8b_handoff.md``.
+    Hot-path filter API for TUI/CLI lists. Routes directly through the
+    Python batch implementation — see the module docstring for the deferral
+    rationale.
     """
     return _evaluate_query_many_python(query, changespecs)

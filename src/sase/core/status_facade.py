@@ -1,38 +1,25 @@
 """sase.core facade for status transitions and pure status field helpers.
 
-The three pure status operations call ``sase_core_rs`` directly through
-the strict loader in :mod:`sase.core.rust`. The loader raises
-:class:`ImportError` when the wheel is missing and
-:class:`AttributeError` when the wheel is too old to expose the
-requested binding.
+The three pure status operations (:func:`read_status_from_lines`,
+:func:`apply_status_update`, :func:`plan_status_transition`) call
+``sase_core_rs`` directly through :func:`sase.core.rust.require_rust_binding`.
+:func:`plan_status_transition` marshals the request through
+:func:`status_wire_to_json_dict`, calls the Rust planner, and rebuilds the
+typed :class:`StatusTransitionPlanWire` so callers never see the
+cross-language dict layer.
 
-Three flavors live here:
-
-- ``read_status_from_lines`` and ``apply_status_update`` are pure
-  functions over raw project-file lines. They call
-  ``sase_core_rs.read_status_from_lines`` /
-  ``sase_core_rs.apply_status_update`` directly.
-- ``plan_status_transition`` is the pure decision engine (Phase 4E).
-  This facade marshals the request through
-  :func:`status_wire_to_json_dict`, calls
-  ``sase_core_rs.plan_status_transition``, and rebuilds the typed
-  :class:`StatusTransitionPlanWire` so callers (notably
-  :func:`transition_changespec_status_python`) never see the
-  cross-language dict layer.
-- ``transition_changespec_status`` performs disk IO (it acquires a lock
-  and rewrites the project file). It is intentionally Python-owned host
-  logic and calls :func:`transition_changespec_status_python` directly;
-  the Rust planner integration happens *inside* that function via the
-  :func:`plan_status_transition` facade above.
+:func:`transition_changespec_status` performs disk IO (it acquires a lock
+and rewrites the project file) and is Python-owned host logic; the Rust
+planner integration happens *inside*
+:func:`transition_changespec_status_python` via the
+:func:`plan_status_transition` facade entry above.
 
 The Python golden helpers
 :func:`sase.status_state_machine.field_updates.read_status_from_lines_python`,
 :func:`sase.status_state_machine.field_updates.apply_status_update_python`,
 and :func:`sase.core.status_wire_conversion.plan_status_transition_python`
-remain in their original modules as host-logic / golden-contract
-references — they are the source of truth for the byte-for-byte parity
-tests against the Rust implementations and survive Phase 8E's facade
-re-wiring as documented host logic, not as backend fallbacks.
+remain in their modules as the byte-for-byte golden references for the
+parity tests against the Rust implementations.
 """
 
 from __future__ import annotations
@@ -73,15 +60,8 @@ def plan_status_transition(
     The request is the pre-gathered host context (parent status, blocking
     children, sibling info, existing-name set) — see
     :class:`StatusTransitionRequestWire` for the contract. The returned
-    plan describes the side effects the host should execute; this
-    function performs none of them.
-
-    The request is marshaled through :func:`status_wire_to_json_dict`,
-    fed to the Rust binding via :func:`require_rust_binding`, and the
-    returned dict is rehydrated into a typed
-    :class:`StatusTransitionPlanWire`. A missing wheel raises
-    :class:`ImportError`; a stale wheel without the binding raises
-    :class:`AttributeError`.
+    plan describes the side effects the host should execute; this function
+    performs none of them.
     """
     binding = require_rust_binding("plan_status_transition")
     payload: dict[str, Any] = binding(status_wire_to_json_dict(request))

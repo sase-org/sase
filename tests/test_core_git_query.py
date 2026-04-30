@@ -1,18 +1,17 @@
 """Golden tests pinning the Git query parser facade contract.
 
-The Phase 5B contract guarantees that
-:mod:`sase.core.git_query_facade` produces the exact strings exercised
-here. The Phase 5C Rust implementations must match byte-for-byte,
-including the rename/copy ``"<old>\\t<new>"`` encoding, the detached-HEAD
-sentinel handling, and the workspace-name remote-vs-root priority.
+:mod:`sase.core.git_query_facade` must produce the exact strings exercised
+here, and the Rust implementations in ``sase-core`` must match
+byte-for-byte — including the rename/copy ``"<old>\\t<new>"`` encoding,
+the detached-HEAD sentinel handling, and the workspace-name remote-vs-root
+priority.
 
-Phase 8E direct-wires every helper to ``sase_core_rs``: the dispatch /
-dual-run / env-var tests are gone. The remaining tests assert the
+Every helper calls ``sase_core_rs`` directly. The tests assert the
 content contract (via the real Rust binding when installed) and the
-direct-call wiring (a missing wheel raises :class:`ImportError`; a
-stale wheel without the binding raises :class:`AttributeError`; a
-registered fake binding is called for every helper). The Python golden
-helpers in :mod:`sase.core.git_query_facade` are retained as host-logic
+direct-call wiring (a missing wheel raises :class:`ImportError`; a stale
+wheel without the binding raises :class:`AttributeError`; a registered
+fake binding is called for every helper). The Python ``*_python`` helpers
+in :mod:`sase.core.git_query_facade` are retained as host-logic golden
 references for the parity test at the bottom.
 """
 

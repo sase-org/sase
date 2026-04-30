@@ -1,12 +1,10 @@
 """Tests for ``sase.core.query_facade``.
 
-Phase 8D rewired :func:`sase.core.query_facade.parse_query` to call
-``sase_core_rs`` directly through
-:func:`sase.core.rust.require_rust_binding`. After Phase 8F there is no
-``dispatch`` layer left: the unported entry points (per-row evaluators,
-``build_query_context``, the deferred ``evaluate_query_many`` batch path)
-call their Python implementations directly without consulting any
-backend env var.
+:func:`sase.core.query_facade.parse_query` calls ``sase_core_rs`` directly
+through :func:`sase.core.rust.require_rust_binding`. The unported entry
+points (per-row evaluators, ``build_query_context``, the deferred
+``evaluate_query_many`` batch path) call their Python implementations
+directly as host logic.
 """
 
 from __future__ import annotations

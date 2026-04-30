@@ -2,11 +2,10 @@
 
 Pins the snapshot wire shape, error counters, and ordering produced by
 :func:`sase.core.agent_scan_facade.scan_agent_artifacts` against the
-synthetic corpus in :mod:`tests.agent_scan_golden`. After Phase 8D the
-facade calls ``sase_core_rs`` directly through
-:func:`sase.core.rust.require_rust_binding`; the Python walker fallback
-has been deleted, so the tests at the bottom of this file pin the new
-direct-Rust contract instead of dispatcher branching.
+synthetic corpus in :mod:`tests.agent_scan_golden`. The facade calls
+``sase_core_rs`` directly through
+:func:`sase.core.rust.require_rust_binding`; the tests at the bottom of
+this file pin the direct-Rust contract.
 """
 
 from __future__ import annotations

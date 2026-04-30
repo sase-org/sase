@@ -18,8 +18,7 @@ decision step runs in Rust while every side effect remains on the host:
 The lock surrounds steps 1, 2, and the in-lock side effects of step 3
 (the STATUS line rewrite and mentor flag mutation). Steps that touch
 multiple files or VCS state — suffix renames, archive moves, and
-timestamp recording — run after the lock releases, mirroring the
-pre-Phase 4E behavior.
+timestamp recording — run after the lock releases.
 """
 
 import logging
@@ -57,9 +56,8 @@ def transition_changespec_status(
 ) -> tuple[bool, str | None, str | None, list[SiblingRevertResult]]:
     """Transition a ChangeSpec to a new STATUS.
 
-    Public entry point — routes through :mod:`sase.core.status`. The default
-    backend dispatches back to :func:`transition_changespec_status_python`
-    below.
+    Public entry point — routes through :mod:`sase.core.status_facade`,
+    which calls :func:`transition_changespec_status_python` below.
     """
     from sase.core.status_facade import transition_changespec_status as _facade
 
