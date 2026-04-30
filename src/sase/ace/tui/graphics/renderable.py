@@ -26,6 +26,19 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class TerminalControlRenderable:
+    """Rich renderable that emits one raw terminal control sequence."""
+
+    sequence: str
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        del console, options
+        yield _terminal_control(self.sequence)
+
+
+@dataclass(frozen=True)
 class ImageFallbackRenderable:
     """Textual fallback shown when terminal image rendering is unavailable."""
 

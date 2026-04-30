@@ -6,6 +6,14 @@ from datetime import datetime
 from rich.console import Group
 from rich.text import Text
 
+from sase.ace.tui.graphics import (
+    GraphicsCapability,
+    KittyImageRenderable,
+    TerminalControlRenderable,
+    image_preview,
+    is_supported_image_path,
+)
+
 from ...util.lazy_syntax import lazy_renderable
 from ._messages import _EXTENSION_TO_LEXER
 
@@ -15,6 +23,7 @@ class FilePanelDisplayMixin:
 
     _full_content: str | None
     _static_header_path: str | None
+    _current_image_renderable: KittyImageRenderable | None
 
     def _display_file_with_timestamp(
         self,
@@ -39,6 +48,7 @@ class FilePanelDisplayMixin:
         # Post visibility message to parent (only for fresh fetches to avoid flicker)
         if post_visibility_message:
             self._post_file_visibility(has_file=diff_output is not None)  # type: ignore[attr-defined]
+        cleanup = self._consume_image_cleanup_segments()
 
         # Build refresh indicator if stale and background refreshing
         refresh_indicator = ""
@@ -77,7 +87,12 @@ class FilePanelDisplayMixin:
                     f"\n  \u25be {remaining} more lines below",
                     style="dim italic #87D7FF",
                 )
-                self.update(Group(syntax, indicator))  # type: ignore[attr-defined]
+                group = (
+                    Group(*cleanup, syntax, indicator)
+                    if cleanup
+                    else Group(syntax, indicator)
+                )
+                self.update(group)  # type: ignore[attr-defined]
                 # Word-wrapped lines may overflow — schedule post-layout fix
                 self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
             else:
@@ -88,7 +103,7 @@ class FilePanelDisplayMixin:
                     "diff",
                     line_numbers=True,
                 )
-                self.update(syntax)  # type: ignore[attr-defined]
+                self.update(Group(*cleanup, syntax) if cleanup else syntax)  # type: ignore[attr-defined]
                 # Container was hidden/not laid out — trim after layout
                 if trim_size == 0:
                     self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
@@ -102,7 +117,7 @@ class FilePanelDisplayMixin:
                 text.append(refresh_indicator, style="dim italic")
             text.append("\n\n")
             text.append("No changes detected.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_trim_changed()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
@@ -114,18 +129,19 @@ class FilePanelDisplayMixin:
             diff_path: Path to the diff file (may use ~ for home).
         """
         expanded_path = os.path.expanduser(diff_path)
+        cleanup = self._consume_image_cleanup_segments()
         try:
             with open(expanded_path, encoding="utf-8") as f:
                 diff_content = f.read()
         except Exception:
             text = Text("Could not read diff file.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             return
 
         if not diff_content.strip():
             text = Text("Diff file is empty.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             return
 
@@ -160,7 +176,7 @@ class FilePanelDisplayMixin:
                 f"\n  \u25be {remaining} more lines below",
                 style="dim italic #87D7FF",
             )
-            self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
             # Word-wrapped lines may overflow — schedule post-layout fix
             self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
         else:
@@ -171,7 +187,7 @@ class FilePanelDisplayMixin:
                 "diff",
                 line_numbers=True,
             )
-            self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout
             if trim_size == 0:
                 self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
@@ -189,18 +205,23 @@ class FilePanelDisplayMixin:
             file_path: Path to the file (may use ~ for home).
         """
         expanded_path = os.path.expanduser(file_path)
+        if is_supported_image_path(expanded_path):
+            self._display_static_image(expanded_path)
+            return
+
+        cleanup = self._consume_image_cleanup_segments()
         try:
             with open(expanded_path, encoding="utf-8") as f:
                 content = f.read()
         except Exception:
             text = Text("Could not read file.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             return
 
         if not content.strip():
             text = Text("File is empty.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             return
 
@@ -236,7 +257,7 @@ class FilePanelDisplayMixin:
                 f"\n  \u25be {remaining} more lines below",
                 style="dim italic #87D7FF",
             )
-            self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
             # Word-wrapped lines may overflow — schedule post-layout fix
             self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
         else:
@@ -247,7 +268,7 @@ class FilePanelDisplayMixin:
                 lexer,
                 line_numbers=True,
             )
-            self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
+            self.update(Group(*cleanup, header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout
             if trim_size == 0:
                 self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
@@ -255,6 +276,67 @@ class FilePanelDisplayMixin:
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
         self._post_trim_changed()  # type: ignore[attr-defined]
+
+    def _display_static_image(self, expanded_path: str) -> None:
+        """Display a static raster image through the terminal graphics layer."""
+        cleanup = self._consume_image_cleanup_segments()
+        capability = self._graphics_capability()
+        columns, rows = self._image_preview_size()
+        renderable = image_preview(
+            expanded_path,
+            capability,
+            columns=columns,
+            rows=rows,
+        )
+
+        self._current_image_renderable = (
+            renderable if isinstance(renderable, KittyImageRenderable) else None
+        )
+        self._full_content = None
+        self._full_content_lexer = "text"  # type: ignore[attr-defined]
+        self._content_mode = "image"  # type: ignore[attr-defined]
+        self._static_header_path = expanded_path
+        self._total_line_count = rows + 2  # type: ignore[attr-defined]
+        self._visible_line_count = rows + 2  # type: ignore[attr-defined]
+        self._base_trim_size = 0  # type: ignore[attr-defined]
+        self._is_trimmed = False  # type: ignore[attr-defined]
+
+        header = Text(expanded_path, style="bold #D7AF5F underline")
+        self.update(Group(*cleanup, header, Text(""), renderable))  # type: ignore[attr-defined]
+        self._has_displayed_content = True  # type: ignore[attr-defined]
+        self._post_file_visibility(has_file=os.path.exists(expanded_path))  # type: ignore[attr-defined]
+        self._post_trim_changed()  # type: ignore[attr-defined]
+
+    def _graphics_capability(self) -> GraphicsCapability:
+        """Return the app-level graphics capability, or an unavailable fallback."""
+        try:
+            capability = getattr(self.app, "graphics_capability", None)  # type: ignore[attr-defined]
+        except Exception:
+            capability = None
+        if isinstance(capability, GraphicsCapability):
+            return capability
+        return GraphicsCapability.unavailable("terminal graphics were not probed")
+
+    def _image_preview_size(self) -> tuple[int, int]:
+        """Choose a conservative placeholder size from the panel geometry."""
+        try:
+            size = self.size  # type: ignore[attr-defined]
+            width = int(getattr(size, "width", 0))
+            height = int(getattr(size, "height", 0))
+        except Exception:
+            width = 0
+            height = 0
+        columns = min(80, max(20, width - 4)) if width else 40
+        rows = min(24, max(6, height - 4)) if height else 12
+        return columns, rows
+
+    def _consume_image_cleanup_segments(self) -> list[TerminalControlRenderable]:
+        """Return terminal cleanup controls for the active Kitty image, if any."""
+        current = getattr(self, "_current_image_renderable", None)
+        self._current_image_renderable = None
+        if isinstance(current, KittyImageRenderable):
+            return [TerminalControlRenderable(current.cleanup_sequence())]
+        return []
 
     def _show_loading(self) -> None:
         """Display loading indicator only if panel was previously visible."""

@@ -38,6 +38,27 @@ _DONE_AGENT_WORKFLOW_PREFIXES = [
 ]
 
 
+def _done_extra_files(
+    plan_path: str | None,
+    image_paths: object,
+) -> list[str]:
+    """Return plan/image attachments for the Agents tab file panel."""
+    files: list[str] = []
+    seen: set[str] = set()
+    images = image_paths if isinstance(image_paths, list) else []
+    for path in [plan_path, *images]:
+        if not isinstance(path, str):
+            continue
+        if not path:
+            continue
+        key = str(Path(path).expanduser().resolve(strict=False))
+        if key in seen:
+            continue
+        seen.add(key)
+        files.append(path)
+    return files
+
+
 def _iter_artifact_workflow_dirs(artifacts_dir: Path) -> list[Path]:
     """Yield workflow directories under an artifacts dir that may contain done.json.
 
@@ -100,8 +121,7 @@ def _load_done_agent_for_dir(
             status = "DONE"
             error_message = None
             error_traceback = None
-        plan_path = data.get("plan_path")
-        extra_files = [plan_path] if plan_path else []
+        extra_files = _done_extra_files(data.get("plan_path"), data.get("image_paths"))
 
         agent = Agent(
             agent_type=AgentType.RUNNING,
@@ -242,7 +262,7 @@ def _build_done_agent_from_record(
         status = "DONE"
         error_message = None
         error_traceback = None
-    extra_files = [done.plan_path] if done.plan_path else []
+    extra_files = _done_extra_files(done.plan_path, done.image_paths)
 
     agent = Agent(
         agent_type=AgentType.RUNNING,

@@ -15,7 +15,12 @@ from .kitty import (
     placeholder_grid,
     tmux_passthrough_wrap,
 )
-from .renderable import ImageFallbackRenderable, KittyImageRenderable, image_preview
+from .renderable import (
+    ImageFallbackRenderable,
+    KittyImageRenderable,
+    TerminalControlRenderable,
+    image_preview,
+)
 
 __all__ = [
     "GraphicsCapability",
@@ -23,6 +28,7 @@ __all__ = [
     "KITTY_PLACEHOLDER",
     "KittyImageRenderable",
     "SUPPORTED_IMAGE_EXTENSIONS",
+    "TerminalControlRenderable",
     "build_delete_sequence",
     "build_place_sequence",
     "build_png_upload_sequences",

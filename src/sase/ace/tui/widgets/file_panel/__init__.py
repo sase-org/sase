@@ -50,6 +50,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
         self._static_header_path: str | None = None
+        self._current_image_renderable = None
         # Phase 6: dedupe in-flight diff workers across rapid re-selections of
         # the same agent. When a worker for the same DiffCacheKey is already
         # running, ``_start_background_fetch`` attaches to it instead of
