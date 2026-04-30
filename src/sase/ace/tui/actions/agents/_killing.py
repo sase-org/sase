@@ -24,12 +24,12 @@ from ._killing_utils import (
     dismiss_notifications_for_agents,
 )
 
-from ._dismissing import (
-    AgentDismissingMixin,
+from ._dismiss_cleanup import (
     apply_dismissal_rename_intents,
     apply_in_memory_reference_rewrites,
     dismissed_identities_from_plan,
 )
+from ._dismissing import AgentDismissingMixin
 from ._kill_persistence import (
     AgentIdentity,
     BulkKillItem,

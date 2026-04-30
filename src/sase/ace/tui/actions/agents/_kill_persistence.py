@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
-from ._dismissing import (
+from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
 )
