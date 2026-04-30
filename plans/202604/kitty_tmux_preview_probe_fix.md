@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 03:41:52
-status: wip
+status: done
 ---
 # Plan: Fix Kitty Image Preview Detection In tmux
 

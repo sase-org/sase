@@ -52,12 +52,14 @@ ACE now probes terminal graphics support before the Textual app starts and store
 The notification modal and Agents tab file panel route supported image extensions through the preview layer before
 attempting text decoding.
 
-Capability detection is conservative:
+Capability detection is conservative for generic terminals, but it can use an active Kitty probe to prove support:
 
 - known Kitty-placeholder-capable terminal families are considered (`kitty` and `ghostty`)
-- truecolor support is required
-- tmux sessions use Kitty passthrough wrapping
+- tmux sessions use Kitty passthrough wrapping and may probe even when tmux hides the outer terminal family
+- force mode bypasses the known-terminal-family gate
 - an active Kitty graphics probe must succeed unless the caller explicitly skips probing
+- truecolor advertisement is recorded for diagnostics and placeholder rendering, but missing `COLORTERM=truecolor` does
+  not block a successful active probe in tmux or force mode
 
 The internal preview renderable currently transmits PNG bytes through the Kitty graphics protocol and falls back to a
 text placeholder for unsupported terminals, missing files, unsupported extensions, and non-PNG raster files. JPEG, WebP,
@@ -67,6 +69,6 @@ preview can render them. The fallback includes the file path, byte size when ava
 
 Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable terminal graphics
 detection. Set it to `kitty` (also accepts `1`, `true`, `yes`, `on`, or `force`) to bypass the known-terminal-family
-gate while still requiring truecolor and a successful active probe.
+gate while still requiring a successful active probe.
 
 Source: `src/sase/ace/tui/graphics/`

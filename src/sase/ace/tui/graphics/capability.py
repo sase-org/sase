@@ -90,9 +90,9 @@ def detect_graphics_capability(
 ) -> GraphicsCapability:
     """Detect whether Kitty graphics placeholders should be enabled.
 
-    Detection is intentionally conservative: v1 only enables the Kitty backend
-    on known placeholder-capable terminal families, with truecolor available,
-    after the active protocol probe succeeds.
+    Detection is intentionally conservative for generic terminals, but lets an
+    active Kitty probe prove support when tmux hides the outer terminal identity
+    or the user explicitly forces Kitty probing.
     """
     env = os.environ if env is None else env
     passthrough = _passthrough_mode(env)
@@ -109,14 +109,16 @@ def detect_graphics_capability(
         )
 
     force_kitty = override in {"1", "true", "yes", "on", "kitty", "force"}
-    if terminal is None and not force_kitty:
+    probe_eligible = terminal is not None or passthrough == "tmux" or force_kitty
+    if not probe_eligible:
         return GraphicsCapability.unavailable(
-            "terminal family is not known to support Kitty placeholders",
+            "terminal family is unknown outside tmux; Kitty graphics probe was not attempted",
             passthrough=passthrough,
+            terminal=terminal,
             truecolor=truecolor,
         )
 
-    if not truecolor:
+    if not truecolor and passthrough == "none" and not force_kitty:
         return GraphicsCapability.unavailable(
             "Kitty placeholders require truecolor foreground encoding",
             passthrough=passthrough,
