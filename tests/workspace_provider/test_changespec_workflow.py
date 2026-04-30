@@ -9,9 +9,14 @@ from sase.workspace_provider.changespec import create_changespec_for_workflow
 
 
 def test_create_changespec_for_workflow_no_commits() -> None:
-    with patch(
-        "sase.workspace_provider.changespec._get_commits_ahead",
-        return_value=[],
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=[],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.refresh_deltas_after_commits_change",
+        ) as mock_refresh,
     ):
         result = create_changespec_for_workflow(
             project_name="proj",
@@ -23,6 +28,60 @@ def test_create_changespec_for_workflow_no_commits() -> None:
             workflow_name="gh",
         )
         assert result is None
+        mock_refresh.assert_not_called()
+
+
+def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> None:
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_add_thing_1",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.os.getcwd", return_value="/workspace"
+        ),
+        patch(
+            "sase.workspace_provider.changespec.refresh_deltas_after_commits_change",
+            return_value=False,
+        ) as mock_refresh,
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="origin/main",
+            branch_name="swift-falcon",
+            prompt="do stuff",
+            response="done",
+            workflow_name="gh",
+        )
+
+        assert result == "proj_add_thing_1"
+        mock_refresh.assert_called_once_with(
+            "/fake/proj.gp",
+            "proj_add_thing_1",
+            workspace_dir="/workspace",
+        )
 
 
 def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:

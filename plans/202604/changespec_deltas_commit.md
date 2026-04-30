@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 11:21:59
-status: wip
+status: done
 ---
 # Plan: Populate DELTAS for ChangeSpecs Created by `sase commit`
 

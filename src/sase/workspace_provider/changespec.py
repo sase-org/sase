@@ -5,6 +5,7 @@ import re
 import subprocess
 
 from sase.history.chat import save_chat_history
+from sase.ace.deltas import refresh_deltas_after_commits_change
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
 from sase.core.paths import (
@@ -212,5 +213,12 @@ def create_changespec_for_workflow(
         status=status,
         reserved_name=reserved_name,
     )
+
+    if result is not None:
+        refresh_deltas_after_commits_change(
+            project_file,
+            result,
+            workspace_dir=os.getcwd(),
+        )
 
     return result
