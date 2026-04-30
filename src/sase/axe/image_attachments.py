@@ -1,19 +1,24 @@
-"""Image attachment discovery for completed agent runs."""
+"""Attachment discovery for completed agent runs."""
 
 from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
+SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 
 
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
     """Return whether *path* has an image extension SASE should attach."""
     return Path(path).suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+
+
+def _is_supported_markdown_path(path: str | os.PathLike[str]) -> bool:
+    return Path(path).suffix.lower() in SUPPORTED_MARKDOWN_EXTENSIONS
 
 
 def append_unique_paths(
@@ -47,6 +52,51 @@ def collect_agent_image_paths(
     recent commit. Returned paths are absolute so notification senders can
     attach files outside the agent workspace.
     """
+    return _collect_agent_attachment_paths(
+        workspace_dir,
+        is_supported_path=_is_supported_image_path,
+        diff_path=diff_path,
+        include_head_commit=include_head_commit,
+        existing_files=existing_files,
+    )
+
+
+# pyvision: tests/test_agent_attachment_discovery.py
+def collect_agent_markdown_paths(
+    workspace_dir: str,
+    *,
+    diff_path: str | None = None,
+    include_head_commit: bool = False,
+    existing_files: Iterable[str] = (),
+    artifacts_dir: str | None = None,
+) -> list[str]:
+    """Collect Markdown files added or modified by an agent.
+
+    Sources are checked in the same stable order as image discovery: local
+    tracked changes, local untracked files, a saved commit/proposal diff, and
+    optionally the most recent commit. Returned paths are absolute source files
+    suitable for later conversion steps. Files under ``artifacts_dir`` are
+    excluded so generated run artifacts do not feed back into discovery.
+    """
+    return _collect_agent_attachment_paths(
+        workspace_dir,
+        is_supported_path=_is_supported_markdown_path,
+        diff_path=diff_path,
+        include_head_commit=include_head_commit,
+        existing_files=existing_files,
+        artifacts_dir=artifacts_dir,
+    )
+
+
+def _collect_agent_attachment_paths(
+    workspace_dir: str,
+    *,
+    is_supported_path: Callable[[str | os.PathLike[str]], bool],
+    diff_path: str | None = None,
+    include_head_commit: bool = False,
+    existing_files: Iterable[str] = (),
+    artifacts_dir: str | None = None,
+) -> list[str]:
     candidates: list[str] = []
     candidates.extend(_local_changed_paths(workspace_dir))
     candidates.extend(_untracked_paths(workspace_dir))
@@ -54,12 +104,19 @@ def collect_agent_image_paths(
     if include_head_commit:
         candidates.extend(_head_commit_paths(workspace_dir))
 
-    image_paths = [
+    attachment_paths = [
         resolved
         for candidate in candidates
-        if (resolved := _resolve_existing_image_path(candidate, workspace_dir))
+        if (
+            resolved := _resolve_existing_attachment_path(
+                candidate,
+                workspace_dir,
+                is_supported_path=is_supported_path,
+                artifacts_dir=artifacts_dir,
+            )
+        )
     ]
-    return append_unique_paths(image_paths, existing_files)
+    return append_unique_paths(attachment_paths, existing_files)
 
 
 def _local_changed_paths(workspace_dir: str) -> list[str]:
@@ -177,8 +234,14 @@ def _normalize_diff_path(path: str) -> str | None:
     return value or None
 
 
-def _resolve_existing_image_path(path: str, workspace_dir: str) -> str | None:
-    if not _is_supported_image_path(path):
+def _resolve_existing_attachment_path(
+    path: str,
+    workspace_dir: str,
+    *,
+    is_supported_path: Callable[[str | os.PathLike[str]], bool],
+    artifacts_dir: str | None = None,
+) -> str | None:
+    if not is_supported_path(path):
         return None
     candidate = Path(os.path.expanduser(path))
     if not candidate.is_absolute():
@@ -187,6 +250,17 @@ def _resolve_existing_image_path(path: str, workspace_dir: str) -> str | None:
         resolved = candidate.resolve(strict=True)
     except OSError:
         return None
+    if artifacts_dir and _is_relative_to_directory(resolved, artifacts_dir):
+        return None
     if not resolved.is_file():
         return None
     return str(resolved)
+
+
+def _is_relative_to_directory(path: Path, directory: str) -> bool:
+    try:
+        root = Path(os.path.expanduser(directory)).resolve(strict=False)
+        path.relative_to(root)
+    except (OSError, ValueError):
+        return False
+    return True
