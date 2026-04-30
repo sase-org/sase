@@ -79,6 +79,45 @@ Every one of these gives you **at least three tiers above the unit-of-work**. sa
 (Plan + Phase). Adding legends and myths brings sase to four tiers — Phase < Plan/Epic < Legend < Myth — which lines up
 with SAFe's Story/Epic/Initiative/Theme.
 
+### 2.2.1 Second-pass prior-art gaps
+
+The first pass got the broad pattern right, but missed four details that matter for sase's design:
+
+1. **"Spec" means different things in adjacent systems.** Kiro specs are living requirements/design/task artifacts
+   (`requirements.md`, `design.md`, `tasks.md`) that track implementation progress
+   ([Kiro specs docs](https://kiro.dev/docs/specs/)). OpenSpec treats `openspec/specs/` as "current deployed
+   capabilities" and `openspec/changes/` as active deltas that later archive into truth
+   ([OpenSpec directory structure](https://thedocs.io/openspec/concepts/directory-structure/)). sase's current
+   `specs/` are prompt snapshots, not canonical product requirements. If the directory move keeps the name
+   `sdd/specs/`, document this aggressively or rename the folder to `sdd/prompts/` before the new layout hardens.
+2. **Task execution systems increasingly encode dependency waves in the artifact.** Spec Kit's `tasks.md` includes
+   dependency management, parallel execution markers, and file path specifications
+   ([Spec Kit README](https://github.com/github/spec-kit/blob/main/README.md)). sase already has this in beads via
+   `sase bead work`, not in markdown. Keep the DAG in beads; let plan/legend/myth markdown explain intent and lineage.
+3. **Modern issue trackers support arbitrary-depth hierarchy without a distinct type at every level.** GitHub
+   sub-issues explicitly support multiple hierarchy levels
+   ([GitHub Docs](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/browsing-sub-issues)).
+   Atlassian's public guidance says stories roll into epics, epics into initiatives, and higher custom hierarchy should
+   be adapted to the organization rather than treated as universal
+   ([Atlassian](https://www.atlassian.com/agile/project-management/epics-stories-themes)). That supports a flexible
+   `tier`/lineage model more than a rigid "every altitude is a different database type" model.
+4. **Scaled planning separates strategic context from executable work.** Azure Boards' SAFe mapping puts portfolio
+   epics, program features, and team stories/tasks at different planning levels, and suggests strategic themes/portfolio
+   vision live in a wiki or shared documentation rather than as executable leaf work
+   ([Microsoft Learn](https://learn.microsoft.com/en-us/azure/devops/boards/plans/safe-configure-boards?tabs=agile-process&view=azure-devops#safe-concepts)).
+   BMAD likewise distinguishes completed planning artifacts from durable project docs/context
+   ([BMAD established projects](https://docs.bmad-method.org/how-to/established-projects/)). This argues for making
+   legends/myths coordination artifacts first, not auto-executed jobs on day one.
+
+**Implication:** `sdd/` should probably have two semantics, not one:
+
+- **Trace artifacts:** immutable-ish run artifacts produced by SDD (`specs/`, `plans/`, maybe `research/`).
+- **Coordination artifacts:** living strategic containers (`legends/`, `myths/`) that roll up child bead IDs and
+  decisions.
+
+Mixing those is okay if the docs call it out. Treating every file in `sdd/` as the same lifecycle object will create
+confusion.
+
 ### 2.3 The naming question
 
 "Legend" and "myth" are evocative but **share roughly the same denotation in English**, and the ordering legend < myth
@@ -120,8 +159,9 @@ Legends and myths could be:
   references to other plans/legends.
 - **(C)** A new schema entirely — `{tier: legend, children: [bead-001, bead-007], goal: ..., metrics: ..., decisions: [...]}`.
 
-**Default if undecided:** (B). Legends and myths are just plans with one more linkage field: `children: [<plan_id>...]`.
-Reuse the bead system for tracking; add a new bead type rather than inventing a parallel one.
+**Default if undecided:** (B). Legends and myths are just plan-like coordination docs with one more linkage field:
+`children: [<plan_id>...]`. Reuse the bead system for tracking; represent the higher altitude with bead `tier` metadata
+rather than inventing a parallel tracker.
 
 ### D2. Bead integration: new types or reuse Plan?
 
@@ -129,11 +169,30 @@ The bead schema currently has `plan` and `phase`. Two options:
 
 - **(A) New types.** Add `legend` and `myth` to `IssueType`. Phase always has parent=plan; plan can have parent=legend;
   legend can have parent=myth. This requires schema migration in `src/sase/bead/` and the SQLite + JSONL stores.
-- **(B) Reuse Plan with a `tier` field.** All four tiers are stored as `plan` issues; differentiate via a
-  `tier: phase|plan|legend|myth` enum on the issue.
+- **(B) Reuse Plan with a `tier` field.** All container tiers are stored as `plan` issues; differentiate via a
+  `tier: plan|legend|myth` enum on the issue. Phases remain `IssueType.PHASE`.
 
-**Default if undecided:** (A). It's the right model and the schema cost is one-time. (B) saves churn now but every
-query (`bead list --type=legend`) ends up filtering by both type and tier — worse ergonomics forever.
+**Second-pass repo finding:** the current CLI/parser already accepts `plan(<file>,<parent_id>)`, and `BeadProject.create`
+already generates hierarchical child IDs for any issue with a parent. The DB check also permits `issue_type='plan'` with
+or without `parent_id`. In other words, the code already has a latent "plans can contain plans" model even though the
+docs present plans as top-level epics.
+
+**Revised default if undecided:** start with (B), but define `tier` only for plan-like issues:
+`plan | legend | myth`. Keep `IssueType` as a behavioral enum:
+
+- `phase` = executable leaf work item.
+- `plan` = container/design-linked work item that may have children.
+
+Then expose ergonomic CLI aliases (`sase bead list --tier=legend`, optionally `--type=legend` as sugar) instead of
+forcing `legend` and `myth` into the low-level `IssueType` enum on day one. Promote to first-class `IssueType` values
+only if the UI/CLI needs distinct workflows that cannot be expressed as "plan-like container with tier." This is less
+disruptive because import/export, SQLite checks, sorting, `close`, `remove`, and workspace merge code already understand
+plan-like parents.
+
+**Caveat:** if you do reuse `IssueType.PLAN`, fix the places where "plan" currently means "epic ready for phase-agent
+execution." `sase bead work` should accept only `tier=plan`, not `tier=legend|myth`, until higher-tier orchestration
+exists. `sase bead ready` / `#bd/next` should also filter or label container tiers so agents don't accidentally claim a
+myth or legend as leaf work.
 
 ### D3. ID format for legends and myths
 
@@ -143,8 +202,26 @@ Today: `beads-001` (plan), `beads-001.2` (phase). For legends:
 - **(B)** Tier-prefixed counters: `MY-001` (myth), `LG-001` (legend), `beads-001` (plan), `beads-001.2` (phase).
 - **(C)** Mixed: top-level numeric for myths/legends/plans, `.N` for phases only.
 
-**Default if undecided:** (B). Tier prefixes make IDs self-describing in commit messages and grep results, and avoid
+**Original default:** (B). Tier prefixes make IDs self-describing in commit messages and grep results, and avoid
 N-deep dotted IDs that get unreadable past 3 levels.
+
+**Second-pass adjustment:** option (B) is the cleanest human-facing shape, but it is not the low-churn implementation.
+The current generator has one global prefix in `config.json`; child IDs are always `<parent_id>.<N>`. Supporting `MY-`
+and `LG-` counters would require either per-tier counters or a more general ID allocator. If the goal is to land legends
+quickly, keep the existing IDs internally and add a required `slug`/`display_id` frontmatter field for files:
+
+```yaml
+---
+tier: legend
+bead_id: beads-001.2
+slug: rust-backend-migration
+children:
+  - beads-001.2.1
+---
+```
+
+The CLI can print `legend rust-backend-migration (beads-001.2)` without making the storage layer handle multiple
+counter namespaces immediately. Revisit prefixed IDs only after the hierarchy is stable.
 
 ### D4. Filesystem layout under `sdd/`
 
@@ -167,8 +244,9 @@ sdd/
 - **Local mode (`version_controlled: false`):** `{primary_workspace}/.sase/sdd/` — already correct; the layout under
   `.sase/sdd/` simply gains the new tiers.
 
-This is the cleanest part of the change: `get_sdd_dir()` already returns the parent; the new layout is purely _under_
-that parent. No mode logic changes.
+This is mostly mechanical, but it does require one mode-specific change: in VC mode `get_sdd_dir()` currently returns
+the project root, and should return `{project_root}/sdd` after the move. In local mode it already returns
+`{primary_workspace}/.sase/sdd`, which is already the desired parent.
 
 ### D6. Is `research/` agent-generated or human-authored?
 
@@ -243,7 +321,74 @@ Given a phase, can an agent find its plan, legend, and myth? Today: phase → pl
 phase → plan → legend → myth via repeated parent lookup.
 
 **Recommendation:** Add a `lineage` field (computed, not stored) to `sase bead show` output:
-`beads-007.3 (phase) ← beads-007 (plan) ← LG-002 (legend) ← MY-001 (myth)`. Same data, cheaper to read.
+`beads-007.3 (phase) ← beads-007 (plan) ← rust-backend (legend, beads-002) ← platform-sdd (myth, beads-001)`.
+Same data, cheaper to read.
+
+### D11. Are higher tiers living documents or immutable run artifacts?
+
+Current specs/plans are created as part of a run and then mostly age into audit history. Legends and myths will almost
+certainly need edits over weeks/months as priorities, dependencies, and child plans change.
+
+**Default if undecided:** make legends/myths living coordination docs. Their `updated_time` and `children` can change;
+their child plans remain the lower-level execution/audit trail. This matches GitHub/Jira hierarchy behavior and avoids
+turning every strategic correction into a brand-new myth file.
+
+### D12. Should status roll up or be written by hand?
+
+A myth/legend can be "done" because all descendants are closed, because the strategic goal was abandoned, or because a
+replacement container superseded it. Those are different meanings.
+
+**Default if undecided:** compute rollup status for normal display and reserve explicit frontmatter for exceptional
+states:
+
+- `computed_status`: derived from child beads (`open`, `in_progress`, `blocked`, `done`).
+- `status`: optional human override (`archived`, `superseded`, `cancelled`).
+
+Do not make agents manually maintain `status: done` on myths/legends as a primary source of truth.
+
+### D13. What validates the hierarchy?
+
+The new layout creates references that can drift: child bead IDs, plan file paths, `bead_id` frontmatter, and moved
+`@plans/**`/`@specs/**` references.
+
+**Default if undecided:** add `sase sdd doctor` or extend `sase bead doctor` with SDD checks:
+
+- every `sdd/plans/**.md` with `bead_id` points to an existing bead;
+- every legend/myth `children` entry exists and has the expected tier;
+- every bead `design` path exists after path normalization;
+- no new files are written to legacy root `plans/`, `specs/`, or `research/`;
+- xprompts in merged config do not reference legacy `@plans/**` or `@specs/**`.
+
+This should run as part of the migration PR and become a cheap preflight after the move.
+
+### D14. Should directory names describe artifact kind or lifecycle state?
+
+OpenSpec's most useful distinction is not "spec vs plan"; it is "truth vs active change." sase today has no canonical
+truth directory; `specs/` are the input prompt record.
+
+**Default if undecided:** keep the user's proposed `sdd/{specs,plans,research,legends,myths}` layout for now, but add a
+small glossary to `docs/sdd.md`:
+
+- `specs`: expanded prompt snapshots, not product truth.
+- `plans`: approved implementation plans.
+- `research`: upstream investigations and design rationale.
+- `legends`/`myths`: living coordination containers.
+
+If you want to break compatibility now, the more honest rename is `sdd/prompts/` instead of `sdd/specs/`, but that is a
+larger migration than the user asked for.
+
+### D15. How should agents reference moved files?
+
+The migration affects three reference surfaces, not just filesystem paths:
+
+- markdown links in docs/research;
+- xprompt `@file` globs;
+- bead `design` fields and ChangeSpec `PLAN:` drawers.
+
+**Default if undecided:** choose one canonical project-relative display path in VC mode (`sdd/plans/YYYYMM/foo.md`) and
+one primary-workspace-relative path in local mode (`.sase/sdd/plans/YYYYMM/foo.md`). Store those exact strings in new
+bead `design` fields after the migration. For old beads, support legacy lookup but do not rewrite historical JSONL unless
+you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run.
 
 ---
 
@@ -264,6 +409,24 @@ phase → plan → legend → myth via repeated parent lookup.
    and across the plugin repos before flipping the switch.
 6. **`.sase_plan_*.md` at project root.** These are pre-persistence WIP files written by the `sase_plan` skill. They
    should _not_ move; they're orthogonal to SDD storage. Just confirm no proposed change touches them.
+7. **Plan-ref builder and tests.** `_build_epic_plan_ref` currently returns `plans/YYYYMM/foo.md` in VC mode and
+   `.sase/sdd/plans/YYYYMM/foo.md` in local mode. Updating `get_sdd_dir()` is not enough; the plan-ref builder and
+   tests in `tests/test_axe_run_agent_exec_plan.py` need to move in lockstep or new epic agents will still receive
+   legacy paths.
+8. **Existing parented-plan behavior.** `sase bead create --type plan(<file>,<parent>)` is already accepted even though
+   docs describe a two-tier hierarchy. A migration that adds legend/myth without deciding what existing parented plans
+   mean will leave ambiguous data in `issues.jsonl`.
+9. **Ready list pollution.** `ready_issues()` currently returns all open issues with no active blockers; it does not
+   filter to phases. Once legends/myths exist, `sase bead ready` and `#bd/next` can surface strategic containers unless
+   they gain tier/type filtering.
+10. **Second-pass external scan.** Known sibling repos mostly do not hard-code SDD paths. Hits found on 2026-04-30:
+    `sase-telegram/tests/test_bead_format.py` expects `../sase/plans/202604/...`, and
+    `sase-telegram/src/sase_telegram/formatting.py` documents `research/*.md`. No hits were found in `sase-github`,
+    `sase-google`, `sase-nvim`, `~/.local/share/chezmoi/home/dot_config/sase`, or `~/.config/sase` for the scanned
+    path patterns. Still rerun the scan in the final migration CL because these repos move independently.
+11. **Docs outside SDD docs.** `README.md`, `docs/configuration.md`, `docs/beads.md`, `docs/xprompt.md`,
+    `docs/change_spec.md`, and `docs/rust_backend.md` all contain user-facing `plans/`/`specs/`/`research/` examples.
+    Some are historical references and should remain; others are live guidance and must move.
 
 ---
 
@@ -276,8 +439,9 @@ phase → plan → legend → myth via repeated parent lookup.
 3. Update `src/sase/sdd/files.py` to write under `sdd_dir / "sdd"` segment when `version_controlled=True` (no change
    for local mode — `sdd_dir` already points at `.sase/sdd/`, so the new tiers are simply created beneath it).
    Concretely: have `get_sdd_dir()` return `Path(workspace_dir) / "sdd"` in VC mode.
-4. Extend `find_sdd_file` with a third fallback: `base / "sdd" / kind / name` (new), `base / kind / name` (flat
-   legacy), `base / kind / */name` (YYYYMM legacy). Keep all three for one release cycle.
+4. Extend `find_sdd_file` to search both canonical and legacy roots: `base/sdd/{kind}/{name}`,
+   `base/sdd/{kind}/*/{name}`, `base/{kind}/{name}`, and `base/{kind}/*/{name}`. Keep legacy lookup for one release
+   cycle.
 5. Update `default_config.yml` xprompts: `@plans/**` → `@sdd/plans/**`, same for specs.
 6. Update `.gitignore` perf-artifacts paths.
 7. Update `docs/sdd.md` layout section.
@@ -285,11 +449,14 @@ phase → plan → legend → myth via repeated parent lookup.
 **Phase 2 — Add legend tier (one well-scoped change, ~1-2 days).**
 
 8. Decide naming (D-2.3) — recommend keeping `legend` if you commit to documenting the ordering.
-9. Add `legend` to `IssueType` in beads (D2-A). Schema migration via JSONL re-export. Plans gain optional
-   `parent_legend_id` (or, if you adopt D2-A fully, `parent_id` on plans referring to legend bead).
+9. Do **not** add `legend` to `IssueType` in the first implementation. Add `tier` metadata for plan-like beads
+   (`plan`, `legend`, `myth`) and keep `IssueType.PLAN` as the shared container behavior. This matches the existing
+   `plan(<file>,<parent>)` support and avoids a wider JSONL/SQLite enum migration before the workflow semantics are
+   proven.
 10. Add `sdd/legends/` directory; legend file format = same shape as plan with optional `children: [<bead_id>...]`
     frontmatter (D1-B).
-11. Add `sase bead create --type=legend(<name>)` and `sase bead show` lineage display.
+11. Add ergonomic CLI surface: `sase bead create --tier=legend --design sdd/legends/<slug>.md` or equivalent sugar;
+    `sase bead show` should display computed lineage and tier.
 12. Defer `sase bead work <legend_id>` orchestration (D9) to phase 4.
 
 **Phase 3 — Add myth tier (smaller, ~half-day after phase 2).**
@@ -304,7 +471,8 @@ phase → plan → legend → myth via repeated parent lookup.
 
 **Phase 5 — Cleanup (deprecation cycle, ~3 months later).**
 
-15. Drop the legacy `find_sdd_file` fallbacks. Remove the legacy `plans/`, `specs/`, `research/` symlinks if you went
+15. Add or run `sase sdd doctor` to prove no live config/xprompts/bead design fields still point at legacy paths.
+16. Drop the legacy `find_sdd_file` fallbacks. Remove the legacy `plans/`, `specs/`, `research/` symlinks if you went
     with D7-C.
 
 **What I'd skip.** Don't touch:
@@ -316,7 +484,8 @@ phase → plan → legend → myth via repeated parent lookup.
 **What I'd flag for further thought.**
 
 - D2 (new bead types vs `tier` field) is the highest-stakes irreversible decision in this whole project. If you punt
-  with `tier`, switching later requires a JSONL rewrite. Take an extra day to commit to the model.
-- D3 (ID format). Once you ship `LG-001`, you can't go back without renumbering. The defaults above (`LG-`, `MY-`
-  prefixes) bias toward grep-ability; pick deliberately.
+  with first-class `IssueType` values, switching back requires a JSONL rewrite. The second-pass repo inspection now
+  biases toward `IssueType.PLAN` + `tier` because parented plan beads already exist in the implementation.
+- D3 (ID format). Once you ship `LG-001`, you can't go back without renumbering. The low-churn default is existing bead
+  IDs plus a human-readable `slug`; prefixed IDs can wait.
 - The naming. Legend/myth is fine but please pin down the ordering in `docs/sdd.md` and the bead glossary on day one.
