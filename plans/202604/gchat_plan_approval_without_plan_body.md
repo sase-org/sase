@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 12:34:49
-status: wip
+status: done
 ---
 # Plan: Stop Inlining Google Chat Plan Bodies
 
