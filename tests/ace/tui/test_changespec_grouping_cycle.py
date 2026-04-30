@@ -9,11 +9,12 @@ Covers Phase 3 of the CLs-tab ChangeSpec grouping feature
 * Banner focus is reset on every cycle.
 * Non-CL tabs (Agents / AXE) ignore the CL cycle helper, and AXE is a
   silent no-op for the public action even if the focused tab.
-* Cycling is session-local and does not write grouping-mode state files.
+* Cycling schedules per-tab grouping-mode persistence.
 """
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ class _StubApp(AgentGroupingMixin):
         self.refilter_calls = 0
         self.refresh_calls = 0
         self.notifications: list[str] = []
+        self.scheduled: list[Any] = []
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
@@ -61,6 +63,9 @@ class _StubApp(AgentGroupingMixin):
 
     def notify(self, message: str, **kwargs: Any) -> None:
         self.notifications.append(message)
+
+    def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
+        self.scheduled.append((callback, args, kwargs))
 
 
 # ---------------------------------------------------------------------------
@@ -184,11 +189,11 @@ def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
 
 
 # ---------------------------------------------------------------------------
-# No persistence
+# Persistence
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_does_not_create_grouping_mode_files(
+def test_cycle_schedules_changespec_grouping_mode_save(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -197,6 +202,45 @@ def test_cycle_does_not_create_grouping_mode_files(
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     assert not (tmp_path / ".sase" / "changespec_grouping_mode.txt").exists()
     assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
+
+    callback, args, kwargs = app.scheduled[0]
+    assert args == ()
+    assert kwargs == {}
+    asyncio.run(callback())
+    assert (
+        tmp_path / ".sase" / "changespec_grouping_mode.txt"
+    ).read_text() == "by_date\n"
+    assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
+
+
+def test_rapid_changespec_cycles_save_latest_mode() -> None:
+    app = _StubApp()
+    saved: list[tuple[str, object]] = []
+
+    def _save_now(target: str, mode: object) -> bool:
+        saved.append((target, mode))
+        return True
+
+    app._save_grouping_mode_now = _save_now  # type: ignore[method-assign]
+
+    app.action_cycle_grouping_mode()  # BY_PROJECT -> BY_DATE; starts in-flight save.
+    app.action_cycle_grouping_mode()  # -> BY_STATUS; pending only.
+    app.action_cycle_grouping_mode()  # -> BY_PROJECT; latest pending.
+
+    assert len(app.scheduled) == 1
+    callback, args, kwargs = app.scheduled.pop(0)
+    assert args == ()
+    assert kwargs == {}
+    asyncio.run(callback())
+    assert saved == [("changespecs", ChangeSpecGroupingMode.BY_DATE)]
+
+    assert len(app.scheduled) == 1
+    callback, _, _ = app.scheduled.pop(0)
+    asyncio.run(callback())
+    assert saved == [
+        ("changespecs", ChangeSpecGroupingMode.BY_DATE),
+        ("changespecs", ChangeSpecGroupingMode.BY_PROJECT),
+    ]
 
 
 # ---------------------------------------------------------------------------

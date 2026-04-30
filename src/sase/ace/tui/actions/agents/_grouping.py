@@ -12,6 +12,8 @@ On the AXE tab the action is a silent no-op; AXE has no grouping model.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -22,6 +24,9 @@ if TYPE_CHECKING:
     from ...models.group_fold import GroupFoldRegistry
 
 TabName = Literal["changespecs", "agents", "axe"]
+GroupingSaveTarget = Literal["agents", "changespecs"]
+
+log = logging.getLogger(__name__)
 
 #: Agents-tab cycle order — STANDARD is included so a single press from
 #: BY_STATUS lands the user back at the project default.
@@ -64,6 +69,9 @@ class AgentGroupingMixin:
     _changespec_group_fold_registry: GroupFoldRegistry
     _changespec_group_fold_registries: dict[ChangeSpecGroupingMode, GroupFoldRegistry]
     _current_changespec_group_key: tuple[str, ...] | None
+    _grouping_mode_save_pending: dict[str, object]
+    _grouping_mode_save_inflight: set[str]
+    _grouping_mode_save_active: dict[str, object]
 
     def _next_grouping_mode(self, *, reverse: bool = False) -> GroupingMode:
         """Return the mode that follows :attr:`_grouping_mode` in the cycle."""
@@ -111,6 +119,73 @@ class AgentGroupingMixin:
             self._changespec_group_fold_registries[mode] = registry
         return registry
 
+    def _ensure_grouping_mode_save_state(self) -> None:
+        """Initialize save-coalescing attributes for direct mixin tests."""
+        if not hasattr(self, "_grouping_mode_save_pending"):
+            self._grouping_mode_save_pending = {}
+        if not hasattr(self, "_grouping_mode_save_inflight"):
+            self._grouping_mode_save_inflight = set()
+        if not hasattr(self, "_grouping_mode_save_active"):
+            self._grouping_mode_save_active = {}
+
+    def _schedule_grouping_mode_save(
+        self,
+        target: GroupingSaveTarget,
+        mode: GroupingMode | ChangeSpecGroupingMode,
+    ) -> None:
+        """Persist the latest grouping mode for *target* off the key path."""
+        self._ensure_grouping_mode_save_state()
+        self._grouping_mode_save_pending[target] = mode
+        if target in self._grouping_mode_save_inflight:
+            return
+        self._start_grouping_mode_save(target)
+
+    def _start_grouping_mode_save(self, target: GroupingSaveTarget) -> None:
+        mode = self._grouping_mode_save_pending.get(target)
+        if mode is None:
+            return
+        call_later = getattr(self, "call_later", None)
+        if not callable(call_later):
+            return
+        self._grouping_mode_save_inflight.add(target)
+        self._grouping_mode_save_active[target] = mode
+
+        async def _runner() -> None:
+            active_mode = self._grouping_mode_save_active[target]
+            try:
+                await asyncio.to_thread(
+                    self._save_grouping_mode_now, target, active_mode
+                )
+            except Exception:
+                log.exception("Grouping mode save failed for %s", target)
+            finally:
+                self._grouping_mode_save_inflight.discard(target)
+                self._grouping_mode_save_active.pop(target, None)
+                if self._grouping_mode_save_pending.get(target) is not active_mode:
+                    self._start_grouping_mode_save(target)
+
+        call_later(_runner)
+
+    def _save_grouping_mode_now(
+        self,
+        target: GroupingSaveTarget,
+        mode: object,
+    ) -> bool:
+        from ....grouping_strategy import (
+            save_agent_grouping_mode,
+            save_changespec_grouping_mode,
+        )
+        from ...models.agent_groups import GroupingMode
+        from ...models.changespec_groups import ChangeSpecGroupingMode
+
+        if target == "agents":
+            if not isinstance(mode, GroupingMode):
+                return False
+            return save_agent_grouping_mode(mode)
+        if not isinstance(mode, ChangeSpecGroupingMode):
+            return False
+        return save_changespec_grouping_mode(mode)
+
     def action_cycle_grouping_mode(self) -> None:
         """Advance the focused tab's grouping mode by one step.
 
@@ -142,6 +217,7 @@ class AgentGroupingMixin:
         # snap back to agent focus so the renderer doesn't try to
         # highlight a missing banner.
         self._current_group_key = None
+        self._schedule_grouping_mode_save("agents", next_mode)
         try:
             label = _MODE_LABELS.get(next_mode.name, next_mode.name)
             self.notify(  # type: ignore[attr-defined]
@@ -162,6 +238,7 @@ class AgentGroupingMixin:
         # Drop any banner focus from the previous mode — its tuple key
         # belongs to a different tree and would highlight nothing.
         self._current_changespec_group_key = None
+        self._schedule_grouping_mode_save("changespecs", next_mode)
         try:
             label = _CHANGESPEC_MODE_LABELS.get(next_mode.name, next_mode.name)
             self.notify(  # type: ignore[attr-defined]

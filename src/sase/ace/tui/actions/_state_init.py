@@ -239,10 +239,14 @@ class StateInitMixin:
         # points at the active mode's slot; the cycle action swaps it
         # in via :meth:`_ensure_mode_registry` so existing call sites
         # (loading, folding, display) keep reading a single attribute.
+        from ...grouping_strategy import (
+            load_agent_grouping_mode,
+            load_changespec_grouping_mode,
+        )
         from ..models.agent_group_fold import AgentGroupFoldRegistry
         from ..models.agent_groups import GroupingMode
 
-        self._grouping_mode: GroupingMode = GroupingMode.STANDARD
+        self._grouping_mode: GroupingMode = load_agent_grouping_mode()
         self._group_fold_registries: dict[GroupingMode, AgentGroupFoldRegistry] = {
             self._grouping_mode: AgentGroupFoldRegistry(),
         }
@@ -263,7 +267,7 @@ class StateInitMixin:
         from ..models.group_fold import GroupFoldRegistry
 
         self._changespec_grouping_mode: ChangeSpecGroupingMode = (
-            ChangeSpecGroupingMode.BY_PROJECT
+            load_changespec_grouping_mode()
         )
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
@@ -277,6 +281,13 @@ class StateInitMixin:
         # navigation; Phase 3 just needs a stable attribute to clear on
         # mode cycle and pass through to ``ChangeSpecList.update_list``).
         self._current_changespec_group_key: tuple[str, ...] | None = None
+
+        # Nonblocking grouping-mode persistence state.  The cycle action
+        # maintains a latest-value write per target so repeated keypresses
+        # cannot leave an older mode on disk after a slower write finishes.
+        self._grouping_mode_save_pending: dict[str, object] = {}
+        self._grouping_mode_save_inflight: set[str] = set()
+        self._grouping_mode_save_active: dict[str, object] = {}
 
         # Tag-driven side-panel collection.  Initialized empty (untagged
         # main pane only); rebuilt by ``_load_agents`` whenever the

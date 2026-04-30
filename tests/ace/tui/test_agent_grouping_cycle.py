@@ -12,6 +12,7 @@ Covers Phase 3 of the cyclable grouping/sorting modes feature
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,7 @@ class _StubApp(AgentGroupingMixin):
         self.scroll_calls = 0
         self.refresh_calls = 0
         self.notifications: list[str] = []
+        self.scheduled: list[Any] = []
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
@@ -68,6 +70,9 @@ class _StubApp(AgentGroupingMixin):
 
     def notify(self, message: str, **kwargs: Any) -> None:  # pragma: no cover
         self.notifications.append(message)
+
+    def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
+        self.scheduled.append((callback, args, kwargs))
 
 
 def _agent(
@@ -264,19 +269,53 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# No persistence on cycle
+# Persistence on cycle
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_does_not_create_grouping_mode_file(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
-    """Cycling is session-local; it no longer writes the selected mode."""
+def test_cycle_schedules_grouping_mode_save(tmp_path: Path, monkeypatch: Any) -> None:
+    """Cycling schedules persistence without writing on the key path."""
     monkeypatch.setenv("HOME", str(tmp_path))
     app = _StubApp([_agent()])
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
     assert not (tmp_path / ".sase" / "grouping_mode.txt").exists()
+
+    callback, args, kwargs = app.scheduled[0]
+    assert args == ()
+    assert kwargs == {}
+    asyncio.run(callback())
+    assert (tmp_path / ".sase" / "grouping_mode.txt").read_text() == "by_date\n"
+
+
+def test_rapid_agent_cycles_save_latest_mode() -> None:
+    app = _StubApp([_agent()])
+    saved: list[tuple[str, object]] = []
+
+    def _save_now(target: str, mode: object) -> bool:
+        saved.append((target, mode))
+        return True
+
+    app._save_grouping_mode_now = _save_now  # type: ignore[method-assign]
+
+    app.action_cycle_grouping_mode()  # STANDARD -> BY_DATE; starts in-flight save.
+    app.action_cycle_grouping_mode()  # -> BY_STATUS; pending only.
+    app.action_cycle_grouping_mode()  # -> STANDARD; latest pending.
+
+    assert len(app.scheduled) == 1
+    callback, args, kwargs = app.scheduled.pop(0)
+    assert args == ()
+    assert kwargs == {}
+    asyncio.run(callback())
+    assert saved == [("agents", GroupingMode.BY_DATE)]
+
+    assert len(app.scheduled) == 1
+    callback, _, _ = app.scheduled.pop(0)
+    asyncio.run(callback())
+    assert saved == [
+        ("agents", GroupingMode.BY_DATE),
+        ("agents", GroupingMode.STANDARD),
+    ]
 
 
 # ---------------------------------------------------------------------------
