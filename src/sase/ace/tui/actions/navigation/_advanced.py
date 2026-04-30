@@ -348,15 +348,16 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 if self._restore_agents_jump_anchor():
                     self._exit_entry_jump_mode()
                     return True
-                self._exit_entry_jump_mode()
-                return True
-            last_idx = self._entry_jump_last_index.get(self.current_tab)
-            if last_idx is not None:
-                # Save current position before jumping back
-                self._entry_jump_last_index[self.current_tab] = self.current_idx
-                self.current_idx = last_idx
-            self._exit_entry_jump_mode()
-            return True
+                key = "1"
+            else:
+                last_idx = self._entry_jump_last_index.get(self.current_tab)
+                if last_idx is not None:
+                    # Save current position before jumping back
+                    self._entry_jump_last_index[self.current_tab] = self.current_idx
+                    self.current_idx = last_idx
+                    self._exit_entry_jump_mode()
+                    return True
+                key = "1"
 
         if self.current_tab == "agents":
             banner_target = self._entry_jump_hint_to_banner.get(key)

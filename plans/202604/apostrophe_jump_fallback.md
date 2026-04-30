@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 20:21:25
-status: wip
+status: done
 ---
 # Apostrophe Jump Fallback Plan
 

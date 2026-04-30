@@ -26,6 +26,7 @@ from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, BgCmdList
 from sase.ace.tui.widgets._changespec_list_helpers import format_changespec_option
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
+from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 
 
 def _make_changespec(name: str = "test_feature") -> ChangeSpec:
@@ -162,6 +163,20 @@ def test_inline_jump_to_entry_allocates_and_dispatches_uppercase_hint() -> None:
     assert app._entry_jump_mode_active is False
 
 
+def test_apostrophe_without_history_dispatches_first_changespec_hint() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+
+    app.action_jump_to_entry()
+    handled = app._handle_entry_jump_key("apostrophe")
+
+    assert handled is True
+    assert app.current_idx == 0
+    assert app._entry_jump_last_index["changespecs"] == 2
+    assert app._entry_jump_mode_active is False
+
+
 def test_inline_jump_on_key_uses_uppercase_event_character() -> None:
     app = _InlineJumpEventApp()
     event = _KeyEvent(key="a", character="A")
@@ -212,6 +227,34 @@ def test_agent_list_hint_marker_rendered() -> None:
         hint_char="b",
     )
     assert "[b]" in str(option.prompt)
+
+
+def test_jump_footer_shows_apostrophe_first_without_history() -> None:
+    footer = KeybindingFooter()
+    rendered: list[str] = []
+
+    def _capture(text: Any) -> None:
+        rendered.append(text.plain)
+
+    footer._update_display = _capture  # type: ignore[method-assign]
+
+    footer.update_jump_bindings(has_back=False)
+
+    assert rendered == ["JUMP ' first  <esc> cancel"]
+
+
+def test_jump_footer_shows_apostrophe_back_with_history() -> None:
+    footer = KeybindingFooter()
+    rendered: list[str] = []
+
+    def _capture(text: Any) -> None:
+        rendered.append(text.plain)
+
+    footer._update_display = _capture  # type: ignore[method-assign]
+
+    footer.update_jump_bindings(has_back=True)
+
+    assert rendered == ["JUMP ' back  <esc> cancel"]
 
 
 def test_jump_all_modal_stores_last_position() -> None:

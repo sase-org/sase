@@ -49,7 +49,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.prev_changespec_history)} / {d(a.next_changespec_history)}",
                     "Jump back / forward in history",
                 ),
-                (d(a.jump_to_entry), "Jump to entry"),
+                (d(a.jump_to_entry), "Jump to entry (' first/back)"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
@@ -302,7 +302,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
                     "Cycle focus across tag panels",
                 ),
-                (d(a.jump_to_entry), "Jump to entry / folded heading"),
+                (d(a.jump_to_entry), "Jump entry/head (' first/back)"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
@@ -528,7 +528,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
                     "Move to next / previous command",
                 ),
-                (d(a.jump_to_entry), "Jump to entry"),
+                (d(a.jump_to_entry), "Jump to entry (' first/back)"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

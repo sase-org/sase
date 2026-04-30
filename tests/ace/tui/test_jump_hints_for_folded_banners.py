@@ -173,3 +173,22 @@ def test_back_jump_restores_agent_anchor() -> None:
 
     assert app._current_group_key is None
     assert app.current_idx == 1
+
+
+def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
+    """No-history ``'`` follows hint ``1`` through normal banner dispatch."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="beta", cl="b1", name="b1"),
+    ]
+    app = _StubApp(agents, collapsed=[("alpha",)])
+    app.current_idx = 1
+
+    app._begin_agents_jump_mode()
+    handled = app._handle_entry_jump_key("apostrophe")
+
+    assert handled is True
+    assert app._current_group_key == ("alpha",)
+    assert app.current_idx == 1
+    assert app._entry_jump_last_agents_anchor == ("agent", 1, 0)
+    assert app._entry_jump_mode_active is False

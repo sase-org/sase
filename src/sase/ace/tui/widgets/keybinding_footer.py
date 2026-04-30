@@ -411,9 +411,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
 
     def update_jump_bindings(self, *, has_back: bool = False) -> None:
         """Update bindings to show entry jump mode options."""
-        bindings: list[tuple[str, str]] = []
-        if has_back:
-            bindings.append(("'", "back"))
+        bindings: list[tuple[str, str]] = [("'", "back" if has_back else "first")]
         bindings.append(("<esc>", "cancel"))
         text = self._format_bindings(bindings)
         prefix = Text()
