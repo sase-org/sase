@@ -6,7 +6,7 @@ from typing import Any
 
 from rich.text import Text
 from textual import events
-from textual.widgets import Label, OptionList
+from textual.widgets import Label
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import (
@@ -207,7 +207,7 @@ class NotificationOptionMixin:
                 current = self._get_selected_index()
                 if current is not None:
                     self._entry_jump_last_index = current
-                return self._select_notification_index(last_target)
+                return self._jump_to_notification_index(last_target)
             key = "1"
 
         hint_target = self._entry_jump_hint_to_index.get(key)
@@ -218,26 +218,17 @@ class NotificationOptionMixin:
         current = self._get_selected_index()
         if current is not None:
             self._entry_jump_last_index = current
-        return self._select_notification_index(hint_target)
+        return self._jump_to_notification_index(hint_target)
 
-    def _select_notification_index(self: Any, notification_idx: int) -> bool:
-        """Highlight and select the given notification index."""
+    def _jump_to_notification_index(self: Any, notification_idx: int) -> bool:
+        """Highlight the given notification index without activating it."""
         if not 0 <= notification_idx < len(self._notifications):
             self._exit_entry_jump_mode()
             return True
 
-        try:
-            option_list = self.query_one("#notification-list", OptionList)
-            row = self._row_for_notification_index(option_list, notification_idx)
-            if row is not None:
-                option_list.highlighted = row
-        except Exception:
-            pass
-
-        notification = self._notifications[notification_idx]
         self._clear_entry_jump_hints()
         self._update_hint_footer()
-        self.dismiss(notification)
+        self._rebuild_list(highlight_index=notification_idx)
         return True
 
     def _update_hint_footer(self: Any) -> None:

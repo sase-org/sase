@@ -1,7 +1,10 @@
 """Tests for NotificationModal dismiss behavior."""
 
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock, patch
+
+from textual.app import App, ComposeResult
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.notifications import Notification
@@ -15,6 +18,67 @@ def _make_notification(notification_id: str, action: str | None = None) -> Notif
         sender="test",
         action=action,
     )
+
+
+class _TestApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+
+class _FakeOptionList:
+    def __init__(self, options: list[Any]) -> None:
+        self.options = list(options)
+        self.highlighted: int | None = None
+
+    @property
+    def option_count(self) -> int:
+        return len(self.options)
+
+    def get_option_at_index(self, row: int) -> Any:
+        return self.options[row]
+
+    def clear_options(self) -> None:
+        self.options.clear()
+
+    def add_option(self, option: Any) -> None:
+        self.options.append(option)
+
+    def add_class(self, _class_name: str) -> None:
+        return
+
+
+class _KeyEvent:
+    def __init__(self, key: str, character: str | None) -> None:
+        self.key = key
+        self.character = character
+        self.prevented = False
+        self.stopped = False
+
+    def prevent_default(self) -> None:
+        self.prevented = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def _wire_fake_option_list(
+    modal: NotificationModal, *, highlighted_index: int = 0
+) -> _FakeOptionList:
+    option_list = _FakeOptionList(modal._create_sectioned_options())
+    row = modal._row_for_notification_index(  # type: ignore[arg-type]
+        option_list, highlighted_index
+    )
+    option_list.highlighted = row
+
+    def query_one(selector: str, *_args: Any, **_kwargs: Any) -> Any:
+        if selector == "#notification-list":
+            return option_list
+        raise LookupError(selector)
+
+    modal.query_one = MagicMock(side_effect=query_one)  # type: ignore[method-assign]
+    return option_list
 
 
 def test_dismiss_notification_direct_for_non_plan_question() -> None:
@@ -459,32 +523,36 @@ def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
     assert "[3]" in by_id["1"]
 
 
-def test_notification_jump_apostrophe_without_history_selects_first_visual() -> None:
-    """A second apostrophe in jump mode acts like the first visual hint."""
+def test_notification_jump_apostrophe_without_history_highlights_first_visual() -> None:
+    """A second apostrophe in jump mode navigates to the first visual row."""
     inbox = _make_notification("i1", action="JumpToAgent")
     priority = _make_notification("p1", action="PlanApproval")
     modal = NotificationModal([inbox, priority])
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
     handled = modal._handle_entry_jump_key("apostrophe")
 
     assert handled is True
-    modal.dismiss.assert_called_once_with(priority)
+    assert modal._get_selected_index() == 1
+    modal._display_file.assert_called_with(priority)
+    modal.dismiss.assert_not_called()
     assert modal._entry_jump_last_index == 0
     assert modal._entry_jump_mode_active is False
 
 
-def test_notification_jump_dispatches_uppercase_hint_character() -> None:
-    """Uppercase hint characters select their matching notification."""
+def test_notification_jump_dispatches_uppercase_hint_character_without_dismiss() -> (
+    None
+):
+    """Uppercase hint characters navigate to their matching notification."""
     notifications = [
         _make_notification(f"n{i:02d}", action="JumpToAgent") for i in range(37)
     ]
     modal = NotificationModal(notifications)
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
@@ -492,25 +560,29 @@ def test_notification_jump_dispatches_uppercase_hint_character() -> None:
     handled = modal._handle_entry_jump_key("A")
 
     assert handled is True
-    modal.dismiss.assert_called_once_with(notifications[36])
+    assert modal._get_selected_index() == 36
+    modal._display_file.assert_called_with(notifications[36])
+    modal.dismiss.assert_not_called()
 
 
-def test_notification_jump_apostrophe_back_selects_previous_notification() -> None:
+def test_notification_jump_apostrophe_back_highlights_previous_notification() -> None:
     """Apostrophe in jump mode returns to the saved previous notification."""
     notifications = [
         _make_notification(f"n{i}", action="JumpToAgent") for i in range(3)
     ]
     modal = NotificationModal(notifications)
     modal._entry_jump_last_index = 2
-    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
-    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
     handled = modal._handle_entry_jump_key("apostrophe")
 
     assert handled is True
-    modal.dismiss.assert_called_once_with(notifications[2])
+    assert modal._get_selected_index() == 2
+    modal._display_file.assert_called_with(notifications[2])
+    modal.dismiss.assert_not_called()
     assert modal._entry_jump_last_index == 0
 
 
@@ -528,3 +600,103 @@ def test_notification_jump_escape_cancels_without_dismiss() -> None:
     modal.dismiss.assert_not_called()
     assert modal._entry_jump_mode_active is False
     modal._rebuild_list.assert_called_with(highlight_index=0)
+
+
+def test_notification_jump_invalid_key_cancels_without_changing_highlight() -> None:
+    """Invalid jump keys remove hints and keep the current row highlighted."""
+    notifications = [
+        _make_notification(f"n{i}", action="JumpToAgent") for i in range(2)
+    ]
+    modal = NotificationModal(notifications)
+    _wire_fake_option_list(modal, highlighted_index=1)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    handled = modal._handle_entry_jump_key("q")
+
+    assert handled is True
+    assert modal._get_selected_index() == 1
+    assert modal._entry_jump_mode_active is False
+    modal.dismiss.assert_not_called()
+
+
+def test_notification_jump_resets_file_index_and_refreshes_preview() -> None:
+    """Jump navigation resets file paging and refreshes the target preview."""
+    first = _make_notification("n1", action="JumpToAgent")
+    target = _make_notification("n2", action="JumpToAgent")
+    first.files = ["/tmp/one.txt"]
+    target.files = ["/tmp/two.txt"]
+    modal = NotificationModal([first, target])
+    modal._current_file_index = 3
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    handled = modal._handle_entry_jump_key("2")
+
+    assert handled is True
+    assert modal._get_selected_index() == 1
+    assert modal._current_file_index == 0
+    modal._display_file.assert_called_with(target)
+    modal.dismiss.assert_not_called()
+
+
+def test_notification_jump_on_key_stops_valid_hint_without_dismiss() -> None:
+    """The key event path consumes valid hints while keeping the modal open."""
+    first = _make_notification("n1", action="JumpToAgent")
+    second = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([first, second])
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+    event = _KeyEvent(key="2", character="2")
+
+    modal.action_jump_to_entry()
+    modal.on_key(event)  # type: ignore[arg-type]
+
+    assert event.prevented is True
+    assert event.stopped is True
+    assert modal._get_selected_index() == 1
+    modal.dismiss.assert_not_called()
+
+
+def test_notification_jump_then_enter_activates_highlighted_notification() -> None:
+    """Enter remains the activation path after a jump changes highlight."""
+    first = _make_notification("n1", action="JumpToAgent")
+    second = _make_notification("n2", action="JumpToAgent")
+    modal = NotificationModal([first, second])
+    option_list = _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    assert modal._handle_entry_jump_key("2") is True
+    modal.dismiss.assert_not_called()
+
+    event = MagicMock()
+    event.option = option_list.get_option_at_index(option_list.highlighted)
+    modal.on_option_list_option_selected(event)
+
+    modal.dismiss.assert_called_once_with(second)
+
+
+async def test_notification_jump_pilot_keeps_modal_open_and_moves_highlight() -> None:
+    """Pilot coverage for the exact apostrophe-hint modal interaction."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    priority = _make_notification("p1", action="PlanApproval")
+    dismissed: list[Notification | None] = []
+
+    async with _TestApp().run_test() as pilot:
+        modal = NotificationModal([inbox, priority], initial_index=0)
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        await pilot.press("apostrophe")
+        await pilot.press("1")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert modal._get_selected_index() == 1
