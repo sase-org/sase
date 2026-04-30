@@ -1,4 +1,4 @@
-"""Temporary LLM override indicator for the ace TUI top bar."""
+"""LLM model status indicator for the ace TUI top bar."""
 
 from __future__ import annotations
 
@@ -13,10 +13,12 @@ from sase.llm_provider.registry import format_provider_model_label
 from sase.llm_provider.temporary_override import (
     TemporaryLLMOverride,
     get_active_temporary_override,
+    resolve_effective_default_provider_model,
 )
 
 _LABEL_MAX_WIDTH = 24
 _ACTIVE_STYLE = "bold #1a1a1a on #D7AF5F"
+_DEFAULT_STYLE = "dim cyan"
 
 
 def _elide_middle(value: str, max_width: int = _LABEL_MAX_WIDTH) -> str:
@@ -53,7 +55,7 @@ def _format_remaining_until(expires_at: float | None, now: float | None = None) 
 
 
 class LLMOverrideIndicator(Static):
-    """Shows the active temporary LLM override in the top bar."""
+    """Shows the default model or active temporary override in the top bar."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(self._build_content(), **kwargs)
@@ -77,15 +79,48 @@ class LLMOverrideIndicator(Static):
         now: float | None = None,
         label_max_width: int = _LABEL_MAX_WIDTH,
     ) -> Text:
-        """Build the indicator content for an active override."""
+        """Build the indicator content for the current model state."""
         override = override if override is not None else get_active_temporary_override()
-        if override is None:
-            return Text("")
+        if override is not None:
+            override_content = LLMOverrideIndicator._build_override_content(
+                override,
+                now=now,
+                label_max_width=label_max_width,
+            )
+            if override_content is not None:
+                return override_content
 
+        return LLMOverrideIndicator._build_default_content(
+            label_max_width=label_max_width
+        )
+
+    @staticmethod
+    def _build_override_content(
+        override: TemporaryLLMOverride,
+        *,
+        now: float | None = None,
+        label_max_width: int = _LABEL_MAX_WIDTH,
+    ) -> Text | None:
+        """Build the high-signal content for an active temporary override."""
         remaining = _format_remaining_until(override.expires_at, now)
         if not remaining:
-            return Text("")
+            return None
 
         label = format_provider_model_label(override.provider, override.model)
         label = _elide_middle(label, label_max_width)
-        return Text(f" LLM: {label} {remaining} ", style=_ACTIVE_STYLE)
+        return Text(f" Override {label} {remaining} ", style=_ACTIVE_STYLE)
+
+    @staticmethod
+    def _build_default_content(
+        *,
+        label_max_width: int = _LABEL_MAX_WIDTH,
+    ) -> Text:
+        """Build the calm default model content."""
+        try:
+            provider_name, model_name = resolve_effective_default_provider_model()
+        except Exception:
+            return Text(" Model unavailable ", style=_DEFAULT_STYLE)
+
+        label = format_provider_model_label(provider_name, model_name)
+        label = _elide_middle(label, label_max_width)
+        return Text(f" Model {label} ", style=_DEFAULT_STYLE)

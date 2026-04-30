@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 22:14:44
-status: wip
+status: done
 ---
 # Plan: Always-Visible TUI Model Indicator
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.llm_override_indicator import (
     LLMOverrideIndicator,
@@ -34,32 +36,65 @@ def _override(
     )
 
 
-def test_inactive_renders_empty() -> None:
+def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        lambda: ("codex", "gpt-5.5"),
+    )
+
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == ""
+    assert text.plain == " Model CODEX(gpt-5.5) "
+    assert "cyan" in str(text.style)
+
+
+def test_active_override_skips_default_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail() -> tuple[str, str]:
+        raise AssertionError("default resolver should not be called")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        fail,
+    )
+
+    text = LLMOverrideIndicator._build_content(_override(expires_at=3_820.0), now=100.0)
+
+    assert text.plain == " Override CODEX(o3) 1h2m "
 
 
 def test_active_with_expiry_renders_label_and_countdown() -> None:
     text = LLMOverrideIndicator._build_content(_override(expires_at=3_820.0), now=100.0)
 
-    assert text.plain == " LLM: CODEX(o3) 1h2m "
+    assert text.plain == " Override CODEX(o3) 1h2m "
     assert "#D7AF5F" in str(text.style)
 
 
 def test_active_until_cleared_renders_without_countdown() -> None:
     text = LLMOverrideIndicator._build_content(_override(expires_at=None), now=100.0)
 
-    assert text.plain == " LLM: CODEX(o3) until cleared "
+    assert text.plain == " Override CODEX(o3) until cleared "
 
 
-def test_expired_override_renders_empty() -> None:
+def test_expired_override_renders_default_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        lambda: ("claude", "sonnet"),
+    )
+
     text = LLMOverrideIndicator._build_content(_override(expires_at=99.0), now=100.0)
 
-    assert text.plain == ""
+    assert text.plain == " Model CLAUDE(sonnet) "
 
 
-def test_expired_state_file_is_cleaned_up() -> None:
+def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        lambda: ("claude", "sonnet"),
+    )
     path = _state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -78,7 +113,7 @@ def test_expired_state_file_is_cleaned_up() -> None:
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == ""
+    assert text.plain == " Model CLAUDE(sonnet) "
     assert not path.exists()
 
 
@@ -89,7 +124,36 @@ def test_long_label_is_elided_in_the_middle() -> None:
         label_max_width=18,
     )
 
-    assert text.plain == " LLM: VERYLONG...l-name) 15m "
+    assert text.plain == " Override VERYLONG...l-name) 15m "
+
+
+def test_long_default_label_is_elided_in_the_middle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        lambda: ("verylongprovider", "extremely-long-model-name"),
+    )
+
+    text = LLMOverrideIndicator._build_content(label_max_width=18)
+
+    assert text.plain == " Model VERYLONG...l-name) "
+
+
+def test_default_resolution_failure_renders_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail() -> tuple[str, str]:
+        raise RuntimeError("no provider")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
+        fail,
+    )
+
+    text = LLMOverrideIndicator._build_content()
+
+    assert text.plain == " Model unavailable "
 
 
 def test_elide_middle_handles_short_labels() -> None:
