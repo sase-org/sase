@@ -192,6 +192,7 @@ def _finalize_loop(
                 step_output.get(key)
                 for key in (
                     "meta_new_commit",
+                    "meta_commit_message",
                     "meta_pr_url",
                 )
             )

@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.axe.image_attachments import is_supported_image_path
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -292,13 +294,40 @@ class ArtifactRestorationMixin:
             data["name"] = agent.agent_name
         if agent.approve:
             data["approve"] = agent.approve
-        if agent.extra_files:
-            data["plan_path"] = agent.extra_files[0]
+        plan_path, image_paths = (
+            ArtifactRestorationMixin._split_extra_files_for_done_json(agent.extra_files)
+        )
+        if plan_path:
+            data["plan_path"] = plan_path
+        if image_paths:
+            data["image_paths"] = image_paths
         if agent.error_message:
             data["error"] = agent.error_message
         if agent.error_traceback:
             data["traceback"] = agent.error_traceback
         return data
+
+    @staticmethod
+    def _split_extra_files_for_done_json(
+        extra_files: list[str],
+    ) -> tuple[str | None, list[str]]:
+        """Split file-panel extras into done.json plan and image fields."""
+        plan_path: str | None = None
+        image_paths: list[str] = []
+        seen_images: set[str] = set()
+        for path in extra_files:
+            if not path:
+                continue
+            if is_supported_image_path(path):
+                key = str(Path(path).expanduser().resolve(strict=False))
+                if key in seen_images:
+                    continue
+                seen_images.add(key)
+                image_paths.append(path)
+                continue
+            if plan_path is None:
+                plan_path = path
+        return plan_path, image_paths
 
     @staticmethod
     def _restore_agent_meta(agent: Agent, artifacts_dir: Path) -> None:

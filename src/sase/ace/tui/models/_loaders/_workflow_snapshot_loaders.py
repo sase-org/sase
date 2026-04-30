@@ -21,6 +21,7 @@ from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
+from ._image_attachments import append_inferred_diff_images
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import ACTIVE_STATUSES
 
@@ -220,6 +221,7 @@ def load_workflow_agents_from_snapshot(
             enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
         else:
             enrich_agent_from_meta(agent, entry.artifacts_dir)
+        append_inferred_diff_images(agent)
         agents.append(agent)
 
     return agents

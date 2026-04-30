@@ -186,6 +186,7 @@ def test_running_workflow_dedup_ace_run() -> None:
         workspace_num=3,
         response_path="/tmp/response.txt",
         diff_path="/tmp/diff.patch",
+        extra_files=["/tmp/image.png"],
         model="gemini-2.5-pro",
         vcs_provider="GitHub",
     )
@@ -201,6 +202,7 @@ def test_running_workflow_dedup_ace_run() -> None:
         raw_suffix="20260219120000",
         appears_as_agent=True,
         pid=55555,
+        extra_files=["/tmp/plan.md"],
     )
 
     with (
@@ -249,6 +251,7 @@ def test_running_workflow_dedup_ace_run() -> None:
     assert result[0].workspace_num == 3
     assert result[0].response_path == "/tmp/response.txt"
     assert result[0].diff_path == "/tmp/diff.patch"
+    assert result[0].extra_files == ["/tmp/plan.md", "/tmp/image.png"]
     assert result[0].model == "gemini-2.5-pro"
     assert result[0].vcs_provider == "GitHub"
     # PID should come from the WORKFLOW agent
