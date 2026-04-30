@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 23:54:50
-status: wip
+status: done
 ---
 # Plan: make `sase bead work <epic>` re-runnable
 

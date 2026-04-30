@@ -20,6 +20,7 @@ from sase.agent.names._auto import (
     get_active_agent_name_map,
     get_active_agent_names,
     get_active_child_names,
+    get_live_agent_name_map,
     get_next_auto_name,
 )
 from sase.agent.names._claim import claim_agent_name
@@ -142,6 +143,7 @@ __all__ = [
     "get_active_agent_name_map",
     "get_active_agent_names",
     "get_active_child_names",
+    "get_live_agent_name_map",
     "get_most_recent_agent_name",
     "get_next_auto_name",
     "is_dismissed_prefixed",

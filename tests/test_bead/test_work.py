@@ -187,6 +187,21 @@ class TestIndependentFanOut:
 
 
 class TestClosedBlockers:
+    def test_in_progress_phase_is_included(self, conn: sqlite3.Connection) -> None:
+        _seed(
+            conn,
+            [
+                _epic("e1"),
+                _phase("p1", status=Status.IN_PROGRESS),
+            ],
+        )
+
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert len(plan.waves) == 1
+        assert _wave_bead_ids(plan, 0) == ["p1"]
+        assert plan.land_waits_on == ("p1",)
+
     def test_in_epic_closed_blocker_does_not_gate(
         self, conn: sqlite3.Connection
     ) -> None:
@@ -206,6 +221,58 @@ class TestClosedBlockers:
         assert _wave_bead_ids(plan, 0) == ["p2"]
         assert plan.waves[0][0].waits_on == ()
         assert plan.land_waits_on == ("p2",)
+
+    def test_closed_blocker_is_omitted_from_rendered_waits(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(
+            conn,
+            [
+                _epic("e1"),
+                _phase("p1", status=Status.CLOSED),
+                _phase("p2"),
+            ],
+        )
+        _depends(conn, "p2", "p1")
+
+        plan = build_epic_work_plan(conn, "e1")
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert "#bd/work_phase_bead:p1" not in rendered
+        assert "%w:p1" not in rendered
+        assert "#bd/work_phase_bead:p2" in rendered
+
+    def test_mixed_closed_and_non_closed_phases_render_only_remaining(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(
+            conn,
+            [
+                _epic("e1"),
+                _phase("p1", status=Status.CLOSED),
+                _phase("p2", status=Status.IN_PROGRESS),
+                _phase("p3"),
+            ],
+        )
+        _depends(conn, "p2", "p1")
+        _depends(conn, "p3", "p2")
+
+        plan = build_epic_work_plan(conn, "e1")
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert "#bd/work_phase_bead:p1" not in rendered
+        assert "#bd/work_phase_bead:p2" in rendered
+        assert "#bd/work_phase_bead:p3" in rendered
+        assert "%w:p2" in rendered
+        assert "#bd/land_epic:e1" in rendered
 
     def test_out_of_epic_closed_blocker_is_accepted(
         self, conn: sqlite3.Connection
@@ -280,7 +347,7 @@ class TestEpicValidation:
                 _phase("p1", status=Status.CLOSED),
             ],
         )
-        with pytest.raises(EpicPlanError):
+        with pytest.raises(EpicPlanError, match="no non-closed phase children"):
             build_epic_work_plan(conn, "e1")
 
 

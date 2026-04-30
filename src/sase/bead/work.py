@@ -63,15 +63,16 @@ def _land_agent_name(epic_id: str) -> str:
 
 
 def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan:
-    """Compute a wave-partitioned plan to work the open phase children of *epic_id*.
+    """Compute a wave-partitioned plan to work non-closed phase children.
 
-    Open phase children are layered Kahn-style: wave 0 is every phase whose
-    in-epic open blockers are all already satisfied (closed); wave *k* is
-    every phase whose remaining in-epic open blockers fall in waves < *k*.
+    Non-closed phase children are layered Kahn-style: wave 0 is every phase
+    whose in-epic non-closed blockers are all already satisfied (closed);
+    wave *k* is every phase whose remaining in-epic non-closed blockers fall
+    in waves < *k*.
 
     Raises:
         EpicPlanError: If the epic does not exist, is not a plan-type bead,
-            or has no open phase children.
+            or has no non-closed phase children.
         CrossEpicBlockerError: If a phase depends on an out-of-epic blocker
             that is not closed.
         CycleError: If the open phases form a dependency cycle.
@@ -89,7 +90,7 @@ def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan
         if c.issue_type == IssueType.PHASE and c.status != Status.CLOSED
     ]
     if not open_phases:
-        raise EpicPlanError(f"Epic {epic_id!r} has no open phase children")
+        raise EpicPlanError(f"Epic {epic_id!r} has no non-closed phase children")
 
     in_epic_phase_ids = {c.id for c in children if c.issue_type == IssueType.PHASE}
     open_phase_ids = {p.id for p in open_phases}

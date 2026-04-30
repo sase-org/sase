@@ -168,6 +168,58 @@ def get_active_agent_name_map() -> dict[str, str]:
     return name_map
 
 
+def get_live_agent_name_map() -> dict[str, str]:
+    """Return ``{name: artifact_dir}`` for live, non-dismissed agents only.
+
+    Unlike :func:`get_active_agent_name_map`, terminal done agents do not
+    reserve names here. This is for workflows that can intentionally retry a
+    completed or failed historical name but must not duplicate a running agent.
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return {}
+
+    dismissed_suffixes = _load_dismissed_suffixes()
+    name_map: dict[str, str] = {}
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+            if artifact_dir.name in dismissed_suffixes:
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            if (artifact_dir / "done.json").exists():
+                continue
+            if not is_process_alive(data, artifact_dir):
+                continue
+
+            for value in (data.get("name"), data.get("workflow_name")):
+                if isinstance(value, str) and value:
+                    name_map.setdefault(value, str(artifact_dir))
+
+    return name_map
+
+
 def _load_dismissed_suffixes() -> set[str]:
     """Return dismissed raw suffixes, ignoring load/import errors."""
     try:
