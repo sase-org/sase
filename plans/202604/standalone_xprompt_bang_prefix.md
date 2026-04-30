@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-29 23:28:54
-status: wip
+status: done
 bead_id: sase-1g
 ---
 # Plan: Require `#!` for standalone xprompt workflows
