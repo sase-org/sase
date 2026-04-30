@@ -253,28 +253,6 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["plan_action"] == "commit"
 
 
-def test_build_done_json_data_splits_plan_and_image_extra_files() -> None:
-    """Revived done markers preserve image attachments separately from plans."""
-    agent = _make_agent(
-        agent_type=AgentType.RUNNING,
-        extra_files=[
-            "/tmp/plan.md",
-            "/tmp/docs/images/panel.png",
-            "/tmp/docs/images/panel.png",
-            "/tmp/notes.txt",
-            "/tmp/screenshot.webp",
-        ],
-    )
-
-    data = AgentRevivalMixin._build_done_json_data(agent)
-
-    assert data["plan_path"] == "/tmp/plan.md"
-    assert data["image_paths"] == [
-        "/tmp/docs/images/panel.png",
-        "/tmp/screenshot.webp",
-    ]
-
-
 # ---------------------------------------------------------------------------
 # Phase 4: dismissal-prefix stripping on revive
 # ---------------------------------------------------------------------------

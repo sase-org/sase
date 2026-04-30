@@ -15,7 +15,6 @@ from sase.core.agent_scan_wire import (
 )
 
 from ._json_cache import load_json_cached
-from ._image_attachments import append_inferred_diff_images
 from ._meta_enrichment import (
     enrich_agent_from_prompt_markers,
     enrich_agent_from_prompt_markers_wire,
@@ -165,7 +164,6 @@ def _load_done_agent_for_dir(
         # about when writing done.json).
         enrich_agent_from_meta(agent, str(artifact_dir))
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
-        append_inferred_diff_images(agent)
 
         return agent
     except Exception:
@@ -301,7 +299,6 @@ def _build_done_agent_from_record(
 
     enrich_agent_from_meta_wire(agent, record.agent_meta, record.waiting)
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
-    append_inferred_diff_images(agent)
     return agent
 
 

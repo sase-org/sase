@@ -11,13 +11,9 @@ SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 
 
-def is_supported_image_path(path: str | os.PathLike[str]) -> bool:
+def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
     """Return whether *path* has an image extension SASE should attach."""
     return Path(path).suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
-
-
-def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
-    return is_supported_image_path(path)
 
 
 def append_unique_paths(
@@ -61,26 +57,6 @@ def collect_agent_image_paths(
     image_paths = [
         resolved
         for candidate in candidates
-        if (resolved := _resolve_existing_image_path(candidate, workspace_dir))
-    ]
-    return append_unique_paths(image_paths, existing_files)
-
-
-def collect_saved_diff_image_paths(
-    workspace_dir: str,
-    diff_path: str | None,
-    *,
-    existing_files: Iterable[str] = (),
-) -> list[str]:
-    """Collect existing image files referenced by a saved diff.
-
-    Unlike :func:`collect_agent_image_paths`, this does not inspect git state.
-    It is intended for loader/revive paths where the saved diff is the only
-    stable artifact and the workspace may no longer belong to the agent.
-    """
-    image_paths = [
-        resolved
-        for candidate in _paths_from_diff_file(diff_path)
         if (resolved := _resolve_existing_image_path(candidate, workspace_dir))
     ]
     return append_unique_paths(image_paths, existing_files)

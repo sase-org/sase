@@ -2,10 +2,8 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from sase.axe.run_agent_helpers import extract_step_output_and_diff_path
-from sase.ace.tui.models._loaders import load_done_agents
 
 
 def test_extract_step_output_from_workflow_state(tmp_path: Path) -> None:
@@ -152,59 +150,3 @@ def test_extract_returns_none_without_workflow_state(tmp_path: Path) -> None:
 
     assert step_output is None
     assert diff_path is None
-
-
-def test_load_done_agents_infers_image_from_saved_binary_diff(
-    tmp_path: Path,
-) -> None:
-    """Done agents recover image attachments when done.json omitted them."""
-    home = tmp_path / "home"
-    artifact_dir = (
-        home
-        / ".sase"
-        / "projects"
-        / "proj"
-        / "artifacts"
-        / "ace-run"
-        / "20260430032430"
-    )
-    artifact_dir.mkdir(parents=True)
-    workspace = tmp_path / "workspace"
-    image = workspace / "docs" / "images" / "panel.png"
-    image.parent.mkdir(parents=True)
-    image.write_bytes(b"png")
-    diff_path = tmp_path / "saved.diff"
-    diff_path.write_text(
-        "diff --git a/docs/images/panel.png b/docs/images/panel.png\n"
-        "new file mode 100644\n"
-        "Binary files /dev/null and b/docs/images/panel.png differ\n",
-        encoding="utf-8",
-    )
-    plan_path = str(tmp_path / "plan.md")
-    (artifact_dir / "done.json").write_text(
-        json.dumps(
-            {
-                "cl_name": "feature",
-                "project_file": str(home / ".sase" / "projects" / "proj" / "proj.gp"),
-                "workspace_num": 101,
-                "diff_path": str(diff_path),
-                "plan_path": plan_path,
-                "image_paths": [],
-            }
-        )
-    )
-
-    with (
-        patch(
-            "sase.ace.tui.models._loaders._done_loaders.Path.home",
-            return_value=home,
-        ),
-        patch(
-            "sase.ace.tui.models._loaders._image_attachments._resolve_workspace_dir",
-            return_value=str(workspace),
-        ),
-    ):
-        agents = load_done_agents({}, {})
-
-    assert len(agents) == 1
-    assert agents[0].extra_files == [plan_path, str(image.resolve())]

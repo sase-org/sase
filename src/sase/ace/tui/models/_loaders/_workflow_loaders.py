@@ -10,7 +10,6 @@ from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
-from ._image_attachments import append_inferred_diff_images
 from ._json_cache import load_json_cached
 from ._meta_enrichment import enrich_agent_from_meta
 
@@ -314,7 +313,6 @@ def load_workflow_agents(
             workspace_num=workspace_num,
         )
         enrich_agent_from_meta(agent, entry.artifacts_dir)
-        append_inferred_diff_images(agent)
         agents.append(agent)
 
     return agents

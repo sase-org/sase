@@ -26,31 +26,6 @@ _PLAIN_AXE_WORKFLOWS = {"fix_hook", "crs", "mentor", "summarize_hook"}
 _PLAIN_AXE_PREFIXES = ("mentor_",)
 
 
-def _append_unique_extra_files(target: Agent, source: Agent) -> None:
-    """Append source extra files to target without duplicating paths."""
-    if not source.extra_files:
-        return
-    if not target.extra_files:
-        target.extra_files = list(source.extra_files)
-        return
-
-    from pathlib import Path
-
-    seen = {
-        str(Path(path).expanduser().resolve(strict=False))
-        for path in target.extra_files
-        if path
-    }
-    for path in source.extra_files:
-        if not path:
-            continue
-        key = str(Path(path).expanduser().resolve(strict=False))
-        if key in seen:
-            continue
-        seen.add(key)
-        target.extra_files.append(path)
-
-
 def _merge_agent_fields(target: Agent, source: Agent) -> None:
     """Merge non-None fields from source agent into target agent.
 
@@ -74,7 +49,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.cl_num = source.cl_num
     if target.diff_path is None and source.diff_path is not None:
         target.diff_path = source.diff_path
-    _append_unique_extra_files(target, source)
+    if not target.extra_files and source.extra_files:
+        target.extra_files = source.extra_files
     if target.artifacts_dir is None and source.artifacts_dir is not None:
         target.artifacts_dir = source.artifacts_dir
     if not target.waiting_for and source.waiting_for:
@@ -255,7 +231,6 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
                 # Copy agent_name if existing has none
                 if existing.agent_name is None and agent.agent_name is not None:
                     existing.agent_name = agent.agent_name
-                _append_unique_extra_files(existing, agent)
             else:
                 seen_suffixes[agent.raw_suffix] = agent
 
@@ -316,7 +291,8 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.error_message = agent.error_message
             if matched.error_traceback is None and agent.error_traceback is not None:
                 matched.error_traceback = agent.error_traceback
-            _append_unique_extra_files(matched, agent)
+            if not matched.extra_files and agent.extra_files:
+                matched.extra_files = agent.extra_files
             if matched.step_output is None and agent.step_output is not None:
                 matched.step_output = agent.step_output
             elif matched.step_output is not None and agent.step_output is not None:
