@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 11:58:25
 status: wip
+bead_id: sase-1k
 ---
 # ChangeSpec Copy Commands Plan
 
