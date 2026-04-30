@@ -2,17 +2,15 @@
 
 import logging
 import os
-import re
+import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ._parsing import (
-    find_double_colon_text_end,
-    find_matching_paren_for_args,
-    find_shorthand_text_end,
-    parse_args,
+    XPromptReference,
     parse_workflow_reference,
 )
+from ._parsing_references import iter_xprompt_references
 from .loader import get_all_workflows
 from .models import UNSET
 from .workflow_models import WorkflowStep, WorkflowValidationError
@@ -22,14 +20,33 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from .workflow_models import Workflow
 
-# Pattern to match workflow/xprompt references in prompts (same as processor.py)
-_REF_PATTERN = (
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
-)
-
 _WORKFLOW_MODEL_OVERRIDE_ARG = "__sase_workflow_model_override"
+_WORKFLOW_HITL_OVERRIDE_ARG = "__sase_workflow_hitl_override"
+
+
+def standalone_deprecation_message(name: str) -> str:
+    return f"Standalone workflow '#{name}' is deprecated; use '#!{name}' instead."
+
+
+def _warn_legacy_standalone_reference(name: str) -> None:
+    msg = standalone_deprecation_message(name)
+    logger.warning(msg)
+    warnings.warn(msg, UserWarning, stacklevel=3)
+
+
+def invalid_explicit_standalone_message(name: str) -> str:
+    return (
+        f"Only standalone workflows use '#!'; '{name}' has a prompt_part. "
+        f"Use '#{name}' for inline or embeddable references."
+    )
+
+
+def _ambiguous_standalone_message(names: list[str]) -> str:
+    refs = ", ".join(names)
+    return (
+        "Ambiguous standalone workflow references: "
+        f"{refs}. Use exactly one standalone workflow reference."
+    )
 
 
 def is_workflow_reference(name: str) -> bool:
@@ -43,6 +60,16 @@ def is_workflow_reference(name: str) -> bool:
     """
     workflows = get_all_workflows()
     return name in workflows
+
+
+def _parse_standalone_ref(
+    ref: XPromptReference,
+) -> tuple[list[str], dict[str, str]]:
+    positional_args, named_args = ref.parse_arguments()
+    if ref.hitl_override is not None:
+        named_args = dict(named_args)
+        named_args[_WORKFLOW_HITL_OVERRIDE_ARG] = "1" if ref.hitl_override else "0"
+    return positional_args, named_args
 
 
 def _find_standalone_workflow_ref(
@@ -72,63 +99,41 @@ def _find_standalone_workflow_ref(
     fenced_blocks: list[str] = []
     protected_text = protect_fenced_blocks(prompt_text, fenced_blocks)
 
-    matches = list(re.finditer(_REF_PATTERN, protected_text, re.MULTILINE))
+    explicit_refs: list[XPromptReference] = []
+    legacy_refs: list[XPromptReference] = []
+    for ref in iter_xprompt_references(protected_text):
+        if ref.name not in prompts:
+            continue
+        referenced = prompts[ref.name]
+        if ref.is_standalone_marker:
+            if referenced.has_prompt_part():
+                raise WorkflowValidationError(
+                    invalid_explicit_standalone_message(ref.name)
+                )
+            explicit_refs.append(ref)
+        elif not referenced.has_prompt_part():
+            legacy_refs.append(ref)
 
-    standalone_refs: list[tuple[str, re.Match[str]]] = []
-    for match in matches:
-        name = match.group(1)
-        if name in prompts and not prompts[name].has_prompt_part():
-            standalone_refs.append((name, match))
+    if explicit_refs:
+        if len(explicit_refs) != 1:
+            raise WorkflowValidationError(
+                _ambiguous_standalone_message([ref.raw for ref in explicit_refs])
+            )
+        ref = explicit_refs[0]
+        positional_args, named_args = _parse_standalone_ref(ref)
+        return prompts[ref.name], positional_args, named_args
 
-    if len(standalone_refs) != 1:
+    if len(legacy_refs) > 1:
+        raise WorkflowValidationError(
+            _ambiguous_standalone_message([ref.raw for ref in legacy_refs])
+        )
+    if len(legacy_refs) != 1:
         return None
 
-    wf_name, match = standalone_refs[0]
-    referenced = prompts[wf_name]
-
-    # Parse arguments for this specific reference
-    has_open_paren = match.group(2) is not None
-    colon_arg = match.group(3)
-    plus_suffix = match.group(4)
-
-    positional_args: list[str] = []
-    named_args: dict[str, str] = {}
-
-    if has_open_paren:
-        paren_start = match.end() - 1
-        paren_end = find_matching_paren_for_args(protected_text, paren_start)
-        if paren_end is not None:
-            paren_content = protected_text[paren_start + 1 : paren_end]
-            positional_args, named_args = parse_args(paren_content)
-    elif colon_arg is not None:
-        if colon_arg.startswith("`") and colon_arg.endswith("`"):
-            colon_arg = colon_arg[1:-1]
-            positional_args = [colon_arg]
-        else:
-            positional_args = colon_arg.split(",")
-    elif plus_suffix is not None:
-        positional_args = ["true"]
-    else:
-        # Check for :: or : shorthand after the reference. The regex
-        # doesn't capture double-colon syntax (#name:: text), so we
-        # handle it here by looking at the original (unprotected) text.
-        # Positions are safe to reuse because protect_fenced_blocks
-        # preserves string length.
-        after_match = prompt_text[match.end() :]
-        if after_match.startswith(":: "):
-            text_start = match.end() + 3
-            text_end = find_double_colon_text_end(prompt_text, text_start)
-            text = prompt_text[text_start:text_end].rstrip()
-            if text:
-                positional_args = [text]
-        elif after_match.startswith(": "):
-            text_start = match.end() + 2
-            text_end = find_shorthand_text_end(prompt_text, text_start)
-            text = prompt_text[text_start:text_end].rstrip()
-            if text:
-                positional_args = [text]
-
-    return referenced, positional_args, named_args
+    ref = legacy_refs[0]
+    _warn_legacy_standalone_reference(ref.name)
+    positional_args, named_args = _parse_standalone_ref(ref)
+    return prompts[ref.name], positional_args, named_args
 
 
 def _flatten_anonymous_workflow(
@@ -194,12 +199,28 @@ def _flatten_anonymous_workflow(
         updated[_WORKFLOW_MODEL_OVERRIDE_ARG] = wrapper_directives.model
         return updated
 
-    # ── Fast path: entire prompt is a single #name or #name(args) ──
-    ref_text = prompt_text[1:]  # Strip leading #
-    wf_name, positional_args, named_args = parse_workflow_reference(ref_text)
+    # ── Fast path: entire prompt is a single #name/#!name reference ──
+    refs = iter_xprompt_references(prompt_text)
+    exact_ref = (
+        refs[0]
+        if len(refs) == 1 and refs[0].start == 0 and refs[0].end == len(prompt_text)
+        else None
+    )
+    if exact_ref is not None:
+        wf_name = exact_ref.name
+        positional_args, named_args = _parse_standalone_ref(exact_ref)
+    else:
+        ref_text = prompt_text[1:]  # Strip leading # for legacy fallback behavior
+        wf_name, positional_args, named_args = parse_workflow_reference(ref_text)
 
     if wf_name in prompts:
         referenced = prompts[wf_name]
+        if exact_ref is not None and exact_ref.is_standalone_marker:
+            if referenced.has_prompt_part():
+                raise WorkflowValidationError(
+                    invalid_explicit_standalone_message(wf_name)
+                )
+            return referenced, positional_args, _attach_wrapper_model(named_args)
 
         # Only flatten pure multi-step workflows (no prompt_part)
         # Workflows with prompt_part are handled by embedded workflow expansion
@@ -237,6 +258,8 @@ def _flatten_anonymous_workflow(
                 workflow.name = wf_name
                 return None
         else:
+            if exact_ref is not None:
+                _warn_legacy_standalone_reference(wf_name)
             return referenced, positional_args, _attach_wrapper_model(named_args)
 
     # ── Slow path: multiple references, extract standalone workflow ──
@@ -445,6 +468,12 @@ def execute_workflow(
         named_args = {
             k: v for k, v in named_args.items() if k != _WORKFLOW_MODEL_OVERRIDE_ARG
         }
+    if _WORKFLOW_HITL_OVERRIDE_ARG in named_args:
+        hitl_value = str(named_args[_WORKFLOW_HITL_OVERRIDE_ARG])
+        hitl_override = hitl_value == "1"
+        named_args = {
+            k: v for k, v in named_args.items() if k != _WORKFLOW_HITL_OVERRIDE_ARG
+        }
 
     # Build args dict from positional and named args
     args: dict[str, Any] = dict(named_args)
@@ -593,7 +622,10 @@ def expand_workflow_for_embedding(
 
 __all__ = [
     "WorkflowResult",
+    "_WORKFLOW_HITL_OVERRIDE_ARG",
     "execute_workflow",
     "expand_workflow_for_embedding",
     "is_workflow_reference",
+    "invalid_explicit_standalone_message",
+    "standalone_deprecation_message",
 ]

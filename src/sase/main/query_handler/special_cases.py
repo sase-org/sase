@@ -12,6 +12,18 @@ from ._query import run_query
 from ._resume import handle_run_with_resume
 
 
+def _print_standalone_deprecation(name: str) -> None:
+    from sase.xprompt.workflow_runner import standalone_deprecation_message
+
+    print(f"Warning: {standalone_deprecation_message(name)}", file=sys.stderr)
+
+
+def _print_invalid_standalone_marker(name: str) -> None:
+    from sase.xprompt.workflow_runner import invalid_explicit_standalone_message
+
+    print(f"Error: {invalid_explicit_standalone_message(name)}", file=sys.stderr)
+
+
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
     """Handle special cases for 'sase run' before argparse processes it.
 
@@ -138,23 +150,40 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         sys.exit(0)
 
     # Handle #workflow_name syntax (e.g., sase run "#split" or sase run "#explain")
+    # and explicit standalone workflow syntax (e.g., sase run "#!sync").
     # All xprompts and workflows are treated uniformly through execute_workflow
     if args_after_run:
         potential_query = args_after_run[0]
         if potential_query.startswith("#"):
-            workflow_ref = potential_query[1:]  # Strip the #
-
             from sase.xprompt import (
                 execute_workflow,
                 get_all_prompts,
+                iter_xprompt_references,
                 parse_workflow_reference,
                 strip_hitl_suffix,
             )
 
-            workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)
-            workflow_name, positional_args, named_args = parse_workflow_reference(
-                workflow_ref
+            refs = iter_xprompt_references(potential_query)
+            leading_ref = refs[0] if refs and refs[0].start == 0 else None
+            exact_ref = (
+                leading_ref
+                if leading_ref is not None
+                and leading_ref.end == len(potential_query.strip())
+                else None
             )
+
+            if leading_ref is not None:
+                workflow_name = leading_ref.name
+                positional_args, named_args = leading_ref.parse_arguments()
+                hitl_override = leading_ref.hitl_override
+                explicit_standalone_marker = leading_ref.is_standalone_marker
+            else:
+                workflow_ref = potential_query[1:]  # Strip the #
+                workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)
+                workflow_name, positional_args, named_args = parse_workflow_reference(
+                    workflow_ref
+                )
+                explicit_standalone_marker = False
 
             # Extract project from workflow_name if it contains a slash
             project = None
@@ -165,6 +194,10 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             prompts = get_all_prompts(project=project)
             if workflow_name in prompts:
                 workflow = prompts[workflow_name]
+                if explicit_standalone_marker and workflow.has_prompt_part():
+                    _print_invalid_standalone_marker(workflow_name)
+                    sys.exit(1)
+
                 # Multi-step prompt_part workflows (like #gh, #hg) need to go
                 # through run_query so their embedded pre/post steps and
                 # prompt_part expansion work correctly.
@@ -172,33 +205,47 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                     _run_query(potential_query)
                     sys.exit(0)
 
-                # In daemon mode, pass the full #workflow_name as the prompt
-                # — the runner script handles xprompt expansion.
-                if daemon_mode:
-                    run_query_daemon(potential_query)
-                    sys.exit(0)
+                # Avoid treating "#!sync do more" or "#sync do more" as a direct
+                # workflow invocation. Let the normal prompt path handle it.
+                if exact_ref is None:
+                    pass
+                else:
+                    if (
+                        not workflow.has_prompt_part()
+                        and not explicit_standalone_marker
+                    ):
+                        _print_standalone_deprecation(workflow_name)
 
-                # Create artifacts directory in ~/.sase/projects/ so TUI can find it
-                # Extract base workflow name (without project prefix) to avoid slashes in path
-                base_workflow = (
-                    workflow_name.split("/")[-1]
-                    if "/" in workflow_name
-                    else workflow_name
-                )
-                artifacts_dir = create_artifacts_directory(f"workflow-{base_workflow}")
-                try:
-                    execute_workflow(
-                        workflow_name,
-                        positional_args,
-                        named_args,
-                        artifacts_dir=artifacts_dir,
-                        project=project,
-                        hitl_override=hitl_override,
+                    # In daemon mode, pass the full reference as the prompt — the
+                    # runner script handles xprompt expansion and anonymous
+                    # workflow flattening.
+                    if daemon_mode:
+                        run_query_daemon(potential_query)
+                        sys.exit(0)
+
+                    # Create artifacts directory in ~/.sase/projects/ so TUI can find it
+                    # Extract base workflow name (without project prefix) to avoid slashes in path
+                    base_workflow = (
+                        workflow_name.split("/")[-1]
+                        if "/" in workflow_name
+                        else workflow_name
                     )
-                    sys.exit(0)
-                except Exception as e:
-                    print(f"Workflow error: {e}")
-                    sys.exit(1)
+                    artifacts_dir = create_artifacts_directory(
+                        f"workflow-{base_workflow}"
+                    )
+                    try:
+                        execute_workflow(
+                            workflow_name,
+                            positional_args,
+                            named_args,
+                            artifacts_dir=artifacts_dir,
+                            project=project,
+                            hitl_override=hitl_override,
+                        )
+                        sys.exit(0)
+                    except Exception as e:
+                        print(f"Workflow error: {e}")
+                        sys.exit(1)
 
     # Handle direct query (not a known prompt, contains spaces)
     if args_after_run:

@@ -1,15 +1,19 @@
 """Tests for WorkflowResult, _flatten_anonymous_workflow, and execute_workflow."""
 
+import warnings
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_runner import (
+    _WORKFLOW_HITL_OVERRIDE_ARG,
     _WORKFLOW_MODEL_OVERRIDE_ARG,
     WorkflowResult,
     _flatten_anonymous_workflow,
     execute_workflow,
 )
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.xprompt.workflow_models import Workflow, WorkflowStep, WorkflowValidationError
 
 
 # --- WorkflowResult tests ---
@@ -142,6 +146,87 @@ def test_flatten_anonymous_workflow_returns_workflow_for_pure_multistep(
 
 
 @patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_accepts_explicit_standalone_marker(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Explicit #! references flatten without compatibility warnings."""
+    target_wf = Workflow(
+        name="split",
+        inputs=[InputArg(name="desc", type=InputType.LINE)],
+        steps=[WorkflowStep(name="analyze", agent="Analyze: {{ desc }}")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+    workflow = _make_anonymous_workflow("#!split:prod")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = _flatten_anonymous_workflow(workflow)
+
+    assert caught == []
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "split"
+    assert pos_args == ["prod"]
+    assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_preserves_explicit_hitl_override(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """#!workflow!! carries the HITL override into execute_workflow."""
+    target_wf = Workflow(
+        name="sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+    mock_get_all_prompts.return_value = {"sync": target_wf}
+    workflow = _make_anonymous_workflow("#!sync!!")
+
+    result = _flatten_anonymous_workflow(workflow)
+
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "sync"
+    assert pos_args == []
+    assert named_args == {_WORKFLOW_HITL_OVERRIDE_ARG: "1"}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_warns_for_legacy_standalone_marker(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Bare #standalone still works during compatibility but warns."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="analyze", agent="Analyze")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+    workflow = _make_anonymous_workflow("#split")
+
+    with pytest.warns(UserWarning, match="use '#!split'"):
+        result = _flatten_anonymous_workflow(workflow)
+
+    assert result is not None
+    assert result[0].name == "split"
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_rejects_bang_for_embeddable(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """#! is reserved for workflows with no prompt_part."""
+    commit_wf = Workflow(
+        name="commit",
+        steps=[WorkflowStep(name="main", prompt_part="Commit context")],
+    )
+    mock_get_all_prompts.return_value = {"commit": commit_wf}
+    workflow = _make_anonymous_workflow("#!commit")
+
+    with pytest.raises(WorkflowValidationError, match="Only standalone workflows"):
+        _flatten_anonymous_workflow(workflow)
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
 def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
     mock_get_all_prompts: MagicMock,
 ) -> None:
@@ -176,6 +261,31 @@ def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
     assert ref_wf.name == "pylimit_split"
     assert pos_args == []
     assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_prefers_explicit_standalone(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """When both legacy and explicit refs exist, #! selects the workflow."""
+    legacy_wf = Workflow(
+        name="legacy",
+        steps=[WorkflowStep(name="run", agent="Legacy")],
+    )
+    explicit_wf = Workflow(
+        name="explicit",
+        steps=[WorkflowStep(name="run", agent="Explicit")],
+    )
+    mock_get_all_prompts.return_value = {
+        "legacy": legacy_wf,
+        "explicit": explicit_wf,
+    }
+    workflow = _make_anonymous_workflow("#legacy #!explicit")
+
+    result = _flatten_anonymous_workflow(workflow)
+
+    assert result is not None
+    assert result[0].name == "explicit"
 
 
 @patch("sase.xprompt.loader.get_all_prompts")
@@ -226,8 +336,8 @@ def test_flatten_anonymous_workflow_slow_path_multiple_standalone_workflows(
     )
     mock_get_all_prompts.return_value = {"split": wf1, "merge": wf2}
     workflow = _make_anonymous_workflow("#split #merge")
-    result = _flatten_anonymous_workflow(workflow)
-    assert result is None
+    with pytest.raises(WorkflowValidationError, match="Ambiguous standalone"):
+        _flatten_anonymous_workflow(workflow)
 
 
 @patch("sase.xprompt.loader.get_all_prompts")

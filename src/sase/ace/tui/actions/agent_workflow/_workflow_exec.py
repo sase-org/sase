@@ -40,15 +40,31 @@ class WorkflowExecMixin:
         """
         from sase.xprompt import (
             get_all_prompts,
+            iter_xprompt_references,
             parse_workflow_reference,
             strip_hitl_suffix,
         )
 
-        workflow_ref = prompt[1:]  # Strip the #
-        workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)
-        workflow_name, positional_args, named_args = parse_workflow_reference(
-            workflow_ref
+        refs = iter_xprompt_references(prompt)
+        leading_ref = refs[0] if refs and refs[0].start == 0 else None
+        exact_ref = (
+            leading_ref
+            if leading_ref is not None and leading_ref.end == len(prompt.strip())
+            else None
         )
+
+        if exact_ref is not None:
+            workflow_name = exact_ref.name
+            positional_args, named_args = exact_ref.parse_arguments()
+            hitl_override = exact_ref.hitl_override
+            explicit_standalone_marker = exact_ref.is_standalone_marker
+        else:
+            workflow_ref = prompt[1:]  # Strip the #
+            workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)
+            workflow_name, positional_args, named_args = parse_workflow_reference(
+                workflow_ref
+            )
+            explicit_standalone_marker = False
 
         project = None
         if "/" in workflow_name:
@@ -60,6 +76,17 @@ class WorkflowExecMixin:
             return False
 
         workflow = prompts[workflow_name]
+        if explicit_standalone_marker and workflow.has_prompt_part():
+            from sase.xprompt.workflow_runner import invalid_explicit_standalone_message
+
+            msg = invalid_explicit_standalone_message(workflow_name)
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(msg, severity="error")  # type: ignore[attr-defined]
+            )
+            return True
+
+        if exact_ref is None:
+            return False
 
         # Simple xprompts: expand inline instead of spawning workflow.
         # When the caller has a VCS ref, the rendered value is discarded —
@@ -90,6 +117,14 @@ class WorkflowExecMixin:
         # not standalone execution (e.g., #gh, #hg)
         if workflow.has_prompt_part():
             return False
+
+        if not explicit_standalone_marker:
+            from sase.xprompt.workflow_runner import standalone_deprecation_message
+
+            msg = standalone_deprecation_message(workflow_name)
+            self.call_later(  # type: ignore[attr-defined]
+                lambda: self.notify(msg, severity="warning")  # type: ignore[attr-defined]
+            )
 
         # Check if we have changespec context (not home mode)
         ctx = self._prompt_context

@@ -27,12 +27,13 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 class _FakeApp(WorkflowExecMixin):
     def __init__(self) -> None:
         self._prompt_context = None
+        self.notifications: list[tuple[str, str | None]] = []
 
     def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
-        del fn, args, kwargs
+        fn(*args, **kwargs)
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
-        del msg, severity
+        self.notifications.append((msg, severity))
 
 
 def _launch_free_xprompt() -> Workflow:
@@ -102,3 +103,71 @@ def test_simple_xprompt_without_vcs_ref_still_renders_inline() -> None:
         )
 
     assert result == "bug=445408805 feature=SS_ILAR_TOGGLE"
+
+
+def test_explicit_standalone_workflow_executes_with_hitl_override() -> None:
+    """The TUI accepts #!workflow and preserves !! overrides."""
+    app = _FakeApp()
+    workflow = Workflow(
+        name="sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch.object(
+            app,
+            "_execute_workflow_in_thread",
+            return_value=True,
+        ) as mock_execute,
+    ):
+        result = app._try_execute_workflow("#!sync!!")
+
+    assert result is True
+    mock_execute.assert_called_once_with(
+        "sync",
+        [],
+        {},
+        hitl_override=True,
+    )
+
+
+def test_legacy_standalone_workflow_notifies_warning() -> None:
+    """Bare #standalone still runs but warns in the TUI."""
+    app = _FakeApp()
+    workflow = Workflow(
+        name="sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch.object(app, "_execute_workflow_in_thread", return_value=True),
+    ):
+        result = app._try_execute_workflow("#sync")
+
+    assert result is True
+    assert app.notifications == [
+        ("Standalone workflow '#sync' is deprecated; use '#!sync' instead.", "warning")
+    ]
+
+
+def test_explicit_marker_for_embeddable_workflow_is_consumed_with_error() -> None:
+    """#! on prompt_part workflows notifies and does not launch an agent."""
+    app = _FakeApp()
+    workflow = Workflow(
+        name="commit",
+        steps=[WorkflowStep(name="main", prompt_part="Commit context")],
+    )
+
+    with patch("sase.xprompt.get_all_prompts", return_value={"commit": workflow}):
+        result = app._try_execute_workflow("#!commit")
+
+    assert result is True
+    assert app.notifications == [
+        (
+            "Only standalone workflows use '#!'; 'commit' has a prompt_part. "
+            "Use '#commit' for inline or embeddable references.",
+            "error",
+        )
+    ]

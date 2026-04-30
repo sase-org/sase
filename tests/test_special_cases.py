@@ -9,6 +9,7 @@ from sase.main.query_handler.special_cases import (
     _resolve_vcs_project_info,
     handle_run_special_cases,
 )
+from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
 def _mock_workflow_names() -> MagicMock:
@@ -68,6 +69,76 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
 
     # Should strip #git:repo and prepend #gh:sase
     mock_run.assert_called_once_with("#gh:sase do something cool")
+
+
+def test_run_special_cases_executes_explicit_standalone_workflow() -> None:
+    """sase run '#!sync' executes a standalone workflow directly."""
+    workflow = Workflow(
+        name="sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch("sase.xprompt.execute_workflow") as mock_execute,
+        patch(
+            "sase.main.query_handler.special_cases.create_artifacts_directory",
+            return_value="/tmp/artifacts",
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_run_special_cases(["#!sync!!"])
+
+    assert exc.value.code == 0
+    mock_execute.assert_called_once_with(
+        "sync",
+        [],
+        {},
+        artifacts_dir="/tmp/artifacts",
+        project=None,
+        hitl_override=True,
+    )
+
+
+def test_run_special_cases_warns_for_legacy_standalone_workflow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Bare #standalone stays compatible but tells users to switch to #!."""
+    workflow = Workflow(
+        name="sync",
+        steps=[WorkflowStep(name="run", bash="echo sync")],
+    )
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch("sase.xprompt.execute_workflow"),
+        patch(
+            "sase.main.query_handler.special_cases.create_artifacts_directory",
+            return_value="/tmp/artifacts",
+        ),
+        pytest.raises(SystemExit),
+    ):
+        handle_run_special_cases(["#sync"])
+
+    captured = capsys.readouterr()
+    assert "use '#!sync'" in captured.err
+
+
+def test_run_special_cases_rejects_bang_for_embeddable_workflow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#!commit is invalid when commit has a prompt_part."""
+    workflow = Workflow(
+        name="commit",
+        steps=[WorkflowStep(name="main", prompt_part="Commit context")],
+    )
+    with (
+        patch("sase.xprompt.get_all_prompts", return_value={"commit": workflow}),
+        pytest.raises(SystemExit) as exc,
+    ):
+        handle_run_special_cases(["#!commit"])
+
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert "Only standalone workflows use '#!'" in captured.err
 
 
 def test_resolve_vcs_project_info_repo_path_trailing_slash() -> None:
