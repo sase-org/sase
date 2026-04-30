@@ -282,6 +282,51 @@ class TestEmbeddedWorkflowExpansion:
                 # Should prepend \n\n before the ### content
                 assert "\n\n### Section Header" in expanded
 
+    def test_standalone_workflow_reference_errors_in_inline_prompt(self) -> None:
+        """Standalone workflows cannot pass through as literal inline text."""
+        standalone = Workflow(
+            name="deploy",
+            steps=[WorkflowStep(name="run", bash="echo deploy")],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            executor = WorkflowExecutor(
+                workflow=_create_test_workflow(),
+                args={},
+                artifacts_dir=tmpdir,
+            )
+
+            with patch(
+                "sase.xprompt.loader.get_all_workflows",
+                return_value={"deploy": standalone},
+            ):
+                with pytest.raises(WorkflowExecutionError, match=r"Use `#!deploy`"):
+                    executor._expand_embedded_workflows_in_prompt("Run #deploy now")
+
+    def test_bang_embeddable_workflow_reference_errors_in_inline_prompt(self) -> None:
+        """The #! marker is reserved for standalone workflows."""
+        embeddable = Workflow(
+            name="commit",
+            steps=[WorkflowStep(name="prompt", prompt_part="Commit instructions")],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            executor = WorkflowExecutor(
+                workflow=_create_test_workflow(),
+                args={},
+                artifacts_dir=tmpdir,
+            )
+
+            with patch(
+                "sase.xprompt.loader.get_all_workflows",
+                return_value={"commit": embeddable},
+            ):
+                with pytest.raises(
+                    WorkflowExecutionError,
+                    match=r"only standalone workflows use `#!`",
+                ):
+                    executor._expand_embedded_workflows_in_prompt("Run #!commit now")
+
 
 class TestOutputTypesPreservation:
     """Tests for output_types preservation in _save_prompt_step_marker."""

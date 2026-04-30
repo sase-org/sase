@@ -6,9 +6,7 @@ prompt_part content.
 """
 
 import json
-import logging
 import os
-import re
 from typing import Any
 
 from sase.content import (
@@ -21,7 +19,8 @@ from sase.xprompt.workflow_executor_steps_embedded_types import (
     EmbeddedWorkflowInfo,
     _DISABLED_REGION_START_RE,
     PendingEmbeddedWorkflow,
-    _WORKFLOW_REF_PATTERN,
+    format_inline_workflow_reference_error,
+    parse_workflow_reference_args,
 )
 from sase.xprompt.workflow_executor_utils import render_template
 from sase.xprompt.workflow_models import (
@@ -29,9 +28,6 @@ from sase.xprompt.workflow_models import (
     WorkflowExecutionError,
     WorkflowState,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 class EmbeddedWorkflowExpandMixin:
@@ -84,9 +80,8 @@ class EmbeddedWorkflowExpandMixin:
             after the main prompt completes.
         """
         from sase.xprompt._parsing import (
-            find_matching_paren_for_args,
+            iter_xprompt_references,
             normalize_vcs_underscore_refs,
-            parse_args,
         )
         from sase.xprompt.loader import get_all_workflows
 
@@ -104,50 +99,27 @@ class EmbeddedWorkflowExpandMixin:
 
         # ── Phase 1: Collection ──────────────────────────────────────────
         # Iterate matches left-to-right, parse args, build pending list.
-        matches = list(re.finditer(_WORKFLOW_REF_PATTERN, prompt, re.MULTILINE))
+        refs = iter_xprompt_references(prompt)
         pending: list[PendingEmbeddedWorkflow] = []
 
-        for match in matches:
-            name = match.group(1)
-
+        for ref in refs:
+            name = ref.name
             if name not in workflows:
                 continue
 
             workflow = workflows[name]
 
-            if not workflow.has_prompt_part():
-                logger.warning(
-                    "_expand_embedded_workflows_in_prompt: skipping #%s — "
-                    "workflow found but has no prompt_part (standalone workflow "
-                    "cannot be embedded). It will pass through as literal text.",
-                    name,
+            if ref.is_standalone_marker or not workflow.has_prompt_part():
+                raise WorkflowExecutionError(
+                    format_inline_workflow_reference_error(
+                        name=name,
+                        raw=ref.raw,
+                        has_prompt_part=workflow.has_prompt_part(),
+                    )
                 )
-                continue
 
-            # Extract arguments
-            has_open_paren = match.group(2) is not None
-            colon_arg = match.group(3)
-            plus_suffix = match.group(4)
-            match_end = match.end()
-
-            positional_args: list[str] = []
-            named_args: dict[str, str] = {}
-
-            if has_open_paren:
-                paren_start = match.end() - 1
-                paren_end = find_matching_paren_for_args(prompt, paren_start)
-                if paren_end is not None:
-                    paren_content = prompt[paren_start + 1 : paren_end]
-                    positional_args, named_args = parse_args(paren_content)
-                    match_end = paren_end + 1
-            elif colon_arg is not None:
-                if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                    colon_arg = colon_arg[1:-1]
-                    positional_args = [colon_arg]
-                else:
-                    positional_args = colon_arg.split(",")
-            elif plus_suffix is not None:
-                positional_args = ["true"]
+            positional_args, named_args = parse_workflow_reference_args(ref)
+            match_end = ref.end
 
             # Build args dict
             args: dict[str, Any] = dict(named_args)
@@ -168,7 +140,7 @@ class EmbeddedWorkflowExpandMixin:
                 PendingEmbeddedWorkflow(
                     name=name,
                     workflow=workflow,
-                    match_start=match.start(),
+                    match_start=ref.start,
                     match_end=match_end,
                     args=args,
                     explicit_args=explicit_args,

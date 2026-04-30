@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -30,14 +29,6 @@ class EmbeddedWorkflowResult:
     total_workflow_steps: int = 0
 
 
-# Pattern to match workflow references in prompts
-_WORKFLOW_REF_PATTERN = (
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Supports backtick-delimited colon args
-)
-
-
 def expand_embedded_workflows_in_query(
     query: str,
     artifacts_dir: str | None = None,
@@ -58,13 +49,17 @@ def expand_embedded_workflows_in_query(
     """
     from sase.xprompt._fenced_blocks import fenced_block_ranges
     from sase.xprompt._parsing import (
-        find_matching_paren_for_args,
+        iter_xprompt_references,
         normalize_vcs_underscore_refs,
-        parse_args,
     )
     from sase.xprompt.loader import get_all_workflows
     from sase.xprompt.processor import process_xprompt_references
+    from sase.xprompt.workflow_executor_steps_embedded_types import (
+        format_inline_workflow_reference_error,
+        parse_workflow_reference_args,
+    )
     from sase.xprompt.workflow_executor_utils import render_template
+    from sase.xprompt.workflow_models import WorkflowExecutionError
 
     from ._standalone_steps import execute_standalone_steps
 
@@ -80,51 +75,32 @@ def expand_embedded_workflows_in_query(
     fenced_ranges = fenced_block_ranges(query)
 
     # Find all potential workflow references
-    matches = list(re.finditer(_WORKFLOW_REF_PATTERN, query, re.MULTILINE))
+    refs = iter_xprompt_references(query)
 
     # Process from last to first to preserve positions
-    for match in reversed(matches):
-        name = match.group(1)
-
+    for ref in reversed(refs):
         # Skip references inside fenced code blocks
-        if any(start <= match.start() < end for start, end in fenced_ranges):
+        if any(start <= ref.start < end for start, end in fenced_ranges):
             continue
 
         # Skip if not a workflow
+        name = ref.name
         if name not in workflows:
             continue
 
         workflow = workflows[name]
 
-        # Skip workflows without prompt_part (execute as full workflow)
-        if not workflow.has_prompt_part():
-            continue
+        if ref.is_standalone_marker or not workflow.has_prompt_part():
+            raise WorkflowExecutionError(
+                format_inline_workflow_reference_error(
+                    name=name,
+                    raw=ref.raw,
+                    has_prompt_part=workflow.has_prompt_part(),
+                )
+            )
 
-        # Extract arguments
-        has_open_paren = match.group(2) is not None
-        colon_arg = match.group(3)
-        plus_suffix = match.group(4)
-        match_end = match.end()
-
-        positional_args: list[str] = []
-        named_args: dict[str, str] = {}
-
-        if has_open_paren:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(query, paren_start)
-            if paren_end is not None:
-                paren_content = query[paren_start + 1 : paren_end]
-                positional_args, named_args = parse_args(paren_content)
-                match_end = paren_end + 1
-        elif colon_arg is not None:
-            # Strip backticks if present (backtick-delimited syntax)
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                colon_arg = colon_arg[1:-1]
-                positional_args = [colon_arg]
-            else:
-                positional_args = colon_arg.split(",")
-        elif plus_suffix is not None:
-            positional_args = ["true"]
+        positional_args, named_args = parse_workflow_reference_args(ref)
+        match_end = ref.end
 
         # Build args dict
         args: dict[str, Any] = dict(named_args)
@@ -176,7 +152,7 @@ def expand_embedded_workflows_in_query(
             prompt_part_content = process_xprompt_references(prompt_part_content)
 
             # Handle section markers (### or ---) with proper line positioning
-            is_at_line_start = match.start() == 0 or query[match.start() - 1] == "\n"
+            is_at_line_start = ref.start == 0 or query[ref.start - 1] == "\n"
             prompt_part_content = apply_section_marker_handling(
                 prompt_part_content, is_at_line_start
             )
@@ -195,7 +171,7 @@ def expand_embedded_workflows_in_query(
             prompt_part_content += "\n\n"
 
         # Replace the workflow reference with the prompt_part content
-        query = query[: match.start()] + prompt_part_content + query[match_end:]
+        query = query[: ref.start] + prompt_part_content + query[match_end:]
 
         # Store workflow result for post-step execution and step markers
         if pre_steps or post_steps:

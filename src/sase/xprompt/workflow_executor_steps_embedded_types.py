@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.xprompt._parsing import XPromptReference, XPromptReferenceArgKind
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -18,9 +19,50 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 # Pattern to match workflow references in prompts (same as processor.py)
 _WORKFLOW_REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
+    r"#!?([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Supports backtick-delimited colon args
 )
+
+
+def format_inline_workflow_reference_error(
+    *,
+    name: str,
+    raw: str,
+    has_prompt_part: bool,
+) -> str:
+    """Return a marker-aware error for invalid inline workflow expansion."""
+    if raw.startswith("#!") and has_prompt_part:
+        return (
+            f"only standalone workflows use `#!`; `{raw}` resolves to an "
+            f"embeddable workflow. Use `#{name}` for inline expansion."
+        )
+    if raw.startswith("#!"):
+        return (
+            f"`{raw}` is a standalone workflow and cannot be embedded inside "
+            "inline prompt text. Run it as a standalone workflow instead."
+        )
+    return (
+        f"`#{name}` is a standalone workflow and cannot be embedded inside "
+        f"inline prompt text. Use `#!{name}` as a standalone workflow reference."
+    )
+
+
+def parse_workflow_reference_args(
+    ref: XPromptReference,
+) -> tuple[list[str], dict[str, str]]:
+    """Parse an xprompt reference using embedded workflow argument semantics."""
+    if ref.arg_kind is XPromptReferenceArgKind.NONE:
+        return [], {}
+    if ref.arg_kind is XPromptReferenceArgKind.PAREN:
+        return ref.parse_arguments()
+    if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+        return ["true"], {}
+    if ref.arg_kind is XPromptReferenceArgKind.COLON:
+        colon_arg = ref.argument_source[1:]
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            return [colon_arg[1:-1]], {}
+        return colon_arg.split(","), {}
+    return ref.parse_arguments()
 
 
 @dataclass

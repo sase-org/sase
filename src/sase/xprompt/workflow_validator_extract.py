@@ -7,20 +7,9 @@ for use by validation checks.
 import re
 from dataclasses import dataclass
 
-from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+from sase.xprompt._parsing import iter_xprompt_references
 from sase.xprompt.models import UNSET, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
-
-# Pattern to match xprompt references (based on processor.py, extended for templates)
-# The colon-arg group adds \{\{[^}]*\}\} to handle Jinja2 template vars like {{ file_path }}
-# and \{[^}]*\} for Python f-string placeholders like {path}; both stand in for runtime
-# values so the validator counts them as a single positional arg.  Jinja `{{...}}` is
-# listed first so it wins over the single-brace alternative.
-_XPROMPT_PATTERN = (
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|\{[^}]*\}|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
-)
 
 # Pattern to find {{ ... }} and {% ... %} blocks (variable references)
 _JINJA_BLOCK_PATTERN = re.compile(r"\{\{(.*?)\}\}|\{%(.*?)%\}", re.DOTALL)
@@ -87,6 +76,12 @@ class _XPromptCall:
     positional_args: list[str]
     named_args: dict[str, str]
     raw_match: str
+    marker: str = "#"
+
+    @property
+    def display_name(self) -> str:
+        """Return the marker-qualified name for diagnostics."""
+        return f"{self.marker}{self.name}"
 
 
 _FENCED_CODE_BLOCK_PATTERN = re.compile(r"(`{3,})[^\n]*\n[\s\S]*?\1")
@@ -109,36 +104,22 @@ def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
     content = _FENCED_CODE_BLOCK_PATTERN.sub("", content)
 
     calls: list[_XPromptCall] = []
-    matches = list(re.finditer(_XPROMPT_PATTERN, content, re.MULTILINE))
-
-    for match in matches:
-        name = match.group(1)
-        has_open_paren = match.group(2) is not None
-        colon_arg = match.group(3)
-        plus_suffix = match.group(4)
-
-        positional_args: list[str] = []
-        named_args: dict[str, str] = {}
-        raw_match = match.group(0)
-
-        if has_open_paren:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(content, paren_start)
-            if paren_end is not None:
-                paren_content = content[paren_start + 1 : paren_end]
-                positional_args, named_args = parse_args(paren_content)
-                raw_match = content[match.start() : paren_end + 1]
-        elif colon_arg is not None:
-            positional_args = colon_arg.split(",")
-        elif plus_suffix is not None:
-            positional_args = ["true"]
+    for ref in iter_xprompt_references(content):
+        positional_args, named_args = ref.parse_arguments()
+        if (
+            ref.arg_kind.value == "colon"
+            and len(positional_args) == 1
+            and "," in positional_args[0]
+        ):
+            positional_args = positional_args[0].split(",")
 
         calls.append(
             _XPromptCall(
-                name=name,
+                name=ref.name,
                 positional_args=positional_args,
                 named_args=named_args,
-                raw_match=raw_match,
+                raw_match=ref.raw,
+                marker=ref.marker.value,
             )
         )
 
@@ -165,7 +146,7 @@ def validate_xprompt_call(
     # Check positional arg count
     if len(call.positional_args) > len(xprompt.inputs):
         errors.append(
-            f"Step '{step_name}': #{call.name} has {len(call.positional_args)} "
+            f"Step '{step_name}': {call.display_name} has {len(call.positional_args)} "
             f"positional args but only {len(xprompt.inputs)} inputs defined"
         )
 
@@ -175,7 +156,7 @@ def validate_xprompt_call(
         if arg_name not in defined_names:
             available = sorted(defined_names)
             errors.append(
-                f"Step '{step_name}': #{call.name} has no input named '{arg_name}'. "
+                f"Step '{step_name}': {call.display_name} has no input named '{arg_name}'. "
                 f"Available: {available}"
             )
 
@@ -198,7 +179,7 @@ def validate_xprompt_call(
 
     if missing_required:
         errors.append(
-            f"Step '{step_name}': #{call.name} missing required args: {missing_required}"
+            f"Step '{step_name}': {call.display_name} missing required args: {missing_required}"
         )
 
     return errors

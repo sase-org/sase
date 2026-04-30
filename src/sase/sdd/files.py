@@ -1,7 +1,6 @@
 """SDD file writing, committing, and directory resolution."""
 
 import logging
-import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -199,7 +198,10 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
     This is a "dry" expansion — only the ``prompt_part`` template is rendered
     with the parsed arguments; no pre-steps or post-steps are executed.
 
-    Workflows without a ``prompt_part`` step are left as-is in the text.
+    Explicit standalone workflow references (``#!name`` for workflows without a
+    ``prompt_part`` step) are preserved as compact markers for spec storage.
+    Legacy inline standalone references (``#name``) are rejected so specs do not
+    capture ambiguous syntax.
 
     Args:
         prompt: Prompt text (already xprompt-expanded and directive-stripped).
@@ -212,20 +214,16 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
         unprotect_fenced_blocks,
     )
     from sase.xprompt._parsing import (
-        find_matching_paren_for_args,
+        iter_xprompt_references,
         normalize_vcs_underscore_refs,
-        parse_args,
     )
     from sase.xprompt.loader import get_all_workflows
     from sase.xprompt.models import UNSET
-    from sase.xprompt.workflow_executor_utils import render_template
-
-    # Same pattern used by the real embedded workflow executor
-    _WORKFLOW_REF_PATTERN = (
-        r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-        r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-        r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
+    from sase.xprompt.workflow_executor_steps_embedded_types import (
+        format_inline_workflow_reference_error,
+        parse_workflow_reference_args,
     )
+    from sase.xprompt.workflow_executor_utils import render_template
 
     workflows = get_all_workflows()
 
@@ -237,46 +235,41 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
     prompt = normalize_vcs_underscore_refs(prompt)
 
     # Collect matches and their replacements
-    matches = list(re.finditer(_WORKFLOW_REF_PATTERN, prompt, re.MULTILINE))
+    refs = iter_xprompt_references(prompt)
     replacements: list[tuple[int, int, str]] = []  # (start, end, replacement)
 
-    for match in matches:
-        name = match.group(1)
-
+    for ref in refs:
+        name = ref.name
         if name not in workflows:
             continue
 
         workflow = workflows[name]
 
         if not workflow.has_prompt_part():
-            continue
+            if ref.is_standalone_marker:
+                continue
+            raise ValueError(
+                format_inline_workflow_reference_error(
+                    name=name,
+                    raw=ref.raw,
+                    has_prompt_part=False,
+                )
+            )
+
+        if ref.is_standalone_marker:
+            raise ValueError(
+                format_inline_workflow_reference_error(
+                    name=name,
+                    raw=ref.raw,
+                    has_prompt_part=True,
+                )
+            )
 
         # Parse arguments (mirrors the real executor logic)
-        has_open_paren = match.group(2) is not None
-        colon_arg = match.group(3)
-        plus_suffix = match.group(4)
-        match_end = match.end()
+        positional_args, named_args = parse_workflow_reference_args(ref)
+        match_end = ref.end
 
-        positional_args: list[str] = []
-        named_args: dict[str, str] = {}
-
-        if has_open_paren:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(prompt, paren_start)
-            if paren_end is not None:
-                paren_content = prompt[paren_start + 1 : paren_end]
-                positional_args, named_args = parse_args(paren_content)
-                match_end = paren_end + 1
-        elif colon_arg is not None:
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                colon_arg = colon_arg[1:-1]
-                positional_args = [colon_arg]
-            else:
-                positional_args = colon_arg.split(",")
-        elif plus_suffix is not None:
-            positional_args = ["true"]
-
-        # Build args dict with positional → named mapping
+        # Build args dict with positional -> named mapping
         args: dict[str, Any] = dict(named_args)
         for i, value in enumerate(positional_args):
             if i < len(workflow.inputs):
@@ -301,7 +294,7 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
                 )
                 continue
 
-        replacements.append((match.start(), match_end, prompt_part_content))
+        replacements.append((ref.start, match_end, prompt_part_content))
 
     # Replace right-to-left for position safety
     for start, end, replacement in sorted(

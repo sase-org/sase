@@ -24,7 +24,7 @@ XPROMPT_REFERENCE_HITL_SUFFIX_FRAGMENT = r"(?P<hitl>!!|\?\?)?"
 
 XPROMPT_REFERENCE_ARGUMENT_FRAGMENT = (
     r"(?:(?P<open_paren>\()|:"
-    r"(?P<colon_arg>`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])"
+    r"(?P<colon_arg>`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|\{[^}]*\}|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])"
     r"|(?P<plus>\+))?"
 )
 """Regex fragment for the first token of supported argument syntaxes."""

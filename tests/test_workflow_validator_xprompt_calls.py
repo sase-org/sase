@@ -62,6 +62,15 @@ def testextract_xprompt_calls_jinja_still_preferred_over_single_brace() -> None:
     assert calls[0].named_args == {}
 
 
+def testextract_xprompt_calls_preserves_bang_marker() -> None:
+    """Validator diagnostics keep the original #! marker."""
+    calls = extract_xprompt_calls("#!foo:{path}")
+    assert len(calls) == 1
+    assert calls[0].name == "foo"
+    assert calls[0].marker == "#!"
+    assert calls[0].raw_match == "#!foo:{path}"
+
+
 def testvalidate_xprompt_call_fstring_placeholder_satisfies_required_arg() -> None:
     """An f-string-style colon arg satisfies a required positional input."""
     xprompt = XPrompt(
@@ -130,6 +139,25 @@ def testvalidate_xprompt_call_too_many_positional_args() -> None:
     errors = validate_xprompt_call(call, xprompt, "step1")
     assert len(errors) >= 1
     assert "3 positional args but only 1 inputs defined" in errors[0]
+
+
+def testvalidate_xprompt_call_error_uses_original_marker() -> None:
+    """Argument validation points at #! when that marker was used."""
+    xprompt = XPrompt(
+        name="test",
+        content="{{ required_arg }}",
+        inputs=[InputArg(name="required_arg", type=InputType.LINE)],
+    )
+    call = _XPromptCall(
+        name="test",
+        positional_args=[],
+        named_args={},
+        raw_match="#!test",
+        marker="#!",
+    )
+    errors = validate_xprompt_call(call, xprompt, "step1")
+    assert len(errors) == 1
+    assert "Step 'step1': #!test missing required args" in errors[0]
 
 
 def testdetect_unused_xprompts_finds_unused() -> None:

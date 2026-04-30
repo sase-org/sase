@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from unittest.mock import patch
 
+import pytest
+
 from sase.sdd.files import dry_expand_embedded_workflows, expand_prompt_for_spec
 from sase.xprompt.models import UNSET, InputArg
 
@@ -151,12 +153,37 @@ def test_dry_expand_unknown_ref_left_asis() -> None:
     assert result == "#unknown stays expanded goes"
 
 
-def test_dry_expand_standalone_workflow_left_asis() -> None:
-    """Workflows without prompt_part (standalone) are left as-is."""
+def test_dry_expand_legacy_standalone_workflow_errors() -> None:
+    """Legacy #standalone references are rejected in spec dry expansion."""
     wf = _make_standalone_workflow("deploy")
     with patch(_LOADER_PATH, return_value={"deploy": wf}):
-        result = dry_expand_embedded_workflows("Run #deploy now")
-    assert result == "Run #deploy now"
+        with pytest.raises(ValueError, match=r"Use `#!deploy`"):
+            dry_expand_embedded_workflows("Run #deploy now")
+
+
+def test_dry_expand_explicit_standalone_workflow_preserved() -> None:
+    """Explicit #!standalone markers are preserved for spec storage."""
+    wf = _make_standalone_workflow("deploy")
+    with patch(_LOADER_PATH, return_value={"deploy": wf}):
+        result = dry_expand_embedded_workflows("Run #!deploy now")
+    assert result == "Run #!deploy now"
+
+
+def test_dry_expand_standalone_workflow_in_fenced_block_protected() -> None:
+    """Legacy standalone references inside fenced blocks are not inspected."""
+    wf = _make_standalone_workflow("deploy")
+    prompt = "Before\n```\n#deploy\n```\nAfter"
+    with patch(_LOADER_PATH, return_value={"deploy": wf}):
+        result = dry_expand_embedded_workflows(prompt)
+    assert result == prompt
+
+
+def test_dry_expand_bang_embeddable_workflow_errors() -> None:
+    """Embeddable workflows must still use #name syntax."""
+    wf = _make_workflow("commit", "Commit instructions")
+    with patch(_LOADER_PATH, return_value={"commit": wf}):
+        with pytest.raises(ValueError, match=r"only standalone workflows use `#!`"):
+            dry_expand_embedded_workflows("Run #!commit now")
 
 
 def test_dry_expand_multiple_workflows() -> None:

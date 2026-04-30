@@ -9,6 +9,7 @@ import pytest
 from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowMixin
 from sase.xprompt.workflow_models import (
     Workflow,
+    WorkflowExecutionError,
     WorkflowState,
     WorkflowStep,
 )
@@ -196,3 +197,49 @@ class TestQueryExpandInjectsEnv:
         assert os.environ.get("VAR_B") == "beta"
         os.environ.pop("VAR_A", None)
         os.environ.pop("VAR_B", None)
+
+
+class TestQueryEmbeddedWorkflowSafety:
+    """Safety checks for top-level inline embedded workflow expansion."""
+
+    def test_legacy_standalone_reference_errors(self) -> None:
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
+
+        wf = Workflow(name="deploy", steps=[WorkflowStep(name="run", bash="echo ok")])
+
+        with patch(_LOADER_PATH, return_value={"deploy": wf}):
+            with pytest.raises(WorkflowExecutionError, match=r"Use `#!deploy`"):
+                expand_embedded_workflows_in_query("Run #deploy now")
+
+    def test_bang_embeddable_reference_errors(self) -> None:
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
+
+        wf = Workflow(
+            name="commit",
+            steps=[WorkflowStep(name="prompt", prompt_part="Commit instructions")],
+        )
+
+        with patch(_LOADER_PATH, return_value={"commit": wf}):
+            with pytest.raises(
+                WorkflowExecutionError,
+                match=r"only standalone workflows use `#!`",
+            ):
+                expand_embedded_workflows_in_query("Run #!commit now")
+
+    def test_fenced_legacy_standalone_reference_is_protected(self) -> None:
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
+
+        wf = Workflow(name="deploy", steps=[WorkflowStep(name="run", bash="echo ok")])
+        prompt = "Before\n```\n#deploy\n```\nAfter"
+
+        with patch(_LOADER_PATH, return_value={"deploy": wf}):
+            expanded, embedded = expand_embedded_workflows_in_query(prompt)
+
+        assert expanded == prompt
+        assert embedded == []
