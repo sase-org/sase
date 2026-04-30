@@ -87,10 +87,16 @@ def test_set_explicit_provider_model_syntax() -> None:
     assert override.raw_model == "codex/o3"
 
 
-def test_set_unknown_bare_model_falls_back_to_default_provider() -> None:
+def test_set_unknown_bare_model_falls_back_to_configured_default_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
+
     override = set_temporary_override("mystery-model", 60.0, source="ace")
-    # Default provider in the test environment is "claude" (first by
-    # autodetect priority among installed plugins).
+
     assert override.provider == "claude"
     assert override.model == "mystery-model"
 

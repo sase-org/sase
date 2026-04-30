@@ -537,10 +537,18 @@ def test_agent_meta_frozen_after_later_override_change(tmp_path) -> None:
     assert meta_path.stat().st_mtime_ns == original_mtime
 
 
-def test_agent_meta_after_clear_uses_default_provider(tmp_path) -> None:
+def test_agent_meta_after_clear_uses_configured_default_provider(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Clearing the override mid-session: the *next* launch resolves
     against the configured default, not the cleared override."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
 
     workspace_dir = str(tmp_path / "workspace")
     artifacts_a = tmp_path / "a"
@@ -562,7 +570,6 @@ def test_agent_meta_after_clear_uses_default_provider(tmp_path) -> None:
     meta_b = json.loads((artifacts_b / "agent_meta.json").read_text(encoding="utf-8"))
 
     assert (meta_a["llm_provider"], meta_a["model"]) == ("codex", "o3")
-    # Default in the test environment is "claude" (autodetect priority).
     assert meta_b["llm_provider"] == "claude"
     assert (meta_b["llm_provider"], meta_b["model"]) != ("codex", "o3")
 

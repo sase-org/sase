@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import PreprocessResult
 from sase.llm_provider.registry import get_default_provider_name
@@ -28,16 +30,29 @@ def test_get_default_provider_name_uses_override() -> None:
     assert get_default_provider_name() == "codex"
 
 
-def test_get_default_provider_name_falls_through_when_no_override() -> None:
-    # Default provider in the test environment is "claude" (autodetect).
+def test_get_default_provider_name_falls_through_when_no_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
+
     assert get_default_provider_name() == "claude"
 
 
-def test_get_default_provider_name_ignores_expired_override() -> None:
+def test_get_default_provider_name_ignores_expired_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import json
     import time
 
     from sase.llm_provider.temporary_override import _state_path
+
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: {"provider": "claude"},
+    )
 
     set_temporary_override("codex/o3", 60.0, source="test")
     path = _state_path()
@@ -45,7 +60,6 @@ def test_get_default_provider_name_ignores_expired_override() -> None:
     data["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
-    # Expired → falls through to autodetect ("claude" in tests).
     assert get_default_provider_name() == "claude"
 
 
