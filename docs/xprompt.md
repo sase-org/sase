@@ -2,7 +2,7 @@
 
 XPrompts are reusable prompt templates with optional typed inputs and Jinja2 support. They let you define a prompt
 fragment once and reference it by name anywhere a prompt is composed, keeping prompts DRY and consistent across
-projects.
+projects. Inline prompt fragments use `#name`; standalone workflows use `#!name` when they are launched as workflows.
 
 Use xprompts when you want to:
 
@@ -73,7 +73,9 @@ sase xprompt explain my_workflow --arg key=value    # With named args
 ### `sase xprompt list`
 
 Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
-`"workflow"`), source file path, input definitions, tags, and a content preview.
+`"workflow"`), source file path, input definitions, tags, and a content preview. Newer clients should prefer the
+`kind`/`insertion` metadata when present: `simple_xprompt` and `embeddable_workflow` entries are inserted as `#name`,
+while `standalone_workflow` entries are inserted as `#!name`.
 
 ```bash
 sase xprompt list                   # JSON array to stdout
@@ -129,13 +131,15 @@ applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay f
 For file-based xprompts (priorities 1-5, 7), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
 
-Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`
-and is referenced as `#foo/bar`.
+Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`.
+Inline-capable project xprompts are referenced as `#foo/bar`; standalone project workflows are referenced as
+`#!foo/bar`.
 
 When a project is detected (via the workspace provider), CWD xprompts (priorities 1-2) and local config xprompts are
 also auto-namespaced with the `{project}/` prefix. For example, if the project is `myapp` and `xprompts/deploy.md`
-exists in the CWD, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. This prevents name collisions between
-project-local xprompts and global or built-in ones.
+exists in the CWD, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. A project workflow with no
+`prompt_part` would instead be launched as `#!myapp/deploy`. This prevents name collisions between project-local
+xprompts and global or built-in ones.
 
 ## File Format
 
@@ -167,18 +171,34 @@ If no front matter is present, the entire file content is the template body and 
 
 ## Reference Syntax
 
-Reference an xprompt inside any prompt with the `#` prefix. The `#` must appear at the start of the string, after
-whitespace, or after one of `([{"'`.
+Reference inline-capable xprompts inside any prompt with the `#` prefix. Use `#!` for standalone workflows: YAML
+workflows that do not have a `prompt_part` step and therefore cannot contribute inline text to a containing prompt. The
+marker must appear at the start of the string, after whitespace, or after one of `([{"'`.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |
-| `#name`                       | Simple reference, no arguments                                 |
-| `#name(args)`                 | Parenthesis syntax with comma-separated arguments              |
-| `#name:arg`                   | Colon syntax, passes `arg` as a single positional arg          |
-| `#name:a,b,c`                 | Colon syntax with comma-separated multiple positional args     |
+| `#name`                       | Inline/template reference, no arguments                        |
+| `#name(args)`                 | Inline parenthesis syntax with comma-separated arguments       |
+| `#name:arg`                   | Inline colon syntax, passes `arg` as a single positional arg   |
+| `#name:a,b,c`                 | Inline colon syntax with comma-separated multiple args         |
 | `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces (single only) |
 | `#name+`                      | Plus syntax, equivalent to `#name:true`                        |
 | `#ns/name`                    | Namespaced reference (e.g., project-specific)                  |
+| `#!name`                      | Standalone workflow reference, no arguments                    |
+| `#!name(args)`                | Standalone workflow with parenthesized arguments               |
+| `#!name:arg`                  | Standalone workflow with one colon-style positional arg        |
+| `#!name!!` / `#!name??`       | Standalone workflow with an explicit HITL approval override    |
+
+Examples:
+
+```bash
+sase run '#!sync'
+sase run '#gh:sase #!sase/pylimit_split %approve'
+```
+
+During the compatibility window, top-level legacy invocations such as `sase run '#sync'` still run but emit a warning
+that points to `#!sync`. Inline expansion contexts reject standalone workflows instead of passing literal `#sync` text
+to the model. Shell examples should use single quotes around `#!...` so `!` is not interpreted by interactive shells.
 
 For VCS workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to
 `#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
@@ -625,8 +645,9 @@ xprompt with the same name overrides them.
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
-To see the exact body of any built-in xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog with
-`sase xprompt catalog`.
+To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
+with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
+name without a `#` or `#!` marker.
 
 ## Config-Based XPrompts
 
@@ -1113,7 +1134,8 @@ share the `_common` local xprompt.
 
 An xprompt itself can be a "multi-agent xprompt": its body contains `---` separators (outside fenced blocks), and
 referencing it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The
-spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in.
+spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in. These
+markdown-defined fan-out xprompts still use `#name`; do not switch them to `#!name`.
 
 ```
 # xprompts/three_phase.md
@@ -1136,7 +1158,7 @@ Review the {{ target }} implementation and propose follow-ups.
 Invoking it:
 
 ```bash
-sase run "#three_phase(login)"
+sase run '#three_phase(login)'
 ```
 
 …dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
@@ -1157,9 +1179,14 @@ and applies at every dispatch site (`sase run`, the TUI agent launcher, the quer
 
 ## Relationship to Workflows
 
-XPrompts and [workflows](workflow_spec.md) share the same `#name(args)` calling convention. Internally, a standalone
-xprompt is converted to a single-step workflow with a `prompt_part` step, so both can be invoked uniformly via
-`sase run '#name(args)'`.
+XPrompts and [workflows](workflow_spec.md) share the same argument grammar, but the marker communicates how the
+reference is allowed to participate in a prompt:
+
+- `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step.
+- `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step.
+
+Simple markdown xprompts are converted internally to single-step workflows with a `prompt_part` step, so they remain
+inline-capable and continue to use `#name`.
 
 Workflow agent steps can embed xprompt references inline:
 

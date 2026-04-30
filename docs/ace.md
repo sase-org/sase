@@ -689,8 +689,9 @@ filterable list on the left and a syntax-highlighted preview on the right.
 
 Xprompts are grouped by source (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`, Home `~/xprompts/`,
 project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (multi-step YAML) are marked with a gear
-icon. Project-local xprompts defined in each project's `sase.yml` file are also included, even though the TUI's normal
-config loading does not read project-local config files.
+icon; standalone workflows are displayed with the `#!name` insertion syntax. Project-local xprompts defined in each
+project's `sase.yml` file are also included, even though the TUI's normal config loading does not read project-local
+config files.
 
 ### Keybindings
 
@@ -1298,9 +1299,10 @@ Trigger words are matched against the alphanumeric/underscore word immediately b
 ### XPrompt Picker (`#@`)
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available
-xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected xprompt name at the cursor
-position after the `#`. This is separate from the `ace.snippets` mechanism — it provides quick access to xprompt
-references rather than expanding static templates.
+xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected reference at the cursor
+position. Inline-capable xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. This is
+separate from the `ace.snippets` mechanism — it provides quick access to xprompt references rather than expanding static
+templates.
 
 ## Auto-Refresh
 

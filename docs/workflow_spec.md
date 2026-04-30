@@ -38,13 +38,13 @@ steps: # Ordered list of steps (required)
 
 ### Fields
 
-| Field         | Required | Description                                                                               |
-| ------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `name`        | No       | Workflow identifier used in `#name(args)` syntax. Defaults to filename without extension. |
-| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.               |
-| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                   |
-| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).          |
-| `steps`       | Yes      | Ordered list of workflow steps to execute.                                                |
+| Field         | Required | Description                                                                             |
+| ------------- | -------- | --------------------------------------------------------------------------------------- |
+| `name`        | No       | Workflow identifier used in xprompt references. Defaults to filename without extension. |
+| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.             |
+| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                 |
+| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).        |
+| `steps`       | Yes      | Ordered list of workflow steps to execute.                                              |
 
 ## Input Parameters
 
@@ -123,7 +123,7 @@ Each step must have exactly one of these execution types:
 
 ### Agent Steps
 
-Execute an LLM prompt, optionally referencing xprompts:
+Execute an LLM prompt, optionally referencing inline-capable xprompts:
 
 ```yaml
 - name: generate_plan
@@ -140,6 +140,10 @@ The `agent` field contains a prompt template that can:
 - Reference xprompts using `#xprompt_name(args)` syntax
 - Use Jinja2 template variables: `{{ variable }}`
 - Include multi-line content
+
+Standalone workflows, which have no `prompt_part` step, cannot be embedded inside an `agent` prompt. Launch them with
+`#!workflow_name(args)` at the top level or inside an anonymous wrapper prompt such as
+`sase run '#gh:sase #!sase/pylimit_split %approve'`.
 
 > **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the canonical name.
 

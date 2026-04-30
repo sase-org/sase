@@ -736,12 +736,12 @@ full flow, payload, checkpoint, and resume semantics.
 
 ### `sase run`
 
-| Flag           | Values | Default | Description                                                            |
-| -------------- | ------ | ------- | ---------------------------------------------------------------------- |
-| `[query]`      | string | -       | Prompt text, workflow reference (`#name`), or `.` for history picker.  |
-| `-d, --daemon` | flag   | -       | Run as a detached background agent (appears in TUI Agents tab).        |
-| `-l, --list`   | flag   | -       | List all available chat history files.                                 |
-| `-r, --resume` | string | -       | Resume a previous conversation by agent name or history file basename. |
+| Flag           | Values | Default | Description                                                                                                   |
+| -------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `[query]`      | string | -       | Prompt text, inline reference (`#name`), standalone workflow reference (`#!name`), or `.` for history picker. |
+| `-d, --daemon` | flag   | -       | Run as a detached background agent (appears in TUI Agents tab).                                               |
+| `-l, --list`   | flag   | -       | List all available chat history files.                                                                        |
+| `-r, --resume` | string | -       | Resume a previous conversation by agent name or history file basename.                                        |
 
 When invoked with no arguments, opens `$EDITOR` for composing a prompt interactively. When invoked with `.`, opens a
 prompt history picker. Multi-prompt queries (containing `---` separators) are auto-detected and launched as sequential
@@ -764,7 +764,9 @@ daemon agents.
 
 ### `sase xprompt list`
 
-No flags. Outputs a JSON array of all available xprompts with name, type, source, inputs, tags, and preview.
+No flags. Outputs a JSON array of all available xprompts with name, type, source, inputs, tags, and preview. Clients
+that insert references should prefer `kind`/`insertion` metadata when present so standalone workflows are inserted as
+`#!name` and inline-capable entries are inserted as `#name`.
 
 ### `sase xprompt graph`
 

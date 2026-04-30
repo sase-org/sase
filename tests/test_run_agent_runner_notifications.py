@@ -34,7 +34,7 @@ def base_kwargs(tmp_path):
         "diff_path": None,
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
-        "prompt": "#gh:sase #sase/pylimit_split %approve",
+        "prompt": "#gh:sase #!sase/pylimit_split %approve",
     }
 
 

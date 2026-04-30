@@ -28,13 +28,13 @@ def test_build_chop_launch_env() -> None:
     env = build_chop_launch_env(
         lumberjack_name="recurring",
         chop_name="my_agent",
-        prompt="#sase/refresh_docs",
+        prompt="#!sase/refresh_docs",
     )
 
     assert env[ENV_CHOP_LUMBERJACK] == "recurring"
     assert env[ENV_CHOP_NAME] == "my_agent"
     assert env[ENV_CHOP_RUN_ID]
-    assert env[ENV_CHOP_PROMPT_HASH] == prompt_hash("#sase/refresh_docs")
+    assert env[ENV_CHOP_PROMPT_HASH] == prompt_hash("#!sase/refresh_docs")
     assert "SASE_AGENT_AUTO_DISMISS" not in env
 
 

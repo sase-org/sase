@@ -658,14 +658,14 @@ Before any prompt reaches a provider, it passes through a 6-step preprocessing p
 
 ### Steps
 
-| #   | Step                 | Syntax         | Description                                        |
-| --- | -------------------- | -------------- | -------------------------------------------------- |
-| 1   | xprompt references   | `#name`        | Expand reusable prompt snippets from xprompts      |
-| 2   | Command substitution | `$(cmd)`       | Execute shell commands and inline their output     |
-| 3   | File references      | `@path`        | Inline file contents (copy absolute/tilde paths)   |
-| 4   | Jinja2 rendering     | `{{ var }}`    | Render Jinja2 templates after all prior expansions |
-| 5   | Prettier formatting  | -              | Format with prettier for consistent markdown       |
-| 6   | Comment stripping    | `<!-- ... -->` | Remove HTML/markdown comments                      |
+| #   | Step                 | Syntax         | Description                                          |
+| --- | -------------------- | -------------- | ---------------------------------------------------- |
+| 1   | xprompt references   | `#name`        | Expand reusable inline prompt snippets from xprompts |
+| 2   | Command substitution | `$(cmd)`       | Execute shell commands and inline their output       |
+| 3   | File references      | `@path`        | Inline file contents (copy absolute/tilde paths)     |
+| 4   | Jinja2 rendering     | `{{ var }}`    | Render Jinja2 templates after all prior expansions   |
+| 5   | Prettier formatting  | -              | Format with prettier for consistent markdown         |
+| 6   | Comment stripping    | `<!-- ... -->` | Remove HTML/markdown comments                        |
 
 ### Order Matters
 

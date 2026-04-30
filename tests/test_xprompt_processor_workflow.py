@@ -369,7 +369,7 @@ def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
         "#gh:sase Some text about the pylimit_split workflow.\n"
         "\n"
         "```\n"
-        'sase run "#gh:sase #pylimit_split(1000 850 666)"\n'
+        "sase run '#gh:sase #!pylimit_split(1000 850 666)'\n"
         "```\n"
     )
     workflow = _make_anonymous_workflow(prompt)
