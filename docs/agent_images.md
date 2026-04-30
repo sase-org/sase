@@ -1,11 +1,12 @@
-# Agent Image Attachments and TUI Graphics
+# Agent Attachments and TUI Graphics
 
 ## Overview
 
-SASE treats image files produced by agents as first-class completion artifacts. When a successful agent adds or modifies
-a supported image file, the completion path records the image in `done.json` and appends it to the notification file
-list after the standard chat and diff artifacts. Notification plugins can then deliver those image files without
-re-scanning the workspace.
+SASE treats files produced by agents as first-class completion artifacts. When a successful agent adds or modifies a
+supported image file, the completion path records the image in `done.json` and appends it to the notification file list
+after the standard chat and diff artifacts. When a successful agent adds or modifies Markdown, core SASE renders a PDF
+artifact and attaches that PDF to the same completion notification. Notification plugins can then deliver those files
+without re-scanning the workspace.
 
 Supported image extensions are:
 
@@ -15,7 +16,7 @@ Supported image extensions are:
 - `.webp`
 - `.gif`
 
-## Completion Attachment Contract
+## Image Attachment Contract
 
 Image discovery runs when an agent finalizes successfully. The collector checks candidate paths in stable order:
 
@@ -33,11 +34,36 @@ instead of trying to infer generated images from arbitrary notification files.
 
 Source: `src/sase/axe/image_attachments.py`
 
+## Markdown PDF Attachment Contract
+
+Markdown discovery runs on successful agent finalization with the same candidate ordering as image discovery. Supported
+source extensions are `.md` and `.markdown`. Sources are resolved to existing workspace files, generated run artifacts
+are excluded, and duplicates are removed before rendering.
+
+Core SASE renders discovered Markdown sources into the current agent artifacts directory:
+
+```text
+<artifacts_dir>/markdown_pdfs/<sanitized-relative-source-path>.pdf
+<artifacts_dir>/markdown_pdfs/index.json
+```
+
+Rendering is best-effort. Missing Pandoc/PDF-engine tools or conversion errors do not fail the agent run; failed sources
+are omitted. Successful PDF paths are persisted as `markdown_pdf_paths` in `done.json`, and `index.json` records
+`source_path` to `pdf_path` mappings for diagnostics.
+
+Completion notifications attach generated Markdown PDFs after the saved chat and diff files, before image attachments.
+The Agents tab file panel also loads `markdown_pdf_paths` alongside plan and image files for completed agents.
+
+Sources:
+
+- `src/sase/attachments/markdown_pdf.py`
+- `src/sase/axe/run_agent_exec.py`
+
 ## Notification Delivery
 
-Core SASE stores image attachments in the existing `Notification.files` list. There is no separate notification schema
-field for typed attachments yet. This keeps the contract compatible with existing notification storage and lets
-downstream plugins decide how to render each file:
+Core SASE stores generated PDFs and image attachments in the existing `Notification.files` list. There is no separate
+notification schema field for typed attachments yet. This keeps the contract compatible with existing notification
+storage and lets downstream plugins decide how to render each file:
 
 - Telegram integrations can send images as photos and keep markdown/diff files as documents.
 - Google Chat integrations can upload image files directly into the completion thread.

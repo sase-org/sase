@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.image_attachments import collect_agent_image_paths
+from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.run_agent_runner_finalize import (
     classify_exec_success,
     send_completion_notification,
@@ -33,6 +34,7 @@ def base_kwargs(tmp_path):
         "error_report_path": None,
         "saved_path": None,
         "diff_path": None,
+        "markdown_pdf_paths": [],
         "image_paths": [],
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
@@ -108,6 +110,40 @@ def test_completion_notification_appends_image_paths_after_standard_files(
     ]
 
 
+def test_completion_notification_appends_markdown_pdfs_before_images(
+    base_kwargs, tmp_path
+):
+    chat = tmp_path / "chat.md"
+    diff = tmp_path / "diff.diff"
+    pdf = tmp_path / "markdown_pdfs" / "docs__notes.md.pdf"
+    image = tmp_path / "screen.png"
+    base_kwargs["saved_path"] = str(chat)
+    base_kwargs["diff_path"] = str(diff)
+    base_kwargs["markdown_pdf_paths"] = [str(pdf)]
+    base_kwargs["image_paths"] = [str(image)]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [
+        str(chat),
+        str(diff),
+        str(pdf),
+        str(image),
+    ]
+
+
+def test_completion_notification_dedupes_markdown_pdfs(base_kwargs, tmp_path):
+    pdf = tmp_path / "notes.pdf"
+    base_kwargs["diff_path"] = str(pdf)
+    base_kwargs["markdown_pdf_paths"] = [str(pdf)]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [str(pdf)]
+
+
 def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
     image = tmp_path / "screen.png"
     base_kwargs["diff_path"] = str(image)
@@ -117,6 +153,35 @@ def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["extra_files"] == [str(image)]
+
+
+def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
+    marker = build_done_marker(
+        "test-cl",
+        "/tmp/project.gp",
+        "20260430120000",
+        "20260430120000",
+        1,
+        "/tmp/output.log",
+        "completed",
+        markdown_pdf_paths=[str(tmp_path / "notes.pdf")],
+    )
+
+    assert marker["markdown_pdf_paths"] == [str(tmp_path / "notes.pdf")]
+
+
+def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
+    marker = build_done_marker(
+        "test-cl",
+        "/tmp/project.gp",
+        "20260430120000",
+        "20260430120000",
+        1,
+        "/tmp/output.log",
+        "completed",
+    )
+
+    assert marker["markdown_pdf_paths"] == []
 
 
 def test_collect_agent_image_paths_from_working_tree(tmp_path):

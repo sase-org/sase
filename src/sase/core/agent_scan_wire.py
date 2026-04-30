@@ -170,6 +170,8 @@ class DoneMarkerWire:
         name: Agent name set via ``%name`` or TUI rename.
         plan_path: Path to a plan written by the agent (if any).
         diff_path: Path to a diff produced by the agent (if any).
+        markdown_pdf_paths: Generated PDFs for Markdown files added or modified
+            by the agent.
         image_paths: Image files added or modified by the agent.
         response_path: Path to the agent response transcript.
         output_path: Path to a per-agent log/output file.
@@ -196,6 +198,7 @@ class DoneMarkerWire:
     name: str | None = None
     plan_path: str | None = None
     diff_path: str | None = None
+    markdown_pdf_paths: list[str] = field(default_factory=list)
     image_paths: list[str] = field(default_factory=list)
     response_path: str | None = None
     output_path: str | None = None

@@ -40,13 +40,15 @@ _DONE_AGENT_WORKFLOW_PREFIXES = [
 
 def _done_extra_files(
     plan_path: str | None,
+    markdown_pdf_paths: object,
     image_paths: object,
 ) -> list[str]:
-    """Return plan/image attachments for the Agents tab file panel."""
+    """Return plan/PDF/image attachments for the Agents tab file panel."""
     files: list[str] = []
     seen: set[str] = set()
+    markdown_pdfs = markdown_pdf_paths if isinstance(markdown_pdf_paths, list) else []
     images = image_paths if isinstance(image_paths, list) else []
-    for path in [plan_path, *images]:
+    for path in [plan_path, *markdown_pdfs, *images]:
         if not isinstance(path, str):
             continue
         if not path:
@@ -121,7 +123,11 @@ def _load_done_agent_for_dir(
             status = "DONE"
             error_message = None
             error_traceback = None
-        extra_files = _done_extra_files(data.get("plan_path"), data.get("image_paths"))
+        extra_files = _done_extra_files(
+            data.get("plan_path"),
+            data.get("markdown_pdf_paths"),
+            data.get("image_paths"),
+        )
 
         agent = Agent(
             agent_type=AgentType.RUNNING,
@@ -262,7 +268,11 @@ def _build_done_agent_from_record(
         status = "DONE"
         error_message = None
         error_traceback = None
-    extra_files = _done_extra_files(done.plan_path, done.image_paths)
+    extra_files = _done_extra_files(
+        done.plan_path,
+        done.markdown_pdf_paths,
+        done.image_paths,
+    )
 
     agent = Agent(
         agent_type=AgentType.RUNNING,

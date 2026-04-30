@@ -61,7 +61,6 @@ def collect_agent_image_paths(
     )
 
 
-# pyvision: tests/test_agent_attachment_discovery.py
 def collect_agent_markdown_paths(
     workspace_dir: str,
     *,

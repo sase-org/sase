@@ -138,6 +138,7 @@ def _build_ace_run_done(root: Path) -> None:
             "vcs_provider": "github",
             "name": "done_alpha",
             "diff_path": "/tmp/diff_alpha.diff",
+            "markdown_pdf_paths": ["/tmp/markdown_pdfs/notes.pdf"],
             "response_path": "/tmp/resp_alpha.md",
             "output_path": "/tmp/out_alpha.log",
         },

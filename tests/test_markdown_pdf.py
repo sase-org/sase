@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.attachments.markdown_pdf import render_markdown_pdf
+from sase.attachments.markdown_pdf import (
+    render_markdown_pdf,
+    render_markdown_pdf_attachments,
+)
 
 
 def test_render_markdown_pdf_uses_first_available_engine(tmp_path):
@@ -145,3 +149,51 @@ def test_render_markdown_pdf_removes_failed_partial_output(tmp_path):
     assert result is None
     assert not dest.exists()
     assert list(tmp_path.glob("*.pdf")) == []
+
+
+def test_render_markdown_pdf_attachments_writes_artifacts_and_index(tmp_path):
+    workspace = tmp_path / "workspace"
+    artifacts = tmp_path / "artifacts"
+    source = workspace / "docs" / "notes.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Notes\n")
+
+    def fake_render(src, dest):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"%PDF")
+        return dest
+
+    with patch(
+        "sase.attachments.markdown_pdf.render_markdown_pdf",
+        side_effect=fake_render,
+    ):
+        result = render_markdown_pdf_attachments(
+            [str(source)],
+            workspace_dir=workspace,
+            artifacts_dir=artifacts,
+        )
+
+    pdf = artifacts / "markdown_pdfs" / "docs__notes.md.pdf"
+    assert result == [str(pdf)]
+    assert pdf.read_bytes() == b"%PDF"
+    assert json.loads((artifacts / "markdown_pdfs" / "index.json").read_text()) == [
+        {"source_path": str(source), "pdf_path": str(pdf)}
+    ]
+
+
+def test_render_markdown_pdf_attachments_skips_failed_sources(tmp_path):
+    workspace = tmp_path / "workspace"
+    artifacts = tmp_path / "artifacts"
+    source = workspace / "notes.md"
+    source.parent.mkdir()
+    source.write_text("# Notes\n")
+
+    with patch("sase.attachments.markdown_pdf.render_markdown_pdf", return_value=None):
+        result = render_markdown_pdf_attachments(
+            [str(source)],
+            workspace_dir=workspace,
+            artifacts_dir=artifacts,
+        )
+
+    assert result == []
+    assert not (artifacts / "markdown_pdfs" / "index.json").exists()

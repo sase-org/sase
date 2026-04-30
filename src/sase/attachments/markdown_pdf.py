@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -13,6 +17,56 @@ log = logging.getLogger(__name__)
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 PDF_ENGINES = ("wkhtmltopdf", "xelatex", "pdflatex")
 DEFAULT_PANDOC_TIMEOUT_SECONDS = 120
+
+
+@dataclass(frozen=True)
+class MarkdownPdfRecord:
+    """Source-to-artifact mapping for a generated Markdown PDF."""
+
+    source_path: str
+    pdf_path: str
+
+
+def render_markdown_pdf_attachments(
+    source_paths: Iterable[str],
+    *,
+    workspace_dir: str | Path,
+    artifacts_dir: str | Path,
+) -> list[str]:
+    """Render Markdown sources into ``artifacts_dir/markdown_pdfs``.
+
+    Returns successfully generated PDF paths in source order. Conversion is
+    best-effort: unsupported/missing sources and render failures are skipped.
+    A sidecar ``index.json`` is written only when at least one PDF is produced.
+    """
+    workspace = Path(workspace_dir).expanduser()
+    pdf_dir = Path(artifacts_dir).expanduser() / "markdown_pdfs"
+    records: list[MarkdownPdfRecord] = []
+    used_destinations: set[Path] = set()
+
+    for source_str in source_paths:
+        source = Path(source_str).expanduser()
+        dest = _unique_pdf_destination(
+            pdf_dir / _pdf_filename_for_source(source, workspace),
+            used_destinations,
+        )
+        used_destinations.add(dest)
+        rendered = render_markdown_pdf(source, dest)
+        if rendered is None:
+            continue
+        record = MarkdownPdfRecord(
+            source_path=str(source),
+            pdf_path=str(rendered),
+        )
+        records.append(record)
+
+    if records:
+        index_path = pdf_dir / "index.json"
+        index_path.write_text(
+            json.dumps([asdict(record) for record in records], indent=2),
+            encoding="utf-8",
+        )
+    return [record.pdf_path for record in records]
 
 
 def render_markdown_pdf(
@@ -122,3 +176,32 @@ def _temporary_pdf_path(dest: Path) -> Path:
         delete=False,
     ) as tmp:
         return Path(tmp.name)
+
+
+def _pdf_filename_for_source(source: Path, workspace: Path) -> str:
+    try:
+        relative = source.resolve(strict=False).relative_to(
+            workspace.resolve(strict=False)
+        )
+        parts = relative.parts
+    except (OSError, ValueError):
+        parts = (source.name,)
+    safe_parts = [_sanitize_path_part(part) for part in parts if part]
+    stem = "__".join(safe_parts) or "markdown"
+    return f"{stem}.pdf"
+
+
+def _sanitize_path_part(part: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", part).strip("._")
+    return safe or "path"
+
+
+def _unique_pdf_destination(dest: Path, used_destinations: set[Path]) -> Path:
+    if dest not in used_destinations:
+        return dest
+    counter = 2
+    while True:
+        candidate = dest.with_name(f"{dest.stem}-{counter}{dest.suffix}")
+        if candidate not in used_destinations:
+            return candidate
+        counter += 1

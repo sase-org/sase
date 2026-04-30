@@ -527,6 +527,7 @@ def build_done_marker(
     step_output: dict[str, Any] | None = None,
     diff_path: str | None = None,
     plan_path: str | None = None,
+    markdown_pdf_paths: list[str] | None = None,
     image_paths: list[str] | None = None,
     error: str | None = None,
     traceback_str: str | None = None,
@@ -561,6 +562,7 @@ def build_done_marker(
         marker["step_output"] = step_output
         marker["diff_path"] = diff_path
         marker["plan_path"] = plan_path
+        marker["markdown_pdf_paths"] = markdown_pdf_paths or []
         marker["image_paths"] = image_paths or []
     # Failed outcome includes error details
     if error:

@@ -63,6 +63,7 @@ class _AgentExecResult:
     outcome: str = "completed"
     saved_path: str | None = None
     diff_path: str | None = None
+    markdown_pdf_paths: list[str] = field(default_factory=list)
     image_paths: list[str] = field(default_factory=list)
     current_artifacts_dir: str = ""
     step_output: dict[str, Any] | None = None
@@ -132,6 +133,7 @@ def _finalize_loop(
 
     saved_path: str | None = None
     diff_path: str | None = None
+    markdown_pdf_paths: list[str] = []
     image_paths: list[str] = []
     step_output: dict[str, Any] | None = None
 
@@ -184,7 +186,11 @@ def _finalize_loop(
         step_output, diff_path = extract_step_output_and_diff_path(
             state.current_artifacts_dir
         )
-        from sase.axe.image_attachments import collect_agent_image_paths
+        from sase.attachments.markdown_pdf import render_markdown_pdf_attachments
+        from sase.axe.image_attachments import (
+            collect_agent_image_paths,
+            collect_agent_markdown_paths,
+        )
 
         include_head_commit = bool(
             step_output
@@ -197,11 +203,24 @@ def _finalize_loop(
             )
         )
         workspace_dir = getattr(ctx, "workspace_dir", os.getcwd())
+        base_files = [path for path in [saved_path, diff_path] if path]
+        markdown_paths = collect_agent_markdown_paths(
+            workspace_dir,
+            diff_path=diff_path,
+            include_head_commit=include_head_commit,
+            existing_files=base_files,
+            artifacts_dir=state.current_artifacts_dir,
+        )
+        markdown_pdf_paths = render_markdown_pdf_attachments(
+            markdown_paths,
+            workspace_dir=workspace_dir,
+            artifacts_dir=state.current_artifacts_dir,
+        )
         image_paths = collect_agent_image_paths(
             workspace_dir,
             diff_path=diff_path,
             include_head_commit=include_head_commit,
-            existing_files=[path for path in [saved_path, diff_path] if path],
+            existing_files=[*base_files, *markdown_pdf_paths],
         )
 
         # Detect noop: workflow completed but launched zero agents
@@ -227,6 +246,7 @@ def _finalize_loop(
             step_output=step_output,
             diff_path=diff_path,
             plan_path=plan_path,
+            markdown_pdf_paths=markdown_pdf_paths,
             image_paths=image_paths,
             retry_metadata=_retry_meta,
         )
@@ -295,6 +315,7 @@ def _finalize_loop(
         outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,
+        markdown_pdf_paths=markdown_pdf_paths,
         image_paths=image_paths,
         current_artifacts_dir=state.current_artifacts_dir,
         step_output=step_output,

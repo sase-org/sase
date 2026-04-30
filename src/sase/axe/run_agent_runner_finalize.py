@@ -134,6 +134,7 @@ def send_completion_notification(
     error_report_path: str | None,
     saved_path: str | None,
     diff_path: str | None,
+    markdown_pdf_paths: list[str] | None = None,
     image_paths: list[str] | None = None,
     output_path: str,
     step_output: dict[str, Any] | None,
@@ -154,6 +155,7 @@ def send_completion_notification(
             extra_files.insert(0, error_report_path)
         if os.path.isfile(output_path):
             extra_files.append(output_path)
+    extra_files.extend(append_unique_paths(markdown_pdf_paths or [], extra_files))
     extra_files.extend(append_unique_paths(image_paths or [], extra_files))
 
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)

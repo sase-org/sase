@@ -129,6 +129,7 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
     artifact_dir = tmp_path / "20260430120000"
     artifact_dir.mkdir()
     plan = tmp_path / "plan.md"
+    pdf = tmp_path / "notes.pdf"
     image = tmp_path / "image.png"
     duplicate = tmp_path / "duplicate.png"
     done = {
@@ -136,6 +137,7 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
         "project_file": "/tmp/project.gp",
         "outcome": "completed",
         "plan_path": str(plan),
+        "markdown_pdf_paths": [str(pdf), str(plan)],
         "image_paths": [str(image), str(plan), str(duplicate)],
     }
     (artifact_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
@@ -143,7 +145,7 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
     agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
 
     assert agent is not None
-    assert agent.extra_files == [str(plan), str(image), str(duplicate)]
+    assert agent.extra_files == [str(plan), str(pdf), str(image), str(duplicate)]
 
 
 def test_image_fallback_mentions_editor_actions(tmp_path: Path) -> None:
