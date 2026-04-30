@@ -33,12 +33,9 @@ Scenarios
     checks parent constraint, may strip suffix; closest to the cost a
     Rust planner would replace).
 
-Each scenario is run under the default Python backend and, when the
-extension is importable, again under ``SASE_CORE_BACKEND=rust`` so the
-status-facade routing overhead can be observed even though no Rust
-status implementation is registered yet. The Rust-backend numbers are
-expected to match Python-backend numbers within noise; an unexpected
-gap is itself signal for Phase 4D.
+After Phase 8E the facade entry points call ``sase_core_rs`` directly,
+so each scenario is timed in a single configuration (no backend
+toggle).
 
 Marked ``slow`` so it does not run in ``just test``. Run via::
 
@@ -53,8 +50,8 @@ Or directly::
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
-import os
 import platform
 import statistics
 import sys
@@ -66,7 +63,6 @@ from typing import Any
 
 import pytest
 
-from sase.core.backend import BACKEND_ENV_VAR, is_rust_available
 from sase.core.status_facade import (
     apply_status_update,
     plan_status_transition,
@@ -152,25 +148,6 @@ def _time_calls(fn: Callable[[], Any], *, runs: int, warmup: int) -> dict[str, f
     return _summarize(samples)
 
 
-def _restore_env(env_var: str, prior: str | None) -> None:
-    if prior is None:
-        os.environ.pop(env_var, None)
-    else:
-        os.environ[env_var] = prior
-
-
-def _with_backend_env(value: str | None, fn: Callable[[], Any]) -> Any:
-    prior = os.environ.get(BACKEND_ENV_VAR)
-    if value is None:
-        os.environ.pop(BACKEND_ENV_VAR, None)
-    else:
-        os.environ[BACKEND_ENV_VAR] = value
-    try:
-        return fn()
-    finally:
-        _restore_env(BACKEND_ENV_VAR, prior)
-
-
 def _measure_pure(
     *,
     label: str,
@@ -178,7 +155,6 @@ def _measure_pure(
     target_name: str,
     runs: int,
     warmup: int,
-    rust_active: bool,
 ) -> dict[str, Any]:
     """Time the pure helpers (no disk I/O)."""
     lines = text.splitlines(keepends=True)
@@ -213,30 +189,17 @@ def _measure_pure(
     def s_plan_status_transition() -> bool:
         return plan_status_transition(plan_request).success
 
-    def _run(scenarios: dict[str, Callable[[], Any]]) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        for name, fn in scenarios.items():
-            out[name] = _time_calls(fn, runs=runs, warmup=warmup)
-        return out
-
-    py_scenarios: dict[str, Callable[[], Any]] = {
+    scenarios: dict[str, Callable[[], Any]] = {
         "is_valid_transition": s_is_valid_transition,
         "remove_workspace_suffix": s_remove_workspace_suffix,
         "read_status_from_lines": s_read_status,
         "apply_status_update": s_apply_status,
         "plan_status_transition": s_plan_status_transition,
     }
-    py_results = _with_backend_env("python", lambda: _run(py_scenarios))
-
-    rust_results: dict[str, Any] = {}
-    if rust_active:
-        # Only the facade-routed helpers exercise backend dispatch.
-        rust_scenarios: dict[str, Callable[[], Any]] = {
-            "read_status_from_lines": s_read_status,
-            "apply_status_update": s_apply_status,
-            "plan_status_transition": s_plan_status_transition,
-        }
-        rust_results = _with_backend_env("rust", lambda: _run(rust_scenarios))
+    results = {
+        name: _time_calls(fn, runs=runs, warmup=warmup)
+        for name, fn in scenarios.items()
+    }
 
     return {
         "label": label,
@@ -245,8 +208,7 @@ def _measure_pure(
         "target_name": target_name,
         "runs": runs,
         "warmup": warmup,
-        "scenarios_python_backend": py_results,
-        "scenarios_rust_backend": rust_results,
+        "scenarios": results,
     }
 
 
@@ -257,49 +219,36 @@ def _measure_transition(
     target_name: str,
     runs: int,
     warmup: int,
-    rust_active: bool,
 ) -> dict[str, Any]:
     """Time the orchestrator on a temp project file (full disk I/O)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        proj = Path(tmp) / "myproj.gp"
 
-    def _run_pair(backend: str) -> dict[str, Any]:
-        # Pre-create a tempdir per call site so iteration cost reflects
-        # the transition itself, not tempdir setup. We rewrite the
-        # project file before each iteration so the transition starts
-        # from a known STATUS=WIP state.
-        with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "myproj.gp"
+        def _reset() -> None:
+            proj.write_text(text, encoding="utf-8")
 
-            def _reset() -> None:
-                proj.write_text(text, encoding="utf-8")
-
-            def s_wip_to_draft() -> bool:
-                _reset()
-                ok, _, _, _ = transition_changespec_status(
-                    str(proj), target_name, "Draft", validate=True
-                )
-                return ok
-
-            def s_wip_to_ready() -> bool:
-                _reset()
-                ok, _, _, _ = transition_changespec_status(
-                    str(proj), target_name, "Ready", validate=True
-                )
-                return ok
-
-            scenarios: dict[str, Callable[[], Any]] = {
-                "transition_changespec_status_wip_to_draft": s_wip_to_draft,
-                "transition_changespec_status_wip_to_ready": s_wip_to_ready,
-            }
-            return _with_backend_env(
-                backend,
-                lambda: {
-                    name: _time_calls(fn, runs=runs, warmup=warmup)
-                    for name, fn in scenarios.items()
-                },
+        def s_wip_to_draft() -> bool:
+            _reset()
+            ok, _, _, _ = transition_changespec_status(
+                str(proj), target_name, "Draft", validate=True
             )
+            return ok
 
-    py_results = _run_pair("python")
-    rust_results = _run_pair("rust") if rust_active else {}
+        def s_wip_to_ready() -> bool:
+            _reset()
+            ok, _, _, _ = transition_changespec_status(
+                str(proj), target_name, "Ready", validate=True
+            )
+            return ok
+
+        scenarios: dict[str, Callable[[], Any]] = {
+            "transition_changespec_status_wip_to_draft": s_wip_to_draft,
+            "transition_changespec_status_wip_to_ready": s_wip_to_ready,
+        }
+        results = {
+            name: _time_calls(fn, runs=runs, warmup=warmup)
+            for name, fn in scenarios.items()
+        }
 
     return {
         "label": label,
@@ -307,8 +256,7 @@ def _measure_transition(
         "target_name": target_name,
         "runs": runs,
         "warmup": warmup,
-        "scenarios_python_backend": py_results,
-        "scenarios_rust_backend": rust_results,
+        "scenarios": results,
     }
 
 
@@ -320,24 +268,20 @@ def _print_human(report: dict[str, Any]) -> None:
         f"target_name={report['target_name']!r}"
     )
     header = (
-        f"{'scenario':<48} {'backend':<7} {'min_us':>10} "
+        f"{'scenario':<48} {'min_us':>10} "
         f"{'median_us':>12} {'p95_us':>10} {'max_us':>10}"
     )
     print("  " + header)
     print("  " + "-" * len(header))
 
-    def _print_block(backend: str, scenarios: dict[str, Any]) -> None:
-        for name, summary in scenarios.items():
-            if summary.get("count", 0) == 0:
-                continue
-            print(
-                "  " + f"{name:<48} {backend:<7} {summary['min_us']:>10.3f} "
-                f"{summary['median_us']:>12.3f} "
-                f"{summary['p95_us']:>10.3f} {summary['max_us']:>10.3f}"
-            )
-
-    _print_block("python", report.get("scenarios_python_backend", {}))
-    _print_block("rust", report.get("scenarios_rust_backend", {}))
+    for name, summary in report.get("scenarios", {}).items():
+        if summary.get("count", 0) == 0:
+            continue
+        print(
+            "  " + f"{name:<48} {summary['min_us']:>10.3f} "
+            f"{summary['median_us']:>12.3f} "
+            f"{summary['p95_us']:>10.3f} {summary['max_us']:>10.3f}"
+        )
 
 
 def run_bench(
@@ -362,7 +306,6 @@ def run_bench(
             iteration writes to a fresh tempfile and is much costlier
             than the pure helpers.
     """
-    rust_active = is_rust_available()
     if transition_runs is None:
         transition_runs = min(runs, 20)
 
@@ -377,7 +320,6 @@ def run_bench(
             target_name="beta",
             runs=runs,
             warmup=warmup,
-            rust_active=rust_active,
         )
     )
     workloads.append(
@@ -387,7 +329,6 @@ def run_bench(
             target_name="beta",
             runs=transition_runs,
             warmup=max(1, warmup // 2),
-            rust_active=rust_active,
         )
     )
 
@@ -406,7 +347,6 @@ def run_bench(
                 target_name=last_target,
                 runs=runs,
                 warmup=warmup,
-                rust_active=rust_active,
             )
         )
         workloads.append(
@@ -416,14 +356,13 @@ def run_bench(
                 target_name=last_target,
                 runs=transition_runs,
                 warmup=max(1, warmup // 2),
-                rust_active=rust_active,
             )
         )
 
     report = {
         "tool": "bench_status_state_machine",
         "phase": "4A",
-        "rust_available": rust_active,
+        "rust_available": importlib.util.find_spec("sase_core_rs") is not None,
         "platform": {
             "python": sys.version.split()[0],
             "system": platform.system(),
@@ -490,8 +429,8 @@ def test_bench_status_state_machine_smoke(tmp_path: Path) -> None:
     )
     assert report["workloads"], "expected at least one workload"
     pure = report["workloads"][0]
-    assert "scenarios_python_backend" in pure
-    assert "read_status_from_lines" in pure["scenarios_python_backend"]
+    assert "scenarios" in pure
+    assert "read_status_from_lines" in pure["scenarios"]
     assert (tmp_path / "bench.json").exists()
 
 

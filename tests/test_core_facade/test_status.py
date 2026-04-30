@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.core import status_facade
-from sase.core.backend import RUST_EXTENSION_MODULE_NAME
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from tests.test_core_facade._helpers import (
     SAMPLE_PROJECT_TEXT,
@@ -20,7 +20,7 @@ from tests.test_core_facade._helpers import (
 
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make :func:`sase.core.backend.load_rust_extension` see no module."""
+    """Make the strict Rust loader see no extension module."""
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
     real_import_module = importlib.import_module
 

@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from inline_snapshot import snapshot
 
 from sase.ace.changespec.models import ChangeSpec
@@ -29,8 +28,6 @@ from sase.core import (
 )
 from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
-
-pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 _CORPUS_DIR = Path(__file__).parent / "core_golden"
 _PROJECT_GP = _CORPUS_DIR / "myproj.gp"
@@ -449,129 +446,6 @@ def test_status_field_helpers_snapshot() -> None:
     # Idempotency: applying the current status returns equivalent content.
     same = status_facade.apply_status_update(lines, "alpha", "Submitted")
     assert same == original
-
-
-def test_dual_run_with_fake_rust_over_corpus(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Fake-Rust ``parse_project_file`` runs against the golden corpus through
-    :func:`sase.core.backend.dispatch`, producing a single JSONL record that
-    matches the documented schema.
-
-    This is the end-to-end shape Phase 1 will exercise once a real Rust
-    backend is registered: the corpus is the input and the dual-run logger
-    is what proves parity.
-    """
-    from sase.core.backend import (
-        BACKEND_ENV_VAR,
-        DUAL_RUN_ENV_VAR,
-        dispatch,
-    )
-    from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
-
-    log = tmp_path / "dual.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-
-    def fake_rust(file_path: str) -> list[ChangeSpec]:
-        # Return identical wire-equivalent specs by reusing the python parser.
-        return parser_facade.parse_project_file(file_path)
-
-    result = dispatch(
-        operation="parse_project_file",
-        python_impl=parser_facade.parse_project_file,
-        rust_impl=fake_rust,
-        args=(str(_PROJECT_GP),),
-        source_path=str(_PROJECT_GP),
-    )
-    assert [cs.name for cs in result] == [
-        "alpha",
-        "beta",
-        "beta__260102_010101",
-        "gamma",
-    ]
-
-    [row] = [json.loads(line) for line in log.read_text().splitlines() if line]
-    assert row["operation"] == "parse_project_file"
-    assert row["source_path"] == str(_PROJECT_GP)
-    assert row["match"] is True
-    assert row["error_class"] is None
-    assert row["schema_version"] == 1
-
-
-def test_dual_run_with_diverging_fake_rust(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A fake Rust that drops a spec produces a mismatch record with a path."""
-    from sase.core.backend import (
-        BACKEND_ENV_VAR,
-        DUAL_RUN_ENV_VAR,
-        dispatch,
-    )
-    from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
-
-    log = tmp_path / "dual_mismatch.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-    monkeypatch.delenv(BACKEND_ENV_VAR, raising=False)
-
-    def fake_rust_drops_last(file_path: str) -> list[ChangeSpec]:
-        specs = parser_facade.parse_project_file(file_path)
-        return specs[:-1]  # drop gamma
-
-    def to_jsonable(specs: list[ChangeSpec]) -> list[dict]:
-        return [to_json_dict(changespec_to_wire(cs)) for cs in specs]
-
-    result = dispatch(
-        operation="parse_project_file",
-        python_impl=parser_facade.parse_project_file,
-        rust_impl=fake_rust_drops_last,
-        args=(str(_PROJECT_GP),),
-        source_path=str(_PROJECT_GP),
-        kwargs=None,
-    )
-    # The Python result is always returned even when Rust diverges.
-    assert [cs.name for cs in result] == [
-        "alpha",
-        "beta",
-        "beta__260102_010101",
-        "gamma",
-    ]
-    # And the mismatch is logged with a meaningful diff path.
-    [row] = [json.loads(line) for line in log.read_text().splitlines() if line]
-    assert row["match"] is False
-    # The first diff happens at index 3 (the dropped gamma entry).
-    assert (
-        row["first_diff_path"] is not None
-        and row["first_diff_path"].startswith("/3")
-        or row["first_diff_path"] == "."
-    )
-    # Sanity: the json-dictified comparison would have caught it.
-    assert to_jsonable(result) != to_jsonable(fake_rust_drops_last(str(_PROJECT_GP)))
-
-
-def test_explicit_rust_backend_with_fake_impl_uses_rust(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``SASE_CORE_BACKEND=rust`` with a registered fake rust returns its result."""
-    from sase.core.backend import BACKEND_ENV_VAR, DUAL_RUN_ENV_VAR, dispatch
-
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-
-    sentinel = object()
-
-    def python_impl() -> object:  # pragma: no cover - must not run
-        raise AssertionError("python should not be called when rust=on")
-
-    def rust_impl() -> object:
-        return sentinel
-
-    assert (
-        dispatch(operation="op", python_impl=python_impl, rust_impl=rust_impl)
-        is sentinel
-    )
 
 
 def test_wire_json_is_byte_stable() -> None:

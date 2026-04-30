@@ -18,10 +18,7 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 _GIT_AVAILABLE = shutil.which("git") is not None
 
-pytestmark = [
-    pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available"),
-    pytest.mark.usefixtures("python_core_backend"),
-]
+pytestmark = pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
 
 
 def _make_git_provider() -> VCSPluginManager:

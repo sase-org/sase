@@ -34,24 +34,16 @@ jobs:
           # Install the freshly built wheel; PyPI resolves the
           # `sase-core-rs` runtime dependency.
           uv pip install --python /tmp/smoke-venv/bin/python dist/sase-*.whl
-      - name: Default-backend health check (Rust extension loadable)
+      - name: Health check (Rust extension loadable)
         run: /tmp/smoke-venv/bin/sase core health --json
-      - name: Explicit Python-mode health check (no Rust required)
-        env:
-          SASE_CORE_BACKEND: python
-        run: /tmp/smoke-venv/bin/sase core health --json
-      # Phase 6G: surface platform / extension version details when a
-      # release smoke step above fails so the build log is enough to
-      # diagnose a missing-wheel or ABI-mismatch issue without a manual
-      # reproduction step.
+      # Surface platform / extension version details when the smoke
+      # step above fails so the build log is enough to diagnose a
+      # missing-wheel or ABI-mismatch issue without a manual repro step.
       - name: Report extension diagnostics on failure
         if: failure()
         run: |
-          echo "::group::sase core health --json (default backend)"
+          echo "::group::sase core health --json"
           /tmp/smoke-venv/bin/sase core health --json || true
-          echo "::endgroup::"
-          echo "::group::sase core health --json (SASE_CORE_BACKEND=python)"
-          SASE_CORE_BACKEND=python /tmp/smoke-venv/bin/sase core health --json || true
           echo "::endgroup::"
           echo "::group::installed packages"
           /tmp/smoke-venv/bin/python -m pip list || true

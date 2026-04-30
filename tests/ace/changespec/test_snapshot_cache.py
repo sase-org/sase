@@ -11,7 +11,6 @@ import pytest
 
 from sase.ace.changespec import cache as cache_mod
 from sase.ace.changespec.cache import ChangeSpecSnapshotCache
-from sase.core.backend import BACKEND_ENV_VAR
 
 
 _GP_HEADER = """\
@@ -51,19 +50,6 @@ def test_cached_get_file_specs_returns_same_specs(tmp_path: Path) -> None:
     assert len(a) == 1 == len(b)
     assert a[0].name == "alpha"
     assert b[0].name == "alpha"
-
-
-def test_get_file_specs_parses_when_rust_backend_selected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    f = tmp_path / "p.gp"
-    _write(f, _GP_HEADER)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    specs = ChangeSpecSnapshotCache().get_file_specs(f)
-
-    assert len(specs) == 1
-    assert specs[0].name == "alpha"
 
 
 def test_warm_cache_makes_zero_parse_calls(tmp_path: Path) -> None:

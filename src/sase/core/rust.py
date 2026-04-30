@@ -1,24 +1,19 @@
 """Strict Rust extension loader for ``sase.core`` facades.
 
-Phase 8A foundation. Unlike :mod:`sase.core.backend`'s legacy
-``load_rust_extension`` / ``is_rust_available`` pair, the helpers here do not
-inspect ``SASE_CORE_BACKEND``, do not return ``None`` for a missing wheel,
-and do not silently fall back to Python. The contract is:
+The helpers here do not inspect any env var, do not return ``None`` for a
+missing wheel, and do not silently fall back to Python. They are the only
+supported import path for ported facades. Contract:
 
 - :func:`require_rust_extension` imports ``sase_core_rs`` and returns the
   module. A missing or unimportable wheel raises :class:`ImportError` whose
   message names the package and the supported install commands. Other
-  import-time errors (e.g. an ABI mismatch) propagate verbatim, matching the
-  legacy probe's "broken wheel surfaces, missing wheel does not" split.
+  import-time errors (e.g. an ABI mismatch) propagate verbatim so a broken
+  wheel surfaces clearly instead of looking like a missing install.
 - :func:`require_rust_binding` looks up a single named attribute on the
   Rust extension and returns it. Importing the extension is delegated to
   :func:`require_rust_extension`; a missing attribute raises
   :class:`AttributeError` with operation-specific text so a stale wheel
   fails with a clear pointer at the call site instead of one generic error.
-
-These helpers are the only supported import path for ported facades after
-Phase 8 deletes :func:`sase.core.backend.dispatch`. See
-``plans/202604/rust_backend_phase8.md`` for the migration plan.
 """
 
 from __future__ import annotations
@@ -62,7 +57,7 @@ def require_rust_binding(name: str) -> Any:
             (delegated to :func:`require_rust_extension`).
         AttributeError: when the extension is importable but does not
             expose the requested binding. This typically means the wheel
-            is too old or was built without the shipped Phase 8 bindings.
+            is too old or was built without the shipped bindings.
     """
     module = require_rust_extension()
     try:
@@ -71,5 +66,5 @@ def require_rust_binding(name: str) -> Any:
         raise AttributeError(
             f"{RUST_EXTENSION_MODULE_NAME} is importable but does not expose "
             f"binding {name!r}; the installed wheel is stale or was built "
-            f"without the shipped Phase 8 bindings. {_INSTALL_HINT.capitalize()}."
+            f"without the shipped bindings. {_INSTALL_HINT.capitalize()}."
         ) from exc

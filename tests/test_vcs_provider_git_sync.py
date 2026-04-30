@@ -7,11 +7,7 @@ continue_sync, abort_sync.
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
-
-pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 # === Tests for sync_workspace ===
 

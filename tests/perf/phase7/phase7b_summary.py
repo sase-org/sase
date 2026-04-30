@@ -52,16 +52,18 @@ def _write_summary_artifact(
             "label": w["label"],
             "size": w.get("size", {}),
         }
-        if "baseline" in w and "candidate" in w:
+        if "candidate" in w:
+            baseline = w.get("baseline") or {}
             comparisons = summarize_report(
                 surface=surface,
                 workload=w["label"],
-                baseline_scenarios=w["baseline"],
+                baseline_scenarios=baseline,
                 candidate_scenarios=w["candidate"],
                 baseline_label="explicit_python",
                 candidate_label="default_rust",
             )
-            rendered["baseline"] = w["baseline"]
+            if baseline:
+                rendered["baseline"] = baseline
             rendered["candidate"] = w["candidate"]
             rendered["comparisons"] = [c.as_dict() for c in comparisons]
             for raw_key in ("raw_python_scenarios", "raw_rust_scenarios"):
@@ -92,39 +94,25 @@ def _write_summary_artifact(
 
 def _merge_git_workloads(
     *,
-    python_run: Mapping[str, Mapping[str, Any]],
     rust_run: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Pair python-backend / rust-backend git query ops runs by workload label.
+    """Project the rust-backend git query ops run into summary shape.
 
-    The Git query ops harness does not flip the backend per scenario, so
-    we run it twice and pair the workloads here. Returns
-    ``surface -> {tool, extra, workloads}`` with each workload carrying a
-    ``baseline`` and ``candidate`` map that ``_write_summary_artifact``
-    can feed straight into ``summarize_report``.
+    Returns ``surface -> {tool, extra, workloads}`` with each workload
+    carrying a ``candidate`` map that ``_write_summary_artifact`` feeds
+    straight into ``summarize_report``. Post-Phase-8 there is no
+    Python-backend pass to pair against, so ``baseline`` is empty.
     """
     merged: dict[str, dict[str, Any]] = {}
-    for surface, py_payload in python_run.items():
-        rust_payload = rust_run.get(surface, {"workloads": []})
-        py_workloads = {w["label"]: w for w in py_payload["workloads"]}
-        rust_workloads = {w["label"]: w for w in rust_payload["workloads"]}
-
-        labels = list(py_workloads.keys())
-        for label in rust_workloads:
-            if label not in labels:
-                labels.append(label)
-
+    for surface, rust_payload in rust_run.items():
         merged_workloads: list[dict[str, Any]] = []
-        for label in labels:
-            py_w = py_workloads.get(label, {})
-            rust_w = rust_workloads.get(label, {})
-            if "summary" in py_w or "summary" in rust_w:
-                # Normalizer workloads — single scenario per backend.
+        for rust_w in rust_payload.get("workloads", []):
+            label = rust_w["label"]
+            if "summary" in rust_w:
                 merged_workloads.append(
                     {
                         "label": label,
-                        "size": (py_w.get("size") or rust_w.get("size") or {}),
-                        "baseline": {surface: py_w.get("summary", {})},
+                        "size": rust_w.get("size") or {},
                         "candidate": {surface: rust_w.get("summary", {})},
                     }
                 )
@@ -132,21 +120,15 @@ def _merge_git_workloads(
                 merged_workloads.append(
                     {
                         "label": label,
-                        "size": (py_w.get("size") or rust_w.get("size") or {}),
-                        "baseline": {
-                            surface: (py_w.get("scenarios") or {}).get(surface, {}),
-                        },
+                        "size": rust_w.get("size") or {},
                         "candidate": {
                             surface: (rust_w.get("scenarios") or {}).get(surface, {}),
                         },
                     }
                 )
         merged[surface] = {
-            "tool": py_payload.get("tool") or rust_payload.get("tool"),
-            "extra": {
-                "python_run_extra": py_payload.get("extra", {}),
-                "rust_run_extra": rust_payload.get("extra", {}),
-            },
+            "tool": rust_payload.get("tool"),
+            "extra": {"rust_run_extra": rust_payload.get("extra", {})},
             "workloads": merged_workloads,
         }
     return merged

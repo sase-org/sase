@@ -26,7 +26,7 @@ from typing import Any
 
 import pytest
 
-from sase.core.backend import RUST_EXTENSION_MODULE_NAME
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.git_query_facade import (
     derive_git_workspace_name,
     derive_git_workspace_name_python,
@@ -293,7 +293,7 @@ _LOCAL_CHANGES_INPUT = "M src/a.py\n"
 
 
 def _force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``load_rust_extension`` see no module."""
+    """Make the strict Rust loader see no extension module."""
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
     real_import_module = importlib.import_module
 

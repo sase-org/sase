@@ -1,14 +1,9 @@
 """Shared fixtures for ``sase.core`` facade tests.
 
-Each facade should call the existing Python implementation by default and
-behave identically to it. Shipped Rust operations configured for backend
-dispatch should fail clearly under ``SASE_CORE_BACKEND=rust`` when no Rust
-implementation is registered; intentionally unported facade operations fall
-back to Python.
-
-When ``sase_core_rs`` is importable, ``parse_project_bytes`` routes to the Rust
-binding under ``SASE_CORE_BACKEND=rust`` and dual-run logs a comparison record.
-The file-path ``parse_project_file`` API stays Python-only for compatibility.
+Each facade either calls ``sase_core_rs`` directly through the strict
+loader (ported operations) or its Python implementation directly
+(intentionally unported operations). The file-path
+``parse_project_file`` API stays Python-only for compatibility.
 """
 
 from __future__ import annotations

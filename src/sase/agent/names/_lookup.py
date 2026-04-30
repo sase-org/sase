@@ -233,8 +233,7 @@ def is_workflow_complete(name: str) -> bool | None:
     every artifact in the tree before any predicate can run, which Phase
     3H measured as a ~3× regression for this hot path against the old
     short-circuiting walk (see Phase 6E and the Phase 3H structural
-    snapshot regression in ``docs/rust_backend.md``). The targeted path
-    runs regardless of ``SASE_CORE_BACKEND``.
+    snapshot regression in ``docs/rust_backend.md``).
 
     Returns:
         ``True`` — root has ``done.json`` and no child is still alive without one.

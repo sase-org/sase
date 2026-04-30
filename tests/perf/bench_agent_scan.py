@@ -6,10 +6,8 @@ beat to justify routing call sites through the Rust scanner.
 
 Phase 3D (sase-18.4) reroutes ``find_named_agent`` and
 ``is_workflow_complete`` through the snapshot facade; the
-``find_named_agent`` / ``is_workflow_complete`` scenarios below now reflect
-the snapshot-backed implementation, and the ``*_rust_backend`` scenarios
-re-time them under ``SASE_CORE_BACKEND=rust`` when the extension is
-available so name-lookup costs can be compared across backends in one run.
+``find_named_agent`` / ``is_workflow_complete`` scenarios below reflect
+the snapshot-backed implementation against the direct-Rust facade.
 
 Phase 3G (sase-18.7) adds the snapshot-pipeline breakdown scenarios
 needed to make the streaming-API go/no-go decision: the Rust
@@ -66,9 +64,8 @@ For each workload the benchmark times these scenarios:
   every Rust-backend caller still pays.
 - ``scan_rust_facade``: full
   :func:`sase.core.agent_scan_facade.scan_agent_artifacts` pipeline
-  under ``SASE_CORE_BACKEND=rust`` (PyO3 call + ``from_dict``
-  adaptation), so the end-to-end Rust-backend cost is comparable to
-  ``scan_python_facade``.
+  (PyO3 call + ``from_dict`` adaptation), so the end-to-end Rust-backend
+  cost is visible alongside the broken-out Rust pieces above.
 
 Marked ``slow`` so it does not run in ``just test``. Run via::
 
@@ -83,8 +80,8 @@ Or directly::
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
-import os
 import statistics
 import sys
 import tempfile
@@ -101,7 +98,11 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     agent_scan_wire_from_dict,
 )
-from sase.core.backend import BACKEND_ENV_VAR, is_rust_available
+
+
+def _rust_available() -> bool:
+    return importlib.util.find_spec("sase_core_rs") is not None
+
 
 pytestmark = pytest.mark.slow
 
@@ -325,29 +326,7 @@ def _run_scenarios(
 
         return _with_fake_home(_load)
 
-    def _with_backend(backend: str, fn: Callable[[], Any]) -> Any:
-        with patch.dict(os.environ, {BACKEND_ENV_VAR: backend}):
-            return fn()
-
-    rust_active = is_rust_available()
-
-    def s_find_rust() -> int:
-        name = target_name
-        if name is None or not rust_active:
-            return 0
-        result = _with_fake_home(
-            lambda: _with_backend("rust", lambda: find_named_agent(name))
-        )
-        return 1 if result is not None else 0
-
-    def s_workflow_complete_rust() -> int:
-        name = workflow_name
-        if name is None or not rust_active:
-            return 0
-        result = _with_fake_home(
-            lambda: _with_backend("rust", lambda: is_workflow_complete(name))
-        )
-        return 1 if result else 0
+    rust_active = _rust_available()
 
     # Phase 3E: time the running/all listing's adapter cost separately from
     # the snapshot acquisition cost. Phase 3F (TUI loader) needs this to
@@ -407,8 +386,7 @@ def _run_scenarios(
     def s_scan_rust_facade() -> int:
         if not rust_active:
             return 0
-        with patch.dict(os.environ, {BACKEND_ENV_VAR: "rust"}):
-            return len(scan_agent_artifacts(projects_root).records)
+        return len(scan_agent_artifacts(projects_root).records)
 
     scenarios: dict[str, Callable[[], int]] = {
         "find_named_agent": s_find,
@@ -421,8 +399,6 @@ def _run_scenarios(
         "scan_rust_to_dict": s_scan_rust_to_dict,
         "scan_rust_dict_to_wire": s_scan_rust_dict_to_wire,
         "scan_rust_facade": s_scan_rust_facade,
-        "find_named_agent_rust_backend": s_find_rust,
-        "is_workflow_complete_rust_backend": s_workflow_complete_rust,
     }
 
     results: dict[str, Any] = {
@@ -435,14 +411,9 @@ def _run_scenarios(
         "scenarios": {},
     }
 
-    skip_when_no_target = {"find_named_agent", "find_named_agent_rust_backend"}
-    skip_when_no_workflow = {
-        "is_workflow_complete",
-        "is_workflow_complete_rust_backend",
-    }
+    skip_when_no_target = {"find_named_agent"}
+    skip_when_no_workflow = {"is_workflow_complete"}
     rust_only = {
-        "find_named_agent_rust_backend",
-        "is_workflow_complete_rust_backend",
         "scan_rust_to_dict",
         "scan_rust_dict_to_wire",
         "scan_rust_facade",

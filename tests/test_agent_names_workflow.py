@@ -4,10 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from sase.agent.names import is_workflow_complete
-from sase.core.backend import BACKEND_ENV_VAR
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -194,19 +191,13 @@ class TestIsWorkflowComplete:
         with patch.object(Path, "home", return_value=tmp_path):
             assert is_workflow_complete("a") is None
 
-    @pytest.mark.parametrize("backend", ["python", "rust", ""])
-    def test_backend_does_not_route_through_snapshot(
-        self,
-        tmp_path: Path,
-        backend: str,
-    ) -> None:
-        """Phase 6E: targeted Python path runs regardless of SASE_CORE_BACKEND.
+    def test_does_not_route_through_snapshot(self, tmp_path: Path) -> None:
+        """Targeted Python path must not materialize the agent-scan snapshot.
 
         Routing this hot predicate through ``scan_agent_artifacts`` would
         force the snapshot to be materialized (the Phase 3H regression).
         Importing :mod:`sase.core.agent_scan_facade` here and asserting it
-        is never called proves the targeted walk is in effect for every
-        backend selection.
+        is never called proves the targeted walk is in effect.
         """
         _make_agent(
             tmp_path,
@@ -217,13 +208,9 @@ class TestIsWorkflowComplete:
             pid=_DEAD_PID,
             done=True,
         )
-        env: dict[str, str] = {}
-        if backend:
-            env[BACKEND_ENV_VAR] = backend
 
         with (
             patch.object(Path, "home", return_value=tmp_path),
-            patch.dict(os.environ, env, clear=False),
             patch(
                 "sase.core.agent_scan_facade.scan_agent_artifacts",
                 side_effect=AssertionError(

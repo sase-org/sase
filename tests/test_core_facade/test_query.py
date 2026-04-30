@@ -2,13 +2,11 @@
 
 Phase 8D rewired :func:`sase.core.query_facade.parse_query` to call
 ``sase_core_rs`` directly through
-:func:`sase.core.rust.require_rust_binding`. The legacy ``dispatch``
-plumbing and the Python ``parse_query_python`` routing branch have been
-deleted. The remaining query facade APIs (:func:`build_query_context`,
-:func:`evaluate_query`, :func:`evaluate_query_with_context`,
-:func:`evaluate_query_many`) still go through ``dispatch`` with
-``rust_unavailable="python"`` until Phase 8C / 8B's deferral is wound
-down.
+:func:`sase.core.rust.require_rust_binding`. After Phase 8F there is no
+``dispatch`` layer left: the unported entry points (per-row evaluators,
+``build_query_context``, the deferred ``evaluate_query_many`` batch path)
+call their Python implementations directly without consulting any
+backend env var.
 """
 
 from __future__ import annotations
@@ -21,7 +19,6 @@ import pytest
 from sase.ace.query import evaluator as raw_evaluator
 from sase.ace.query.parser import parse_query_python as raw_parse_query
 from sase.core import parser_facade, query_facade
-from sase.core.backend import BACKEND_ENV_VAR
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from tests.test_core_facade._helpers import install_fake_query_module
@@ -83,13 +80,11 @@ def test_evaluate_query_many_matches_with_context_for_ancestor_and_sibling(
 
 def test_unported_query_facade_apis_call_python_directly(
     sample_project: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Phase 8C: build_query_context / evaluate_query[_with_context] are
-    intentionally Python-owned host logic. They must call the ``*_python``
-    helpers directly without consulting backend env vars or dispatch.
+    """build_query_context / evaluate_query[_with_context] are intentionally
+    Python-owned host logic. They must call the ``*_python`` helpers
+    directly with no dispatcher in the call path.
     """
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     specs = parser_facade.parse_project_file(str(sample_project))
     expr = raw_parse_query('"example"')
     ctx = query_facade.build_query_context(specs)
@@ -100,18 +95,17 @@ def test_unported_query_facade_apis_call_python_directly(
     assert query_facade.evaluate_query_with_context(expr, specs[0], ctx) is True
 
 
-def test_evaluate_query_many_under_rust_runs_python_after_phase8b_deferral(
+def test_evaluate_query_many_runs_python_after_phase8b_deferral(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Phase 8B reclassified ``evaluate_query_many`` as deferred/unported.
 
-    Even with ``SASE_CORE_BACKEND=rust`` the facade must execute the Python
-    batch implementation. We assert that with a fake Rust module exposing
-    ``evaluate_query_many`` the binding is *not* called — the facade no
-    longer registers a ``rust_impl`` for this surface.
+    The facade must execute the Python batch implementation directly. With
+    a fake Rust module exposing ``evaluate_query_many`` the binding is
+    *not* called — the facade no longer registers any Rust path for this
+    surface.
     """
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
     specs = parser_facade.parse_project_file(str(sample_project))
     rust_calls: list[tuple[str, int]] = []
 
@@ -175,38 +169,3 @@ def test_parse_query_stale_wheel_raises_attributeerror(
     install_fake_query_module(monkeypatch)
     with pytest.raises(AttributeError, match="parse_query"):
         query_facade.parse_query('"x"')
-
-
-def test_evaluate_query_many_dual_run_is_noop_after_phase8b_deferral(
-    sample_project: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Dual-run produces no record for the deferred ``evaluate_query_many``.
-
-    Phase 8B removed the Rust adapter from the facade. With no ``rust_impl``
-    registered, ``SASE_CORE_DUAL_RUN=1`` must be a no-op for this surface
-    even when ``sase_core_rs`` exposes a binding — the facade no longer
-    consults the extension.
-    """
-    from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
-
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv("SASE_CORE_DUAL_RUN", "1")
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    specs = parser_facade.parse_project_file(str(sample_project))
-    rust_calls: list[tuple[str, int]] = []
-
-    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
-        rust_calls.append((query, len(spec_dicts)))
-        return [False] * len(spec_dicts)
-
-    install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
-
-    expected = query_facade._evaluate_query_many_python('"example"', specs)
-    result = query_facade.evaluate_query_many('"example"', specs)
-    assert result == expected
-    assert rust_calls == []
-    assert not log_path.exists() or log_path.read_text() == ""

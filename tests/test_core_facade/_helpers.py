@@ -114,11 +114,7 @@ def install_fake_query_module(
 
 
 def python_wire_records_as_dicts(file_path: str, _data: bytes) -> list[dict]:
-    """Reuse the Python parser to manufacture the dict shape Rust would emit.
-
-    Goes through the raw Python parser (not the facade) so the helper works
-    even when ``SASE_CORE_BACKEND=rust`` is active in the surrounding test.
-    """
+    """Reuse the Python parser to manufacture the dict shape Rust would emit."""
     specs = parse_project_file_python(file_path)
     wires = []
     for cs in specs:

@@ -161,8 +161,7 @@ def _measure_normalizers(
 
     Phase 5E routes ``GitQueryOpsMixin`` through ``sase.core.git_query_facade``.
     The benchmark calls the same public facade entry points so the numbers
-    reflect the production code path under the active backend
-    (``SASE_CORE_BACKEND`` and/or ``SASE_CORE_DUAL_RUN``).
+    reflect the production direct-Rust call path.
     """
     branch_inputs = ["main\n", "feature/big-rewrite\n", "HEAD\n", "\n"]
     workspace_inputs: list[tuple[str | None, str | None]] = [

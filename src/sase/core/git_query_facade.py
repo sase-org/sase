@@ -19,12 +19,10 @@ The five Phase 5 helpers are:
 - :func:`parse_git_local_changes` — normalize ``git status --porcelain``
   stdout into ``str | None`` (clean → ``None``).
 
-Phase 8E direct-wires these helpers to ``sase_core_rs`` without going
-through :func:`sase.core.backend.dispatch`. The backend-selection env
-vars no longer affect them; the strict loader from
-:mod:`sase.core.rust` raises :class:`ImportError` when the wheel is
-missing and :class:`AttributeError` when the wheel is too old to expose
-the requested binding.
+These helpers call ``sase_core_rs`` directly through the strict loader
+in :mod:`sase.core.rust`. The loader raises :class:`ImportError` when
+the wheel is missing and :class:`AttributeError` when the wheel is too
+old to expose the requested binding.
 
 The ``*_python`` helpers below remain as host-logic / golden-contract
 references — every parity test against the Rust output uses them as the

@@ -37,12 +37,12 @@ _ARTIFACT_PREFIX = "rust_backend_phase7"
 
 
 class BackendChoice(StrEnum):
-    """Which Rust/Python backend a scenario was measured under.
+    """Backend tag used to name a Phase 7 artifact.
 
-    The Phase 7 contract distinguishes a *default* run (no
-    ``SASE_CORE_BACKEND`` override — whatever the released sase ships)
-    from an *explicit* run (env var pinned). Phase 7D needs the
-    distinction to honestly describe "what users get out of the box".
+    Post-Phase-8 the facades always run direct-Rust, but the historical
+    Phase 7 artifact filenames still use these tags so the existing
+    captures under ``plans/202604/perf_artifacts/`` remain referenceable
+    by name from the Phase 7 driver.
     """
 
     DEFAULT_PYTHON = "default_python"

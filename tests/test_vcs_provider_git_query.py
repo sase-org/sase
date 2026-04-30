@@ -6,11 +6,7 @@ reword, get_bug_number, fix, upload, reword_add_tag, and bare remote behavior.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
-
-pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 # === Tests for get_branch_name ===
 

@@ -1,8 +1,7 @@
 """Main status transition logic for ChangeSpecs.
 
 The Python entry point separates three concerns explicitly so the pure
-decision step can route through Rust under ``SASE_CORE_BACKEND=rust``
-while every side effect remains on the host:
+decision step runs in Rust while every side effect remains on the host:
 
 1. **Input gathering under lock** — read the project file, read the
    current STATUS line, and build the
@@ -10,10 +9,8 @@ while every side effect remains on the host:
    :func:`sase.core.status_wire_conversion.build_status_transition_request`
    (which performs the cross-project reads the planner needs).
 2. **Pure decision** — call
-   :func:`sase.core.status_facade.plan_status_transition`. The facade
-   dispatches to the Rust planner when the optional ``sase_core_rs``
-   extension is loaded and the rust backend is selected; otherwise it
-   uses :func:`sase.core.status_wire_conversion.plan_status_transition_python`.
+   :func:`sase.core.status_facade.plan_status_transition`, which calls
+   the Rust planner via :func:`sase.core.rust.require_rust_binding`.
 3. **Side-effect execution** — apply the returned plan: rewrite the
    STATUS line atomically, mutate mentor flags, perform suffix renames,
    move between main/archive files, and record the transition timestamp.
@@ -81,8 +78,8 @@ def transition_changespec_status_python(
     Acquires a lock for the read-validate-write cycle, then runs the
     out-of-lock side effects (suffix renames, archive moves, timestamp).
     The pure decision is delegated to
-    :func:`sase.core.status_facade.plan_status_transition`, which routes
-    to Rust when ``SASE_CORE_BACKEND=rust`` and the binding is installed.
+    :func:`sase.core.status_facade.plan_status_transition`, which calls
+    the Rust planner directly.
 
     Args:
         project_file: Path to the ProjectSpec file.

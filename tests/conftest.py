@@ -12,8 +12,6 @@ from sase.ace.changespec import (
     CommitEntry,
     HookEntry,
 )
-from sase.core.backend import BACKEND_ENV_VAR, DUAL_RUN_ENV_VAR
-from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 
 
 def redirect_sase_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> Path:
@@ -90,31 +88,6 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in list(os.environ):
         if key.startswith("SASE_AGENT_") or key == "SASE_ARTIFACTS_DIR":
             monkeypatch.delenv(key)
-
-
-@pytest.fixture(autouse=True)
-def _clear_core_backend_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Clear core backend env vars before each test.
-
-    Tests that exercise a non-default backend set these values explicitly.
-    Clearing inherited process values keeps default-backend tests hermetic when
-    the caller or CI environment has selected Rust mode or dual-run logging.
-    """
-    for key in (BACKEND_ENV_VAR, DUAL_RUN_ENV_VAR, DUAL_RUN_LOG_OVERRIDE_ENV_VAR):
-        monkeypatch.delenv(key, raising=False)
-
-
-@pytest.fixture
-def python_core_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin facade-dispatch tests to the pure-Python core backend.
-
-    Use this for tests whose contract is helper/provider behavior rather than
-    backend selection. Tests that exercise Rust mode or dual-run should still
-    set those env vars explicitly in the test body.
-    """
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
-    monkeypatch.delenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, raising=False)
 
 
 @pytest.fixture(autouse=True)

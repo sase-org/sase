@@ -1,9 +1,8 @@
-"""Tests for the strict Rust extension loader (Phase 8A).
+"""Tests for the strict Rust extension loader.
 
-The helpers in :mod:`sase.core.rust` are the post-Phase-8 import path for
-ported facades. Unlike the legacy ``load_rust_extension`` / ``is_rust_available``
-pair, they never silently return ``None`` and do not inspect
-``SASE_CORE_BACKEND``.
+The helpers in :mod:`sase.core.rust` are the only supported import path
+for ported facades after Phase 8F: they never silently return ``None`` and
+they raise from a missing or stale wheel instead of falling back to Python.
 """
 
 from __future__ import annotations
@@ -34,9 +33,8 @@ def test_require_rust_extension_raises_when_missing(
 ) -> None:
     """A missing wheel surfaces as :class:`ImportError`, not ``None``.
 
-    The legacy ``load_rust_extension`` swallowed ``ImportError`` and returned
-    ``None``. The strict loader re-raises with a message that names the
-    package and the supported install commands, so callers cannot accidentally
+    The strict loader raises with a message that names the package and
+    the supported install commands, so callers cannot accidentally
     silently fall back to Python.
     """
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
@@ -57,10 +55,9 @@ def test_require_rust_extension_propagates_non_import_errors(
 ) -> None:
     """ABI/build errors propagate verbatim so a broken wheel is not hidden.
 
-    Mirrors :func:`sase.core.backend.is_rust_available`'s contract: any
-    import-time failure that is not an ``ImportError`` (e.g. an ``OSError``
-    from a misbuilt extension) is surfaced unchanged so the user sees the
-    real cause instead of "package not installed".
+    Any import-time failure that is not an ``ImportError`` (e.g. an
+    ``OSError`` from a misbuilt extension) is surfaced unchanged so the
+    user sees the real cause instead of "package not installed".
     """
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
 

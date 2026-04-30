@@ -241,12 +241,11 @@ def _bench_status_state_machine(
         for surface in (*_STATUS_PURE_SURFACES, _STATUS_PLAN_SURFACE)
     }
     for w in raw["workloads"]:
-        py = w.get("scenarios_python_backend", {})
-        rust = w.get("scenarios_rust_backend", {})
+        scenarios = w.get("scenarios", {})
         # Pure-helper workloads carry the shipped scenarios; transition
         # workloads do not, so skip them — they belong to the higher-level
         # orchestrator, not to the shipped Rust core ops covered here.
-        if not py or "read_status_from_lines" not in py:
+        if "read_status_from_lines" not in scenarios:
             continue
         size = {
             "size_bytes": w.get("size_bytes"),
@@ -258,8 +257,7 @@ def _bench_status_state_machine(
                 {
                     "label": w["label"],
                     "size": size,
-                    "baseline": {surface: py.get(surface, {})},
-                    "candidate": {surface: rust.get(surface, {})},
+                    "candidate": {surface: scenarios.get(surface, {})},
                 }
             )
     return out
@@ -288,7 +286,7 @@ def _bench_git_query_ops(
 
     The harness does not internally pin the backend per scenario the way
     the parser/query/agent-scan harnesses do, so Phase 7B drives it
-    twice: once with ``SASE_CORE_BACKEND=python`` and once with default
+    twice (historical Phase 7B compared two backends; post-Phase-8 the
     Rust. The caller is responsible for setting / clearing the env var.
     """
     from tests.perf.bench_git_query_ops import run_bench

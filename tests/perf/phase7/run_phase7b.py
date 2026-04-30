@@ -35,7 +35,6 @@ back-compat with callers that still import ``_bench_*`` from this module
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -59,23 +58,6 @@ from tests.perf.phase7.phase7b_summary import (  # noqa: E402
     _merge_git_workloads,
     _write_summary_artifact,
 )
-
-
-def _set_backend(value: str | None) -> str | None:
-    """Set ``SASE_CORE_BACKEND`` and return the prior value (None if unset)."""
-    prior = os.environ.get("SASE_CORE_BACKEND")
-    if value is None:
-        os.environ.pop("SASE_CORE_BACKEND", None)
-    else:
-        os.environ["SASE_CORE_BACKEND"] = value
-    return prior
-
-
-def _restore_backend(prior: str | None) -> None:
-    if prior is None:
-        os.environ.pop("SASE_CORE_BACKEND", None)
-    else:
-        os.environ["SASE_CORE_BACKEND"] = prior
 
 
 def run_phase7b(
@@ -154,9 +136,8 @@ def run_phase7b(
 
     extra_common = {"smoke": smoke} if smoke else {}
 
-    # All harnesses except `bench_git_query_ops` flip backends per scenario
-    # internally, so a single in-process call is enough. The Git query ops
-    # harness times only the active backend, so we drive it twice.
+    # All harnesses now go through direct-Rust facades; one in-process
+    # pass per harness is sufficient.
     by_surface: dict[str, dict[str, Any]] = {}
 
     print("\n==== Phase 7B: parser core (bench_core_parse) ====")
@@ -171,21 +152,11 @@ def run_phase7b(
     print("\n==== Phase 7B: status state machine (bench_status_state_machine) ====")
     by_surface.update(_bench_status_state_machine(**cfg["status_state_machine"]))
 
-    print("\n==== Phase 7B: git query ops (bench_git_query_ops, python pass) ====")
-    prior = _set_backend("python")
-    try:
-        py_run = _bench_git_query_ops(**cfg["git_query_ops"], backend_label="python")
-    finally:
-        _restore_backend(prior)
-    print("\n==== Phase 7B: git query ops (bench_git_query_ops, rust default) ====")
-    prior = _set_backend(None)  # default = rust
-    try:
-        rust_run = _bench_git_query_ops(
-            **cfg["git_query_ops"], backend_label="default_rust"
-        )
-    finally:
-        _restore_backend(prior)
-    by_surface.update(_merge_git_workloads(python_run=py_run, rust_run=rust_run))
+    print("\n==== Phase 7B: git query ops (bench_git_query_ops) ====")
+    rust_run = _bench_git_query_ops(
+        **cfg["git_query_ops"], backend_label="default_rust"
+    )
+    by_surface.update(_merge_git_workloads(rust_run=rust_run))
 
     # Finally write a summary artifact per surface.
     written: list[Path] = []

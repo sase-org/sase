@@ -4,7 +4,7 @@
   "captured_from": "plans/202604/perf_artifacts/rust_backend_phase7_<surface>_summary.json",
   "git_sha_at_capture": "e0f3b4a9f0f4",
   "capture_machine": "Linux x86_64, Python 3.14.3, sase_core_rs default install",
-  "comment": "Phase 7E (sase-1e.5) regression-floor baseline. Anchors are the stable subset Phase 7B recommended: parse_project_bytes (golden + synthetic_200), parse_query parse-only direct, scan_agent_artifacts synthetic 6p/200pp scan_facade, and apply_status_update golden_myproj_pure (must-not-regress-further guard, not must-beat-python). The Phase 7B handoff explicitly excluded all Git normalizer surfaces and parse_git_name_status_z because their absolute medians are below 50us and noise alone moves them by more than 25%.",
+  "comment": "Phase 7E (sase-1e.5) regression-floor baseline; updated in Phase 8F when the Python halves of parser_facade, query_facade.parse_query, and agent_scan_facade were deleted. Surfaces that previously paired Rust against a live Python median now run only the absolute Rust ceiling check (must_beat_python flipped to false) — the historical phase7b_python_median_s fields stay so future tooling can still pivot on them. Anchors are the stable subset Phase 7B recommended: parse_project_bytes (golden + synthetic_200), parse_query parse-only direct, scan_agent_artifacts synthetic 6p/200pp scan_facade, and apply_status_update golden_myproj_pure (must-not-regress-further guard).",
   "tolerance": {
     "rust_slowdown_factor": 1.4,
     "comment": "Rust median may be up to 40% slower than the Phase 7B captured Rust median before failing. The 40% headroom (above the plan's 25-35% recommendation) covers GitHub-hosted runner variance vs the Phase 7B capture machine; tighten in Phase 7F or later once we have CI history showing the data is stable. The relative 'must_beat_python' check is hardware-independent and runs on the same machine in the same process, so it stays at parity (no slack)."
@@ -17,8 +17,8 @@
       "scenario": "facade",
       "phase7b_python_median_s": 2.959399716928601e-04,
       "phase7b_rust_median_s": 1.2434751261025667e-04,
-      "must_beat_python": true,
-      "rationale": "Clean ~2.4x Rust win at the smallest realistic input. Both direct and facade tiers beat Python every time Phase 7B was rerun."
+      "must_beat_python": false,
+      "rationale": "Phase 8D deleted the Python parser facade half; this anchor now enforces the absolute Rust ceiling only. Captured as a clean ~2.4x Rust win at the smallest realistic input."
     },
     {
       "id": "parse_project_bytes.synthetic_200_specs.facade",
@@ -27,8 +27,8 @@
       "scenario": "facade",
       "phase7b_python_median_s": 0.02667380598722957,
       "phase7b_rust_median_s": 0.019116180017590523,
-      "must_beat_python": true,
-      "rationale": "~1.4x win on a 200-spec synthetic file. Mirrors what users actually parse and is the largest deterministic parser workload Phase 7B captured."
+      "must_beat_python": false,
+      "rationale": "Phase 8D deleted the Python parser facade half; this anchor now enforces the absolute Rust ceiling only. Captured as ~1.4x win on a 200-spec synthetic file."
     },
     {
       "id": "parse_query.parse_only.direct",
@@ -47,8 +47,8 @@
       "scenario": "scan_facade",
       "phase7b_python_median_s": 0.14513437598361634,
       "phase7b_rust_median_s": 0.11998871198738925,
-      "must_beat_python": true,
-      "rationale": "~1.21x win on the synthetic 6-project x 200-per-project tree, the closest hermetic ~/.sase/projects approximation Phase 7B captured."
+      "must_beat_python": false,
+      "rationale": "Phase 8D deleted the Python scan_agent_artifacts walker; this anchor now enforces the absolute Rust ceiling only. Captured as ~1.21x win on the synthetic 6-project x 200-per-project tree."
     },
     {
       "id": "apply_status_update.golden_myproj_pure.apply_status_update",

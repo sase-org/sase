@@ -4,13 +4,9 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from sase.status_state_machine import (
     transition_changespec_status,
 )
-
-pytestmark = pytest.mark.usefixtures("python_core_backend")
 
 _CHANGESPEC_TEMPLATE = """# Test Project
 

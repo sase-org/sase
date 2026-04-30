@@ -81,25 +81,19 @@ def _summarize(samples: list[float]) -> dict[str, float]:
 
 
 def _resolve_backend_env(choice: BackendChoice) -> dict[str, str]:
-    """Translate a Phase 7A backend tag into env-var overrides.
+    """Phase 7A kept this helper around for filename tagging only.
 
-    ``DEFAULT_*`` choices leave ``SASE_CORE_BACKEND`` unset (so the
-    dispatcher falls back to its compiled-in default — Rust as of
-    Phase 6F). ``EXPLICIT_*`` choices pin the variable.
+    Post-Phase-8 there is no ``SASE_CORE_BACKEND`` env var to set; the
+    facades always call ``sase_core_rs`` directly. The function returns
+    an empty mapping so callers that still pass ``backend_env`` pick up
+    no overrides.
     """
-    if choice in (BackendChoice.EXPLICIT_PYTHON,):
-        return {"SASE_CORE_BACKEND": "python"}
-    if choice in (BackendChoice.EXPLICIT_RUST,):
-        return {"SASE_CORE_BACKEND": "rust"}
-    # DEFAULT_PYTHON / DEFAULT_RUST / SUMMARY: leave the var alone.
+    del choice
     return {}
 
 
 def _subprocess_env(extra: dict[str, str]) -> dict[str, str]:
     env = os.environ.copy()
-    # Strip any inherited override so the requested choice wins cleanly.
-    env.pop("SASE_CORE_BACKEND", None)
-    env.pop("SASE_CORE_DUAL_RUN", None)
     env.update(extra)
     return env
 
@@ -451,8 +445,8 @@ def main(argv: list[str] | None = None) -> int:
             str(BackendChoice.EXPLICIT_RUST),
         ],
         help=(
-            "Backend tag; default_* leaves SASE_CORE_BACKEND unset, "
-            "explicit_* pins it. The artifact filename uses this value."
+            "Backend tag retained for filename compatibility. Post-Phase-8 "
+            "the facades always run direct-Rust regardless of this flag."
         ),
     )
     parser.add_argument(

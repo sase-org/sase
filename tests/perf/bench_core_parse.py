@@ -1,20 +1,16 @@
-"""Benchmark sase.core.parse_project_bytes across available backends.
+"""Benchmark sase.core.parse_project_bytes paths.
 
 Phase 1E (sase-16.5) of `plans/202604/rust_backend_phase1.md`. Times the
 end-to-end cost of parsing project bytes through every code path that
 production callers might touch:
 
-- Python direct: `parse_project_file_python(path)` reading from disk.
-- Python facade: `sase.core.parser_facade.parse_project_bytes(path, data)`
-  with the default Python backend (writes a tempfile internally).
+- Python direct: `parse_project_file_python(path)` reading from disk
+  (the Python file-path API kept for unported helpers).
 - Rust direct: `sase_core_rs.parse_project_bytes(path, data)` if the
   PyO3 extension is importable.
-- Rust facade: same facade as above with `SASE_CORE_BACKEND=rust`. This
-  is the number that matters for end-to-end PyO3 overhead — the dict
-  output gets rehydrated into `ChangeSpecWire` dataclasses on the
-  Python side.
-- Dual-run: `SASE_CORE_DUAL_RUN=1` running both backends and writing one
-  comparison record per call.
+- Rust facade: `sase.core.parser_facade.parse_project_bytes(path, data)`
+  — the only ported path post-Phase-8 (PyO3 call + dict rehydration into
+  `ChangeSpecWire` dataclasses on the Python side).
 
 Workloads:
 
@@ -38,8 +34,9 @@ asserting on field counts is safe across backends.
 from __future__ import annotations
 
 import argparse
+import importlib
+import importlib.util
 import json
-import os
 import statistics
 import sys
 import tempfile
@@ -52,12 +49,13 @@ import pytest
 
 from sase.ace.changespec.parser import parse_project_file_python
 from sase.core import parser_facade
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    DUAL_RUN_ENV_VAR,
-    is_rust_available,
-    load_rust_extension,
-)
+
+
+def _load_rust_module() -> Any | None:
+    if importlib.util.find_spec("sase_core_rs") is None:
+        return None
+    return importlib.import_module("sase_core_rs")
+
 
 pytestmark = pytest.mark.slow
 
@@ -140,43 +138,6 @@ def _time_calls(
     return _summarize(samples)
 
 
-def _restore_env(env_var: str, prior: str | None) -> None:
-    if prior is None:
-        os.environ.pop(env_var, None)
-    else:
-        os.environ[env_var] = prior
-
-
-def _with_backend_env(value: str | None, fn: Callable[[], Any]) -> Any:
-    """Run `fn` with `SASE_CORE_BACKEND` temporarily set to `value`.
-
-    Restores the previous value (or absence) afterwards. Used so a single
-    benchmark process can exercise both backends without leaking env state
-    between scenarios.
-    """
-    prior = os.environ.get(BACKEND_ENV_VAR)
-    if value is None:
-        os.environ.pop(BACKEND_ENV_VAR, None)
-    else:
-        os.environ[BACKEND_ENV_VAR] = value
-    try:
-        return fn()
-    finally:
-        _restore_env(BACKEND_ENV_VAR, prior)
-
-
-def _with_dual_run(enabled: bool, fn: Callable[[], Any]) -> Any:
-    prior = os.environ.get(DUAL_RUN_ENV_VAR)
-    if enabled:
-        os.environ[DUAL_RUN_ENV_VAR] = "1"
-    else:
-        os.environ.pop(DUAL_RUN_ENV_VAR, None)
-    try:
-        return fn()
-    finally:
-        _restore_env(DUAL_RUN_ENV_VAR, prior)
-
-
 def _measure_workload(
     *,
     label: str,
@@ -185,36 +146,17 @@ def _measure_workload(
     runs: int,
     warmup: int,
 ) -> dict[str, Any]:
-    rust_available = is_rust_available()
-    rust_module = load_rust_extension() if rust_available else None
+    rust_module = _load_rust_module()
 
     def py_direct() -> int:
         return len(parse_project_file_python(path))
 
-    def py_facade() -> int:
-        # Python backend, opportunistic Rust off — no rust_impl is wired.
-        return _with_backend_env(
-            "python", lambda: len(parser_facade.parse_project_bytes(path, data))
-        )
-
     def rust_direct() -> int:
         assert rust_module is not None
-        return len(rust_module.parse_project_bytes(path, data))  # type: ignore[attr-defined]
+        return len(rust_module.parse_project_bytes(path, data))
 
     def rust_facade() -> int:
-        return _with_backend_env(
-            "rust", lambda: len(parser_facade.parse_project_bytes(path, data))
-        )
-
-    def dual_run() -> int:
-        # Default backend (python) so the caller gets Python output, but
-        # both impls run and one comparison record gets logged per call.
-        return _with_backend_env(
-            "python",
-            lambda: _with_dual_run(
-                True, lambda: len(parser_facade.parse_project_bytes(path, data))
-            ),
-        )
+        return len(parser_facade.parse_project_bytes(path, data))
 
     results: dict[str, Any] = {
         "label": label,
@@ -222,15 +164,12 @@ def _measure_workload(
         "size_bytes": len(data),
         "runs": runs,
         "warmup": warmup,
-        "rust_available": rust_available,
+        "rust_available": rust_module is not None,
         "scenarios": {},
     }
 
     results["scenarios"]["python_direct"] = _time_calls(
         py_direct, runs=runs, warmup=warmup
-    )
-    results["scenarios"]["python_facade"] = _time_calls(
-        py_facade, runs=runs, warmup=warmup
     )
     if rust_module is not None:
         results["scenarios"]["rust_direct"] = _time_calls(
@@ -238,9 +177,6 @@ def _measure_workload(
         )
         results["scenarios"]["rust_facade"] = _time_calls(
             rust_facade, runs=runs, warmup=warmup
-        )
-        results["scenarios"]["dual_run"] = _time_calls(
-            dual_run, runs=runs, warmup=warmup
         )
     return results
 
@@ -352,7 +288,6 @@ def test_bench_core_parse_smoke(tmp_path: Path) -> None:
     assert len(workloads) == 2
     for w in workloads:
         assert "python_direct" in w["scenarios"]
-        assert "python_facade" in w["scenarios"]
         # Rust scenarios only present when the extension is importable; do
         # not assert availability either way so the smoke test passes on
         # both Rust-enabled and pure-Python machines.

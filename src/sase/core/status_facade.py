@@ -1,10 +1,7 @@
 """sase.core facade for status transitions and pure status field helpers.
 
-Phase 8E direct-wires the three pure status operations to ``sase_core_rs``
-without going through :func:`sase.core.backend.dispatch`. The Phase 6/7
-backend-selection plumbing (``SASE_CORE_BACKEND``, ``SASE_CORE_DUAL_RUN``)
-no longer affects these helpers; the only supported runtime is the Rust
-extension. The strict loader from :mod:`sase.core.rust` raises
+The three pure status operations call ``sase_core_rs`` directly through
+the strict loader in :mod:`sase.core.rust`. The loader raises
 :class:`ImportError` when the wheel is missing and
 :class:`AttributeError` when the wheel is too old to expose the
 requested binding.
@@ -79,12 +76,12 @@ def plan_status_transition(
     plan describes the side effects the host should execute; this
     function performs none of them.
 
-    Phase 8E removes the backend dispatcher from this entry point: the
-    request is marshaled through :func:`status_wire_to_json_dict`, fed to
-    the Rust binding via :func:`require_rust_binding`, and the returned
-    dict is rehydrated into a typed :class:`StatusTransitionPlanWire`. A
-    missing wheel raises :class:`ImportError`; a stale wheel without the
-    binding raises :class:`AttributeError`.
+    The request is marshaled through :func:`status_wire_to_json_dict`,
+    fed to the Rust binding via :func:`require_rust_binding`, and the
+    returned dict is rehydrated into a typed
+    :class:`StatusTransitionPlanWire`. A missing wheel raises
+    :class:`ImportError`; a stale wheel without the binding raises
+    :class:`AttributeError`.
     """
     binding = require_rust_binding("plan_status_transition")
     payload: dict[str, Any] = binding(status_wire_to_json_dict(request))

@@ -217,8 +217,8 @@ rust-install VENV=venv_dir_abs: _venv
 
 # Build and install `sase_core_rs` into the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase). Use this when you installed
-# sase via `uv tool install` and want `SASE_CORE_BACKEND=rust sase ...`
-# to work outside this repo's `.venv`.
+# sase via `uv tool install` and want `sase ...` to work outside this
+# repo's `.venv` against a local sase-core checkout.
 rust-install-uv-tool:
     @if ! command -v uv > /dev/null 2>&1; then \
         printf "[rust-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
@@ -274,9 +274,9 @@ rust-bench *args:
 # Combined Rust check (fmt-check + clippy + tests). No-op when sibling repo absent.
 rust-check: rust-fmt-check rust-clippy rust-test
 
-# Run the Python parse_project_bytes benchmark across all available
-# backends. Reports Python-direct, Python-facade, Rust direct (if
-# `sase_core_rs` is importable), Rust-facade, and dual-run overhead.
+# Run the Python parse_project_bytes benchmark against the Rust facade
+# (the only path that ships post-Phase-8). Historical Python/dual-run
+# rows have been removed.
 bench-core *args: _setup
     {{ venv_bin }}/python tests/perf/bench_core_parse.py {{ args }}
 
@@ -303,12 +303,6 @@ bench-agent-scan *args: _setup
 bench-status-state-machine *args: _setup
     {{ venv_bin }}/python tests/perf/bench_status_state_machine.py {{ args }}
 
-# Phase 6G dual-run parity gate. Runs every shipped Rust core operation
-# under SASE_CORE_DUAL_RUN=1 and fails if any comparison record reports
-# match=false (excluding the documented parse_project_bytes end_line gap).
-parity-check *args: _setup
-    {{ venv_bin }}/python tests/parity/dual_run_parity.py {{ args }}
-
 # Run the Git query-op parsers benchmark. Times parse_git_name_status_z
 # on synthetic NUL streams (small/medium/large), the smaller normalizers
 # (branch name, workspace name, conflicted files, local changes), and
@@ -318,10 +312,8 @@ bench-git-query-ops *args: _setup
     {{ venv_bin }}/python tests/perf/bench_git_query_ops.py {{ args }}
 
 # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
-# Phase 7B core-operation benchmarks under default Rust + explicit
-# Python in one process and fails if the current Rust median exceeds
-# the recorded ceiling or loses to Python on a "must beat python"
-# anchor. The JSON report lands at
+# Phase 7B core-operation benchmarks against the recorded ceiling and
+# fails on regression. The JSON report lands at
 # `plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json`
 # so CI can upload it on failure.
 phase7-perf-check *args: _setup

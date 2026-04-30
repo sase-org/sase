@@ -1,11 +1,11 @@
 """One-shot Phase 6E micro-benchmark.
 
 Compares the Phase 6E targeted Python traversal for ``is_workflow_complete``
-against the previous snapshot-backed implementation under both backends.
-The synthetic workload deliberately tags every artifact with a real
-``workflow_name`` so the predicate has to walk past unrelated workflows
-to find its match — this is the structural regression Phase 3H called
-out (snapshot path can't short-circuit by workflow name).
+against the previous snapshot-backed implementation. The synthetic
+workload deliberately tags every artifact with a real ``workflow_name``
+so the predicate has to walk past unrelated workflows to find its match
+— this is the structural regression Phase 3H called out (snapshot path
+can't short-circuit by workflow name).
 
 Usage::
 
@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import sys
 import tempfile
@@ -35,7 +34,6 @@ from unittest.mock import patch
 
 from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
-from sase.core.backend import BACKEND_ENV_VAR, DUAL_RUN_ENV_VAR, is_rust_available
 
 
 def _build(
@@ -153,37 +151,24 @@ def main() -> int:
 
         from sase.agent.names._lookup import is_workflow_complete
 
-        modes: list[tuple[str, dict[str, str]]] = [
-            ("python", {BACKEND_ENV_VAR: "python"}),
-            ("rust", {BACKEND_ENV_VAR: "rust"}),
-            ("dual_run", {BACKEND_ENV_VAR: "rust", DUAL_RUN_ENV_VAR: "1"}),
-        ]
-        for backend, env in modes:
-            if env.get(BACKEND_ENV_VAR) == "rust" and not is_rust_available():
-                print(f"\n# backend={backend!r} (skipped — sase_core_rs not loadable)")
-                continue
-            print(f"\n# backend={backend!r}")
+        def with_home(fn):
+            with patch.object(Path, "home", return_value=home):
+                return fn()
 
-            def with_env(fn, env=env):
-                with patch.dict(os.environ, env):
-                    with patch.object(Path, "home", return_value=home):
-                        return fn()
-
-            tag = f"backend={backend}"
-            report["scenarios"][f"{tag}::is_workflow_complete"] = _time(
-                "is_workflow_complete (Phase 6E targeted)",
-                lambda: with_env(lambda: is_workflow_complete(target_workflow)),
-                runs=args.runs,
-                warmup=args.warmup,
-            )
-            report["scenarios"][f"{tag}::snapshot_then_filter"] = _time(
-                "snapshot_then_filter (pre-6E snapshot-backed shape)",
-                lambda: with_env(
-                    lambda: _snapshot_then_filter(projects_root, target_workflow)
-                ),
-                runs=args.runs,
-                warmup=args.warmup,
-            )
+        report["scenarios"]["is_workflow_complete"] = _time(
+            "is_workflow_complete (Phase 6E targeted)",
+            lambda: with_home(lambda: is_workflow_complete(target_workflow)),
+            runs=args.runs,
+            warmup=args.warmup,
+        )
+        report["scenarios"]["snapshot_then_filter"] = _time(
+            "snapshot_then_filter (pre-6E snapshot-backed shape)",
+            lambda: with_home(
+                lambda: _snapshot_then_filter(projects_root, target_workflow)
+            ),
+            runs=args.runs,
+            warmup=args.warmup,
+        )
 
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
