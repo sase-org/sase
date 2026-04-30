@@ -10,6 +10,7 @@ from pathlib import Path
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -17,6 +18,10 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.actions.navigation.jump_hints import (
+    build_jump_hint_maps,
+    normalize_jump_key,
+)
 from sase.ace.tui.graphics import (
     GraphicsCapability,
     KittyImageRenderable,
@@ -63,6 +68,10 @@ _SECTIONS: list[tuple[str, str, str]] = [
 ]
 
 _HEADER_ID_PREFIX = "hdr:"
+_DEFAULT_HINT_TEXT = (
+    "Enter: select  x: dismiss  m: mute  s: snooze  e: edit  "
+    "C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close"
+)
 
 
 class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | None]):
@@ -84,6 +93,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ("R", "read_all", "Read All"),  # uppercase R
         ("m", "toggle_mute", "Toggle Mute"),
         ("s", "snooze", "Snooze"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
         ("ctrl+u", "scroll_file_up", "Scroll up"),
     ]
@@ -103,6 +113,10 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         self._current_file_index: int = 0
         self._pending_confirm_notification_id: str | None = None
         self._current_image_renderable: KittyImageRenderable | None = None
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_index: dict[str, int] = {}
+        self._entry_jump_index_to_hint: dict[int, str] = {}
+        self._entry_jump_last_index: int | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -125,7 +139,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  x: dismiss  m: mute  s: snooze  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
+                _DEFAULT_HINT_TEXT,
                 id="notification-hints",
             )
 
@@ -312,9 +326,16 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             if 0 <= idx < len(self._notifications):
                 self._display_file(self._notifications[idx])
 
-    def _create_styled_label(self, notification: Notification) -> Text:
+    def _create_styled_label(
+        self, notification: Notification, *, hint_char: str | None = None
+    ) -> Text:
         """Create styled text for a notification option."""
         text = Text()
+
+        if hint_char is not None:
+            text.append("[", style="dim")
+            text.append(hint_char, style="bold #FFFF00")
+            text.append("] ", style="dim")
 
         # Prefix column is always 2 cells wide so [sender] aligns across rows.
         if notification.muted:
@@ -387,7 +408,9 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         text.append(f" · {count}", style=accent)
         return text
 
-    def _create_sectioned_options(self) -> list[Option]:
+    def _create_sectioned_options(
+        self, *, jump_hints: dict[int, str] | None = None
+    ) -> list[Option]:
         """Create options grouped by section, with disabled header rows."""
         groups: dict[str, list[tuple[int, Notification]]] = {
             key: [] for key, _, _ in _SECTIONS
@@ -408,7 +431,17 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 )
             )
             for idx, n in items:
-                options.append(Option(self._create_styled_label(n), id=str(idx)))
+                options.append(
+                    Option(
+                        self._create_styled_label(
+                            n,
+                            hint_char=(
+                                None if jump_hints is None else jump_hints.get(idx)
+                            ),
+                        ),
+                        id=str(idx),
+                    )
+                )
         return options
 
     def _visual_notification_index_order(self) -> list[int]:
@@ -424,6 +457,114 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 continue
             indexes.append(int(option_id))
         return indexes
+
+    def _jump_candidate_indices(self) -> list[int]:
+        """Return selectable notification indexes in visual order."""
+        return self._visual_notification_index_order()
+
+    def action_jump_to_entry(self) -> None:
+        """Enter one-key jump mode for notification rows."""
+        indices = self._jump_candidate_indices()
+        if not indices:
+            return
+        self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
+            build_jump_hint_maps(indices)
+        )
+        if not self._entry_jump_hint_to_index:
+            return
+
+        self._entry_jump_mode_active = True
+        self._update_hint_footer()
+        self._rebuild_list(
+            highlight_index=self._get_selected_index(),
+            show_jump_hints=True,
+        )
+
+    def _clear_entry_jump_hints(self) -> None:
+        """Clear transient jump hint maps."""
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_index = {}
+        self._entry_jump_index_to_hint = {}
+
+    def _exit_entry_jump_mode(self) -> None:
+        """Cancel jump mode and remove hint markers."""
+        highlight_index = self._get_selected_index()
+        self._clear_entry_jump_hints()
+        self._update_hint_footer()
+        self._rebuild_list(highlight_index=highlight_index)
+
+    def _handle_entry_jump_key(self, key: str) -> bool:
+        """Handle one keypress while notification jump mode is active."""
+        if not self._entry_jump_mode_active:
+            return False
+        if key == "escape":
+            self._exit_entry_jump_mode()
+            return True
+
+        if key == "apostrophe":
+            if (
+                self._entry_jump_last_index is not None
+                and 0 <= self._entry_jump_last_index < len(self._notifications)
+            ):
+                last_target = self._entry_jump_last_index
+                current = self._get_selected_index()
+                if current is not None:
+                    self._entry_jump_last_index = current
+                return self._select_notification_index(last_target)
+            key = "1"
+
+        hint_target = self._entry_jump_hint_to_index.get(key)
+        if hint_target is None:
+            self._exit_entry_jump_mode()
+            return True
+
+        current = self._get_selected_index()
+        if current is not None:
+            self._entry_jump_last_index = current
+        return self._select_notification_index(hint_target)
+
+    def _select_notification_index(self, notification_idx: int) -> bool:
+        """Highlight and select the given notification index."""
+        if not 0 <= notification_idx < len(self._notifications):
+            self._exit_entry_jump_mode()
+            return True
+
+        try:
+            option_list = self.query_one("#notification-list", OptionList)
+            row = self._row_for_notification_index(option_list, notification_idx)
+            if row is not None:
+                option_list.highlighted = row
+        except Exception:
+            pass
+
+        notification = self._notifications[notification_idx]
+        self._clear_entry_jump_hints()
+        self._update_hint_footer()
+        self.dismiss(notification)
+        return True
+
+    def _update_hint_footer(self) -> None:
+        """Update the modal help line for normal or jump mode."""
+        try:
+            footer = self.query_one("#notification-hints", Label)
+        except Exception:
+            return
+
+        if self._entry_jump_mode_active:
+            action = "back" if self._entry_jump_last_index is not None else "first"
+            footer.update(f"JUMP ' {action}  <esc> cancel")
+        else:
+            footer.update(_DEFAULT_HINT_TEXT)
+
+    def on_key(self, event: events.Key) -> None:
+        """Intercept jump-mode keypresses before modal bindings run."""
+        if not self._entry_jump_mode_active:
+            return
+
+        key = normalize_jump_key(event.key, event.character)
+        if self._handle_entry_jump_key(key):
+            event.prevent_default()
+            event.stop()
 
     def _replacement_notification_id_after_dismiss(self, idx: int) -> str | None:
         """Return the notification id that should be highlighted after dismiss."""
@@ -635,8 +776,14 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         self._rebuild_list()
 
-    def _rebuild_list(self, highlight_index: int | None = None) -> None:
+    def _rebuild_list(
+        self, highlight_index: int | None = None, *, show_jump_hints: bool = False
+    ) -> None:
         """Rebuild the option list from current notifications."""
+        if not show_jump_hints:
+            self._clear_entry_jump_hints()
+            self._update_hint_footer()
+
         try:
             option_list = self.query_one("#notification-list", OptionList)
         except Exception:
@@ -662,7 +809,8 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             self._display_file(None)
             return
 
-        for option in self._create_sectioned_options():
+        jump_hints = self._entry_jump_index_to_hint if show_jump_hints else None
+        for option in self._create_sectioned_options(jump_hints=jump_hints):
             option_list.add_option(option)
 
         # `highlight_index` is a notification index; translate to row position

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 17:33:56
-status: wip
+status: done
 ---
 # Add apostrophe jump hints to the notification panel
 

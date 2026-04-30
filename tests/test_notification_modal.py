@@ -437,3 +437,94 @@ def test_header_text_includes_label_and_count() -> None:
     text = NotificationModal._build_header_text("priority", 3)
     assert "PRIORITY" in text.plain
     assert "· 3" in text.plain
+
+
+def test_jump_hints_render_only_on_notification_rows_in_visual_order() -> None:
+    """Jump markers are assigned to selectable rows, not section headers."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+
+    modal = NotificationModal([inbox, muted, priority])
+    hints = {2: "1", 0: "2", 1: "3"}
+    options = modal._create_sectioned_options(jump_hints=hints)
+
+    by_id = {str(option.id): str(option.prompt) for option in options}
+    assert "[1]" not in by_id["hdr:priority"]
+    assert "[2]" not in by_id["hdr:inbox"]
+    assert "[3]" not in by_id["hdr:muted"]
+    assert "[1]" in by_id["2"]
+    assert "[2]" in by_id["0"]
+    assert "[3]" in by_id["1"]
+
+
+def test_notification_jump_apostrophe_without_history_selects_first_visual() -> None:
+    """A second apostrophe in jump mode acts like the first visual hint."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    priority = _make_notification("p1", action="PlanApproval")
+    modal = NotificationModal([inbox, priority])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    handled = modal._handle_entry_jump_key("apostrophe")
+
+    assert handled is True
+    modal.dismiss.assert_called_once_with(priority)
+    assert modal._entry_jump_last_index == 0
+    assert modal._entry_jump_mode_active is False
+
+
+def test_notification_jump_dispatches_uppercase_hint_character() -> None:
+    """Uppercase hint characters select their matching notification."""
+    notifications = [
+        _make_notification(f"n{i:02d}", action="JumpToAgent") for i in range(37)
+    ]
+    modal = NotificationModal(notifications)
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    assert modal._entry_jump_hint_to_index["A"] == 36
+    handled = modal._handle_entry_jump_key("A")
+
+    assert handled is True
+    modal.dismiss.assert_called_once_with(notifications[36])
+
+
+def test_notification_jump_apostrophe_back_selects_previous_notification() -> None:
+    """Apostrophe in jump mode returns to the saved previous notification."""
+    notifications = [
+        _make_notification(f"n{i}", action="JumpToAgent") for i in range(3)
+    ]
+    modal = NotificationModal(notifications)
+    modal._entry_jump_last_index = 2
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    handled = modal._handle_entry_jump_key("apostrophe")
+
+    assert handled is True
+    modal.dismiss.assert_called_once_with(notifications[2])
+    assert modal._entry_jump_last_index == 0
+
+
+def test_notification_jump_escape_cancels_without_dismiss() -> None:
+    """Escape exits jump mode and leaves the notification modal open."""
+    modal = NotificationModal([_make_notification("n1", action="JumpToAgent")])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    handled = modal._handle_entry_jump_key("escape")
+
+    assert handled is True
+    modal.dismiss.assert_not_called()
+    assert modal._entry_jump_mode_active is False
+    modal._rebuild_list.assert_called_with(highlight_index=0)
