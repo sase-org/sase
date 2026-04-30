@@ -39,25 +39,21 @@ from sase.core.backend import (
 from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
 
 
-# Operations classified as "shipped Rust bindings". Each one must raise
-# RustBackendUnavailableError when ``SASE_CORE_BACKEND=rust`` and the
-# extension cannot expose its binding. The list mirrors the operation names
-# passed to ``dispatch(operation=...)`` inside ``src/sase/core/*_facade.py``.
-#
-# Phase 8E direct-wired the status (``read_status_from_lines``,
-# ``apply_status_update``, ``plan_status_transition``) and Git query
-# (``parse_git_name_status_z``, ``parse_git_branch_name``,
-# ``derive_git_workspace_name``, ``parse_git_conflicted_files``,
-# ``parse_git_local_changes``) helpers, so they no longer flow through
-# ``dispatch(...)`` and are intentionally absent from this list. The
-# per-facade tests at ``tests/test_core_facade/test_status.py`` and
-# ``tests/test_core_git_query.py`` cover the direct-Rust contract for
-# them instead.
-SHIPPED_OPERATIONS: tuple[str, ...] = (
-    "parse_project_bytes",
-    "parse_query",
-    "scan_agent_artifacts",
-)
+# Phase 8D rewired ``parse_project_bytes``, ``parse_query``, and
+# ``scan_agent_artifacts`` to call ``sase_core_rs`` directly through
+# :mod:`sase.core.rust`. Phase 8E followed by direct-wiring the status
+# (``read_status_from_lines``, ``apply_status_update``,
+# ``plan_status_transition``) and Git query (``parse_git_name_status_z``,
+# ``parse_git_branch_name``, ``derive_git_workspace_name``,
+# ``parse_git_conflicted_files``, ``parse_git_local_changes``) helpers.
+# After both phases land, no shipped operation flows through
+# ``dispatch(...)`` and the list is empty. Per-facade tests under
+# ``tests/test_core_facade/test_parser.py``,
+# ``tests/test_core_facade/test_query.py``,
+# ``tests/test_core_agent_scan.py``,
+# ``tests/test_core_facade/test_status.py``, and
+# ``tests/test_core_git_query.py`` pin the direct-Rust contract instead.
+SHIPPED_OPERATIONS: tuple[str, ...] = ()
 
 
 # Operations that intentionally route through Python via the dispatcher's

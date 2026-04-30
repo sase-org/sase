@@ -1,16 +1,24 @@
 """Phase 6G dual-run parity gate.
 
-Exercises every shipped Rust core operation under ``SASE_CORE_DUAL_RUN=1``
-against the committed golden corpus and a sanitized home-tree fixture, then
-reads the resulting JSONL log and exits non-zero if any comparison record
-reports ``match: false``.
+Exercises every dispatched-shipped Rust core operation under
+``SASE_CORE_DUAL_RUN=1`` against the committed golden corpus and a
+sanitized home-tree fixture, then reads the resulting JSONL log and exits
+non-zero if any comparison record reports ``match: false``.
+
+Phase 8D rewired ``parse_project_bytes``, ``parse_query``, and
+``scan_agent_artifacts`` to call ``sase_core_rs`` directly through
+:mod:`sase.core.rust`, so they no longer go through the dispatcher and
+no longer participate in dual-run logging. Their direct-Rust contract
+is pinned by the per-facade tests under
+``tests/test_core_facade/test_parser.py``,
+``tests/test_core_facade/test_query.py`` and
+``tests/test_core_agent_scan.py``. The corresponding ``_exercise_*``
+helpers below still call the facades so the ported surfaces stay
+import-healthy under ``SASE_CORE_DUAL_RUN=1``, but no record is expected
+for them and they are absent from :data:`SHIPPED_OPERATIONS`.
 
 Shipped operations covered (one section per facade):
 
-- ``parse_project_bytes``            — :mod:`sase.core.parser_facade`
-- ``parse_query`` / ``evaluate_query_many``
-                                     — :mod:`sase.core.query_facade`
-- ``scan_agent_artifacts``           — :mod:`sase.core.agent_scan_facade`
 - ``read_status_from_lines`` / ``apply_status_update`` /
   ``plan_status_transition``        — :mod:`sase.core.status_facade`
 - ``parse_git_name_status_z`` / ``parse_git_branch_name`` /
@@ -43,12 +51,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_PROJECT = REPO_ROOT / "tests" / "core_golden" / "myproj.gp"
 
-# Operations Phase 6 defaults to Rust. The parity gate must produce at
-# least one record per name and every record must report ``match: true``.
+# Operations Phase 6 defaults to Rust *and* still flow through the
+# dispatcher. Phase 8D rewired ``parse_project_bytes`` / ``parse_query`` /
+# ``scan_agent_artifacts`` to call ``sase_core_rs`` directly, so they no
+# longer produce dual-run records and are absent from this list. The
+# remaining shipped surfaces (status helpers, Git query helpers) still
+# dispatch and the gate must produce at least one record per name with
+# ``match: true``.
 SHIPPED_OPERATIONS: tuple[str, ...] = (
-    "parse_project_bytes",
-    "parse_query",
-    "scan_agent_artifacts",
     "read_status_from_lines",
     "apply_status_update",
     "plan_status_transition",
@@ -61,20 +71,11 @@ SHIPPED_OPERATIONS: tuple[str, ...] = (
 
 # Operations whose Python and Rust impls have a *documented* parity gap
 # the dual-run comparator cannot reconcile via the default deep-equality
-# walk, so the gate verifies the binding produced records but does not
-# require ``match: true`` on every record. The known-good cross-backend
-# parity for these operations is enforced separately:
-#
-# - ``parse_project_bytes``: the Python parser does not track
-#   ``source_span.end_line`` (Phase 1F decision —
-#   ``plans/202604/rust_backend_phase1_handoff.md``); the
-#   ``tests/test_core_parity_smoke.py`` golden-corpus tests normalize
-#   that field and still pin byte-for-byte equality elsewhere.
-DOCUMENTED_DIVERGENCE: frozenset[str] = frozenset(
-    {
-        "parse_project_bytes",
-    }
-)
+# walk. Empty after Phase 8D removed ``parse_project_bytes`` from the
+# dispatched set (its ``source_span.end_line`` parity gap is now pinned
+# by the golden contract in ``tests/test_core_parity_smoke.py`` instead
+# of by the dual-run logger).
+DOCUMENTED_DIVERGENCE: frozenset[str] = frozenset()
 
 
 def _exercise_parser() -> None:

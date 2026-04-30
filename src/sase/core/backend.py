@@ -97,6 +97,7 @@ def is_rust_available() -> bool:
     return True
 
 
+# pyvision: tests/test_core_backend.py
 def load_rust_extension() -> object | None:
     """Return the imported Rust extension module, or ``None`` if missing.
 
@@ -110,6 +111,7 @@ def load_rust_extension() -> object | None:
         return None
 
 
+# pyvision: tests/test_core_backend.py
 def dispatch[T](
     operation: str,
     *,

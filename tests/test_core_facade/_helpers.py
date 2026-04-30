@@ -13,7 +13,7 @@ import types
 import pytest
 
 from sase.ace.changespec.parser import parse_project_file_python
-from sase.core.backend import RUST_EXTENSION_MODULE_NAME
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire_conversion import changespec_to_wire
 
 SAMPLE_PROJECT_TEXT = """\

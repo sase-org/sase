@@ -8,7 +8,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._loaders._done_loaders import (
     load_done_agents_from_snapshot,
 )
-from sase.core.agent_scan_facade import scan_agent_artifacts_python
+from sase.core.agent_scan_facade import scan_agent_artifacts
 
 
 def test_timestamps_display_with_plan_and_code() -> None:
@@ -180,7 +180,7 @@ def test_snapshot_agent_timestamps_display_includes_scalar_plan(
         encoding="utf-8",
     )
 
-    snapshot = scan_agent_artifacts_python(tmp_path / "projects")
+    snapshot = scan_agent_artifacts(tmp_path / "projects")
     agents = load_done_agents_from_snapshot(snapshot, {}, {})
 
     assert len(agents) == 1

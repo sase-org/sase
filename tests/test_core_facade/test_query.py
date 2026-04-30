@@ -1,4 +1,15 @@
-"""Tests for ``sase.core.query_facade``."""
+"""Tests for ``sase.core.query_facade``.
+
+Phase 8D rewired :func:`sase.core.query_facade.parse_query` to call
+``sase_core_rs`` directly through
+:func:`sase.core.rust.require_rust_binding`. The legacy ``dispatch``
+plumbing and the Python ``parse_query_python`` routing branch have been
+deleted. The remaining query facade APIs (:func:`build_query_context`,
+:func:`evaluate_query`, :func:`evaluate_query_with_context`,
+:func:`evaluate_query_many`) still go through ``dispatch`` with
+``rust_unavailable="python"`` until Phase 8C / 8B's deferral is wound
+down.
+"""
 
 from __future__ import annotations
 
@@ -10,11 +21,8 @@ import pytest
 from sase.ace.query import evaluator as raw_evaluator
 from sase.ace.query.parser import parse_query_python as raw_parse_query
 from sase.core import parser_facade, query_facade
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    RUST_EXTENSION_MODULE_NAME,
-    RustBackendUnavailableError,
-)
+from sase.core.backend import BACKEND_ENV_VAR
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from tests.test_core_facade._helpers import install_fake_query_module
 
@@ -119,27 +127,8 @@ def test_evaluate_query_many_under_rust_runs_python_after_phase8b_deferral(
     assert rust_calls == []
 
 
-def test_parse_query_rust_without_impl_raises(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """parse_query routes to the Rust binding only when the extension is
-    importable; without it, ``SASE_CORE_BACKEND=rust`` must still raise.
-    """
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
-
-    def fail(name: str) -> object:
-        raise ImportError(f"No module named {name!r}")
-
-    monkeypatch.setattr("importlib.import_module", fail)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    with pytest.raises(RustBackendUnavailableError):
-        query_facade.parse_query('"x"')
-
-
-def test_parse_query_rust_backend_uses_rust_impl(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``SASE_CORE_BACKEND=rust`` routes parse_query through the binding."""
+def test_parse_query_uses_rust_binding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The facade calls the registered ``sase_core_rs.parse_query`` binding."""
     calls: list[str] = []
 
     def fake_parse_query(query: str) -> dict:
@@ -157,7 +146,6 @@ def test_parse_query_rust_backend_uses_rust_impl(
         }
 
     install_fake_query_module(monkeypatch, parse_query=fake_parse_query)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
 
     expr = query_facade.parse_query('"x"')
     assert calls == ['"x"']
@@ -166,13 +154,26 @@ def test_parse_query_rust_backend_uses_rust_impl(
     assert type(expr) is type(raw_parse_query('"x"'))
 
 
-def test_parse_query_rust_backend_missing_binding_raises_cleanly(
+def test_parse_query_missing_extension_raises_importerror(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    install_fake_query_module(monkeypatch)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
+    """When the wheel is gone, the facade raises :class:`ImportError`."""
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
 
-    with pytest.raises(RustBackendUnavailableError, match="parse_query"):
+    def fail(name: str) -> object:
+        raise ImportError(f"No module named {name!r}")
+
+    monkeypatch.setattr("importlib.import_module", fail)
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
+        query_facade.parse_query('"x"')
+
+
+def test_parse_query_stale_wheel_raises_attributeerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wheel without the binding raises :class:`AttributeError` naming the op."""
+    install_fake_query_module(monkeypatch)
+    with pytest.raises(AttributeError, match="parse_query"):
         query_facade.parse_query('"x"')
 
 

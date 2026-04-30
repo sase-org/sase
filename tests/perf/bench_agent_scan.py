@@ -56,10 +56,6 @@ For each workload the benchmark times these scenarios:
 - ``tui_artifact_load``: ``load_done_agents`` + ``load_running_home_agents``
   + ``load_workflow_states`` + ``load_workflow_agent_steps`` (the artifact
   / workflow portions of ``_load_agents_from_all_sources``).
-- ``scan_python_facade``: new
-  :func:`sase.core.agent_scan_facade.scan_agent_artifacts` snapshot.
-- ``scan_python_facade_no_prompt_steps``: snapshot scan with
-  ``include_prompt_step_markers=False``.
 - ``scan_rust_to_dict``: bare ``sase_core_rs.scan_agent_artifacts``
   call — Rust filesystem walk + JSON parse + PyO3 dict construction,
   with no Python-side wire conversion. Phase 3G uses this to attribute
@@ -100,10 +96,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.core.agent_scan_facade import (
-    scan_agent_artifacts,
-    scan_agent_artifacts_python,
-)
+from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     agent_scan_wire_from_dict,
@@ -332,13 +325,6 @@ def _run_scenarios(
 
         return _with_fake_home(_load)
 
-    def s_scan_facade() -> int:
-        return len(scan_agent_artifacts_python(projects_root).records)
-
-    def s_scan_facade_no_steps() -> int:
-        opts = AgentArtifactScanOptionsWire(include_prompt_step_markers=False)
-        return len(scan_agent_artifacts_python(projects_root, opts).records)
-
     def _with_backend(backend: str, fn: Callable[[], Any]) -> Any:
         with patch.dict(os.environ, {BACKEND_ENV_VAR: backend}):
             return fn()
@@ -372,11 +358,11 @@ def _run_scenarios(
     )
 
     def s_running_from_shared_snapshot() -> int:
-        snapshot = scan_agent_artifacts_python(projects_root, listing_opts)
+        snapshot = scan_agent_artifacts(projects_root, listing_opts)
         return len(_running_from_snapshot(snapshot))
 
     def s_all_from_shared_snapshot() -> int:
-        snapshot = scan_agent_artifacts_python(projects_root, listing_opts)
+        snapshot = scan_agent_artifacts(projects_root, listing_opts)
         running = _running_from_snapshot(snapshot)
         done = _done_from_snapshot(snapshot, cap_per_project=50)
         return len(running) + len(done)
@@ -432,8 +418,6 @@ def _run_scenarios(
         "list_running_agents_shared_snapshot": s_running_from_shared_snapshot,
         "list_all_agents_shared_snapshot": s_all_from_shared_snapshot,
         "tui_artifact_load": s_tui_load,
-        "scan_python_facade": s_scan_facade,
-        "scan_python_facade_no_prompt_steps": s_scan_facade_no_steps,
         "scan_rust_to_dict": s_scan_rust_to_dict,
         "scan_rust_dict_to_wire": s_scan_rust_dict_to_wire,
         "scan_rust_facade": s_scan_rust_facade,
@@ -603,8 +587,7 @@ def test_bench_agent_scan_smoke(tmp_path: Path) -> None:
     )
     assert report["workloads"], "expected at least one workload"
     workload = report["workloads"][0]
-    assert "scan_python_facade" in workload["scenarios"]
-    assert workload["scenarios"]["scan_python_facade"]["count"] == 2.0
+    assert "scan_rust_facade" in workload["scenarios"]
     assert (tmp_path / "bench.json").exists()
 
 

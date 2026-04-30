@@ -8,36 +8,35 @@ from sase.ace.query import (
     StringMatch,
     parse_query,
 )
+from sase.ace.query.parser import parse_query_python
 from sase.ace.query.types import ERROR_SUFFIX_QUERY
-from sase.core.backend import BACKEND_ENV_VAR
 
 
-def test_parse_error_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_error_empty_query() -> None:
     """Test error on empty query.
 
-    Pinned to explicit Python: the Rust ``parse_query`` binding raises a
-    plain ``ValueError`` with a different message shape, so this test
-    exercises the Python parser's :class:`QueryParseError` contract.
+    Calls ``parse_query_python`` directly: Phase 8D rewired the public
+    :func:`sase.ace.query.parse_query` to call the Rust binding, which
+    raises a plain ``ValueError`` with a different message shape. The
+    Python parser's :class:`QueryParseError` contract is what this
+    suite pins.
     """
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
-        parse_query("")
+        parse_query_python("")
     assert "Empty query" in str(exc_info.value)
 
 
-def test_parse_error_unmatched_paren(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_error_unmatched_paren() -> None:
     """Test error on unmatched parenthesis (Python parser-specific error)."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
-        parse_query('("a"')
+        parse_query_python('("a"')
     assert "RPAREN" in str(exc_info.value)
 
 
-def test_parse_error_missing_operand(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_error_missing_operand() -> None:
     """Test error on missing operand after AND (Python parser-specific error)."""
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
     with pytest.raises(QueryParseError) as exc_info:
-        parse_query('"a" AND')
+        parse_query_python('"a" AND')
     assert "Expected" in str(exc_info.value)
 
 

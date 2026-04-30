@@ -1,14 +1,12 @@
-"""Golden parity tests for the agent-artifact scan facade (Phase 3A/C).
+"""Golden tests for the agent-artifact scan facade.
 
 Pins the snapshot wire shape, error counters, and ordering produced by
 :func:`sase.core.agent_scan_facade.scan_agent_artifacts` against the
-synthetic corpus in :mod:`tests.agent_scan_golden`. A future
-``sase_core_rs`` implementation must reproduce these snapshots — until
-then they pin the Python scanner so refactors can't drift silently.
-
-Phase 3C tests at the bottom cover the Rust backend dispatch wiring with
-a fake ``sase_core_rs`` module and (when the real extension is
-installed) verify parity against the Python facade.
+synthetic corpus in :mod:`tests.agent_scan_golden`. After Phase 8D the
+facade calls ``sase_core_rs`` directly through
+:func:`sase.core.rust.require_rust_binding`; the Python walker fallback
+has been deleted, so the tests at the bottom of this file pin the new
+direct-Rust contract instead of dispatcher branching.
 """
 
 from __future__ import annotations
@@ -22,24 +20,13 @@ from typing import Any
 
 import pytest
 
-from sase.core.agent_scan_facade import (
-    scan_agent_artifacts,
-    scan_agent_artifacts_python,
-    with_options,
-)
+from sase.core.agent_scan_facade import scan_agent_artifacts, with_options
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
-    agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
 )
-from sase.core.backend import (
-    BACKEND_ENV_VAR,
-    DUAL_RUN_ENV_VAR,
-    RUST_EXTENSION_MODULE_NAME,
-    RustBackendUnavailableError,
-)
-from sase.core.dual_run import DUAL_RUN_LOG_OVERRIDE_ENV_VAR
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from .agent_scan_golden import (
     EXPECTED_DECODE_ERRORS,
@@ -60,20 +47,6 @@ from .agent_scan_golden.fixture_builder import (
     TS_WAITING,
     TS_WORKFLOW_ROOT,
 )
-
-
-@pytest.fixture(autouse=True)
-def _clean_backend_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin each test to the Python backend with no dual-run.
-
-    Phase 6F flipped the default to Rust; these tests cover the Python
-    snapshot scanner's behavior end-to-end (fixture parity, soft-error
-    counting, etc.), so we set ``SASE_CORE_BACKEND=python`` explicitly
-    rather than relying on the default. Tests that need Rust dispatch set
-    the env var themselves.
-    """
-    monkeypatch.setenv(BACKEND_ENV_VAR, "python")
-    monkeypatch.delenv(DUAL_RUN_ENV_VAR, raising=False)
 
 
 @pytest.fixture()
@@ -325,15 +298,6 @@ def test_max_prompt_snippet_bytes_truncates(fixture_root: Path) -> None:
     assert rec.raw_prompt_snippet == "Investigat"
 
 
-def test_python_facade_and_dispatch_agree(fixture_root: Path) -> None:
-    """Calling via the dispatcher matches calling the Python impl directly."""
-    direct = scan_agent_artifacts_python(fixture_root)
-    via_dispatch = scan_agent_artifacts(fixture_root)
-    assert agent_scan_wire_to_json_dict(direct) == agent_scan_wire_to_json_dict(
-        via_dispatch
-    )
-
-
 def test_missing_root_returns_empty_snapshot(tmp_path: Path) -> None:
     snapshot = scan_agent_artifacts(tmp_path / "does_not_exist")
     assert snapshot.records == []
@@ -391,167 +355,72 @@ def _install_fake_scan_module(
     return fake
 
 
-def _python_snapshot_as_dict(
-    projects_root: str, options_dict: dict[str, Any] | None
-) -> dict[str, Any]:
-    """Compute the Python facade snapshot and return it as a JSON-safe dict.
+def test_scan_agent_artifacts_calls_rust_binding(
+    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The facade calls ``sase_core_rs.scan_agent_artifacts`` directly.
 
-    Used by fake Rust modules to mirror what a real binding would emit.
+    Phase 8D removed the Python walker fallback; the facade now always
+    delegates to the Rust binding through
+    :func:`sase.core.rust.require_rust_binding`. The fake binding records
+    the arguments it receives and returns a synthetic empty snapshot so
+    we can assert on the dict shape the facade hands the Rust side.
     """
-    if options_dict is not None:
-        opts = AgentArtifactScanOptionsWire(
-            include_prompt_step_markers=bool(
-                options_dict.get("include_prompt_step_markers", True)
-            ),
-            include_raw_prompt_snippets=bool(
-                options_dict.get("include_raw_prompt_snippets", True)
-            ),
-            max_prompt_snippet_bytes=int(
-                options_dict.get("max_prompt_snippet_bytes", 200)
-            ),
-            only_workflow_dirs=tuple(options_dict.get("only_workflow_dirs") or ()),
-        )
-    else:
-        opts = AgentArtifactScanOptionsWire()
-    snapshot = scan_agent_artifacts_python(projects_root, opts)
-    return agent_scan_wire_to_json_dict(snapshot)
+    calls: list[tuple[str, dict[str, Any]]] = []
 
+    def fake_scan(projects_root: str, options: dict[str, Any]) -> dict[str, Any]:
+        calls.append((projects_root, options))
+        return {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": projects_root,
+            "options": options,
+            "stats": {
+                "projects_visited": 0,
+                "artifact_dirs_visited": 0,
+                "marker_files_parsed": 0,
+                "json_decode_errors": 0,
+                "os_errors": 0,
+                "prompt_step_markers_parsed": 0,
+            },
+            "records": [],
+        }
 
-def test_scan_agent_artifacts_rust_unavailable_keeps_python(
-    fixture_root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """No Rust extension + default backend = Python path, unchanged behavior."""
-    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    _install_fake_scan_module(monkeypatch, fake_scan)
 
-    def fail(name: str) -> object:
-        raise ImportError(f"No module named {name!r}")
-
-    monkeypatch.setattr("importlib.import_module", fail)
     snapshot = scan_agent_artifacts(fixture_root)
-    assert sorted(r.timestamp for r in snapshot.records)
+    assert snapshot.records == []
+    assert len(calls) == 1
+    assert calls[0][0] == str(fixture_root)
+    # The facade always populates the options dict so the Rust side never
+    # has to guess defaults — keys match the wire schema.
+    options_dict = calls[0][1]
+    assert options_dict["include_prompt_step_markers"] is True
+    assert options_dict["include_raw_prompt_snippets"] is True
+    assert options_dict["only_workflow_dirs"] == []
 
 
-def test_scan_agent_artifacts_rust_without_impl_raises(
+def test_scan_agent_artifacts_missing_extension_raises_importerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``SASE_CORE_BACKEND=rust`` with no extension raises a clear error."""
+    """When the wheel is gone, the facade raises :class:`ImportError`."""
     monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
 
     def fail(name: str) -> object:
         raise ImportError(f"No module named {name!r}")
 
     monkeypatch.setattr("importlib.import_module", fail)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-    with pytest.raises(RustBackendUnavailableError):
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         scan_agent_artifacts(fixture_root)
 
 
-def test_scan_agent_artifacts_rust_backend_uses_rust_impl(
+def test_scan_agent_artifacts_stale_wheel_raises_attributeerror(
     fixture_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``SASE_CORE_BACKEND=rust`` calls the registered Rust binding."""
-    calls: list[tuple[str, dict[str, Any] | None]] = []
-
-    def fake_scan(
-        projects_root: str, options: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        calls.append((projects_root, options))
-        return _python_snapshot_as_dict(projects_root, options)
-
-    _install_fake_scan_module(monkeypatch, fake_scan)
-    monkeypatch.setenv(BACKEND_ENV_VAR, "rust")
-
-    snapshot = scan_agent_artifacts(fixture_root)
-
-    assert len(calls) == 1
-    assert calls[0][0] == str(fixture_root)
-    # The facade always passes a populated options dict so the Rust side
-    # never has to guess defaults.
-    assert calls[0][1] is not None
-    assert calls[0][1]["include_prompt_step_markers"] is True
-    # Rust output is rehydrated into the same dataclass shape callers
-    # already consume from the Python path.
-    assert sorted(r.timestamp for r in snapshot.records) == sorted(EXPECTED_TIMESTAMPS)
-    assert snapshot.schema_version == AGENT_SCAN_WIRE_SCHEMA_VERSION
-
-
-def test_scan_agent_artifacts_dual_run_logs_comparison(
-    fixture_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Dual-run runs both impls, logs one record, returns Python output."""
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-
-    rust_calls: list[str] = []
-
-    def fake_scan(
-        projects_root: str, options: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        rust_calls.append(projects_root)
-        return _python_snapshot_as_dict(projects_root, options)
-
-    _install_fake_scan_module(monkeypatch, fake_scan)
-
-    snapshot = scan_agent_artifacts(fixture_root)
-
-    # Python output is what the caller sees, even under dual-run.
-    assert sorted(r.timestamp for r in snapshot.records) == sorted(EXPECTED_TIMESTAMPS)
-    assert rust_calls == [str(fixture_root)]
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 1
-    rec = records[0]
-    assert rec["operation"] == "scan_agent_artifacts"
-    assert rec["match"] is True
-    assert rec["error_class"] is None
-
-
-def test_scan_agent_artifacts_dual_run_records_mismatch(
-    fixture_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Mismatched Rust output is logged with ``match=False``."""
-    log_path = tmp_path / "core_dual_run.jsonl"
-    monkeypatch.setenv(DUAL_RUN_LOG_OVERRIDE_ENV_VAR, str(log_path))
-    monkeypatch.setenv(DUAL_RUN_ENV_VAR, "1")
-
-    def fake_scan(
-        projects_root: str, options: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        # Drop all records so the comparison must fail.
-        payload = _python_snapshot_as_dict(projects_root, options)
-        payload["records"] = []
-        return payload
-
-    _install_fake_scan_module(monkeypatch, fake_scan)
-
-    scan_agent_artifacts(fixture_root)
-
-    records = [
-        json.loads(line) for line in log_path.read_text().splitlines() if line.strip()
-    ]
-    assert len(records) == 1
-    assert records[0]["match"] is False
-
-
-def test_rust_extension_parity(fixture_root: Path) -> None:
-    """When ``sase_core_rs`` is installed, its output matches the Python facade."""
-    rust_module = pytest.importorskip("sase_core_rs")
-    if not hasattr(rust_module, "scan_agent_artifacts"):
-        pytest.skip("sase_core_rs is too old (no scan_agent_artifacts).")
-
-    py_snapshot = scan_agent_artifacts_python(fixture_root)
-    raw = rust_module.scan_agent_artifacts(str(fixture_root), None)
-    rust_snapshot = agent_scan_wire_from_dict(raw)
-    assert agent_scan_wire_to_json_dict(rust_snapshot) == agent_scan_wire_to_json_dict(
-        py_snapshot
-    )
+    """A wheel without the binding raises :class:`AttributeError` naming the op."""
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    with pytest.raises(AttributeError, match="scan_agent_artifacts"):
+        scan_agent_artifacts(fixture_root)
 
 
 def test_unreadable_artifact_dir_is_counted(tmp_path: Path) -> None:
