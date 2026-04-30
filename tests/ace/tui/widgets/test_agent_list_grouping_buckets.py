@@ -34,14 +34,16 @@ def test_by_date_mode_emits_bucket_banner_per_date_group() -> None:
         grouping_mode=GroupingMode.BY_DATE,
         now=now,
     )
-    # Two L0 bucket banners (Today, Earlier), no ChangeSpec banner inserted
-    # under either, agents render directly under their bucket.  A spacer
-    # row separates the two L0 banners as in STANDARD mode.
+    # Two L0 bucket banners (Today, Earlier), each with its visible hour
+    # banner.  No ChangeSpec banner is inserted under either bucket.  A
+    # spacer row separates the two L0 banners as in STANDARD mode.
     assert widget._row_entries == [
         BR,  # Today
+        BR,  # 12:00
         (0, None),
         BR,  # spacer
         BR,  # Earlier
+        BR,  # 09:00
         (1, None),
     ]
 
@@ -132,8 +134,8 @@ def test_by_date_mode_drops_changespec_banner_even_when_cl_name_present() -> Non
         grouping_mode=GroupingMode.BY_DATE,
         now=now,
     )
-    # Just the bucket banner + agent — no ChangeSpec banner inserted.
-    assert widget._row_entries == [BR, (0, None)]
+    # Bucket banner + hour banner + agent — no ChangeSpec banner inserted.
+    assert widget._row_entries == [BR, BR, (0, None)]
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
     assert "fix-bug-id" not in plain

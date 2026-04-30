@@ -37,7 +37,8 @@ original input order via a stable sort.
 
 Name-root banners are only emitted when the name-root group contains
 two or more entries; a singleton root renders its lone agent directly
-under the parent banner without an extra header.
+under the parent banner without an extra header.  In ``BY_DATE`` mode,
+visible real-hour banners are emitted even for singleton hours.
 """
 
 from ._buckets import (

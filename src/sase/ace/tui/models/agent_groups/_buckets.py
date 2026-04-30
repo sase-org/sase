@@ -31,8 +31,9 @@ class GroupingMode(Enum):
       ``status`` and retry-chain lineage.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
-    levels disappear: L0 is the bucket, L1 is the name-root, and the
-    same singleton-suppression rule applies as in ``STANDARD`` mode.
+    levels disappear.  ``BY_DATE`` renders date bucket → hour, while
+    ``BY_STATUS`` renders status bucket → name-root with the same
+    singleton-suppression rule as ``STANDARD`` mode.
     """
 
     STANDARD = "standard"

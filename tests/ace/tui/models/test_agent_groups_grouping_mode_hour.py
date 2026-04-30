@@ -64,8 +64,8 @@ def test_build_agent_tree_by_date_emits_hour_banner_under_date_bucket() -> None:
     assert l1_banners == [("Today", "09:00")]
 
 
-def test_build_agent_tree_by_date_singleton_hour_no_banner() -> None:
-    """Agents at distinct hours produce no L1 banners (singleton suppression)."""
+def test_build_agent_tree_by_date_singleton_real_hours_emit_banners() -> None:
+    """Agents at distinct real hours each get an L1 hour banner."""
     a = _agent(
         cl_name="x",
         agent_name="coder.aa",
@@ -82,7 +82,7 @@ def test_build_agent_tree_by_date_singleton_hour_no_banner() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == []
+    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
 
 
 def test_build_agent_tree_by_date_hour_buckets_newest_first() -> None:
@@ -150,6 +150,18 @@ def test_build_agent_tree_by_date_no_time_hour_sorts_last() -> None:
         ("Earlier", "08:00"),
         ("Earlier", NO_HOUR_LABEL),
     ]
+
+
+def test_build_agent_tree_by_date_singleton_no_time_has_no_hour_banner() -> None:
+    """A singleton ``(no time)`` bucket keeps the old suppression behavior."""
+    no_time = _agent(cl_name="x", agent_name="solo", start_time=None)
+    entries = build_agent_tree([no_time], mode=GroupingMode.BY_DATE, now=_NOW)
+    l1_banners = [
+        e.group.group_key  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 1
+    ]
+    assert l1_banners == []
 
 
 def test_build_agent_tree_by_date_workflow_child_inherits_parents_hour() -> None:
@@ -222,7 +234,7 @@ def test_build_agent_tree_by_date_terminal_and_running_share_hour() -> None:
 
 
 def test_enumerate_group_keys_by_date_includes_hour_keys() -> None:
-    """``enumerate_group_keys`` lists 2+-member hour groups under BY_DATE."""
+    """``enumerate_group_keys`` lists visible hour groups under BY_DATE."""
     a = _agent(
         cl_name="x",
         agent_name="coder.aa",
@@ -240,5 +252,4 @@ def test_enumerate_group_keys_by_date_includes_hour_keys() -> None:
     )
     keys = enumerate_group_keys([a, b, solo], mode=GroupingMode.BY_DATE, now=_NOW)
     assert ("Today", "09:00") in keys
-    # 14:00 is a singleton — no banner is emitted for it.
-    assert ("Today", "14:00") not in keys
+    assert ("Today", "14:00") in keys

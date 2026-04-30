@@ -120,13 +120,16 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
     # Single "Today" banner — project / changespec are no longer in the
     # hierarchy, so two different projects collapse into one L0 group.
     assert l0_banners == [("Today",)]
-    # No L1 ChangeSpec banner is emitted.
+    # L1 is now the hour layer under BY_DATE; no project or ChangeSpec
+    # identity is retained in those keys.
     l1_banners = [
         e.group.group_key  # type: ignore[union-attr]
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == []
+    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
+    assert all("cl-" not in key for banner in l1_banners for key in banner)
+    assert all("proj" not in key for banner in l1_banners for key in banner)
 
 
 def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
@@ -147,10 +150,10 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
 
 
 def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
-    """Under BY_DATE the L1 name-root banner is suppressed entirely.
+    """Under BY_DATE the name-root banner is suppressed entirely.
 
     Within a date bucket, same-base-name agents are not a meaningful unit
-    — the bucket renders as a flat list sorted by ``start_time``.
+    — the bucket renders with hour banners sorted by ``start_time``.
     """
     a = _agent(
         cl_name="x",
@@ -168,7 +171,8 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == []
+    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
+    assert ("Today", "coder") not in l1_banners
 
 
 def test_build_agent_tree_single_bucket_still_renders_banner() -> None:
@@ -198,7 +202,7 @@ def test_enumerate_group_keys_respects_grouping_mode() -> None:
     )
     keys = enumerate_group_keys([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
     assert ("Today",) in keys
-    # No name-root sub-banner under BY_DATE — the bucket renders flat.
+    # No name-root sub-banner under BY_DATE.
     assert ("Today", "coder") not in keys
     # The STANDARD-mode (project,) key shape is absent under BY_DATE.
     assert ("repo",) not in keys
@@ -282,7 +286,12 @@ def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == []
+    assert l1_banners == [
+        ("Today", "10:00"),
+        ("Today", "09:00"),
+        ("Earlier", "09:00"),
+    ]
+    assert all(banner[-1] != "coder" for banner in l1_banners)
 
 
 def test_build_agent_tree_by_date_done_agents_sort_by_stop_time() -> None:
