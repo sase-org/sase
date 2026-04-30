@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 03:33:06
-status: wip
+status: done
 ---
 # Fix agent-cleanup Rust facade test failures
 
