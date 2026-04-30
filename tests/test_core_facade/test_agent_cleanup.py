@@ -417,6 +417,13 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         "/tmp/parent",
         "/tmp/child",
     ]
+    assert [
+        (item.cl_name, item.raw_suffix)
+        for item in plan.side_effects.notification_dismiss_candidates
+    ] == [
+        ("workflow", "20260428100000"),
+        ("child", "20260428100000_c0"),
+    ]
 
 
 def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:

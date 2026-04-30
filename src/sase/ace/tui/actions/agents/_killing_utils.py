@@ -18,10 +18,14 @@ def delete_agent_artifacts(artifacts_dir: str | None) -> None:
     Args:
         artifacts_dir: Path to the agent's artifacts directory, or None.
     """
-    from pathlib import Path
-
     if not artifacts_dir:
         return
+    from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
+
+    if try_delete_agent_artifacts(artifacts_dir):
+        return
+
+    from pathlib import Path
 
     artifacts_path = Path(artifacts_dir)
     if not artifacts_path.is_dir():

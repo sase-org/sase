@@ -190,7 +190,6 @@ class ParseErrorWire:
     column: int | None = None
 
 
-# pyvision: tests/perf/bench_core_query.py
 def to_json_dict(record: Any) -> Any:
     """Project a wire record (or list of them) to a JSON-safe ``dict``/``list``.
 

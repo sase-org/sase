@@ -199,53 +199,63 @@ def release_workspace(
         with changespec_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
-                lines = content.split("\n")
 
-            new_lines: list[str] = []
-            in_running_field = False
-            running_field_idx = -1
-            has_remaining_claims = False
+            from sase.core.agent_cleanup_execution import (
+                try_release_workspace_from_content,
+            )
 
-            for line in lines:
-                if line.startswith("RUNNING:"):
-                    in_running_field = True
-                    running_field_idx = len(new_lines)
-                    new_lines.append(line)
-                    continue
-
-                if in_running_field and line.startswith("  "):
-                    claim = WorkspaceClaim.from_line(line)
-                    if claim:
-                        # Check if this is the claim to remove
-                        should_remove = claim.workspace_num == workspace_num
-                        if workflow and claim.workflow != workflow:
-                            should_remove = False
-                        if cl_name and claim.cl_name != cl_name:
-                            should_remove = False
-
-                        if should_remove:
-                            # Skip this line (remove the claim)
-                            continue
-                        else:
-                            has_remaining_claims = True
-                else:
-                    in_running_field = False
-
-                new_lines.append(line)
-
-            # If RUNNING field is now empty, remove it entirely
-            if running_field_idx >= 0 and not has_remaining_claims:
-                # Remove the RUNNING: line
-                del new_lines[running_field_idx]
-
-            # Normalize blank lines (clean up extra blanks after RUNNING field or where it was)
-            result_content = "\n".join(new_lines)
-            if has_remaining_claims:
-                # Normalize spacing around remaining RUNNING field
-                result_content = normalize_running_field_spacing(result_content)
+            rust_result = try_release_workspace_from_content(
+                content, workspace_num, workflow, cl_name
+            )
+            if rust_result is not None:
+                result_content = str(rust_result["content"])
             else:
-                # Clean up orphaned blank lines where RUNNING field was removed
-                result_content = clean_orphaned_blank_lines(result_content)
+                lines = content.split("\n")
+                new_lines: list[str] = []
+                in_running_field = False
+                running_field_idx = -1
+                has_remaining_claims = False
+
+                for line in lines:
+                    if line.startswith("RUNNING:"):
+                        in_running_field = True
+                        running_field_idx = len(new_lines)
+                        new_lines.append(line)
+                        continue
+
+                    if in_running_field and line.startswith("  "):
+                        claim = WorkspaceClaim.from_line(line)
+                        if claim:
+                            # Check if this is the claim to remove
+                            should_remove = claim.workspace_num == workspace_num
+                            if workflow and claim.workflow != workflow:
+                                should_remove = False
+                            if cl_name and claim.cl_name != cl_name:
+                                should_remove = False
+
+                            if should_remove:
+                                # Skip this line (remove the claim)
+                                continue
+                            else:
+                                has_remaining_claims = True
+                    else:
+                        in_running_field = False
+
+                    new_lines.append(line)
+
+                # If RUNNING field is now empty, remove it entirely
+                if running_field_idx >= 0 and not has_remaining_claims:
+                    # Remove the RUNNING: line
+                    del new_lines[running_field_idx]
+
+                # Normalize blank lines (clean up extra blanks after RUNNING field or where it was)
+                result_content = "\n".join(new_lines)
+                if has_remaining_claims:
+                    # Normalize spacing around remaining RUNNING field
+                    result_content = normalize_running_field_spacing(result_content)
+                else:
+                    # Clean up orphaned blank lines where RUNNING field was removed
+                    result_content = clean_orphaned_blank_lines(result_content)
 
             # Write atomically
             write_changespec_atomic(

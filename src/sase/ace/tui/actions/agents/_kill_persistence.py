@@ -99,10 +99,12 @@ def _persist_hook_kill(agent: Agent) -> None:
     from ....changespec import parse_project_file
     from ....hooks import update_changespec_hooks_field
     from ....hooks.processes import mark_hook_agents_as_killed
+    from sase.core.agent_cleanup_execution import mark_hook_agents_as_killed_rust
 
     changespecs = parse_project_file(agent.project_file)
     for cs in changespecs:
         if cs.name == agent.cl_name and cs.hooks:
+            matched_suffixes: list[str] = []
             killed_hook_agents = []
             for hook in cs.hooks:
                 if hook.status_lines:
@@ -111,10 +113,14 @@ def _persist_hook_kill(agent: Agent) -> None:
                             sl.suffix_type == "running_agent"
                             and sl.suffix == agent.raw_suffix
                         ):
+                            if sl.suffix is not None:
+                                matched_suffixes.append(sl.suffix)
                             killed_hook_agents.append((hook, sl, agent.pid))
 
             if killed_hook_agents:
-                updated_hooks = mark_hook_agents_as_killed(cs.hooks, killed_hook_agents)
+                updated_hooks = mark_hook_agents_as_killed_rust(
+                    cs.hooks, matched_suffixes
+                ) or mark_hook_agents_as_killed(cs.hooks, killed_hook_agents)
                 update_changespec_hooks_field(
                     agent.project_file, agent.cl_name, updated_hooks
                 )
@@ -127,10 +133,12 @@ def _persist_mentor_kill(agent: Agent) -> None:
     from ....changespec import parse_project_file
     from ....hooks.processes import mark_mentor_agents_as_killed
     from ....mentors import update_changespec_mentors_field
+    from sase.core.agent_cleanup_execution import mark_mentor_agents_as_killed_rust
 
     changespecs = parse_project_file(agent.project_file)
     for cs in changespecs:
         if cs.name == agent.cl_name and cs.mentors:
+            matched_suffixes: list[str] = []
             killed_mentor_agents = []
             for entry in cs.mentors:
                 if entry.status_lines:
@@ -139,12 +147,14 @@ def _persist_mentor_kill(agent: Agent) -> None:
                             sl.suffix_type == "running_agent"
                             and sl.suffix == agent.raw_suffix
                         ):
+                            if sl.suffix is not None:
+                                matched_suffixes.append(sl.suffix)
                             killed_mentor_agents.append((entry, sl, agent.pid))
 
             if killed_mentor_agents:
-                updated_mentors = mark_mentor_agents_as_killed(
-                    cs.mentors, killed_mentor_agents
-                )
+                updated_mentors = mark_mentor_agents_as_killed_rust(
+                    cs.mentors, matched_suffixes
+                ) or mark_mentor_agents_as_killed(cs.mentors, killed_mentor_agents)
                 update_changespec_mentors_field(
                     agent.project_file, agent.cl_name, updated_mentors
                 )
@@ -157,22 +167,26 @@ def _persist_crs_kill(agent: Agent) -> None:
     from ....changespec import parse_project_file
     from ....comments import update_changespec_comments_field
     from ....comments.operations import mark_comment_agents_as_killed
+    from sase.core.agent_cleanup_execution import mark_comment_agents_as_killed_rust
 
     changespecs = parse_project_file(agent.project_file)
     for cs in changespecs:
         if cs.name == agent.cl_name and cs.comments:
+            matched_suffixes: list[str] = []
             killed_comment_agents = []
             for comment in cs.comments:
                 if (
                     comment.suffix_type == "running_agent"
                     and comment.suffix == agent.raw_suffix
                 ):
+                    if comment.suffix is not None:
+                        matched_suffixes.append(comment.suffix)
                     killed_comment_agents.append((comment, agent.pid))
 
             if killed_comment_agents:
-                updated_comments = mark_comment_agents_as_killed(
-                    cs.comments, killed_comment_agents
-                )
+                updated_comments = mark_comment_agents_as_killed_rust(
+                    cs.comments, matched_suffixes
+                ) or mark_comment_agents_as_killed(cs.comments, killed_comment_agents)
                 update_changespec_comments_field(
                     agent.project_file, agent.cl_name, updated_comments
                 )

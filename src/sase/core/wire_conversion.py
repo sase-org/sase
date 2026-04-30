@@ -72,7 +72,6 @@ def hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def hook_entry_to_wire(entry: HookEntry) -> HookWire:
     status_lines = entry.status_lines or []
     return HookWire(
@@ -81,7 +80,6 @@ def hook_entry_to_wire(entry: HookEntry) -> HookWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def comment_entry_to_wire(entry: CommentEntry) -> CommentWire:
     return CommentWire(
         reviewer=entry.reviewer,
@@ -104,7 +102,6 @@ def mentor_status_line_to_wire(line: MentorStatusLine) -> MentorStatusLineWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def mentor_entry_to_wire(entry: MentorEntry) -> MentorWire:
     status_lines = entry.status_lines or []
     return MentorWire(

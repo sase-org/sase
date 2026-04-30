@@ -129,14 +129,30 @@ def save_dismissed_agents(
     Returns:
         True if saved successfully, False otherwise.
     """
+    entries = [
+        {"agent_type": agent_type.value, "cl_name": cl_name, "raw_suffix": raw_suffix}
+        for agent_type, cl_name, raw_suffix in sorted(
+            dismissed, key=lambda item: (item[0].value, item[1], item[2] or "")
+        )
+    ]
+    try:
+        from sase.core.agent_cleanup_execution import (
+            try_save_dismissed_agents_index,
+        )
+
+        if try_save_dismissed_agents_index(_DISMISSED_AGENTS_FILE, entries):
+            return True
+    except (OSError, ValueError):
+        return False
+
     try:
         _DISMISSED_AGENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        entries = [
-            [agent_type.value, cl_name, raw_suffix]
-            for agent_type, cl_name, raw_suffix in dismissed
+        legacy_entries = [
+            [entry["agent_type"], entry["cl_name"], entry["raw_suffix"]]
+            for entry in entries
         ]
         with open(_DISMISSED_AGENTS_FILE, "w") as f:
-            json.dump(entries, f, indent=2)
+            json.dump(legacy_entries, f, indent=2)
         return True
     except OSError:
         return False
@@ -157,6 +173,14 @@ def save_dismissed_bundle(agent: Agent) -> bool:
     """
     if agent.raw_suffix is None:
         return False
+    try:
+        from sase.core.agent_cleanup_execution import try_save_dismissed_bundle
+
+        if try_save_dismissed_bundle(_DISMISSED_BUNDLES_DIR, agent.to_bundle_dict()):
+            return True
+    except (OSError, ValueError):
+        return False
+
     try:
         filename = _bundle_filename(agent)
         shard_dir = _bundle_shard_dir(filename)
