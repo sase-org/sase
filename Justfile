@@ -211,6 +211,7 @@ rust-install VENV=venv_dir_abs: _venv
         exit 1; \
     fi
     @{{ VENV }}/bin/maturin --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
+    @{{ VENV }}/bin/python tools/purge_sase_core_rs_extensions
     cd {{ sase_core_dir }}/crates/sase_core_py && \
         VIRTUAL_ENV={{ VENV }} \
         PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \

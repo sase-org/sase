@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Remove stale native ``sase_core_rs`` extension artifacts before rebuilds."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import sysconfig
+from collections.abc import Iterable
+from pathlib import Path
+
+
+_NATIVE_EXTENSION_GLOBS = (
+    "sase_core_rs*.so",
+    "sase_core_rs*.pyd",
+    "sase_core_rs*.dll",
+    "sase_core_rs*.dylib",
+)
+
+
+def _default_site_package_dirs() -> list[Path]:
+    paths = sysconfig.get_paths()
+    candidates = {
+        value
+        for key in ("purelib", "platlib")
+        if (value := paths.get(key)) is not None
+    }
+    return sorted(Path(path) for path in candidates)
+
+
+def _candidate_dirs(site_package_dirs: Iterable[Path]) -> list[Path]:
+    candidates: set[Path] = set()
+    for site_packages in site_package_dirs:
+        candidates.add(site_packages)
+        candidates.add(site_packages / "sase_core_rs")
+    return sorted(candidates)
+
+
+def _native_extension_paths(site_package_dirs: Iterable[Path]) -> list[Path]:
+    matches: set[Path] = set()
+    for directory in _candidate_dirs(site_package_dirs):
+        if not directory.is_dir():
+            continue
+        for pattern in _NATIVE_EXTENSION_GLOBS:
+            matches.update(path for path in directory.glob(pattern) if path.is_file())
+    return sorted(matches)
+
+
+def purge_sase_core_rs_extensions(
+    site_package_dirs: Iterable[Path],
+) -> list[Path]:
+    """Delete native ``sase_core_rs`` artifacts and return removed paths."""
+    removed: list[Path] = []
+    for path in _native_extension_paths(site_package_dirs):
+        path.unlink()
+        removed.append(path)
+    return removed
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--site-packages",
+        action="append",
+        type=Path,
+        help=(
+            "site-packages directory to clean; defaults to the interpreter's "
+            "purelib/platlib paths"
+        ),
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = _parse_args()
+    site_package_dirs = args.site_packages or _default_site_package_dirs()
+    try:
+        removed = purge_sase_core_rs_extensions(site_package_dirs)
+    except OSError as exc:
+        print(f"[purge_sase_core_rs_extensions] failed: {exc}", file=sys.stderr)
+        return 1
+
+    if removed:
+        print(
+            "[purge_sase_core_rs_extensions] removed "
+            f"{len(removed)} native extension artifact(s)"
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
