@@ -87,7 +87,6 @@ def _iso_or_none(value: Any) -> str | None:
     return str(value)
 
 
-# pyvision: tests/test_core_facade/test_agent_cleanup.py
 def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
     """Convert a TUI ``Agent`` object into cleanup planner wire data."""
 

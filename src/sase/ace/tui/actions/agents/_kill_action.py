@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
     from ...models.agent_groups import GroupRow
     from ...modals import AgentCleanupAction, AgentCleanupPanelState
+    from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -72,12 +73,6 @@ class AgentKillMixin:
         def failed_count(agents: list[Agent]) -> int:
             return sum(1 for agent in agents if agent.status == "FAILED")
 
-        panel_label = "all panels"
-        panel_group = getattr(self, "_panel_group", None)
-        if panel_group is not None:
-            focused_key = panel_group.focused_key
-            panel_label = "(untagged)" if focused_key is None else f"@{focused_key}"
-
         group_count = 0
         group = self._get_focused_group()
         if group is not None:
@@ -89,7 +84,7 @@ class AgentKillMixin:
             )
 
         return AgentCleanupPanelState(
-            focused_panel_label=panel_label,
+            focused_panel_label=self._focused_panel_label(),
             panel_running_count=running_count(panel_agents),
             panel_completed_count=completed_count(panel_agents),
             panel_failed_count=failed_count(panel_agents),
@@ -98,7 +93,7 @@ class AgentKillMixin:
             all_failed_count=failed_count(all_agents),
             marked_count=len(self._marked_agents),
             group_count=group_count,
-            tag_count=len({agent.tag for agent in self._agents if agent.tag}),
+            tag_count=len(self._known_agent_cleanup_tags()),
         )
 
     def _run_agent_cleanup_panel_action(self, action: AgentCleanupAction) -> None:
@@ -125,7 +120,149 @@ class AgentKillMixin:
                 return
             self._bulk_kill_group_agents(group)
             return
+        if action == "tag":
+            self._open_tag_cleanup_selector()
+            return
+        if action == "custom":
+            self._open_custom_cleanup_selector()
+            return
         self.notify("Cleanup option is not available yet", severity="warning")  # type: ignore[attr-defined]
+
+    def _focused_panel_label(self) -> str:
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return "all panels"
+        focused_key = panel_group.focused_key
+        return "(untagged)" if focused_key is None else f"@{focused_key}"
+
+    def _known_agent_cleanup_tags(self) -> tuple[str, ...]:
+        """Return tag names known from loaded agents and persisted tag storage."""
+        tags = {agent.tag for agent in self._agents if agent.tag}
+        try:
+            from sase.ace.agent_tags import load_agent_tags
+
+            tags.update(load_agent_tags().values())
+        except Exception:
+            pass
+        return tuple(sorted(tags, key=str.lower))
+
+    def _open_tag_cleanup_selector(self) -> None:
+        from ...modals import AgentCleanupTagModal, AgentCleanupTagResult
+
+        tags = self._known_agent_cleanup_tags()
+        if not tags:
+            self.notify("No agent tags found", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        def on_dismiss(result: AgentCleanupTagResult | None) -> None:
+            if result is None:
+                return
+            self._present_tag_cleanup(result.tag)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentCleanupTagModal(tags=tags, targets=list(self._agents_with_children)),
+            on_dismiss,
+        )
+
+    def _open_custom_cleanup_selector(self) -> None:
+        from ...modals import AgentCleanupCustomModal, AgentCleanupCustomResult
+
+        candidates = self._agents_in_focused_panel()  # type: ignore[attr-defined]
+        if not candidates:
+            self.notify("No agents in focused panel", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        def on_dismiss(result: AgentCleanupCustomResult | None) -> None:
+            if result is None:
+                return
+            self._present_custom_cleanup(result.identities)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentCleanupCustomModal(
+                candidates=candidates,
+                targets=list(self._agents_with_children),
+                focused_panel_label=self._focused_panel_label(),
+            ),
+            on_dismiss,
+        )
+
+    def _present_tag_cleanup(self, tag: str) -> None:
+        from sase.core.agent_cleanup_wire import (
+            AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            CLEANUP_MODE_KILL_AND_DISMISS,
+            CLEANUP_SCOPE_TAG,
+            AgentCleanupRequestWire,
+        )
+
+        request = AgentCleanupRequestWire(
+            schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            scope=CLEANUP_SCOPE_TAG,
+            mode=CLEANUP_MODE_KILL_AND_DISMISS,
+            tag=tag,
+            include_pidless_as_dismissable=True,
+        )
+        self._present_planned_cleanup(request, header=f"Tag: @{tag}")
+
+    def _present_custom_cleanup(
+        self, identities: tuple[AgentCleanupAgentIdentity, ...]
+    ) -> None:
+        if not identities:
+            self.notify("No agents selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from sase.core.agent_cleanup_facade import agent_to_cleanup_target
+        from sase.core.agent_cleanup_wire import (
+            AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            CLEANUP_MODE_KILL_AND_DISMISS,
+            CLEANUP_SCOPE_CUSTOM_SELECTION,
+            AgentCleanupRequestWire,
+        )
+
+        selected = set(identities)
+        selected_wire = tuple(
+            agent_to_cleanup_target(agent).identity
+            for agent in self._agents_with_children
+            if agent.identity in selected
+        )
+        request = AgentCleanupRequestWire(
+            schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            scope=CLEANUP_SCOPE_CUSTOM_SELECTION,
+            mode=CLEANUP_MODE_KILL_AND_DISMISS,
+            identities=selected_wire,
+            include_pidless_as_dismissable=True,
+        )
+        self._present_planned_cleanup(request, header="Custom selection")
+
+    def _present_planned_cleanup(self, request: object, *, header: str) -> None:
+        """Preview and confirm a planner-backed cleanup request."""
+        from sase.core.agent_cleanup_facade import (
+            agent_to_cleanup_target,
+            agents_to_cleanup_targets,
+            plan_agent_cleanup,
+        )
+
+        targets = list(self._agents_with_children)
+        plan = plan_agent_cleanup(agents_to_cleanup_targets(targets), request)  # type: ignore[arg-type]
+        by_wire_identity = {
+            agent_to_cleanup_target(agent).identity: agent for agent in targets
+        }
+        killable = [
+            by_wire_identity[item.identity]
+            for item in plan.kill_items
+            if item.identity in by_wire_identity
+        ]
+        dismissable = [
+            by_wire_identity[item.identity]
+            for item in plan.dismiss_items
+            if item.identity in by_wire_identity
+        ]
+        if not killable and not dismissable:
+            self.notify("No selected agents can be cleaned up", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._present_bulk_kill_modal(  # type: ignore[attr-defined]
+            [*killable, *dismissable],
+            header=header,
+        )
 
     def action_kill_agent(self) -> None:
         """Kill or dismiss agent, or toggle/kill axe on AXE tab."""

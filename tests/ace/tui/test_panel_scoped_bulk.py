@@ -177,3 +177,16 @@ def test_panel_group_none_falls_back_to_all_agents() -> None:
 
     assert len(app._pushed) == 1
     assert set(_names_in_modal(app)) == {"u1", "f1", "r1"}
+
+
+def test_tag_cleanup_uses_tag_scope_plan() -> None:
+    fix_done = _agent(name="f_done", suffix="t1", tag="fix")
+    fix_run = _agent(name="f_run", suffix="t2", status="RUNNING", pid=20, tag="fix")
+    review_done = _agent(name="r_done", suffix="t3", tag="review")
+    app = _FakeApp([fix_done, fix_run, review_done], focused_key=None)
+
+    app._present_tag_cleanup("fix")
+
+    assert len(app._pushed) == 1
+    names = set(_names_in_modal(app))
+    assert names == {"f_done", "f_run"}

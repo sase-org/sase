@@ -135,7 +135,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal {
     align: center middle;
 }
 
@@ -194,6 +194,48 @@ AgentCleanupModal #agent-cleanup-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
+    margin-top: 1;
+}
+
+AgentCleanupTagModal > #agent-cleanup-tag-container {
+    width: 74;
+    max-width: 92%;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentCleanupTagModal #agent-cleanup-tag-list {
+    height: auto;
+    max-height: 18;
+    border: solid $secondary;
+}
+
+AgentCleanupCustomModal > #agent-cleanup-custom-container {
+    width: 96;
+    max-width: 96%;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentCleanupCustomModal #agent-cleanup-custom-summary {
+    height: auto;
+    min-height: 2;
+    margin-bottom: 1;
+}
+
+AgentCleanupCustomModal #agent-cleanup-custom-list {
+    height: 18;
+    max-height: 18;
+    border: solid $secondary;
+}
+
+AgentCleanupCustomModal #agent-cleanup-search {
     margin-top: 1;
 }
 

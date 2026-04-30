@@ -3,9 +3,13 @@
 from .agent_name_modal import AgentNameModal
 from .agent_cleanup_modal import (
     AgentCleanupAction,
+    AgentCleanupCustomModal,
+    AgentCleanupCustomResult,
     AgentCleanupModal,
     AgentCleanupPanelState,
     AgentCleanupResult,
+    AgentCleanupTagModal,
+    AgentCleanupTagResult,
 )
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
@@ -96,9 +100,13 @@ __all__ = [
     "ApproveOptionsResult",
     "AgentNameModal",
     "AgentCleanupAction",
+    "AgentCleanupCustomModal",
+    "AgentCleanupCustomResult",
     "AgentCleanupModal",
     "AgentCleanupPanelState",
     "AgentCleanupResult",
+    "AgentCleanupTagModal",
+    "AgentCleanupTagResult",
     "AgentRunLogModal",
     "AgentTagModal",
     "AgentTagModalResult",
