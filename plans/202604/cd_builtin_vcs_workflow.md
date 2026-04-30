@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 18:17:40
 status: wip
+bead_id: sase-1m
 ---
 
 # Plan: Built-In `#cd` XPrompt Workflow and Home-Mode Migration
