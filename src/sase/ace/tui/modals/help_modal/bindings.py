@@ -110,7 +110,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_deltas'))}",
-                    "Cycle deltas folding",
+                    "Cycle deltas folded/unfolded",
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_commits'))}",
@@ -130,7 +130,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_deltas'))}",
-                    "Toggle deltas collapsed/expanded",
+                    "Toggle deltas folded/unfolded",
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_all'))}",

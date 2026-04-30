@@ -117,12 +117,12 @@ the cursor always sits on a row the user can see.
 | Key     | Action                                                 |
 | ------- | ------------------------------------------------------ |
 | `z` `c` | Cycle commits section (expand → collapse)              |
-| `z` `d` | Cycle deltas section (expand → collapse)               |
+| `z` `d` | Cycle deltas section (folded ↔ unfolded)               |
 | `z` `h` | Cycle hooks section (expand → collapse)                |
 | `z` `m` | Cycle mentors section (expand → collapse)              |
 | `z` `t` | Cycle timestamps section (expand → collapse)           |
 | `z` `C` | Toggle commits section (collapsed ↔ fully expanded)    |
-| `z` `D` | Toggle deltas section (collapsed ↔ fully expanded)     |
+| `z` `D` | Toggle deltas section (folded ↔ unfolded)              |
 | `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
 | `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
 | `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
@@ -146,11 +146,10 @@ The indicator width is pre-calculated so that note truncation accounts for it. T
 indicator inline with the header and displays the most recent timestamp entry when collapsed, giving a quick view of the
 last lifecycle event.
 
-The DELTAS section uses a two-position cycle (collapsed ↔ expanded ↔ fully expanded). When **expanded**, the section
-renders a one-line file and line-count summary such as `+3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **fully
-expanded**, the alphabetical entry list is shown with colored glyphs (green `+`, gold `~`, red `-`) and inline
-line-count tokens. Binary files display `binary`; zero-count entries display `0 lines`. The section is omitted entirely
-when the ChangeSpec has no deltas.
+The DELTAS section uses two semantic states. When **folded**, the section renders a one-line file and line-count summary
+such as `DELTAS:  +3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **unfolded**, the alphabetical entry list is
+shown with colored glyphs (green `+`, gold `~`, red `-`) and inline line-count tokens. Binary files display `binary`;
+zero-count entries display `0 lines`. The section is omitted entirely when the ChangeSpec has no deltas.
 
 ### Workflows and Agents
 

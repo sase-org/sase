@@ -132,7 +132,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
-        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
+        deltas_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> None:
         """Update the detail view with a new changespec.
 
@@ -166,7 +166,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
-        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
+        deltas_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         dict[int, str], dict[int, int], dict[int, str], dict[int, tuple[str, str]]
     ]:
@@ -236,7 +236,7 @@ class ChangeSpecDetail(Static):
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
-        deltas_collapsed: FoldLevel = FoldLevel.EXPANDED,
+        deltas_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         Panel,
         dict[int, str],

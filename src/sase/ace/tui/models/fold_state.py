@@ -20,6 +20,24 @@ def cycle_forward(level: FoldLevel) -> FoldLevel:
     return FoldLevel.COLLAPSED
 
 
+def normalize_deltas_fold_level(level: FoldLevel) -> FoldLevel:
+    """Map the shared fold model onto DELTAS' two semantic states.
+
+    DELTAS treats COLLAPSED as the folded one-line summary and every
+    non-collapsed shared state as the unfolded full file list.
+    """
+    if level == FoldLevel.COLLAPSED:
+        return FoldLevel.COLLAPSED
+    return FoldLevel.FULLY_EXPANDED
+
+
+def cycle_deltas_fold_level(level: FoldLevel) -> FoldLevel:
+    """Cycle DELTAS between folded summary and unfolded full list."""
+    if normalize_deltas_fold_level(level) == FoldLevel.COLLAPSED:
+        return FoldLevel.FULLY_EXPANDED
+    return FoldLevel.COLLAPSED
+
+
 class FoldStateManager:
     """Manages fold state for workflow entries in the Agents tab.
 

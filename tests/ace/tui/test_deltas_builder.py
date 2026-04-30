@@ -51,36 +51,26 @@ class TestNoDeltas:
 
 
 class TestCollapsed:
-    def test_collapsed_renders_header_only(self) -> None:
+    def test_collapsed_renders_summary(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs, FoldLevel.COLLAPSED)
-        assert text.plain == "DELTAS:\n"
-        assert "(5 files)" not in text.plain
+        assert text.plain == "DELTAS:  +2 ~2 -1 (5 files)\n"
         assert "deltas.py" not in text.plain
 
-
-class TestExpanded:
-    def test_expanded_shows_summary(self) -> None:
+    def test_default_renders_summary(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
         text = Text()
-        build_deltas_section(text, cs, FoldLevel.EXPANDED)
-        plain = text.plain
-        assert plain.startswith("DELTAS:")
-        assert "+2" in plain
-        assert "~2" in plain
-        assert "-1" in plain
-        assert "(5 files)" in plain
-        # No individual entries in the summary view.
-        assert "deltas.py" not in plain
+        build_deltas_section(text, cs)
+        assert text.plain == "DELTAS:  +2 ~2 -1 (5 files)\n"
 
-    def test_expanded_singular_file_label(self) -> None:
+    def test_collapsed_singular_file_label(self) -> None:
         cs = _make_changespec(deltas=[DeltaEntry(path="a.py", change_type="A")])
         text = Text()
-        build_deltas_section(text, cs, FoldLevel.EXPANDED)
+        build_deltas_section(text, cs, FoldLevel.COLLAPSED)
         assert "(1 file)" in text.plain
 
-    def test_expanded_summary_includes_line_stats(self) -> None:
+    def test_collapsed_summary_includes_line_stats(self) -> None:
         cs = _make_changespec(
             deltas=[
                 DeltaEntry(
@@ -101,15 +91,13 @@ class TestExpanded:
             ]
         )
         text = Text()
-        build_deltas_section(text, cs, FoldLevel.EXPANDED)
-        assert "+1 (+5)" in text.plain
-        assert "~1 (+2 ~3 -1)" in text.plain
-        assert "-1 (-4)" in text.plain
+        build_deltas_section(text, cs, FoldLevel.COLLAPSED)
+        assert text.plain == ("DELTAS:  +1 (+5) ~1 (+2 ~3 -1) -1 (-4) (3 files)\n")
 
     def test_summary_glyph_styles(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
         text = Text()
-        build_deltas_section(text, cs, FoldLevel.EXPANDED)
+        build_deltas_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
         added_offset = plain.index("+2")
         modified_offset = plain.index("~2")
@@ -150,6 +138,17 @@ class TestFullyExpanded:
         assert "+ src/sase/ace/changespec/deltas.py" in plain
         assert "~ src/sase/ace/changespec/models.py" in plain
         assert "- src/sase/legacy/old_deltas.py" in plain
+
+    def test_expanded_compatibility_state_lists_paths(self) -> None:
+        cs = _make_changespec(deltas=_sample_deltas())
+        text = Text()
+        build_deltas_section(text, cs, FoldLevel.EXPANDED)
+        plain = text.plain
+        assert plain.startswith("DELTAS:\n")
+        assert "+ src/sase/ace/changespec/deltas.py" in plain
+        assert "~ src/sase/ace/changespec/models.py" in plain
+        assert "- src/sase/legacy/old_deltas.py" in plain
+        assert "(5 files)" not in plain
 
     def test_basename_is_bold(self) -> None:
         cs = _make_changespec(

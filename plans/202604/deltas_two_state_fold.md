@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 12:48:37
-status: wip
+status: done
 ---
 
 # Plan: Make DELTAS a Two-State Fold

@@ -120,7 +120,7 @@ class AceApp(
         FoldLevel.COLLAPSED, recompose=False
     )
     deltas_collapsed: reactive[FoldLevel] = reactive(
-        FoldLevel.EXPANDED, recompose=False
+        FoldLevel.COLLAPSED, recompose=False
     )
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     axe_running: reactive[bool] = reactive(False, recompose=False)

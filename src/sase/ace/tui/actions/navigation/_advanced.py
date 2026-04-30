@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import Literal
 
 from ...changespec_history import ChangeSpecHistoryEntry
-from ...models.fold_state import FoldLevel, cycle_forward
+from ...models.fold_state import (
+    FoldLevel,
+    cycle_deltas_fold_level,
+    cycle_forward,
+    normalize_deltas_fold_level,
+)
 from .jump_hints import (
     BannerJumpTarget,
     JumpTarget,
@@ -46,7 +51,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         elif key == fold_keys["cycle_timestamps"]:
             self.timestamps_collapsed = cycle_forward(self.timestamps_collapsed)
         elif key == fold_keys["cycle_deltas"]:
-            self.deltas_collapsed = cycle_forward(self.deltas_collapsed)
+            self.deltas_collapsed = cycle_deltas_fold_level(self.deltas_collapsed)
         elif key == fold_keys["toggle_commits"]:
             self.commits_collapsed = (
                 FoldLevel.FULLY_EXPANDED
@@ -72,20 +77,10 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 else FoldLevel.COLLAPSED
             )
         elif key == fold_keys["toggle_deltas"]:
-            self.deltas_collapsed = (
-                FoldLevel.FULLY_EXPANDED
-                if self.deltas_collapsed == FoldLevel.COLLAPSED
-                else FoldLevel.COLLAPSED
-            )
+            self.deltas_collapsed = cycle_deltas_fold_level(self.deltas_collapsed)
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
-            if (
-                self.commits_collapsed
-                == self.hooks_collapsed
-                == self.mentors_collapsed
-                == self.timestamps_collapsed
-                == self.deltas_collapsed
-            ):
+            if self._all_fold_states_aligned():
                 new_state = cycle_forward(self.commits_collapsed)
             else:
                 new_state = FoldLevel.COLLAPSED
@@ -93,7 +88,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
-            self.deltas_collapsed = new_state
+            self.deltas_collapsed = normalize_deltas_fold_level(new_state)
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (
@@ -111,7 +106,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
-            self.deltas_collapsed = new_state
+            self.deltas_collapsed = normalize_deltas_fold_level(new_state)
         else:
             # Invalid key - cancel fold mode and restore footer
             self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -120,6 +115,17 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._refresh_current_tab()  # type: ignore[attr-defined]
         self._update_fold_tab_indicator()
         return True
+
+    def _all_fold_states_aligned(self) -> bool:
+        """Return whether all section folds are aligned under their local semantics."""
+        shared_state = self.commits_collapsed
+        return (
+            shared_state
+            == self.hooks_collapsed
+            == self.mentors_collapsed
+            == self.timestamps_collapsed
+            and self.deltas_collapsed == normalize_deltas_fold_level(shared_state)
+        )
 
     def _update_fold_footer(self) -> None:
         """Update the footer to show fold mode bindings."""

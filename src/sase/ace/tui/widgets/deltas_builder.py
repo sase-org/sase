@@ -6,7 +6,7 @@ from rich.text import Text
 
 from ...changespec import ChangeSpec
 from ...changespec.models import DeltaEntry, DeltaLineStats
-from ..models.fold_state import FoldLevel
+from ..models.fold_state import FoldLevel, normalize_deltas_fold_level
 from .hint_tracker import HintTracker
 
 _COLOR_HEADER = "bold #87D7FF"
@@ -112,15 +112,17 @@ def _append_entry(text: Text, entry: DeltaEntry) -> None:
 def build_deltas_section(
     text: Text,
     changespec: ChangeSpec,
-    deltas_fold: FoldLevel = FoldLevel.EXPANDED,
+    deltas_fold: FoldLevel = FoldLevel.COLLAPSED,
     hint_tracker: HintTracker | None = None,
 ) -> HintTracker:
     """Build the DELTAS section of the display.
 
-    Fold levels:
-    - COLLAPSED: header only, preserving visibility of present DELTAS.
-    - EXPANDED: header + one-line summary ``+A ~M -D (N files)``.
-    - FULLY_EXPANDED: header + alphabetical entry list with bold basename.
+    DELTAS has two semantic states:
+    - Folded: header + one-line summary ``+A ~M -D (N files)``.
+    - Unfolded: header + alphabetical entry list with bold basename.
+
+    ``FoldLevel.EXPANDED`` is accepted as a compatibility/shared-control input
+    and is normalized to the unfolded DELTAS state.
 
     The section is also fully omitted when ``changespec.deltas`` is ``None``
     (never computed) or ``[]`` (computed; no file changes).
@@ -147,11 +149,7 @@ def build_deltas_section(
         return tracker
 
     text.append("DELTAS:", style=_COLOR_HEADER)
-    if deltas_fold == FoldLevel.COLLAPSED:
-        text.append("\n")
-        return tracker
-
-    if deltas_fold == FoldLevel.EXPANDED:
+    if normalize_deltas_fold_level(deltas_fold) == FoldLevel.COLLAPSED:
         _append_summary(text, deltas)
         return tracker
 
