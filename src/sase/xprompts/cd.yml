@@ -1,0 +1,28 @@
+tags: vcs
+
+input:
+  - name: cd_ref
+    type: word
+  - name: workflow_label
+    type: word
+    default: null
+
+steps:
+  - name: setup
+    python: |
+      from sase.workspace_provider import resolve_ref
+
+      cd_ref = {{ cd_ref | tojson }}
+      resolved = resolve_ref(cd_ref, "cd")
+
+      print(f"_chdir={resolved.primary_workspace_dir}")
+      print(f"workspace_dir={resolved.primary_workspace_dir}")
+      print(f"project_name={resolved.project_name}")
+      print("workflow_name=cd")
+    output:
+      workspace_dir: path
+      project_name: word
+      workflow_name: word
+
+  - name: inject
+    prompt_part: ""
