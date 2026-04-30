@@ -69,6 +69,20 @@ def _seed_diamond(project_dir: Path) -> tuple[str, list[str]]:
         return epic.id, [p1.id, p2.id, p3.id, p4.id]
 
 
+def _seed_changespec_epic(project_dir: Path) -> tuple[str, list[str]]:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create(
+            "ChangeSpec epic",
+            IssueType.PLAN,
+            changespec_name="feature_epic",
+            changespec_bug_id="12345",
+        )
+        p1 = proj.create("P1", IssueType.PHASE, parent_id=epic.id)
+        p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
+        proj.add_dependency(p2.id, p1.id)
+        return epic.id, [p1.id, p2.id]
+
+
 def _make_args(epic_id: str, *, dry_run: bool = False, yes: bool = False) -> Any:
     return argparse.Namespace(id=epic_id, dry_run=dry_run, yes=yes)
 
@@ -138,6 +152,76 @@ def test_work_dry_run_never_mutates_or_launches(
     out = capsys.readouterr().out
     assert "Multi-prompt (dry run)" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
+
+
+def test_work_dry_run_renders_changespec_launch_wrappers(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = _seed_changespec_epic(project_dir)
+    fake_home = tmp_path / "home"
+    project_root = fake_home / ".sase" / "projects" / "sase"
+    project_root.mkdir(parents=True)
+    (project_root / "sase.gp").write_text(
+        "WORKSPACE_DIR: /tmp/sase\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: "sase",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.detect_workflow_type",
+        lambda project_file: "git",
+    )
+
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(_make_args(epic_id, dry_run=True, yes=True))
+
+    assert launch_calls == []
+    out = capsys.readouterr().out
+    assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
+    assert f"#git:feature_epic\n%name:{phase_ids[1]}" in out
+    assert f"#git:feature_epic\n%name:{epic_id}.land" in out
+    assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
+    assert f"#bd/land_epic:{epic_id}" in out
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is False
+        for pid in phase_ids:
+            phase = proj.show(pid)
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
+
+
+def test_work_changespec_epic_errors_without_project_context(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = _seed_changespec_epic(project_dir)
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: None,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(epic_id, dry_run=True, yes=True))
+
+    assert excinfo.value.code == 1
+    assert "unable to infer the current SASE project" in capsys.readouterr().err
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is False
+        for pid in phase_ids:
+            assert proj.show(pid).status == Status.OPEN
 
 
 def test_work_rolls_back_on_launch_failure(

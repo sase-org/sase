@@ -20,7 +20,7 @@ from sase.bead.project import (
 from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 if TYPE_CHECKING:
-    from sase.bead.work import EpicWorkPlan
+    from sase.bead.work import ChangeSpecLaunchContext, EpicWorkPlan
 
 
 def _find_beads_location() -> tuple[Path, str]:
@@ -359,6 +359,7 @@ def handle_bead_ready(args: argparse.Namespace) -> None:
 
 def handle_bead_work(args: argparse.Namespace) -> None:
     from sase.bead.work import (
+        ChangeSpecLaunchContext,
         EpicPlanError,
         build_epic_work_plan,
         render_multi_prompt,
@@ -397,6 +398,16 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         except EpicPlanError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+        changespec_context: ChangeSpecLaunchContext | None = None
+        if issue.changespec_name:
+            try:
+                changespec_context = _resolve_changespec_launch_context(
+                    changespec_name=issue.changespec_name,
+                    bug_id=issue.changespec_bug_id,
+                )
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
 
         collisions = _find_live_name_collisions(plan)
         if collisions and not dry_run:
@@ -417,6 +428,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             plan,
             work_phase_xprompt=work_phase_xprompt,
             land_epic_xprompt=land_epic_xprompt,
+            changespec_context=changespec_context,
         )
 
         if issue.is_ready_to_work:
@@ -496,6 +508,48 @@ def handle_bead_work(args: argparse.Namespace) -> None:
     print(
         f"✓ Launched {agent_count} agents for epic {args.id} — {issue.title} "
         f"(workspace {result.workspace_num})"
+    )
+
+
+def _resolve_changespec_launch_context(
+    *,
+    changespec_name: str,
+    bug_id: str,
+) -> ChangeSpecLaunchContext:
+    """Resolve VCS/project context for a ChangeSpec-attached epic launch."""
+    from sase.bead.project_name import infer_project_name_from_cwd
+    from sase.bead.work import ChangeSpecLaunchContext
+    from sase.workspace_provider import detect_workflow_type
+
+    project_name = infer_project_name_from_cwd()
+    if not project_name:
+        raise ValueError(
+            "cannot launch ChangeSpec-attached epic: unable to infer the "
+            "current SASE project from this workspace"
+        )
+
+    project_file = (
+        Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
+    )
+    if not project_file.exists():
+        raise ValueError(
+            "cannot launch ChangeSpec-attached epic: project file not found at "
+            f"{project_file}"
+        )
+
+    try:
+        vcs_workflow = detect_workflow_type(str(project_file))
+    except ValueError as exc:
+        raise ValueError(
+            "cannot launch ChangeSpec-attached epic: unable to detect VCS "
+            f"workflow for {project_file}: {exc}"
+        ) from exc
+
+    return ChangeSpecLaunchContext(
+        changespec_name=changespec_name,
+        bug_id=bug_id,
+        vcs_workflow=vcs_workflow,
+        project_name=project_name,
     )
 
 

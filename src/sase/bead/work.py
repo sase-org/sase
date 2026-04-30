@@ -39,6 +39,16 @@ class EpicWorkPlan:
     land_waits_on: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ChangeSpecLaunchContext:
+    """VCS launch wrapper for ChangeSpec-attached epic work."""
+
+    changespec_name: str
+    vcs_workflow: str
+    project_name: str
+    bug_id: str = ""
+
+
 class EpicPlanError(ValueError):
     """Base error for epic-work-plan construction failures."""
 
@@ -161,6 +171,7 @@ def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,
     land_epic_xprompt: Workflow,
+    changespec_context: ChangeSpecLaunchContext | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
@@ -169,20 +180,67 @@ def render_multi_prompt(
     invokes ``#<land_epic_xprompt.name>:<epic_id>`` and waits on every leaf
     phase agent. Tag-resolved xprompt names are substituted into the ``#...``
     references so user overrides flow through unchanged.
+
+    When *changespec_context* is provided, every segment is prefixed with the
+    appropriate VCS xprompt. The first phase segment targets the project ref and
+    includes ``#pr`` to create/own the ChangeSpec; later phase segments and the
+    land segment target the ChangeSpec ref directly.
     """
+    if changespec_context is not None:
+        _validate_changespec_context(changespec_context)
+
     segments: list[str] = []
+    is_first_phase = True
     for wave in plan.waves:
         for assignment in wave:
-            lines = [f"%name:{assignment.agent_name}", "%approve"]
+            lines = _segment_prefix(changespec_context, is_first_phase)
+            is_first_phase = False
+            lines.extend([f"%name:{assignment.agent_name}", "%approve"])
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
             segments.append("\n".join(lines))
 
-    land_lines = [f"%name:{plan.land_agent_name}", "%approve"]
+    land_lines = _segment_prefix(changespec_context, is_first_phase=False)
+    land_lines.extend([f"%name:{plan.land_agent_name}", "%approve"])
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
     segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
+    missing = []
+    if not ctx.changespec_name:
+        missing.append("changespec_name")
+    if not ctx.vcs_workflow:
+        missing.append("vcs_workflow")
+    if not ctx.project_name:
+        missing.append("project_name")
+    if missing:
+        raise ValueError(
+            "ChangeSpec launch context is missing required field(s): "
+            + ", ".join(missing)
+        )
+
+
+def _segment_prefix(
+    ctx: ChangeSpecLaunchContext | None,
+    is_first_phase: bool,
+) -> list[str]:
+    if ctx is None:
+        return []
+
+    ref = ctx.project_name if is_first_phase else ctx.changespec_name
+    line = f"#{ctx.vcs_workflow}:{ref}"
+    if is_first_phase:
+        line = f"{line} {_pr_reference(ctx)}"
+    return [line]
+
+
+def _pr_reference(ctx: ChangeSpecLaunchContext) -> str:
+    if ctx.bug_id:
+        return f"#pr(name={ctx.changespec_name}, bug_id={ctx.bug_id})"
+    return f"#pr:{ctx.changespec_name}"
