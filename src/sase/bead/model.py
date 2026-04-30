@@ -43,6 +43,8 @@ class Issue:
     notes: str = ""
     design: str = ""
     is_ready_to_work: bool = False
+    changespec_name: str = ""
+    changespec_bug_id: str = ""
     dependencies: list[Dependency] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -56,3 +58,9 @@ class Issue:
             raise ValueError("Phase issues must have a parent_id")
         if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
+        if self.issue_type == IssueType.PHASE and (
+            self.changespec_name or self.changespec_bug_id
+        ):
+            raise ValueError("Phase issues cannot carry ChangeSpec metadata")
+        if self.changespec_bug_id and not self.changespec_name:
+            raise ValueError("changespec_bug_id requires changespec_name")

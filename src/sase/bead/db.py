@@ -28,11 +28,18 @@ CREATE TABLE IF NOT EXISTS issues (
     notes       TEXT,
     design      TEXT,
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
+    changespec_name TEXT NOT NULL DEFAULT '',
+    changespec_bug_id TEXT NOT NULL DEFAULT '',
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan')
     ),
-    CHECK(is_ready_to_work IN (0, 1))
+    CHECK(is_ready_to_work IN (0, 1)),
+    CHECK(
+        issue_type = 'plan' OR
+        (changespec_name = '' AND changespec_bug_id = '')
+    ),
+    CHECK(changespec_name != '' OR changespec_bug_id = '')
 );
 
 CREATE TABLE IF NOT EXISTS dependencies (
@@ -70,6 +77,24 @@ def _migrate_add_is_ready_to_work(conn: sqlite3.Connection) -> None:
     conn.execute(
         "ALTER TABLE issues ADD COLUMN is_ready_to_work INTEGER NOT NULL DEFAULT 0"
     )
+    conn.commit()
+
+
+def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
+    """Add ChangeSpec metadata columns to a pre-existing issues table."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns:
+        return
+    if "changespec_name" not in columns:
+        conn.execute(
+            "ALTER TABLE issues ADD COLUMN changespec_name TEXT NOT NULL DEFAULT ''"
+        )
+    if "changespec_bug_id" not in columns:
+        conn.execute(
+            "ALTER TABLE issues ADD COLUMN changespec_bug_id TEXT NOT NULL DEFAULT ''"
+        )
     conn.commit()
 
 
@@ -122,6 +147,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     conn = _connect(db_path)
     _migrate_issue_types(conn)
     _migrate_add_is_ready_to_work(conn)
+    _migrate_add_changespec_metadata(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -154,6 +180,8 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         notes=row["notes"] or "",
         design=row["design"] or "",
         is_ready_to_work=bool(row["is_ready_to_work"]),
+        changespec_name=row["changespec_name"] or "",
+        changespec_bug_id=row["changespec_bug_id"] or "",
     )
 
 
@@ -182,8 +210,9 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design, is_ready_to_work) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "description, notes, design, is_ready_to_work, changespec_name, "
+        "changespec_bug_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -201,6 +230,8 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.notes,
             issue.design,
             int(issue.is_ready_to_work),
+            issue.changespec_name,
+            issue.changespec_bug_id,
         ),
     )
     conn.commit()
@@ -261,6 +292,8 @@ def update_issue(
         "notes",
         "design",
         "is_ready_to_work",
+        "changespec_name",
+        "changespec_bug_id",
     }
     to_set: dict[str, str | int | None] = {
         k: (int(v) if k == "is_ready_to_work" and v is not None else v)

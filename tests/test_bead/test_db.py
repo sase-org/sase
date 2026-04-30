@@ -109,6 +109,42 @@ class TestCreateAndGet:
         assert result.id == "e-2"
         assert result.parent_id == "e-1"
 
+    def test_create_plan_with_changespec_metadata(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        create_issue(
+            conn,
+            Issue(
+                id="e-1",
+                title="Epic",
+                issue_type=IssueType.PLAN,
+                created_at=NOW,
+                updated_at=NOW,
+                changespec_name="feature_epic",
+                changespec_bug_id="12345",
+            ),
+        )
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.changespec_name == "feature_epic"
+        assert issue.changespec_bug_id == "12345"
+
+    def test_create_phase_with_changespec_metadata_fails(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        create_issue(conn, _epic())
+        child = Issue(
+            id="c-1",
+            title="Child",
+            issue_type=IssueType.PHASE,
+            parent_id="e-1",
+            created_at=NOW,
+            updated_at=NOW,
+            changespec_name="feature_epic",
+        )
+        with pytest.raises(ValueError, match="Phase issues cannot carry"):
+            create_issue(conn, child)
+
 
 class TestListIssues:
     def test_list_all(self, conn: sqlite3.Connection) -> None:
@@ -146,6 +182,19 @@ class TestUpdateIssue:
 
     def test_update_nonexistent_returns_none(self, conn: sqlite3.Connection) -> None:
         assert update_issue(conn, "no-such", title="X") is None
+
+    def test_update_changespec_metadata(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        updated = update_issue(
+            conn,
+            "e-1",
+            changespec_name="feature_epic",
+            changespec_bug_id="12345",
+            updated_at=NOW,
+        )
+        assert updated is not None
+        assert updated.changespec_name == "feature_epic"
+        assert updated.changespec_bug_id == "12345"
 
 
 class TestCloseIssue:
@@ -321,6 +370,45 @@ class TestMigrationAddsColumn:
             issue = get_issue(conn, "e-old")
             assert issue is not None
             assert issue.is_ready_to_work is False
+        finally:
+            conn.close()
+
+    def test_pre_changespec_db_gets_migrated(self, tmp_path) -> None:
+        """A database created without ChangeSpec columns gains them."""
+        import sqlite3 as sq
+
+        db_path = tmp_path / "old_changespec.db"
+        old = sq.connect(str(db_path))
+        old.execute(
+            "CREATE TABLE issues ("
+            "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+            "  status TEXT NOT NULL DEFAULT 'open'"
+            "    CHECK(status IN ('open','in_progress','closed')),"
+            "  issue_type TEXT NOT NULL DEFAULT 'phase'"
+            "    CHECK(issue_type IN ('plan','phase')),"
+            "  parent_id TEXT, owner TEXT, assignee TEXT,"
+            "  created_at TEXT NOT NULL, created_by TEXT,"
+            "  updated_at TEXT NOT NULL, closed_at TEXT,"
+            "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
+            "  is_ready_to_work INTEGER NOT NULL DEFAULT 0,"
+            "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
+            "    OR (issue_type='plan'))"
+            ")"
+        )
+        old.execute(
+            "INSERT INTO issues (id, title, issue_type, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'plan', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.changespec_name == ""
+            assert issue.changespec_bug_id == ""
         finally:
             conn.close()
 

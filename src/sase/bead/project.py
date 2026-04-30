@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -90,6 +91,8 @@ class BeadProject:
         notes: str = "",
         design: str = "",
         assignee: str = "",
+        changespec_name: str | int | None = "",
+        changespec_bug_id: str | int | None = "",
     ) -> Issue:
         """Create a new issue.
 
@@ -117,6 +120,8 @@ class BeadProject:
             description=description,
             notes=notes,
             design=design,
+            changespec_name=_optional_text(changespec_name),
+            changespec_bug_id=_optional_text(changespec_bug_id),
         )
         db_mod.create_issue(self._conn, issue)
         BEAD_OPERATIONS.labels(operation="create").inc()
@@ -149,7 +154,7 @@ class BeadProject:
         """Return open issues with no active blockers."""
         return db_mod.ready_issues(self._conn)
 
-    def update(self, issue_id: str, **fields: str | None) -> Issue:
+    def update(self, issue_id: str, **fields: str | int | None) -> Issue:
         """Update fields on an issue."""
         if "is_ready_to_work" in fields:
             raise ValueError(
@@ -157,6 +162,9 @@ class BeadProject:
                 "use mark_ready_to_work() instead."
             )
         old_issue = db_mod.get_issue(self._conn, issue_id)
+        if old_issue is not None:
+            fields = _normalize_changespec_fields(fields)
+            _validate_issue_update(old_issue, fields)
         fields["updated_at"] = _now()
         issue = db_mod.update_issue(self._conn, issue_id, **fields)
         if issue is None:
@@ -376,3 +384,36 @@ class BeadProject:
 def _now() -> str:
     """Current UTC timestamp as ISO 8601 string."""
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _optional_text(value: str | int | None) -> str:
+    return "" if value is None else str(value)
+
+
+def _normalize_changespec_fields(
+    fields: dict[str, str | int | None],
+) -> dict[str, str | int | None]:
+    normalized = dict(fields)
+    for name in ("changespec_name", "changespec_bug_id"):
+        if name in normalized:
+            normalized[name] = _optional_text(normalized[name])
+    return normalized
+
+
+def _validate_issue_update(issue: Issue, fields: dict[str, str | int | None]) -> None:
+    if "changespec_name" not in fields and "changespec_bug_id" not in fields:
+        return
+    candidate = replace(
+        issue,
+        changespec_name=(
+            _optional_text(fields["changespec_name"])
+            if "changespec_name" in fields
+            else issue.changespec_name
+        ),
+        changespec_bug_id=(
+            _optional_text(fields["changespec_bug_id"])
+            if "changespec_bug_id" in fields
+            else issue.changespec_bug_id
+        ),
+    )
+    candidate.validate()

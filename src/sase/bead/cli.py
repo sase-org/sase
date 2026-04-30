@@ -201,6 +201,17 @@ def _parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
 
 def handle_bead_create(args: argparse.Namespace) -> None:
     issue_type, plan_path, parent_id = _parse_type_arg(args.type)
+    changespec_name = getattr(args, "changespec", None) or ""
+    changespec_bug_id = getattr(args, "bug_id", None) or ""
+    if issue_type != IssueType.PLAN and (changespec_name or changespec_bug_id):
+        print(
+            "Error: ChangeSpec metadata can only be attached to plan beads",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if changespec_bug_id and not changespec_name:
+        print("Error: --bug-id requires --changespec", file=sys.stderr)
+        sys.exit(1)
 
     # Validate plan file exists and resolve path for the design field
     design = ""
@@ -227,6 +238,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             description=args.description or "",
             assignee=args.assignee or "",
             design=design,
+            changespec_name=changespec_name,
+            changespec_bug_id=changespec_bug_id,
         )
         print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
@@ -313,6 +326,14 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"\nDESCRIPTION\n  {issue.description}")
         if issue.notes:
             print(f"\nNOTES\n  {issue.notes}")
+        if issue.issue_type == IssueType.PLAN and (
+            issue.changespec_name or issue.changespec_bug_id
+        ):
+            print("\nCHANGESPEC")
+            if issue.changespec_name:
+                print(f"  Name: {issue.changespec_name}")
+            if issue.changespec_bug_id:
+                print(f"  Bug ID: {issue.changespec_bug_id}")
         if issue.design:
             from sase.sdd.beads import get_sdd_config
 

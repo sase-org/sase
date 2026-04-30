@@ -44,11 +44,34 @@ def test_create_epic(project):
     assert issue.id  # has an ID
 
 
+def test_create_epic_with_changespec_metadata(project):
+    issue = project.create(
+        "My Epic",
+        IssueType.PLAN,
+        changespec_name="feature_epic",
+        changespec_bug_id=12345,
+    )
+    assert issue.changespec_name == "feature_epic"
+    assert issue.changespec_bug_id == "12345"
+    assert project.show(issue.id).changespec_name == "feature_epic"
+
+
 def test_create_child(project):
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
     assert child.parent_id == epic.id
     assert child.issue_type == IssueType.PHASE
+
+
+def test_create_child_rejects_changespec_metadata(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    with pytest.raises(ValueError, match="Phase issues cannot carry"):
+        project.create(
+            "Child",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            changespec_name="feature_epic",
+        )
 
 
 def test_show(project):
@@ -102,6 +125,23 @@ def test_update(project):
     epic = project.create("Original", IssueType.PLAN)
     updated = project.update(epic.id, title="Updated")
     assert updated.title == "Updated"
+
+
+def test_update_changespec_metadata(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    updated = project.update(
+        epic.id,
+        changespec_name="feature_epic",
+        changespec_bug_id=12345,
+    )
+    assert updated.changespec_name == "feature_epic"
+    assert updated.changespec_bug_id == "12345"
+
+
+def test_update_rejects_bug_id_without_changespec(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    with pytest.raises(ValueError, match="requires changespec_name"):
+        project.update(epic.id, changespec_bug_id="12345")
 
 
 def test_update_status(project):

@@ -10,6 +10,10 @@ from sase.bead import db as db_mod
 from sase.bead.model import Dependency, Issue, IssueType, Status
 
 
+def _optional_str(value: object) -> str:
+    return "" if value is None else str(value)
+
+
 def _issue_to_dict(issue: Issue) -> dict[str, object]:
     return {
         "id": issue.id,
@@ -28,6 +32,8 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "notes": issue.notes,
         "design": issue.design,
         "is_ready_to_work": issue.is_ready_to_work,
+        "changespec_name": issue.changespec_name,
+        "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [
             {
                 "issue_id": d.issue_id,
@@ -52,25 +58,29 @@ def dict_to_issue(data: dict[str, object]) -> Issue:
         )
         for d in deps_raw
     ]
-    return Issue(
+    issue = Issue(
         id=str(data["id"]),
         title=str(data["title"]),
         status=Status(str(data["status"])),
         issue_type=IssueType(str(data["issue_type"])),
         parent_id=str(data["parent_id"]) if data.get("parent_id") else None,
-        owner=str(data.get("owner", "")),
-        assignee=str(data.get("assignee", "")),
-        created_at=str(data.get("created_at", "")),
-        created_by=str(data.get("created_by", "")),
+        owner=_optional_str(data.get("owner", "")),
+        assignee=_optional_str(data.get("assignee", "")),
+        created_at=_optional_str(data.get("created_at", "")),
+        created_by=_optional_str(data.get("created_by", "")),
         updated_at=str(data.get("updated_at", "")),
         closed_at=str(data["closed_at"]) if data.get("closed_at") else None,
         close_reason=(str(data["close_reason"]) if data.get("close_reason") else None),
-        description=str(data.get("description", "")),
-        notes=str(data.get("notes", "")),
-        design=str(data.get("design", "")),
+        description=_optional_str(data.get("description", "")),
+        notes=_optional_str(data.get("notes", "")),
+        design=_optional_str(data.get("design", "")),
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
+        changespec_name=_optional_str(data.get("changespec_name", "")),
+        changespec_bug_id=_optional_str(data.get("changespec_bug_id", "")),
         dependencies=deps,
     )
+    issue.validate()
+    return issue
 
 
 def export_to_jsonl(conn: sqlite3.Connection, path: Path) -> None:
@@ -128,6 +138,8 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                 notes=issue.notes,
                 design=issue.design,
                 is_ready_to_work=int(issue.is_ready_to_work),
+                changespec_name=issue.changespec_name,
+                changespec_bug_id=issue.changespec_bug_id,
             )
 
         # Sync dependencies

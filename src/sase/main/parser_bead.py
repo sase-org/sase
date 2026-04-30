@@ -34,6 +34,14 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     bead_create_parser.add_argument("-d", "--description", help="Issue description")
     bead_create_parser.add_argument("-a", "--assignee", help="Assignee")
+    bead_create_parser.add_argument(
+        "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
+    )
+    bead_create_parser.add_argument(
+        "-b",
+        "--bug-id",
+        help="Bug ID to pass when creating the attached ChangeSpec",
+    )
 
     # sase bead dep
     bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")

@@ -75,6 +75,46 @@ class TestIssueValidation:
         )
         issue.validate()  # Should not raise
 
+    def test_plan_with_changespec_name_is_valid(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            changespec_name="feature_epic",
+        )
+        issue.validate()
+
+    def test_plan_with_changespec_bug_id_is_valid(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            changespec_name="feature_epic",
+            changespec_bug_id="12345",
+        )
+        issue.validate()
+
+    def test_phase_with_changespec_metadata_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A phase",
+            issue_type=IssueType.PHASE,
+            parent_id="test-0",
+            changespec_name="feature_epic",
+        )
+        with pytest.raises(ValueError, match="Phase issues cannot carry"):
+            issue.validate()
+
+    def test_bug_id_without_changespec_name_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            changespec_bug_id="12345",
+        )
+        with pytest.raises(ValueError, match="requires changespec_name"):
+            issue.validate()
+
 
 class TestDependency:
     def test_dependency_fields(self) -> None:

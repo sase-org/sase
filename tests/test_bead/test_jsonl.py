@@ -84,6 +84,22 @@ class TestExport:
         assert len(e2_data["dependencies"]) == 1
         assert e2_data["dependencies"][0]["depends_on_id"] == "e-1"
 
+    def test_export_includes_changespec_metadata(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        epic = _epic("e-1")
+        epic.changespec_name = "feature_epic"
+        epic.changespec_bug_id = "12345"
+        create_issue(conn, epic)
+        jsonl_path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, jsonl_path)
+        data = json.loads(jsonl_path.read_text())
+        assert data["changespec_name"] == "feature_epic"
+        assert data["changespec_bug_id"] == "12345"
+
     def test_export_empty_db(self, conn: sqlite3.Connection, tmp_path: object) -> None:
         from pathlib import Path
 
@@ -125,6 +141,56 @@ class TestImport:
         issue = get_issue(conn, "e-1")
         assert issue is not None
         assert issue.title == "Imported Epic"
+
+    def test_import_changespec_metadata(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        data = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "changespec_name": "feature_epic",
+            "changespec_bug_id": "12345",
+            "dependencies": [],
+        }
+        jsonl_path.write_text(json.dumps(data) + "\n")
+        import_from_jsonl(jsonl_path, conn)
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.changespec_name == "feature_epic"
+        assert issue.changespec_bug_id == "12345"
+
+    def test_import_missing_changespec_metadata_defaults_empty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        data = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "dependencies": [],
+        }
+        jsonl_path.write_text(json.dumps(data) + "\n")
+        import_from_jsonl(jsonl_path, conn)
+        issue = get_issue(conn, "e-1")
+        assert issue is not None
+        assert issue.changespec_name == ""
+        assert issue.changespec_bug_id == ""
 
     def test_import_missing_file(
         self, conn: sqlite3.Connection, tmp_path: object
@@ -204,6 +270,30 @@ class TestRoundTrip:
                 assert orig.status == imp.status
                 assert orig.issue_type == imp.issue_type
                 assert orig.parent_id == imp.parent_id
+        finally:
+            conn2.close()
+
+    def test_export_import_roundtrip_changespec_metadata(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        epic = _epic("e-1", "Epic One")
+        epic.changespec_name = "feature_epic"
+        epic.changespec_bug_id = "12345"
+        create_issue(conn, epic)
+
+        jsonl_path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, jsonl_path)
+
+        conn2 = init_db(tmp_path / "test_changespec_roundtrip.db")
+        try:
+            import_from_jsonl(jsonl_path, conn2)
+            imported = get_issue(conn2, "e-1")
+            assert imported is not None
+            assert imported.changespec_name == "feature_epic"
+            assert imported.changespec_bug_id == "12345"
         finally:
             conn2.close()
 
