@@ -51,11 +51,13 @@ class TestNoDeltas:
 
 
 class TestCollapsed:
-    def test_collapsed_renders_nothing(self) -> None:
+    def test_collapsed_renders_header_only(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
         text = Text()
         build_deltas_section(text, cs, FoldLevel.COLLAPSED)
-        assert text.plain == ""
+        assert text.plain == "DELTAS:\n"
+        assert "(5 files)" not in text.plain
+        assert "deltas.py" not in text.plain
 
 
 class TestExpanded:

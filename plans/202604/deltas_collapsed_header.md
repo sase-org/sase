@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 12:32:25
-status: wip
+status: done
 ---
 # Plan: Preserve the DELTAS Header When Collapsed
 

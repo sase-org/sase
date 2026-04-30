@@ -118,7 +118,7 @@ def build_deltas_section(
     """Build the DELTAS section of the display.
 
     Fold levels:
-    - COLLAPSED: section not rendered (zero visual footprint).
+    - COLLAPSED: header only, preserving visibility of present DELTAS.
     - EXPANDED: header + one-line summary ``+A ~M -D (N files)``.
     - FULLY_EXPANDED: header + alphabetical entry list with bold basename.
 
@@ -146,10 +146,11 @@ def build_deltas_section(
     if not deltas:
         return tracker
 
+    text.append("DELTAS:", style=_COLOR_HEADER)
     if deltas_fold == FoldLevel.COLLAPSED:
+        text.append("\n")
         return tracker
 
-    text.append("DELTAS:", style=_COLOR_HEADER)
     if deltas_fold == FoldLevel.EXPANDED:
         _append_summary(text, deltas)
         return tracker
