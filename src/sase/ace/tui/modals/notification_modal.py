@@ -393,6 +393,37 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 options.append(Option(self._create_styled_label(n), id=str(idx)))
         return options
 
+    def _visual_notification_index_order(self) -> list[int]:
+        """Return notification indexes in the order displayed to the user."""
+        indexes: list[int] = []
+        for option in self._create_sectioned_options():
+            option_id = option.id
+            if (
+                option.disabled
+                or option_id is None
+                or option_id.startswith(_HEADER_ID_PREFIX)
+            ):
+                continue
+            indexes.append(int(option_id))
+        return indexes
+
+    def _replacement_notification_id_after_dismiss(self, idx: int) -> str | None:
+        """Return the notification id that should be highlighted after dismiss."""
+        visual_order = self._visual_notification_index_order()
+        try:
+            visual_position = visual_order.index(idx)
+        except ValueError:
+            return None
+
+        if visual_position + 1 < len(visual_order):
+            replacement_idx = visual_order[visual_position + 1]
+        elif visual_position > 0:
+            replacement_idx = visual_order[visual_position - 1]
+        else:
+            return None
+
+        return self._notifications[replacement_idx].id
+
     def _row_for_notification_index(
         self, option_list: OptionList, notification_idx: int
     ) -> int | None:
@@ -494,11 +525,17 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
     def _dismiss_notification_by_index(self, idx: int) -> None:
         """Dismiss notification at index and rebuild the list UI."""
         notification = self._notifications[idx]
+        replacement_id = self._replacement_notification_id_after_dismiss(idx)
         mark_dismissed(notification.id)
 
         self._notifications.pop(idx)
-        highlight = (
-            min(idx, len(self._notifications) - 1) if self._notifications else None
+        highlight = next(
+            (
+                i
+                for i, notification in enumerate(self._notifications)
+                if notification.id == replacement_id
+            ),
+            None,
         )
         self._rebuild_list(highlight_index=highlight)
 

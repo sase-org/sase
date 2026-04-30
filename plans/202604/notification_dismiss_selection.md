@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 03:28:51
-status: wip
+status: done
 ---
 # Plan: Deterministic notification selection after dismiss
 

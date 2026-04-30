@@ -62,6 +62,42 @@ def test_confirm_dismiss_notification_dismisses_pending_item() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=None)
 
 
+def test_dismiss_highlights_next_notification_in_visual_order() -> None:
+    """Dismiss picks the next visible row, not the next raw-list index."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+    modal = NotificationModal([inbox, muted, priority])
+    modal._pending_confirm_notification_id = "p1"
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_confirm_dismiss_notification()
+
+    mock_mark.assert_called_once_with("p1")
+    assert [notification.id for notification in modal._notifications] == ["i1", "m1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+
+
+def test_dismiss_final_visible_notification_highlights_previous_visual_row() -> None:
+    """Dismissing the final visible row falls back to the previous visible row."""
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+    inbox = _make_notification("i1", action="JumpToAgent")
+    modal = NotificationModal([muted, priority, inbox])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_called_once_with("m1")
+    assert [notification.id for notification in modal._notifications] == ["p1", "i1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
 def test_toggle_mute_sets_muted_and_rebuilds() -> None:
     """m should toggle mute state, persist via mark_muted, and rebuild."""
     notification = _make_notification("n1", action="JumpToAgent")
@@ -284,6 +320,18 @@ def test_sections_render_in_priority_inbox_muted_order() -> None:
 
     ids = [opt.id for opt in options]
     assert ids == ["hdr:priority", "0", "hdr:inbox", "1", "hdr:muted", "2"]
+
+
+def test_visual_notification_index_order_skips_section_headers() -> None:
+    """Visual index order contains only selectable notification rows."""
+    inbox = _make_notification("i1", action="JumpToAgent")
+    muted = _make_notification("m1", action="JumpToAgent")
+    muted.muted = True
+    priority = _make_notification("p1", action="PlanApproval")
+
+    modal = NotificationModal([inbox, muted, priority])
+
+    assert modal._visual_notification_index_order() == [2, 0, 1]
 
 
 def test_empty_section_header_not_rendered() -> None:
