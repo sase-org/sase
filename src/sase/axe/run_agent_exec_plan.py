@@ -156,6 +156,39 @@ def _update_coder_model_meta(
         )
 
 
+def _build_epic_plan_ref(
+    *,
+    sdd_plan_path: Path | None,
+    sdd_dir: Path,
+    workspace_dir: str,
+    sdd_plan_name: str | None,
+    version_controlled: bool,
+    fallback_plan_file: str,
+) -> str:
+    """Build the plan reference passed to the epic-creation xprompt."""
+    if sdd_plan_path and sdd_plan_path.exists():
+        if version_controlled:
+            try:
+                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
+            except ValueError:
+                return sdd_plan_path.as_posix()
+
+        try:
+            sdd_relative = sdd_plan_path.relative_to(sdd_dir)
+            return (Path(".sase") / "sdd" / sdd_relative).as_posix()
+        except ValueError:
+            try:
+                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
+            except ValueError:
+                return sdd_plan_path.as_posix()
+
+    if sdd_plan_name and not version_controlled:
+        return f".sase/sdd/plans/{sdd_plan_name}.md"
+    if sdd_plan_name:
+        return f"plans/{sdd_plan_name}.md"
+    return fallback_plan_file
+
+
 def handle_plan_marker(
     plan_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -347,14 +380,14 @@ def handle_plan_marker(
             workflow_name=ctx.agent_name,
         )
         _update_coder_model_meta(plan_result, ctx, state)
-        if sdd_plan_path and sdd_plan_path.exists():
-            plan_ref = str(sdd_plan_path.relative_to(Path(ctx.workspace_dir)))
-        elif sdd_plan_name and not version_controlled:
-            plan_ref = f".sase/sdd/plans/{sdd_plan_name}.md"
-        elif sdd_plan_name:
-            plan_ref = f"plans/{sdd_plan_name}.md"
-        else:
-            plan_ref = plan_data["plan_file"]
+        plan_ref = _build_epic_plan_ref(
+            sdd_plan_path=sdd_plan_path,
+            sdd_dir=sdd_dir,
+            workspace_dir=ctx.workspace_dir,
+            sdd_plan_name=sdd_plan_name,
+            version_controlled=version_controlled,
+            fallback_plan_file=plan_data["plan_file"],
+        )
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
         )
