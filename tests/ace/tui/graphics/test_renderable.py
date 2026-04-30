@@ -60,7 +60,7 @@ def test_jpeg_uses_fallback_until_transcoding_exists(tmp_path: Path) -> None:
     renderable = image_preview(str(image), _kitty_capability())
 
     assert isinstance(renderable, ImageFallbackRenderable)
-    assert "PNG bytes" in renderable.reason
+    assert "PNG files" in renderable.reason
 
 
 def test_kitty_renderable_emits_control_segments_and_placeholders(

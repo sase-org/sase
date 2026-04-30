@@ -22,6 +22,7 @@ from sase.ace.tui.graphics import (
     KittyImageRenderable,
     TerminalControlRenderable,
     image_preview,
+    image_preview_size_for_viewport,
     is_supported_image_path,
 )
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
@@ -200,12 +201,29 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         """Render an image attachment using the TUI graphics preview layer."""
         cleanup = self._consume_image_cleanup_segments()
         capability = self._graphics_capability()
-        renderable = image_preview(expanded_path, capability, columns=40, rows=12)
+        columns, rows = self._image_preview_size(content_widget)
+        renderable = image_preview(
+            expanded_path,
+            capability,
+            columns=columns,
+            rows=rows,
+        )
         self._current_image_renderable = (
             renderable if isinstance(renderable, KittyImageRenderable) else None
         )
         content_widget.update(Group(*cleanup, renderable))
         self._reset_file_scroll()
+
+    def _image_preview_size(self, content_widget: Static) -> tuple[int, int]:
+        """Choose a placeholder size from the visible notification file pane."""
+        try:
+            scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+        except Exception:
+            scroll = None
+        return image_preview_size_for_viewport(
+            scroll_widget=scroll,
+            content_widget=content_widget,
+        )
 
     def _graphics_capability(self) -> GraphicsCapability:
         """Return app graphics support, or a fallback when the modal is unmounted."""

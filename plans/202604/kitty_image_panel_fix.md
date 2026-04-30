@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 11:08:29
-status: wip
+status: done
 ---
 # Fix Kitty Image Rendering In File And Notification Panels
 

@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import json
 import types
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from rich.console import Console, Group
 from rich.text import Text
 
-from sase.ace.tui.graphics import ImageFallbackRenderable
+from sase.ace.tui.graphics import (
+    ImageFallbackRenderable,
+    image_preview_size_for_viewport,
+)
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.models._loaders._done_loaders import _load_done_agent_for_dir
 from sase.ace.tui.widgets.file_panel import AgentFilePanel
@@ -94,6 +98,7 @@ def test_notification_modal_uses_image_preview_before_text_read(
     title = MagicMock()
     content = MagicMock()
     scroll = MagicMock()
+    scroll.scrollable_content_region = SimpleNamespace(width=28, height=7)
     calls: list[str] = []
 
     def fake_query_one(selector, _type=None):
@@ -107,7 +112,7 @@ def test_notification_modal_uses_image_preview_before_text_read(
 
     def fake_image_preview(path, _capability, *, columns, rows):
         calls.append(path)
-        assert (columns, rows) == (40, 12)
+        assert (columns, rows) == (28, 7)
         return Text("image-preview")
 
     monkeypatch.setattr(modal, "query_one", fake_query_one)
@@ -123,6 +128,44 @@ def test_notification_modal_uses_image_preview_before_text_read(
     assert isinstance(content.update.call_args[0][0], Group)
     title.update.assert_called_once()
     scroll.scroll_home.assert_called_once_with(animate=False)
+
+
+def test_agent_file_panel_image_size_uses_scroll_viewport() -> None:
+    panel = MagicMock()
+    scroll = SimpleNamespace(
+        scrollable_content_region=SimpleNamespace(width=31, height=11)
+    )
+    panel._get_scroll_container = MagicMock(return_value=scroll)
+
+    assert AgentFilePanel._image_preview_size(panel) == (31, 9)
+
+
+def test_notification_image_size_uses_scroll_viewport(monkeypatch) -> None:
+    modal = NotificationModal([])
+    content = MagicMock()
+    scroll = SimpleNamespace(
+        scrollable_content_region=SimpleNamespace(width=22, height=30)
+    )
+
+    def fake_query_one(selector, _type=None):
+        if selector == "#notification-file-scroll":
+            return scroll
+        raise AssertionError(selector)
+
+    monkeypatch.setattr(modal, "query_one", fake_query_one)
+
+    assert modal._image_preview_size(content) == (22, 24)
+
+
+def test_image_preview_size_for_tiny_viewport_stays_bounded() -> None:
+    scroll = SimpleNamespace(
+        scrollable_content_region=SimpleNamespace(width=3, height=2)
+    )
+
+    assert image_preview_size_for_viewport(
+        scroll_widget=scroll,
+        reserved_rows=2,
+    ) == (3, 1)
 
 
 def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:

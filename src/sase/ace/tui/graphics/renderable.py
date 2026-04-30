@@ -12,7 +12,7 @@ from rich.segment import Segment
 from rich.text import Text
 
 from .capability import GraphicsCapability
-from .images import is_supported_image_path
+from .images import is_inline_image_path, is_supported_image_path
 from .kitty import (
     build_delete_sequence,
     build_place_sequence,
@@ -158,10 +158,10 @@ def image_preview(
         return ImageFallbackRenderable(expanded, "file does not exist")
     if not capability.supported or capability.protocol != "kitty":
         return ImageFallbackRenderable(expanded, capability.reason)
-    if Path(expanded).suffix.lower() != ".png":
+    if not is_inline_image_path(expanded):
         return ImageFallbackRenderable(
             expanded,
-            "Kitty preview foundation currently transmits PNG bytes only",
+            "Inline Kitty previews currently require PNG files; convert this attachment to PNG for terminal display",
         )
     try:
         return KittyImageRenderable.from_path(

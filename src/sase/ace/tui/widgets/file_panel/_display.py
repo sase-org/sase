@@ -11,6 +11,7 @@ from sase.ace.tui.graphics import (
     KittyImageRenderable,
     TerminalControlRenderable,
     image_preview,
+    image_preview_size_for_viewport,
     is_supported_image_path,
 )
 
@@ -318,17 +319,13 @@ class FilePanelDisplayMixin:
         return GraphicsCapability.unavailable("terminal graphics were not probed")
 
     def _image_preview_size(self) -> tuple[int, int]:
-        """Choose a conservative placeholder size from the panel geometry."""
-        try:
-            size = self.size  # type: ignore[attr-defined]
-            width = int(getattr(size, "width", 0))
-            height = int(getattr(size, "height", 0))
-        except Exception:
-            width = 0
-            height = 0
-        columns = min(80, max(20, width - 4)) if width else 40
-        rows = min(24, max(6, height - 4)) if height else 12
-        return columns, rows
+        """Choose a placeholder size from the visible file-scroll viewport."""
+        scroll = self._get_scroll_container()  # type: ignore[attr-defined]
+        return image_preview_size_for_viewport(
+            scroll_widget=scroll,
+            content_widget=self,
+            reserved_rows=2,
+        )
 
     def _consume_image_cleanup_segments(self) -> list[TerminalControlRenderable]:
         """Return terminal cleanup controls for the active Kitty image, if any."""
