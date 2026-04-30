@@ -284,12 +284,27 @@ xprompts:
     tags: create_epic_bead
     input:
       plan_file_path: path
+      changespec: { type: word, default: null }
+      bug_id: { type: int, default: null }
     content: |
       Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
 
       These beads should all be children of a new plan bead that you should also create. The plan bead should be linked to the
       plan file using the `sase bead create` command's `--type plan(<plan_file>)` option. Also, add the bead ID of the plan
       to a new frontmatter field called `bead_id` in the plan file.
+
+      {% if bug_id and not changespec %}
+      IMPORTANT: This invocation is invalid because `bug_id` was provided without `changespec`. Do not create or update any
+      beads; report that `bug_id` requires `changespec`.
+      {% endif %}
+
+      {% if changespec %}
+      Attach ChangeSpec metadata to the new plan bead by passing `-c/--changespec {{ changespec }}` to
+      `sase bead create`. {% if bug_id %}Because `bug_id` is also provided, pass `-b/--bug-id {{ bug_id }}` on that same
+      plan-bead creation command.{% else %}Because no `bug_id` is provided, do not pass `-b/--bug-id`.{% endif %}
+      {% else %}
+      No ChangeSpec metadata was provided, so do not pass `-c/--changespec` or `-b/--bug-id` when creating the plan bead.
+      {% endif %}
 
       Make sure that each phase bead has the appropriate dependencies set up.
 

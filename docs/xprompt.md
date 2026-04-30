@@ -645,6 +645,15 @@ xprompt with the same name overrides them.
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
+`#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
+
+```text
+#git:sase #bd/new_epic(plan_file_path=plans/202604/example.md, changespec=sase_feature, bug_id=12345)
+```
+
+When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding
+`sase bead create -c/--changespec` and `-b/--bug-id` metadata.
+
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
 name without a `#` or `#!` marker.

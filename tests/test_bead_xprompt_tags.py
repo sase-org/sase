@@ -13,6 +13,7 @@ from sase.bead.xprompts import (
     resolve_work_phase_xprompt,
 )
 from sase.xprompt.loader import get_all_prompts
+from sase.xprompt.models import InputType
 from sase.xprompt.tags import XPromptTag, parse_tags
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -58,6 +59,28 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert (
         "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
     )
+
+
+def test_new_epic_accepts_changespec_inputs() -> None:
+    prompt = get_all_prompts()["bd/new_epic"]
+    changespec = prompt.get_input_by_name("changespec")
+    bug_id = prompt.get_input_by_name("bug_id")
+
+    assert changespec is not None
+    assert changespec.type is InputType.WORD
+    assert changespec.default is None
+    assert bug_id is not None
+    assert bug_id.type is InputType.INT
+    assert bug_id.default is None
+
+
+def test_new_epic_changespec_guidance() -> None:
+    body = get_all_prompts()["bd/new_epic"].steps[0].prompt_part
+
+    assert "-c/--changespec" in body
+    assert "-b/--bug-id" in body
+    assert "bug_id` requires `changespec" in body
+    assert "No ChangeSpec metadata was provided" in body
 
 
 # ── User overrides win via precedence chain ────────────────────────────
