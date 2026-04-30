@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 import time
 from unittest.mock import MagicMock, patch
@@ -567,3 +568,95 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
 
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2", "ts3"])
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Mixed VCS refs get per-segment CL, workspace, and history metadata."""
+    from sase.workspace_provider import ResolvedRef
+
+    def _resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
+        assert workflow_type == "git"
+        return ResolvedRef(
+            project_file="/projects/sase/sase.gp",
+            project_name="sase",
+            primary_workspace_dir="/work/sase",
+            checkout_target=ref,
+        )
+
+    def _workspace_dir(
+        workflow_type: str,
+        workspace_num: int,
+        project_name: str,
+        primary_workspace_dir: str,
+    ) -> str:
+        assert workflow_type == "git"
+        assert project_name == "sase"
+        return f"{primary_workspace_dir}_{workspace_num}"
+
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    with (
+        patch(
+            "sase.workspace_provider.get_ref_patterns",
+            return_value={
+                "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
+            },
+        ),
+        patch("sase.workspace_provider.resolve_ref", side_effect=_resolve_ref),
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            side_effect=_workspace_dir,
+        ),
+    ):
+        launch_multi_prompt_agents(
+            segments=[
+                "#git:sase #pr:sase_feature\nstart the ChangeSpec",
+                "#git:sase_feature\ncontinue the work",
+                "%wait\n#git:sase_feature\nland the epic",
+            ],
+            local_xprompts={},
+            cl_name="sase",
+            project_file="/projects/sase/sase.gp",
+            project_name="sase",
+            is_home_mode=False,
+            vcs_ref=("git", "sase"),
+        )
+
+    calls = mock_spawn.call_args_list
+    assert [c.kwargs["cl_name"] for c in calls] == [
+        "sase",
+        "sase_feature",
+        "sase_feature",
+    ]
+    assert [c.kwargs["history_sort_key"] for c in calls] == [
+        "sase",
+        "sase_feature",
+        "sase_feature",
+    ]
+    assert [c.kwargs["vcs_ref"] for c in calls] == [
+        ("git", "sase"),
+        ("git", "sase_feature"),
+        ("git", "sase_feature"),
+    ]
+    assert [c.kwargs["workspace_num"] for c in calls] == [100, 101, 0]
+    assert [c.kwargs["workspace_dir"] for c in calls] == [
+        "/work/sase_100",
+        "/work/sase_101",
+        "/work/sase",
+    ]
+    assert [c.kwargs["deferred_workspace"] for c in calls] == [False, False, True]
+
+    assert mock_first_ws.call_args_list[0].args == ("/projects/sase/sase.gp",)
+    assert mock_first_ws.call_args_list[1].args == ("/projects/sase/sase.gp",)

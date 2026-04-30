@@ -10,6 +10,7 @@ import os
 import tempfile
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from sase.agent.launcher import AgentLaunchResult
 from sase.xprompt.models import XPrompt
@@ -174,6 +175,94 @@ class _BatchTimestampAllocator:
         return timestamp
 
 
+@dataclass(frozen=True)
+class _SegmentVcsContext:
+    cl_name: str
+    project_file: str
+    project_name: str
+    is_home_mode: bool
+    vcs_ref: tuple[str, str] | None
+    history_sort_key: str
+    update_target: str
+    workspace_num: int | None = None
+    workspace_dir: str | None = None
+
+
+def _extract_vcs_ref(prompt: str) -> tuple[str, str] | None:
+    """Return the first VCS ref present in *prompt*, if any."""
+    from sase.workspace_provider import get_ref_patterns
+
+    for wf_name, pattern in get_ref_patterns().items():
+        match = pattern.search(prompt)
+        if match is None:
+            continue
+        ref_value = match.group(1) or match.group(2)
+        if ref_value:
+            return wf_name, ref_value
+    return None
+
+
+def _resolve_segment_vcs_context(
+    *,
+    prompt: str,
+    fallback_cl_name: str,
+    fallback_project_file: str,
+    fallback_project_name: str,
+    fallback_is_home_mode: bool,
+    fallback_vcs_ref: tuple[str, str] | None,
+    has_wait: bool,
+) -> _SegmentVcsContext:
+    """Resolve launch metadata for one multi-prompt segment.
+
+    Multi-prompts can mix VCS refs across segments.  The launcher therefore
+    derives the display CL, workspace/project context, pre-allocation ref, and
+    history key from the segment's own VCS ref when present, falling back to the
+    caller's context for legacy prompts that rely on an already-selected CL.
+    """
+    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        resolve_ref_from_prompt,
+    )
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    segment_vcs_ref = _extract_vcs_ref(prompt) or fallback_vcs_ref
+    if segment_vcs_ref is None:
+        return _SegmentVcsContext(
+            cl_name=fallback_cl_name,
+            project_file=fallback_project_file,
+            project_name=fallback_project_name,
+            is_home_mode=fallback_is_home_mode,
+            vcs_ref=None,
+            history_sort_key="",
+            update_target="",
+        )
+
+    wf_name, ref_value = segment_vcs_ref
+    resolved = resolve_ref_from_prompt(prompt, wf_name, skip_workspace=has_wait)
+    if resolved is None:
+        return _SegmentVcsContext(
+            cl_name=ref_value,
+            project_file=fallback_project_file,
+            project_name=fallback_project_name,
+            is_home_mode=fallback_is_home_mode,
+            vcs_ref=segment_vcs_ref,
+            history_sort_key=ref_value,
+            update_target=VCS_DEFAULT_REVISION,
+        )
+
+    project_file, project_name, workspace_dir, workspace_num, resolved_ref = resolved
+    return _SegmentVcsContext(
+        cl_name=resolved_ref,
+        project_file=project_file,
+        project_name=project_name,
+        is_home_mode=False,
+        vcs_ref=(wf_name, resolved_ref),
+        history_sort_key=resolved_ref,
+        update_target=VCS_DEFAULT_REVISION,
+        workspace_num=workspace_num,
+        workspace_dir=workspace_dir,
+    )
+
+
 def launch_multi_prompt_agents(
     *,
     segments: list[str],
@@ -292,30 +381,48 @@ def _spawn_segments_into(
                 else None
             )
 
+            segment_ctx = _resolve_segment_vcs_context(
+                prompt=sub_prompt,
+                fallback_cl_name=cl_name,
+                fallback_project_file=project_file,
+                fallback_project_name=project_name,
+                fallback_is_home_mode=is_home_mode,
+                fallback_vcs_ref=vcs_ref,
+                has_wait=has_wait,
+            )
+
             # Allocate workspace for this sub-prompt.
-            if is_home_mode:
+            if segment_ctx.workspace_dir is not None:
+                workspace_dir = segment_ctx.workspace_dir
+                assert segment_ctx.workspace_num is not None
+                workspace_num = segment_ctx.workspace_num
+            elif segment_ctx.is_home_mode:
                 workspace_dir = os.path.expanduser("~")
                 workspace_num = 0
             elif has_wait:
                 workspace_num = 0
-                workspace_dir = get_workspace_directory(project_name, 1)
+                workspace_dir = get_workspace_directory(segment_ctx.project_name, 1)
             else:
-                workspace_num = get_first_available_axe_workspace(project_file)
+                workspace_num = get_first_available_axe_workspace(
+                    segment_ctx.project_file
+                )
                 workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_name
+                    workspace_num, segment_ctx.project_name
                 )
 
             result = spawn_agent_subprocess(
-                cl_name=cl_name,
-                project_file=project_file,
+                cl_name=segment_ctx.cl_name,
+                project_file=segment_ctx.project_file,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
                 workflow_name=workflow_name,
                 prompt=sub_prompt,
                 timestamp=timestamp,
-                project_name=project_name,
-                is_home_mode=is_home_mode,
-                vcs_ref=vcs_ref,
+                update_target=segment_ctx.update_target,
+                project_name=segment_ctx.project_name,
+                history_sort_key=segment_ctx.history_sort_key,
+                is_home_mode=segment_ctx.is_home_mode,
+                vcs_ref=segment_ctx.vcs_ref,
                 deferred_workspace=has_wait,
                 local_xprompts_file=local_xprompts_file,
                 extra_env=extra_env,

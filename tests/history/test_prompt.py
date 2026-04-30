@@ -1,5 +1,6 @@
 """Tests for prompt history functionality."""
 
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -500,6 +501,44 @@ def test_multi_prompt_skips_short_segments(tmp_path: Path) -> None:
         assert "fix auth bug" in texts
         assert "#gh:sase" not in texts
         assert len(result) == 2
+
+
+def test_multi_prompt_segments_use_own_vcs_ref_for_history_key(
+    tmp_path: Path,
+) -> None:
+    """Segments with different VCS refs are indexed under their own refs."""
+    test_file = tmp_path / "prompt_history.json"
+    prompt = (
+        "#git:sase #pr:sase_feature\nstart the ChangeSpec\n"
+        "---\n"
+        "#git:sase_feature\ncontinue the work"
+    )
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch(
+            "sase.workspace_provider.get_ref_patterns",
+            return_value={"git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))")},
+        ),
+    ):
+        add_or_update_prompt(
+            prompt,
+            project_name="sase",
+            branch_or_workspace="sase",
+        )
+
+        entries = {entry.text: entry for entry in _load_prompt_history()}
+        assert entries[prompt].branch_or_workspace == "sase"
+        assert (
+            entries[
+                "#git:sase #pr:sase_feature\nstart the ChangeSpec"
+            ].branch_or_workspace
+            == "sase"
+        )
+        assert (
+            entries["#git:sase_feature\ncontinue the work"].branch_or_workspace
+            == "sase_feature"
+        )
 
 
 def test_existing_single_word_entry_not_updated(tmp_path: Path) -> None:

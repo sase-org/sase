@@ -171,14 +171,34 @@ def add_or_update_prompt(
     if is_multi_prompt(text):
         multi = parse_multi_prompt(text)
         for segment in multi.segments:
+            segment_branch = _branch_or_workspace_for_segment(
+                segment, branch_or_workspace
+            )
             # Recursive call for each segment (won't re-trigger since
             # individual segments aren't multi-prompts)
             add_or_update_prompt(
                 segment,
                 project_name=project_name,
-                branch_or_workspace=branch_or_workspace,
+                branch_or_workspace=segment_branch,
                 cancelled=cancelled,
             )
+
+
+def _branch_or_workspace_for_segment(segment: str, fallback: str | None) -> str | None:
+    """Return the segment's explicit VCS ref, or *fallback* when absent."""
+    try:
+        from sase.workspace_provider import get_ref_patterns
+
+        for pattern in get_ref_patterns().values():
+            match = pattern.search(segment)
+            if match is None:
+                continue
+            ref_value = match.group(1) or match.group(2)
+            if ref_value:
+                return ref_value
+    except Exception:
+        return fallback
+    return fallback
 
 
 def _format_prompt_for_display(
