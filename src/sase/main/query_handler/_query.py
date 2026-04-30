@@ -34,25 +34,48 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     if "#" not in query:
         return None
 
-    from sase.workspace_provider import get_workflow_names, resolve_ref
+    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        is_non_workspace_workflow,
+    )
+    from sase.workspace_provider import (
+        get_ref_patterns,
+        get_workflow_names,
+        resolve_ref,
+    )
     from sase.xprompt._parsing import normalize_vcs_underscore_refs
 
     normalized = normalize_vcs_underscore_refs(query)
-    match = re.search(
-        r"(?:^|(?<=\s)|(?<=[(\"']))#([a-zA-Z_][a-zA-Z0-9_]*):([a-zA-Z0-9_.~/-]+)",
-        normalized,
-    )
-    if match is None:
-        return None
 
-    workflow_type = match.group(1)
-    ref = match.group(2)
+    workflow_type: str | None = None
+    ref: str | None = None
+    for candidate_type, pattern in get_ref_patterns().items():
+        match = pattern.search(normalized)
+        if match is None:
+            continue
+        ref_value = match.group(1) or match.group(2)
+        if ref_value:
+            workflow_type = candidate_type
+            ref = ref_value
+            break
+
+    if workflow_type is None or ref is None:
+        match = re.search(
+            r"(?:^|(?<=\s)|(?<=[(\"']))#([a-zA-Z_][a-zA-Z0-9_]*):([a-zA-Z0-9_.~/-]+)",
+            normalized,
+        )
+        if match is None:
+            return None
+        workflow_type = match.group(1)
+        ref = match.group(2)
+
     if workflow_type not in get_workflow_names():
         return ref, ref
 
     try:
         resolved = resolve_ref(ref, workflow_type)
-    except (ValueError, Exception):
+    except Exception:
+        if is_non_workspace_workflow(workflow_type):
+            raise
         return ref, ref
 
     if resolved and resolved.primary_workspace_dir:

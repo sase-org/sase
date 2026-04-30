@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+NON_WORKSPACE_WORKFLOW_TYPES = frozenset({"cd"})
+
+
+def is_non_workspace_workflow(workflow_type: str) -> bool:
+    """Return whether *workflow_type* runs directly in a directory."""
+    return workflow_type in NON_WORKSPACE_WORKFLOW_TYPES
+
 
 class RefResolutionMixin:
     """Mixin providing dynamic VCS reference resolution."""
@@ -38,7 +45,8 @@ def resolve_ref_from_prompt(
     When *skip_workspace* is True, workspace allocation is skipped and
     the primary workspace directory is returned with workspace_num=0.
     This is used for agents with ``%wait`` directives that should defer
-    workspace claiming until their dependencies are resolved.
+    workspace claiming until their dependencies are resolved.  Directory
+    workflows such as ``#cd`` also skip numbered workspace allocation.
     """
     from sase.running_field import get_first_available_axe_workspace
     from sase.workspace_provider import (
@@ -62,7 +70,7 @@ def resolve_ref_from_prompt(
 
     try:
         resolved = resolve_ref(ref, workflow_type)
-        if skip_workspace:
+        if skip_workspace or is_non_workspace_workflow(workflow_type):
             workspace_num = 0
             workspace_dir = resolved.primary_workspace_dir
         else:
@@ -74,6 +82,8 @@ def resolve_ref_from_prompt(
                 resolved.primary_workspace_dir,
             )
     except (ValueError, RuntimeError):
+        if is_non_workspace_workflow(workflow_type):
+            raise
         return None
 
     return (

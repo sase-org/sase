@@ -220,9 +220,9 @@ def _resolve_segment_vcs_context(
     caller's context for legacy prompts that rely on an already-selected CL.
     """
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        is_non_workspace_workflow,
         resolve_ref_from_prompt,
     )
-    from sase.vcs_provider import VCS_DEFAULT_REVISION
 
     segment_vcs_ref = _extract_vcs_ref(prompt) or fallback_vcs_ref
     if segment_vcs_ref is None:
@@ -237,6 +237,12 @@ def _resolve_segment_vcs_context(
         )
 
     wf_name, ref_value = segment_vcs_ref
+    if is_non_workspace_workflow(wf_name):
+        update_target = ""
+    else:
+        from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+        update_target = VCS_DEFAULT_REVISION
     resolved = resolve_ref_from_prompt(prompt, wf_name, skip_workspace=has_wait)
     if resolved is None:
         return _SegmentVcsContext(
@@ -246,7 +252,7 @@ def _resolve_segment_vcs_context(
             is_home_mode=fallback_is_home_mode,
             vcs_ref=segment_vcs_ref,
             history_sort_key=ref_value,
-            update_target=VCS_DEFAULT_REVISION,
+            update_target=update_target,
         )
 
     project_file, project_name, workspace_dir, workspace_num, resolved_ref = resolved
@@ -254,10 +260,10 @@ def _resolve_segment_vcs_context(
         cl_name=resolved_ref,
         project_file=project_file,
         project_name=project_name,
-        is_home_mode=False,
+        is_home_mode=is_non_workspace_workflow(wf_name),
         vcs_ref=(wf_name, resolved_ref),
         history_sort_key=resolved_ref,
-        update_target=VCS_DEFAULT_REVISION,
+        update_target=update_target,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
     )

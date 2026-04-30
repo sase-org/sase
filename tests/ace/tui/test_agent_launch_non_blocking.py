@@ -19,6 +19,7 @@ import asyncio
 import threading
 import time
 from contextlib import ExitStack
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -26,6 +27,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.workspace_provider._hookspec import WorkflowMetadata
 
 
 class _FakeApp(AgentLaunchMixin):
@@ -140,6 +142,17 @@ def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> No
             patch("sase.history.file_references.record_file_references")
         )
         app._run_agent_launch_body(prompt)
+
+
+def _cd_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (
+        WorkflowMetadata(
+            workflow_type="cd",
+            ref_pattern=r"(?:^|(?<=\s))#cd(?:[_:]([^\s()]+)|\(([^)]*)\))",
+            display_name="Directory",
+            pre_allocated_env_prefix="SASE_CD",
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -268,3 +281,55 @@ def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> 
         callable(fn) and fn != app._schedule_agents_async_refresh
         for fn in scheduled_fns
     )
+
+
+def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _LaunchBodyApp()
+    app._prompt_context = _fake_context()
+
+    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        resolve_ref_from_prompt,
+    )
+
+    app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
+        lambda prompt, wf_name, skip_workspace=False: resolve_ref_from_prompt(
+            prompt, wf_name, skip_workspace=skip_workspace
+        )
+    )
+
+    import sase.workspace_provider._registry as registry
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_metadata)
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+                side_effect=lambda p: (p, None),
+            )
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+        stack.enter_context(
+            patch(
+                "sase.history.file_references.extract_recordable_file_refs",
+                return_value=[],
+            )
+        )
+        stack.enter_context(
+            patch("sase.history.file_references.record_file_references")
+        )
+        stack.enter_context(
+            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+        )
+        app._run_agent_launch_body(f"#cd:{tmp_path} do work")
+
+    assert len(app.launched) == 1
+    launch = app.launched[0]
+    assert launch["workspace_dir"] == str(tmp_path.resolve())
+    assert launch["workspace_num"] == 0
+    assert launch["is_home_mode"] is True
+    assert launch["update_target"] == ""
+    assert launch["vcs_ref"] == ("cd", str(tmp_path))

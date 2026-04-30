@@ -251,6 +251,7 @@ def launch_agent_from_cwd(
         RuntimeError: If workspace allocation or claiming fails.
     """
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        is_non_workspace_workflow,
         resolve_ref_from_prompt,
     )
     from sase.main.utils import ensure_project_file_and_get_workspace_num
@@ -405,7 +406,7 @@ def launch_agent_from_cwd(
             project_file, project_name, workspace_dir, ws_num, ref_value = resolved
             workspace_num = ws_num
             vcs_ref = (wf_name, ref_value)
-            is_home_mode = False
+            is_home_mode = is_non_workspace_workflow(wf_name)
             break
 
     if vcs_ref is None and not is_home_mode:
@@ -447,11 +448,14 @@ def launch_agent_from_cwd(
 
     # --- Determine display name / sort key ---
     if vcs_ref is not None:
-        from sase.vcs_provider import VCS_DEFAULT_REVISION
-
         cl_name = vcs_ref[1]
         history_sort_key = vcs_ref[1]
-        update_target = VCS_DEFAULT_REVISION
+        if is_non_workspace_workflow(vcs_ref[0]):
+            update_target = ""
+        else:
+            from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+            update_target = VCS_DEFAULT_REVISION
     else:
         cl_name = project_name
         history_sort_key = ""

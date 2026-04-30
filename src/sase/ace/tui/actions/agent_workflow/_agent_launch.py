@@ -9,7 +9,7 @@ from ._launch_bulk import BulkLaunchMixin
 from ._launch_multi_model import MultiModelLaunchMixin
 from ._launch_multi_prompt import MultiPromptLaunchMixin
 from ._launch_repeat import RepeatLaunchMixin
-from ._ref_resolution import strip_all_vcs_refs
+from ._ref_resolution import is_non_workspace_workflow, strip_all_vcs_refs
 from ._types import PromptContext
 
 log = logging.getLogger(__name__)
@@ -213,7 +213,11 @@ class AgentLaunchMixin(
                     ctx.display_name = ref_value
                     ctx.history_sort_key = ref_value
                     ctx.update_target = ""  # workflow .yml handles checkout
-                    ctx.is_home_mode = False  # Enable workspace claiming/releasing
+                    if is_non_workspace_workflow(wf_name):
+                        ctx.is_home_mode = True
+                    else:
+                        # Enable workspace claiming/releasing for VCS workspaces.
+                        ctx.is_home_mode = False
                     break
 
             # Update `,<space>` saved selection to reflect the resolved VCS
@@ -221,7 +225,7 @@ class AgentLaunchMixin(
             # ``#gh:sase-telegram`` to ``#gh:sase`` before submitting
             # would still replay as ``#gh:sase-telegram`` on the next
             # `,<space>`.
-            if vcs_ref is not None:
+            if vcs_ref is not None and not is_non_workspace_workflow(vcs_ref[0]):
                 from ...modals import SelectionItem
                 from sase.ace.last_agent_selection import save_last_agent_selection
 
