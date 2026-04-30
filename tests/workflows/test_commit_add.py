@@ -5,6 +5,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sase.ace.changespec import DeltaEntry, DeltaLineStats
+from sase.ace.deltas.persistence import update_changespec_deltas_field
 from sase.workflows.commit_utils import (
     add_commit_entry,
     add_commit_entry_with_id,
@@ -92,6 +96,48 @@ def test_add_commit_entry_existing_history_field() -> None:
         assert "      | DIFF: ~/.sase/diffs/second.diff" in content
     finally:
         os.unlink(temp_path)
+
+
+def test_add_commit_entry_refreshes_deltas_with_line_counts_after_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_file = tmp_path / "test.gp"
+    project_file.write_text(
+        "NAME: test_cl\nDESCRIPTION:\n  Test description\nSTATUS: Ready\n"
+    )
+
+    def fake_refresh(path: str, cl_name: str, workspace_dir: str | None = None) -> bool:
+        del workspace_dir
+        assert path == str(project_file)
+        assert cl_name == "test_cl"
+        assert "  (1) Initial Commit\n" in project_file.read_text()
+        return update_changespec_deltas_field(
+            path,
+            cl_name,
+            [
+                DeltaEntry(
+                    path="src/new.py",
+                    change_type="A",
+                    line_stats=DeltaLineStats(added=3),
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.deltas.refresh_deltas_after_commits_change",
+        fake_refresh,
+    )
+
+    result = add_commit_entry(
+        project_file=str(project_file),
+        cl_name="test_cl",
+        note="Initial Commit",
+    )
+
+    assert result is True
+    content = project_file.read_text()
+    assert "COMMITS:\n  (1) Initial Commit\n" in content
+    assert "DELTAS:\n  + src/new.py\n      | LINES: +3\n" in content
 
 
 def test_add_commit_entry_nonexistent_file() -> None:

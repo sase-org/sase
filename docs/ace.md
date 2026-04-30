@@ -147,8 +147,10 @@ indicator inline with the header and displays the most recent timestamp entry wh
 last lifecycle event.
 
 The DELTAS section uses a two-position cycle (collapsed ↔ expanded ↔ fully expanded). When **expanded**, the section
-renders a one-line `+A ~M -D (N files)` summary; when **fully expanded**, the alphabetical entry list is shown with
-colored glyphs (green `+`, gold `~`, red `-`). The section is omitted entirely when the ChangeSpec has no deltas.
+renders a one-line file and line-count summary such as `+3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **fully
+expanded**, the alphabetical entry list is shown with colored glyphs (green `+`, gold `~`, red `-`) and inline
+line-count tokens. Binary files display `binary`; zero-count entries display `0 lines`. The section is omitted entirely
+when the ChangeSpec has no deltas.
 
 ### Workflows and Agents
 

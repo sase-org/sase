@@ -9,6 +9,7 @@ from .models import (
     CommentEntry,
     CommitEntry,
     DeltaEntry,
+    DeltaLineStats,
     HookEntry,
     HookStatusLine,
     MentorEntry,
@@ -19,6 +20,35 @@ from .suffix_utils import parse_suffix_prefix
 
 
 _DELTA_GLYPH_TO_TYPE = {"+": "A", "~": "M", "-": "D"}
+_DELTA_LINES_RE = re.compile(r"^\s*(?P<token>[+~\-])(?P<count>\d+)\s*$")
+
+
+def _parse_delta_line_stats(value: str) -> DeltaLineStats | None:
+    """Parse a DELTAS ``LINES`` drawer payload."""
+    payload = value.strip()
+    if payload == "binary":
+        return DeltaLineStats(binary=True)
+    if payload in {"0", "0 lines"}:
+        return DeltaLineStats()
+    if not payload:
+        return None
+
+    stats = DeltaLineStats()
+    seen = False
+    for part in payload.split():
+        match = _DELTA_LINES_RE.match(part)
+        if not match:
+            return None
+        count = int(match.group("count"))
+        token = match.group("token")
+        if token == "+":
+            stats.added = count
+        elif token == "~":
+            stats.modified = count
+        else:
+            stats.removed = count
+        seen = True
+    return stats if seen else None
 
 
 class CommitEntryDict(TypedDict, total=False):
@@ -407,6 +437,7 @@ def parse_deltas_line(
     """Parse a single line in DELTAS section.
 
     Format: ``  <glyph> <path>`` where glyph is ``+``, ``~``, or ``-``.
+    Optional line stats can follow as ``      | LINES: +N ~N -N``.
 
     Args:
         line: The original line (with leading whitespace and trailing newline).
@@ -417,6 +448,14 @@ def parse_deltas_line(
         Updated delta_entries list.
     """
     del stripped  # path may contain trailing whitespace; match raw line instead.
+    if line.startswith("      | LINES:"):
+        if delta_entries:
+            value = line.split(":", 1)[1]
+            stats = _parse_delta_line_stats(value)
+            if stats is not None:
+                delta_entries[-1].line_stats = stats
+        return delta_entries
+
     if not (line.startswith("  ") and not line.startswith("   ")):
         return delta_entries
     match = re.match(r"^  ([+~\-]) (.+)$", line.rstrip("\n"))

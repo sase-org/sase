@@ -3,7 +3,7 @@
 from io import StringIO
 
 from sase.ace.changespec import ChangeSpec
-from sase.ace.changespec.models import DeltaEntry
+from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.display import display_changespec
 from sase.ace.status import get_available_statuses
 from rich.console import Console
@@ -57,9 +57,21 @@ def test_display_changespec_renders_deltas_section() -> None:
         file_path="/tmp/test.gp",
         line_number=1,
         deltas=[
-            DeltaEntry(path="src/added.py", change_type="A"),
-            DeltaEntry(path="src/modified.py", change_type="M"),
-            DeltaEntry(path="src/deleted.py", change_type="D"),
+            DeltaEntry(
+                path="src/added.py",
+                change_type="A",
+                line_stats=DeltaLineStats(added=8),
+            ),
+            DeltaEntry(
+                path="src/modified.py",
+                change_type="M",
+                line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+            ),
+            DeltaEntry(
+                path="src/deleted.py",
+                change_type="D",
+                line_stats=DeltaLineStats(removed=5),
+            ),
         ],
     )
 
@@ -71,6 +83,9 @@ def test_display_changespec_renders_deltas_section() -> None:
     assert "+ src/added.py" in out
     assert "~ src/modified.py" in out
     assert "- src/deleted.py" in out
+    assert "+8" in out
+    assert "+2 ~3 -1" in out
+    assert "-5" in out
 
 
 def test_display_changespec_omits_deltas_when_empty() -> None:

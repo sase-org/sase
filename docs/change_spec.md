@@ -344,9 +344,16 @@ automatically by sase from VCS state — it is not edited by hand.
 ```
 DELTAS:
   + path/to/added_file.py
+      | LINES: +128
   ~ path/to/modified_file.py
+      | LINES: +12 ~7 -3
   - path/to/deleted_file.py
+      | LINES: -44
 ```
+
+The optional `LINES` drawer records semantic line counts. Git-style raw additions/deletions are converted so paired
+add/delete lines are shown as modified lines (`~N`); binary files use `LINES: binary`. Older ChangeSpecs without `LINES`
+drawers remain valid.
 
 | Glyph | Change type | Notes                                                                             |
 | ----- | ----------- | --------------------------------------------------------------------------------- |
@@ -354,18 +361,22 @@ DELTAS:
 | `~`   | Modified    | File edited (`M`); also covers copy/typechange/unmerged statuses with a log warn. |
 | `-`   | Deleted     | File removed (`D`).                                                               |
 
-Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the target path. Entries are sorted
-alphabetically by path. The section is omitted entirely when there are no deltas.
+Renames (VCS status `R`) are split into a `-` for the source path and a `+` for the target path. Line counts attach to
+the target path when the VCS reports them; a pure rename can therefore show `0 lines`. Entries are sorted alphabetically
+by path. The section is omitted entirely when there are no deltas.
 
-**When DELTAS is recomputed:** a refresh runs after commit creation, rewind, sync, proposal accept, and proposal rebase.
-The refresh is best-effort — if the VCS query fails, the existing DELTAS section is left untouched and the parent
-workflow proceeds.
+**When DELTAS is recomputed:** any code path that changes the `COMMITS` list, accepted proposal set, parent base, or VCS
+head used by a ChangeSpec must call `refresh_deltas_for_changespec()` after the atomic write. Existing refresh hooks run
+after commit creation, rewind, sync, proposal accept, and proposal rebase. The refresh is best-effort — if the required
+VCS query fails, the existing DELTAS section is left untouched and the parent workflow proceeds. Providers without line
+stats still refresh file-level DELTAS.
 
 **Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS for a single ChangeSpec from the
 current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags override the inferred defaults.
 
 In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has three fold levels: collapsed
-(hidden), expanded (one-line `+A ~M -D (N files)` summary), and fully expanded (full alphabetical list).
+(hidden), expanded (one-line file and line-count summary), and fully expanded (full alphabetical list with inline line
+tokens).
 
 ### HOOKS
 

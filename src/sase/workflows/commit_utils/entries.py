@@ -348,15 +348,9 @@ def add_proposed_commit_entry(
 
         add_timestamp_entry_atomic(project_file, cl_name, "COMMIT", f"({entry_id})")
 
-        # Best-effort DELTAS refresh — never blocks the commit on failure.
-        try:
-            from sase.ace.deltas import refresh_deltas_for_changespec
+        from sase.ace.deltas import refresh_deltas_after_commits_change
 
-            refresh_deltas_for_changespec(project_file, cl_name)
-        except Exception as exc:
-            import sys
-
-            print(f"[sase] deltas refresh failed: {exc}", file=sys.stderr)
+        refresh_deltas_after_commits_change(project_file, cl_name)
 
         return True, entry_id
     except Exception as exc:
@@ -501,15 +495,9 @@ def add_commit_entry_with_id(
 
         add_timestamp_entry_atomic(project_file, cl_name, "COMMIT", f"({entry_id})")
 
-        # Best-effort DELTAS refresh — never blocks the commit on failure.
-        try:
-            from sase.ace.deltas import refresh_deltas_for_changespec
+        from sase.ace.deltas import refresh_deltas_after_commits_change
 
-            refresh_deltas_for_changespec(project_file, cl_name)
-        except Exception as exc:
-            import sys
-
-            print(f"[sase] deltas refresh failed: {exc}", file=sys.stderr)
+        refresh_deltas_after_commits_change(project_file, cl_name)
 
         return True, entry_id
     except Exception as exc:

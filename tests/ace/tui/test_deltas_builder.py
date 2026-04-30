@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry
+from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.deltas_builder import build_deltas_section
 
@@ -77,6 +77,32 @@ class TestExpanded:
         text = Text()
         build_deltas_section(text, cs, FoldLevel.EXPANDED)
         assert "(1 file)" in text.plain
+
+    def test_expanded_summary_includes_line_stats(self) -> None:
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(
+                    path="a.py",
+                    change_type="A",
+                    line_stats=DeltaLineStats(added=5),
+                ),
+                DeltaEntry(
+                    path="b.py",
+                    change_type="M",
+                    line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+                ),
+                DeltaEntry(
+                    path="c.py",
+                    change_type="D",
+                    line_stats=DeltaLineStats(removed=4),
+                ),
+            ]
+        )
+        text = Text()
+        build_deltas_section(text, cs, FoldLevel.EXPANDED)
+        assert "+1 (+5)" in text.plain
+        assert "~1 (+2 ~3 -1)" in text.plain
+        assert "-1 (-4)" in text.plain
 
     def test_summary_glyph_styles(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
@@ -151,6 +177,31 @@ class TestFullyExpanded:
         build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
         plain = text.plain
         assert "~ README.md" in plain
+
+    def test_entry_line_stats_render_inline(self) -> None:
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(
+                    path="README.md",
+                    change_type="M",
+                    line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+                ),
+                DeltaEntry(
+                    path="image.bin",
+                    change_type="A",
+                    line_stats=DeltaLineStats(binary=True),
+                ),
+                DeltaEntry(
+                    path="rename.py", change_type="A", line_stats=DeltaLineStats()
+                ),
+            ]
+        )
+        text = Text()
+        build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
+        plain = text.plain
+        assert "~ README.md  +2 ~3 -1" in plain
+        assert "+ image.bin  binary" in plain
+        assert "+ rename.py  0 lines" in plain
 
     def test_glyph_styles(self) -> None:
         cs = _make_changespec(

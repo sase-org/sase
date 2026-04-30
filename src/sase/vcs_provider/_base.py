@@ -190,6 +190,19 @@ class VCSProvider(ABC):
             "diff_name_status is not supported by this VCS provider"
         )
 
+    def diff_line_stats(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str, str]]:
+        """Return raw line stats rows between two refs.
+
+        Rows match ``git diff --numstat`` semantics:
+        ``(raw_added, raw_removed, path)``. Binary files use ``"-"`` for
+        added/removed counts. Rename/copy rows should carry the target path.
+        """
+        raise NotImplementedError(
+            "diff_line_stats is not supported by this VCS provider"
+        )
+
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str
     ) -> tuple[bool, str | None]:

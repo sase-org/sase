@@ -37,6 +37,8 @@ from sase.core.git_query_facade import (
     parse_git_local_changes_python,
     parse_git_name_status_z,
     parse_git_name_status_z_python,
+    parse_git_numstat_z,
+    parse_git_numstat_z_python,
 )
 from sase.core.git_query_wire import (
     GIT_QUERY_WIRE_SCHEMA_VERSION,
@@ -124,6 +126,36 @@ def test_parse_name_status_skips_empty_status_tokens() -> None:
     """Stray empty fields between entries are skipped."""
     stream = "\0M\0a.py\0"
     assert parse_git_name_status_z(stream) == [("M", "a.py")]
+
+
+# ---------------------------------------------------------------------------
+# parse_git_numstat_z
+# ---------------------------------------------------------------------------
+
+
+def test_parse_numstat_text_paths_and_spaces() -> None:
+    stream = "\0".join(["12\t3\tsrc/a.py", "4\t0\tpath with spaces/file.txt", ""])
+    assert parse_git_numstat_z(stream) == [
+        ("12", "3", "src/a.py"),
+        ("4", "0", "path with spaces/file.txt"),
+    ]
+    assert parse_git_numstat_z(stream) == parse_git_numstat_z_python(stream)
+
+
+def test_parse_numstat_binary_file() -> None:
+    assert parse_git_numstat_z("-\t-\timage.bin\0") == [("-", "-", "image.bin")]
+
+
+def test_parse_numstat_rename_row_uses_target_path() -> None:
+    stream = "0\t0\t\0old name.py\0new name.py\0"
+    assert parse_git_numstat_z(stream) == [("0", "0", "new name.py")]
+
+
+def test_parse_numstat_malformed_rows_are_ignored() -> None:
+    stream = "\0".join(
+        ["bad-row", "M\t1\tbad.py", "1\t2\tok.py", "3\t4\t", "old-only.py"]
+    )
+    assert parse_git_numstat_z(stream) == [("1", "2", "ok.py")]
 
 
 # ---------------------------------------------------------------------------

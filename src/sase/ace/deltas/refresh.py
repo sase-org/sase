@@ -100,3 +100,28 @@ def refresh_deltas_for_changespec(
         return False
 
     return update_changespec_deltas_field(project_file, changespec_name, deltas)
+
+
+def refresh_deltas_after_commits_change(
+    project_file: str,
+    changespec_name: str,
+    workspace_dir: str | None = None,
+) -> bool:
+    """Best-effort DELTAS refresh after COMMITS-affecting mutations.
+
+    Any code path that changes the COMMITS list, accepted proposal set, parent
+    base, or VCS head used by a ChangeSpec should call this helper after the
+    atomic write.
+    """
+    try:
+        return refresh_deltas_for_changespec(
+            project_file, changespec_name, workspace_dir
+        )
+    except Exception as exc:  # pragma: no cover - refresh_deltas already guards this.
+        _log.warning(
+            "Unexpected DELTAS post-COMMITS refresh failure for %s in %s: %s",
+            changespec_name,
+            project_file,
+            exc,
+        )
+        return False

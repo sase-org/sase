@@ -404,13 +404,31 @@ class CommentEntry:
 
 
 @dataclass
+class DeltaLineStats:
+    """Represents line-level stats for a DELTAS entry.
+
+    The counts are semantic counts derived from raw VCS added/deleted totals:
+    paired additions/deletions become ``modified`` lines, and only unpaired
+    totals remain as added/removed.
+    """
+
+    added: int = 0
+    modified: int = 0
+    removed: int = 0
+    binary: bool = False
+
+
+@dataclass
 class DeltaEntry:
     """Represents a single entry in the DELTAS field.
 
     Format in file (single-character status glyph + path):
       + path/to/added_file.py
+          | LINES: +10
       ~ path/to/modified_file.py
+          | LINES: +2 ~3 -1
       - path/to/deleted_file.py
+          | LINES: -5
 
     The on-disk glyphs map to long-form change types stored on the dataclass:
       "+" -> "A" (added)
@@ -420,6 +438,7 @@ class DeltaEntry:
 
     path: str
     change_type: str  # "A" (added), "M" (modified), "D" (deleted)
+    line_stats: DeltaLineStats | None = None
 
 
 @dataclass

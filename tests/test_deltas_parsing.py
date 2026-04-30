@@ -1,6 +1,6 @@
 """Tests for DELTAS field parsing, formatting, and round-trip."""
 
-from sase.ace.changespec import DeltaEntry
+from sase.ace.changespec import DeltaEntry, DeltaLineStats
 from sase.ace.changespec.deltas_format import format_deltas_field
 from sase.ace.changespec.parser import _parse_changespec_from_lines
 
@@ -93,6 +93,63 @@ def test_format_deltas_alphabetical_sort_and_glyphs() -> None:
     ]
 
 
+def test_parse_deltas_line_stats_drawers() -> None:
+    lines = _base_lines() + [
+        "DELTAS:\n",
+        "  + src/new.py\n",
+        "      | LINES: +12\n",
+        "  ~ src/edit.py\n",
+        "      | LINES: +2 ~3 -1\n",
+        "  - image.bin\n",
+        "      | LINES: binary\n",
+        "\n",
+    ]
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    assert changespec is not None
+    assert changespec.deltas == [
+        DeltaEntry(
+            path="src/new.py",
+            change_type="A",
+            line_stats=DeltaLineStats(added=12),
+        ),
+        DeltaEntry(
+            path="src/edit.py",
+            change_type="M",
+            line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+        ),
+        DeltaEntry(
+            path="image.bin",
+            change_type="D",
+            line_stats=DeltaLineStats(binary=True),
+        ),
+    ]
+
+
+def test_format_deltas_line_stats_drawers() -> None:
+    deltas = [
+        DeltaEntry(path="zero.py", change_type="A", line_stats=DeltaLineStats()),
+        DeltaEntry(
+            path="edit.py",
+            change_type="M",
+            line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+        ),
+        DeltaEntry(
+            path="image.bin",
+            change_type="D",
+            line_stats=DeltaLineStats(binary=True),
+        ),
+    ]
+    assert format_deltas_field(deltas) == [
+        "DELTAS:\n",
+        "  ~ edit.py\n",
+        "      | LINES: +2 ~3 -1\n",
+        "  - image.bin\n",
+        "      | LINES: binary\n",
+        "  + zero.py\n",
+        "      | LINES: 0\n",
+    ]
+
+
 def test_deltas_round_trip_parse_then_format() -> None:
     """Parsing then formatting a DELTAS section returns the original text."""
     # Already alphabetical by path so format() preserves the order.
@@ -110,3 +167,20 @@ def test_deltas_round_trip_parse_then_format() -> None:
     assert changespec.deltas is not None
     formatted = format_deltas_field(changespec.deltas)
     assert formatted == deltas_lines
+
+
+def test_deltas_round_trip_with_line_stats() -> None:
+    deltas_lines = [
+        "DELTAS:\n",
+        "  ~ a.py\n",
+        "      | LINES: ~1\n",
+        "  + b.py\n",
+        "      | LINES: +2\n",
+        "  - c.bin\n",
+        "      | LINES: binary\n",
+    ]
+    full = _base_lines() + deltas_lines + ["\n"]
+    changespec, _ = _parse_changespec_from_lines(full, 0, "/test/file.gp")
+    assert changespec is not None
+    assert changespec.deltas is not None
+    assert format_deltas_field(changespec.deltas) == deltas_lines

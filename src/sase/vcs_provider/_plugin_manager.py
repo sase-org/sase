@@ -163,6 +163,18 @@ class VCSPluginManager(VCSProvider):
             )
         return result  # type: ignore[return-value]
 
+    def diff_line_stats(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str, str]]:
+        result = self._pm.hook.vcs_diff_line_stats(
+            parent_ref=parent_ref, head_ref=head_ref, cwd=cwd
+        )
+        if result is None:
+            raise NotImplementedError(
+                "diff_line_stats is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str
     ) -> tuple[bool, str | None]:

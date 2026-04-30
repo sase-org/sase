@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry
+from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.ace.deltas import (
     DeltaComputationError,
     apply_status_mapping,
@@ -44,10 +44,12 @@ class _FakeProvider(VCSProvider):
     def __init__(
         self,
         diff_result: list[tuple[str, str]] | Exception,
+        line_stats_result: list[tuple[str, str, str]] | Exception | None = None,
         default_parent: str = "origin/main",
         resolved: dict[str, str] | None = None,
     ) -> None:
         self._diff_result = diff_result
+        self._line_stats_result = line_stats_result
         self._default_parent = default_parent
         self._resolved = resolved or {}
         self.calls: dict[str, Any] = {}
@@ -60,6 +62,16 @@ class _FakeProvider(VCSProvider):
         if isinstance(self._diff_result, Exception):
             raise self._diff_result
         return self._diff_result
+
+    def diff_line_stats(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str, str]]:
+        self.calls["diff_line_stats"] = (parent_ref, head_ref, cwd)
+        if self._line_stats_result is None:
+            raise NotImplementedError("line stats unsupported")
+        if isinstance(self._line_stats_result, Exception):
+            raise self._line_stats_result
+        return self._line_stats_result
 
     def get_default_parent_revision(self, cwd: str) -> str:
         return self._default_parent
@@ -244,6 +256,73 @@ def test_compute_deltas_renames_split_correctly() -> None:
         DeltaEntry(path="new.py", change_type="A"),
         DeltaEntry(path="old.py", change_type="D"),
         DeltaEntry(path="other.py", change_type="M"),
+    ]
+
+
+def test_compute_deltas_attaches_semantic_line_stats() -> None:
+    provider = _FakeProvider(
+        diff_result=[
+            ("A", "new.py"),
+            ("M", "edit.py"),
+            ("D", "gone.py"),
+            ("M", "image.bin"),
+        ],
+        line_stats_result=[
+            ("4", "0", "new.py"),
+            ("5", "3", "edit.py"),
+            ("0", "7", "gone.py"),
+            ("-", "-", "image.bin"),
+        ],
+        resolved={"cl": "branch"},
+    )
+    cs = _make_changespec("cl", parent=None)
+    result = compute_deltas(cs, provider, cwd="/repo")
+    assert provider.calls["diff_line_stats"] == ("origin/main", "branch", "/repo")
+    assert result == [
+        DeltaEntry(
+            path="edit.py",
+            change_type="M",
+            line_stats=DeltaLineStats(added=2, modified=3),
+        ),
+        DeltaEntry(
+            path="gone.py",
+            change_type="D",
+            line_stats=DeltaLineStats(removed=7),
+        ),
+        DeltaEntry(
+            path="image.bin",
+            change_type="M",
+            line_stats=DeltaLineStats(binary=True),
+        ),
+        DeltaEntry(
+            path="new.py",
+            change_type="A",
+            line_stats=DeltaLineStats(added=4),
+        ),
+    ]
+
+
+def test_compute_deltas_attaches_rename_line_stats_to_target_only() -> None:
+    provider = _FakeProvider(
+        diff_result=[("R100", "old.py\tnew.py")],
+        line_stats_result=[("0", "0", "new.py")],
+    )
+    cs = _make_changespec("cl", parent=None)
+    result = compute_deltas(cs, provider, cwd="/repo")
+    assert result == [
+        DeltaEntry(path="new.py", change_type="A", line_stats=DeltaLineStats()),
+        DeltaEntry(path="old.py", change_type="D"),
+    ]
+
+
+def test_compute_deltas_line_stats_failure_keeps_file_deltas() -> None:
+    provider = _FakeProvider(
+        diff_result=[("A", "new.py")],
+        line_stats_result=VCSOperationError("diff_line_stats", "boom"),
+    )
+    cs = _make_changespec("cl", parent=None)
+    assert compute_deltas(cs, provider, cwd="/repo") == [
+        DeltaEntry(path="new.py", change_type="A")
     ]
 
 

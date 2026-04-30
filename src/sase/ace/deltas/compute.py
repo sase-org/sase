@@ -18,7 +18,7 @@ representation.
 import logging
 
 from sase.ace.changespec import find_all_changespecs
-from sase.ace.changespec.models import ChangeSpec, DeltaEntry
+from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.vcs_provider import VCSOperationError, VCSProvider
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,34 @@ def resolve_head_ref(
 
 
 _KNOWN_TYPES = {"A", "M", "D"}
+
+
+def _semantic_line_stats(raw_added: str, raw_removed: str) -> DeltaLineStats | None:
+    """Convert Git-style numstat counts to semantic added/modified/removed."""
+    if raw_added == "-" and raw_removed == "-":
+        return DeltaLineStats(binary=True)
+    try:
+        added_total = int(raw_added)
+        removed_total = int(raw_removed)
+    except ValueError:
+        return None
+    modified = min(added_total, removed_total)
+    return DeltaLineStats(
+        added=added_total - modified,
+        modified=modified,
+        removed=removed_total - modified,
+    )
+
+
+def _line_stats_by_path(
+    raw_stats: list[tuple[str, str, str]],
+) -> dict[str, DeltaLineStats]:
+    stats_by_path: dict[str, DeltaLineStats] = {}
+    for raw_added, raw_removed, path in raw_stats:
+        stats = _semantic_line_stats(raw_added, raw_removed)
+        if stats is not None:
+            stats_by_path[path] = stats
+    return stats_by_path
 
 
 def apply_status_mapping(
@@ -156,4 +184,26 @@ def compute_deltas(
     except NotImplementedError as exc:
         raise DeltaComputationError(changespec.name, str(exc)) from exc
 
-    return apply_status_mapping(raw_entries)
+    entries = apply_status_mapping(raw_entries)
+
+    try:
+        raw_stats = vcs_provider.diff_line_stats(parent_ref, head_ref, cwd)
+    except (VCSOperationError, NotImplementedError) as exc:
+        logger.debug(
+            "compute_deltas: line stats unavailable for %r: %s",
+            changespec.name,
+            exc,
+        )
+        return entries
+    except Exception as exc:
+        logger.debug(
+            "compute_deltas: unexpected line stats failure for %r: %s",
+            changespec.name,
+            exc,
+        )
+        return entries
+
+    stats_by_path = _line_stats_by_path(raw_stats)
+    for entry in entries:
+        entry.line_stats = stats_by_path.get(entry.path)
+    return entries

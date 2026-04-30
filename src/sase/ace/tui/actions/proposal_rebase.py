@@ -94,15 +94,11 @@ def _rebase_task(
         except Exception as e:
             return (False, f"Failed to update PARENT field: {e}")
 
-        # DELTAS refresh — new parent shifts the diff base.
-        try:
-            from sase.ace.deltas import refresh_deltas_for_changespec
+        from sase.ace.deltas import refresh_deltas_after_commits_change
 
-            refresh_deltas_for_changespec(
-                changespec_file_path, changespec_name, workspace_dir
-            )
-        except Exception:
-            pass
+        refresh_deltas_after_commits_change(
+            changespec_file_path, changespec_name, workspace_dir
+        )
 
         return (True, f"Rebased onto {new_parent_name}")
 

@@ -1,9 +1,24 @@
 """DELTAS field formatting for ChangeSpec project files."""
 
-from .models import DeltaEntry
+from .models import DeltaEntry, DeltaLineStats
 
 
 _TYPE_TO_GLYPH = {"A": "+", "M": "~", "D": "-"}
+
+
+def _format_delta_line_stats(stats: DeltaLineStats) -> str:
+    """Format line stats for the compact on-disk drawer payload."""
+    if stats.binary:
+        return "binary"
+
+    tokens: list[str] = []
+    if stats.added:
+        tokens.append(f"+{stats.added}")
+    if stats.modified:
+        tokens.append(f"~{stats.modified}")
+    if stats.removed:
+        tokens.append(f"-{stats.removed}")
+    return " ".join(tokens) if tokens else "0"
 
 
 def format_deltas_field(deltas: list[DeltaEntry]) -> list[str]:
@@ -25,4 +40,8 @@ def format_deltas_field(deltas: list[DeltaEntry]) -> list[str]:
     for entry in sorted(deltas, key=lambda e: e.path):
         glyph = _TYPE_TO_GLYPH[entry.change_type]
         lines.append(f"  {glyph} {entry.path}\n")
+        if entry.line_stats is not None:
+            lines.append(
+                f"      | LINES: {_format_delta_line_stats(entry.line_stats)}\n"
+            )
     return lines

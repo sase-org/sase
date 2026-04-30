@@ -15,7 +15,7 @@ import pytest
 from sase.vcs_provider import VCSOperationError
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
-from sase.core.git_query_facade import parse_git_name_status_z
+from sase.core.git_query_facade import parse_git_name_status_z, parse_git_numstat_z
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 _GIT_AVAILABLE = shutil.which("git") is not None
@@ -115,6 +115,39 @@ def test_diff_name_status_invalid_ref_raises_typed_error(repo: str) -> None:
     assert exc.value.operation == "diff_name_status"
 
 
+def test_diff_line_stats_added_modified_deleted(repo: str) -> None:
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+
+    (Path(repo) / "README.md").write_text("# repo\nchanged\n")
+    (Path(repo) / "newfile.py").write_text("print('hi')\n")
+    (Path(repo) / "gone.txt").write_text("doomed\n")
+    _git(["add", "."], repo)
+    _git(["commit", "-m", "stage1"], repo)
+    _git(["rm", "gone.txt"], repo)
+    _git(["commit", "-m", "delete"], repo)
+
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True
+    ).stdout.strip()
+
+    provider = _make_git_provider()
+    raw = provider.diff_line_stats(base, head, repo)
+
+    by_path = {path: (added, removed) for added, removed, path in raw}
+    assert by_path["README.md"] == ("1", "0")
+    assert by_path["newfile.py"] == ("1", "0")
+    assert "gone.txt" not in by_path
+
+
+def test_diff_line_stats_invalid_ref_raises_typed_error(repo: str) -> None:
+    provider = _make_git_provider()
+    with pytest.raises(VCSOperationError) as exc:
+        provider.diff_line_stats("HEAD", "no-such-ref-xyz", repo)
+    assert exc.value.operation == "diff_line_stats"
+
+
 def test_parse_git_name_status_z_handles_renames_and_simple_entries() -> None:
     # status\0path\0  for simple entries; status\0old\0new\0 for renames.
     raw = "M\0a.py\0R100\0old.py\0new.py\0A\0b.py\0"
@@ -128,3 +161,13 @@ def test_parse_git_name_status_z_handles_renames_and_simple_entries() -> None:
 
 def test_parse_git_name_status_z_empty() -> None:
     assert parse_git_name_status_z("") == []
+
+
+def test_parse_git_numstat_z_handles_renames_and_simple_entries() -> None:
+    raw = "\0".join(["1\t0\ta.py", "0\t0\t", "old.py", "new.py", "-\t-\timage.bin", ""])
+    parsed = parse_git_numstat_z(raw)
+    assert parsed == [
+        ("1", "0", "a.py"),
+        ("0", "0", "new.py"),
+        ("-", "-", "image.bin"),
+    ]

@@ -456,13 +456,9 @@ def rewind_commit_entries(
                 commit_msg,
             )
 
-        # Best-effort DELTAS refresh — outside the lock; failure is non-fatal.
-        try:
-            from sase.ace.deltas import refresh_deltas_for_changespec
+        from sase.ace.deltas import refresh_deltas_after_commits_change
 
-            refresh_deltas_for_changespec(project_file, cl_name)
-        except Exception:
-            pass
+        refresh_deltas_after_commits_change(project_file, cl_name)
         return True
 
     except Exception:

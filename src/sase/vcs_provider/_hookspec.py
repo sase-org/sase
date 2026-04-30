@@ -108,6 +108,11 @@ class VCSHookSpec:
     ) -> list[tuple[str, str]]: ...
 
     @hookspec(firstresult=True)
+    def vcs_diff_line_stats(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str, str]]: ...
+
+    @hookspec(firstresult=True)
     def vcs_file_at_revision(
         self, revision: str, file_path: str, cwd: str
     ) -> tuple[bool, str | None]: ...

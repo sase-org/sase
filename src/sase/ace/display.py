@@ -13,6 +13,7 @@ from sase.running_field import get_claimed_workspaces
 
 from .changespec import (
     ChangeSpec,
+    DeltaEntry,
     parse_commit_entry_id,
 )
 from .display_helpers import (
@@ -260,6 +261,32 @@ def display_changespec(
             "M": "bold #FFD787",
             "D": "bold #FF5F5F",
         }
+
+        def _append_delta_line_stats(delta: DeltaEntry) -> None:
+            stats = delta.line_stats
+            if stats is None:
+                return
+            text.append("  ")
+            if stats.binary:
+                text.append("binary", style="italic #808080")
+                return
+            wrote = False
+            if stats.added:
+                text.append(f"+{stats.added}", style=_DELTA_GLYPH_STYLE["A"])
+                wrote = True
+            if stats.modified:
+                if wrote:
+                    text.append(" ")
+                text.append(f"~{stats.modified}", style=_DELTA_GLYPH_STYLE["M"])
+                wrote = True
+            if stats.removed:
+                if wrote:
+                    text.append(" ")
+                text.append(f"-{stats.removed}", style=_DELTA_GLYPH_STYLE["D"])
+                wrote = True
+            if not wrote:
+                text.append("0 lines", style="#808080")
+
         text.append("DELTAS:\n", style="bold #87D7FF")
         for delta in sorted(changespec.deltas, key=lambda d: d.path):
             glyph = _DELTA_GLYPH_BY_TYPE.get(delta.change_type, "?")
@@ -268,7 +295,9 @@ def display_changespec(
             dirname, basename = os.path.split(delta.path)
             if dirname:
                 text.append(dirname + "/", style="#87AFFF")
-            text.append((basename or delta.path) + "\n", style="bold #87AFFF")
+            text.append(basename or delta.path, style="bold #87AFFF")
+            _append_delta_line_stats(delta)
+            text.append("\n")
 
     # HOOKS field (only display if present)
     if changespec.hooks:

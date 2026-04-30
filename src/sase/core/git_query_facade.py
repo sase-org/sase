@@ -6,10 +6,12 @@ helper is a *pure function* over strings produced by ``git``; the host
 stays responsible for running the command, handling timeouts and process
 errors, touching the filesystem, and performing every mutation.
 
-The five helpers are:
+The helpers are:
 
 - :func:`parse_git_name_status_z` — parse ``git diff --name-status -z``
   output into ``list[tuple[str, str]]``.
+- :func:`parse_git_numstat_z` — parse ``git diff --numstat -z`` output
+  into ``list[tuple[str, str, str]]``.
 - :func:`parse_git_branch_name` — normalize ``git rev-parse --abbrev-ref
   HEAD`` stdout into a branch name (``None`` for detached HEAD or empty).
 - :func:`derive_git_workspace_name` — derive a workspace name from a
@@ -19,10 +21,10 @@ The five helpers are:
 - :func:`parse_git_local_changes` — normalize ``git status --porcelain``
   stdout into ``str | None`` (clean → ``None``).
 
-These call ``sase_core_rs`` directly through
-:func:`sase.core.rust.require_rust_binding`. The ``*_python`` helpers
-below are kept as byte-for-byte golden-contract references for the parity
-tests against the Rust output.
+Rust-backed helpers call ``sase_core_rs`` directly through
+:func:`sase.core.rust.require_rust_binding`. The ``*_python`` helpers below are
+kept as host-logic golden-contract references for parser behavior and Rust
+parity tests where a Rust binding exists.
 """
 
 from __future__ import annotations
@@ -105,6 +107,56 @@ def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
         (entry.status, entry.path)
         for entry in (git_name_status_entry_from_dict(item) for item in raw)
     ]
+
+
+# pyvision: tests/test_core_git_query.py
+def parse_git_numstat_z_python(stdout: str) -> list[tuple[str, str, str]]:
+    """Parse ``git diff --numstat -z`` output.
+
+    Returns ``(raw_added, raw_removed, path)`` rows.  For rename/copy rows Git's
+    ``-z`` format emits an empty path after the tab-separated counts, followed
+    by old and new paths as separate NUL fields; this parser returns the target
+    path.  Malformed or truncated rows are ignored.
+    """
+    if not stdout:
+        return []
+
+    def valid_count(value: str) -> bool:
+        return value == "-" or value.isdigit()
+
+    parts = stdout.split("\0")
+    if parts and parts[-1] == "":
+        parts.pop()
+
+    result: list[tuple[str, str, str]] = []
+    i = 0
+    while i < len(parts):
+        row = parts[i]
+        i += 1
+        if not row:
+            continue
+        fields = row.split("\t")
+        if len(fields) != 3:
+            continue
+        raw_added, raw_removed, path = fields
+        if not valid_count(raw_added) or not valid_count(raw_removed):
+            continue
+        if path:
+            result.append((raw_added, raw_removed, path))
+            continue
+        if i + 1 >= len(parts):
+            continue
+        _old_path = parts[i]
+        new_path = parts[i + 1]
+        i += 2
+        if new_path:
+            result.append((raw_added, raw_removed, new_path))
+    return result
+
+
+def parse_git_numstat_z(stdout: str) -> list[tuple[str, str, str]]:
+    """Parse the NUL-delimited output of ``git diff --numstat -z``."""
+    return parse_git_numstat_z_python(stdout)
 
 
 # pyvision: tests/test_core_git_query.py
@@ -217,4 +269,6 @@ __all__ = [
     "parse_git_local_changes_python",
     "parse_git_name_status_z",
     "parse_git_name_status_z_python",
+    "parse_git_numstat_z",
+    "parse_git_numstat_z_python",
 ]

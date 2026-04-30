@@ -14,6 +14,7 @@ from sase.core.git_query_facade import (
     parse_git_conflicted_files,
     parse_git_local_changes,
     parse_git_name_status_z,
+    parse_git_numstat_z,
 )
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
@@ -223,6 +224,29 @@ class GitQueryOpsMixin(CommandRunner):
                 out.stderr.strip() or "git diff --name-status failed",
             )
         return parse_git_name_status_z(out.stdout)
+
+    @hookimpl
+    def vcs_diff_line_stats(
+        self, parent_ref: str, head_ref: str, cwd: str
+    ) -> list[tuple[str, str, str]]:
+        from sase.vcs_provider._errors import VCSOperationError
+
+        out = self._run(
+            [
+                "git",
+                "diff",
+                "--numstat",
+                "-z",
+                f"{parent_ref}..{head_ref}",
+            ],
+            cwd,
+        )
+        if not out.success:
+            raise VCSOperationError(
+                "diff_line_stats",
+                out.stderr.strip() or "git diff --numstat failed",
+            )
+        return parse_git_numstat_z(out.stdout)
 
     @hookimpl
     def vcs_file_at_revision(

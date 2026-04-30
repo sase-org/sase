@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.changespec import DeltaEntry
+from sase.ace.changespec import DeltaEntry, DeltaLineStats
 from sase.ace.deltas import refresh_deltas_for_changespec
 
 
@@ -46,7 +46,11 @@ def test_refresh_writes_section_when_compute_succeeds(
         changespec: object, provider: object, cwd: str
     ) -> list[DeltaEntry]:
         return [
-            DeltaEntry(path="added.py", change_type="A"),
+            DeltaEntry(
+                path="added.py",
+                change_type="A",
+                line_stats=DeltaLineStats(added=4),
+            ),
             DeltaEntry(path="kept.py", change_type="M"),
         ]
 
@@ -60,6 +64,7 @@ def test_refresh_writes_section_when_compute_succeeds(
     body = project_file.read_text()
     assert "DELTAS:" in body
     assert "+ added.py" in body
+    assert "      | LINES: +4" in body
     assert "~ kept.py" in body
 
 
