@@ -198,12 +198,14 @@ control over background resource usage.
 ## Agent Completion Artifacts
 
 When an agent run finalizes, axe writes the normal completion metadata and sends the workflow-complete notification.
-Successful runs also scan the agent workspace for generated image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`),
-append those paths after the standard chat/diff notification attachments, and persist the same list as
-`done.json.image_paths`.
+Successful runs also scan the agent workspace for generated image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) and
+Markdown files (`.md`, `.markdown`). Markdown sources are rendered to PDFs under the agent artifact directory, then the
+generated PDF paths are appended after the standard chat/diff notification attachments and before image attachments. The
+PDF list is persisted as `done.json.markdown_pdf_paths`; the image list is persisted as `done.json.image_paths`.
 
 The scan uses git name-status output, untracked files, saved diff metadata, and the latest commit when the agent
-committed or opened a PR. Deleted, missing, non-image, and duplicate paths are ignored. See
+committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. PDF rendering is best-effort:
+missing conversion tools or render failures omit that source without failing the agent run. See
 [`agent_images.md`](agent_images.md) for the full contract.
 
 ## State Directory

@@ -298,6 +298,7 @@ src/sase/
 │   ├── command.py         # Command history persistence
 │   ├── hook.py            # Hook history persistence
 │   └── prompt.py          # Prompt history persistence and querying
+├── integrations/          # Public helpers consumed by external plugins/editors
 ├── sdd/                   # Spec-driven development utilities
 │   ├── files.py           # SDD file management (specs, plans)
 │   └── beads.py           # SDD bead integration
@@ -395,6 +396,7 @@ semantics, and benchmarking.
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
 - [`docs/commit_workflows.md`](docs/commit_workflows.md) — Commit, propose, and PR workflow reference
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference
+- [`docs/integrations.md`](docs/integrations.md) — Public integration-facing Python helpers
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system
 - [`docs/notifications.md`](docs/notifications.md) — Notification system

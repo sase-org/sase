@@ -241,7 +241,13 @@ unified view of all work.
 When creating a plan bead with `--type plan(PATH)`, the file path is stored in the `design` field. The ACE TUI can
 navigate from a bead to its linked plan file.
 
+For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
+`plans/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/plans/YYYYMM/*.md` in local SDD mode. Both
+references are relative to the primary workspace so phase agents launched from sibling workspaces can still locate the
+plan.
+
 ### Epic Approval Flow
 
-The plan approval popup in ACE shows an **E** (Epic) option when `.sase_beads/` exists and version-controlled mode is
-enabled. Pressing E creates the plan file, launches an epic agent, and creates beads for each phase defined in the plan.
+The plan approval popup in ACE shows an **E** (Epic) option. Pressing E persists the spec and plan through SDD,
+initializes bead storage if needed, launches an `.epic` follow-up agent, and asks that agent to create the plan bead and
+phase beads for the plan.

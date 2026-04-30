@@ -101,12 +101,18 @@ to the spec file. This preserves the full context of planning decisions.
 
 SDD initializes the [bead issue tracker](beads.md) automatically when an epic agent spawns:
 
-- **Local mode**: Beads are stored in `.sase/sdd/beads/` and initialized via `git init` + `bd init`
+- **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo and bead storage is
+  initialized through SASE's built-in bead project bootstrap
 - **VC mode**: Beads are stored in `.sase_beads/` at the project root
 
 For larger efforts, plan files carry a `bead_id` in their frontmatter that links to an epic in the bead tracker. Each
 phase of the epic gets its own bead whose ID appears in commit messages, creating a traceable chain from epic to phase
 to commit. For smaller plans, commit messages include a `PLAN=<path>` tag pointing back to the plan file.
+
+When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
+workspaces can resolve. In version-controlled mode this is the project-relative `plans/{YYYYMM}/{name}.md` path. In
+local mode it is the primary-workspace-relative `.sase/sdd/plans/{YYYYMM}/{name}.md` path. If an older flat plan layout
+is encountered, the resolver still checks both flat and `YYYYMM` locations for backwards compatibility.
 
 ## Configuration
 

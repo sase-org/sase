@@ -374,9 +374,10 @@ stats still refresh file-level DELTAS.
 **Manual refresh:** run `sase changespec sync-deltas -c <CL_NAME>` to recompute DELTAS for a single ChangeSpec from the
 current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags override the inferred defaults.
 
-In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has three fold levels: collapsed
-(hidden), expanded (one-line file and line-count summary), and fully expanded (full alphabetical list with inline line
-tokens).
+In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has two semantic fold states:
+folded and unfolded. The folded state shows the `DELTAS:` header plus a one-line file and line-count summary; the
+unfolded state shows the full alphabetical entry list with inline line tokens. The shared fold model still has an
+internal intermediate value for other sections, but DELTAS normalizes any non-folded value to the unfolded full list.
 
 ### HOOKS
 
