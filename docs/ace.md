@@ -19,6 +19,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `QUERY` (positional)       | Query string for filtering ChangeSpecs                                                                          |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                                                  |
+| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                                         |
 | `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument (writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`) |
 | `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                    |
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                                                 |
@@ -815,6 +816,18 @@ data.
 
 Pressing `G` on a trimmed file auto-expands it first, then scrolls to the bottom — so jumping to the end of a large file
 never leaves you staring at a trimmed page.
+
+## Image Preview Foundation
+
+ACE probes terminal graphics support before the Textual app starts and stores the result on the running app. The current
+graphics package is a reusable foundation for image previews: it detects Kitty-compatible terminals, handles tmux
+passthrough, emits Kitty graphics protocol placeholders for PNG files, and falls back to a text placeholder when inline
+preview is unavailable.
+
+Generated images are already attached to successful agent completion notifications and recorded in `done.json` as
+`image_paths`. Broad file-panel image rendering is still limited to surfaces that opt into the internal graphics
+renderable. See [`agent_images.md`](agent_images.md) for supported image extensions, `SASE_TUI_GRAPHICS`, and current
+preview limitations.
 
 ## Agent Auto-Naming
 

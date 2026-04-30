@@ -82,6 +82,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   and apply workflow
 - **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
+- **Agent Artifacts** — Completion notifications can include chat, diff, error logs, and generated image files touched
+  by agents so downstream notification plugins can deliver the full result
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini bundled; Jetski via sase-google plugin) with
   pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
@@ -169,8 +171,9 @@ sase
 | `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
-| `sase core health`             | Check that the active `sase.core` backend (Python or Rust) is loadable and working (`-j` for JSON)             |
+| `sase core health`             | Check that the required `sase_core_rs` Rust extension is loadable and working (`-j` for JSON)                  |
 | `sase file list`               | JSON file/directory candidates rooted at `--path` (used by editor `<C-t>` completion)                          |
+| `sase file-history delete`     | Remove one path from the file-reference history                                                                |
 | `sase file-history list`       | JSON array of recently-referenced paths (most recent first; consumed by editor plugins)                        |
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
@@ -266,6 +269,7 @@ src/sase/
 │   ├── config.py          # Lumberjack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
 │   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
+│   ├── image_attachments.py # Generated image discovery for completion notifications
 │   ├── run_agent_runner.py # Agent run orchestration
 │   ├── run_workflow_runner.py # Workflow run orchestration
 │   ├── state.py           # Lumberjack state persistence
@@ -276,13 +280,15 @@ src/sase/
 │   ├── mentor.py          # Mentor profile configuration
 │   └── metahook.py        # Metahook configuration
 ├── core/                  # Public Python facade for core APIs (Rust-backable)
-│   ├── backend.py         # Backend dispatcher (selects Python vs Rust impl)
-│   ├── parser_facade.py   # parse_project_file / parse_project_bytes seam
+│   ├── rust.py            # Strict sase_core_rs loader for ported facades
+│   ├── health.py          # `sase core health` extension probe
+│   ├── parser_facade.py   # parse_project_file host API + Rust-backed parse_project_bytes
 │   ├── wire.py            # Stable wire record types across the Rust boundary
 │   ├── wire_conversion.py # Python ChangeSpec ↔ wire record serialization
-│   ├── dual_run.py        # Optional Python+Rust comparison logging
 │   ├── query_facade.py    # Query parse/build/evaluate facade
 │   ├── status_facade.py   # Status transition helpers facade
+│   ├── agent_scan_facade.py # Rust-backed agent artifact scanner
+│   ├── agent_cleanup_*.py # Agent cleanup planning/execution facade and wires
 │   ├── time.py            # Time formatting and parsing
 │   ├── paths.py           # Path resolution helpers
 │   ├── shell.py           # Shell command utilities
@@ -372,16 +378,18 @@ just clean         # Remove build artifacts
 just build         # Build wheel + sdist
 ```
 
-### Optional Rust Backend
+### Required Rust Core
 
-A subset of the core APIs (currently `parse_project_bytes`) can be served by an optional Rust extension,
-[`sase_core_rs`](docs/rust_backend.md), built from a sibling `../sase-core` repo. The Rust backend is opt-in:
-pure-Python contributors are never blocked, and the `just rust-*` targets are no-ops when the sibling repo is absent.
-See [`docs/rust_backend.md`](docs/rust_backend.md) for build instructions, dispatch semantics, and benchmarking.
+Ported `sase.core` operations are served by the required Rust extension [`sase_core_rs`](docs/rust_backend.md),
+distributed as the `sase-core-rs` package. Normal installs pull a prebuilt wheel; source installs build from a sibling
+`../sase-core` checkout when present. There is no pure-Python fallback for ported operations, so `sase core health` is
+the canonical install check. See [`docs/rust_backend.md`](docs/rust_backend.md) for build instructions, dispatch
+semantics, and benchmarking.
 
 ## Documentation
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
+- [`docs/agent_images.md`](docs/agent_images.md) — Generated image attachments and ACE terminal graphics preview notes
 - [`docs/beads.md`](docs/beads.md) — Bead issue tracking system
 - [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
@@ -395,7 +403,7 @@ See [`docs/rust_backend.md`](docs/rust_backend.md) for build instructions, dispa
 - [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
-- [`docs/rust_backend.md`](docs/rust_backend.md) — Optional Rust core (`sase_core_rs`) build, dispatch, and benchmarks
+- [`docs/rust_backend.md`](docs/rust_backend.md) — Required Rust core (`sase_core_rs`) build, dispatch, and benchmarks
 - [`docs/sdd.md`](docs/sdd.md) — Spec-Driven Development (SDD)
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
 - [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation

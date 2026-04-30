@@ -77,6 +77,19 @@ The following events generate notifications:
 | `mentors_complete` | All mentors finished for a ChangeSpec entry (or none matched) |
 | (workflow)         | Workflow completion (success or failure)                      |
 
+### Agent Completion Attachments
+
+Agent completion notifications attach the standard chat transcript and diff first. On failures they also include the
+error report and output log when those files exist. When a successful agent added or modified image files, SASE appends
+those generated images after the standard artifacts. Supported image extensions are `.png`, `.jpg`, `.jpeg`, `.webp`,
+and `.gif`.
+
+Image paths are discovered from local git changes, untracked files, saved proposal/commit diffs, and the latest commit
+when the agent committed or opened a PR. Missing, deleted, non-image, and duplicate paths are ignored. The final image
+list is also written to `done.json` as `image_paths` for agent metadata consumers.
+
+See [`agent_images.md`](agent_images.md) for the full attachment contract and the ACE terminal graphics preview notes.
+
 ### Mentors-Complete Notification
 
 A `mentors_complete` notification fires once per `(ChangeSpec, COMMITS entry)` under either of two conditions:
@@ -103,7 +116,7 @@ Each notification contains:
 | `timestamp`    | string       | ISO-8601 creation timestamp                                                                            |
 | `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                        |
 | `notes`        | list[string] | Human-readable message lines                                                                           |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files)                                           |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
 | `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                          |
 | `action_data`  | dict         | Action-specific data (e.g., response directory, CL name)                                               |
 | `read`         | bool         | Whether the notification has been read                                                                 |

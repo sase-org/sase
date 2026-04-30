@@ -639,9 +639,10 @@ user-managed Codex config while preserving auth, hooks, skills, logs, and caches
 
 ### General
 
-| Variable      | Description                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| `SASE_TMPDIR` | Override the temp directory for all sase operations. Falls back to system default when unset. |
+| Variable            | Description                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SASE_TMPDIR`       | Override the temp directory for all sase operations. Falls back to system default when unset.                |
+| `SASE_TUI_GRAPHICS` | Control ACE terminal graphics probing: disable with `off`/`0`; force Kitty probing with `kitty`/`force`/`1`. |
 
 ### Workspace Management (Internal)
 
