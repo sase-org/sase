@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 10:48:45
-status: wip
+status: done
 ---
 # Plan: Fix `tm` startup under Kitty across machines
 
