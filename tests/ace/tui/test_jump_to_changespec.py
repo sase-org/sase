@@ -8,7 +8,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._notification_navigation import (
+    navigate_to_changespec_tab,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.query_history import QueryHistoryStacks
+from test_utils import build_changespec
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -45,6 +50,41 @@ class FakeApp(AgentsMixinCore):
         if self._agents and 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
         return None
+
+
+class FakeNavigationApp:
+    """Minimal stand-in for navigate_to_changespec_tab tests."""
+
+    def __init__(
+        self,
+        changespecs: list[object],
+        *,
+        reloaded_changespecs: list[object] | None = None,
+    ) -> None:
+        self.changespecs = changespecs
+        self.reloaded_changespecs = reloaded_changespecs
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self.canonical_query_string = "status:ready"
+        self.query_string = "status:READY"
+        self.parsed_query = object()
+        self._query_history = QueryHistoryStacks(prev=[], next=[])
+        self.load_count = 0
+        self.save_count = 0
+        self.notifications: list[tuple[str, str]] = []
+
+    def _load_changespecs(self) -> None:
+        self.load_count += 1
+        if self.reloaded_changespecs is not None:
+            self.changespecs = self.reloaded_changespecs
+
+    def _save_current_query(self) -> None:
+        self.save_count += 1
+
+    def notify(
+        self, message: str, *, severity: str = "information", **_: object
+    ) -> None:
+        self.notifications.append((message, severity))
 
 
 # ---------------------------------------------------------------------------
@@ -248,3 +288,46 @@ class TestFooterVisibility:
         )
         app = FakeApp(agents_with_children=[parent, child])
         assert app._resolve_agent_cl_name(child) == "valid_cl"
+
+
+class TestNavigateToChangespecExactFirst:
+    """ChangeSpec tab navigation should prefer exact names over suffix fallback."""
+
+    def test_exact_target_wins_over_earlier_suffixed_sibling(self) -> None:
+        app = FakeNavigationApp(
+            [
+                build_changespec(name="feature_1"),
+                build_changespec(name="feature"),
+            ]
+        )
+
+        assert navigate_to_changespec_tab(app, "feature", "/tmp/projects/proj/proj.gp")
+        assert app.current_tab == "changespecs"
+        assert app.current_idx == 1
+        assert app.load_count == 0
+
+    def test_suffix_fallback_still_matches_when_exact_is_absent(self) -> None:
+        app = FakeNavigationApp([build_changespec(name="feature_1")])
+
+        assert navigate_to_changespec_tab(app, "feature", "/tmp/projects/proj/proj.gp")
+        assert app.current_idx == 0
+        assert app.load_count == 0
+
+    def test_exact_target_wins_after_switching_to_project_query(self) -> None:
+        app = FakeNavigationApp(
+            [build_changespec(name="unrelated")],
+            reloaded_changespecs=[
+                build_changespec(name="feature_1"),
+                build_changespec(name="feature"),
+            ],
+        )
+
+        with patch("sase.ace.query_history.save_query_history", return_value=True):
+            assert navigate_to_changespec_tab(
+                app, "feature", "/tmp/projects/myproj/myproj.gp"
+            )
+
+        assert app.current_idx == 1
+        assert app.load_count == 1
+        assert app.save_count == 1
+        assert app.query_string == "project:myproj"

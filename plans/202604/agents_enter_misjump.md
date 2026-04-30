@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 17:30:12
-status: wip
+status: done
 ---
 # Diagnose and Fix Agents-tab Enter Misjump
 
