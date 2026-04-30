@@ -37,6 +37,8 @@ def extract_directives_and_write_meta(
     workspace_dir: str,
     artifacts_dir: str,
     cl_name: str | None = None,
+    *,
+    raw_resolved_prompt: str | None = None,
 ) -> _AgentInfo:
     """Extract prompt directives and write agent_meta.json.
 
@@ -92,12 +94,24 @@ def extract_directives_and_write_meta(
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
     agent_name = directives.name
-    if agent_name is None:
-        agent_name = os.environ.get("SASE_REPEAT_NAME")
-    if agent_name is None and not auto_dismiss:
-        from sase.agent.names import get_next_auto_name
+    resume_name: str | None = None
+    if not directives.name_explicit and not auto_dismiss:
+        from sase.agent.names import first_resume_agent_name
 
-        agent_name = get_next_auto_name()
+        resume_name = first_resume_agent_name(raw_resolved_prompt)
+
+    repeat_name = os.environ.get("SASE_REPEAT_NAME")
+    name_requires_lock = bool(resume_name)
+
+    from contextlib import AbstractContextManager, nullcontext
+
+    name_lock_context: AbstractContextManager[None]
+    if name_requires_lock:
+        from sase.agent.names import agent_name_allocation_lock
+
+        name_lock_context = agent_name_allocation_lock()
+    else:
+        name_lock_context = nullcontext()
 
     agent_model = directives.model
     if agent_model:
@@ -114,45 +128,57 @@ def extract_directives_and_write_meta(
     else:
         agent_vcs_provider = None
 
-    # Build agent_meta dict
-    agent_meta: dict[str, Any] = {"pid": os.getpid()}
-    if agent_name:
-        agent_meta["name"] = agent_name
-    if directives.wait:
-        agent_meta["wait_for"] = directives.wait
-    if directives.wait_duration is not None:
-        agent_meta["wait_duration"] = directives.wait_duration
-    if directives.wait_until is not None:
-        agent_meta["wait_until"] = directives.wait_until
-    if agent_model:
-        agent_meta["model"] = agent_model
-    if agent_llm_provider:
-        agent_meta["llm_provider"] = agent_llm_provider
-    if agent_vcs_provider:
-        agent_meta["vcs_provider"] = agent_vcs_provider
-    if directives.approve:
-        agent_meta["approve"] = True
-    if directives.hide or auto_dismiss:
-        agent_meta["hidden"] = True
-    if directives.plan:
-        agent_meta["plan"] = True
-    if directives.tag:
-        agent_meta["tag"] = directives.tag
-    agent_meta.update(agent_meta_from_chop_env())
+    with name_lock_context:
+        if not directives.name_explicit and resume_name is not None:
+            from sase.agent.names import allocate_resume_name
 
-    # Write agent_meta.json
-    if agent_meta:
-        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(agent_meta, f, indent=2)
+            agent_name = allocate_resume_name(resume_name)
+        if agent_name is None:
+            agent_name = repeat_name
+        if agent_name is None and not auto_dismiss:
+            from sase.agent.names import get_next_auto_name
 
+            agent_name = get_next_auto_name()
+
+        # Build agent_meta dict
+        agent_meta: dict[str, Any] = {"pid": os.getpid()}
         if agent_name:
-            from sase.agent.names import claim_agent_name
+            agent_meta["name"] = agent_name
+        if directives.wait:
+            agent_meta["wait_for"] = directives.wait
+        if directives.wait_duration is not None:
+            agent_meta["wait_duration"] = directives.wait_duration
+        if directives.wait_until is not None:
+            agent_meta["wait_until"] = directives.wait_until
+        if agent_model:
+            agent_meta["model"] = agent_model
+        if agent_llm_provider:
+            agent_meta["llm_provider"] = agent_llm_provider
+        if agent_vcs_provider:
+            agent_meta["vcs_provider"] = agent_vcs_provider
+        if directives.approve:
+            agent_meta["approve"] = True
+        if directives.hide or auto_dismiss:
+            agent_meta["hidden"] = True
+        if directives.plan:
+            agent_meta["plan"] = True
+        if directives.tag:
+            agent_meta["tag"] = directives.tag
+        agent_meta.update(agent_meta_from_chop_env())
 
-            claim_agent_name(
-                agent_name, artifacts_dir, explicit=directives.name_explicit
-            )
-            os.environ["SASE_AGENT_NAME"] = agent_name
+        # Write agent_meta.json
+        if agent_meta:
+            meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(agent_meta, f, indent=2)
+
+            if agent_name:
+                from sase.agent.names import claim_agent_name
+
+                claim_agent_name(
+                    agent_name, artifacts_dir, explicit=directives.name_explicit
+                )
+                os.environ["SASE_AGENT_NAME"] = agent_name
 
     # Persist the %tag directive into ~/.sase/agent_tags.json so the Agents
     # tab picks it up at load time.  The agent's identity is

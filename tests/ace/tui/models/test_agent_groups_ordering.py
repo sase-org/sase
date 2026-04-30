@@ -136,6 +136,24 @@ def test_dotless_and_singleton_agents_both_precede_grouped_name_root() -> None:
     ]
 
 
+def test_dotless_parent_and_resume_child_sort_inside_name_root_group() -> None:
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="foo"),
+            _agent(cl_name="demo", agent_name="bar"),
+            _agent(cl_name="demo", agent_name="foo.r1"),
+        ]
+    )
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 2),
+    ]
+
+
 def test_ungrouped_bucket_preserves_input_order() -> None:
     perm_a = build_agent_tree(
         [

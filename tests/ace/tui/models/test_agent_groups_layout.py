@@ -38,6 +38,20 @@ def test_no_name_root_banner_when_name_has_no_dot() -> None:
     assert _kinds(entries) == [("group", 0), ("group", 1), ("agent", 0)]
 
 
+def test_dotless_parent_groups_with_dotted_resume_child() -> None:
+    a = _agent(cl_name="demo", agent_name="foo")
+    b = _agent(cl_name="demo", agent_name="foo.r1")
+    entries = build_agent_tree([a, b])
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 1),
+    ]
+    assert _group_keys(entries, level=2) == [("repo", "demo", "foo")]
+
+
 def test_two_agents_sharing_name_root_emit_three_banners() -> None:
     a = _agent(cl_name="demo", agent_name="coder.claude")
     b = _agent(cl_name="demo", agent_name="coder.codex")

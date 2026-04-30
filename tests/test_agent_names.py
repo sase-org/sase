@@ -7,9 +7,12 @@ from unittest.mock import patch
 
 from sase.agent.names import (
     allocate_revived_name,
+    allocate_resume_name,
+    allocate_resume_names,
     claim_agent_name,
     dedup_name,
     find_named_agent,
+    first_resume_agent_name,
 )
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
@@ -185,6 +188,49 @@ class TestGetMostRecentAgentName:
         with patch.object(Path, "home", return_value=tmp_path):
             result = get_most_recent_agent_name()
         assert result is None
+
+
+class TestResumeAgentNames:
+    def test_finds_resume_colon_paren_and_backtick(self) -> None:
+        assert first_resume_agent_name("#resume:foo do work") == "foo"
+        assert first_resume_agent_name("#resume(foo) do work") == "foo"
+        assert first_resume_agent_name("#resume:`foo bar` do work") == "foo bar"
+
+    def test_ignores_resume_by_chat(self) -> None:
+        assert first_resume_agent_name("#resume_by_chat:foo.md") is None
+
+    def test_ignores_fenced_and_disabled_regions(self) -> None:
+        prompt = (
+            "```\n#resume:fenced\n```\n"
+            "%xprompts_enabled:false\n#resume:disabled\n%xprompts_enabled:true\n"
+            "#resume:real"
+        )
+        assert first_resume_agent_name(prompt) == "real"
+
+    def test_first_resume_wins(self) -> None:
+        assert first_resume_agent_name("#resume:first then #resume:second") == "first"
+
+    def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.r1"
+
+    def test_allocates_resume_slot_gap(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.r3", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.r2"
+
+    def test_suffixed_descendants_reserve_resume_slot(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.r1.cld", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_name("foo") == "foo.r2"
+
+    def test_allocates_multiple_resume_names_from_one_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_resume_names("foo", 3) == ["foo.r2", "foo.r3", "foo.r4"]
 
 
 class TestClaimAgentName:

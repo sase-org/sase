@@ -42,6 +42,12 @@ from sase.agent.names._lookup import (
     get_most_recent_agent_name,
     is_workflow_complete,
 )
+from sase.agent.names._resume import (
+    agent_name_allocation_lock,
+    allocate_resume_name,
+    allocate_resume_names,
+    first_resume_agent_name,
+)
 
 
 def resolve_agent_changespec(name: str) -> str:
@@ -134,12 +140,16 @@ __all__ = [
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
+    "agent_name_allocation_lock",
     "allocate_dismissed_name",
+    "allocate_resume_name",
+    "allocate_resume_names",
     "allocate_revived_name",
     "claim_agent_name",
     "collect_dismissed_taken_names",
     "dedup_name",
     "find_named_agent",
+    "first_resume_agent_name",
     "get_active_agent_name_map",
     "get_active_agent_names",
     "get_active_child_names",

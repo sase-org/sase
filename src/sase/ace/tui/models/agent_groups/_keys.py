@@ -34,12 +34,13 @@ def _project_name(agent: Agent) -> str:
 
 
 def _name_root(agent: Agent) -> str:
-    """Return the part of the agent's name before the first ``.``.
+    """Return the grouping root for an agent name."""
+    if agent.agent_name:
+        if "." in agent.agent_name:
+            return agent.agent_name.split(".", 1)[0]
+        return agent.agent_name
 
-    Empty string when the name has no ``.`` (such agents render under the
-    parent banner with no name-root header).
-    """
-    name = agent.agent_name or agent.display_name or ""
+    name = agent.display_name or ""
     if "." in name:
         return name.split(".", 1)[0]
     return ""

@@ -136,7 +136,9 @@ def main() -> None:
         is_home_mode=is_home_mode,
     )
 
-    prompt, vcs_tag = preprocess_prompt_xprompts(prompt, artifacts_dir)
+    prompt, vcs_tag, raw_resolved_prompt = preprocess_prompt_xprompts(
+        prompt, artifacts_dir
+    )
 
     # Defaults for agent metadata (populated later, but needed by error handler)
     agent_name: str | None = None
@@ -190,7 +192,11 @@ def main() -> None:
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
-                prompt, workspace_dir, artifacts_dir, cl_name=cl_name
+                prompt,
+                workspace_dir,
+                artifacts_dir,
+                cl_name=cl_name,
+                raw_resolved_prompt=raw_resolved_prompt,
             )
             agent_name = info.name
             agent_model = info.model

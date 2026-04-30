@@ -12,7 +12,13 @@ def _mock_provider() -> MagicMock:
     return p
 
 
-def _run_extract(tmp_path: Path, *, env_auto_dismiss: bool = False) -> dict:
+def _run_extract(
+    tmp_path: Path,
+    *,
+    env_auto_dismiss: bool = False,
+    prompt: str = "do stuff",
+    raw_resolved_prompt: str | None = None,
+) -> dict:
     """Call extract_directives_and_write_meta with standard mocks.
 
     Returns the written agent_meta.json as a dict.
@@ -44,7 +50,12 @@ def _run_extract(tmp_path: Path, *, env_auto_dismiss: bool = False) -> dict:
         # Remove the env var if not auto_dismiss (in case it leaked)
         if not env_auto_dismiss:
             os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
-        info = extract_directives_and_write_meta("do stuff", workspace, artifacts)
+        info = extract_directives_and_write_meta(
+            prompt,
+            workspace,
+            artifacts,
+            raw_resolved_prompt=raw_resolved_prompt,
+        )
 
     meta_path = os.path.join(artifacts, "agent_meta.json")
     if os.path.exists(meta_path):
@@ -81,3 +92,47 @@ class TestExtractDirectivesAutoDismiss:
             result = _run_extract(tmp_path, env_auto_dismiss=False)
         assert result["meta"].get("hidden") is not True
         assert result["info"].hidden is False
+
+    def test_resume_prompt_gets_resume_derived_name(self, tmp_path: Path) -> None:
+        """A raw top-level #resume picks the first available .r slot."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#resume:foo do stuff",
+            )
+        assert result["info"].name == "foo.r1"
+        assert result["meta"].get("name") == "foo.r1"
+
+    def test_explicit_name_wins_over_resume(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%name:bar expanded prompt",
+                raw_resolved_prompt="%name:bar #resume:foo do stuff",
+            )
+        assert result["info"].name == "bar"
+        assert result["meta"].get("name") == "bar"
+
+    def test_bare_name_uses_resume_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%name expanded prompt",
+                raw_resolved_prompt="%name #resume:foo do stuff",
+            )
+        assert result["info"].name == "foo.r1"
+        assert result["meta"].get("name") == "foo.r1"
+
+    def test_auto_dismiss_suppresses_resume_derived_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=True,
+                raw_resolved_prompt="#resume:foo do stuff",
+            )
+        assert result["info"].name is None
+        assert "name" not in result["meta"]

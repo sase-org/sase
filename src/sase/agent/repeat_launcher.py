@@ -19,6 +19,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from sase.agent.names import NameCollisionError, reserve_repeat_name_base
+from sase.agent.names import (
+    agent_name_allocation_lock,
+    allocate_resume_names,
+    first_resume_agent_name,
+)
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
@@ -171,17 +176,25 @@ def spawn_repeat_batch(
     if count is None:
         return []
 
-    base = reserve_repeat_name_base(explicit_base, count)
+    resume_target = (
+        None if explicit_base is not None else first_resume_agent_name(prompt_stripped)
+    )
+    if resume_target is not None:
+        with agent_name_allocation_lock():
+            names = allocate_resume_names(resume_target, count)
+    else:
+        base = reserve_repeat_name_base(explicit_base, count)
+        names = [f"{base}.{k}" for k in range(1, count + 1)]
 
     specs = [
         RepeatAgentSpec(
-            name=f"{base}.{k}",
+            name=names[k - 1],
             iteration=k,
             total=count,
             prompt=(
-                f"%n:{base}.{k}\n{prompt_stripped}"
+                f"%n:{names[k - 1]}\n{prompt_stripped}"
                 if k == 1
-                else f"%n:{base}.{k}\n%wait:{base}.{k - 1}\n{prompt_stripped}"
+                else f"%n:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
             ),
         )
         for k in range(1, count + 1)

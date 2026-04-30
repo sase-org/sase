@@ -1,5 +1,6 @@
 """Tests for split_prompt_for_models."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.directives import split_prompt_for_models
@@ -178,6 +179,15 @@ def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
     assert len(result) == 2
     assert result[0] == "%name:foo.cld\n%model:opus\nReview this code"
     assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+
+
+def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
+    """Multi-model fan-out without %name uses the resume-derived base."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models("#resume:foo\n%m(opus,sonnet)\nDo work")
+    assert result is not None
+    assert result[0] == "%name:foo.r1.cld-opus\n#resume:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.r1.cld-sonnet\n#resume:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:

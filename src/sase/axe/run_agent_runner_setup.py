@@ -110,18 +110,20 @@ def setup_artifacts_directory(
 
 def preprocess_prompt_xprompts(
     prompt: str, artifacts_dir: str
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, str]:
     """Resolve aliases, save raw, expand xprompt references.
 
-    Returns ``(prompt, vcs_tag)``. The VCS workflow tag is extracted from
-    the raw prompt before xprompt expansion so it can be prepended to
-    follow-up agents (.code, .epic).
+    Returns ``(prompt, vcs_tag, raw_resolved_prompt)``. The VCS workflow tag
+    and raw prompt are captured after alias resolution but before xprompt
+    expansion so follow-up naming and chat-resume decisions can use the
+    original top-level references.
     """
     from sase.xprompt import resolve_xprompt_aliases
     from sase.xprompt._parsing import extract_vcs_workflow_tag
     from sase.xprompt.processor import process_xprompt_references
 
     prompt = resolve_xprompt_aliases(prompt)
+    raw_resolved_prompt = prompt
     vcs_tag = extract_vcs_workflow_tag(prompt)
 
     raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
@@ -129,7 +131,7 @@ def preprocess_prompt_xprompts(
         f.write(prompt)
 
     prompt = process_xprompt_references(prompt)
-    return prompt, vcs_tag
+    return prompt, vcs_tag, raw_resolved_prompt
 
 
 def load_retry_handoff_from_env() -> RetryHandoff | None:
