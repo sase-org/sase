@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 10:55:11
-status: wip
+status: done
 ---
 # Stop Truncating the Ace Model Indicator
 

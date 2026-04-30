@@ -10,7 +10,6 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.llm_override_indicator import (
     LLMOverrideIndicator,
-    _elide_middle,
     _format_remaining_until,
 )
 from sase.llm_provider.temporary_override import (
@@ -44,7 +43,7 @@ def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " Model CODEX(gpt-5.5) "
+    assert text.plain == " CODEX(gpt-5.5) "
     assert "cyan" in str(text.style)
 
 
@@ -87,7 +86,7 @@ def test_expired_override_renders_default_model(
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=99.0), now=100.0)
 
-    assert text.plain == " Model CLAUDE(sonnet) "
+    assert text.plain == " CLAUDE(sonnet) "
 
 
 def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,21 +112,20 @@ def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> No
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " Model CLAUDE(sonnet) "
+    assert text.plain == " CLAUDE(sonnet) "
     assert not path.exists()
 
 
-def test_long_label_is_elided_in_the_middle() -> None:
+def test_long_override_label_renders_fully() -> None:
     text = LLMOverrideIndicator._build_content(
         _override(provider="verylongprovider", model="extremely-long-model-name"),
         now=100.0,
-        label_max_width=18,
     )
 
-    assert text.plain == " Override VERYLONG...l-name) 15m "
+    assert text.plain == " Override VERYLONGPROVIDER(extremely-long-model-name) 15m "
 
 
-def test_long_default_label_is_elided_in_the_middle(
+def test_long_default_label_renders_fully(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -135,9 +133,9 @@ def test_long_default_label_is_elided_in_the_middle(
         lambda: ("verylongprovider", "extremely-long-model-name"),
     )
 
-    text = LLMOverrideIndicator._build_content(label_max_width=18)
+    text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " Model VERYLONG...l-name) "
+    assert text.plain == " VERYLONGPROVIDER(extremely-long-model-name) "
 
 
 def test_default_resolution_failure_renders_fallback(
@@ -153,11 +151,7 @@ def test_default_resolution_failure_renders_fallback(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " Model unavailable "
-
-
-def test_elide_middle_handles_short_labels() -> None:
-    assert _elide_middle("CODEX(o3)", 24) == "CODEX(o3)"
+    assert text.plain == " unavailable "
 
 
 def test_remaining_subminute_rounds_up_to_one_minute() -> None:
