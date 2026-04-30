@@ -59,6 +59,11 @@ def _handle_list() -> None:
     import json
 
     from sase.xprompt.loader import get_all_prompts
+    from sase.xprompt.reference_display import (
+        workflow_kind_value,
+        workflow_reference_insertion,
+        workflow_reference_prefix,
+    )
 
     prompts = get_all_prompts()
     items = []
@@ -115,6 +120,9 @@ def _handle_list() -> None:
             {
                 "name": name,
                 "type": "xprompt" if is_simple else "workflow",
+                "kind": workflow_kind_value(wf),
+                "prefix": workflow_reference_prefix(wf),
+                "insertion": workflow_reference_insertion(name, wf),
                 "source": wf.source_path,
                 "inputs": inputs_json,
                 "tags": [t.value for t in wf.tags],

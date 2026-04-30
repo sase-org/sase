@@ -42,6 +42,8 @@ class TestFileCompletionModule:
         assert extract_token_around_cursor("hello world", 8) == (6, 11, "world")
         assert extract_token_around_cursor("  ", 1) is None
         assert extract_token_around_cursor("~/foo", 5) == (0, 5, "~/foo")
+        assert extract_token_around_cursor("#!sy", 4) == (0, 4, "#!sy")
+        assert extract_token_around_cursor("#!", 2) == (0, 2, "#!")
 
     def test_extract_token_stops_at_special_characters(self) -> None:
         # Cursor between ~/foo and ? — should extract ~/foo, not ~/foo?

@@ -10,6 +10,10 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
+from sase.xprompt.reference_display import (
+    workflow_kind_value,
+    workflow_reference_suffix,
+)
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
@@ -69,17 +73,18 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if extra_prompts:
             # Merge extra prompts; they take precedence on collision
             self._prompts = {**self._prompts, **extra_prompts}
-        # Build unified items dict: name -> (content/preview, type)
+        # Build unified items dict: name -> (content/preview, kind)
         # Simple xprompts show raw content, complex workflows show step preview
         self._all_items: dict[str, tuple[str, str]] = {}
         for name, workflow in self._prompts.items():
+            kind = workflow_kind_value(workflow)
             if workflow.is_simple_xprompt():
                 # Simple xprompt - show prompt_part content directly
-                self._all_items[name] = (workflow.get_prompt_part_content(), "xprompt")
+                self._all_items[name] = (workflow.get_prompt_part_content(), kind)
             else:
                 # Complex workflow - show structured preview
                 preview = self._create_workflow_preview(workflow)
-                self._all_items[name] = (preview, "workflow")
+                self._all_items[name] = (preview, kind)
         self._filtered_names: list[str] = sorted(self._all_items.keys())
 
     def _create_workflow_preview(self, workflow: Workflow) -> str:
@@ -154,16 +159,20 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def _create_styled_label(self, name: str) -> Text:
         """Create styled text for an xprompt or workflow name."""
         text = Text()
-        item_type = self._all_items.get(name, ("", "xprompt"))[1]
-        if item_type == "workflow":
+        kind = self._all_items.get(name, ("", "xprompt"))[1]
+        workflow = self._prompts.get(name)
+        if kind == "standalone_workflow":
+            text.append("▶ ", style="bold #FFD700")
+            text.append("#!", style="bold #87D7FF")
+            text.append(name)
+        elif kind == "embeddable_workflow":
             text.append("⚙ ", style="bold #FFD700")  # Gold gear for workflows
-            text.append("#", style="bold #87D7FF")  # Cyan hash
+            text.append("#", style="bold #87D7FF")
             text.append(name)
         else:
-            text.append("#", style="bold #87D7FF")  # Cyan hash
+            text.append("#", style="bold #87D7FF")
             text.append(name)
         # Append input arg signatures
-        workflow = self._prompts.get(name)
         if workflow:
             append_input_args(text, workflow.inputs)
         return text
@@ -210,10 +219,10 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         option_list = self.query_one("#xprompt-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is not None and 0 <= highlighted < len(self._filtered_names):
-            self.dismiss(self._filtered_names[highlighted])
+            self.dismiss(self._insertion_suffix(self._filtered_names[highlighted]))
         else:
             # Select first item if none highlighted
-            self.dismiss(self._filtered_names[0])
+            self.dismiss(self._insertion_suffix(self._filtered_names[0]))
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -225,7 +234,14 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection."""
         if event.option and event.option.id:
-            self.dismiss(str(event.option.id))
+            self.dismiss(self._insertion_suffix(str(event.option.id)))
+
+    def _insertion_suffix(self, name: str) -> str:
+        """Return the text inserted after the existing ``#`` from ``#@``."""
+        workflow = self._prompts.get(name)
+        if workflow is None:
+            return name
+        return workflow_reference_suffix(name, workflow)
 
     def scroll_preview_down(self) -> None:
         """Scroll preview panel down (half page)."""

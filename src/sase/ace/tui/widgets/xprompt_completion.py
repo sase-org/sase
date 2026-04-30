@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.xprompt.reference_display import workflow_reference_insertion
+from sase.xprompt.workflow_models import WorkflowKind
 
 
 def is_xprompt_like_token(token: str) -> bool:
@@ -29,18 +31,25 @@ def build_xprompt_completion_candidates(
     """
     from sase.xprompt.loader import get_all_prompts
 
-    partial = token[1:]  # strip leading '#'
+    standalone_only = token.startswith("#!")
+    partial = token[2:] if standalone_only else token[1:]
     all_prompts = get_all_prompts()
     partial_lower = partial.lower()
 
     candidates: list[CompletionCandidate] = []
-    for name in all_prompts:
+    for name, workflow in all_prompts.items():
+        if (
+            standalone_only
+            and workflow.prompt_kind() is not WorkflowKind.STANDALONE_WORKFLOW
+        ):
+            continue
         if not name.lower().startswith(partial_lower):
             continue
+        insertion = workflow_reference_insertion(name, workflow)
         candidates.append(
             CompletionCandidate(
-                display=name,
-                insertion=f"#{name}",
+                display=insertion,
+                insertion=insertion,
                 is_dir=False,
                 name=name,
             )

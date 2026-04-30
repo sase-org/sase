@@ -11,6 +11,10 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.xprompt import get_all_prompts
+from sase.xprompt.reference_display import (
+    workflow_kind_value,
+    workflow_reference_insertion,
+)
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
@@ -97,6 +101,7 @@ class XPromptBrowserModal(
             source_path = workflow.source_path
             category, display_path, is_editable = classify_source(source_path)
             item_type = "xprompt" if workflow.is_simple_xprompt() else "workflow"
+            kind = workflow_kind_value(workflow)
             items.append(
                 BrowserItem(
                     name=name,
@@ -106,6 +111,8 @@ class XPromptBrowserModal(
                     display_path=display_path,
                     is_editable=is_editable,
                     item_type=item_type,
+                    kind=kind,
+                    insertion=workflow_reference_insertion(name, workflow),
                 )
             )
 
@@ -226,7 +233,10 @@ class XPromptBrowserModal(
     def _create_item_label(self, item: BrowserItem) -> Text:
         """Create styled label for an xprompt item."""
         text = Text()
-        if item.item_type == "workflow":
+        if item.kind == "standalone_workflow":
+            text.append("  ▶ ", style="bold #FFD700")
+            text.append("#!", style="bold #87D7FF")
+        elif item.kind == "embeddable_workflow":
             text.append("  ⚙ ", style="bold #FFD700")  # Gold gear for workflows
             text.append("#", style="bold #87D7FF")
         else:
@@ -400,12 +410,14 @@ class XPromptBrowserModal(
         meta_text.append("Source: ", style="bold")
         meta_text.append(f"{item.display_path}\n")
         meta_text.append("Type: ", style="bold")
-        meta_text.append(f"{item.item_type}")
+        meta_text.append(item.kind.replace("_", " "))
         if item.item_type == "workflow":
             meta_text.append(f" ({len(workflow.steps)} steps)")
         else:
             meta_text.append(" (simple)")
         meta_text.append("\n")
+        meta_text.append("Insertion: ", style="bold")
+        meta_text.append(f"{item.insertion}\n")
 
         if workflow.inputs:
             input_strs = [

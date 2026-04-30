@@ -206,7 +206,6 @@ class PromptInputBar(Static):
                 content.append("  ")
 
             if is_xprompt:
-                content.append("# ", style="magenta")
                 content.append(label, style="bold green" if is_selected else "green")
             elif is_dir:
                 content.append("\U0001f4c1 ")

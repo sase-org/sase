@@ -60,6 +60,16 @@ def extract_token_around_cursor(line: str, col: int) -> tuple[int, int, str] | N
     while end < len(line) and not _is_token_delimiter(line[end]):
         end += 1
 
+    if start >= 2 and line[start - 2 : start] == "#!":
+        marker_start = start - 2
+        if marker_start == 0 or _is_token_delimiter(line[marker_start - 1]):
+            start = marker_start
+
+    if start == end and col >= 2 and line[col - 2 : col] == "#!":
+        marker_start = col - 2
+        if marker_start == 0 or _is_token_delimiter(line[marker_start - 1]):
+            return marker_start, col, "#!"
+
     if start == end:
         return None
     return start, end, line[start:end]

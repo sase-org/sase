@@ -50,6 +50,8 @@ class BrowserItem:
     display_path: str
     is_editable: bool
     item_type: str  # "xprompt" or "workflow"
+    kind: str  # "xprompt", "embeddable_workflow", or "standalone_workflow"
+    insertion: str
 
 
 def classify_source(source_path: str | None) -> tuple[str, str, bool]:
