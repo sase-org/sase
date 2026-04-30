@@ -266,7 +266,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
 | `u`                 | Clear all agent marks                                                                                         |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
-| `X`                 | Dismiss every completed agent in the focused tag panel (with confirmation)                                    |
+| `X`                 | Open the cleanup panel for panel, global, tag, marked, group, or custom cleanup                               |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
 | `e`                 | Edit chat in editor                                                                                           |
 | `E`                 | Edit panel content in editor                                                                                  |
@@ -310,7 +310,9 @@ heights are sized to their content (subject to a configurable floor and cap), an
 fill any leftover vertical space so empty rows don't drift to the bottom.
 
 Use `J` / `K` to move focus across panels (forward / reverse). Per-panel actions (kill, dismiss, expand, etc.) operate
-on whichever panel currently holds focus.
+on whichever panel currently holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
+focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the focused panel, `K` cleans all loaded
+panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a tag, and `c` opens the custom selector.
 
 Tags are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an untagged agent the
 input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that default
@@ -455,7 +457,6 @@ cached by raw query string so re-renders skip the parse.
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |
 | `,x`       | Kill agent & edit prompt                                                                      |
-| `,X`       | Kill & dismiss every agent (running and completed) in the focused tag panel                   |
 | `,<space>` | Run agent from current agent's CL (skips selection)                                           |
 | `,.`       | Open prompt history modal for the last CL                                                     |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
@@ -891,7 +892,8 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **EPIC CREATED** | Green | Plan workflow completed and its latest `.epic` follow-up finished successfully |
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
-Completed agents can be dismissed with `x` (single) or `X` (all completed).
+Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
+tag, marked, group, and custom selections.
 
 ### Agent Revival
 

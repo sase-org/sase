@@ -73,6 +73,14 @@ def _make_agent(*, status: str = "RUNNING", **kwargs: Any) -> Agent:
     )
 
 
+def test_catalog_has_one_cleanup_command_and_no_legacy_kill_all() -> None:
+    catalog = build_command_catalog(load_keymap_registry({}))
+    cleanup = [spec for spec in catalog if spec.id == "app.open_agent_cleanup_panel"]
+    legacy = [spec for spec in catalog if spec.id == "leader.kill_all"]
+    assert len(cleanup) == 1
+    assert legacy == []
+
+
 # ---------------------------------------------------------------------------
 # Tab-scope filtering
 # ---------------------------------------------------------------------------

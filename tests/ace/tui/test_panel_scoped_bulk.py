@@ -1,9 +1,8 @@
-"""Panel-scoped bulk actions: ``X`` and ``,X`` only touch the focused panel.
+"""Panel-scoped bulk actions only touch the focused panel.
 
-Both ``_dismiss_all_done_agents`` (``X``) and
-``_kill_and_dismiss_all_agents`` (``,X``) must narrow their candidate
-sets to the agents in ``self._panel_group.focused_key`` so that bulk
-actions on the Agents tab don't blow away unrelated tagged work in
+Both ``_dismiss_all_done_agents`` and ``_kill_and_dismiss_all_agents`` must
+narrow their candidate sets to the agents in ``self._panel_group.focused_key``
+so that bulk actions on the Agents tab don't blow away unrelated tagged work in
 other panels.
 """
 

@@ -129,7 +129,7 @@ _APP_COMMAND_META: tuple[
     ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", _ALL_TABS, ()),
     (
         "open_agent_cleanup_panel",
-        "Open agent cleanup panel / clear AXE output",
+        "Cleanup panel / clear output",
         "Agents",
         _AGENTS_AXE,
         ("cleanup", "dismiss all", "clear output"),

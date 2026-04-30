@@ -19,6 +19,9 @@ The shipped Rust-backed operations are:
 - `derive_git_workspace_name`
 - `parse_git_conflicted_files`
 - `parse_git_local_changes`
+- `plan_agent_cleanup`
+- agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
+  hook/mentor/comment kill marking
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 
@@ -33,6 +36,9 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   `plan_status_transition`.
 - Subprocess invocation, process liveness, filesystem mutation, TUI rendering, and plugin entry points stay on the host
   by design.
+- Agent cleanup process signalling and TUI orchestration stay on the host. The Rust boundary owns reusable planning,
+  deterministic dismissed-agent data mutations, artifact deletion, workspace-release content rewrites, and
+  ChangeSpec-entry kill marking exposed through Python helpers in `sase.core.agent_cleanup_*`.
 
 ## Why a Rust Backend?
 
@@ -65,22 +71,25 @@ large search results, axe lumberjack scans), so it was the first operation route
 
 The facade lives at `src/sase/core/`:
 
-| Module                      | Purpose                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------- |
-| `rust.py`                   | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)     |
-| `health.py`                 | `sase core health` Rust-extension probe + report                                    |
-| `parser_facade.py`          | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                 |
-| `wire.py`                   | Stable wire record types that cross the Python ↔ Rust boundary                      |
-| `wire_conversion.py`        | Python `ChangeSpec` ↔ wire record serialization                                     |
-| `query_facade.py`           | `parse_query` (Rust); query context / per-row eval / batch (Python host logic)      |
-| `status_facade.py`          | Status line helpers + planner (Rust); side-effecting transition (Python host logic) |
-| `graph_index_facade.py`     | `build_changespec_graph_index()` facade (Python host logic)                         |
-| `agent_scan_facade.py`      | `scan_agent_artifacts()` snapshot facade (Rust)                                     |
-| `agent_scan_wire.py`        | Stable wire records for the agent-artifact scan snapshot                            |
-| `status_wire.py`            | Stable wire records for the status state machine                                    |
-| `status_wire_conversion.py` | Python plan reference + project-file → request-wire converter                       |
-| `git_query_facade.py`       | Pure Git query parsers facade (Rust)                                                |
-| `git_query_wire.py`         | Stable wire records for the Git query parsers                                       |
+| Module                       | Purpose                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| `rust.py`                    | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)     |
+| `health.py`                  | `sase core health` Rust-extension probe + report                                    |
+| `parser_facade.py`           | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                 |
+| `wire.py`                    | Stable wire record types that cross the Python ↔ Rust boundary                      |
+| `wire_conversion.py`         | Python `ChangeSpec` ↔ wire record serialization                                     |
+| `query_facade.py`            | `parse_query` (Rust); query context / per-row eval / batch (Python host logic)      |
+| `status_facade.py`           | Status line helpers + planner (Rust); side-effecting transition (Python host logic) |
+| `graph_index_facade.py`      | `build_changespec_graph_index()` facade (Python host logic)                         |
+| `agent_scan_facade.py`       | `scan_agent_artifacts()` snapshot facade (Rust)                                     |
+| `agent_scan_wire.py`         | Stable wire records for the agent-artifact scan snapshot                            |
+| `agent_cleanup_wire.py`      | Stable cleanup planning and side-effect intent wires                                |
+| `agent_cleanup_facade.py`    | Agent cleanup target conversion and `plan_agent_cleanup()` facade                   |
+| `agent_cleanup_execution.py` | Host-safe wrappers for Rust-backed deterministic cleanup mutations                  |
+| `status_wire.py`             | Stable wire records for the status state machine                                    |
+| `status_wire_conversion.py`  | Python plan reference + project-file → request-wire converter                       |
+| `git_query_facade.py`        | Pure Git query parsers facade (Rust)                                                |
+| `git_query_wire.py`          | Stable wire records for the Git query parsers                                       |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.

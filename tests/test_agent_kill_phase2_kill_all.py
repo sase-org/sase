@@ -111,7 +111,7 @@ def _confirm(app: _MockApp) -> None:
 
 
 def test_kill_all_uses_bulk_path() -> None:
-    """``,X`` confirm must dispatch one ``_do_bulk_kill_agents`` call (no per-row loop)."""
+    """Panel kill-all confirm dispatches one bulk call, not one call per row."""
     run1 = _running_agent(cl_name="r1", pid=111)
     run2 = _running_agent(cl_name="r2", pid=222)
     done1 = _done_agent(cl_name="d1", suffix="20240101120000")

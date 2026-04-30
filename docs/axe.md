@@ -234,7 +234,7 @@ The Axe tab in the ACE TUI provides live monitoring of the daemon:
 
 - View lumberjack status, uptime, and error counts
 - Read lumberjack output logs
-- Start/stop the orchestrator (`X` key or `!x`)
+- Start/stop the orchestrator (`x` key or `!x`)
 - See current runner counts
 - Footer shows daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
 

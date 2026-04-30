@@ -316,7 +316,7 @@ def test_leader_mode_includes_mark_inactive() -> None:
 
 
 def test_leader_mode_omits_legacy_kill_all() -> None:
-    """The Agents cleanup panel replaces the old ``,X`` cleanup command."""
+    """The Agents cleanup panel replaces the old leader kill-all command."""
     reg = load_keymap_registry({})
     assert "kill_all" not in reg.leader_mode.keys
 

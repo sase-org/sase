@@ -60,7 +60,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_lumberjack_idx: int | None
 
     def action_toggle_axe(self) -> None:
-        """Backward-compatible wrapper for the old ``X`` action."""
+        """Dispatch the tab-local ``X`` action."""
         if self.current_tab == "agents":
             self.action_open_agent_cleanup_panel()  # type: ignore[attr-defined]
             return
