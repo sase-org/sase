@@ -59,6 +59,7 @@ class ImageFallbackRenderable:
         if size is not None:
             text.append(f"\n{size:,} bytes", style="dim")
         text.append(f"\n{self.reason}", style="dim italic")
+        text.append("\nOpen with e in notifications or %E in agent panels", style="dim")
         yield text
 
 

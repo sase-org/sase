@@ -5,9 +5,10 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from rich.console import Group
+from rich.console import Console, Group
 from rich.text import Text
 
+from sase.ace.tui.graphics import ImageFallbackRenderable
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.models._loaders._done_loaders import _load_done_agent_for_dir
 from sase.ace.tui.widgets.file_panel import AgentFilePanel
@@ -143,3 +144,16 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
 
     assert agent is not None
     assert agent.extra_files == [str(plan), str(image), str(duplicate)]
+
+
+def test_image_fallback_mentions_editor_actions(tmp_path: Path) -> None:
+    image = tmp_path / "fallback.jpg"
+    image.write_bytes(b"jpeg")
+    renderable = ImageFallbackRenderable(str(image), "no graphics")
+
+    console = Console(record=True, width=100)
+    console.print(renderable)
+
+    fallback_text = console.export_text()
+    assert "Open with e in notifications" in fallback_text
+    assert "%E in agent panels" in fallback_text

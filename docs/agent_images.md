@@ -49,8 +49,8 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 ## ACE Terminal Graphics Foundation
 
 ACE now probes terminal graphics support before the Textual app starts and stores the detected capability on `AceApp`.
-The current implementation is a reusable preview foundation, not a broad promise that every file panel renders images
-yet.
+The notification modal and Agents tab file panel route supported image extensions through the preview layer before
+attempting text decoding.
 
 Capability detection is conservative:
 
@@ -62,7 +62,8 @@ Capability detection is conservative:
 The internal preview renderable currently transmits PNG bytes through the Kitty graphics protocol and falls back to a
 text placeholder for unsupported terminals, missing files, unsupported extensions, and non-PNG raster files. JPEG, WebP,
 and GIF are collected as notification attachments today, but need a future transcoding/display step before inline Kitty
-preview can render them.
+preview can render them. The fallback includes the file path, byte size when available, and the relevant editor action
+(`e` in notifications or `%E` in agent panels) so non-Kitty sessions remain usable.
 
 Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable terminal graphics
 detection. Set it to `kitty` (also accepts `1`, `true`, `yes`, `on`, or `force`) to bypass the known-terminal-family
