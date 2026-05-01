@@ -1,5 +1,6 @@
 ---
 create_time: 2026-05-01 12:13:46
+bead_id: sase-1r
 status: wip
 ---
 # Rust-backed agent launch migration
