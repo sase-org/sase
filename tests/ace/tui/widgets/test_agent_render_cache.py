@@ -24,6 +24,7 @@ def _agent(
     cl_name: str = "demo",
     status: str = "DONE",
     approve: bool = False,
+    agent_name: str | None = None,
     raw_suffix: str = "20260425143000",
 ) -> Agent:
     return Agent(
@@ -33,6 +34,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 14, 30, 0),
         approve=approve,
+        agent_name=agent_name,
         raw_suffix=raw_suffix,
     )
 
@@ -89,6 +91,36 @@ def test_render_key_stable_for_unchanged_inputs() -> None:
         now=None,
     )
     assert k1 == k2
+
+
+def test_render_key_changes_when_bead_agent_name_changes() -> None:
+    a = _agent(agent_name="sase-x.3")
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    assert "sase-x.3" in k1
+
+    a.agent_name = "sase-x.land"
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert "sase-x" in k2
+    assert k1 != k2
 
 
 # --- cache hit / miss --------------------------------------------------------

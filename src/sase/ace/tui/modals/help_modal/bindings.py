@@ -469,6 +469,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             [
                 ("×N", "N steps (collapsed)"),
                 ("×N +M / −M", "M shown / hidden steps"),
+                ("◆", "Bead-linked agent"),
                 ("↻N", "N attempts / retry depth"),
                 ("≡", "Workflow row"),
                 ("❑", "ChangeSpec row"),

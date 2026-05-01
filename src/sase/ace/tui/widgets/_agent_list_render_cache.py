@@ -14,6 +14,7 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent
+from ..models.agent_bead import derive_agent_bead_id
 from ..models.agent_groups import GroupingMode, GroupRow
 
 _AGENT_CACHE_MAX = 512
@@ -105,6 +106,7 @@ def agent_render_key(
         agent.approve,
         agent.tag,
         agent.agent_name,
+        derive_agent_bead_id(agent),
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,

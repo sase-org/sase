@@ -1,6 +1,5 @@
 """Rendering helpers and header building for agent display."""
 
-import re
 from datetime import datetime
 
 from rich.syntax import Syntax
@@ -9,6 +8,7 @@ from rich.text import Text
 from sase.agent.agent_artifacts_cache import get_global_cache
 
 from ...models.agent import Agent, AttemptRecord
+from ...models.agent_bead import derive_agent_bead_id
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     append_model_field,
@@ -16,29 +16,6 @@ from ._helpers import (
     format_embedded_workflows,
     load_embedded_workflows,
 )
-
-
-_DISMISSED_AGENT_PREFIX_RE = re.compile(r"^\d{6}\.")
-_PHASE_BEAD_AGENT_NAME_RE = re.compile(r"^.+\.\d+$")
-
-
-def _derive_agent_bead_id(agent: Agent) -> str | None:
-    """Infer a bead id from an agent name written by ``sase bead work``."""
-    if not agent.agent_name:
-        return None
-
-    normalized = _DISMISSED_AGENT_PREFIX_RE.sub("", agent.agent_name, count=1)
-    if not normalized:
-        return None
-
-    if normalized.endswith(".land"):
-        epic_id = normalized.removesuffix(".land")
-        return epic_id or None
-
-    if _PHASE_BEAD_AGENT_NAME_RE.match(normalized):
-        return normalized
-
-    return None
 
 
 def render_timestamp_divider(iso_timestamp: str) -> Text:
@@ -300,7 +277,7 @@ def build_header_text(
     if agent.agent_name:
         header_text.append("Name: ", style="bold #87D7FF")
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
-        bead_id = _derive_agent_bead_id(agent)
+        bead_id = derive_agent_bead_id(agent)
         if bead_id:
             header_text.append("Bead: ", style="bold #87D7FF")
             header_text.append(f"{bead_id}\n", style="bold #FFAF00")

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 23:08:24
-status: wip
+status: done
 ---
 # Agent Bead List Indicator Plan
 

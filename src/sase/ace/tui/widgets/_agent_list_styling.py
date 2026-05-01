@@ -78,6 +78,11 @@ _APPROVE_ICON = "⚡"
 # Icon for hidden agents (shown when visibility is toggled on)
 _HIDDEN_ICON = "◌"
 
+# Bead context badge for agents launched by ``sase bead work``.
+_BEAD_GLYPH = "◆"
+_BEAD_GLYPH_STYLE = "bold #5FD7AF"
+_BEAD_TEXT_STYLE = "dim #87D7AF"
+
 # Indentation prefix for workflow child agents
 _CHILD_INDENT = "  └─ "
 

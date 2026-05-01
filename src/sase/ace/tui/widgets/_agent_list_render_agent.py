@@ -10,12 +10,16 @@ from rich.text import Text
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType, format_compact_duration
+from ..models.agent_bead import derive_agent_bead_id
 from ._agent_list_helpers import short_model_name, step_role_suffix
 from ._agent_list_render_cache import AgentRenderCache, agent_render_key
 from ._agent_list_render_layout import build_runtime_suffix, render_tier_gutter
 from ._agent_list_styling import (
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
+    _BEAD_GLYPH,
+    _BEAD_GLYPH_STYLE,
+    _BEAD_TEXT_STYLE,
     _CHILD_INDENT,
     _HIDDEN_ICON,
     _STEP_TYPE_COLORS,
@@ -199,6 +203,12 @@ def format_agent_option(
             text.append(fold_annotation, style="dim")
         else:
             text.append(fold_annotation, style="dim #00D7D7")
+
+    bead_id = derive_agent_bead_id(agent)
+    if bead_id:
+        text.append(" ")
+        text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
+        text.append(f" {bead_id}", style=_BEAD_TEXT_STYLE)
 
     # User-managed tag badge.
     if agent.tag:
