@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.xprompt._fenced_blocks import protect_fenced_blocks
 from sase.xprompt.loader_parsing import parse_xprompt_entries, parse_yaml_front_matter
 from sase.xprompt.models import XPrompt
 
@@ -31,15 +31,10 @@ def split_segments_protecting_fences(body: str) -> list[str]:
     :mod:`sase.agent.multi_agent_xprompt` (to split a multi-agent xprompt body
     after argument substitution).
     """
-    blocks: list[str] = []
-    protected = protect_fenced_blocks(body, blocks)
-    raw_segments = _SEGMENT_SEP_RE.split(protected)
-    segments: list[str] = []
-    for seg in raw_segments:
-        restored = unprotect_fenced_blocks(seg, blocks).strip()
-        if restored:
-            segments.append(restored)
-    return segments
+    from sase.core.agent_launch_facade import plan_agent_launch_fanout
+
+    plan = plan_agent_launch_fanout(body, launch_kind="multi_prompt")
+    return [slot.prompt for slot in plan.slots]
 
 
 @dataclass

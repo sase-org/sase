@@ -14,6 +14,7 @@ from sase.core.agent_launch_wire import (
     WorkspaceClaimRequestWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
+    launch_fanout_plan_from_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -135,6 +136,18 @@ def allocate_launch_timestamp_batch(
     ]
 
 
+def plan_agent_launch_fanout(
+    prompt: str,
+    *,
+    launch_kind: str | None = None,
+) -> LaunchFanoutPlanWire:
+    """Return the Rust-backed deterministic launch fan-out plan for *prompt*."""
+
+    binding = require_rust_binding("plan_agent_launch_fanout")
+    payload = binding(prompt, launch_kind)
+    return launch_fanout_plan_from_dict(dict(payload))
+
+
 class LaunchTimestampBatchAllocator:
     """Allocate monotonically unique launch timestamps for one fan-out."""
 
@@ -197,6 +210,7 @@ __all__ = [
     "fake_output_path",
     "fake_prompt_path",
     "plan_fake_fanout",
+    "plan_agent_launch_fanout",
     "prepare_agent_launch",
     "prepare_agent_launch_python",
     "safe_launch_name",

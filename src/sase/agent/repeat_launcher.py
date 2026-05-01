@@ -13,7 +13,6 @@ env vars and/or an injected ``%n:<base>.<k>`` line.
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -23,16 +22,6 @@ from sase.agent.names import (
     allocate_resume_names,
     first_resume_agent_name,
 )
-from sase.xprompt._disabled_regions import (
-    protect_disabled_regions,
-    strip_disabled_region_markers,
-    unprotect_disabled_regions,
-)
-from sase.xprompt._fenced_blocks import (
-    protect_fenced_blocks,
-    unprotect_fenced_blocks,
-)
-from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
 
 __all__ = [
     "NameCollisionError",
@@ -62,13 +51,6 @@ class RepeatAgentSpec:
     timestamp: str | None = None
 
 
-_REPEAT_NAME_PATTERN = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"%(repeat|r|name|n)"
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.()-]*[a-zA-Z0-9_#/()-])|(\+))?"
-)
-
-
 def extract_repeat_and_name(
     prompt: str,
 ) -> tuple[int | None, str | None, str]:
@@ -84,71 +66,12 @@ def extract_repeat_and_name(
     needed", and the original prompt is returned unchanged so callers can
     dispatch it through the single-agent path.
     """
-    if "%" not in prompt:
+    from sase.core.agent_launch_facade import plan_agent_launch_fanout
+
+    plan = plan_agent_launch_fanout(prompt, launch_kind="repeat")
+    if not plan.slots:
         return None, None, prompt
-
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced_blocks)
-    disabled_regions: list[str] = []
-    protected = protect_disabled_regions(protected, disabled_regions)
-
-    repeat_count: int | None = None
-    explicit_name: str | None = None
-    regions: list[tuple[int, int]] = []
-
-    for match in _REPEAT_NAME_PATTERN.finditer(protected):
-        directive = match.group(1)
-        canonical = "repeat" if directive in ("r", "repeat") else "name"
-
-        has_paren = match.group(2) is not None
-        colon_arg = match.group(3)
-        plus_suffix = match.group(4)
-        match_end = match.end()
-
-        if has_paren:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None:
-                paren_content = protected[paren_start + 1 : paren_end]
-                positional_args, _ = parse_args(paren_content)
-                raw_arg = positional_args[0] if positional_args else ""
-                match_end = paren_end + 1
-            else:
-                raw_arg = ""
-        elif colon_arg is not None:
-            if colon_arg.startswith("`") and colon_arg.endswith("`"):
-                raw_arg = colon_arg[1:-1]
-            else:
-                raw_arg = colon_arg
-        elif plus_suffix is not None:
-            raw_arg = "true"
-        else:
-            raw_arg = ""
-
-        regions.append((match.start(), match_end))
-
-        if canonical == "repeat":
-            if raw_arg:
-                try:
-                    repeat_count = int(raw_arg)
-                except ValueError:
-                    repeat_count = None
-        else:
-            explicit_name = raw_arg if raw_arg else None
-
-    if repeat_count is None or repeat_count <= 1:
-        return None, None, prompt
-
-    cleaned = protected
-    for start, end in reversed(regions):
-        cleaned = cleaned[:start] + cleaned[end:]
-    cleaned = re.sub(r"^\s*\n", "", cleaned)
-
-    cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
-    cleaned = strip_disabled_region_markers(cleaned)
-    cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)
-
-    return repeat_count, explicit_name, cleaned
+    return len(plan.slots), plan.slots[0].repeat_name, plan.slots[0].prompt
 
 
 def spawn_repeat_batch(

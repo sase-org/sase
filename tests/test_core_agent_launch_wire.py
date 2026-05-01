@@ -12,6 +12,7 @@ from sase.core.agent_launch_facade import (
     allocate_launch_timestamp_batch,
     fake_output_path,
     fake_prompt_path,
+    plan_agent_launch_fanout,
     plan_fake_fanout,
     prepare_agent_launch,
     prepare_agent_launch_python,
@@ -264,6 +265,51 @@ def test_fanout_plan_round_trips_slots() -> None:
     assert payload["schema_version"] == AGENT_LAUNCH_WIRE_SCHEMA_VERSION
     assert payload["slots"][1]["prompt"] == "%wait\nsecond"
     assert launch_fanout_plan_from_dict(payload) == plan
+
+
+def test_plan_agent_launch_fanout_rust_multi_prompt() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "one\n```\n---\n```\n---\n%wait\ntwo",
+        launch_kind="multi_prompt",
+    )
+
+    assert plan.launch_kind == "multi_prompt"
+    assert [slot.prompt for slot in plan.slots] == ["one\n```\n---\n```", "%wait\ntwo"]
+    assert plan.slots[1].wait_for_previous is True
+    assert plan.requires_sequential_naming_wait is True
+
+
+def test_plan_agent_launch_fanout_rust_model_and_alt() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%n:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview",
+        launch_kind="model",
+    )
+
+    assert plan.launch_kind == "model"
+    assert len(plan.slots) == 4
+    assert plan.slots[0].model == "opus"
+    assert plan.slots[0].prompt == "%n:foo\n%model:opus\n x\nReview"
+    assert plan.slots[3].model == "sonnet"
+    assert plan.slots[3].prompt == "%n:foo\n%model:sonnet\n y\nReview"
+
+
+def test_plan_agent_launch_fanout_rust_repeat() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%r:3 %n:task %model:opus do work",
+        launch_kind="repeat",
+    )
+
+    assert plan.launch_kind == "repeat"
+    assert len(plan.slots) == 3
+    assert plan.slots[0].repeat_name == "task"
+    assert plan.slots[0].prompt == "  %model:opus do work"
+    assert [slot.wait_for_previous for slot in plan.slots] == [False, True, True]
 
 
 def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:

@@ -8,7 +8,6 @@ that disambiguates spawned agents per runtime.
 
 from __future__ import annotations
 
-import itertools
 import re
 from typing import TYPE_CHECKING
 
@@ -64,47 +63,15 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     Raises:
         DirectiveError: If an opening parenthesis has no matching close.
     """
-    matches = list(_ALT_DIRECTIVE_RE.finditer(prompt))
-    if not matches:
+    from sase.core.agent_launch_facade import plan_agent_launch_fanout
+
+    try:
+        plan = plan_agent_launch_fanout(prompt, launch_kind="alternatives")
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    if not plan.slots:
         return None
-
-    # Collect directive spans and their argument lists.
-    directives: list[tuple[int, int, list[str]]] = []
-    for match in matches:
-        paren_start = match.end() - 1  # position of '('
-        paren_end = find_matching_paren_for_args(prompt, paren_start)
-        if paren_end is None:
-            raise DirectiveError(
-                "Unclosed '%alt('/'%(' directive — missing closing ')'"
-            )
-
-        inner = prompt[paren_start + 1 : paren_end]
-        positional_args, _ = parse_args(inner)
-
-        if len(positional_args) == 0:
-            continue
-
-        # Single arg: treat as "with/without" — append an implicit empty variant.
-        if len(positional_args) == 1:
-            positional_args.append("")
-
-        directives.append((match.start(1), paren_end + 1, positional_args))
-
-    if not directives:
-        return None
-
-    # Compute Cartesian product of all argument lists.
-    all_arg_lists = [d[2] for d in directives]
-    result: list[str] = []
-    for combination in itertools.product(*all_arg_lists):
-        # Replace spans right-to-left so earlier positions aren't shifted.
-        replaced = prompt
-        for (span_start, span_end, _), arg in reversed(
-            list(zip(directives, combination, strict=True))
-        ):
-            replaced = replaced[:span_start] + arg + replaced[span_end:]
-        result.append(replaced)
-    return result
+    return [slot.prompt for slot in plan.slots]
 
 
 def split_prompt_for_models(
@@ -134,6 +101,17 @@ def split_prompt_for_models(
     duplicates are tolerated downstream by :func:`extract_prompt_directives`
     (last-wins).
     """
+    if extra_xprompts is None and "#" not in prompt:
+        from sase.core.agent_launch_facade import plan_agent_launch_fanout
+
+        try:
+            plan = plan_agent_launch_fanout(prompt, launch_kind="model")
+        except ValueError as exc:
+            raise DirectiveError(str(exc)) from exc
+        if not plan.slots:
+            return None
+        return _apply_multi_model_naming([slot.prompt for slot in plan.slots])
+
     if "%" not in prompt:
         return None
 
