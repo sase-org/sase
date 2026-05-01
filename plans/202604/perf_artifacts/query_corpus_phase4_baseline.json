@@ -1,0 +1,334 @@
+{
+  "tool": "bench_core_query",
+  "phase": "query_corpus_phase4",
+  "rust_available": true,
+  "gate": {
+    "name": "query_corpus_phase4_routing_gate",
+    "passed": true,
+    "required_workloads": [
+      "synthetic_100_specs",
+      "synthetic_1000_specs",
+      "synthetic_10000_specs"
+    ],
+    "missing_workloads": [],
+    "rows": {
+      "synthetic_100_specs": {
+        "python_batch_median_ms": 0.37309201434254646,
+        "rust_persistent_query_keystroke_median_ms": 0.009779003448784351,
+        "speedup": 38.15235532910322,
+        "min_speedup": 1.0,
+        "passed": true
+      },
+      "synthetic_1000_specs": {
+        "python_batch_median_ms": 3.7496379809454083,
+        "rust_persistent_query_keystroke_median_ms": 0.06641645450145006,
+        "speedup": 56.456461114821224,
+        "min_speedup": 2.0,
+        "passed": true
+      },
+      "synthetic_10000_specs": {
+        "python_batch_median_ms": 56.5642814617604,
+        "rust_persistent_query_keystroke_median_ms": 0.7754855323582888,
+        "speedup": 72.9404729057236,
+        "min_speedup": 2.0,
+        "passed": true
+      }
+    }
+  },
+  "home_tree": {
+    "requested": true,
+    "notes": []
+  },
+  "workloads": [
+    {
+      "label": "parse_only",
+      "query": "\"feature\" OR status:Ready",
+      "scenarios": {
+        "python_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.00850600190460682,
+          "median_ms": 0.008691451512277126,
+          "p95_ms": 0.011411961168050766,
+          "max_ms": 0.014057033695280552
+        },
+        "python_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.010359915904700756,
+          "median_ms": 0.010540476068854332,
+          "p95_ms": 0.011502066627144814,
+          "max_ms": 0.012374017387628555
+        },
+        "rust_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.003956956788897514,
+          "median_ms": 0.004007481038570404,
+          "p95_ms": 0.0041280873119831085,
+          "max_ms": 0.004147994332015514
+        },
+        "rust_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.010260031558573246,
+          "median_ms": 0.010414456482976675,
+          "p95_ms": 0.010640011169016361,
+          "max_ms": 0.010701012797653675
+        }
+      }
+    },
+    {
+      "label": "synthetic_100_specs",
+      "query": "\"feature\" OR status:Ready",
+      "num_specs": 100,
+      "scenarios": {
+        "python_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.008135917596518993,
+          "median_ms": 0.008280505426228046,
+          "p95_ms": 0.009237905032932758,
+          "max_ms": 0.009829062037169933
+        },
+        "python_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.010270043276250362,
+          "median_ms": 0.010465038940310478,
+          "p95_ms": 0.010689953342080116,
+          "max_ms": 0.010901014320552349
+        },
+        "python_parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 0.3715089987963438,
+          "median_ms": 0.37489045644178987,
+          "p95_ms": 0.3912269603461027,
+          "max_ms": 0.39972399827092886
+        },
+        "python_batch_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.37054799031466246,
+          "median_ms": 0.37309201434254646,
+          "p95_ms": 0.48181996680796146,
+          "max_ms": 0.5928120808675885
+        },
+        "rust_legacy_direct_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 3.9813999319449067,
+          "median_ms": 4.0897775324992836,
+          "p95_ms": 4.330537980422378,
+          "max_ms": 4.579343018122017
+        },
+        "rust_persistent_corpus_compile": {
+          "count": 20.0,
+          "min_ms": 6.436027004383504,
+          "median_ms": 6.583752983715385,
+          "p95_ms": 10.705277090892196,
+          "max_ms": 11.406376026570797
+        },
+        "rust_persistent_fully_compiled_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.0076749129220843315,
+          "median_ms": 0.0076944706961512566,
+          "p95_ms": 0.007784925401210785,
+          "max_ms": 0.007844995707273483
+        },
+        "rust_persistent_query_keystroke_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.00972894486039877,
+          "median_ms": 0.009779003448784351,
+          "p95_ms": 0.009879004210233688,
+          "max_ms": 0.010068994015455246
+        }
+      },
+      "notes": []
+    },
+    {
+      "label": "synthetic_1000_specs",
+      "query": "\"feature\" OR status:Ready",
+      "num_specs": 1000,
+      "scenarios": {
+        "python_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.008236034773290157,
+          "median_ms": 0.008431030437350273,
+          "p95_ms": 0.009146984666585922,
+          "max_ms": 0.009458046406507492
+        },
+        "python_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.010318937711417675,
+          "median_ms": 0.010835996363312006,
+          "p95_ms": 0.01233397051692009,
+          "max_ms": 0.012504053302109241
+        },
+        "python_parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 3.729799995198846,
+          "median_ms": 4.030449490528554,
+          "p95_ms": 4.8138200072571635,
+          "max_ms": 5.234462907537818
+        },
+        "python_batch_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 3.597478033043444,
+          "median_ms": 3.7496379809454083,
+          "p95_ms": 4.545217962004244,
+          "max_ms": 4.609820083715022
+        },
+        "rust_legacy_direct_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 41.692574974149466,
+          "median_ms": 43.56873547658324,
+          "p95_ms": 48.154882970266044,
+          "max_ms": 49.86585699953139
+        },
+        "rust_persistent_corpus_compile": {
+          "count": 20.0,
+          "min_ms": 72.25225400179625,
+          "median_ms": 76.16745005361736,
+          "p95_ms": 86.61874302197248,
+          "max_ms": 92.36863802652806
+        },
+        "rust_persistent_fully_compiled_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.06102595943957567,
+          "median_ms": 0.0631504226475954,
+          "p95_ms": 0.06911193486303091,
+          "max_ms": 0.11290598195046186
+        },
+        "rust_persistent_query_keystroke_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.06576499436050653,
+          "median_ms": 0.06641645450145006,
+          "p95_ms": 0.06767897866666317,
+          "max_ms": 0.07126596756279469
+        }
+      },
+      "notes": []
+    },
+    {
+      "label": "synthetic_10000_specs",
+      "query": "\"feature\" OR status:Ready",
+      "num_specs": 10000,
+      "scenarios": {
+        "python_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.008116010576486588,
+          "median_ms": 0.008531496860086918,
+          "p95_ms": 0.009538955055177212,
+          "max_ms": 0.009718933142721653
+        },
+        "python_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.01026899553835392,
+          "median_ms": 0.01064501702785492,
+          "p95_ms": 0.011221971362829208,
+          "max_ms": 0.011692987754940987
+        },
+        "python_parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 54.617971065454185,
+          "median_ms": 58.89322201255709,
+          "p95_ms": 73.69642297271639,
+          "max_ms": 73.74020596034825
+        },
+        "python_batch_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 51.37262400239706,
+          "median_ms": 56.5642814617604,
+          "p95_ms": 66.31116301286966,
+          "max_ms": 70.54640899877995
+        },
+        "rust_legacy_direct_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 460.6757649453357,
+          "median_ms": 473.8493399345316,
+          "p95_ms": 491.381875006482,
+          "max_ms": 491.743243066594
+        },
+        "rust_persistent_corpus_compile": {
+          "count": 20.0,
+          "min_ms": 741.2378069711849,
+          "median_ms": 816.917430027388,
+          "p95_ms": 877.5423020124435,
+          "max_ms": 878.4171820152551
+        },
+        "rust_persistent_fully_compiled_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.7674149237573147,
+          "median_ms": 0.7698395056650043,
+          "p95_ms": 0.789267010986805,
+          "max_ms": 0.8027718868106604
+        },
+        "rust_persistent_query_keystroke_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.7737769046798348,
+          "median_ms": 0.7754855323582888,
+          "p95_ms": 0.7954590255394578,
+          "max_ms": 0.804256065748632
+        }
+      },
+      "notes": []
+    },
+    {
+      "label": "home_tree",
+      "query": "\"feature\" OR status:Ready",
+      "num_specs": 1986,
+      "scenarios": {
+        "python_direct_parse": {
+          "count": 20.0,
+          "min_ms": 0.007966067641973495,
+          "median_ms": 0.008150527719408274,
+          "p95_ms": 0.01009996049106121,
+          "max_ms": 0.09401992429047823
+        },
+        "python_facade_parse": {
+          "count": 20.0,
+          "min_ms": 0.010229996405541897,
+          "median_ms": 0.010440009646117687,
+          "p95_ms": 0.011150958016514778,
+          "max_ms": 0.011252006515860558
+        },
+        "python_parse_and_evaluate": {
+          "count": 20.0,
+          "min_ms": 5.08658098988235,
+          "median_ms": 5.196841550059617,
+          "p95_ms": 5.534957046620548,
+          "max_ms": 5.575513932853937
+        },
+        "python_batch_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 5.003452999517322,
+          "median_ms": 5.093453044537455,
+          "p95_ms": 6.8964059464633465,
+          "max_ms": 7.3160979663953185
+        },
+        "rust_legacy_direct_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 28.05845602415502,
+          "median_ms": 28.425992000848055,
+          "p95_ms": 29.014791012741625,
+          "max_ms": 30.34320706501603
+        },
+        "rust_persistent_corpus_compile": {
+          "count": 20.0,
+          "min_ms": 45.563844963908195,
+          "median_ms": 49.14058849681169,
+          "p95_ms": 53.5362740047276,
+          "max_ms": 53.673516027629375
+        },
+        "rust_persistent_fully_compiled_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.08668599184602499,
+          "median_ms": 0.0879930448718369,
+          "p95_ms": 0.09378895629197359,
+          "max_ms": 0.10731397196650505
+        },
+        "rust_persistent_query_keystroke_evaluate_many": {
+          "count": 20.0,
+          "min_ms": 0.09230594150722027,
+          "median_ms": 0.09301753016188741,
+          "p95_ms": 0.09842694271355867,
+          "max_ms": 0.10113301686942577
+        }
+      },
+      "notes": []
+    }
+  ]
+}

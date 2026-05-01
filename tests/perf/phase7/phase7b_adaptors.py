@@ -98,6 +98,8 @@ def _bench_core_query(
     parse_workloads: list[dict[str, Any]] = []
     eval_workloads: list[dict[str, Any]] = []
     for w in raw["workloads"]:
+        if w.get("skipped"):
+            continue
         scenarios = w["scenarios"]
         # `parse_query` covers parse_only + every evaluate workload (because
         # each evaluate workload also re-times parse-only inside it).
@@ -119,8 +121,8 @@ def _bench_core_query(
             }
         )
         # `evaluate_query_many` only appears once we have specs to evaluate
-        # against; skip the parse_only workload here.
-        if "rust_facade_evaluate_many" in scenarios or w.get("num_specs"):
+        # against; skip parse-only and explicitly skipped local-only workloads.
+        if w.get("num_specs") and scenarios:
             eval_workloads.append(
                 {
                     "label": w["label"],
@@ -135,8 +137,18 @@ def _bench_core_query(
                         ),
                     },
                     "candidate": {
-                        "facade": scenarios.get("rust_facade_evaluate_many", {}),
-                        "direct": scenarios.get("rust_direct_evaluate_many", {}),
+                        "legacy_direct": scenarios.get(
+                            "rust_legacy_direct_evaluate_many", {}
+                        ),
+                        "persistent_corpus_compile": scenarios.get(
+                            "rust_persistent_corpus_compile", {}
+                        ),
+                        "persistent_fully_compiled": scenarios.get(
+                            "rust_persistent_fully_compiled_evaluate_many", {}
+                        ),
+                        "persistent_query_keystroke": scenarios.get(
+                            "rust_persistent_query_keystroke_evaluate_many", {}
+                        ),
                     },
                 }
             )
@@ -148,7 +160,15 @@ def _bench_core_query(
         },
         "evaluate_query_many": {
             "tool": "bench_core_query",
-            "extra": {"spec_sizes": list(spec_sizes)},
+            "extra": {
+                "spec_sizes": list(spec_sizes),
+                "persistent_corpus_anchor_policy": (
+                    "Anchor persistent_query_keystroke only after the "
+                    "query_corpus_phase4_routing_gate passes on "
+                    "synthetic_100, synthetic_1000, and synthetic_10000."
+                ),
+                "raw_gate": raw.get("gate", {}),
+            },
             "workloads": eval_workloads,
         },
     }

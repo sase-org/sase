@@ -206,6 +206,41 @@ _SMOKE_CONFIG = _HarnessConfig(
 )
 
 
+def _config_for_anchors(
+    cfg: _HarnessConfig, anchors: Sequence[_AnchorSpec]
+) -> _HarnessConfig:
+    """Augment harness sizes so newly anchored query workloads are produced.
+
+    The historical floor only anchored ``parse_query.parse_only`` and kept the
+    query harness cheap by timing one small synthetic evaluate workload. Phase 4
+    exposes persistent-corpus evaluate rows at 100/1000/10000; if a later
+    baseline adds any of those rows as anchors, the checker must run the
+    matching sizes instead of silently missing the workload.
+    """
+    required_query_sizes = set(cfg.core_query.get("spec_sizes", ()))
+    for anchor in anchors:
+        if anchor.surface != "evaluate_query_many":
+            continue
+        prefix = "synthetic_"
+        suffix = "_specs"
+        if anchor.workload.startswith(prefix) and anchor.workload.endswith(suffix):
+            value = anchor.workload[len(prefix) : -len(suffix)]
+            try:
+                required_query_sizes.add(int(value))
+            except ValueError:
+                continue
+
+    core_query = dict(cfg.core_query)
+    core_query["spec_sizes"] = tuple(sorted(required_query_sizes))
+    return _HarnessConfig(
+        core_parse=cfg.core_parse,
+        core_query=core_query,
+        agent_scan=cfg.agent_scan,
+        status_state_machine=cfg.status_state_machine,
+        notification_store=cfg.notification_store,
+    )
+
+
 def _run_required_harnesses(
     *, cfg: _HarnessConfig, harnesses: set[str]
 ) -> dict[str, dict[str, Any]]:
@@ -343,7 +378,7 @@ def run_floor_check(
 ) -> tuple[bool, dict[str, Any], list[AnchorResult]]:
     """Run the regression floor and return (ok, report, results)."""
     factor, anchors, raw_baseline = load_baseline(baseline_path)
-    cfg = _SMOKE_CONFIG if smoke else _DEFAULT_CONFIG
+    cfg = _config_for_anchors(_SMOKE_CONFIG if smoke else _DEFAULT_CONFIG, anchors)
     harnesses_needed = {
         _HARNESS_FOR_SURFACE[a.surface]
         for a in anchors
