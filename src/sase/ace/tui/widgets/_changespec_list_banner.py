@@ -3,12 +3,9 @@
 ChangeSpec banners reuse the colors / glyphs / rules that the Agents-tab
 banners use (see ``_agent_list_styling``) so the two tabs feel like the
 same visual language at a glance.  L0 banners (project / date bucket /
-status bucket) get the strong sky-blue bar treatment; L1 sibling-root
-banners (only emitted in ``BY_PROJECT``) use the dim-gray branch glyph
-and teal label so they read as a secondary nesting level under the
-project header.  BY_DATE subgroup banners use the same secondary
-treatment for 4-hour, hourly, day, and week headings under the coarse
-date buckets.
+status bucket) get the strong sky-blue bar treatment.  L1 subgroup
+banners use the cooler ``▎`` / light-rule treatment, and L2 hourly
+BY_DATE banners use the dim-gray ``▸`` branch glyph with a teal label.
 """
 
 from __future__ import annotations
@@ -18,6 +15,10 @@ from textual.widgets.option_list import Option
 
 from ..models.changespec_groups import ChangeSpecGroupRow
 from ._agent_list_styling import (
+    _CHANGESPEC_BANNER_BAR_STYLE,
+    _CHANGESPEC_BANNER_RULE_STYLE,
+    _CHANGESPEC_BAR_GLYPH,
+    _CHANGESPEC_RULE,
     _NAME_ROOT_BANNER_BRANCH_STYLE,
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAME_ROOT_BRANCH_GLYPH,
@@ -75,6 +76,12 @@ def format_changespec_banner_option(
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_char = _PROJECT_RULE
         rule_style = _PROJECT_BANNER_RULE_STYLE
+    elif group.level == 1:
+        prefix = f"{_CHANGESPEC_BAR_GLYPH} "
+        prefix_style = _CHANGESPEC_BANNER_BAR_STYLE
+        label_style = _CHANGESPEC_BANNER_BAR_STYLE
+        rule_char = _CHANGESPEC_RULE
+        rule_style = _CHANGESPEC_BANNER_RULE_STYLE
     else:
         prefix = f"{_NAME_ROOT_BRANCH_GLYPH} "
         prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE

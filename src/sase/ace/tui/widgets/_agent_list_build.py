@@ -74,11 +74,11 @@ def compute_tier_styles(
       banner emitted, in tree order.
 
     The gutter for a row is the list of ancestor tier styles that
-    contribute a ``│  `` segment.  L0 (project / bucket) and L1
-    ChangeSpec banners contribute; BY_DATE L1 4-hour banners also
-    contribute so hourly headings and agent rows stay visually nested.
-    L1/L2 name-root banners do not (the indent already groups their
-    agents).  Order is outermost first.
+    contribute a ``│  `` segment.  L0 (project / bucket) and level-2
+    visual banners contribute: STANDARD L1 ChangeSpec banners and real
+    BY_DATE L1 4-hour windows both use the cooler ChangeSpec rule style.
+    Name-root banners and synthetic ``(no time)`` buckets do not add a
+    descendant tier.  Order is outermost first.
     """
     agent_styles: dict[int, tuple[str, ...]] = {}
     banner_styles: list[tuple[str, ...]] = []
@@ -100,7 +100,7 @@ def compute_tier_styles(
                 and g.group_key[-1] != NO_HOUR_LABEL
             ):
                 banner_styles.append((cur_l0,) if cur_l0 is not None else ())
-                cur_l1 = _NAME_ROOT_BANNER_BRANCH_STYLE
+                cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
             elif g.level == 1 and mode is GroupingMode.BY_DATE:
                 banner_styles.append((cur_l0,) if cur_l0 is not None else ())
                 cur_l1 = None

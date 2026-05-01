@@ -54,19 +54,16 @@ def format_banner_option(
 
     - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
       heavy rule ``━`` and chip.
-    - STANDARD L1 (ChangeSpec, 3-level mode): cooler accent + ``▎`` bar,
-      light rule ``─``.
+    - STANDARD L1 (ChangeSpec, 3-level mode) and BY_DATE L1 (4-hour
+      windows such as ``8AM-12PM``): cooler accent + ``▎`` bar, light
+      rule ``─``.
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
       ``Needs Attention``) + bold sky-blue label + heavy rule.
-    - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
-      label, dim-gray light rule ``─`` and chip.
-    - BY_DATE L1/L2 (4-hour window, e.g. ``8AM-12PM``, and hourly window,
-      e.g. ``09:00``): same name-root visual treatment by design —
-      time-window banners share the dim-gray ``▸`` / teal-label /
-      light-rule register so we don't introduce a new visual language
-      inside an already-busy tab.
+    - L1/L2 (name-root) in any mode, plus BY_DATE L2 hourly windows such
+      as ``09:00``: dim-gray ``▸`` branch glyph, teal label, dim-gray
+      light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` so OptionList cursor
     navigation skips them at full expansion.  When *selectable* is True
@@ -76,9 +73,10 @@ def format_banner_option(
     summary = compute_banner_summary(group, agents)
     chip = banner_summary_text(summary)
 
-    # Only STANDARD mode uses the ChangeSpec banner row; BY_DATE / BY_STATUS
-    # collapse the project + ChangeSpec layers into the bucket so any L1
-    # banner there is a name-root banner regardless of agents' cl_name.
+    # Only STANDARD mode uses agents' ChangeSpec names for banner rows;
+    # BY_DATE / BY_STATUS collapse the project + ChangeSpec layers into
+    # the bucket.  BY_DATE's real L1 time windows still reuse the same
+    # visual register as STANDARD ChangeSpec banners.
     panel_uses_changespec = mode is GroupingMode.STANDARD and any(
         a.cl_name for a in agents
     )
@@ -103,7 +101,7 @@ def format_banner_option(
         prefix_style = _PROJECT_BANNER_BAR_STYLE
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
-    elif is_changespec_banner:
+    elif is_changespec_banner or (group.level == 1 and mode is GroupingMode.BY_DATE):
         prefix = f"{_CHANGESPEC_BAR_GLYPH} "
         rule_char = _CHANGESPEC_RULE
         prefix_style = _CHANGESPEC_BANNER_BAR_STYLE

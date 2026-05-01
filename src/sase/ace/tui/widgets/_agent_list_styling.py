@@ -15,12 +15,12 @@ _MIN_BANNER_WIDTH = 40
 # L0 (project) banners split into a heavyweight bar+label region (bold sky
 # blue) and a dimmer rule+chip region (dim sky blue) so the label reads as
 # the brightest element while the rule and right-aligned chip stay
-# secondary.  ChangeSpec banners (L1 in 3-level mode) inherit the same
-# bar+rule treatment but in a slightly cooler accent so the project still
-# reads as the dominant header.  Name-root banners (L1 in 2-level mode,
-# L2 in 3-level mode) use a single dim-gray style for the branch glyph,
-# trailing rule, and chip; only the name-root label gets its own teal
-# accent.
+# secondary.  Level-2 visual banners (STANDARD L1 ChangeSpec and real
+# BY_DATE L1 4-hour windows) inherit the same bar+rule treatment but in a
+# slightly cooler accent so the top-level bucket still reads as the
+# dominant header.  Level-3 visual banners (name-root and BY_DATE hourly)
+# use a single dim-gray style for the branch glyph, trailing rule, and
+# chip; only the label gets its own teal accent.
 _PROJECT_BANNER_BAR_STYLE = "bold #5FAFFF"
 _PROJECT_BANNER_RULE_STYLE = "dim #5FAFFF"
 _CHANGESPEC_BANNER_BAR_STYLE = "bold #87D7FF"
@@ -29,10 +29,10 @@ _NAME_ROOT_BANNER_BRANCH_STYLE = "dim #AFAFAF"
 _NAME_ROOT_BANNER_LABEL_STYLE = "bold #87D7AF"
 
 # Banner glyphs.  ``▌`` (left half-block) anchors L0 banners at the left
-# edge as a colored bar; ``▎`` starts ChangeSpec banners; ``▸`` starts
-# name-root banners and reads as "expanded labelled group".  Rules use
-# heavy ``━`` only for L0 and light ``─`` for L1 ChangeSpec / name-root
-# so weight forms a clear three-tier gradient.
+# edge as a colored bar; ``▎`` starts level-2 visual banners; ``▸`` starts
+# level-3 visual banners and reads as "expanded labelled group".  Rules
+# use heavy ``━`` only for L0 and light ``─`` for the deeper levels so
+# weight forms a clear three-tier gradient.
 _PROJECT_BAR_GLYPH = "▌"
 _PROJECT_RULE = "━"
 _CHANGESPEC_BAR_GLYPH = "▎"

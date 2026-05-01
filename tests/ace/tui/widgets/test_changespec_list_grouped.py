@@ -12,9 +12,19 @@ from typing import Any
 from textual.message import Message
 
 from sase.ace.changespec import ChangeSpec, TimestampEntry
-from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
+from sase.ace.tui.models.changespec_groups import (
+    ChangeSpecGroupingMode,
+    ChangeSpecGroupRow,
+)
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets import ChangeSpecList
+from sase.ace.tui.widgets._agent_list_styling import (
+    _CHANGESPEC_BANNER_BAR_STYLE,
+    _CHANGESPEC_BANNER_RULE_STYLE,
+    _NAME_ROOT_BANNER_BRANCH_STYLE,
+    _NAME_ROOT_BANNER_LABEL_STYLE,
+)
+from sase.ace.tui.widgets._changespec_list_banner import banner_natural_width
 from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
 
 from ..models._changespec_groups_helpers import _NOW
@@ -132,6 +142,32 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
         _BANNER_ROW,
         1,
     ]
+
+    window_text = widget.get_option_at_index(1).prompt
+    window_plain = window_text.plain  # type: ignore[union-attr]
+    assert window_plain.startswith("▎ 8PM-12AM ")
+    window_styles = {s.style for s in window_text.spans}  # type: ignore[union-attr]
+    assert _CHANGESPEC_BANNER_BAR_STYLE in window_styles
+    assert _CHANGESPEC_BANNER_RULE_STYLE in window_styles
+
+    hourly_text = widget.get_option_at_index(2).prompt
+    hourly_plain = hourly_text.plain  # type: ignore[union-attr]
+    assert hourly_plain.startswith("▸ 21:00 ")
+    hourly_styles = {s.style for s in hourly_text.spans}  # type: ignore[union-attr]
+    assert _NAME_ROOT_BANNER_LABEL_STYLE in hourly_styles
+    assert _NAME_ROOT_BANNER_BRANCH_STYLE in hourly_styles
+
+
+def test_banner_natural_width_uses_two_cell_prefix_for_l1() -> None:
+    group = ChangeSpecGroupRow(
+        level=1,
+        group_key=("Yesterday", "8PM-12AM"),
+        changespec_indices=(0, 1),
+    )
+
+    assert banner_natural_width(group, hint_char="x") == (
+        4 + 2 + len("8PM-12AM") + 1 + 2 + len("2 CLs")
+    )
 
 
 def test_by_date_collapsed_l1_banner_maps_to_group_key(monkeypatch: Any) -> None:
