@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
+from sase.bead.config import load_config, save_config
 from sase.bead.model import IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
@@ -386,3 +390,86 @@ def test_counter_persists_across_instances(tmp_path):
         # Should not reuse IDs
         all_ids = [i.id for i in proj2.list_issues()]
         assert len(all_ids) == len(set(all_ids))
+
+
+def test_create_uses_workspace_counter_when_local_config_stale(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace_a = tmp_path / "sase"
+    workspace_b = tmp_path / "sase_101"
+    _init_project_with_config(workspace_a, next_counter=1)
+    _init_project_with_config(workspace_b, next_counter=1)
+
+    with BeadProject(workspace_a) as project_a:
+        assert project_a.create("A", IssueType.PLAN).id == "sase-1"
+
+    monkeypatch.chdir(workspace_b)
+    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    with (
+        patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
+        BeadProject(workspace_b) as project_b,
+    ):
+        issue = project_b.create("B", IssueType.PLAN)
+
+    assert issue.id == "sase-2"
+    assert load_config(workspace_b / ".sase_beads")["next_counter"] == 3
+
+
+def test_create_keeps_local_counter_when_config_is_ahead(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace_a = tmp_path / "sase"
+    workspace_b = tmp_path / "sase_101"
+    _init_project_with_config(workspace_a, next_counter=1)
+    _init_project_with_config(workspace_b, next_counter=10)
+
+    with BeadProject(workspace_a) as project_a:
+        assert project_a.create("A", IssueType.PLAN).id == "sase-1"
+
+    monkeypatch.chdir(workspace_b)
+    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    with (
+        patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
+        BeadProject(workspace_b) as project_b,
+    ):
+        issue = project_b.create("B", IssueType.PLAN)
+
+    assert issue.id == "sase-a"
+    assert load_config(workspace_b / ".sase_beads")["next_counter"] == 11
+
+
+def test_create_child_uses_workspace_child_counter(tmp_path: Path, monkeypatch) -> None:
+    workspace_a = tmp_path / "sase"
+    workspace_b = tmp_path / "sase_101"
+    _init_project_with_config(workspace_a, next_counter=1)
+    _init_project_with_config(workspace_b, next_counter=1)
+
+    with BeadProject(workspace_a) as project_a:
+        parent_a = project_a.create("Parent", IssueType.PLAN)
+        assert (
+            project_a.create("A child", IssueType.PHASE, parent_id=parent_a.id).id
+            == "sase-1.1"
+        )
+
+    with BeadProject(workspace_b) as project_b:
+        parent_b = project_b.create("Parent", IssueType.PLAN)
+        assert parent_b.id == "sase-1"
+
+    monkeypatch.chdir(workspace_b)
+    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    with (
+        patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
+        BeadProject(workspace_b) as project_b,
+    ):
+        child = project_b.create("B child", IssueType.PHASE, parent_id="sase-1")
+
+    assert child.id == "sase-1.2"
+
+
+def _init_project_with_config(root: Path, *, next_counter: int) -> None:
+    with BeadProject.init(root):
+        pass
+    save_config(
+        root / ".sase_beads",
+        {"issue_prefix": "sase", "next_counter": next_counter, "owner": ""},
+    )

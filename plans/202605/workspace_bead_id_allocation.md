@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 12:26:37
-status: wip
+status: done
 ---
 # Workspace-Aware Bead ID Allocation
 
