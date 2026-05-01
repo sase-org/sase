@@ -16,3 +16,8 @@ CatalogStats
 ChangeSpecTagEntry
 ChangeSpecTagListing
 list_changespec_xprompt_tags
+AgentStatusGroup
+agent_status_bucket
+agent_status_bucket_glyph
+group_agent_statuses
+status_bucket_header

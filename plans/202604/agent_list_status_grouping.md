@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 22:56:46
-status: wip
+status: done
 ---
 # Agent List Status Grouping Plan
 

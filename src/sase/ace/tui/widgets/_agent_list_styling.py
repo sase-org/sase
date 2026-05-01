@@ -1,5 +1,7 @@
 """Constants, colors, and icons for the agent list widget."""
 
+from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+
 from ..models.agent import AgentType
 
 # Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
@@ -53,11 +55,7 @@ _TIER_GUIDE_SEGMENT_WIDTH = 3
 # title still leads visually.  Each glyph is rendered in the L0 sky-blue
 # banner color — no per-bucket palette to keep the agents tab calm.
 _STATUS_BUCKET_GLYPHS: dict[str, str] = {
-    "Needs Attention": "▲",
-    "Running": "▶",
-    "Waiting": "⏳",
-    "Failed": "✗",
-    "Done": "✓",
+    **AGENT_STATUS_BUCKET_GLYPHS,
 }
 
 # Color mapping for agent types

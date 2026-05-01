@@ -5,6 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum
 
+from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKETS,
+    _NEEDS_ATTENTION_STATUSES,
+    _NEEDS_INPUT_STATUSES,
+    _TERMINAL_STATUSES,
+    status_bucket_for_values,
+)
+
 from ..agent import Agent
 
 #: Sentinel used as the project key for agents without a ``project_file``.
@@ -42,46 +50,7 @@ class GroupingMode(Enum):
 
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
-_STATUS_BUCKETS: tuple[str, ...] = (
-    "Needs Attention",
-    "Running",
-    "Waiting",
-    "Failed",
-    "Done",
-)
-
-# Status mapping for ``BY_STATUS`` bucketing.  The semantic line is:
-# **Needs Attention** = "you need to act right now"; everything else is a
-# state the agent is moving through on its own.
-#
-# Members of Needs Attention:
-#   * ``PLANNING`` — a plan is being drafted and the user is expected to
-#     review/answer questions as they arise
-#   * ``QUESTION`` — the agent has explicitly paused for an answer
-#   * ``FAILED`` without ``retried_as_timestamp`` (handled by the
-#     ``startswith("FAILED")`` branch below, not by this frozenset)
-#
-# ``PLAN DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are post-plan handoff states: the
-# planning work is finished and any code work has been spun off, so they
-# read as **Done**.  ``PLAN APPROVED`` is an actively executing state and
-# reads as **Running**.  All ``WAITING`` variants land in **Waiting**
-# regardless of timer/dependency presence.
-_NEEDS_ATTENTION_STATUSES: frozenset[str] = frozenset({"PLANNING", "QUESTION"})
-
-#: Terminal statuses — agents that have finished and have a meaningful
-#: ``stop_time``.  Shared by :func:`status_bucket_for` (which maps these
-#: into the ``Done`` bucket) and :func:`walk_anchors` (which sorts these
-#: by ``stop_time`` rather than ``start_time``).
-_TERMINAL_STATUSES: frozenset[str] = frozenset(
-    {"DONE", "PLAN DONE", "PLAN REJECTED", "EPIC CREATED"}
-)
-
-# TODO(@user): confirm needs:input mapping. Initial set drawn from
-# plans/202604/agents_tab_query_filters.md — covers the statuses where the
-# agent is paused awaiting user input rather than running or terminal.
-_NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
-    {"QUESTION", "WAITING INPUT", "PLAN APPROVED"}
-)
+_STATUS_BUCKETS: tuple[str, ...] = (*AGENT_STATUS_BUCKETS,)
 
 
 def date_bucket_for(agent: Agent, now: datetime) -> str:
@@ -154,20 +123,7 @@ def status_bucket_for(agent: Agent) -> str:
     explicitly bucketed lands in ``Running`` (the agent is in flight from
     the user's perspective).
     """
-    status = agent.status or ""
-    if status in _TERMINAL_STATUSES:
-        return "Done"
-    if status in _NEEDS_ATTENTION_STATUSES:
-        return "Needs Attention"
-    if status == "PLAN APPROVED":
-        return "Running"
-    if status == "WAITING":
-        return "Waiting"
-    if status.startswith("FAILED"):
-        if not agent.retried_as_timestamp:
-            return "Needs Attention"
-        return "Failed"
-    return "Running"
+    return status_bucket_for_values(agent.status, agent.retried_as_timestamp)
 
 
 def bucket_sort_index(mode: GroupingMode, bucket: str) -> int:
