@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 17:48:58
 status: wip
+bead_id: sase-1v
 ---
 # Plan: `/sase_notify` Skill for Agent Notification Access
 
