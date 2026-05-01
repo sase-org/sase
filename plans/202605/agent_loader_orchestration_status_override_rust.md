@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 00:09:19
 status: draft
+bead_id: sase-1p
 ---
 
 # Agent Loader Orchestration & Status Override Rust Migration Plan
