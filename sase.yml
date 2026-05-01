@@ -38,7 +38,7 @@ xprompts:
       Can you help me do some research on the below prompt? Investigate prior art, propose a few alternative solutions,
       and end your analysis with a recommended solution. #sase/research
 
-      ### THE PROMPT
+      ## THE PROMPT
       {{ prompt }}
   research: |
     Store your research in a new markdown file in the research/ directory.
