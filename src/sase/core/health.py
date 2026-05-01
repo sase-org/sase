@@ -1,7 +1,7 @@
 """Core health check for the required ``sase_core_rs`` extension.
 
 The check verifies that the Rust extension is installed and exposes a known
-cheap binding (``parse_query``) so release smokes and user scripts can
+cheap binding set so release smokes and user scripts can
 branch on the exit code without parsing output. ``sase_core_rs`` is a hard
 runtime dependency; there is no Python-mode escape hatch.
 
@@ -11,8 +11,8 @@ Behavior summary:
   the CLI exits non-zero. Non-``ImportError`` import-time failures (e.g. ABI
   mismatch) surface verbatim so a misbuilt wheel does not look like a
   missing install.
-- The extension must expose ``parse_query``. The probe calls it with a
-  trivial query (``"status:Ready"``); any failure produces ``status="error"``.
+- The extension must expose representative parser and agent-launch bindings.
+  Any missing or failing probe produces ``status="error"``.
 """
 
 from __future__ import annotations
@@ -28,6 +28,8 @@ HEALTH_OK = "ok"
 HEALTH_ERROR = "error"
 
 _HEALTH_PROBE_QUERY = "status:Ready"
+_HEALTH_PROBE_PROMPT = "health check launch prompt"
+_HEALTH_PROBE_LAUNCH_KIND = "multi_prompt"
 
 
 @dataclass(frozen=True)
@@ -79,15 +81,20 @@ def check_backend_health() -> BackendHealthReport:
     Steps:
 
     1. Try to import ``sase_core_rs`` via the strict loader.
-    2. Call a single shipped binding (``parse_query("status:Ready")``); this
-       is the same probe documented in Phase 6A's wheel smoke and Phase 6B's
-       install smoke.
+    2. Call cheap shipped parser and launch-planning bindings. The launch
+       probe catches stale wheels from the Rust-backed launch migration before
+       a user discovers the missing binding during an agent launch.
 
     A missing or broken ``sase_core_rs`` is reported as ``status="error"``.
     """
     rust_module: Any = None
     error: str | None = None
     error_kind: str | None = None
+    probes: dict[str, bool] = {
+        "parse_query": False,
+        "agent_launch_wire_schema_version": False,
+        "plan_agent_launch_fanout": False,
+    }
 
     try:
         rust_module = require_rust_extension()
@@ -112,7 +119,7 @@ def check_backend_health() -> BackendHealthReport:
         else:
             try:
                 parse_query(_HEALTH_PROBE_QUERY)
-                probe_ok = True
+                probes["parse_query"] = True
             except Exception as exc:  # noqa: BLE001 — surface broken wheel.
                 error = (
                     f"{RUST_EXTENSION_MODULE_NAME}.parse_query("
@@ -121,6 +128,57 @@ def check_backend_health() -> BackendHealthReport:
                 )
                 error_kind = type(exc).__name__
 
+    if rust_loaded and error is None:
+        try:
+            wire_schema_version = rust_module.agent_launch_wire_schema_version
+        except AttributeError:
+            error = (
+                f"{RUST_EXTENSION_MODULE_NAME} is importable but does not "
+                "expose agent_launch_wire_schema_version; the extension is "
+                "too old or was built without the Rust-backed launch bindings."
+            )
+            error_kind = "AttributeError"
+        else:
+            try:
+                version = int(wire_schema_version())
+                if version != 1:
+                    raise RuntimeError(f"unexpected schema version {version}")
+                probes["agent_launch_wire_schema_version"] = True
+            except Exception as exc:  # noqa: BLE001 — surface broken wheel.
+                error = (
+                    f"{RUST_EXTENSION_MODULE_NAME}.agent_launch_wire_schema_version() "
+                    f"raised {type(exc).__name__}: {exc}"
+                )
+                error_kind = type(exc).__name__
+
+    if rust_loaded and error is None:
+        try:
+            plan_agent_launch_fanout = rust_module.plan_agent_launch_fanout
+        except AttributeError:
+            error = (
+                f"{RUST_EXTENSION_MODULE_NAME} is importable but does not "
+                "expose plan_agent_launch_fanout; the extension is too old "
+                "or was built without the Rust-backed launch planner."
+            )
+            error_kind = "AttributeError"
+        else:
+            try:
+                plan = plan_agent_launch_fanout(
+                    _HEALTH_PROBE_PROMPT,
+                    _HEALTH_PROBE_LAUNCH_KIND,
+                )
+                if not isinstance(plan, dict) or not plan.get("slots"):
+                    raise RuntimeError("launch planner returned no slots")
+                probes["plan_agent_launch_fanout"] = True
+            except Exception as exc:  # noqa: BLE001 — surface broken wheel.
+                error = (
+                    f"{RUST_EXTENSION_MODULE_NAME}.plan_agent_launch_fanout("
+                    f"{_HEALTH_PROBE_LAUNCH_KIND!r}) raised "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                error_kind = type(exc).__name__
+
+    probe_ok = all(probes.values())
     status = HEALTH_OK if probe_ok and error is None else HEALTH_ERROR
 
     return BackendHealthReport(
@@ -135,4 +193,5 @@ def check_backend_health() -> BackendHealthReport:
         probe_ok=probe_ok,
         error=error,
         error_kind=error_kind,
+        extras={"probes": probes},
     )

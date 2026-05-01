@@ -25,8 +25,12 @@ def _format_human(report: BackendHealthReport) -> str:
         lines.append(f"rust extension version: {report.rust_extension_version}")
     lines.append(
         f"probe: parse_query({report.probe_query!r}) -> "
-        f"{'ok' if report.probe_ok else 'skipped/failed'}"
+        f"{'ok' if report.extras.get('probes', {}).get('parse_query') else 'skipped/failed'}"
     )
+    for name, ok in (report.extras.get("probes") or {}).items():
+        if name == "parse_query":
+            continue
+        lines.append(f"probe: {name} -> {'ok' if ok else 'skipped/failed'}")
     lines.append(f"python: {report.python_version}")
     lines.append(f"platform: {report.platform}")
     if report.error:

@@ -22,18 +22,52 @@ def _install_fake_extension(
     monkeypatch: pytest.MonkeyPatch,
     *,
     parse_query: Any = None,
+    agent_launch_wire_schema_version: Any = None,
+    plan_agent_launch_fanout: Any = None,
     version: str | None = "0.0.0-fake",
     file_path: str | None = "/fake/sase_core_rs/__init__.py",
     omit_parse_query: bool = False,
+    omit_agent_launch_wire_schema_version: bool = False,
+    omit_plan_agent_launch_fanout: bool = False,
 ) -> types.ModuleType:
     """Install a fake ``sase_core_rs`` in ``sys.modules`` for the test."""
 
     def _ok(_query: str) -> dict[str, Any]:
         return {"kind": "MetadataField", "field": "status", "value": "Ready"}
 
+    def _schema_version() -> int:
+        return 1
+
+    def _launch_plan(prompt: str, launch_kind: str | None = None) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "launch_kind": launch_kind or "single",
+            "slots": [
+                {
+                    "prompt": prompt,
+                    "launch_kind": launch_kind or "single",
+                    "slot_index": 0,
+                }
+            ],
+            "fanout_sleep_seconds": 0.0,
+            "requires_sequential_naming_wait": False,
+        }
+
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     if not omit_parse_query:
         fake.parse_query = parse_query if parse_query is not None else _ok  # type: ignore[attr-defined]
+    if not omit_agent_launch_wire_schema_version:
+        fake.agent_launch_wire_schema_version = (  # type: ignore[attr-defined]
+            agent_launch_wire_schema_version
+            if agent_launch_wire_schema_version is not None
+            else _schema_version
+        )
+    if not omit_plan_agent_launch_fanout:
+        fake.plan_agent_launch_fanout = (  # type: ignore[attr-defined]
+            plan_agent_launch_fanout
+            if plan_agent_launch_fanout is not None
+            else _launch_plan
+        )
     if version is not None:
         fake.__version__ = version  # type: ignore[attr-defined]
     if file_path is not None:
@@ -65,6 +99,9 @@ def test_health_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.rust_extension_version == "1.2.3"
     assert report.rust_extension_path == "/fake/sase_core_rs/__init__.py"
     assert report.probe_ok is True
+    assert report.extras["probes"]["parse_query"] is True
+    assert report.extras["probes"]["agent_launch_wire_schema_version"] is True
+    assert report.extras["probes"]["plan_agent_launch_fanout"] is True
     assert report.error is None
 
 
@@ -128,6 +165,23 @@ def test_health_parse_query_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.error_kind == "ValueError"
     assert report.error is not None
     assert "invalid token" in report.error
+
+
+def test_health_extension_missing_launch_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_extension(monkeypatch, omit_plan_agent_launch_fanout=True)
+
+    report = check_backend_health()
+
+    assert report.status == HEALTH_ERROR
+    assert report.rust_extension_loaded is True
+    assert report.probe_ok is False
+    assert report.error_kind == "AttributeError"
+    assert report.error is not None
+    assert "plan_agent_launch_fanout" in report.error
+    assert report.extras["probes"]["parse_query"] is True
+    assert report.extras["probes"]["plan_agent_launch_fanout"] is False
 
 
 def test_report_to_dict_is_json_serializable(

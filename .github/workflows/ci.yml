@@ -187,10 +187,48 @@ jobs:
           name: phase7-perf-floor-report
           path: plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json
 
+  # Phase 9 launch regression floor (sase-1r.9). Keeps the Rust-backed
+  # launch path from drifting back toward the Phase 1 parent-side sleep
+  # baseline while still using fake subprocesses/no LLM CLIs.
+  launch-perf-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run launch regression floor
+        run: just launch-perf-check
+      - name: Upload launch floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-perf-floor-report
+          path: plans/202605/perf_artifacts/agent_launch_regression_check.json
+
   # Install smoke verifies that a fresh `sase` install resolves the
-  # required `sase-core-rs` runtime dependency, the Rust extension is
-  # importable, and the shipped `parse_query` binding works. Calls
-  # `sase core health` so the smoke matches the CLI a user would run.
+  # required `sase-core-rs` runtime dependency and that representative parser
+  # and launch bindings work. Calls `sase core health` so the smoke matches
+  # the CLI a user would run.
   install-smoke:
     runs-on: ubuntu-latest
     steps:

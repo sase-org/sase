@@ -1,4 +1,4 @@
-"""Tests for the Phase 1 agent-launch wire contract."""
+"""Tests for the Rust-backed agent-launch wire contract."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from sase.core.agent_launch_facade import (
     plan_agent_launch_fanout,
     plan_fake_fanout,
     prepare_agent_launch,
-    prepare_agent_launch_python,
     safe_launch_name,
     spawn_prepared_agent_process,
 )
@@ -60,91 +59,6 @@ def test_workspace_claim_request_round_trips_json_shape() -> None:
         "pinned": False,
     }
     assert workspace_claim_request_from_dict(payload) == request
-
-
-def test_prepare_agent_launch_python_pins_argv_env_and_claim() -> None:
-    request = AgentLaunchRequestWire(
-        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
-        cl_name="feature/test",
-        project_file="/tmp/project.gp",
-        workspace_dir="/tmp/ws",
-        workspace_num=4,
-        workflow_name="ace(run)-260501_120000",
-        prompt="fix it",
-        timestamp="260501_120000",
-        update_target="p4head",
-        project_name="proj",
-        history_sort_key="feature/test",
-        vcs_workflow_type="gh",
-        vcs_ref="feature/test",
-        extra_env={"SASE_REPEAT_NAME": "task.1"},
-    )
-
-    prepared = prepare_agent_launch_python(
-        request,
-        python_executable="/venv/bin/python",
-        runner_script="/repo/run_agent_runner.py",
-        prompt_file="/tmp/prompt.md",
-        output_path="/tmp/out.txt",
-    )
-
-    assert prepared.schema_version == AGENT_LAUNCH_WIRE_SCHEMA_VERSION
-    assert prepared.safe_name == "feature_test"
-    assert prepared.argv == [
-        "/venv/bin/python",
-        "/repo/run_agent_runner.py",
-        "feature/test",
-        "/tmp/project.gp",
-        "/tmp/ws",
-        "/tmp/out.txt",
-        "4",
-        "ace(run)-260501_120000",
-        "/tmp/prompt.md",
-        "260501_120000",
-        "p4head",
-        "proj",
-        "feature/test",
-        "",
-    ]
-    assert prepared.env_delta["SASE_AGENT"] == "1"
-    assert "SASE_AGENT_VCS_WORKFLOW_TYPE" not in prepared.env_delta
-    assert prepared.env_delta["SASE_REPEAT_NAME"] == "task.1"
-    assert prepared.claim_request is not None
-    assert prepared.claim_request.workspace_num == 4
-
-
-def test_deferred_and_home_prepared_claim_shapes() -> None:
-    base = AgentLaunchRequestWire(
-        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
-        cl_name="home",
-        project_file="/tmp/home.gp",
-        workspace_dir="/home/me",
-        workspace_num=9,
-        workflow_name="ace(run)-260501_120000",
-        prompt="fix it",
-        timestamp="260501_120000",
-        deferred_workspace=True,
-    )
-
-    deferred = prepare_agent_launch_python(
-        base,
-        python_executable="python",
-        runner_script="runner.py",
-        prompt_file="prompt.md",
-        output_path="out.txt",
-    )
-    assert deferred.claim_request is not None
-    assert deferred.claim_request.workspace_num == 0
-    assert deferred.env_delta["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
-
-    home = prepare_agent_launch_python(
-        AgentLaunchRequestWire(**{**base.__dict__, "is_home_mode": True}),
-        python_executable="python",
-        runner_script="runner.py",
-        prompt_file="prompt.md",
-        output_path="out.txt",
-    )
-    assert home.claim_request is None
 
 
 def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(

@@ -1,4 +1,4 @@
-"""Python-only helpers for the Phase 1 agent-launch wire contract."""
+"""Python facade helpers for Rust-backed agent launch operations."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from sase.core.agent_launch_wire import (
     AgentLaunchRequestWire,
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
-    WorkspaceClaimRequestWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
     launch_fanout_plan_from_dict,
@@ -24,73 +23,6 @@ def safe_launch_name(cl_name: str) -> str:
     """Return the sanitized name currently used in launch output paths."""
 
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
-
-
-def prepare_agent_launch_python(
-    request: AgentLaunchRequestWire,
-    *,
-    python_executable: str,
-    runner_script: str,
-    prompt_file: str,
-    output_path: str,
-) -> AgentLaunchPreparedWire:
-    """Build the prepared wire record for one low-level launch.
-
-    This mirrors the deterministic shape of ``spawn_agent_subprocess`` without
-    writing files or spawning a child. It is intentionally Python-only in Phase
-    1 so tests and benchmarks can pin the contract before Rust owns it.
-    """
-
-    argv = [
-        python_executable,
-        runner_script,
-        request.cl_name,
-        request.project_file,
-        request.workspace_dir,
-        output_path,
-        str(request.workspace_num),
-        request.workflow_name,
-        prompt_file,
-        request.timestamp,
-        request.update_target,
-        request.project_name,
-        request.history_sort_key,
-        "1" if request.is_home_mode else "",
-    ]
-
-    env_delta = dict(request.extra_env)
-    env_delta["SASE_AGENT"] = "1"
-    env_delta["SASE_AGENT_CL_NAME"] = request.cl_name
-    env_delta["SASE_AGENT_PROJECT_FILE"] = request.project_file
-    env_delta["SASE_AGENT_TIMESTAMP"] = request.timestamp
-    if request.deferred_workspace:
-        env_delta["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
-        if request.vcs_workflow_type is not None:
-            env_delta["SASE_AGENT_VCS_WORKFLOW_TYPE"] = request.vcs_workflow_type
-    if request.local_xprompts_file:
-        env_delta["SASE_AGENT_LOCAL_XPROMPTS"] = request.local_xprompts_file
-
-    claim_request: WorkspaceClaimRequestWire | None = None
-    if not request.is_home_mode:
-        claim_request = WorkspaceClaimRequestWire(
-            project_file=request.project_file,
-            workspace_num=0 if request.deferred_workspace else request.workspace_num,
-            workflow_name=request.workflow_name,
-            pid=0,
-            cl_name=request.cl_name,
-            transfer_from_pid=request.retry_transfer_from_pid,
-        )
-
-    return AgentLaunchPreparedWire(
-        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
-        prompt_file=prompt_file,
-        output_path=output_path,
-        safe_name=safe_launch_name(request.cl_name),
-        argv=argv,
-        cwd=request.workspace_dir,
-        env_delta=env_delta,
-        claim_request=claim_request,
-    )
 
 
 def prepare_agent_launch(
@@ -231,7 +163,6 @@ __all__ = [
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
     "prepare_agent_launch",
-    "prepare_agent_launch_python",
     "safe_launch_name",
     "spawn_prepared_agent_process",
 ]

@@ -1,10 +1,10 @@
-"""Benchmark the Phase 1 agent-launch wire and fake-spawn harness.
+"""Benchmark the Rust-backed agent-launch wire and fake-spawn harness.
 
 The harness keeps LLM CLIs out of the loop: each scenario prepares launch
-wire records, writes prompt/output files under a temp root, and appends fake
-RUNNING claims to temp ProjectSpec files. This gives later Rust phases a
-stable baseline for launch planning/spawn overhead without starting real
-agents.
+wire records through the production Rust preparation binding, writes output
+files under a temp root, and appends fake RUNNING claims to temp ProjectSpec
+files. This keeps the benchmark CI-friendly while exercising the launch
+planning/preparation boundary users pay before a real provider starts.
 
 Run directly:
 
@@ -28,10 +28,8 @@ from typing import Any
 import pytest
 
 from sase.core.agent_launch_facade import (
-    fake_output_path,
-    fake_prompt_path,
     plan_fake_fanout,
-    prepare_agent_launch_python,
+    prepare_agent_launch,
 )
 from sase.core.agent_launch_wire import (
     AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
@@ -78,14 +76,13 @@ class _FakeLaunchHost:
         return str(path)
 
     def launch(self, request: AgentLaunchRequestWire) -> AgentLaunchPreparedWire:
-        prepared = prepare_agent_launch_python(
+        (self.root / "tmp").mkdir(parents=True, exist_ok=True)
+        prepared = prepare_agent_launch(
             request,
             python_executable="/usr/bin/python",
             runner_script=self.runner_script,
-            prompt_file=fake_prompt_path(self.root / "tmp", request.timestamp),
-            output_path=fake_output_path(
-                self.root / "workflows", request.cl_name, request.timestamp
-            ),
+            sase_tmpdir=str(self.root / "tmp"),
+            output_root=str(self.root / "workflows"),
         )
         self._fake_spawn(request, prepared)
         return prepared
@@ -96,8 +93,6 @@ class _FakeLaunchHost:
         prepared: AgentLaunchPreparedWire,
     ) -> None:
         self.pid += 1
-        Path(prepared.prompt_file).parent.mkdir(parents=True, exist_ok=True)
-        Path(prepared.prompt_file).write_text(request.prompt, encoding="utf-8")
         Path(prepared.output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(prepared.output_path).write_text("", encoding="utf-8")
         if prepared.claim_request is not None:

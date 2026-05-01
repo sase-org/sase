@@ -307,6 +307,11 @@ bench-agent-scan *args: _setup
 bench-agent-launch *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_launch.py {{ args }}
 
+# Run the Rust-backed agent-launch regression check against the Phase 1 baseline.
+launch-perf-check *args: _setup
+    @printf "\n---------- Agent launch regression floor (sase-1r.9) ----------\n"
+    {{ venv_bin }}/python tests/perf/check_agent_launch_regression.py {{ args }}
+
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,
 # is_valid_transition, remove_workspace_suffix) and the

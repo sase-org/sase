@@ -26,6 +26,11 @@ The shipped Rust-backed operations are:
 - `plan_agent_cleanup`
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
+- Rust-backed agent launch helpers:
+  - `allocate_launch_timestamp_batch`
+  - `prepare_agent_launch`
+  - `spawn_prepared_agent_process`
+  - `plan_agent_launch_fanout`
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 
@@ -38,8 +43,12 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - `transition_changespec_status` — the side-effecting status transition (acquires a file lock, rewrites the project
   file, performs archive moves and suffix renames). The pure decision step inside it routes through Rust via
   `plan_status_transition`.
-- Subprocess invocation, process liveness, filesystem mutation, TUI rendering, and plugin entry points stay on the host
-  by design.
+- High-level subprocess orchestration, process liveness checks outside launch, filesystem mutation outside the prepared
+  prompt/output path, TUI rendering, and plugin entry points stay on the host by design.
+- Agent launch host responsibilities stay in Python: provider/workspace plugin calls, VCS preallocation env mapping,
+  project-file locking, workspace-directory cleanup, TUI notifications, xprompt catalog expansion, history writes, chop
+  registry recording, and user-facing launch callbacks. Rust owns deterministic launch planning/preparation and the
+  low-level detached spawn binding.
 - Agent cleanup process signalling and TUI orchestration stay on the host. The Rust boundary owns reusable planning,
   deterministic dismissed-agent data mutations, artifact deletion, workspace-release content rewrites, and
   ChangeSpec-entry kill marking exposed through Python helpers in `sase.core.agent_cleanup_*`.
@@ -93,6 +102,9 @@ The facade lives at `src/sase/core/`:
 | `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
 | `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `agent_launch_wire.py`         | Stable launch, workspace-claim, and fan-out wire records                                                           |
+| `agent_launch_facade.py`       | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
+| `agent_launch_claims.py`       | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
 | `status_wire.py`               | Stable wire records for the status state machine                                                                   |
 | `status_wire_conversion.py`    | Python plan reference + project-file → request-wire converter                                                      |
 | `git_query_facade.py`          | Pure Git query parsers facade (Rust)                                                                               |
@@ -156,8 +168,9 @@ If a contributor's local checkout does not have a working `sase_core_rs`, the fi
 ## Backend Health Check
 
 `sase core health` is the scriptable answer to "is the Rust extension loadable and working?". It imports `sase_core_rs`,
-calls a single shipped binding (`parse_query("status:Ready")`), and reports module path / version / Python version /
-platform tag in one block. Two output modes:
+calls cheap parser and launch probes (`parse_query("status:Ready")`, `agent_launch_wire_schema_version()`, and
+`plan_agent_launch_fanout(...)`), and reports module path / version / Python version / platform tag in one block. Two
+output modes:
 
 ```bash
 sase core health        # human-readable, line-oriented
@@ -166,11 +179,12 @@ sase core health -j     # machine-readable JSON (alias: --json)
 
 Exit codes:
 
-| Extension state                     | `status` | Exit |
-| ----------------------------------- | -------- | ---- |
-| importable, `parse_query` works     | `ok`     | 0    |
-| missing or misbuilt                 | `error`  | 1    |
-| importable but `parse_query` raises | `error`  | 1    |
+| Extension state                                 | `status` | Exit |
+| ----------------------------------------------- | -------- | ---- |
+| importable, parser + launch probes work         | `ok`     | 0    |
+| missing or misbuilt                             | `error`  | 1    |
+| importable but a parser/launch probe fails      | `error`  | 1    |
+| importable but missing a representative binding | `error`  | 1    |
 
 A misbuilt wheel that fails to import with a non-`ImportError` is surfaced verbatim in the `error` / `error_kind` fields
 rather than silently masked.
@@ -195,6 +209,8 @@ sibling checkout are never blocked.
 | `just rust-bench`           | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                          |
 | `just bench-core`           | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                          |
 | `just bench-agent-scan`     | Python agent-artifact scan benchmark vs current direct loaders                                              |
+| `just bench-agent-launch`   | Fake-spawn launch benchmark through the Rust preparation binding                                            |
+| `just launch-perf-check`    | CI-friendly launch regression check against the Phase 1 fan-out baseline                                    |
 | `just phase7-perf-check`    | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                 |
 
 ## Performance
@@ -267,6 +283,19 @@ deliberately stops at the dispatcher's provider boundary, never resolves a provi
 never claims a workspace. The `metadata.extra.boundary` field in the artifact records this scope so a future agent can
 push the boundary further toward provider resolution without invalidating the comparison.
 
+### Agent launch migration (Phase 9)
+
+Driver: `tests/perf/bench_agent_launch.py`; regression check: `tests/perf/check_agent_launch_regression.py`. The harness
+uses temp ProjectSpec files and fake subprocess writes so it never starts an LLM CLI, but it now runs launch preparation
+through the production Rust binding. The committed Phase 1 baseline is
+`plans/202605/perf_artifacts/agent_launch_phase1_baseline.json`.
+
+The Phase 1 baseline intentionally includes parent-side fan-out sleeps: three-way `%model` and `%r` launches each spent
+about 2,001 ms in the parent before the migration. `just launch-perf-check` runs the current harness without those
+sleeps and fails if `model_fanout` or `repeat_fanout` exceeds 25% of the Phase 1 median. Single-prompt, VCS, and
+deferred-workspace fake launches also have a generous 100 ms median ceiling so the gate catches accidental blocking work
+without depending on a specific workstation's sub-millisecond numbers.
+
 ### Where Rust helps, where it does not
 
 **Wins:**
@@ -305,13 +334,17 @@ route keep `must_beat_python: true` because both comparable rows are still produ
 `phase7-perf-floor` GitHub Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and
 uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 
+`plans/202605/perf_artifacts/agent_launch_phase1_baseline.json` pins the launch migration baseline. The
+`launch-perf-floor` GitHub Actions job runs `just launch-perf-check` on every PR and uploads
+`agent_launch_regression_check.json` so a fan-out latency regression has a comparable report.
+
 ### Triage support note
 
 When investigating a Rust-extension issue:
 
 - **Confirm the extension is loaded.** `sase core health` (or `sase core health -j` for scripts) prints the
-  `sase_core_rs` module path / version and the result of a single shipped binding call. Exit code 0 means the extension
-  loaded and worked; non-zero means the wheel is missing or misbuilt.
+  `sase_core_rs` module path / version and the result of cheap parser plus launch binding probes. Exit code 0 means the
+  extension loaded and worked; non-zero means the wheel is missing, stale, or misbuilt.
 - **Recognise a wheel-load failure.** A missing or stale extension surfaces as `ImportError` / `AttributeError` from a
   shipped operation, or as `sase core health` exit code 1 with `error_kind` / `error` fields naming the underlying
   import error. The publish-workflow `install-smoke` runs `sase core health` on every release and dumps `pip list` plus
@@ -329,6 +362,7 @@ sase core health -j          # same, JSON for scripting
 
 just check                   # full lint + type + test pass
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
+just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline
 just phase7-perf-check       # Phase 7 regression-floor check against the recorded Rust ceilings
 ```
 
@@ -343,15 +377,16 @@ After Phase 8 the Python halves of the ported operations are gone, so the compat
 rather than a live Python/Rust dual-run comparison. The corpus pins the Rust extension's expected output byte-for-byte
 across parser, query, agent scan, status, and Git query helpers:
 
-| Surface                      | Tests                                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| ChangeSpec parser            | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`              |
-| Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`     |
-| Agent artifact scan          | `tests/test_core_agent_scan.py` + `tests/agent_scan_golden/` fixture builder                                 |
-| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                 |
-| Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py` |
-| Git query parsers            | `tests/test_core_git_query.py`                                                                               |
-| Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                       |
+| Surface                      | Tests                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| ChangeSpec parser            | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                             |
+| Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                    |
+| Agent artifact scan          | `tests/test_core_agent_scan.py` + `tests/agent_scan_golden/` fixture builder                                                |
+| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                                |
+| Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`                |
+| Git query parsers            | `tests/test_core_git_query.py`                                                                                              |
+| Agent launch                 | `tests/test_core_agent_launch_wire.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
+| Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                      |
 
 The `tests/core_golden/` corpus (`myproj.gp`, `myproj-archive.gp`) plus the `inline_snapshot` JSON expectations in
 `test_core_golden.py` are the cross-language reference: any change to the Rust output that breaks a snapshot must be
