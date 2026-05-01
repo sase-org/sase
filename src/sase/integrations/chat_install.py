@@ -82,14 +82,14 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
     if not config.command:
         return ChatInstallLaunchResult(
             status="config_missing_command",
-            message="chat_install.command is not configured; install was not started.",
+            message="chat_install.command is not configured; update was not started.",
         )
 
     lock_fd = _acquire_lock()
     if lock_fd is None:
         return ChatInstallLaunchResult(
             status="already_running",
-            message="A chat install worker is already running.",
+            message="A chat update worker is already running.",
         )
 
     try:
@@ -97,7 +97,7 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         if workspace is None:
             return ChatInstallLaunchResult(
                 status="workspace_resolution_failed",
-                message="Could not resolve the primary SASE workspace; install was not started.",
+                message="Could not resolve the primary SASE workspace; update was not started.",
             )
 
         log_path = _new_log_path()
@@ -125,14 +125,14 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         except Exception as exc:
             return ChatInstallLaunchResult(
                 status="launch_failed",
-                message=f"Failed to launch chat install worker: {exc}",
+                message=f"Failed to launch chat update worker: {exc}",
                 log_path=log_path,
                 workspace=workspace,
             )
 
         return ChatInstallLaunchResult(
             status="launched",
-            message=f"Install worker started; log: {_shorten_home(log_path)}",
+            message=f"Update worker started; log: {_shorten_home(log_path)}",
             log_path=log_path,
             workspace=workspace,
             pid=proc.pid,

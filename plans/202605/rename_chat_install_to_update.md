@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 17:00:38
-status: wip
+status: done
 ---
 # Rename Chat Install Commands to Update
 

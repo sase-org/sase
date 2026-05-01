@@ -68,11 +68,11 @@ Buckets are emitted in ACE display order and empty buckets are omitted:
 
 Source: `src/sase/integrations/agent_status_groups.py`, `src/sase/agent/status_buckets.py`
 
-## Chat Install Worker
+## Chat Update Worker
 
 Chat integrations that need to update a SASE install can call
 `sase.integrations.chat_install.start_chat_install_worker()`. The helper starts a detached worker process and returns a
-chat-safe result object instead of blocking the chat request on the full install.
+chat-safe result object instead of blocking the chat request on the full update.
 
 ```python
 from sase.integrations.chat_install import start_chat_install_worker
@@ -95,6 +95,7 @@ The worker sequence is:
 `start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these statuses: `config_missing_command`,
 `workspace_resolution_failed`, `already_running`, `launched`, or `launch_failed`. Worker logs live under
 `~/.sase/chat_install/logs/`. Configuration fields are documented in
-[`docs/configuration.md`](configuration.md#chat_install).
+[`docs/configuration.md`](configuration.md#chat_install). The API, config key, and state paths keep the `chat_install`
+name for compatibility, but chat integrations should present this workflow to users as an update.
 
 Source: `src/sase/integrations/chat_install.py`

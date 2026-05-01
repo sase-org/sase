@@ -566,7 +566,7 @@ timezone: "America/New_York" # default: "America/New_York"
 
 ### chat_install
 
-Configuration for chat-driven install/update workflows. External chat integrations can call
+Configuration for chat-driven update workflows. External chat integrations can call
 `sase.integrations.chat_install.start_chat_install_worker()` to run the configured command in a detached worker while
 briefly stopping axe, syncing the primary workspace, and restarting axe afterward.
 
@@ -581,13 +581,14 @@ chat_install:
 | Field                           | Type   | Default | Description                                                                 |
 | ------------------------------- | ------ | ------- | --------------------------------------------------------------------------- |
 | `chat_install.command`          | string | `""`    | Shell command to run from the primary workspace. Empty string disables use. |
-| `chat_install.sync_workspace`   | bool   | `true`  | Sync the primary workspace via the selected VCS provider before install.    |
-| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the install command before returning exit code `124`.   |
-| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the install command completes/fails.   |
+| `chat_install.sync_workspace`   | bool   | `true`  | Sync the primary workspace via the selected VCS provider before updating.   |
+| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the update command before returning exit code `124`.    |
+| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the update command completes/fails.    |
 
-Only one chat install worker may run at a time; a lock under `~/.sase/chat_install/install.lock` rejects concurrent
-starts. Worker output is written to timestamped logs under `~/.sase/chat_install/logs/`. See
-[`docs/integrations.md`](integrations.md#chat-install-worker) for the integration-facing Python API.
+Only one chat update worker may run at a time; a lock under `~/.sase/chat_install/install.lock` rejects concurrent
+starts. Worker output is written to timestamped logs under `~/.sase/chat_install/logs/`. The configuration key and state
+paths remain named `chat_install` for compatibility. See [`docs/integrations.md`](integrations.md#chat-update-worker)
+for the integration-facing Python API.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 

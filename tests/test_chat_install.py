@@ -51,6 +51,9 @@ def test_start_worker_rejects_missing_command() -> None:
         result = start_chat_install_worker()
 
     assert result.status == "config_missing_command"
+    assert result.message == (
+        "chat_install.command is not configured; update was not started."
+    )
     popen.assert_not_called()
 
 
@@ -71,6 +74,10 @@ def test_start_worker_reports_workspace_resolution_failed(tmp_path: Path) -> Non
         result = start_chat_install_worker()
 
     assert result.status == "workspace_resolution_failed"
+    assert (
+        result.message
+        == "Could not resolve the primary SASE workspace; update was not started."
+    )
 
 
 def test_start_worker_reports_existing_lock(tmp_path: Path) -> None:
@@ -95,6 +102,7 @@ def test_start_worker_reports_existing_lock(tmp_path: Path) -> None:
         os.close(fd)
 
     assert result.status == "already_running"
+    assert result.message == "A chat update worker is already running."
 
 
 def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
@@ -126,6 +134,7 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
     assert result.status == "launched"
     assert result.workspace == workspace
     assert result.log_path is not None
+    assert result.message.startswith("Update worker started; log: ")
     assert result.pid == 1234
     _args, kwargs = popen.call_args
     assert kwargs["cwd"] == str(workspace)
