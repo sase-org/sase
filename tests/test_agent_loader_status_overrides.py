@@ -33,6 +33,119 @@ def test_apply_status_overrides_propagates_code_time() -> None:
     assert parent.code_time == datetime(2025, 6, 15, 10, 10, 5)
 
 
+def test_apply_status_overrides_propagates_canonical_coder_time() -> None:
+    """Canonical .coder children behave like legacy .code children."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 10, 5),
+        parent_timestamp="20250615100000",
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".coder",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.code_time == datetime(2025, 6, 15, 10, 10, 5)
+
+
+def test_model_distinguishes_plan_chain_followup_from_workflow_step_child() -> None:
+    plan_followup = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        parent_timestamp="20250615100000",
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".coder",
+    )
+    workflow_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="step",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        parent_workflow="wf",
+        parent_timestamp="20250615100000",
+        step_name="step",
+        step_type="agent",
+    )
+
+    assert plan_followup.is_plan_chain_followup
+    assert not plan_followup.is_workflow_step_child
+    assert workflow_step.is_workflow_step_child
+    assert not workflow_step.is_plan_chain_phase
+
+
+def test_apply_status_overrides_uses_explicit_plan_chain_parent() -> None:
+    """The new lineage field links follow-ups even without parent_timestamp."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".coder",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLAN APPROVED"
+    assert parent.followup_agents == [child]
+
+
+def test_apply_status_overrides_does_not_treat_prompt_step_as_followup() -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="coder",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        parent_workflow="wf",
+        parent_timestamp="20250615100000",
+        role_suffix=".coder",
+        step_name="coder",
+        step_type="agent",
+    )
+    agents = [parent, step]
+    _apply_status_overrides(agents)
+
+    assert parent.status == "PLANNING"
+    assert parent.followup_agents == []
+
+
 def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
     """code_time uses start_time when run_start_time is None."""
     parent = Agent(

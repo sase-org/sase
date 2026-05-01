@@ -8,6 +8,10 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.plan_chain import (
+    is_plan_chain_coder_suffix,
+    is_plan_chain_feedback_suffix,
+)
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -205,9 +209,27 @@ def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
 
 def _is_feedback_suffix(suffix: str | None) -> bool:
     """Check if a role suffix is a plan feedback round (e.g., ".2", ".3")."""
-    if not suffix or not suffix.startswith("."):
-        return False
-    return suffix[1:].isdigit()
+    return is_plan_chain_feedback_suffix(suffix)
+
+
+def _is_coder_suffix(suffix: str | None) -> bool:
+    """Check if a role suffix is a coder phase, including legacy ``.code``."""
+    return is_plan_chain_coder_suffix(suffix)
+
+
+def _followup_parent_timestamp(agent: Agent) -> str | None:
+    """Return the parent timestamp for a separate follow-up artifact.
+
+    Plan-chain artifacts use ``plan_chain_parent_timestamp`` when available.
+    Older artifacts and plan-action follow-ups (``.epic`` / ``.commit``)
+    only have ``parent_timestamp``; those still link to their parent as long
+    as they are separate artifact dirs rather than prompt-step children.
+    """
+    if agent.plan_chain_parent:
+        return agent.plan_chain_parent
+    if agent.is_artifact_followup:
+        return agent.parent_timestamp
+    return None
 
 
 def _is_root_plan_workflow(agent: Agent) -> bool:
@@ -215,7 +237,8 @@ def _is_root_plan_workflow(agent: Agent) -> bool:
     return (
         agent.agent_type == AgentType.WORKFLOW
         and agent.role_suffix == ".plan"
-        and not agent.is_workflow_child
+        and not agent.is_workflow_step_child
+        and not agent.is_plan_chain_followup
     )
 
 
@@ -232,7 +255,11 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
 
     parent_by_suffix: dict[str, Agent] = {}
     for agent in agents:
-        if agent.raw_suffix and not agent.is_workflow_child:
+        if (
+            agent.raw_suffix
+            and not agent.is_workflow_step_child
+            and _followup_parent_timestamp(agent) is None
+        ):
             parent_by_suffix[agent.raw_suffix] = agent
 
     # Collect parents that have an active (non-completed) feedback round so
@@ -240,23 +267,20 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     # for plan review.
     parents_with_active_feedback: set[str] = set()
     for agent in agents:
+        followup_parent = agent.plan_chain_parent
         if (
-            agent.parent_timestamp
-            and not agent.parent_workflow
+            followup_parent
             and _is_feedback_suffix(agent.role_suffix)
             and agent.status not in completed_statuses
         ):
-            parents_with_active_feedback.add(agent.parent_timestamp)
+            parents_with_active_feedback.add(followup_parent)
 
     # Propagate timestamps from feedback round children (.2, .3, …) to parent
     # so the metadata panel shows one entry per proposal/feedback/question round.
     for agent in agents:
-        if (
-            agent.parent_timestamp
-            and not agent.parent_workflow
-            and _is_feedback_suffix(agent.role_suffix)
-        ):
-            parent = parent_by_suffix.get(agent.parent_timestamp)
+        followup_parent = agent.plan_chain_parent
+        if followup_parent and _is_feedback_suffix(agent.role_suffix):
+            parent = parent_by_suffix.get(followup_parent)
             if parent:
                 if agent.plan_times:
                     parent.plan_times.extend(agent.plan_times)
@@ -272,7 +296,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
 
     # Active workflow step child → parent is running a step, not planning.
     for agent in agents:
-        if agent.parent_workflow and agent.parent_timestamp:
+        if agent.is_workflow_step_child and agent.parent_timestamp:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent and agent.status not in completed_statuses:
                 if parent.status == "PLANNING":
@@ -291,13 +315,13 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         agents, key=lambda a: a.run_start_time or a.start_time or datetime.min
     )
     for agent in ordered_agents:
+        followup_parent = _followup_parent_timestamp(agent)
         if (
-            agent.parent_timestamp
-            and not agent.parent_workflow  # Follow-up agent, not workflow step
+            followup_parent
             and not _is_feedback_suffix(agent.role_suffix)  # Skip feedback rounds
         ):
-            parents_with_followup.add(agent.parent_timestamp)
-            parent = parent_by_suffix.get(agent.parent_timestamp)
+            parents_with_followup.add(followup_parent)
+            parent = parent_by_suffix.get(followup_parent)
             if parent:
                 # Pick override status based on the follow-up child's role_suffix.
                 # Active children: `.epic`/`.commit` map to EPIC APPROVED /
@@ -308,18 +332,16 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                 # (newest child wins).
                 if agent.status not in completed_statuses:
                     if agent.role_suffix == ".epic":
-                        followup_override[agent.parent_timestamp] = "EPIC APPROVED"
+                        followup_override[followup_parent] = "EPIC APPROVED"
                     elif agent.role_suffix == ".commit":
-                        followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
+                        followup_override[followup_parent] = "PLAN COMMITTED"
                     else:
-                        followup_override[agent.parent_timestamp] = "PLAN APPROVED"
+                        followup_override[followup_parent] = "PLAN APPROVED"
                 else:
                     if agent.status == "DONE" and agent.role_suffix == ".epic":
-                        completed_followup_override[agent.parent_timestamp] = (
-                            "EPIC CREATED"
-                        )
+                        completed_followup_override[followup_parent] = "EPIC CREATED"
                     else:
-                        completed_followup_override[agent.parent_timestamp] = None
+                        completed_followup_override[followup_parent] = None
 
                 # Propagate meta_* fields from follow-up child to parent
                 # so the metadata panel shows dynamic variables (e.g. Commit
@@ -337,7 +359,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
 
                 # Propagate code_time from .code child to parent so
                 # the metadata panel shows when the coder was launched.
-                if agent.role_suffix == ".code":
+                if _is_coder_suffix(agent.role_suffix):
                     parent.code_time = agent.run_start_time or agent.start_time
                 if agent.role_suffix == ".epic":
                     parent.epic_time = (
@@ -406,8 +428,9 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in agents:
-        if agent.parent_timestamp and not agent.parent_workflow:
-            parent = parent_by_suffix.get(agent.parent_timestamp)
+        followup_parent = _followup_parent_timestamp(agent)
+        if followup_parent:
+            parent = parent_by_suffix.get(followup_parent)
             if parent:
                 parent.followup_agents.append(agent)
 
@@ -456,8 +479,9 @@ def _sort_and_reorder(
     followups_by_parent: dict[str, list[Agent]] = {}
     non_followup: list[Agent] = []
     for agent in sorted_agents:
-        if agent.parent_timestamp and not agent.parent_workflow:
-            followups_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
+        followup_parent = _followup_parent_timestamp(agent)
+        if followup_parent:
+            followups_by_parent.setdefault(followup_parent, []).append(agent)
         else:
             non_followup.append(agent)
 

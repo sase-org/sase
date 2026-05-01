@@ -85,6 +85,12 @@ class Agent:
     # Parent timestamp for agent steps (links to parent workflow entry)
     parent_timestamp: str | None = None
 
+    # Explicit plan-chain lineage for plan/question/feedback/coder handoffs.
+    # Older artifacts only have ``parent_timestamp``; model helpers below
+    # keep those loadable while avoiding raw parent-timestamp checks in the
+    # loader's status aggregation.
+    plan_chain_parent_timestamp: str | None = None
+
     # Workflow step name (clean, without tree decoration)
     step_name: str | None = None
 
@@ -418,6 +424,45 @@ class Agent:
     def is_workflow_child(self) -> bool:
         """Check if this agent is a child step of a workflow."""
         return self.parent_workflow is not None or self.parent_timestamp is not None
+
+    @property
+    def is_workflow_step_child(self) -> bool:
+        """True for entries loaded from prompt_step_*.json workflow markers."""
+        return self.parent_workflow is not None
+
+    @property
+    def is_artifact_followup(self) -> bool:
+        """True for a separate artifact dir linked to a parent agent."""
+        return self.parent_timestamp is not None and not self.is_workflow_step_child
+
+    @property
+    def plan_chain_suffix(self) -> str | None:
+        """Canonical plan-chain suffix for plan/q/feedback/coder phases."""
+        from sase.plan_chain import canonical_plan_chain_suffix
+
+        return canonical_plan_chain_suffix(self.role_suffix)
+
+    @property
+    def is_plan_chain_phase(self) -> bool:
+        """True for plan/question/feedback/coder handoff agents."""
+        return (
+            self.plan_chain_suffix is not None
+            or self.plan_chain_parent_timestamp is not None
+        )
+
+    @property
+    def plan_chain_parent(self) -> str | None:
+        """Parent timestamp for a plan-chain phase, including legacy artifacts."""
+        if self.plan_chain_parent_timestamp:
+            return self.plan_chain_parent_timestamp
+        if self.is_plan_chain_phase and self.is_artifact_followup:
+            return self.parent_timestamp
+        return None
+
+    @property
+    def is_plan_chain_followup(self) -> bool:
+        """True for plan-chain phases stored in their own artifact directory."""
+        return self.plan_chain_parent is not None
 
     @property
     def is_agent_entry(self) -> bool:

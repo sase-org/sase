@@ -20,6 +20,7 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
 )
 from sase.core.time import get_timezone
+from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
 from ._json_cache import load_json_cached
 from ..agent import Agent
@@ -75,6 +76,11 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.role_suffix = data["role_suffix"]
     if data.get("parent_timestamp") and agent.parent_timestamp is None:
         agent.parent_timestamp = data["parent_timestamp"]
+    plan_chain_parent = data.get(PLAN_CHAIN_PARENT_TIMESTAMP_FIELD)
+    if isinstance(plan_chain_parent, str) and plan_chain_parent:
+        agent.plan_chain_parent_timestamp = plan_chain_parent
+    elif agent.is_plan_chain_phase and agent.is_artifact_followup:
+        agent.plan_chain_parent_timestamp = agent.parent_timestamp
     if data.get("workspace_num") is not None and agent.workspace_num is None:
         try:
             agent.workspace_num = int(data["workspace_num"])
@@ -273,6 +279,10 @@ def enrich_agent_from_meta_wire(
         agent.role_suffix = meta.role_suffix
     if meta.parent_timestamp and agent.parent_timestamp is None:
         agent.parent_timestamp = meta.parent_timestamp
+    if meta.plan_chain_parent_timestamp:
+        agent.plan_chain_parent_timestamp = meta.plan_chain_parent_timestamp
+    elif agent.is_plan_chain_phase and agent.is_artifact_followup:
+        agent.plan_chain_parent_timestamp = agent.parent_timestamp
     if meta.workspace_num is not None and agent.workspace_num is None:
         agent.workspace_num = meta.workspace_num
 

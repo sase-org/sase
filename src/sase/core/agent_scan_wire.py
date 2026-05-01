@@ -232,6 +232,7 @@ class AgentMetaWire:
     vcs_provider: str | None = None
     role_suffix: str | None = None
     parent_timestamp: str | None = None
+    plan_chain_parent_timestamp: str | None = None
     workspace_num: int | None = None
     workspace_dir: str | None = None
     approve: bool = False
