@@ -129,19 +129,29 @@ class TestSpawnRepeatBatch:
                 )
         assert [s.name for s in specs] == ["c.1", "c.2"]
 
-    def test_stagger_sleep(self, tmp_path: Path) -> None:
-        sleep_calls: list[float] = []
+    def test_sleep_between_does_not_delay_spawn(self, tmp_path: Path) -> None:
+        calls: list[RepeatAgentSpec] = []
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch(
-                "sase.agent.repeat_launcher.time.sleep",
-                side_effect=lambda s: sleep_calls.append(s),
-            ):
-                spawn_repeat_batch(
-                    "%r:4 %n:qq do X",
-                    base_spawn_fn=lambda _s: None,
-                    sleep_between=0.25,
-                )
-        assert sleep_calls == [0.25, 0.25, 0.25]  # N-1 sleeps
+            specs = spawn_repeat_batch(
+                "%r:4 %n:qq do X",
+                base_spawn_fn=calls.append,
+                sleep_between=0.25,
+            )
+        assert calls == specs
+        assert [s.name for s in specs] == ["qq.1", "qq.2", "qq.3", "qq.4"]
+
+    def test_timestamps_are_attached_to_repeat_specs(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 %n:qq do X",
+                base_spawn_fn=lambda _s: None,
+                timestamps=["260501_120000", "260501_120001", "260501_120002"],
+            )
+        assert [s.timestamp for s in specs] == [
+            "260501_120000",
+            "260501_120001",
+            "260501_120002",
+        ]
 
     def test_first_iteration_has_no_wait(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

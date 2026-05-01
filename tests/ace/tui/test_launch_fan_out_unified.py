@@ -350,7 +350,8 @@ def test_multi_model_launch_runs_off_main_thread_and_unifies_refresh() -> None:
             return_value=("/tmp/ws", None),
         ):
             with patch(
-                "sase.core.time.generate_timestamp", return_value="20260427T0000"
+                "sase.core.agent_launch_facade.allocate_launch_timestamp_batch",
+                return_value=["260501_120000", "260501_120001"],
             ):
                 # Run the worker body directly to verify behavior.
                 app._run_multi_model_launch(
@@ -377,10 +378,18 @@ def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
         *,
         base_spawn_fn: Callable[[RepeatAgentSpec], None],
         sleep_between: float = 0.0,
+        timestamps: list[str] | None = None,
     ) -> list[RepeatAgentSpec]:
         del prompt, sleep_between
+        assert timestamps == ["260501_120000", "260501_120001", "260501_120002"]
         specs = [
-            RepeatAgentSpec(prompt="p", name=f"n{i}", iteration=i, total=3)
+            RepeatAgentSpec(
+                prompt="p",
+                name=f"n{i}",
+                iteration=i,
+                total=3,
+                timestamp=timestamps[i],
+            )
             for i in range(3)
         ]
         for spec in specs:
@@ -396,7 +405,12 @@ def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
                 "sase.running_field.get_workspace_directory", return_value="/tmp/ws"
             ):
                 with patch(
-                    "sase.core.time.generate_timestamp", return_value="20260427T0000"
+                    "sase.core.agent_launch_facade.allocate_launch_timestamp_batch",
+                    return_value=[
+                        "260501_120000",
+                        "260501_120001",
+                        "260501_120002",
+                    ],
                 ):
                     with patch(
                         "sase.agent.repeat_launcher.spawn_repeat_batch",

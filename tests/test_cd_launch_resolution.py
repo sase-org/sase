@@ -271,7 +271,7 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
-        patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
         patch(
             "sase.artifacts.create_artifacts_directory",
             return_value="/artifacts",
@@ -305,7 +305,7 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
     create_artifacts.assert_called_once_with(
         "ace-run",
         project_name=dir_a.name,
-        timestamp="ts1",
+        timestamp="260501_120000",
     )
     first_ws.assert_not_called()
 
@@ -324,7 +324,7 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
-        patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
         patch(
             "sase.artifacts.create_artifacts_directory",
             return_value="/artifacts",
@@ -361,7 +361,7 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
     create_artifacts.assert_called_once_with(
         "ace-run",
         project_name=dir_a.name,
-        timestamp="ts1",
+        timestamp="260501_120000",
     )
     first_ws.assert_not_called()
 
@@ -377,7 +377,7 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
     with (
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming") as wait,
-        patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
+        patch("sase.core.time.generate_timestamp", return_value="260501_120000"),
         patch(
             "sase.artifacts.create_artifacts_directory",
             return_value="/artifacts/home",
@@ -405,7 +405,7 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
     create_artifacts.assert_called_once_with(
         "ace-run",
         project_name="home",
-        timestamp="ts1",
+        timestamp="260501_120000",
     )
     wait.assert_called_once_with("/artifacts/home")
     first_ws.assert_not_called()

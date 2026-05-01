@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_launch_facade import (
+    LaunchTimestampBatchAllocator,
+    allocate_launch_timestamp_batch,
     fake_output_path,
     fake_prompt_path,
     plan_fake_fanout,
@@ -262,6 +264,28 @@ def test_fanout_plan_round_trips_slots() -> None:
     assert payload["schema_version"] == AGENT_LAUNCH_WIRE_SCHEMA_VERSION
     assert payload["slots"][1]["prompt"] == "%wait\nsecond"
     assert launch_fanout_plan_from_dict(payload) == plan
+
+
+def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    assert allocate_launch_timestamp_batch(
+        3,
+        base_timestamp="260501_120000",
+    ) == ["260501_120000", "260501_120001", "260501_120002"]
+
+
+def test_launch_timestamp_allocator_tracks_previous_batch() -> None:
+    pytest.importorskip("sase_core_rs")
+    allocator = LaunchTimestampBatchAllocator()
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "sase.core.time.generate_timestamp",
+            lambda: "260501_120000",
+        )
+        assert allocator.allocate(2) == ["260501_120000", "260501_120001"]
+        assert allocator.allocate(2) == ["260501_120002", "260501_120003"]
 
 
 def test_fake_paths_match_launch_safe_name_contract(tmp_path: Path) -> None:

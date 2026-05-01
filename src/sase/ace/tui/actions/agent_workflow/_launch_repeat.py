@@ -12,7 +12,8 @@ log = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from ._types import PromptContext
 
-_REPEAT_SPAWN_SLEEP = 1.0
+
+_REPEAT_SPAWN_SLEEP = 0.0
 
 
 class RepeatLaunchMixin:
@@ -63,6 +64,7 @@ class RepeatLaunchMixin:
             REPEAT_NAME_ENV,
             REPEAT_TOTAL_ENV,
             RepeatAgentSpec,
+            extract_repeat_and_name,
             spawn_repeat_batch,
         )
 
@@ -73,7 +75,7 @@ class RepeatLaunchMixin:
                 get_workspace_directory,
                 get_workspace_directory_for_num,
             )
-            from sase.core.time import generate_timestamp
+            from sase.core.agent_launch_facade import allocate_launch_timestamp_batch
 
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
@@ -83,10 +85,17 @@ class RepeatLaunchMixin:
                     "home_mode": ctx.is_home_mode,
                 },
             )
+            repeat_count, _, _ = extract_repeat_and_name(prompt)
+            timestamps = (
+                allocate_launch_timestamp_batch(repeat_count)
+                if repeat_count is not None
+                else None
+            )
 
             def _spawn_one(spec: RepeatAgentSpec) -> None:
+                assert spec.timestamp is not None
                 with timer.stage("timestamp_allocate", slot_index=spec.iteration):
-                    timestamp = generate_timestamp()
+                    timestamp = spec.timestamp
                     workflow_name = f"ace(run)-{timestamp}"
 
                 with timer.stage("workspace_allocation", slot_index=spec.iteration):
@@ -135,7 +144,7 @@ class RepeatLaunchMixin:
             specs = spawn_repeat_batch(
                 prompt,
                 base_spawn_fn=_spawn_one,
-                sleep_between=_REPEAT_SPAWN_SLEEP,
+                timestamps=timestamps,
             )
             msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(specs))

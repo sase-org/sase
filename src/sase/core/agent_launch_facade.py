@@ -114,6 +114,46 @@ def prepare_agent_launch(
     return agent_launch_prepared_from_dict(dict(payload))
 
 
+def allocate_launch_timestamp_batch(
+    count: int,
+    *,
+    base_timestamp: str | None = None,
+    after_timestamp: str | None = None,
+) -> list[str]:
+    """Return unique launch timestamps preserving ``YYmmdd_HHMMSS`` format."""
+
+    if count <= 0:
+        return []
+    if base_timestamp is None:
+        from sase.core.time import generate_timestamp
+
+        base_timestamp = generate_timestamp()
+
+    binding = require_rust_binding("allocate_launch_timestamp_batch")
+    return [
+        str(timestamp) for timestamp in binding(count, base_timestamp, after_timestamp)
+    ]
+
+
+class LaunchTimestampBatchAllocator:
+    """Allocate monotonically unique launch timestamps for one fan-out."""
+
+    def __init__(self) -> None:
+        self._last_timestamp: str | None = None
+
+    def allocate(self, count: int) -> list[str]:
+        timestamps = allocate_launch_timestamp_batch(
+            count,
+            after_timestamp=self._last_timestamp,
+        )
+        if timestamps:
+            self._last_timestamp = timestamps[-1]
+        return timestamps
+
+    def next(self) -> str:
+        return self.allocate(1)[0]
+
+
 def plan_fake_fanout(
     launch_kind: str,
     prompts: list[str],
@@ -152,6 +192,8 @@ def fake_prompt_path(root: Path, timestamp: str) -> str:
 
 
 __all__ = [
+    "LaunchTimestampBatchAllocator",
+    "allocate_launch_timestamp_batch",
     "fake_output_path",
     "fake_prompt_path",
     "plan_fake_fanout",

@@ -279,6 +279,7 @@ def spawn_agent_subprocess(
 def launch_agent_from_cwd(
     query: str,
     extra_env: dict[str, str] | None = None,
+    timestamp: str | None = None,
 ) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
@@ -290,6 +291,7 @@ def launch_agent_from_cwd(
 
     Args:
         query: The prompt/xprompt string to run as an agent.
+        timestamp: Optional preallocated launch timestamp for fan-out callers.
 
     Returns:
         AgentLaunchResult with process info (first agent for multi-prompt).
@@ -393,12 +395,15 @@ def launch_agent_from_cwd(
         extract_repeat_and_name,
         spawn_repeat_batch,
     )
+    from sase.core.agent_launch_facade import allocate_launch_timestamp_batch
 
     repeat_count, _, _ = extract_repeat_and_name(query)
     if repeat_count is not None and repeat_count > 1:
         slot_results: list[AgentLaunchResult] = []
+        repeat_timestamps = allocate_launch_timestamp_batch(repeat_count)
 
         def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
+            assert spec.timestamp is not None
             slot_env = {
                 REPEAT_NAME_ENV: spec.name,
                 REPEAT_ITERATION_ENV: str(spec.iteration),
@@ -406,9 +411,19 @@ def launch_agent_from_cwd(
             }
             if extra_env:
                 slot_env.update(extra_env)
-            slot_results.append(launch_agent_from_cwd(spec.prompt, extra_env=slot_env))
+            slot_results.append(
+                launch_agent_from_cwd(
+                    spec.prompt,
+                    extra_env=slot_env,
+                    timestamp=spec.timestamp,
+                )
+            )
 
-        spawn_repeat_batch(query, base_spawn_fn=_spawn_repeat_slot)
+        spawn_repeat_batch(
+            query,
+            base_spawn_fn=_spawn_repeat_slot,
+            timestamps=repeat_timestamps,
+        )
         return slot_results[0]
 
     # --- Alt-split detection ---
@@ -490,7 +505,7 @@ def launch_agent_from_cwd(
         project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
 
     # --- Allocate axe workspace ---
-    timestamp = generate_timestamp()
+    timestamp = timestamp or generate_timestamp()
     workflow_name = f"ace(run)-{timestamp}"
 
     if not workspace_dir:

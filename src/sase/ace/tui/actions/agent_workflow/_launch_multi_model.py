@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-import time
 from typing import TYPE_CHECKING
 
 log = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ class MultiModelLaunchMixin:
                 get_workspace_directory,
                 get_workspace_directory_for_num,
             )
-            from sase.core.time import generate_timestamp
+            from sase.core.agent_launch_facade import allocate_launch_timestamp_batch
 
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
@@ -73,13 +72,11 @@ class MultiModelLaunchMixin:
                 },
             )
             launched = 0
+            with timer.stage("timestamp_allocate_batch", slot_count=len(model_prompts)):
+                timestamps = allocate_launch_timestamp_batch(len(model_prompts))
             for i, model_prompt in enumerate(model_prompts):
-                if i > 0:
-                    with timer.stage("fanout_sleep", seconds=1.0, slot_index=i):
-                        time.sleep(1)
-
                 with timer.stage("timestamp_allocate", slot_index=i):
-                    timestamp = generate_timestamp()
+                    timestamp = timestamps[i]
                     workflow_name = f"ace(run)-{timestamp}"
 
                 with timer.stage("workspace_allocation", slot_index=i):

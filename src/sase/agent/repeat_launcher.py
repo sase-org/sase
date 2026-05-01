@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -60,6 +59,7 @@ class RepeatAgentSpec:
     iteration: int
     total: int
     prompt: str
+    timestamp: str | None = None
 
 
 _REPEAT_NAME_PATTERN = re.compile(
@@ -156,6 +156,7 @@ def spawn_repeat_batch(
     *,
     base_spawn_fn: Callable[[RepeatAgentSpec], None],
     sleep_between: float = 1.0,
+    timestamps: list[str] | None = None,
 ) -> list[RepeatAgentSpec]:
     """Resolve names + call *base_spawn_fn* once per repeat slot.
 
@@ -175,6 +176,10 @@ def spawn_repeat_batch(
     count, explicit_base, prompt_stripped = extract_repeat_and_name(prompt)
     if count is None:
         return []
+    if timestamps is not None and len(timestamps) != count:
+        raise ValueError(
+            f"repeat timestamp batch has {len(timestamps)} timestamps for {count} slots"
+        )
 
     resume_target = (
         None if explicit_base is not None else first_resume_agent_name(prompt_stripped)
@@ -196,6 +201,7 @@ def spawn_repeat_batch(
                 if k == 1
                 else f"%n:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
             ),
+            timestamp=None if timestamps is None else timestamps[k - 1],
         )
         for k in range(1, count + 1)
     ]
@@ -208,8 +214,8 @@ def spawn_repeat_batch(
     )
     for i, spec in enumerate(specs):
         if i > 0 and sleep_between > 0:
-            with timer.stage("fanout_sleep", seconds=sleep_between, slot_index=i):
-                time.sleep(sleep_between)
+            with timer.stage("fanout_sleep_skipped", seconds=0.0, slot_index=i):
+                pass
         with timer.stage("slot_spawn", slot_index=i):
             base_spawn_fn(spec)
 

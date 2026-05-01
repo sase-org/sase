@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from sase.agent.launcher import AgentLaunchResult
+from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.xprompt.models import XPrompt
 
 
@@ -158,22 +159,6 @@ def _wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | Non
     return None
 
 
-class _BatchTimestampAllocator:
-    """Allocate per-batch timestamps without changing timestamp format."""
-
-    def __init__(self, generate: Callable[[], str]) -> None:
-        self._generate = generate
-        self._last_timestamp: str | None = None
-
-    def next(self) -> str:
-        timestamp = self._generate()
-        while timestamp == self._last_timestamp:
-            time.sleep(0.05)
-            timestamp = self._generate()
-        self._last_timestamp = timestamp
-        return timestamp
-
-
 @dataclass(frozen=True)
 class _SegmentVcsContext:
     cl_name: str
@@ -295,10 +280,8 @@ def launch_multi_prompt_agents(
     :class:`MultiPromptPartialLaunchError` with the already-spawned results
     so callers can roll back.
     """
-    from sase.core.time import generate_timestamp
-
     results: list[AgentLaunchResult] = []
-    timestamp_allocator = _BatchTimestampAllocator(generate_timestamp)
+    timestamp_allocator = LaunchTimestampBatchAllocator()
 
     try:
         _spawn_segments_into(
@@ -334,7 +317,7 @@ def _spawn_segments_into(
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
     default_bare_segments_to_home: bool,
-    timestamp_allocator: _BatchTimestampAllocator,
+    timestamp_allocator: LaunchTimestampBatchAllocator,
     results: list[AgentLaunchResult],
 ) -> None:
     from sase.agent.launch_timing import LaunchTimingRecorder
@@ -389,18 +372,18 @@ def _spawn_segments_into(
                 )
 
         sub_prompts = model_prompts if model_prompts is not None else [segment]
+        with timer.stage(
+            "timestamp_allocate_batch",
+            segment_index=i,
+            slot_count=len(sub_prompts),
+        ):
+            timestamps = timestamp_allocator.allocate(len(sub_prompts))
 
         last_timestamp: str | None = None
         last_project_name: str | None = None
         for j, sub_prompt in enumerate(sub_prompts):
-            if j > 0:
-                with timer.stage(
-                    "fanout_sleep", seconds=1.0, segment_index=i, slot_index=j
-                ):
-                    time.sleep(1)
-
             with timer.stage("timestamp_allocate", segment_index=i, slot_index=j):
-                timestamp = timestamp_allocator.next()
+                timestamp = timestamps[j]
                 last_timestamp = timestamp
                 workflow_name = f"ace(run)-{timestamp}"
 
