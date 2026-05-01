@@ -23,7 +23,6 @@ def init_store(
     return dict(binding(str(root_dir), beads_dirname, issue_prefix, owner))
 
 
-# pyvision: public_api_methods.txt
 def create(
     beads_dir: Path | str,
     *,
@@ -60,7 +59,6 @@ def create(
     return _issue_payload(payload), payload
 
 
-# pyvision: public_api_methods.txt
 def update(
     beads_dir: Path | str,
     issue_id: str,
@@ -71,7 +69,6 @@ def update(
     return _issue_payload(payload), payload
 
 
-# pyvision: public_api_methods.txt
 def open_issue(
     beads_dir: Path | str,
     issue_id: str,
@@ -83,7 +80,6 @@ def open_issue(
     return _issue_payload(payload), payload
 
 
-# pyvision: public_api_methods.txt
 def close(
     beads_dir: Path | str,
     issue_ids: list[str],
@@ -96,7 +92,6 @@ def close(
     return issues_from_list(payload.get("issues", [])), payload
 
 
-# pyvision: public_api_methods.txt
 def remove(
     beads_dir: Path | str,
     issue_id: str,
@@ -129,7 +124,6 @@ def add_dependency(
     )
 
 
-# pyvision: public_api_methods.txt
 def mark_ready_to_work(
     beads_dir: Path | str,
     epic_id: str,
@@ -141,7 +135,6 @@ def mark_ready_to_work(
     return _issue_payload(payload), payload
 
 
-# pyvision: public_api_methods.txt
 def unmark_ready_to_work(
     beads_dir: Path | str,
     epic_id: str,
