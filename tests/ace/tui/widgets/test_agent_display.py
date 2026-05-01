@@ -7,6 +7,8 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    _derive_agent_bead_id,
+    build_header_text,
     get_phase_label,
     render_phase_divider,
 )
@@ -60,6 +62,44 @@ class TestGetPhaseLabel:
     def test_unknown_suffix(self) -> None:
         agent = _make_agent(role_suffix=".xyz")
         assert get_phase_label(agent) == "AGENT"
+
+
+# -- _derive_agent_bead_id / header metadata ---------------------------------
+
+
+class TestAgentBeadMetadata:
+    def test_phase_agent_name_renders_bead(self) -> None:
+        agent = _make_agent(agent_name="sase-x.3")
+
+        assert _derive_agent_bead_id(agent) == "sase-x.3"
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
+
+    def test_land_agent_name_renders_epic_bead(self) -> None:
+        agent = _make_agent(agent_name="sase-x.land")
+
+        assert _derive_agent_bead_id(agent) == "sase-x"
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @sase-x.land\nBead: sase-x\n" in header.plain
+
+    def test_dismissed_phase_agent_name_uses_underlying_bead(self) -> None:
+        agent = _make_agent(agent_name="260428.sase-x.3")
+
+        assert _derive_agent_bead_id(agent) == "sase-x.3"
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @260428.sase-x.3\nBead: sase-x.3\n" in header.plain
+
+    def test_ordinary_agent_name_omits_bead(self) -> None:
+        agent = _make_agent(agent_name="reviewer")
+
+        assert _derive_agent_bead_id(agent) is None
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @reviewer\n" in header.plain
+        assert "Bead:" not in header.plain
 
 
 # -- _render_phase_divider ----------------------------------------------------
