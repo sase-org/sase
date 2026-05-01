@@ -81,6 +81,8 @@ class _AnchorSpec:
     phase7b_rust_median_s: float
     must_beat_python: bool
     rationale: str
+    rust_slowdown_factor_override: float | None = None
+    rust_slowdown_factor_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -91,6 +93,7 @@ class AnchorResult:
     current_rust_median_s: float | None
     current_python_median_s: float | None
     rust_ceiling_s: float
+    rust_slowdown_factor_used: float
     failures: tuple[str, ...] = field(default_factory=tuple)
     notes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -110,6 +113,7 @@ class AnchorResult:
             "current_rust_median_s": self.current_rust_median_s,
             "current_python_median_s": self.current_python_median_s,
             "rust_ceiling_s": self.rust_ceiling_s,
+            "rust_slowdown_factor_used": self.rust_slowdown_factor_used,
             "passed": self.passed,
             "failures": list(self.failures),
             "notes": list(self.notes),
@@ -127,7 +131,20 @@ def load_baseline(path: Path) -> tuple[float, list[_AnchorSpec], dict[str, Any]]
             f"Unsupported baseline schema_version "
             f"{raw.get('schema_version')!r} in {path}"
         )
-    factor = float(raw["tolerance"]["rust_slowdown_factor"])
+    tolerance = raw["tolerance"]
+    factor = float(tolerance["rust_slowdown_factor"])
+    raw_overrides = tolerance.get("per_anchor_rust_slowdown_factors", {})
+    if not isinstance(raw_overrides, Mapping):
+        raise ValueError(
+            f"tolerance.per_anchor_rust_slowdown_factors must be an object in {path}"
+        )
+    anchor_ids = {str(a["id"]) for a in raw["anchors"]}
+    unknown_overrides = sorted(set(raw_overrides) - anchor_ids)
+    if unknown_overrides:
+        raise ValueError(
+            "tolerance.per_anchor_rust_slowdown_factors references unknown "
+            f"anchor id(s) in {path}: {unknown_overrides}"
+        )
     anchors = [
         _AnchorSpec(
             anchor_id=a["id"],
@@ -138,10 +155,34 @@ def load_baseline(path: Path) -> tuple[float, list[_AnchorSpec], dict[str, Any]]
             phase7b_rust_median_s=float(a["phase7b_rust_median_s"]),
             must_beat_python=bool(a["must_beat_python"]),
             rationale=str(a.get("rationale", "")),
+            rust_slowdown_factor_override=_anchor_slowdown_override(
+                raw_overrides, str(a["id"])
+            ),
+            rust_slowdown_factor_reason=_anchor_slowdown_reason(
+                raw_overrides, str(a["id"])
+            ),
         )
         for a in raw["anchors"]
     ]
     return factor, anchors, raw
+
+
+def _anchor_slowdown_override(
+    raw_overrides: Mapping[str, Any], anchor_id: str
+) -> float | None:
+    raw = raw_overrides.get(anchor_id)
+    if raw is None:
+        return None
+    if isinstance(raw, Mapping):
+        return float(raw["rust_slowdown_factor"])
+    return float(raw)
+
+
+def _anchor_slowdown_reason(raw_overrides: Mapping[str, Any], anchor_id: str) -> str:
+    raw = raw_overrides.get(anchor_id)
+    if isinstance(raw, Mapping):
+        return str(raw.get("comment", ""))
+    return ""
 
 
 # ---- harness drivers -------------------------------------------------------
@@ -354,8 +395,21 @@ def _check_anchor(
     rust_slowdown_factor: float,
     notes: list[str],
 ) -> AnchorResult:
-    rust_ceiling = spec.phase7b_rust_median_s * rust_slowdown_factor
+    factor_used = spec.rust_slowdown_factor_override or rust_slowdown_factor
+    rust_ceiling = spec.phase7b_rust_median_s * factor_used
     failures: list[str] = []
+    result_notes = list(notes)
+    if spec.rust_slowdown_factor_override is not None:
+        reason = (
+            f": {spec.rust_slowdown_factor_reason}"
+            if spec.rust_slowdown_factor_reason
+            else ""
+        )
+        result_notes.append(
+            "absolute floor uses per-anchor rust_slowdown_factor "
+            f"{factor_used:.2f}x instead of global {rust_slowdown_factor:.2f}x"
+            f"{reason}"
+        )
 
     if rust_med is None:
         failures.append("rust median unavailable (scenario missing or count=0)")
@@ -363,7 +417,7 @@ def _check_anchor(
         failures.append(
             f"absolute floor: rust median {rust_med * 1e6:.2f}us "
             f"exceeds ceiling {rust_ceiling * 1e6:.2f}us "
-            f"(={rust_slowdown_factor:.2f}x phase7b rust median "
+            f"(={factor_used:.2f}x phase7b rust median "
             f"{spec.phase7b_rust_median_s * 1e6:.2f}us)"
         )
 
@@ -381,8 +435,9 @@ def _check_anchor(
         current_rust_median_s=rust_med,
         current_python_median_s=py_med,
         rust_ceiling_s=rust_ceiling,
+        rust_slowdown_factor_used=factor_used,
         failures=tuple(failures),
-        notes=tuple(notes),
+        notes=tuple(result_notes),
     )
 
 

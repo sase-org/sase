@@ -59,6 +59,14 @@ class TestLoadBaseline:
             f"baseline references surfaces with no harness mapping: {unknown}"
         )
         assert raw["schema_version"] == 1
+        override_anchor = next(
+            a
+            for a in anchors
+            if a.anchor_id
+            == "notification_store.synthetic_5k.notification_modal_dismiss_burst"
+        )
+        assert override_anchor.rust_slowdown_factor_override == pytest.approx(1.6)
+        assert "runner IO variance" in override_anchor.rust_slowdown_factor_reason
 
     def test_rejects_unknown_schema_version(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
@@ -99,6 +107,43 @@ class TestCheckAnchor:
         )
         assert not result.passed
         assert any("absolute floor" in f for f in result.failures)
+
+    def test_per_anchor_slowdown_override_only_changes_that_anchor(self) -> None:
+        spec = _make_spec()
+        override_spec = _AnchorSpec(
+            anchor_id=spec.anchor_id,
+            surface=spec.surface,
+            workload=spec.workload,
+            scenario=spec.scenario,
+            phase7b_python_median_s=spec.phase7b_python_median_s,
+            phase7b_rust_median_s=spec.phase7b_rust_median_s,
+            must_beat_python=spec.must_beat_python,
+            rationale=spec.rationale,
+            rust_slowdown_factor_override=1.6,
+            rust_slowdown_factor_reason="known CI variance",
+        )
+
+        default_result = _check_anchor(
+            spec=spec,
+            rust_med=1.5e-4,
+            py_med=2.0e-4,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+        override_result = _check_anchor(
+            spec=override_spec,
+            rust_med=1.5e-4,
+            py_med=2.0e-4,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+
+        assert not default_result.passed
+        assert override_result.passed
+        assert override_result.rust_slowdown_factor_used == pytest.approx(1.6)
+        assert any(
+            "per-anchor rust_slowdown_factor" in n for n in override_result.notes
+        )
 
     def test_fails_when_must_beat_python_and_rust_loses(self) -> None:
         spec = _make_spec(must_beat_python=True)
