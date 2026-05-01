@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 17:51:30
-status: wip
+status: done
 bead_id: sase-1w
 ---
 # Plan: Generalize Alternation Agent Naming IDs
