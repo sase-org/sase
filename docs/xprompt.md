@@ -682,17 +682,17 @@ name without a `#` or `#!` marker.
 
 The repo-level `xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
 
-| Reference              | Inputs                           | Purpose                                                                                          |
-| ---------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `#!sase/refresh_docs`  | `project`, `gh_ref`, `threshold` | Count commits since the repo's docs marker and launch `#sase/docs` when the threshold is reached |
-| `#!sase/fix_just`      | none                             | Repair or validate `just` workflow issues                                                        |
-| `#!sase/pylimit_split` | `limits`                         | Assist with Python file-size splitting                                                           |
+| Reference              | Inputs   | Purpose                                   |
+| ---------------------- | -------- | ----------------------------------------- |
+| `#!sase/fix_just`      | none     | Repair or validate `just` workflow issues |
+| `#!sase/pylimit_split` | `limits` | Assist with Python file-size splitting    |
 
-`#!sase/refresh_docs` defaults to the main `sase` repo behavior (`project=sase`, `gh_ref=sase`, `threshold=50`). For
-scheduled checks in sibling repos, pass repo-specific values such as
-`#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
-marker path under `~/.sase/projects/<project>/refresh_docs_marker`; `gh_ref` is forwarded to the nested docs agent as
-`#gh:<gh_ref>`.
+The scheduled documentation refresh workflow is configured globally as `#!refresh_docs` in `sase_athena.yml`, not as a
+repo-local project-namespaced workflow. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase`
+repo behavior (`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in sibling repos, pass repo-specific
+values such as `#!refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects
+the marker path under `~/.sase/projects/<project>/refresh_docs_marker`; `gh_ref` is forwarded to the nested docs agent
+as `#gh:<gh_ref>`.
 
 ## Config-Based XPrompts
 
@@ -715,6 +715,25 @@ xprompts:
 ```
 
 Config-based xprompts have priority 6 (below file-based, above plugin and built-in).
+
+## Config-Based Standalone Workflows
+
+Standalone workflows can be defined in config files under the top-level `workflows:` key and invoked with `#!name`.
+Their schema matches YAML workflow files:
+
+```yaml
+workflows:
+  refresh_docs:
+    input:
+      project: { type: line, default: "sase" }
+    steps:
+      - name: run
+        bash: echo "{{ project }}"
+```
+
+Config workflows have the same precedence band as config xprompts: below file-based and project-specific workflows,
+above plugin and built-in workflows. Workflows from local `./sase.yml` are namespaced when a project is detected;
+workflows from user config and `sase_*.yml` overlays remain global.
 
 ## Local Configuration Files
 

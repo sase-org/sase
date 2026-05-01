@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.config import load_workflows_by_source
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
@@ -119,31 +120,24 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         xprompts=wf.xprompts,
         wraps_all=wf.wraps_all,
         tags=wf.tags,
+        keywords=wf.keywords,
         environment=wf.environment,
     )
 
 
-def _load_workflow_from_file(file_path: Path) -> Workflow | None:
-    """Load a single workflow from a YAML file.
+def _load_workflow_from_mapping(
+    name: str, data: dict[str, Any], source_path: str
+) -> Workflow | None:
+    """Load a single workflow from parsed YAML data.
 
     Args:
-        file_path: Path to the .yml/.yaml file.
+        name: Workflow name.
+        data: Parsed workflow definition.
+        source_path: File path or source label where the workflow was loaded from.
 
     Returns:
         Workflow object if successfully loaded, None otherwise.
     """
-    try:
-        content = file_path.read_text(encoding="utf-8")
-        data = yaml.safe_load(content)
-    except (OSError, yaml.YAMLError):
-        return None
-
-    if not isinstance(data, dict):
-        return None
-
-    # Derive workflow name from filename
-    name = file_path.stem
-
     # Parse wraps_all
     wraps_all = bool(data.get("wraps_all", False))
 
@@ -162,7 +156,7 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     # Parse workflow-local xprompts
     xprompts_data = data.get("xprompts")
     parsed_xprompts = (
-        parse_xprompt_entries(xprompts_data, str(file_path))
+        parse_xprompt_entries(xprompts_data, source_path)
         if isinstance(xprompts_data, dict)
         else {}
     )
@@ -223,7 +217,7 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         name=str(name),
         inputs=inputs,
         steps=steps,
-        source_path=str(file_path),
+        source_path=source_path,
         xprompts=parsed_xprompts,
         wraps_all=wraps_all,
         tags=tags,
@@ -239,6 +233,27 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         pass
 
     return workflow
+
+
+def _load_workflow_from_file(file_path: Path) -> Workflow | None:
+    """Load a single workflow from a YAML file.
+
+    Args:
+        file_path: Path to the .yml/.yaml file.
+
+    Returns:
+        Workflow object if successfully loaded, None otherwise.
+    """
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        data = yaml.safe_load(content)
+    except (OSError, yaml.YAMLError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    return _load_workflow_from_mapping(file_path.stem, data, str(file_path))
 
 
 def _discover_workflow_files() -> list[tuple[Path, int, bool]]:
@@ -324,6 +339,34 @@ def _load_workflows_from_internal() -> dict[str, Workflow]:
     return workflows
 
 
+def _load_workflows_from_config(project: str | None = None) -> dict[str, Workflow]:
+    """Load standalone workflows from top-level config ``workflows:`` entries.
+
+    When *project* is given, workflows from the CWD-local ``sase.yml`` source
+    are namespaced with ``{project}/``.  User config and overlay workflows stay
+    global so files such as ``sase_athena.yml`` can define ``#!refresh_docs``.
+
+    Returns:
+        Dictionary mapping workflow name to Workflow object.
+    """
+    workflows: dict[str, Workflow] = {}
+
+    for source_label, workflows_data in load_workflows_by_source():
+        for name, workflow_data in workflows_data.items():
+            if not isinstance(workflow_data, dict):
+                continue
+            workflow = _load_workflow_from_mapping(
+                str(name), workflow_data, source_label
+            )
+            if not workflow:
+                continue
+            if project and source_label == "local_config":
+                workflow = _namespace_workflow(project, workflow)
+            workflows[workflow.name] = workflow
+
+    return workflows
+
+
 def _load_workflows_from_plugins() -> dict[str, Workflow]:
     """Load workflows from plugin packages via ``sase_xprompts`` entry points.
 
@@ -378,6 +421,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         xprompts=workflow.xprompts,
                         wraps_all=workflow.wraps_all,
                         tags=workflow.tags,
+                        keywords=workflow.keywords,
                         environment=workflow.environment,
                     )
             finally:
@@ -429,14 +473,15 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     workflows from project-local sources (CWD xprompt directories) are
     namespaced with ``{project}/``.
 
-    Priority order (first wins on name conflict):
+    Priority order (higher layers override lower layers):
     1. .xprompts/*.yml (CWD, hidden)
     2. xprompts/*.yml (CWD, non-hidden)
     3. ~/.xprompts/*.yml (home, hidden)
     4. ~/xprompts/*.yml (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
-    6. Plugin packages (via sase_xprompts entry points)
-    7. <sase_package>/xprompts/*.yml (internal)
+    6. ``workflows:`` config entries
+    7. Plugin packages (via sase_xprompts entry points)
+    8. <sase_package>/xprompts/*.yml (internal)
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -449,11 +494,15 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
 
     all_workflows: dict[str, Workflow] = {}
 
-    # 7. Internal workflows (lowest priority)
+    # 8. Internal workflows (lowest priority)
     all_workflows.update(_load_workflows_from_internal())
 
-    # 6. Plugin workflows
+    # 7. Plugin workflows
     all_workflows.update(_load_workflows_from_plugins())
+
+    # 6. Config-based workflows
+    config_workflows = _load_workflows_from_config(project=effective_project)
+    all_workflows.update(config_workflows)
 
     # 5. Project-specific workflows (if project provided)
     if effective_project:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 01:10:11
-status: wip
+status: done
 ---
 # Plan: Factor `refresh_docs` Into Athena Config
 

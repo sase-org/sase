@@ -297,6 +297,68 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
     return results
 
 
+def load_workflows_by_source() -> list[tuple[str, dict[str, Any]]]:
+    """Load workflow entries from each config source with provenance tracking.
+
+    Mirrors :func:`load_xprompts_by_source` for top-level ``workflows:``
+    entries.  Config workflows are standalone workflow definitions, not inline
+    xprompts, so callers can keep ``#!workflow`` semantics separate from
+    ``#xprompt`` expansion.
+
+    Returns:
+        List of ``(source_label, workflows_dict)`` tuples in priority order
+        (lowest priority first).  Source labels match
+        :func:`load_xprompts_by_source`.
+    """
+    results: list[tuple[str, dict[str, Any]]] = []
+
+    # 1. Built-in default config (lowest priority)
+    default = _load_default_config()
+    if isinstance(default.get("workflows"), dict):
+        results.append(("default_config", default["workflows"]))
+
+    # 2. Plugin configs
+    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+
+    if not is_plugin_disabled("CONFIG"):
+        for module in discover_plugin_resources("sase_config"):
+            try:
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
+                text = ref.read_text(encoding="utf-8")
+                data = yaml.safe_load(text)
+                if isinstance(data, dict) and isinstance(data.get("workflows"), dict):
+                    module_name = getattr(module, "__name__", str(module))
+                    results.append((f"plugin_config:{module_name}", data["workflows"]))
+            except Exception:
+                log.debug(
+                    "Failed to load plugin workflows from %s",
+                    getattr(module, "__name__", module),
+                    exc_info=True,
+                )
+
+    # 3. User config (sase.yml)
+    user_base = _load_yaml_file(CONFIG_DIR / "sase.yml")
+    if user_base and isinstance(user_base.get("workflows"), dict):
+        results.append(("config", user_base["workflows"]))
+
+    # 4. Overlay files
+    for overlay_path in _get_overlay_paths():
+        overlay = _load_yaml_file(overlay_path)
+        if overlay and isinstance(overlay.get("workflows"), dict):
+            results.append(
+                (f"config_overlay:{overlay_path.name}", overlay["workflows"])
+            )
+
+    # 5. Local config (highest priority among config sources)
+    local_path = _get_local_config_path()
+    if local_path:
+        local_config = _load_yaml_file(local_path)
+        if local_config and isinstance(local_config.get("workflows"), dict):
+            results.append(("local_config", local_config["workflows"]))
+
+    return results
+
+
 def load_merged_config() -> dict[str, Any]:
     """Load and merge all sase config files.
 

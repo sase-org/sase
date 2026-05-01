@@ -470,6 +470,28 @@ content.
 
 Source: `src/sase/xprompt/loader.py`
 
+### workflows
+
+Defines standalone YAML workflows that can be referenced with `#!name` syntax in prompts. The entry body uses the same
+schema as a workflow file in an `xprompts/` directory.
+
+```yaml
+workflows:
+  refresh_docs:
+    input:
+      project: { type: line, default: "sase" }
+      threshold: { type: int, default: 50 }
+    steps:
+      - name: count
+        bash: echo "{{ project }} {{ threshold }}"
+```
+
+Config workflows are loaded below file-based and project-specific workflow files, and above plugin and built-in
+workflows. Only workflows from local `./sase.yml` are project-namespaced; user config and `sase_*.yml` overlays define
+global workflow names.
+
+Source: `src/sase/xprompt/workflow_loader.py`
+
 ### xprompt_aliases
 
 Defines raw text-level alias substitutions that are applied _before_ any xprompt processing. This is useful for creating
