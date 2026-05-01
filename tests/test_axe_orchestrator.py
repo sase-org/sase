@@ -96,73 +96,115 @@ def test_remove_pid_no_file(temp_state_dir: Path, axe_config: AxeConfig) -> None
 # --- SIGTERM Forwarding Tests ---
 
 
-# --- Kill Existing Orchestrator Tests ---
+# --- Existing Orchestrator / Lock Tests ---
 
 
-def test_kill_existing_no_pid_file(temp_state_dir: Path, axe_config: AxeConfig) -> None:
+def test_cleanup_stale_no_pid_file(temp_state_dir: Path, axe_config: AxeConfig) -> None:
     """No-op when there is no PID file."""
     orch = Orchestrator(axe_config)
-    orch._kill_existing_orchestrator()  # Should not raise
+    assert orch._cleanup_stale_orchestrator_pid() is None
 
 
 @patch("os.kill")
-def test_kill_existing_dead_process(
+def test_cleanup_stale_dead_process(
     mock_kill: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """No-op when the PID file points to a dead process."""
+    """Removes a PID file that points to a dead process."""
     pid_file = temp_state_dir / "orchestrator.pid"
     pid_file.write_text("99999")
     mock_kill.side_effect = ProcessLookupError
 
     orch = Orchestrator(axe_config)
-    orch._kill_existing_orchestrator()
+    assert orch._cleanup_stale_orchestrator_pid() is None
 
     # Should have probed with signal 0
     mock_kill.assert_called_once_with(99999, 0)
+    assert not pid_file.exists()
 
 
-@patch("time.sleep")
 @patch("os.kill")
-def test_kill_existing_sends_sigterm(
+def test_cleanup_stale_live_process_does_not_kill(
     mock_kill: MagicMock,
-    mock_sleep: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Sends SIGTERM and waits for the old orchestrator to exit."""
+    """A start command treats a live existing orchestrator as success."""
     pid_file = temp_state_dir / "orchestrator.pid"
     pid_file.write_text("12345")
 
-    # First call: signal 0 probe (alive), second: SIGTERM, third: signal 0 (dead)
-    mock_kill.side_effect = [None, None, ProcessLookupError]
+    mock_kill.return_value = None
 
     orch = Orchestrator(axe_config)
-    orch._kill_existing_orchestrator()
+    assert orch._cleanup_stale_orchestrator_pid() == 12345
 
-    calls = mock_kill.call_args_list
-    assert calls[0] == ((12345, 0),)
-    assert calls[1] == ((12345, signal.SIGTERM),)
-    assert calls[2] == ((12345, 0),)
+    mock_kill.assert_called_once_with(12345, 0)
+    assert pid_file.read_text() == "12345"
 
 
 @patch("os.kill")
-def test_kill_existing_skips_own_pid(
+def test_cleanup_stale_skips_own_pid(
     mock_kill: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Skips killing when PID file contains our own PID."""
+    """Keeps the PID file when it contains our own PID."""
     import os
 
     pid_file = temp_state_dir / "orchestrator.pid"
     pid_file.write_text(str(os.getpid()))
 
     orch = Orchestrator(axe_config)
-    orch._kill_existing_orchestrator()
+    assert orch._cleanup_stale_orchestrator_pid() == os.getpid()
 
     mock_kill.assert_not_called()
+
+
+@patch("sase.axe.orchestrator.acquire_axe_lifetime_lock", return_value=None)
+def test_run_exits_without_spawning_when_lifetime_lock_is_held(
+    mock_acquire: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Duplicate direct starts exit successfully without supervising children."""
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("12345")
+
+    orch = Orchestrator(axe_config)
+    with patch.object(orch, "_spawn_lumberjack") as mock_spawn:
+        assert orch.run() is True
+
+    mock_acquire.assert_called_once()
+    mock_spawn.assert_not_called()
+    assert pid_file.read_text() == "12345"
+    assert "already running (pid 12345)" in capsys.readouterr().out
+
+
+def test_run_writes_pid_and_releases_lifetime_lock(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """The orchestrator owns the lock for its run and releases it on exit."""
+    axe_config.lumberjacks = {}
+    orch = Orchestrator(axe_config)
+
+    def interrupt_sleep(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    with (
+        patch("sase.axe.orchestrator.init_telemetry"),
+        patch("sase.axe.orchestrator.time.sleep", side_effect=interrupt_sleep),
+    ):
+        assert orch.run() is True
+
+    assert not (temp_state_dir / "orchestrator.pid").exists()
+    from sase.axe.lock import AxeLifecycleLock
+
+    lock = AxeLifecycleLock.acquire(blocking=False)
+    assert lock is not None
+    lock.release()
 
 
 # --- SIGTERM Forwarding Tests ---

@@ -17,6 +17,7 @@ from sase.ace.changespec import count_agent_runners_global, count_hook_runners_g
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
+from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
 from .orchestrator import ORCHESTRATOR_PID_FILE
 from .state import (
     AXE_STATE_DIR,
@@ -44,14 +45,77 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
         config: Optional AxeConfig; loaded from disk if not provided.
 
     Returns:
-        PID of started process, or None if already running or failed.
+        PID of the running process, or None if startup failed.
     """
-    if is_axe_running():
+    existing_pid = get_axe_pid()
+    if existing_pid is not None:
+        return existing_pid
+
+    lifecycle_lock = _acquire_lifecycle_lock_for_start()
+    if lifecycle_lock is None:
+        return get_axe_pid()
+
+    handed_off = False
+    process: subprocess.Popen[bytes] | None = None
+    try:
+        existing_pid = get_axe_pid()
+        if existing_pid is not None:
+            return existing_pid
+
+        if config is None:
+            config = load_axe_config()
+
+        cmd = _build_axe_start_command(config)
+        if cmd is None:
+            return None
+
+        log_dir = AXE_STATE_DIR / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "axe.log"
+
+        env = os.environ.copy()
+        env[AXE_LOCK_FD_ENV] = str(lifecycle_lock.fd)
+        with open(log_file, "a") as log:
+            process = subprocess.Popen(
+                cmd,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=(lifecycle_lock.fd,),
+                env=env,
+            )
+        handed_off = True
+        lifecycle_lock.close_after_handoff()
+    finally:
+        if not handed_off:
+            lifecycle_lock.release()
+
+    if process is None:
         return None
+    return _wait_for_daemon_start(process)
 
-    if config is None:
-        config = load_axe_config()
 
+def _acquire_lifecycle_lock_for_start(
+    timeout: float = 15.0,
+) -> AxeLifecycleLock | None:
+    """Acquire the lifecycle lock, waiting through startup/shutdown races."""
+    deadline = time.monotonic() + timeout
+    while True:
+        existing_pid = get_axe_pid()
+        if existing_pid is not None:
+            return None
+
+        lifecycle_lock = AxeLifecycleLock.acquire(blocking=False)
+        if lifecycle_lock is not None:
+            return lifecycle_lock
+
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.05)
+
+
+def _build_axe_start_command(config: AxeConfig) -> list[str] | None:
+    """Build the detached orchestrator command."""
     # Find sase executable — prefer the one next to the running interpreter
     bin_dir = Path(sys.executable).parent
     sase_in_bin = bin_dir / "sase"
@@ -72,20 +136,26 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
     ]
     if config.query:
         cmd.extend(["-q", config.query])
+    return cmd
 
-    log_dir = AXE_STATE_DIR / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "axe.log"
 
-    with open(log_file, "a") as log:
-        process = subprocess.Popen(
-            cmd,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+def _wait_for_daemon_start(
+    process: subprocess.Popen[bytes],
+    timeout: float = 3.0,
+) -> int | None:
+    """Wait for the spawned orchestrator to publish a live PID."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        pid = get_axe_pid()
+        if pid is not None:
+            return pid
+        if process.poll() is not None:
+            return get_axe_pid()
+        time.sleep(0.05)
 
-    return process.pid
+    if process.poll() is None and is_process_running(process.pid):
+        return process.pid
+    return get_axe_pid()
 
 
 def stop_axe_daemon(
@@ -115,9 +185,10 @@ def stop_axe_daemon(
         _cleanup_pid_file()
         return False
 
+    _cleanup_pid_file()
+
     # Wait for the orchestrator (and its children) to exit.
     if _wait_for_exit(pid, timeout):
-        _cleanup_pid_file()
         return True
 
     # Escalate: SIGKILL the orchestrator process group.
@@ -130,6 +201,12 @@ def stop_axe_daemon(
     _wait_for_exit(pid, kill_timeout)
     _cleanup_pid_file()
     return True
+
+
+def restart_axe_daemon(config: AxeConfig | None = None) -> int | None:
+    """Restart the axe orchestrator and return the new/live PID."""
+    stop_axe_daemon()
+    return start_axe_daemon(config)
 
 
 def _wait_for_exit(pid: int, timeout: float) -> bool:

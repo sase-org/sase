@@ -234,7 +234,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             proc = get_axe_process_module()
             pid = proc.start_axe_daemon()
             if pid is not None:
-                return (True, f"Axe started (pid {pid})")
+                return (True, f"Axe running (pid {pid})")
             return (False, "Failed to start axe")
 
         self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
@@ -262,10 +262,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
         def _do_restart() -> tuple[bool, str]:
             proc = get_axe_process_module()
-            stopped = proc.stop_axe_daemon()
-            if not stopped:
-                return (False, "Axe was not running")
-            pid = proc.start_axe_daemon()
+            pid = proc.restart_axe_daemon()
             if pid is not None:
                 return (True, f"Axe restarted (pid {pid})")
             return (False, "Failed to restart axe")

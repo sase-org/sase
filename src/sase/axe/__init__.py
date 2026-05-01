@@ -11,6 +11,7 @@ from .process import (
     get_axe_status,
     get_lumberjack_names,
     is_axe_running,
+    restart_axe_daemon,
     start_axe_daemon,
     stop_axe_daemon,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "get_axe_status",
     "get_lumberjack_names",
     "is_axe_running",
+    "restart_axe_daemon",
     "start_axe_daemon",
     "stop_axe_daemon",
     # Chop scripts
