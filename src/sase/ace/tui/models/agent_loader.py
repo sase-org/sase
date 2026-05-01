@@ -1,16 +1,28 @@
 """Functions for loading and aggregating agents from all sources."""
 
+from dataclasses import dataclass, replace
 from datetime import datetime
+import logging
+import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from sase.core.agent_compose_wire import (
+    AgentComposeInputWire,
+    AgentComposeOptionsWire,
+    ComposedAgentListWire,
+    composed_agent_list_to_json_dict,
+)
 from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.core.wire_conversion import changespec_to_wire
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
+from ..util.trace import trace_event
 from ._dedup import (
     dedup_axe_spawned_agents,
     dedup_by_pid,
@@ -19,6 +31,7 @@ from ._dedup import (
     remove_vcs_workspace_claims,
 )
 from ._loaders import (
+    collect_running_claim_wires,
     get_all_project_files,
     get_workflow_timestamp_dirs,  # noqa: F401  re-exported for fallback callers
     load_agents_from_comments,
@@ -39,6 +52,14 @@ from ._loaders import (
 from .agent import Agent, AgentType
 from .workflow import WorkflowEntry
 
+if TYPE_CHECKING:
+    from sase.core.agent_compose_wire import RunningClaimWire
+
+log = logging.getLogger(__name__)
+
+_AGENT_COMPOSE_SHADOW_ENV = "SASE_AGENT_COMPOSE_SHADOW"
+_AGENT_COMPOSE_BENCH_ENV = "SASE_AGENT_COMPOSE_BENCH"
+
 
 _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_prompt_step_markers=True,
@@ -47,6 +68,17 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     # the snippet read to keep the scan compact.
     include_raw_prompt_snippets=False,
 )
+
+
+@dataclass(frozen=True)
+class _AgentLoaderCompositionInputs:
+    project_files: list[str]
+    changespecs: list[ChangeSpec]
+    bug_by_cl_name: dict[str, str | None]
+    cl_by_cl_name: dict[str, str | None]
+    artifact_snapshot: AgentArtifactScanWire
+    running_claims: list["RunningClaimWire"]
+    compose_input: AgentComposeInputWire
 
 
 def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
@@ -91,6 +123,67 @@ def load_all_workflows() -> list[WorkflowEntry]:
     return workflows_with_time + workflows_without_time
 
 
+def _identity_to_wire(
+    identity: tuple[AgentType, str, str | None],
+) -> tuple[str, str, str | None]:
+    agent_type, cl_name, raw_suffix = identity
+    return (agent_type.value, cl_name, raw_suffix)
+
+
+def _build_changespec_lookups(
+    all_changespecs: list[ChangeSpec],
+) -> tuple[dict[str, str | None], dict[str, str | None]]:
+    """Build bug URL and CL number lookups by CL name."""
+    bug_by_cl_name: dict[str, str | None] = {}
+    cl_by_cl_name: dict[str, str | None] = {}
+    for cs in all_changespecs:
+        if cs.bug:
+            bug_id = cs.bug.removeprefix("http://b/")
+            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
+        if cs.cl:
+            cl_by_cl_name[cs.name] = cs.cl
+    return bug_by_cl_name, cl_by_cl_name
+
+
+def _collect_agent_loader_inputs(
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    dismissed_agents: set[tuple[AgentType, str, str | None]] | None = None,
+) -> _AgentLoaderCompositionInputs:
+    """Collect every coarse-grained input needed for one compose pass."""
+    project_files = get_all_project_files()
+    all_changespecs = (
+        changespec_snapshot
+        if changespec_snapshot is not None
+        else find_all_changespecs()
+    )
+    bug_by_cl_name, cl_by_cl_name = _build_changespec_lookups(all_changespecs)
+    running_claims = collect_running_claim_wires(
+        project_files, bug_by_cl_name, cl_by_cl_name
+    )
+    artifact_snapshot = _scan_artifacts_for_loader()
+    dismissed = dismissed_agents or set()
+    compose_input = AgentComposeInputWire(
+        artifact_scan=artifact_snapshot,
+        changespecs=[changespec_to_wire(cs) for cs in all_changespecs],
+        running_claims=running_claims,
+        dismissed_identities=[_identity_to_wire(identity) for identity in dismissed],
+        dismissed_suffixes=[
+            raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None
+        ],
+        options=AgentComposeOptionsWire(),
+    )
+    return _AgentLoaderCompositionInputs(
+        project_files=project_files,
+        changespecs=all_changespecs,
+        bug_by_cl_name=bug_by_cl_name,
+        cl_by_cl_name=cl_by_cl_name,
+        artifact_snapshot=artifact_snapshot,
+        running_claims=running_claims,
+        compose_input=compose_input,
+    )
+
+
 def _load_agents_from_all_sources(
     *, changespec_snapshot: list[ChangeSpec] | None = None
 ) -> tuple[list[Agent], list[Agent]]:
@@ -109,67 +202,55 @@ def _load_agents_from_all_sources(
             call and reuses this snapshot for bug/CL lookups and the
             HOOKS/MENTORS/COMMENTS sweep.
     """
+    inputs = _collect_agent_loader_inputs(changespec_snapshot=changespec_snapshot)
+    return _load_agents_from_collected_sources(inputs)
+
+
+def _load_agents_from_collected_sources(
+    inputs: _AgentLoaderCompositionInputs,
+) -> tuple[list[Agent], list[Agent]]:
+    """Build Python Agent candidates from already-collected loader inputs."""
     agents: list[Agent] = []
-
-    # Get all project files
-    project_files = get_all_project_files()
-
-    # Load all ChangeSpecs early to build bug lookup. Caller-supplied
-    # snapshots avoid re-globbing every ``.gp`` file when the TUI already
-    # has a fresh cached snapshot in hand.
-    all_changespecs = (
-        changespec_snapshot
-        if changespec_snapshot is not None
-        else find_all_changespecs()
-    )
-
-    # Build bug URL and CL number lookups by CL name (single pass)
-    bug_by_cl_name: dict[str, str | None] = {}
-    cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_changespecs:
-        if cs.bug:
-            bug_id = cs.bug.removeprefix("http://b/")
-            bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-        if cs.cl:
-            cl_by_cl_name[cs.name] = cs.cl
 
     # 1. Load from RUNNING field (snapshot-independent; reads project .gp files).
     agents.extend(
-        load_agents_from_running_field(project_files, bug_by_cl_name, cl_by_cl_name)
+        load_agents_from_running_field(
+            inputs.project_files,
+            inputs.bug_by_cl_name,
+            inputs.cl_by_cl_name,
+            running_claims=inputs.running_claims,
+        )
     )
-
-    # Acquire a single artifact snapshot for every artifact-tree consumer
-    # below. Phase 3F replaces independent walks of done/running/workflow
-    # subtrees with one ``scan_agent_artifacts()`` snapshot so the
-    # filesystem (and, in Rust mode, the FFI conversion) only pays the
-    # walking + JSON parsing cost once per refresh.
-    artifact_snapshot = _scan_artifacts_for_loader()
 
     # 1a. Load completed (DONE) agents
     agents.extend(
-        load_done_agents_from_snapshot(artifact_snapshot, bug_by_cl_name, cl_by_cl_name)
+        load_done_agents_from_snapshot(
+            inputs.artifact_snapshot,
+            inputs.bug_by_cl_name,
+            inputs.cl_by_cl_name,
+        )
     )
 
     # 1b. Load running home mode agents (from running.json markers)
-    agents.extend(load_running_home_agents_from_snapshot(artifact_snapshot))
+    agents.extend(load_running_home_agents_from_snapshot(inputs.artifact_snapshot))
 
     # 1d. Load workflow agent steps first — also collects meta_* fields
     # per parent timestamp so load_workflow_agents() can skip redundant
     # prompt_step_*.json reads.
     workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps_from_snapshot(
-        artifact_snapshot
+        inputs.artifact_snapshot
     )
 
     # 1c. Load workflow entries as agents (with pre-collected meta fields)
     agents.extend(
         load_workflow_agents_from_snapshot(
-            artifact_snapshot,
+            inputs.artifact_snapshot,
             step_meta_by_parent=step_meta_by_parent,
         )
     )
 
     # 2. Load from each ChangeSpec's fields
-    for cs in all_changespecs:
+    for cs in inputs.changespecs:
         stripped_bug_id = cs.bug.removeprefix("http://b/") if cs.bug else None
         bug = f"http://b/{stripped_bug_id}" if stripped_bug_id else None
         cl_num = cs.cl
@@ -186,7 +267,42 @@ def _load_agents_from_all_sources(
     return agents, workflow_agent_steps
 
 
-def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
+def _artifact_running_pids(snapshot: AgentArtifactScanWire) -> set[int]:
+    pids: set[int] = set()
+    for record in snapshot.records:
+        if record.running is not None and record.running.pid is not None:
+            pids.add(record.running.pid)
+    return pids
+
+
+def _collect_pid_liveness(
+    agents: list[Agent],
+    *,
+    artifact_snapshot: AgentArtifactScanWire | None = None,
+) -> dict[int, bool]:
+    """Check each PID once for Python filtering and Rust shadow input."""
+    pids = {agent.pid for agent in agents if agent.pid is not None}
+    if artifact_snapshot is not None:
+        pids.update(_artifact_running_pids(artifact_snapshot))
+    return {pid: is_process_running(pid) for pid in sorted(pids)}
+
+
+def _compose_input_with_liveness(
+    compose_input: AgentComposeInputWire,
+    pid_liveness: dict[int, bool],
+) -> AgentComposeInputWire:
+    return replace(
+        compose_input,
+        alive_pids=[pid for pid, alive in pid_liveness.items() if alive],
+        dead_pids=[pid for pid, alive in pid_liveness.items() if not alive],
+    )
+
+
+def _filter_dead_pids(
+    agents: list[Agent],
+    *,
+    pid_liveness: dict[int, bool] | None = None,
+) -> list[Agent]:
     """Filter out agents with dead PIDs (but keep completed agents)."""
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
@@ -194,7 +310,12 @@ def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
         if agent.status in completed_statuses:
             verified_agents.append(agent)
         elif agent.pid is not None:
-            if is_process_running(agent.pid):
+            is_alive = (
+                pid_liveness[agent.pid]
+                if pid_liveness is not None and agent.pid in pid_liveness
+                else is_process_running(agent.pid)
+            )
+            if is_alive:
                 verified_agents.append(agent)
             # Skip agents with dead PIDs
         else:
@@ -555,8 +676,115 @@ def _sort_and_reorder(
     return sorted_agents
 
 
+def _compose_python_agent_list(
+    agents: list[Agent],
+    workflow_agent_steps: list[Agent],
+    *,
+    pid_liveness: dict[int, bool] | None = None,
+) -> list[Agent]:
+    """Run the current Python composition stages on preloaded candidates."""
+    # Filter out agents with dead PIDs (but keep completed agents)
+    agents = _filter_dead_pids(agents, pid_liveness=pid_liveness)
+
+    # Deduplication pipeline
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
+
+    # Override statuses based on workflow relationships
+    _apply_status_overrides(agents)
+
+    # Sort and insert workflow steps
+    return _sort_and_reorder(agents, workflow_agent_steps)
+
+
+def _dismissed_from_agents(
+    agents: list[Agent],
+    dismissed_agents: set[tuple[AgentType, str, str | None]] | None,
+) -> list[Agent]:
+    if not dismissed_agents:
+        return []
+    dismissed_suffixes = {
+        raw_suffix for _, _, raw_suffix in dismissed_agents if raw_suffix is not None
+    }
+    return [
+        agent
+        for agent in agents
+        if agent.status != "RUNNING"
+        and (
+            agent.identity in dismissed_agents
+            or (agent.raw_suffix is not None and agent.raw_suffix in dismissed_suffixes)
+        )
+    ]
+
+
+def _agent_compose_shadow_enabled() -> bool:
+    return (
+        os.environ.get(_AGENT_COMPOSE_SHADOW_ENV) == "1"
+        or os.environ.get(_AGENT_COMPOSE_BENCH_ENV) == "1"
+    )
+
+
+def _comparison_payload(record: ComposedAgentListWire) -> dict[str, object]:
+    payload = composed_agent_list_to_json_dict(record)
+    return {
+        "agents": payload["agents"],
+        "workflow_agent_steps": payload["workflow_agent_steps"],
+        "dismissed_from_loader": payload["dismissed_from_loader"],
+    }
+
+
+def _shadow_compare_agent_compose(
+    compose_input: AgentComposeInputWire,
+    agents: list[Agent],
+    workflow_agent_steps: list[Agent],
+    dismissed_from_loader: list[Agent],
+) -> None:
+    if not _agent_compose_shadow_enabled():
+        return
+
+    from sase.core.agent_compose_facade import (
+        compose_agent_list,
+        compose_python_agents_to_wire,
+    )
+
+    python_wire = compose_python_agents_to_wire(
+        agents,
+        workflow_agent_steps=workflow_agent_steps,
+        dismissed_from_loader=dismissed_from_loader,
+    )
+    try:
+        rust_wire = compose_agent_list(compose_input)
+    except Exception as exc:
+        log.debug("agent compose shadow call failed: %s", exc)
+        trace_event("agent_compose.shadow", ok=False, error=type(exc).__name__)
+        return
+
+    python_payload = _comparison_payload(python_wire)
+    rust_payload = _comparison_payload(rust_wire)
+    ok = python_payload == rust_payload
+    if not ok:
+        log.debug(
+            "agent compose shadow parity mismatch: python=%r rust=%r",
+            python_payload,
+            rust_payload,
+        )
+    trace_event(
+        "agent_compose.shadow",
+        ok=ok,
+        python_agents=len(python_wire.agents),
+        rust_agents=len(rust_wire.agents),
+        rust_dropped=len(rust_wire.dropped),
+        rust_merge_log=len(rust_wire.merge_log),
+    )
+
+
 def load_all_agents(
-    *, changespec_snapshot: list[ChangeSpec] | None = None
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    dismissed_agents: set[tuple[AgentType, str, str | None]] | None = None,
 ) -> list[Agent]:
     """Load all running agents from all sources.
 
@@ -576,22 +804,26 @@ def load_all_agents(
         List of Agent objects sorted by start time (most recent first),
         with agents that have no start time at the end.
     """
-    agents, workflow_agent_steps = _load_agents_from_all_sources(
-        changespec_snapshot=changespec_snapshot
+    inputs = _collect_agent_loader_inputs(
+        changespec_snapshot=changespec_snapshot,
+        dismissed_agents=dismissed_agents,
     )
+    agents, workflow_agent_steps = _load_agents_from_collected_sources(inputs)
+    pid_liveness = _collect_pid_liveness(
+        agents, artifact_snapshot=inputs.artifact_snapshot
+    )
+    compose_input = _compose_input_with_liveness(inputs.compose_input, pid_liveness)
 
-    # Filter out agents with dead PIDs (but keep completed agents)
-    agents = _filter_dead_pids(agents)
-
-    # Deduplication pipeline
-    agents = dedup_axe_spawned_agents(agents)
-    agents = remove_vcs_workspace_claims(agents)
-    agents = dedup_workflow_entries(agents)
-    agents = dedup_running_vs_workflow(agents)
-    agents = dedup_by_pid(agents)
-
-    # Override statuses based on workflow relationships
-    _apply_status_overrides(agents)
-
-    # Sort and insert workflow steps
-    return _sort_and_reorder(agents, workflow_agent_steps)
+    composed_agents = _compose_python_agent_list(
+        agents,
+        workflow_agent_steps,
+        pid_liveness=pid_liveness,
+    )
+    dismissed_from_loader = _dismissed_from_agents(composed_agents, dismissed_agents)
+    _shadow_compare_agent_compose(
+        compose_input,
+        composed_agents,
+        workflow_agent_steps,
+        dismissed_from_loader,
+    )
+    return composed_agents

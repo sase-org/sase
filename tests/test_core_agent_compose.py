@@ -85,7 +85,7 @@ def test_composed_wire_json_shape_is_stable() -> None:
         "RUNNING",
     ]
     assert payload["agents"][0]["followup_identities"] == [
-        ("run", "demo_plan", "20260501090800")
+        ["run", "demo_plan", "20260501090800"]
     ]
 
     # The dict is JSON-safe for future Rust parity files.
@@ -204,7 +204,7 @@ def test_compose_wire_json_projection_matches_rust_tuple_shape() -> None:
     assert payload["schema_version"] == AGENT_COMPOSE_WIRE_SCHEMA_VERSION
     assert payload["running_claims"][0]["pid"] == 12345
     assert payload["dismissed_identities"] == [
-        ("run", "feature_alpha", "20260429120000")
+        ["run", "feature_alpha", "20260429120000"]
     ]
 
 

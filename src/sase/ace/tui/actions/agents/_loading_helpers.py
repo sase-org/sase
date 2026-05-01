@@ -101,7 +101,10 @@ def _load_agents_from_disk_impl(
 ) -> tuple[list[Agent], list[Agent]]:
     from ...models import load_all_agents
 
-    all_agents = load_all_agents(changespec_snapshot=changespec_snapshot)
+    all_agents = load_all_agents(
+        changespec_snapshot=changespec_snapshot,
+        dismissed_agents=dismissed_agents,
+    )
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.

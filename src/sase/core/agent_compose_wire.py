@@ -374,22 +374,21 @@ def agent_from_wire(record: AgentWire) -> Agent:
     return agent
 
 
-# pyvision: tests/test_core_agent_compose.py
-def composed_agent_list_to_json_dict(record: ComposedAgentListWire) -> dict[str, Any]:
-    return asdict(record)
-
-
 def agent_compose_wire_to_json_dict(record: Any) -> Any:
-    """Project compose wire records to the JSON-safe shape Rust expects."""
-    if isinstance(record, list):
-        return [agent_compose_wire_to_json_dict(item) for item in record]
-    if isinstance(record, tuple):
+    """Project compose wire records to a JSON-safe ``dict``/``list`` shape."""
+    if isinstance(record, (list, tuple)):
         return [agent_compose_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
         return {k: agent_compose_wire_to_json_dict(v) for k, v in record.items()}
     if hasattr(record, "__dataclass_fields__"):
-        return asdict(record)
+        return agent_compose_wire_to_json_dict(asdict(record))
     return record
+
+
+def composed_agent_list_to_json_dict(record: ComposedAgentListWire) -> dict[str, Any]:
+    payload = agent_compose_wire_to_json_dict(record)
+    assert isinstance(payload, dict)
+    return payload
 
 
 def _running_claim_from_dict(data: dict[str, Any]) -> RunningClaimWire:

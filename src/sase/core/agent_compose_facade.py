@@ -31,7 +31,6 @@ from sase.core.wire import ChangeSpecWire
 logger = logging.getLogger(__name__)
 
 
-# pyvision: tests/test_core_agent_compose.py
 def compose_python_agents_to_wire(
     agents: list[Agent],
     *,
@@ -109,7 +108,6 @@ def build_agent_compose_input(
     )
 
 
-# pyvision: tests/test_core_agent_compose.py
 def compose_agent_list(input_wire: AgentComposeInputWire) -> ComposedAgentListWire:
     """Return the Rust-composed list for *input_wire*.
 

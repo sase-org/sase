@@ -10,6 +10,7 @@ from ._done_loaders import (
     load_done_agents_from_snapshot,
 )
 from ._running_loaders import (
+    collect_running_claim_wires,
     get_all_project_files,
     load_agents_from_running_field,
     load_running_home_agents,
@@ -28,6 +29,7 @@ from ._workflow_snapshot_loaders import (
 from ._workflow_step_loaders import load_workflow_agent_steps
 
 __all__ = [
+    "collect_running_claim_wires",
     "get_all_project_files",
     "get_workflow_timestamp_dirs",
     "load_agents_from_comments",
