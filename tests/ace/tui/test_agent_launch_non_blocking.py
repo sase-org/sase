@@ -269,6 +269,27 @@ def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> 
     assert len(multi_model_calls) == 1
 
 
+def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
+    app = _LaunchBodyApp()
+
+    _run_launch_body_with_common_patches(
+        app,
+        "%n:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
+    )
+
+    assert app.launched == []
+    fanout_calls = [
+        (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents
+    ]
+    assert len(fanout_calls) == 1
+    _, args = fanout_calls[0]
+    assert args[0] == [
+        "%name:ag.sec\nsecurity pass\nReview",
+        "%name:ag.perf\nperformance pass\nReview",
+    ]
+    assert args[4] == "alternatives"
+
+
 def test_run_agent_launch_body_direct_single_agent_refreshes_after_success() -> None:
     app = _LaunchBodyApp()
 

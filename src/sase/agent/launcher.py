@@ -455,10 +455,10 @@ def launch_agent_from_cwd(
         return slot_results[0]
 
     # --- Alt-split detection ---
-    from sase.xprompt.directives import split_prompt_for_models
+    from sase.xprompt.directives import plan_prompt_fanout_variants
 
-    alt_prompts = split_prompt_for_models(query)
-    if alt_prompts is not None:
+    alt_plan = plan_prompt_fanout_variants(query)
+    if alt_plan is not None:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
         from sase.workspace_provider import get_ref_patterns
 
@@ -479,7 +479,7 @@ def launch_agent_from_cwd(
             branch_or_workspace=alt_cl_name if alt_cl_name != project_name else None,
         )
         results = launch_multi_prompt_agents(
-            segments=alt_prompts,
+            segments=[slot.prompt for slot in alt_plan.slots],
             local_xprompts={},
             cl_name=alt_cl_name,
             project_file=project_file,

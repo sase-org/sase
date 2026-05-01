@@ -382,20 +382,20 @@ class AgentLaunchMixin(
 
         self._prompt_context = None
 
-        # Check for multi-model directive (e.g., %m(opus,sonnet))
-        from sase.xprompt.directives import split_prompt_for_models
+        # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
+        from sase.xprompt.directives import plan_prompt_fanout_variants
 
         dispatch_prompt = "\n---\n".join(multi.segments)
-        with timer.stage("fanout_plan", fanout_kind="model"):
-            model_prompts = split_prompt_for_models(
+        with timer.stage("fanout_plan", fanout_kind="prompt"):
+            fanout_plan = plan_prompt_fanout_variants(
                 dispatch_prompt,
                 extra_xprompts=local_xprompts or None,
             )
-        if model_prompts is None:
+        if fanout_plan is None:
             # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
             # only when the prompt has a lexical xprompt candidate.  The agent
             # runner expands xprompts again in the subprocess; this TUI pass is
-            # solely to discover xprompt-injected multi-model directives.
+            # solely to discover xprompt-injected fan-out directives.
             from sase.xprompt.processor import (
                 process_xprompt_references,
                 prompt_may_reference_xprompt,
@@ -408,18 +408,23 @@ class AgentLaunchMixin(
                     dispatch_prompt,
                     extra_xprompts=local_xprompts or None,
                 )
-                model_prompts = split_prompt_for_models(
+                fanout_plan = plan_prompt_fanout_variants(
                     expanded_prompt,
                     extra_xprompts=local_xprompts or None,
                 )
-        if model_prompts is not None:
-            timer.finish(dispatch="multi_model", slot_count=len(model_prompts))
+        if fanout_plan is not None:
+            fanout_prompts = [slot.prompt for slot in fanout_plan.slots]
+            timer.finish(
+                dispatch=fanout_plan.launch_kind,
+                slot_count=len(fanout_prompts),
+            )
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_model_agents,
-                model_prompts,
+                fanout_prompts,
                 ctx,
                 vcs_ref,
                 has_wait,
+                fanout_plan.launch_kind,
             )
             return
 

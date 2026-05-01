@@ -1,4 +1,4 @@
-"""Multi-model agent launch mixin (``%m(...)`` directive)."""
+"""Prompt fan-out launch mixin (``%m(...)`` / ``%alt(...)`` directives)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class MultiModelLaunchMixin:
-    """Mixin providing multi-model agent launch."""
+    """Mixin providing prompt fan-out agent launch."""
 
     def _launch_multi_model_agents(
         self,
@@ -22,24 +22,31 @@ class MultiModelLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
+        fanout_kind: str = "model",
     ) -> None:
-        """Launch one agent per model for a multi-model directive.
+        """Launch one agent per slot for a prompt fan-out directive.
 
-        Each prompt in *model_prompts* already has the multi-model directive
-        (e.g. ``%m(opus,sonnet)``) replaced with a single ``%model:X``.
+        Each prompt in *model_prompts* already has the fan-out directive
+        replaced with a child prompt and planned ``%name`` directive.
 
         Args:
-            model_prompts: Per-model prompts to launch.
+            model_prompts: Per-slot prompts to launch.
             ctx: The prompt context with project/workspace info.
             vcs_ref: Resolved VCS reference, if any.
             has_wait: Whether the prompt has ``%wait`` directives.
+            fanout_kind: Launch fan-out kind used for telemetry.
         """
         n = len(model_prompts)
         snap = dataclasses.replace(ctx)
 
         async def _runner() -> None:
             await asyncio.to_thread(
-                self._run_multi_model_launch, model_prompts, snap, vcs_ref, has_wait
+                self._run_multi_model_launch,
+                model_prompts,
+                snap,
+                vcs_ref,
+                has_wait,
+                fanout_kind,
             )
 
         self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
@@ -51,6 +58,7 @@ class MultiModelLaunchMixin:
         ctx: PromptContext,
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
+        fanout_kind: str = "model",
     ) -> None:
         """Worker-thread body for :meth:`_launch_multi_model_agents`."""
         try:
@@ -86,7 +94,7 @@ class MultiModelLaunchMixin:
                     "launch",
                 )
 
-            plan = plan_fake_fanout("model", model_prompts)
+            plan = plan_fake_fanout(fanout_kind, model_prompts)
             context = LaunchExecutionContext(
                 cl_name=ctx.display_name,
                 project_file=ctx.project_file,
@@ -103,7 +111,7 @@ class MultiModelLaunchMixin:
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
                 {
-                    "fanout_kind": "model",
+                    "fanout_kind": fanout_kind,
                     "slot_count": len(model_prompts),
                     "project_name": ctx.project_name,
                     "home_mode": ctx.is_home_mode,
@@ -121,9 +129,9 @@ class MultiModelLaunchMixin:
             timer.finish(outcome="ok", launched=execution.launched_count)
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except Exception:
-            log.exception("Multi-model launch failed")
+            log.exception("Prompt fan-out launch failed")
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(  # type: ignore[attr-defined]
-                    "Multi-model launch failed (see log)", severity="error"
+                    "Prompt fan-out launch failed (see log)", severity="error"
                 )
             )

@@ -145,6 +145,47 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
     ws_dir.assert_not_called()
 
 
+def test_launch_agent_from_cwd_alt_fanout_uses_named_child_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+
+    spawn_result = MagicMock(pid=123, workspace_dir=str(tmp_path), workspace_num=0)
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000", "260501_120001"],
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch("sase.running_field.get_workspace_directory_for_num") as ws_dir,
+    ):
+        result = launch_agent_from_cwd(
+            f"%n:ag\n%alt(sec=security pass,perf=performance pass)\n"
+            f"#cd:{tmp_path} do work"
+        )
+
+    assert result is spawn_result
+    assert spawn.call_count == 2
+    prompts = [c.kwargs["prompt"] for c in spawn.call_args_list]
+    assert prompts == [
+        f"%name:ag.sec\nsecurity pass\n#cd:{tmp_path} do work",
+        f"%name:ag.perf\nperformance pass\n#cd:{tmp_path} do work",
+    ]
+    first_ws.assert_not_called()
+    ws_dir.assert_not_called()
+
+
 def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wrapped(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

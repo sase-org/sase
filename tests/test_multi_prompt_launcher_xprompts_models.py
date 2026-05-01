@@ -203,6 +203,48 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_waits_on_last_alt_generated_name(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Pure %alt generated names are available for following bare waits."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["%n:ag\n%alt(sec=Build security,perf=Build perf)", "%wait\nReview"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+    prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
+    assert prompts == [
+        "%name:ag.sec\nBuild security",
+        "%name:ag.perf\nBuild perf",
+        "%wait:ag.perf\nReview",
+    ]
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],

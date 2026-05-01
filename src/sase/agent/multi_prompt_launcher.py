@@ -474,7 +474,10 @@ def _spawn_segments_into(
     )
     from sase.core.agent_launch_facade import plan_fake_fanout
     from sase.artifacts import create_artifacts_directory
-    from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
+    from sase.xprompt.directives import (
+        has_wait_directive,
+        plan_prompt_fanout_variants,
+    )
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 
     timer = LaunchTimingRecorder(
@@ -505,16 +508,15 @@ def _spawn_segments_into(
             segments[i + 1]
         )
 
-        # Check for multi-model directive (e.g., %m(opus,sonnet)).
+        # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
         # Try the raw segment first; if no match and the segment contains
-        # xprompt references, expand them and re-check (a referenced xprompt
-        # may inject a multi-model directive).
-        with timer.stage("fanout_plan", segment_index=i, fanout_kind="model"):
-            model_prompts = split_prompt_for_models(
+        # xprompt references, expand them and re-check.
+        with timer.stage("fanout_plan", segment_index=i, fanout_kind="prompt"):
+            fanout_plan = plan_prompt_fanout_variants(
                 segment,
                 extra_xprompts=segment_local_xprompts or None,
             )
-        if model_prompts is None and "#" in segment:
+        if fanout_plan is None and "#" in segment:
             from sase.xprompt.processor import process_xprompt_references
 
             with timer.stage("xprompt_expand", segment_index=i):
@@ -522,15 +524,15 @@ def _spawn_segments_into(
                     segment,
                     extra_xprompts=segment_local_xprompts or None,
                 )
-                model_prompts = split_prompt_for_models(
+                fanout_plan = plan_prompt_fanout_variants(
                     expanded,
                     extra_xprompts=segment_local_xprompts or None,
                 )
 
-        sub_prompts = model_prompts if model_prompts is not None else [segment]
-        plan = plan_fake_fanout(
-            "model" if model_prompts is not None else "multi_prompt",
-            sub_prompts,
+        plan = (
+            fanout_plan
+            if fanout_plan is not None
+            else plan_fake_fanout("multi_prompt", [segment])
         )
 
         slot_contexts: dict[int, LaunchExecutionContext] = {}

@@ -9,6 +9,7 @@ that disambiguates spawned agents per runtime.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
@@ -103,16 +104,44 @@ def split_prompt_for_models(
     duplicates are tolerated downstream by :func:`extract_prompt_directives`
     (last-wins).
     """
-    if extra_xprompts is None and "#" not in prompt:
-        from sase.core.agent_launch_facade import plan_agent_launch_fanout
+    plan = plan_prompt_fanout_variants(prompt, extra_xprompts=extra_xprompts)
+    if plan is None:
+        return None
+    return [slot.prompt for slot in plan.slots]
 
-        try:
-            plan = plan_agent_launch_fanout(prompt, launch_kind="model")
-        except ValueError as exc:
-            raise DirectiveError(str(exc)) from exc
-        if not plan.slots:
-            return None
-        return apply_fanout_naming(plan)
+
+def plan_prompt_fanout_variants(
+    prompt: str,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> LaunchFanoutPlanWire | None:
+    """Return a launch fan-out plan whose slots carry planned child names."""
+    plan = _plan_prompt_fanout(prompt, extra_xprompts=extra_xprompts)
+    if plan is None:
+        return None
+
+    named_prompts = apply_fanout_naming(plan, extra_xprompts=extra_xprompts)
+    slots = [
+        replace(slot, prompt=named_prompt)
+        for slot, named_prompt in zip(plan.slots, named_prompts, strict=True)
+    ]
+    plan = replace(plan, slots=slots)
+    if plan.launch_kind == "model" and all(slot.model is None for slot in plan.slots):
+        plan = replace(
+            plan,
+            launch_kind="alternatives",
+            slots=[replace(slot, launch_kind="alternatives") for slot in plan.slots],
+        )
+    return plan
+
+
+def _plan_prompt_fanout(
+    prompt: str,
+    *,
+    extra_xprompts: dict[str, XPrompt] | None = None,
+) -> LaunchFanoutPlanWire | None:
+    if extra_xprompts is None and "#" not in prompt:
+        return _plan_model_fanout(prompt)
 
     if "%" not in prompt:
         return None
@@ -185,7 +214,7 @@ def split_prompt_for_models(
         fanout_plan = _plan_model_fanout(prompt)
         if fanout_plan is None:
             return None
-        return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
+        return fanout_plan
 
     # Dedupe model args in document order (first occurrence wins).
     seen_models: set[str] = set()
@@ -206,7 +235,7 @@ def split_prompt_for_models(
         fanout_plan = _plan_model_fanout(prompt)
         if fanout_plan is None:
             return None
-        return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
+        return fanout_plan
 
     # Two or more unique models — collapse every collected span into a
     # single %alt(%model:a,%model:b,...) directive at the first span's
@@ -242,7 +271,7 @@ def split_prompt_for_models(
     fanout_plan = _plan_model_fanout(rewritten)
     if fanout_plan is None:
         return None
-    return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
+    return fanout_plan
 
 
 def _plan_model_fanout(prompt: str) -> LaunchFanoutPlanWire | None:

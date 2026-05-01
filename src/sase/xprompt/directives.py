@@ -31,6 +31,7 @@ import re
 from ._directive_alt import (
     apply_fanout_naming,
     has_alt_directive,
+    plan_prompt_fanout_variants,
     split_prompt_for_alternatives,
     split_prompt_for_models,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "has_wait_directive",
     "parse_absolute_time",
     "parse_duration",
+    "plan_prompt_fanout_variants",
     "split_prompt_for_alternatives",
     "split_prompt_for_models",
 ]
