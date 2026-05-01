@@ -4,12 +4,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from sase.plan_chain import LEGACY_PLAN_CHAIN_CODER_SUFFIX, PLAN_CHAIN_CODER_SUFFIX
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+
+
+def _is_coder_followup_suffix(suffix: str | None) -> bool:
+    """Return True for canonical and legacy coder follow-up suffixes."""
+    return suffix in {PLAN_CHAIN_CODER_SUFFIX, LEGACY_PLAN_CHAIN_CODER_SUFFIX}
 
 
 def _resolve_vcs_tag(
@@ -212,7 +219,11 @@ class AgentWaitResumeMixin:
         if agent.status == "PLAN DONE":
             # Find the coder follow-up agent to resume its conversation
             coder = next(
-                (f for f in agent.followup_agents if f.role_suffix == ".code"),
+                (
+                    f
+                    for f in agent.followup_agents
+                    if _is_coder_followup_suffix(f.role_suffix)
+                ),
                 None,
             )
             if coder and coder.agent_name:

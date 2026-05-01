@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.actions.agents._wait_resume import _resolve_vcs_tag
+from sase.ace.tui.actions.agents._wait_resume import (
+    _is_coder_followup_suffix,
+    _resolve_vcs_tag,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -92,3 +95,16 @@ class TestResolveVcsTag:
         result = _resolve_vcs_tag(agent, "bob")
         assert result is not None
         assert "@bob" in result
+
+
+class TestCoderFollowupSuffix:
+    """Tests for plan-done resume coder follow-up classification."""
+
+    def test_canonical_coder_suffix(self) -> None:
+        assert _is_coder_followup_suffix(".coder") is True
+
+    def test_legacy_code_suffix(self) -> None:
+        assert _is_coder_followup_suffix(".code") is True
+
+    def test_non_coder_suffix(self) -> None:
+        assert _is_coder_followup_suffix(".epic") is False

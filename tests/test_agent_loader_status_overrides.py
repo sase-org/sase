@@ -6,8 +6,35 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
-def test_apply_status_overrides_propagates_code_time() -> None:
-    """_apply_status_overrides sets parent.code_time from .code child."""
+def test_apply_status_overrides_propagates_code_time_from_coder_child() -> None:
+    """_apply_status_overrides sets parent.code_time from .coder child."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 10, 5),
+        parent_timestamp="20250615100000",
+        role_suffix=".coder",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.code_time == datetime(2025, 6, 15, 10, 10, 5)
+
+
+def test_apply_status_overrides_propagates_code_time_from_legacy_code_child() -> None:
+    """_apply_status_overrides preserves .code child compatibility."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",

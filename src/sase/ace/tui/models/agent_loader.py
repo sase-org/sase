@@ -8,6 +8,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
+from sase.plan_chain import LEGACY_PLAN_CHAIN_CODER_SUFFIX, PLAN_CHAIN_CODER_SUFFIX
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -210,6 +211,11 @@ def _is_feedback_suffix(suffix: str | None) -> bool:
     return suffix[1:].isdigit()
 
 
+def _is_coder_followup_suffix(suffix: str | None) -> bool:
+    """Check if a role suffix is a canonical or legacy coder follow-up."""
+    return suffix in {PLAN_CHAIN_CODER_SUFFIX, LEGACY_PLAN_CHAIN_CODER_SUFFIX}
+
+
 def _is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
     return (
@@ -335,9 +341,9 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                             parent.step_output = {}
                         parent.step_output.update(meta_fields)
 
-                # Propagate code_time from .code child to parent so
+                # Propagate code_time from coder follow-up to parent so
                 # the metadata panel shows when the coder was launched.
-                if agent.role_suffix == ".code":
+                if _is_coder_followup_suffix(agent.role_suffix):
                     parent.code_time = agent.run_start_time or agent.start_time
                 if agent.role_suffix == ".epic":
                     parent.epic_time = (
