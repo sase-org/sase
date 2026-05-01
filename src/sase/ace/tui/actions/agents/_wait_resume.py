@@ -19,6 +19,11 @@ def _is_coder_followup_suffix(suffix: str | None) -> bool:
     return suffix == PLAN_CHAIN_CODER_SUFFIX
 
 
+def _parse_wait_dependency_names(text: str) -> list[str]:
+    """Parse modal input into agent-name dependencies."""
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def _resolve_vcs_tag(
     agent: Agent, name: str, agents: list[Agent] | None = None
 ) -> str | None:
@@ -114,7 +119,8 @@ class AgentWaitResumeMixin:
         import json
         from pathlib import Path
 
-        if name:
+        wait_names = _parse_wait_dependency_names(name)
+        if wait_names:
             # Update waiting.json to wait for the specified agent instead
             waiting_path = Path(artifacts_dir) / "waiting.json"
             try:
@@ -122,14 +128,19 @@ class AgentWaitResumeMixin:
                 if waiting_path.exists():
                     with open(waiting_path, encoding="utf-8") as f:
                         data = json.load(f)
-                data["waiting_for"] = [name]
+                for condition_key in ("waiting_for", "wait_duration", "wait_until"):
+                    data.pop(condition_key, None)
+                data["waiting_for"] = wait_names
                 with open(waiting_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
             except OSError:
                 self.notify("Failed to update waiting.json", severity="error")  # type: ignore[attr-defined]
                 return
-            agent.waiting_for = [name]
-            self.notify(f"Now waiting for: {name}")  # type: ignore[attr-defined]
+            agent.waiting_for = wait_names
+            agent.wait_duration = None
+            agent.wait_until = None
+            wait_label = ", ".join(wait_names)
+            self.notify(f"Now waiting for: {wait_label}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
         else:
             # Empty name → run now (write ready.json)

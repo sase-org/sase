@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 17:26:32
-status: wip
+status: done
 ---
 # Plan: make Agents-tab `w` fully overwrite wait conditions
 
