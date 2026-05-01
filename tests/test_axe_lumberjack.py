@@ -13,7 +13,7 @@ import pytest
 from sase.axe.chop_agents import ENV_CHOP_NAME
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
-from sase.axe.maintenance import clear_maintenance, start_maintenance
+from sase.axe.maintenance import clear_maintenance, read_maintenance, start_maintenance
 from tests._axe_lumberjack_fixtures import fail_result, ok_result
 
 
@@ -133,6 +133,34 @@ def test_run_tick_skips_without_error_during_maintenance(
     mock_run.assert_not_called()
     assert lumberjack._metrics.errors_encountered == 0
     assert lumberjack._metrics.chops_executed == 0
+    assert lumberjack._metrics.cycles_run == 1
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_clears_dead_pid_maintenance_and_runs_chops(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """A dead maintenance owner is cleared before the tick decides to skip."""
+    start_maintenance("install_sase_github")
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = ok_result()
+
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    with patch("sase.axe.maintenance.is_process_running", return_value=False):
+        lumberjack._run_tick()
+
+    assert read_maintenance() is None
+    assert mock_find.call_count == 1
+    assert mock_run.call_count == 1
+    assert lumberjack._metrics.errors_encountered == 0
+    assert lumberjack._metrics.chops_executed == 1
     assert lumberjack._metrics.cycles_run == 1
 
 

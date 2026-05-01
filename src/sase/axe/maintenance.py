@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from sase.ace.hooks.processes import is_process_running
 from sase.core.time import get_timezone
 
 from . import state as axe_state
@@ -84,10 +85,11 @@ def clear_maintenance() -> bool:
 def clear_stale_maintenance(
     max_age_seconds: int = DEFAULT_STALE_SECONDS,
 ) -> dict[str, Any] | None:
-    """Clear and return a marker that is older than ``max_age_seconds``."""
-    marker = read_maintenance()
-    if marker is None:
+    """Clear and return an old marker or one whose owner PID has exited."""
+    raw_marker = axe_state._read_json(_maintenance_path())
+    if not isinstance(raw_marker, dict):
         return None
+    marker = dict(raw_marker)
 
     started_at = _parse_started_at(marker.get("started_at"))
     if started_at is None:
@@ -96,6 +98,11 @@ def clear_stale_maintenance(
 
     max_age = timedelta(seconds=max_age_seconds)
     if datetime.now(get_timezone()) - started_at > max_age:
+        clear_maintenance()
+        return marker
+
+    pid = marker.get("pid")
+    if isinstance(pid, int) and pid > 0 and not is_process_running(pid):
         clear_maintenance()
         return marker
     return None

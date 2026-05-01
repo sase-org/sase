@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:50:35
-status: wip
+status: done
 ---
 # Plan: Fix WAITING Agents Stuck Behind Stale Axe Maintenance
 
