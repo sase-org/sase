@@ -1,7 +1,7 @@
 ---
 create_time: 2026-05-01 16:17:09
 bead_id: sase-1u
-status: wip
+status: done
 ---
 # Plan: Make `sase bead` Fast With `sase-core`
 
