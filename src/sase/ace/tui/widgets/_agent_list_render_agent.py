@@ -149,13 +149,14 @@ def format_agent_option(
     elif agent.status == "WAITING":
         text.append(agent.status, style="bold #AF87FF")  # Amethyst
         if agent.wait_until:
-            from datetime import datetime as _dt
-
-            from sase.ace.tui.models.agent import format_wait_until
+            from sase.ace.tui.models.agent import (
+                format_wait_until,
+                wait_until_target_and_reference,
+            )
 
             target_label = format_wait_until(agent.wait_until)
-            target = _dt.fromisoformat(agent.wait_until)
-            remaining = (target - _dt.now()).total_seconds()
+            target, reference = wait_until_target_and_reference(agent.wait_until)
+            remaining = (target - reference).total_seconds()
             if remaining > 0:
                 text.append(
                     f" (until {target_label}, {format_compact_duration(remaining)})",

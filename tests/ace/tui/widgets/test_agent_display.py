@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
@@ -143,6 +143,26 @@ class TestAgentListBeadBadge:
         )
 
         assert "(RUNNING)×3 ◆ sase-x.3 @pinned @sase-x.3" in left.plain
+
+
+class TestAwareWaitUntilRendering:
+    def test_agent_row_renders_aware_wait_until_countdown(self) -> None:
+        wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+        agent = _make_agent(status="WAITING", wait_until=wait_until)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "WAITING (until " in left.plain
+        assert "," in left.plain
+
+    def test_header_renders_aware_wait_until_countdown(self) -> None:
+        wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+        agent = _make_agent(status="WAITING", wait_until=wait_until)
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Waiting for: until " in header.plain
+        assert " left)" in header.plain
 
 
 # -- _render_phase_divider ----------------------------------------------------

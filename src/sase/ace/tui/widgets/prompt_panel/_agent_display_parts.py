@@ -284,7 +284,11 @@ def build_header_text(
 
     # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
     if agent.waiting_for or agent.wait_duration or agent.wait_until:
-        from sase.ace.tui.models.agent import format_compact_duration, format_wait_until
+        from sase.ace.tui.models.agent import (
+            format_compact_duration,
+            format_wait_until,
+            wait_until_target_and_reference,
+        )
 
         header_text.append("Waiting for: ", style="bold #87D7FF")
         parts: list[str] = []
@@ -298,10 +302,8 @@ def build_header_text(
         header_text.append(" + ".join(parts), style="#FF87D7")
         # Show live countdown for absolute-time waits
         if agent.wait_until:
-            from datetime import datetime as _dt
-
-            target = _dt.fromisoformat(agent.wait_until)
-            remaining = (target - _dt.now()).total_seconds()
+            target, reference = wait_until_target_and_reference(agent.wait_until)
+            remaining = (target - reference).total_seconds()
             if remaining > 0:
                 header_text.append(
                     f" ({format_compact_duration(remaining)} left)",

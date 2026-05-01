@@ -12,6 +12,7 @@ from .agent_time import (
     compute_row_runtime,
     format_compact_duration,
     format_wait_until,
+    wait_until_target_and_reference,
 )
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "compute_row_runtime",
     "format_compact_duration",
     "format_wait_until",
+    "wait_until_target_and_reference",
     "load_attempt_history",
 ]
 

@@ -1,6 +1,6 @@
 """Tests for the Agent model and AgentType enum."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sase.ace.tui.models.agent import (
     Agent,
@@ -339,3 +339,10 @@ def test_format_wait_until_different_day() -> None:
     result = format_wait_until(tomorrow.isoformat())
     expected = tomorrow.strftime("%b %-d %H:%M")
     assert result == expected
+
+
+def test_format_wait_until_accepts_aware_iso_string() -> None:
+    """Aware persisted wait targets do not crash same-day formatting."""
+    target = datetime.now(UTC).replace(second=0, microsecond=0)
+    result = format_wait_until(target.isoformat())
+    assert result == target.strftime("%H:%M")

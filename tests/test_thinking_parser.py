@@ -370,6 +370,20 @@ def test_read_gemini_log_multi_files_with_since(
     assert result[1].text == "old thought"
 
 
+def test_read_gemini_log_accepts_naive_since(tmp_path: Path, monkeypatch: Any) -> None:
+    """Naive agent timestamps are treated as configured-local time."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+
+    log_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-100000.111"
+    log_file.write_text(_gemini_log_line("local naive thought", time="10:00:00"))
+
+    result = read_gemini_log(since=datetime(2026, 2, 25, 9, 0, 0))
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].text == "local naive thought"
+
+
 def test_read_gemini_log_since_filters_old_files(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

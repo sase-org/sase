@@ -7,14 +7,31 @@ if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 
+def wait_until_target_and_reference(
+    iso_str: str, now: datetime | None = None
+) -> tuple[datetime, datetime]:
+    """Return a wait target and timezone-compatible reference time."""
+    target = datetime.fromisoformat(iso_str)
+    if now is not None:
+        reference = now
+        if target.tzinfo is not None and reference.tzinfo is None:
+            reference = reference.astimezone()
+        elif target.tzinfo is None and reference.tzinfo is not None:
+            target = target.replace(tzinfo=reference.tzinfo)
+        return target, reference
+
+    if target.tzinfo is not None:
+        return target, datetime.now(target.tzinfo)
+    return target, datetime.now()
+
+
 def format_wait_until(iso_str: str) -> str:
     """Format an ISO 8601 target time for display.
 
     Same day: ``"14:30"`` (just the time).
     Different day: ``"Apr 11 14:30"`` (short month + day + time).
     """
-    target = datetime.fromisoformat(iso_str)
-    now = datetime.now()
+    target, now = wait_until_target_and_reference(iso_str)
     if target.date() == now.date():
         return target.strftime("%H:%M")
     return target.strftime("%b %-d %H:%M")

@@ -62,15 +62,21 @@ def _parse_gemini_log_timestamp(filename: str) -> datetime | None:
         return None
 
 
+def _normalize_gemini_since(since: datetime) -> datetime:
+    """Normalize a boundary timestamp for Gemini rotated-log comparisons."""
+    tz = get_timezone()
+    if since.tzinfo is None:
+        return since.replace(tzinfo=tz)
+    return since.astimezone(tz)
+
+
 def _find_gemini_log_files(tmp_dir: Path, since: datetime) -> list[Path]:
     """Find rotated Gemini log files with timestamps >= *since*.
 
     Returns paths sorted oldest-first. The current symlink is appended if its
     resolved target isn't already in the list.
     """
-    # Ensure since is timezone-aware for comparison with tz-aware file timestamps
-    if since.tzinfo is None:
-        since = since.replace(tzinfo=get_timezone())
+    since = _normalize_gemini_since(since)
 
     timestamped: list[tuple[datetime, Path]] = []
     for p in tmp_dir.glob("gemini_api_proxy.par.*.log.INFO.*"):
