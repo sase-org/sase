@@ -376,6 +376,7 @@ def _spawn_segments_into(
         sub_prompts = model_prompts if model_prompts is not None else [segment]
 
         last_timestamp: str | None = None
+        last_project_name: str | None = None
         for j, sub_prompt in enumerate(sub_prompts):
             if j > 0:
                 time.sleep(1)
@@ -439,6 +440,7 @@ def _spawn_segments_into(
                 extra_env=extra_env,
             )
             results.append(result)
+            last_project_name = segment_ctx.project_name
 
             if on_agent_spawned is not None:
                 on_agent_spawned()
@@ -447,9 +449,10 @@ def _spawn_segments_into(
         # so bare %wait in the next segment can resolve to this agent.
         if i < len(segments) - 1:
             assert last_timestamp is not None
+            assert last_project_name is not None
             artifacts_dir = create_artifacts_directory(
                 "ace-run",
-                project_name=project_name,
+                project_name=last_project_name,
                 timestamp=last_timestamp,
             )
             # The artifacts dir is already created by the runner; we just

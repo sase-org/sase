@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 12:47:17
-status: wip
+status: done
 ---
 # Fix `sase bead work` Multi-Prompt Naming Timeouts
 

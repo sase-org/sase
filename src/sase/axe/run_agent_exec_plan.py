@@ -478,6 +478,7 @@ def handle_questions_marker(
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
+    previous_role_suffix = state.current_role_suffix
     state.current_role_suffix = PLAN_CHAIN_QUESTION_SUFFIX
     update_meta_suffix(
         state.current_artifacts_dir,
@@ -504,7 +505,11 @@ def handle_questions_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
 
-    _q_suffix = state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
+    _q_suffix = (
+        f"{previous_role_suffix}{PLAN_CHAIN_QUESTION_SUFFIX}"
+        if re.match(r"^\.\d+$", previous_role_suffix)
+        else state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
+    )
     _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None
     _q_extra = format_extra_sections(state.current_artifacts_dir)
     _q_chat = save_chat_history(

@@ -272,7 +272,10 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
         patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
-        patch("sase.artifacts.create_artifacts_directory", return_value="/artifacts"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts",
+        ) as create_artifacts,
         patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
     ):
         spawn.return_value = MagicMock(pid=1)
@@ -299,6 +302,11 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
         ("cd", str(dir_a)),
         ("cd", str(dir_b)),
     ]
+    create_artifacts.assert_called_once_with(
+        "ace-run",
+        project_name=dir_a.name,
+        timestamp="ts1",
+    )
     first_ws.assert_not_called()
 
 
@@ -317,7 +325,10 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
         patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
         patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming"),
         patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
-        patch("sase.artifacts.create_artifacts_directory", return_value="/artifacts"),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts",
+        ) as create_artifacts,
         patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
     ):
         spawn.return_value = MagicMock(pid=1)
@@ -347,6 +358,56 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
         ("cd", str(dir_a)),
         ("cd", "~"),
     ]
+    create_artifacts.assert_called_once_with(
+        "ace-run",
+        project_name=dir_a.name,
+        timestamp="ts1",
+    )
+    first_ws.assert_not_called()
+
+
+def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+
+    home = str(Path.home().resolve())
+
+    with (
+        patch("sase.agent.launcher.spawn_agent_subprocess") as spawn,
+        patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming") as wait,
+        patch("sase.core.time.generate_timestamp", side_effect=["ts1", "ts2"]),
+        patch(
+            "sase.artifacts.create_artifacts_directory",
+            return_value="/artifacts/home",
+        ) as create_artifacts,
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+    ):
+        spawn.return_value = MagicMock(pid=1)
+        wait.return_value = "home-agent"
+        launch_multi_prompt_agents(
+            segments=["first", "second"],
+            local_xprompts={},
+            cl_name="base",
+            project_file="/projects/base/base.gp",
+            project_name="base",
+            is_home_mode=False,
+            vcs_ref=None,
+            default_bare_segments_to_home=True,
+        )
+
+    assert [c.kwargs["prompt"] for c in spawn.call_args_list] == [
+        "#cd:~ first",
+        "#cd:~ second",
+    ]
+    assert [c.kwargs["workspace_dir"] for c in spawn.call_args_list] == [home, home]
+    create_artifacts.assert_called_once_with(
+        "ace-run",
+        project_name="home",
+        timestamp="ts1",
+    )
+    wait.assert_called_once_with("/artifacts/home")
     first_ws.assert_not_called()
 
 
