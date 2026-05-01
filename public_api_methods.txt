@@ -28,3 +28,13 @@ load_chat_install_config
 resolve_primary_workspace_for_chat_install
 run_worker
 start_chat_install_worker
+show
+ready
+blocked
+doctor
+merged_show
+merged_list_issues
+merged_ready
+merged_blocked
+merged_stats
+merged_get_epic_children
