@@ -215,6 +215,8 @@ class Agent:
     plan_times: list[datetime] = field(default_factory=list)
     # When the coder agent was launched after plan approval (plan agents only)
     code_time: datetime | None = None
+    # When the epic follow-up was launched after epic approval (plan agents only)
+    epic_time: datetime | None = None
     # When feedback was submitted on the plan (one per feedback round)
     feedback_times: list[datetime] = field(default_factory=list)
     # When the agent submitted questions for user review (one per round)
@@ -344,6 +346,8 @@ class Agent:
             middle.append((rt, "RETRY"))
         if self.code_time is not None:
             middle.append((self.code_time, "CODE"))
+        if self.epic_time is not None:
+            middle.append((self.epic_time, "EPIC"))
         middle.sort(key=lambda t: t[0])
         for ts, tag in middle:
             parts.append(_fmt(tag, ts.strftime(fmt)))

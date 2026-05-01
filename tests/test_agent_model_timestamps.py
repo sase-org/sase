@@ -31,6 +31,25 @@ def test_timestamps_display_with_plan_and_code() -> None:
     assert tags == ["WAIT", "BEGIN", "PLAN", "CODE", "END"]
 
 
+def test_timestamps_display_with_epic_in_chronological_order() -> None:
+    """Test timestamps_display includes EPIC in timestamp order."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
+        code_time=datetime(2025, 6, 15, 10, 12, 0),
+        epic_time=datetime(2025, 6, 15, 10, 10, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "PLAN", "EPIC", "CODE", "END"]
+
+
 def test_timestamps_display_full_with_feedback_and_questions() -> None:
     """Test timestamps_display includes FBACK and QUEST in correct order."""
     agent = Agent(

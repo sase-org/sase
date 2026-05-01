@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 12:19:41
-status: wip
+status: done
 ---
 # Epic timestamp metadata plan
 

@@ -341,6 +341,8 @@ class ArtifactRestorationMixin:
             data["plan_submitted_at"] = (
                 plan_values[0] if len(plan_values) == 1 else plan_values
             )
+        if agent.epic_time is not None:
+            data["epic_started_at"] = agent.epic_time.isoformat()
         if agent.feedback_times:
             feedback_values = [ts.isoformat() for ts in agent.feedback_times]
             data["feedback_submitted_at"] = (

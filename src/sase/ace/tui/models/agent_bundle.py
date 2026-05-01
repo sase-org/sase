@@ -74,6 +74,7 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
         "run_start_time",
         "stop_time",
         "code_time",
+        "epic_time",
     }
     _DATETIME_LIST_FIELDS = {
         "plan_times",

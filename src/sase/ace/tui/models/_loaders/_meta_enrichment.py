@@ -114,6 +114,14 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     # Parse plan_submitted_at (when plan was submitted for review)
     _append_timestamp_field(data.get("plan_submitted_at"), agent.plan_times)
 
+    # Parse epic_started_at (when epic creation follow-up was launched)
+    epic_started_at = data.get("epic_started_at")
+    if isinstance(epic_started_at, str):
+        try:
+            agent.epic_time = _parse_utc_to_eastern(epic_started_at)
+        except ValueError:
+            pass
+
     # Parse feedback_submitted_at (when feedback was given on the plan)
     _append_timestamp_field(data.get("feedback_submitted_at"), agent.feedback_times)
 
@@ -289,6 +297,11 @@ def enrich_agent_from_meta_wire(
                 continue
 
     _append(meta.plan_submitted_at, agent.plan_times)
+    if meta.epic_started_at:
+        try:
+            agent.epic_time = _parse_utc_to_eastern(meta.epic_started_at)
+        except ValueError:
+            pass
     _append(meta.feedback_submitted_at, agent.feedback_times)
     _append(meta.questions_submitted_at, agent.questions_times)
     for ts in meta.retry_started_at:

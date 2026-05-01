@@ -380,6 +380,11 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        update_meta_field(
+            state.current_artifacts_dir,
+            "epic_started_at",
+            datetime.now(UTC).isoformat(),
+        )
         _update_coder_model_meta(plan_result, ctx, state)
         plan_ref = _build_epic_plan_ref(
             sdd_plan_path=sdd_plan_path,

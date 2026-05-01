@@ -457,6 +457,53 @@ class TestModelInheritance:
         assert "model" not in meta_updates
 
 
+def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
+    tmp_path,
+) -> None:
+    """Epic approval persists the launch timestamp on the .epic follow-up."""
+    ctx = _make_ctx(tmp_path)
+    state = _make_state(tmp_path)
+    plan_file = str(tmp_path / "plan.md")
+    (tmp_path / "plan.md").write_text("# Plan")
+    followup = tmp_path / "followup"
+    followup.mkdir()
+    (followup / "agent_meta.json").write_text(json.dumps({}))
+
+    approval = PlanApprovalResult(action="epic", plan_file=plan_file)
+    with (
+        patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
+        patch("sase.axe.run_agent_exec_plan.reset_killed"),
+        patch("sase.axe.run_agent_exec_plan.was_killed", return_value=False),
+        patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
+        patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
+        patch("sase.axe.run_agent_exec_plan.promote_to_workflow"),
+        patch("sase.axe.run_agent_exec_plan._commit_sdd_files"),
+        patch(
+            "sase.axe.run_agent_exec_plan.create_followup_artifacts",
+            return_value=str(followup),
+        ),
+        patch(
+            "sase.llm_provider._plan_utils.handle_plan_approval",
+            return_value=approval,
+        ),
+        patch("sase.history.chat.save_chat_history", return_value="/fake/chat"),
+        patch("sase.history.chat_extras.format_extra_sections", return_value=""),
+        patch("sase.history.chat_links.format_plan_as_response", return_value="plan"),
+        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch("sase.sdd.beads.ensure_beads_initialized"),
+        patch(
+            "sase.sdd.files.write_sdd_files",
+            return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+        ),
+        patch("sase.sdd.files.expand_prompt_for_spec", side_effect=lambda p: p),
+    ):
+        handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+    meta = json.loads((followup / "agent_meta.json").read_text())
+    assert isinstance(meta["epic_started_at"], str)
+    assert meta["epic_started_at"].endswith("+00:00")
+
+
 # ---------------------------------------------------------------------------
 # Tests: epic SDD plan references
 # ---------------------------------------------------------------------------

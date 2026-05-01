@@ -117,14 +117,17 @@ def test_bundle_round_trip_plan_and_code_time() -> None:
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),
+        epic_time=datetime(2025, 6, 15, 10, 15, 0),
     )
     bundle = agent.to_bundle_dict()
     assert bundle["plan_times"] == ["2025-06-15T10:05:00"]
     assert bundle["code_time"] == "2025-06-15T10:10:00"
+    assert bundle["epic_time"] == "2025-06-15T10:15:00"
 
     restored = Agent.from_bundle_dict(bundle)
     assert restored.plan_times == [datetime(2025, 6, 15, 10, 5, 0)]
     assert restored.code_time == datetime(2025, 6, 15, 10, 10, 0)
+    assert restored.epic_time == datetime(2025, 6, 15, 10, 15, 0)
 
 
 def test_bundle_backward_compat_plan_time_to_plan_times() -> None:

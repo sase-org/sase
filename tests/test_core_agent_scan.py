@@ -124,6 +124,7 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
 
 def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
     timestamp = "2026-04-27T11:05:00Z"
+    epic_timestamp = "2026-04-27T11:08:00Z"
     meta_path = (
         fixture_root
         / "myproj"
@@ -134,6 +135,7 @@ def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
     )
     data = json.loads(meta_path.read_text(encoding="utf-8"))
     data["plan_submitted_at"] = timestamp
+    data["epic_started_at"] = epic_timestamp
     meta_path.write_text(json.dumps(data), encoding="utf-8")
 
     snapshot = scan_agent_artifacts(fixture_root)
@@ -141,6 +143,7 @@ def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
 
     assert rec.agent_meta is not None
     assert rec.agent_meta.plan_submitted_at == [timestamp]
+    assert rec.agent_meta.epic_started_at == epic_timestamp
 
 
 def test_done_record_parses_done_marker(fixture_root: Path) -> None:

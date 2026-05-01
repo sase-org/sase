@@ -59,6 +59,61 @@ def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
     assert parent.code_time == datetime(2025, 6, 15, 10, 10, 0)
 
 
+def test_apply_status_overrides_propagates_epic_time() -> None:
+    """_apply_status_overrides sets parent.epic_time from .epic child metadata."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 10, 5),
+        epic_time=datetime(2025, 6, 15, 10, 10, 7),
+        parent_timestamp="20250615100000",
+        role_suffix=".epic",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.epic_time == datetime(2025, 6, 15, 10, 10, 7)
+
+
+def test_apply_status_overrides_epic_time_falls_back_to_run_start_time() -> None:
+    """epic_time uses run_start_time when .epic child metadata is absent."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 10, 5),
+        parent_timestamp="20250615100000",
+        role_suffix=".epic",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.epic_time == datetime(2025, 6, 15, 10, 10, 5)
+
+
 def test_apply_status_overrides_done_with_active_feedback_becomes_running() -> None:
     """A DONE .plan parent with an active feedback child is marked RUNNING."""
     parent = Agent(

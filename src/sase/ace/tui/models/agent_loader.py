@@ -339,6 +339,10 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                 # the metadata panel shows when the coder was launched.
                 if agent.role_suffix == ".code":
                     parent.code_time = agent.run_start_time or agent.start_time
+                if agent.role_suffix == ".epic":
+                    parent.epic_time = (
+                        agent.epic_time or agent.run_start_time or agent.start_time
+                    )
 
                 # Propagate diff_path from follow-up child to parent so the
                 # file panel can display the code diff (more relevant than

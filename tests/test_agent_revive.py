@@ -207,6 +207,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
         datetime(2024, 1, 1, 12, 27, 0),
         datetime(2024, 1, 1, 12, 29, 0),
     ]
+    epic_time = datetime(2024, 1, 1, 12, 30, 0)
     agent = _make_agent(
         status="PLAN COMMITTED",
         model="claude-opus",
@@ -226,6 +227,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
         feedback_times=feedback_times,
         questions_times=questions_times,
         retry_times=retry_times,
+        epic_time=epic_time,
     )
 
     AgentRevivalMixin._restore_agent_meta(agent, tmp_path)
@@ -245,6 +247,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["run_started_at"] == run_start.isoformat()
     assert data["stopped_at"] == stop_time.isoformat()
     assert data["plan_submitted_at"] == [t.isoformat() for t in plan_times]
+    assert data["epic_started_at"] == epic_time.isoformat()
     assert data["feedback_submitted_at"] == feedback_times[0].isoformat()
     assert data["questions_submitted_at"] == questions_times[0].isoformat()
     assert data["retry_started_at"] == [t.isoformat() for t in retry_times]

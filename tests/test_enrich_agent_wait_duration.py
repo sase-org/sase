@@ -4,8 +4,13 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
+from sase.ace.tui.models._loaders._meta_enrichment import (
+    enrich_agent_from_meta,
+    enrich_agent_from_meta_wire,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.agent_scan_wire import AgentMetaWire
+from sase.core.time import get_timezone
 
 
 def _make_agent(status: str = "RUNNING") -> Agent:
@@ -162,3 +167,39 @@ def test_wait_until_with_agents(tmp_path: Path) -> None:
     assert agent.status == "WAITING"
     assert agent.waiting_for == ["dep_agent"]
     assert agent.wait_until == "2026-04-11T14:30:00"
+
+
+def test_epic_started_at_from_agent_meta(tmp_path: Path) -> None:
+    """epic_started_at is parsed into agent.epic_time."""
+    timestamp = "2026-04-27T15:05:00Z"
+    meta = {"pid": 1234, "epic_started_at": timestamp}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    expected = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        .astimezone(get_timezone())
+        .replace(tzinfo=None)
+    )
+    assert agent.epic_time == expected
+
+
+def test_epic_started_at_from_agent_meta_wire() -> None:
+    """wire metadata enrichment mirrors filesystem epic_started_at parsing."""
+    timestamp = "2026-04-27T15:05:00Z"
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(epic_started_at=timestamp),
+        None,
+    )
+
+    expected = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        .astimezone(get_timezone())
+        .replace(tzinfo=None)
+    )
+    assert agent.epic_time == expected
