@@ -14,6 +14,7 @@ from sase.core.agent_compose_facade import (
     build_agent_compose_input,
     compose_agent_list,
     compose_agent_list_reference,
+    composed_agent_list_to_agents,
     compose_python_agents_to_wire,
     log_compose_mismatch,
     with_options,
@@ -101,6 +102,22 @@ def test_composed_wire_json_shape_is_stable() -> None:
     ]
     assert rebuilt.agents[4].retry_chain_sibling_identities == [
         ("run", "retry_case", "20260501110200")
+    ]
+
+
+def test_composed_wire_rehydrates_agent_relationships() -> None:
+    result = compose_python_agents_to_wire(build_golden_agents())
+    agents = composed_agent_list_to_agents(result)
+
+    by_identity = {agent.identity: agent for agent in agents}
+    parent = by_identity[(agents[0].agent_type, "demo_plan", "20260501090000")]
+    retry_parent = by_identity[(agents[4].agent_type, "retry_case", "20260501110000")]
+
+    assert [agent.identity for agent in parent.followup_agents] == [
+        (agents[2].agent_type, "demo_plan", "20260501090800")
+    ]
+    assert [agent.identity for agent in retry_parent.retry_chain_siblings] == [
+        (agents[5].agent_type, "retry_case", "20260501110200")
     ]
 
 

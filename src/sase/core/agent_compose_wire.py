@@ -294,7 +294,6 @@ def agent_to_wire(agent: Agent) -> AgentWire:
     )
 
 
-# pyvision: tests/test_core_agent_compose.py
 def agent_from_wire(record: AgentWire) -> Agent:
     """Reconstruct an ``Agent`` model from :class:`AgentWire`."""
 

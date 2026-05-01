@@ -59,6 +59,8 @@ log = logging.getLogger(__name__)
 
 _AGENT_COMPOSE_SHADOW_ENV = "SASE_AGENT_COMPOSE_SHADOW"
 _AGENT_COMPOSE_BENCH_ENV = "SASE_AGENT_COMPOSE_BENCH"
+_AGENT_COMPOSE_BACKEND_ENV = "SASE_AGENT_COMPOSE_BACKEND"
+_AGENT_COMPOSE_BACKENDS = frozenset({"python", "rust"})
 
 
 _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
@@ -727,6 +729,17 @@ def _agent_compose_shadow_enabled() -> bool:
     )
 
 
+def _agent_compose_backend() -> str:
+    backend = os.environ.get(_AGENT_COMPOSE_BACKEND_ENV, "python").strip().lower()
+    if backend not in _AGENT_COMPOSE_BACKENDS:
+        expected = ", ".join(sorted(_AGENT_COMPOSE_BACKENDS))
+        raise ValueError(
+            f"Unsupported {_AGENT_COMPOSE_BACKEND_ENV}={backend!r}; "
+            f"expected one of: {expected}."
+        )
+    return backend
+
+
 def _comparison_payload(record: ComposedAgentListWire) -> dict[str, object]:
     payload = composed_agent_list_to_json_dict(record)
     return {
@@ -781,6 +794,15 @@ def _shadow_compare_agent_compose(
     )
 
 
+def _compose_rust_agent_list(compose_input: AgentComposeInputWire) -> list[Agent]:
+    from sase.core.agent_compose_facade import (
+        compose_agent_list,
+        composed_agent_list_to_agents,
+    )
+
+    return composed_agent_list_to_agents(compose_agent_list(compose_input))
+
+
 def load_all_agents(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
@@ -804,6 +826,7 @@ def load_all_agents(
         List of Agent objects sorted by start time (most recent first),
         with agents that have no start time at the end.
     """
+    backend = _agent_compose_backend()
     inputs = _collect_agent_loader_inputs(
         changespec_snapshot=changespec_snapshot,
         dismissed_agents=dismissed_agents,
@@ -813,6 +836,9 @@ def load_all_agents(
         agents, artifact_snapshot=inputs.artifact_snapshot
     )
     compose_input = _compose_input_with_liveness(inputs.compose_input, pid_liveness)
+
+    if backend == "rust":
+        return _compose_rust_agent_list(compose_input)
 
     composed_agents = _compose_python_agent_list(
         agents,

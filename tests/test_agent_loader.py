@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
-from sase.core.agent_compose_wire import ComposedAgentListWire
+from sase.core.agent_compose_wire import AgentWire, ComposedAgentListWire
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -116,6 +116,80 @@ def test_load_all_agents_shadow_collects_compose_input() -> None:
     assert compose_input.running_claims[0].pid == 12345
     assert compose_input.running_claims[0].raw_suffix == "20260501120000"
     assert compose_input.alive_pids == [12345]
+
+
+def test_load_all_agents_rust_backend_returns_rehydrated_agents() -> None:
+    """Opt-in Rust backend returns normal Agent objects for downstream TUI code."""
+    captured = []
+
+    def fake_rust_compose(input_wire):
+        captured.append(input_wire)
+        return ComposedAgentListWire(
+            agents=[
+                AgentWire(
+                    agent_type="run",
+                    cl_name="my_feature",
+                    project_file="/tmp/test.gp",
+                    status="RUNNING",
+                    raw_suffix="20260501120000",
+                    pid=12345,
+                )
+            ]
+        )
+
+    with (
+        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": "rust"}),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=["/tmp/test.gp"],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.core.agent_compose_facade.compose_agent_list",
+            side_effect=fake_rust_compose,
+        ),
+    ):
+        agents = load_all_agents()
+
+    assert len(captured) == 1
+    assert agents[0].agent_type == AgentType.RUNNING
+    assert agents[0].identity == (AgentType.RUNNING, "my_feature", "20260501120000")
+    assert agents[0].status == "RUNNING"
+    assert agents[0].pid == 12345
+
+
+def test_load_all_agents_rejects_unknown_compose_backend() -> None:
+    with patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": "bogus"}):
+        try:
+            load_all_agents()
+        except ValueError as exc:
+            assert "SASE_AGENT_COMPOSE_BACKEND" in str(exc)
+        else:  # pragma: no cover - assertion guard
+            raise AssertionError("expected ValueError")
 
 
 def test_load_all_agents_filters_hook_processes() -> None:

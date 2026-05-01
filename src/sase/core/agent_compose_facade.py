@@ -14,13 +14,14 @@ from dataclasses import replace
 from typing import Any
 
 from sase.ace.changespec import ChangeSpec
-from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.agent_compose_wire import (
     AgentComposeInputWire,
     AgentComposeOptionsWire,
     ComposedAgentListWire,
     RunningClaimWire,
     agent_compose_wire_to_json_dict,
+    agent_from_wire,
     agent_to_wire,
     composed_agent_list_from_dict,
 )
@@ -121,6 +122,39 @@ def compose_agent_list(input_wire: AgentComposeInputWire) -> ComposedAgentListWi
     return composed_agent_list_from_dict(raw)
 
 
+def _wire_identity_to_agent_identity(
+    identity: tuple[str, str, str | None],
+) -> tuple[AgentType, str, str | None]:
+    return (AgentType(identity[0]), identity[1], identity[2])
+
+
+def composed_agent_list_to_agents(record: ComposedAgentListWire) -> list[Agent]:
+    """Rehydrate Rust-composed visible rows into normal TUI ``Agent`` models."""
+
+    agents = [agent_from_wire(agent_wire) for agent_wire in record.agents]
+    by_identity = {agent.identity: agent for agent in agents}
+
+    for agent, agent_wire in zip(agents, record.agents, strict=True):
+        agent.followup_agents = [
+            by_identity[identity]
+            for identity in (
+                _wire_identity_to_agent_identity(item)
+                for item in agent_wire.followup_identities
+            )
+            if identity in by_identity
+        ]
+        agent.retry_chain_siblings = [
+            by_identity[identity]
+            for identity in (
+                _wire_identity_to_agent_identity(item)
+                for item in agent_wire.retry_chain_sibling_identities
+            )
+            if identity in by_identity
+        ]
+
+    return agents
+
+
 # pyvision: tests/test_core_agent_compose.py
 def log_compose_mismatch(
     *,
@@ -146,6 +180,7 @@ __all__ = [
     "build_agent_compose_input",
     "compose_agent_list",
     "compose_agent_list_reference",
+    "composed_agent_list_to_agents",
     "compose_python_agents_to_wire",
     "log_compose_mismatch",
     "with_options",
