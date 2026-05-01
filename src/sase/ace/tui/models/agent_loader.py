@@ -225,7 +225,7 @@ def _followup_parent_timestamp(agent: Agent) -> str | None:
     only have ``parent_timestamp``; those still link to their parent as long
     as they are separate artifact dirs rather than prompt-step children.
     """
-    if agent.plan_chain_parent:
+    if agent.is_plan_chain_followup:
         return agent.plan_chain_parent
     if agent.is_artifact_followup:
         return agent.parent_timestamp

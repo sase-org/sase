@@ -465,6 +465,11 @@ class Agent:
         return self.plan_chain_parent is not None
 
     @property
+    def is_independent_plan_chain_entry(self) -> bool:
+        """True for plan-chain entries that are not prompt-step children."""
+        return self.is_plan_chain_phase and not self.is_workflow_step_child
+
+    @property
     def is_agent_entry(self) -> bool:
         """Check if this entry represents an agent process (with thinking support).
 

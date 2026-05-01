@@ -85,9 +85,28 @@ def test_model_distinguishes_plan_chain_followup_from_workflow_step_child() -> N
     )
 
     assert plan_followup.is_plan_chain_followup
+    assert plan_followup.is_independent_plan_chain_entry
     assert not plan_followup.is_workflow_step_child
     assert workflow_step.is_workflow_step_child
+    assert not workflow_step.is_independent_plan_chain_entry
     assert not workflow_step.is_plan_chain_phase
+
+
+def test_model_marks_root_plan_as_independent_plan_chain_entry() -> None:
+    root_plan = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="PLANNING",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+
+    assert root_plan.is_plan_chain_phase
+    assert root_plan.is_independent_plan_chain_entry
+    assert not root_plan.is_plan_chain_followup
+    assert not root_plan.is_workflow_step_child
 
 
 def test_apply_status_overrides_uses_explicit_plan_chain_parent() -> None:
