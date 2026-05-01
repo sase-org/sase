@@ -13,7 +13,9 @@ from ._buckets import (
     LatestTimestampMap,
     date_bucket_for_changespec,
     date_bucket_sort_index,
-    latest_changespec_timestamp,
+    date_subgroup_for_changespec,
+    date_subgroup_sort_key,
+    latest_from_map,
     status_bucket_for_changespec,
     status_sort_index,
 )
@@ -26,11 +28,13 @@ class _ChangeSpecKeys:
     ``l0`` is the level-0 group label (project name in ``BY_PROJECT``,
     bucket name in ``BY_DATE`` / ``BY_STATUS``).  ``sibling_root`` is
     populated for modes that emit a sibling-root sub-banner
-    (``BY_PROJECT`` and ``BY_STATUS``); empty otherwise.
+    (``BY_PROJECT`` and ``BY_STATUS``); ``date_subgroup`` is populated
+    only for BY_DATE buckets that emit an L1 date subgroup.
     """
 
     l0: str
     sibling_root: str
+    date_subgroup: str = ""
 
 
 def sibling_root_for_changespec(cs: ChangeSpec) -> str:
@@ -63,9 +67,10 @@ def keys_for_changespec(
     now: datetime,
     latest_map: LatestTimestampMap | None = None,
 ) -> _ChangeSpecKeys:
-    """Compute (l0, sibling_root) for *cs* under *mode*."""
+    """Compute grouping keys for *cs* under *mode*."""
+    l0 = _l0_value_for(cs, mode, now, latest_map=latest_map)
     return _ChangeSpecKeys(
-        l0=_l0_value_for(cs, mode, now, latest_map=latest_map),
+        l0=l0,
         sibling_root=(
             sibling_root_for_changespec(cs)
             if mode
@@ -73,6 +78,11 @@ def keys_for_changespec(
                 ChangeSpecGroupingMode.BY_PROJECT,
                 ChangeSpecGroupingMode.BY_STATUS,
             )
+            else ""
+        ),
+        date_subgroup=(
+            date_subgroup_for_changespec(cs, l0, latest_map=latest_map)
+            if mode is ChangeSpecGroupingMode.BY_DATE
             else ""
         ),
     )
@@ -110,10 +120,7 @@ def _date_anchor_for(
 
     Negated so newest sorts first when used inside a tuple sort key.
     """
-    if latest_map is not None and id(cs) in latest_map:
-        latest = latest_map[id(cs)]
-    else:
-        latest = latest_changespec_timestamp(cs)
+    latest = latest_from_map(cs, latest_map)
     if latest is None:
         return float("inf")
     return -latest.timestamp()
@@ -155,7 +162,9 @@ def walk_order(
             sibling = (1, k.sibling_root.lower()) if in_group else (0, "")
             return (l0, sibling, i)
         if mode is ChangeSpecGroupingMode.BY_DATE:
-            return (l0, _date_anchor_for(changespecs[i], latest_map), i)
+            latest = latest_from_map(changespecs[i], latest_map)
+            subgroup = date_subgroup_sort_key(k.l0, k.date_subgroup, latest)
+            return (l0, subgroup, _date_anchor_for(changespecs[i], latest_map), i)
         return (l0, i)
 
     return sorted(range(len(changespecs)), key=sort_key)

@@ -11,11 +11,13 @@ from typing import Any
 
 from textual.message import Message
 
-from sase.ace.changespec import ChangeSpec
+from sase.ace.changespec import ChangeSpec, TimestampEntry
 from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets import ChangeSpecList
 from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
+
+from ..models._changespec_groups_helpers import _NOW
 
 
 def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
@@ -30,7 +32,17 @@ def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
     return widget, posted
 
 
-def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
+def _ts(timestamp: str) -> TimestampEntry:
+    return TimestampEntry(timestamp=timestamp, event_type="STATUS", detail="x")
+
+
+def _cs(
+    name: str,
+    *,
+    project: str = "demo",
+    status: str = "WIP",
+    timestamps: list[TimestampEntry] | None = None,
+) -> ChangeSpec:
     return ChangeSpec(
         name=name,
         description="",
@@ -41,6 +53,7 @@ def _cs(name: str, *, project: str = "demo", status: str = "WIP") -> ChangeSpec:
         kickstart=None,
         file_path=f"/sase/projects/{project}/{project}.gp",
         line_number=1,
+        timestamps=timestamps,
     )
 
 
@@ -57,7 +70,7 @@ def test_default_mode_is_by_project(monkeypatch: Any) -> None:
     assert widget._grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
 
 
-# ── BY_STATUS / BY_DATE: L0 banners only, no L1 ────────────────────────
+# ── BY_STATUS / BY_DATE banners ────────────────────────────────────────
 
 
 def test_by_status_emits_l0_banners_and_cl_rows(monkeypatch: Any) -> None:
@@ -87,6 +100,56 @@ def test_by_status_emits_l0_banners_and_cl_rows(monkeypatch: Any) -> None:
     assert len(cs_rows) == 3
     # Lifecycle order: WIP precedes Ready.
     assert banner_rows[0] < banner_rows[1]
+
+
+def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
+    widget, _ = _wire_widget(monkeypatch)
+    css = [
+        _cs("night", timestamps=[_ts("260425_210000")]),
+        _cs("afternoon", timestamps=[_ts("260425_140000")]),
+    ]
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_DATE,
+        now=_NOW,
+    )
+
+    banner_rows = [
+        i
+        for i in range(widget.option_count)
+        if widget._row_entries[i] == _BANNER_ROW
+        and not (widget.get_option_at_index(i).id or "").startswith("cs-spacer:")
+    ]
+    assert len(banner_rows) == 3
+    assert widget._row_entries == [_BANNER_ROW, _BANNER_ROW, 0, _BANNER_ROW, 1]
+
+
+def test_by_date_collapsed_l1_banner_maps_to_group_key(monkeypatch: Any) -> None:
+    widget, _ = _wire_widget(monkeypatch)
+    css = [
+        _cs("night", timestamps=[_ts("260425_210000")]),
+        _cs("afternoon", timestamps=[_ts("260425_140000")]),
+    ]
+    fold = GroupFoldRegistry()
+    fold.collapse(("Yesterday", "8PM-12AM"))
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_DATE,
+        fold_registry=fold,
+        current_group_key=("Yesterday", "8PM-12AM"),
+        now=_NOW,
+    )
+
+    row = widget._banner_row_by_key[("Yesterday", "8PM-12AM")]
+    assert widget.highlighted == row
+    assert widget._banner_at_row[row].group_key == ("Yesterday", "8PM-12AM")
+    index, group_key = widget._resolve_row(row)
+    assert index == 0
+    assert group_key == ("Yesterday", "8PM-12AM")
 
 
 def test_grouped_render_marks_l0_banners_disabled_when_expanded(

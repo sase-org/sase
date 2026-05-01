@@ -146,13 +146,14 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     # ``alpha_one`` and ``alpha_two`` sharing root ``alpha``) + beta L0.
     assert len(banner_rows) >= 2
 
-    # BY_PROJECT → BY_DATE: only L0 banners, one per bucket present.
+    # BY_PROJECT → BY_DATE: undated CLs land under Earlier plus the
+    # final ``(no timestamp)`` subgroup.
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     # All test CSs have no TIMESTAMPS so they all land in ``Earlier``.
     assert app.notifications[-1] == "CL grouping: by date"
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
-    assert len(banner_rows) == 1
+    assert len(banner_rows) == 2
 
     # BY_DATE → BY_STATUS: WIP and Ready buckets.
     app.action_cycle_grouping_mode()

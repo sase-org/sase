@@ -8,6 +8,16 @@ from enum import Enum
 
 from sase.ace.changespec import ChangeSpec
 
+from ..date_subgroups import (
+    NO_TIMESTAMP_LABEL,
+    day_subgroup_label,
+    day_subgroup_sort_key,
+    four_hour_window_label,
+    four_hour_window_sort_key,
+    week_subgroup_label,
+    week_subgroup_sort_key,
+)
+
 #: Bucket used when no TIMESTAMPS entry is present or none parse cleanly.
 _EARLIER = "Earlier"
 
@@ -17,7 +27,8 @@ class ChangeSpecGroupingMode(Enum):
 
     * ``BY_PROJECT``: L0 is the project name, L1 is the sibling root
       shared by ``foobar_1`` / ``foobar_2`` style suffixed siblings.
-    * ``BY_DATE``: L0 only — date bucket from the latest TIMESTAMPS entry.
+    * ``BY_DATE``: L0 date bucket from the latest TIMESTAMPS entry,
+      with conditional L1 subgroups for yesterday / this week / earlier.
     * ``BY_STATUS``: L0 only — bucket from the literal ``status`` field.
     """
 
@@ -147,6 +158,68 @@ def date_bucket_for_changespec(
     if when > today - timedelta(days=7):
         return "This Week"
     return _EARLIER
+
+
+def latest_from_map(
+    cs: ChangeSpec,
+    latest_map: LatestTimestampMap | None = None,
+) -> datetime | None:
+    """Return *cs*'s latest timestamp, using *latest_map* when present."""
+    if latest_map is not None and id(cs) in latest_map:
+        return latest_map[id(cs)]
+    return latest_changespec_timestamp(cs)
+
+
+def date_subgroup_for_changespec(
+    cs: ChangeSpec,
+    date_bucket: str,
+    latest_map: LatestTimestampMap | None = None,
+) -> str:
+    """Return the optional BY_DATE L1 subgroup label for *cs*.
+
+    ``Today`` remains flat.  ``Yesterday`` groups by 4-hour windows,
+    ``This Week`` by calendar day, and ``Earlier`` by Monday-start week;
+    CLs without a parseable TIMESTAMPS entry land in
+    :data:`NO_TIMESTAMP_LABEL`.
+    """
+    latest = latest_from_map(cs, latest_map)
+    if date_bucket == "Today":
+        return ""
+    if latest is None:
+        return NO_TIMESTAMP_LABEL if date_bucket == _EARLIER else ""
+    if date_bucket == "Yesterday":
+        return four_hour_window_label(latest)
+    if date_bucket == "This Week":
+        return day_subgroup_label(latest)
+    if date_bucket == _EARLIER:
+        return week_subgroup_label(latest)
+    return ""
+
+
+def date_subgroup_sort_key(
+    date_bucket: str,
+    subgroup: str,
+    latest: datetime | None,
+) -> tuple[int, int]:
+    """Sort key for BY_DATE L1 subgroups.
+
+    The key is neutral for flat buckets, newest-first for real date
+    subgroups, and places ``(no timestamp)`` after all dated ``Earlier``
+    weeks.
+    """
+    if not subgroup:
+        return (0, 0)
+    if date_bucket == _EARLIER and subgroup == NO_TIMESTAMP_LABEL:
+        return (2, 0)
+    if latest is None:
+        return (1, 0)
+    if date_bucket == "Yesterday":
+        return four_hour_window_sort_key(subgroup)
+    if date_bucket == "This Week":
+        return day_subgroup_sort_key(latest)
+    if date_bucket == _EARLIER:
+        return week_subgroup_sort_key(latest)
+    return (1, 0)
 
 
 def status_bucket_for_changespec(cs: ChangeSpec) -> str:

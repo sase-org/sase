@@ -6,7 +6,8 @@ same visual language at a glance.  L0 banners (project / date bucket /
 status bucket) get the strong sky-blue bar treatment; L1 sibling-root
 banners (only emitted in ``BY_PROJECT``) use the dim-gray branch glyph
 and teal label so they read as a secondary nesting level under the
-project header.
+project header.  BY_DATE subgroup banners use the same L1 treatment for
+4-hour, day, and week headings under the coarse date buckets.
 """
 
 from __future__ import annotations

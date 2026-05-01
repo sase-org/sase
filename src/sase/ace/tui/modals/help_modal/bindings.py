@@ -226,6 +226,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: proj→date→status",
                 ),
+                ("CL by date", "Yesterday by 4h, this week by day, older by week"),
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
                     "Expand/collapse group",

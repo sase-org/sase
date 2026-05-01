@@ -85,7 +85,7 @@ def test_by_project_enumerate_keys_includes_only_grouped_roots_at_l1() -> None:
 # --- BY_DATE ---
 
 
-def test_by_date_emits_only_l1_banners_in_fixed_bucket_order() -> None:
+def test_by_date_emits_l0_banners_in_fixed_bucket_order() -> None:
     cl = [
         _cs("old", timestamps=[_ts("260418_120000")]),
         _cs("today_a", timestamps=[_ts("260426_080000")]),
@@ -98,8 +98,23 @@ def test_by_date_emits_only_l1_banners_in_fixed_bucket_order() -> None:
         ("Yesterday",),
         ("Earlier",),
     ]
-    # Only L0 banners — no sibling-root level under date buckets.
+    assert _group_keys(entries, 1) == [
+        ("Yesterday", "12PM-4PM"),
+        ("Earlier", "Apr 13-19"),
+    ]
+
+
+def test_by_date_today_remains_flat_and_newest_first() -> None:
+    cl = [
+        _cs("today_early", timestamps=[_ts("260426_080000")]),
+        _cs("today_late", timestamps=[_ts("260426_110000")]),
+        _cs("today_mid", timestamps=[_ts("260426_100000")]),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
+    assert _group_keys(entries, 0) == [("Today",)]
     assert _group_keys(entries, 1) == []
+    cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
+    assert cs_indices == [1, 2, 0]
 
 
 def test_by_date_sorts_within_bucket_by_latest_timestamp_desc() -> None:
@@ -113,6 +128,57 @@ def test_by_date_sorts_within_bucket_by_latest_timestamp_desc() -> None:
     assert cs_indices == [1, 2, 0]
 
 
+def test_by_date_yesterday_emits_windows_newest_first() -> None:
+    cl = [
+        _cs("morning_late", timestamps=[_ts("260425_110000")]),
+        _cs("evening", timestamps=[_ts("260425_170000")]),
+        _cs("morning_early", timestamps=[_ts("260425_090000")]),
+        _cs("night", timestamps=[_ts("260425_210000")]),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
+    assert _group_keys(entries, 1) == [
+        ("Yesterday", "8PM-12AM"),
+        ("Yesterday", "4PM-8PM"),
+        ("Yesterday", "8AM-12PM"),
+    ]
+    cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
+    assert cs_indices == [3, 1, 0, 2]
+
+
+def test_by_date_this_week_emits_days_newest_first() -> None:
+    cl = [
+        _cs("wed", timestamps=[_ts("260422_100000")]),
+        _cs("fri_early", timestamps=[_ts("260424_090000")]),
+        _cs("thu", timestamps=[_ts("260423_100000")]),
+        _cs("fri_late", timestamps=[_ts("260424_150000")]),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
+    assert _group_keys(entries, 1) == [
+        ("This Week", "Fri Apr 24"),
+        ("This Week", "Thu Apr 23"),
+        ("This Week", "Wed Apr 22"),
+    ]
+    cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
+    assert cs_indices == [3, 1, 2, 0]
+
+
+def test_by_date_earlier_emits_weeks_newest_first_then_no_timestamp() -> None:
+    cl = [
+        _cs("undated", timestamps=None),
+        _cs("older", timestamps=[_ts("260401_100000")]),
+        _cs("newer_early", timestamps=[_ts("260415_090000")]),
+        _cs("newer_late", timestamps=[_ts("260415_160000")]),
+    ]
+    entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
+    assert _group_keys(entries, 1) == [
+        ("Earlier", "Apr 13-19"),
+        ("Earlier", "Mar 30-Apr 5"),
+        ("Earlier", "(no timestamp)"),
+    ]
+    cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
+    assert cs_indices == [3, 2, 1, 0]
+
+
 def test_by_date_missing_timestamps_lands_in_earlier_after_dated_cls() -> None:
     cl = [
         _cs("undated", timestamps=None),
@@ -121,6 +187,40 @@ def test_by_date_missing_timestamps_lands_in_earlier_after_dated_cls() -> None:
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
     keys = _group_keys(entries, 0)
     assert keys.index(("Today",)) < keys.index(("Earlier",))
+
+
+def test_by_date_collapsed_subgroup_hides_only_that_subgroup() -> None:
+    cl = [
+        _cs("night", timestamps=[_ts("260425_210000")]),
+        _cs("afternoon", timestamps=[_ts("260425_140000")]),
+    ]
+    registry = GroupFoldRegistry()
+    registry.collapse(("Yesterday", "8PM-12AM"))
+    entries = build_changespec_tree(
+        cl, ChangeSpecGroupingMode.BY_DATE, fold_registry=registry, now=_NOW
+    )
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 1),
+        ("changespec", 1),
+    ]
+
+
+def test_by_date_enumerate_keys_includes_l1_subgroup_keys() -> None:
+    cl = [
+        _cs("today", timestamps=[_ts("260426_100000")]),
+        _cs("night", timestamps=[_ts("260425_210000")]),
+        _cs("older", timestamps=[_ts("260415_100000")]),
+    ]
+    keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
+    assert keys == [
+        ("Today",),
+        ("Yesterday",),
+        ("Yesterday", "8PM-12AM"),
+        ("Earlier",),
+        ("Earlier", "Apr 13-19"),
+    ]
 
 
 # --- BY_STATUS ---

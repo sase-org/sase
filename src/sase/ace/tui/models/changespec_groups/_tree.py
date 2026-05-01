@@ -17,7 +17,7 @@ class ChangeSpecGroupRow:
     """A banner row in the grouped CL tree.
 
     ``level`` is 0 for project / date / status banners and 1 for
-    sibling-root banners.
+    sibling-root or BY_DATE subgroup banners.
     ``changespec_indices`` references the input ``changespecs`` list so
     callers can show counts or jump to the first member.
     """
@@ -46,6 +46,8 @@ def enumerate_changespec_group_keys(
 
     Sibling-root L1 keys are only included when their root has 2+ visible
     CLs, matching the suppression rule in :func:`build_changespec_tree`.
+    BY_DATE L1 keys are included for yesterday / this week / earlier
+    subgroups, while ``Today`` remains flat.
     """
     if not changespecs:
         return []
@@ -58,6 +60,7 @@ def enumerate_changespec_group_keys(
         else None
     )
     keys = keys_for_changespecs(changespecs, mode, reference, latest_map=latest_map)
+    walk = walk_order(changespecs, keys, mode, latest_map=latest_map)
 
     seen: set[GroupKey] = set()
     out: list[GroupKey] = []
@@ -67,11 +70,13 @@ def enumerate_changespec_group_keys(
     )
     if has_sibling_level:
         root_counts: dict[tuple[str, str], int] = {}
-        for k in keys:
+        for i in walk:
+            k = keys[i]
             root_counts[(k.l0, k.sibling_root)] = (
                 root_counts.get((k.l0, k.sibling_root), 0) + 1
             )
-        for k in keys:
+        for i in walk:
+            k = keys[i]
             l0_key: GroupKey = (k.l0,)
             if l0_key not in seen:
                 seen.add(l0_key)
@@ -81,8 +86,21 @@ def enumerate_changespec_group_keys(
                 if deep not in seen:
                     seen.add(deep)
                     out.append(deep)
+    elif mode is ChangeSpecGroupingMode.BY_DATE:
+        for i in walk:
+            k = keys[i]
+            l0_key = (k.l0,)
+            if l0_key not in seen:
+                seen.add(l0_key)
+                out.append(l0_key)
+            if k.date_subgroup:
+                deep = (k.l0, k.date_subgroup)
+                if deep not in seen:
+                    seen.add(deep)
+                    out.append(deep)
     else:
-        for k in keys:
+        for i in walk:
+            k = keys[i]
             l0_key = (k.l0,)
             if l0_key not in seen:
                 seen.add(l0_key)
@@ -131,19 +149,25 @@ def build_changespec_tree(
         ChangeSpecGroupingMode.BY_PROJECT,
         ChangeSpecGroupingMode.BY_STATUS,
     )
+    has_date_subgroups = mode is ChangeSpecGroupingMode.BY_DATE
     l0_indices: dict[str, list[int]] = {}
     root_indices: dict[tuple[str, str], list[int]] = {}
+    date_subgroup_indices: dict[tuple[str, str], list[int]] = {}
     for i in walk:
         k = keys[i]
         l0_indices.setdefault(k.l0, []).append(i)
         if has_sibling_level and k.sibling_root:
             root_indices.setdefault((k.l0, k.sibling_root), []).append(i)
+        if has_date_subgroups and k.date_subgroup:
+            date_subgroup_indices.setdefault((k.l0, k.date_subgroup), []).append(i)
 
     entries: list[ChangeSpecTreeEntry] = []
     cur_l0: str | None = None
     cur_l0_collapsed = False
     cur_root: str = ""
     cur_root_collapsed = False
+    cur_date_subgroup: str = ""
+    cur_date_subgroup_collapsed = False
 
     for i in walk:
         k = keys[i]
@@ -164,7 +188,34 @@ def build_changespec_tree(
             cur_l0 = k.l0
             cur_root = ""
             cur_root_collapsed = False
+            cur_date_subgroup = ""
+            cur_date_subgroup_collapsed = False
         if cur_l0_collapsed:
+            continue
+
+        if has_date_subgroups and k.date_subgroup:
+            if k.date_subgroup != cur_date_subgroup:
+                cur_date_subgroup = k.date_subgroup
+                date_subgroup_key: GroupKey = (k.l0, k.date_subgroup)
+                cur_date_subgroup_collapsed = registry.is_collapsed(date_subgroup_key)
+                entries.append(
+                    ChangeSpecTreeEntry(
+                        kind="group",
+                        group=ChangeSpecGroupRow(
+                            level=1,
+                            group_key=date_subgroup_key,
+                            changespec_indices=tuple(
+                                date_subgroup_indices[(k.l0, k.date_subgroup)]
+                            ),
+                            is_collapsed=cur_date_subgroup_collapsed,
+                        ),
+                    )
+                )
+        else:
+            cur_date_subgroup = ""
+            cur_date_subgroup_collapsed = False
+
+        if cur_date_subgroup_collapsed:
             continue
 
         if has_sibling_level and k.sibling_root:

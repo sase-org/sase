@@ -8,10 +8,21 @@ from sase.ace.changespec import TimestampEntry
 from sase.ace.tui.models.changespec_groups import (
     date_bucket_for_changespec,
     date_bucket_sort_index,
+    date_subgroup_for_changespec,
+    date_subgroup_sort_key,
     latest_changespec_timestamp,
     sibling_root_for_changespec,
     status_bucket_for_changespec,
     status_sort_index,
+)
+from sase.ace.tui.models.date_subgroups import (
+    NO_TIMESTAMP_LABEL,
+    day_subgroup_label,
+    day_subgroup_sort_key,
+    four_hour_window_label,
+    four_hour_window_sort_key,
+    week_subgroup_label,
+    week_subgroup_sort_key,
 )
 
 from ._changespec_groups_helpers import _NOW, _cs
@@ -112,6 +123,80 @@ def test_date_bucket_sort_index_orders_buckets() -> None:
     assert date_bucket_sort_index("Earlier") == 3
     # Unknown labels sort after the four known ones.
     assert date_bucket_sort_index("Whenever") == 4
+
+
+# --- Date subgroups ---
+
+
+def test_four_hour_window_boundary_labels() -> None:
+    cases = [
+        (0, "12AM-4AM"),
+        (3, "12AM-4AM"),
+        (4, "4AM-8AM"),
+        (7, "4AM-8AM"),
+        (8, "8AM-12PM"),
+        (11, "8AM-12PM"),
+        (12, "12PM-4PM"),
+        (15, "12PM-4PM"),
+        (16, "4PM-8PM"),
+        (19, "4PM-8PM"),
+        (20, "8PM-12AM"),
+        (23, "8PM-12AM"),
+    ]
+    for hour, expected in cases:
+        assert four_hour_window_label(datetime(2026, 4, 25, hour, 30)) == expected
+
+
+def test_four_hour_window_sort_key_newest_first() -> None:
+    labels = ["8AM-12PM", "8PM-12AM", "12AM-4AM", "4PM-8PM"]
+    assert sorted(labels, key=four_hour_window_sort_key) == [
+        "8PM-12AM",
+        "4PM-8PM",
+        "8AM-12PM",
+        "12AM-4AM",
+    ]
+
+
+def test_day_subgroup_label_and_sort_key() -> None:
+    fri = datetime(2026, 4, 24, 10)
+    wed = datetime(2026, 4, 22, 10)
+    assert day_subgroup_label(fri) == "Fri Apr 24"
+    assert sorted([wed, fri], key=day_subgroup_sort_key) == [fri, wed]
+
+
+def test_week_subgroup_label_same_and_cross_month() -> None:
+    assert week_subgroup_label(datetime(2026, 4, 15, 10)) == "Apr 13-19"
+    assert week_subgroup_label(datetime(2026, 4, 1, 10)) == "Mar 30-Apr 5"
+
+
+def test_week_subgroup_label_cross_year_and_sort_key() -> None:
+    dec_week = datetime(2025, 12, 31, 10)
+    jan_week = datetime(2026, 1, 7, 10)
+    assert week_subgroup_label(dec_week) == "Dec 29-Jan 4"
+    assert sorted([dec_week, jan_week], key=week_subgroup_sort_key) == [
+        jan_week,
+        dec_week,
+    ]
+
+
+def test_date_subgroup_for_changespec_by_bucket() -> None:
+    yesterday = _cs("y", timestamps=[_ts("260425_210000")])
+    this_week = _cs("w", timestamps=[_ts("260424_100000")])
+    earlier = _cs("e", timestamps=[_ts("260415_100000")])
+    undated = _cs("u", timestamps=None)
+
+    assert date_subgroup_for_changespec(yesterday, "Yesterday") == "8PM-12AM"
+    assert date_subgroup_for_changespec(this_week, "This Week") == "Fri Apr 24"
+    assert date_subgroup_for_changespec(earlier, "Earlier") == "Apr 13-19"
+    assert date_subgroup_for_changespec(undated, "Earlier") == NO_TIMESTAMP_LABEL
+    assert date_subgroup_for_changespec(yesterday, "Today") == ""
+
+
+def test_no_timestamp_subgroup_sorts_last_in_earlier() -> None:
+    latest = datetime(2026, 4, 15, 10)
+    assert date_subgroup_sort_key("Earlier", "Apr 13-19", latest) < (
+        date_subgroup_sort_key("Earlier", NO_TIMESTAMP_LABEL, None)
+    )
 
 
 # --- Status bucketing ---

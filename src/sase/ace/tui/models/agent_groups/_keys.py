@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..agent import Agent
+from ..date_subgroups import four_hour_window_sort_key
 from ._buckets import (
     NO_HOUR_LABEL,
     NO_PROJECT,
@@ -83,16 +84,6 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
-_TIME_WINDOW_START_BY_LABEL: dict[str, int] = {
-    "12AM-4AM": 0,
-    "4AM-8AM": 4,
-    "8AM-12PM": 8,
-    "12PM-4PM": 12,
-    "4PM-8PM": 16,
-    "8PM-12AM": 20,
-}
-
-
 def _hour_sort_key(hour: str) -> tuple[int, int]:
     """Sort key for time windows — newest window first, ``(no time)`` last.
 
@@ -101,12 +92,9 @@ def _hour_sort_key(hour: str) -> tuple[int, int]:
     """
     if hour == "":
         return (0, 0)
-    start = _TIME_WINDOW_START_BY_LABEL.get(hour)
-    if start is not None:
-        return (0, -start)
     if hour == NO_HOUR_LABEL:
         return (2, 0)
-    return (1, 0)
+    return four_hour_window_sort_key(hour)
 
 
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
