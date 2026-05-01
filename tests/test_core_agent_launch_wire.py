@@ -46,6 +46,7 @@ def test_workspace_claim_request_round_trips_json_shape() -> None:
         "cl_name": "feature",
         "artifacts_timestamp": "20260501120000",
         "transfer_from_pid": 99,
+        "pinned": False,
     }
     assert workspace_claim_request_from_dict(payload) == request
 

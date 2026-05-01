@@ -12,6 +12,7 @@ from sase.running_field import (
     get_first_available_workspace,
     get_workspace_directory_for_num,
     release_workspace,
+    transfer_workspace_claim,
 )
 from sase.running_field import (
     get_workspace_directory as get_workspace_dir,
@@ -235,5 +236,81 @@ def test_claim_next_axe_workspace_empty_running_field() -> None:
         assert len(claims) == 1
         assert claims[0].workspace_num == 100
         assert claims[0].pid == 12345
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_empty_running_header() -> None:
+    """Test atomic claim on a file with an empty RUNNING field."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+        f.write("RUNNING:\nNAME: Test Feature\nSTATUS: Ready\n")
+        project_file = f.name
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file, "hg-foo", 12345, cl_name="foo"
+        )
+        assert workspace_num == 100
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 100
+    finally:
+        Path(project_file).unlink()
+
+
+def test_transfer_workspace_claim_by_pid() -> None:
+    """Test transferring a claim to a retry child by matching workspace and PID."""
+    project_file = _create_project_file_with_running(
+        running_claims=[
+            WorkspaceClaim(
+                100,
+                "ace(run)-old",
+                "feature",
+                pid=11111,
+                artifacts_timestamp="20260501115959",
+            )
+        ]
+    )
+    try:
+        success = transfer_workspace_claim(
+            project_file,
+            100,
+            from_pid=11111,
+            to_pid=22222,
+            new_workflow="ace(run)-new",
+            new_artifacts_timestamp="20260501120000",
+            cl_name="feature",
+        )
+        assert success is True
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].pid == 22222
+        assert claims[0].workflow == "ace(run)-new"
+        assert claims[0].artifacts_timestamp == "20260501120000"
+    finally:
+        Path(project_file).unlink()
+
+
+def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None:
+    """Malformed RUNNING rows do not block Rust-backed allocation."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+        f.write(
+            "RUNNING:\n"
+            "  #100 | not-a-pid | hg-bad | bad\n"
+            "  #101 | 11111 | hg-good | good\n"
+            "\n\n"
+            "NAME: Test Feature\n"
+            "STATUS: Ready\n"
+        )
+        project_file = f.name
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file, "hg-new", 22222, cl_name="new"
+        )
+        assert workspace_num == 100
+
+        claims = get_claimed_workspaces(project_file)
+        assert {claim.workspace_num for claim in claims} == {100, 101}
     finally:
         Path(project_file).unlink()

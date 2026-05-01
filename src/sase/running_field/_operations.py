@@ -4,6 +4,13 @@ import os
 import time
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.core.agent_launch_claims import (
+    allocate_and_claim_workspace_from_content,
+    list_workspace_claims_from_content,
+    plan_claim_workspace_from_content,
+    plan_transfer_workspace_claim_from_content,
+)
+from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
@@ -30,29 +37,9 @@ def get_claimed_workspaces(project_file: str) -> list[WorkspaceClaim]:
 
     try:
         with open(project_file, encoding="utf-8") as f:
-            lines = f.readlines()
+            return list_workspace_claims_from_content(f.read())
     except Exception:
         return []
-
-    claims: list[WorkspaceClaim] = []
-    in_running_field = False
-
-    for line in lines:
-        if line.startswith("RUNNING:"):
-            in_running_field = True
-            continue
-
-        if in_running_field:
-            # Check if this is a continuation line (starts with 2 spaces)
-            if line.startswith("  ") and line.strip().startswith("#") is not False:
-                claim = WorkspaceClaim.from_line(line)
-                if claim:
-                    claims.append(claim)
-            else:
-                # End of RUNNING field
-                break
-
-    return claims
 
 
 def claim_workspace(
@@ -92,72 +79,27 @@ def claim_workspace(
             with changespec_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
-                    lines = content.split("\n")
 
-                new_claim = WorkspaceClaim(
-                    workspace_num=workspace_num,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    pid=pid,
-                    artifacts_timestamp=artifacts_timestamp,
-                    pinned=pinned,
+                plan = plan_claim_workspace_from_content(
+                    content,
+                    WorkspaceClaimRequestWire(
+                        project_file=project_file,
+                        workspace_num=workspace_num,
+                        workflow_name=workflow,
+                        pid=pid,
+                        cl_name=cl_name or "",
+                        artifacts_timestamp=artifacts_timestamp or "",
+                        pinned=pinned,
+                    ),
                 )
+                outcome = dict(plan["outcome"])
+                if not bool(outcome["success"]):
+                    return False
 
-                # Find RUNNING field
-                running_field_idx = -1
-                running_end_idx = -1
-
-                for i, line in enumerate(lines):
-                    if line.startswith("RUNNING:"):
-                        running_field_idx = i
-                        # Find end of RUNNING field
-                        for j in range(i + 1, len(lines)):
-                            if lines[j].startswith("  ") and (
-                                lines[j].strip().startswith("#")
-                                or lines[j].strip().startswith("|")
-                            ):
-                                running_end_idx = j
-                            else:
-                                if running_end_idx == -1:
-                                    running_end_idx = i
-                                break
-                        else:
-                            if running_end_idx == -1:
-                                running_end_idx = i
-                        break
-
-                if running_field_idx >= 0:
-                    # Reject duplicate workspace numbers (TOCTOU race guard).
-                    # Two processes can call get_first_available_axe_workspace()
-                    # concurrently and both get the same number before either
-                    # claims it.  By checking under the lock we prevent the
-                    # second process from silently double-claiming.
-                    if workspace_num != 0:
-                        for k in range(running_field_idx + 1, running_end_idx + 1):
-                            existing = WorkspaceClaim.from_line(lines[k])
-                            if (
-                                existing is not None
-                                and existing.workspace_num == workspace_num
-                            ):
-                                return False
-
-                    # RUNNING field exists - add new claim
-                    # Insert after the last continuation line
-                    insert_idx = running_end_idx + 1
-                    lines.insert(insert_idx, new_claim.to_line())
-                else:
-                    # RUNNING field doesn't exist - create it at the beginning
-                    lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
-
-                # Normalize blank lines around RUNNING field
-                result_content = "\n".join(lines)
-                result_content = normalize_running_field_spacing(result_content)
-
-                # Write atomically
                 cl_part = f" for {cl_name}" if cl_name else ""
                 write_changespec_atomic(
                     project_file,
-                    result_content,
+                    str(plan["content"]),
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]
@@ -297,50 +239,26 @@ def transfer_workspace_claim(
         with changespec_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
-                lines = content.split("\n")
 
-            new_lines: list[str] = []
-            in_running_field = False
-            updated = False
-
-            for line in lines:
-                if line.startswith("RUNNING:"):
-                    in_running_field = True
-                    new_lines.append(line)
-                    continue
-
-                if in_running_field and line.startswith("  "):
-                    claim = WorkspaceClaim.from_line(line)
-                    if (
-                        claim
-                        and not updated
-                        and claim.workspace_num == workspace_num
-                        and claim.pid == from_pid
-                        and (cl_name is None or claim.cl_name == cl_name)
-                    ):
-                        replacement = WorkspaceClaim(
-                            workspace_num=claim.workspace_num,
-                            workflow=new_workflow,
-                            cl_name=claim.cl_name,
-                            pid=to_pid,
-                            artifacts_timestamp=new_artifacts_timestamp
-                            or claim.artifacts_timestamp,
-                            pinned=claim.pinned,
-                        )
-                        new_lines.append(replacement.to_line())
-                        updated = True
-                        continue
-                else:
-                    in_running_field = False
-
-                new_lines.append(line)
-
-            if not updated:
+            plan = plan_transfer_workspace_claim_from_content(
+                content,
+                WorkspaceClaimRequestWire(
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    workflow_name=new_workflow,
+                    pid=to_pid,
+                    cl_name=cl_name or "",
+                    artifacts_timestamp=new_artifacts_timestamp or "",
+                    transfer_from_pid=from_pid,
+                ),
+            )
+            outcome = dict(plan["outcome"])
+            if not bool(outcome["success"]):
                 return False
 
             write_changespec_atomic(
                 project_file,
-                "\n".join(new_lines),
+                str(plan["content"]),
                 f"Transfer workspace #{workspace_num} from pid {from_pid} to {to_pid}",
             )
             return True
@@ -465,69 +383,36 @@ def claim_next_axe_workspace(
             with changespec_lock(project_file):
                 with open(project_file, encoding="utf-8") as f:
                     content = f.read()
-                    lines = content.split("\n")
 
-                # Find RUNNING field and existing claims
-                running_field_idx = -1
-                running_end_idx = -1
-                claimed_nums: set[int] = set()
-
-                for i, line in enumerate(lines):
-                    if line.startswith("RUNNING:"):
-                        running_field_idx = i
-                        for j in range(i + 1, len(lines)):
-                            if lines[j].startswith("  ") and (
-                                lines[j].strip().startswith("#")
-                                or lines[j].strip().startswith("|")
-                            ):
-                                running_end_idx = j
-                                existing = WorkspaceClaim.from_line(lines[j])
-                                if existing is not None:
-                                    claimed_nums.add(existing.workspace_num)
-                            else:
-                                if running_end_idx == -1:
-                                    running_end_idx = i
-                                break
-                        else:
-                            if running_end_idx == -1:
-                                running_end_idx = i
-                        break
-
-                # Find first available workspace number
-                workspace_num: int | None = None
-                for n in range(min_workspace, max_workspace + 1):
-                    if n not in claimed_nums:
-                        workspace_num = n
-                        break
-
-                if workspace_num is None:
+                plan = allocate_and_claim_workspace_from_content(
+                    content,
+                    min_workspace,
+                    max_workspace,
+                    WorkspaceClaimRequestWire(
+                        project_file=project_file,
+                        workspace_num=0,
+                        workflow_name=workflow,
+                        pid=pid,
+                        cl_name=cl_name or "",
+                        artifacts_timestamp=artifacts_timestamp or "",
+                        pinned=pinned,
+                    ),
+                )
+                outcome = dict(plan["outcome"])
+                if not bool(outcome["success"]):
+                    error = outcome.get("error")
+                    if error:
+                        raise RuntimeError(f"{error} in {project_file}")
                     raise RuntimeError(
                         f"All axe workspaces ({min_workspace}-{max_workspace}) "
                         f"are claimed in {project_file}"
                     )
-
-                new_claim = WorkspaceClaim(
-                    workspace_num=workspace_num,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    pid=pid,
-                    artifacts_timestamp=artifacts_timestamp,
-                    pinned=pinned,
-                )
-
-                if running_field_idx >= 0:
-                    insert_idx = running_end_idx + 1
-                    lines.insert(insert_idx, new_claim.to_line())
-                else:
-                    lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
-
-                result_content = "\n".join(lines)
-                result_content = normalize_running_field_spacing(result_content)
+                workspace_num = int(outcome["workspace_num"])
 
                 cl_part = f" for {cl_name}" if cl_name else ""
                 write_changespec_atomic(
                     project_file,
-                    result_content,
+                    str(plan["content"]),
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]

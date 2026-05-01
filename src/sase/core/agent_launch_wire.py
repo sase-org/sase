@@ -24,6 +24,7 @@ class WorkspaceClaimRequestWire:
     cl_name: str = ""
     artifacts_timestamp: str = ""
     transfer_from_pid: int | None = None
+    pinned: bool = False
 
 
 @dataclass(frozen=True)
@@ -127,6 +128,7 @@ def workspace_claim_request_from_dict(
             if data.get("transfer_from_pid") is None
             else int(data["transfer_from_pid"])
         ),
+        pinned=bool(data.get("pinned", False)),
     )
 
 
