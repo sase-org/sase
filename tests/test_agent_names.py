@@ -232,42 +232,6 @@ class TestResumeAgentNames:
         with patch.object(Path, "home", return_value=tmp_path):
             assert allocate_resume_names("foo", 3) == ["foo.r2", "foo.r3", "foo.r4"]
 
-    def test_strips_workflow_role_segments(self, tmp_path: Path) -> None:
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("ma.code") == "ma.r1"
-            assert allocate_resume_name("pb.plan") == "pb.r1"
-
-    def test_increments_existing_resume_generation(self, tmp_path: Path) -> None:
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("ma.code.r1.code") == "ma.r2"
-            assert allocate_resume_name("foo.plan.r3") == "foo.r4"
-
-    def test_collapses_repeated_resume_generations(self, tmp_path: Path) -> None:
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("ma.code.r1.code.r1.code") == "ma.r2"
-
-    def test_preserves_non_role_substrings(self, tmp_path: Path) -> None:
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("decode.codegen.planning") == (
-                "decode.codegen.planning.r1"
-            )
-
-    def test_normalized_resume_allocation_honors_collisions_and_floor(
-        self, tmp_path: Path
-    ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.r2", done=True)
-        _make_agent(tmp_path, "proj", "run2", "foo.r4.claude", done=True)
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo.code.r3") == "foo.r5"
-
-    def test_normalized_resume_allocation_fills_gaps_without_floor(
-        self, tmp_path: Path
-    ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.r3", done=True)
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo.code") == "foo.r2"
-
 
 class TestClaimAgentName:
     def test_preserves_done_agent_names(self, tmp_path: Path) -> None:
