@@ -147,6 +147,39 @@ def test_list_running_agents_skips_parent_timestamp_followups(
     assert TS_ACE_RUN_RUNNING not in {_ts(info) for info in running}
 
 
+def test_list_running_agents_includes_plan_chain_followups(
+    tmp_path: Path,
+) -> None:
+    """Independent plan-chain follow-ups are visible in CLI status listings."""
+    projects_root = _projects_root_for(tmp_path)
+    build_fixture_tree(projects_root)
+    meta_path = (
+        projects_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["name"] = "a.coder"
+    data["workflow_name"] = "a"
+    data["parent_timestamp"] = "20260101000000"
+    data["plan_chain_parent_timestamp"] = "20260101000000"
+    data["role_suffix"] = ".coder"
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    with (
+        patch("pathlib.Path.home", return_value=tmp_path),
+        patch("sase.ace.hooks.processes.is_process_running", _all_alive),
+    ):
+        running = list_running_agents()
+
+    by_ts = {_ts(info): info for info in running}
+    assert TS_ACE_RUN_RUNNING in by_ts
+    assert by_ts[TS_ACE_RUN_RUNNING].name == "a.coder"
+
+
 def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:
     """All-listing emits running + DONE/FAILED with running entries first."""
     build_fixture_tree(_projects_root_for(tmp_path))

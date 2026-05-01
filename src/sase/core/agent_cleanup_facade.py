@@ -119,7 +119,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         display_name=agent.display_name,
         start_time=_iso_or_none(agent.start_time),
         stop_time=_iso_or_none(agent.stop_time),
-        is_workflow_child=agent.is_workflow_child,
+        is_workflow_child=getattr(agent, "is_rendered_workflow_child", False),
         appears_as_agent=agent.appears_as_agent,
         step_type=agent.step_type,
     )
@@ -134,11 +134,7 @@ def agents_to_cleanup_targets(
 
 
 def _is_workflow_child(target: AgentCleanupTargetWire) -> bool:
-    return (
-        target.is_workflow_child
-        or target.parent_workflow is not None
-        or target.parent_timestamp is not None
-    )
+    return target.is_workflow_child or target.parent_workflow is not None
 
 
 def _effective_tag(
@@ -278,7 +274,7 @@ def _allocate_dismissed_name(
 
 def _related_workflow_targets(
     target: AgentCleanupTargetWire,
-    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]],
+    children_by_parent: dict[str, list[AgentCleanupTargetWire]],
 ) -> list[AgentCleanupTargetWire]:
     related = [target]
     if (
@@ -286,7 +282,11 @@ def _related_workflow_targets(
         and not _is_workflow_child(target)
         and target.raw_suffix is not None
     ):
-        related.extend(children_by_parent[(target.raw_suffix, target.workflow)])
+        related.extend(
+            child
+            for child in children_by_parent[target.raw_suffix]
+            if child.parent_workflow is None or child.parent_workflow == target.workflow
+        )
     return related
 
 
@@ -305,7 +305,7 @@ def _build_cleanup_side_effects(
     request: AgentCleanupRequestWire,
     kill_items: Sequence[AgentCleanupKillItemWire],
     dismiss_items: Sequence[AgentCleanupDismissItemWire],
-    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]],
+    children_by_parent: dict[str, list[AgentCleanupTargetWire]],
 ) -> AgentCleanupSideEffectsWire:
     if request.mode == CLEANUP_MODE_PREVIEW_ONLY:
         return AgentCleanupSideEffectsWire()
@@ -495,14 +495,10 @@ def plan_agent_cleanup_python(
         for target in wire_targets
         if not _is_workflow_child(target) and target.raw_suffix is not None
     }
-    children_by_parent: dict[tuple[str, str | None], list[AgentCleanupTargetWire]] = (
-        defaultdict(list)
-    )
+    children_by_parent: dict[str, list[AgentCleanupTargetWire]] = defaultdict(list)
     for target in wire_targets:
-        if _is_workflow_child(target) and target.parent_timestamp is not None:
-            children_by_parent[
-                (target.parent_timestamp, target.parent_workflow)
-            ].append(target)
+        if target.parent_timestamp is not None:
+            children_by_parent[target.parent_timestamp].append(target)
 
     seen_live: set[AgentCleanupIdentityWire] = set()
     selected: list[AgentCleanupIdentityWire] = []
@@ -599,7 +595,12 @@ def plan_agent_cleanup_python(
             )
         )
         if kind == KILL_KIND_WORKFLOW and target.raw_suffix is not None:
-            for child in children_by_parent[(target.raw_suffix, target.workflow)]:
+            for child in children_by_parent[target.raw_suffix]:
+                if (
+                    child.parent_workflow is not None
+                    and child.parent_workflow != target.workflow
+                ):
+                    continue
                 if child.identity not in seen_live:
                     seen_live.add(child.identity)
                     cascaded_children.append(child.identity)
@@ -663,6 +664,8 @@ def plan_agent_cleanup(
 
     wire_targets = [_as_target(target) for target in targets]
     wire_request = _as_request(request)
+    if _has_independent_parent_timestamp_target(wire_targets):
+        return plan_agent_cleanup_python(wire_targets, wire_request)
     try:
         binding = require_rust_binding("plan_agent_cleanup")
     except (ImportError, AttributeError):
@@ -687,6 +690,16 @@ def plan_agent_cleanup(
     ):
         return plan_agent_cleanup_python(wire_targets, wire_request)
     return plan
+
+
+def _has_independent_parent_timestamp_target(
+    targets: Sequence[AgentCleanupTargetWire],
+) -> bool:
+    """Return True when stale Rust cleanup semantics would treat a row as child."""
+    return any(
+        target.parent_timestamp is not None and not _is_workflow_child(target)
+        for target in targets
+    )
 
 
 __all__ = [

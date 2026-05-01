@@ -16,6 +16,7 @@ from sase.agent.names._common import (
     is_process_alive,
     strip_dismissed_prefix,
 )
+from sase.plan_chain import is_plan_chain_artifact_meta
 
 
 def get_next_auto_name() -> str:
@@ -96,13 +97,14 @@ def get_active_agent_names() -> set[str]:
             if not is_done and not is_process_alive(data, artifact_dir):
                 continue
 
-            # Follow-up agents (coder/epic steps spawned after plan
-            # approval) share their parent's name and are sub-steps of
-            # the parent workflow — they should not independently
-            # reserve their full name. They still reserve the auto-name
-            # prefix while live so a fresh ``<base>`` agent does not
-            # collide with them.
+            # Generic follow-up agents share their parent's row and should
+            # only reserve the auto-name prefix. Plan-chain follow-ups now
+            # render as independent rows, so they reserve both their visible
+            # phase name (e.g. ``a.coder``) and the base auto-name prefix.
             if data.get("parent_timestamp"):
+                if is_plan_chain_artifact_meta(data):
+                    if isinstance(name_field, str) and name_field:
+                        names.add(name_field)
                 if prefix is not None:
                     names.add(prefix)
                 continue

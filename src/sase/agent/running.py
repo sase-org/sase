@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.core.time import get_timezone
+from sase.plan_chain import is_plan_chain_artifact_meta
 
 
 @dataclass
@@ -132,6 +133,22 @@ def _resolve_workspace_num(
     return None
 
 
+def _record_is_plan_chain_artifact(record: AgentArtifactRecordWire) -> bool:
+    """Return whether *record* is a plan-chain phase artifact."""
+    meta = record.agent_meta
+    if meta is None:
+        return False
+    return is_plan_chain_artifact_meta(
+        {
+            "name": meta.name,
+            "workflow_name": meta.workflow_name,
+            "role_suffix": meta.role_suffix,
+            "parent_timestamp": meta.parent_timestamp,
+            "plan_chain_parent_timestamp": meta.plan_chain_parent_timestamp,
+        }
+    )
+
+
 def _running_info_from_running_record(
     record: AgentArtifactRecordWire,
     *,
@@ -142,7 +159,7 @@ def _running_info_from_running_record(
     meta = record.agent_meta
     if meta is None:
         return None
-    if meta.parent_timestamp:
+    if meta.parent_timestamp and not _record_is_plan_chain_artifact(record):
         return None
     wf_state = record.workflow_state
     if wf_state is not None and not wf_state.appears_as_agent:
@@ -222,7 +239,11 @@ def _done_info_from_record(
 
     meta = record.agent_meta
 
-    if meta is not None and meta.parent_timestamp:
+    if (
+        meta is not None
+        and meta.parent_timestamp
+        and not _record_is_plan_chain_artifact(record)
+    ):
         return None
 
     wf_state = record.workflow_state

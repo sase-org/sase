@@ -12,6 +12,13 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+def _is_related_child(agent: Agent, parent: Agent) -> bool:
+    """Return True for workflow steps or plan-chain follow-ups of *parent*."""
+    return agent.parent_timestamp == parent.raw_suffix and (
+        agent.parent_workflow is None or agent.parent_workflow == parent.workflow
+    )
+
+
 class AgentDismissMemoryMixin:
     """Mixin for optimistic in-memory dismissal state changes."""
 
@@ -60,9 +67,8 @@ class AgentDismissMemoryMixin:
             ):
                 for step in self._agents_with_children:
                     if (
-                        step.is_workflow_child
-                        and step.parent_timestamp == agent.raw_suffix
-                        and step.parent_workflow == agent.workflow
+                        (step.is_rendered_workflow_child or step.is_plan_chain_phase)
+                        and _is_related_child(step, agent)
                         and step.identity not in removed_identities
                     ):
                         removed.append(step)
@@ -130,10 +136,8 @@ class AgentDismissMemoryMixin:
         if not agent.is_workflow_child and agent.raw_suffix:
             for step in self._agents_with_children:
                 if (
-                    step.is_workflow_child
-                    and step.parent_timestamp == agent.raw_suffix
-                    and step.parent_workflow == agent.workflow
-                ):
+                    step.is_rendered_workflow_child or step.is_plan_chain_phase
+                ) and _is_related_child(step, agent):
                     save_dismissed_bundle(step)
 
     def _persist_dismissed_agent(
@@ -158,10 +162,8 @@ class AgentDismissMemoryMixin:
             ):
                 for step in self._agents_with_children:
                     if (
-                        step.is_workflow_child
-                        and step.parent_timestamp == agent.raw_suffix
-                        and step.parent_workflow == agent.workflow
-                    ):
+                        step.is_rendered_workflow_child or step.is_plan_chain_phase
+                    ) and _is_related_child(step, agent):
                         identities.add(step.identity)
         return identities
 

@@ -180,9 +180,10 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
         )
 
-        # Only show top-level DONE entries (no child steps)
+        # Only hide rendered workflow child steps. Independent plan-chain
+        # phases keep parent lineage but should remain revivable on their own.
         all_in_scope = list(filtered)
-        filtered = [a for a in filtered if not a.is_workflow_child]
+        filtered = [a for a in filtered if not a.is_rendered_workflow_child]
 
         if not filtered:
             self.notify("No dismissed agents in this scope")  # type: ignore[attr-defined]
