@@ -3,23 +3,26 @@
 import sys
 from typing import NoReturn
 
-from .cl_handler import (
-    handle_commit_command,
-    handle_restore_command,
-    handle_revert_command,
-)
-from .parser import create_parser
-from .query_handler import handle_run_special_cases
-
 
 def main() -> NoReturn:
     """Main entry point for the SASE CLI tool."""
+    if len(sys.argv) >= 2 and sys.argv[1] == "bead":
+        from .bead_fast_path import try_handle_bead_fast_path
+
+        exit_code = try_handle_bead_fast_path(sys.argv[2:])
+        if exit_code is not None:
+            sys.exit(exit_code)
+
     # Check for 'sase run' special cases before argparse processes it
     # This allows us to handle queries that contain spaces
     if len(sys.argv) >= 2 and sys.argv[1] == "run":
+        from .query_handler import handle_run_special_cases
+
         args_after_run = sys.argv[2:]
         handle_run_special_cases(args_after_run)
         # If we get here, no special case was handled, continue to argparse
+
+    from .parser import create_parser
 
     parser = create_parser()
     args = parser.parse_args()
@@ -116,6 +119,8 @@ def main() -> NoReturn:
 
     # --- commit ---
     if args.command == "commit":
+        from .cl_handler import handle_commit_command
+
         handle_commit_command(args)
 
     # --- config ---
@@ -215,10 +220,14 @@ def main() -> NoReturn:
 
     # --- restore ---
     if args.command == "restore":
+        from .cl_handler import handle_restore_command
+
         handle_restore_command(args)
 
     # --- revert ---
     if args.command == "revert":
+        from .cl_handler import handle_revert_command
+
         handle_revert_command(args)
 
     # --- telemetry ---
