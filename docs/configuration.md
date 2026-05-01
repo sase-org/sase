@@ -717,6 +717,18 @@ set, the built-in defaults from `default_config.yml` are used.
 
 No flags. Stops the running axe orchestrator.
 
+### `sase axe maintenance`
+
+Maintenance mode pauses scheduled lumberjack ticks without stopping the orchestrator.
+
+| Command                       | Flags / exit code                    | Description                                     |
+| ----------------------------- | ------------------------------------ | ----------------------------------------------- |
+| `sase axe maintenance enter`  | `-r, --reason` required              | Write the maintenance marker with a reason.     |
+| `sase axe maintenance exit`   | exits 0                              | Remove the marker if present.                   |
+| `sase axe maintenance status` | exits 0 when active, 1 when inactive | Print the active marker reason, PID, timestamp. |
+
+See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behavior.
+
 ### `sase commit`
 
 Dispatches a commit, proposal, or PR via the VCS provider layer. See [commit_workflows.md](commit_workflows.md) for the

@@ -96,8 +96,12 @@ session.
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BY_PROJECT` | Project name                                                                 | Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings. Singletons suppress their L1 banner.                                                                                                                                                                          |
-| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | Bucket from the latest TIMESTAMPS entry. `Today` / `Yesterday` add 4-hour L1 windows with hourly L2 headings; older buckets use coarser date subgroups.                                                                                                                                                     |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                              | Bucket from the latest TIMESTAMPS entry. Today/Yesterday add 4-hour L1 windows with hourly L2 headings; This Week adds day headings; Earlier adds week headings plus `(no timestamp)`.                                                                                                                      |
 | `BY_STATUS`  | `Mailed` / `Ready` / `WIP` / `Draft` / `Submitted` / `Reverted` / `Archived` | Bucket from the literal `status` field; actionable buckets first (`Mailed` = awaiting response, `Ready` = next to mail), terminal states last. Adds an L1 sibling-root sub-banner shared by `foobar_1` / `foobar_2` style suffixed siblings inside each status bucket. Singletons suppress their L1 banner. |
+
+In `BY_DATE` mode, CLs sort newest-first within each date bucket. `Today` and `Yesterday` are grouped first by compact
+4-hour windows (`8AM-12PM`) and then by one-hour headings (`09:00`); `This Week` uses calendar-day subgroups; `Earlier`
+uses Monday-start week ranges. CLs without a parseable TIMESTAMPS entry fall into `(no timestamp)` under `Earlier`.
 
 The active grouping mode is shown in the CLs-tab info-panel header as a `[group: <label>]` badge.
 
@@ -375,15 +379,14 @@ Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes.
 | `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Three levels: date bucket at L0, 4-hour window at L1, hour-of-day (`HH:00`) at L2. Sorted newest-first. |
 | `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage); name-root sub-level inside each bucket.                   |
 
-In `BY_DATE` mode the L0 date bucket is sub-grouped by **4-hour windows**, then by **hour-of-day**, so long
-Today/Yesterday lists are easier to scan. The hour anchor is `stop_time` for terminal agents and `start_time` otherwise;
-4-hour banners render as labels like `8AM-12PM`, hourly banners render as `HH:00`, and both sort newest-first within
-their date bucket. Workflow children inherit the parent's anchor so they stay adjacent regardless of their own start
-time, and agents with no usable timestamp fall into a `(no time)` bucket that sorts last. In `BY_STATUS` mode the L0
-banner is the status bucket and L1 is the name-root, with the same singleton-suppression rule as `STANDARD`. Each mode
-keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in
-`STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still
-leads visually.
+In `BY_DATE` mode the L0 date bucket is sub-grouped by compact **4-hour windows** (`8AM-12PM`), then by **hour-of-day**
+(`09:00`), so long Today/Yesterday lists are easier to scan. The time anchor is `stop_time` for terminal agents and
+`start_time` otherwise; both time levels sort newest-first within their date bucket. Workflow children inherit the
+parent's anchor so they stay adjacent regardless of their own start time, and agents with no usable timestamp fall into
+a `(no time)` bucket that sorts last. In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root,
+with the same singleton-suppression rule as `STANDARD`. Each mode keeps its own per-group fold registry, so collapsing
+buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with
+semantic glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. Each TUI launch starts in by-project grouping; cycling only
@@ -949,6 +952,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `QUEST` — each time the agent asked the user a question
   - `RETRY` — each time the agent entered retry state (retryable error)
   - `CODE` — when the agent began writing code
+  - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `END` — when execution completed
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in

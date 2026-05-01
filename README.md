@@ -78,6 +78,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
+- **Beads** — Git-native issue tracking for SDD epics, phase dependencies, and multi-agent execution plans
 - **Mentors** — Automated AI code review agents with configurable profiles, structured JSON output, and TUI-based review
   and apply workflow
 - **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
@@ -145,6 +146,7 @@ sase
 | `sase agents tag`              | Manage the user-defined tag on an agent (`set` / `unset` / `list`)                                             |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
+| `sase axe maintenance`         | Enter, exit, or inspect maintenance mode, which pauses lumberjack ticks                                        |
 | `sase axe start`               | Start the lumberjack-based daemon (orchestrator mode)                                                          |
 | `sase axe stop`                | Stop the running axe orchestrator                                                                              |
 | `sase bead blocked`            | Show blocked issues                                                                                            |
@@ -268,7 +270,8 @@ src/sase/
 │   ├── chop_script_runner.py # External chop script discovery and execution
 │   ├── config.py          # Lumberjack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
-│   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
+│   ├── hook_jobs.py       # Hook/mentor/workflow check jobs
+│   ├── maintenance.py     # Maintenance marker used to pause lumberjack ticks
 │   ├── image_attachments.py # Generated image discovery for completion notifications
 │   ├── run_agent_runner.py # Agent run orchestration
 │   ├── run_workflow_runner.py # Workflow run orchestration

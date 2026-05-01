@@ -209,17 +209,18 @@ Display a quick-start guide with common command examples.
 
 Run an entire epic plan end-to-end by launching one agent per phase plus a final land agent. Concretely, the command:
 
-1. Validates that `<epic_id>` resolves to an issue of type `plan` and that its `is_ready_to_work` flag is not already
-   `True` — both are user-visible failure modes (a non-plan target or an already-ready plan exits with an error).
+1. Validates that `<epic_id>` resolves to an issue of type `plan`. If the plan is already marked `is_ready_to_work`, the
+   command treats the run as a retry and schedules any remaining non-closed phases.
 2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase) or
    `<epic_id>.land`, and refuses to launch when a collision exists, listing the offending artifact directories so the
    user can revive, dismiss, or rename the orphan first. (`--dry-run` downgrades this to a warning and continues.)
-3. Flips the epic plan bead's `is_ready_to_work` flag to `True`.
+3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already ready.
 4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
-   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt.
+   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w`
+   waits on blocker phase-agent names, and the land agent waits on the leaf phase agents.
 
 | Flag            | Description                                                                       |
 | --------------- | --------------------------------------------------------------------------------- |
@@ -228,10 +229,18 @@ Run an entire epic plan end-to-end by launching one agent per phase plus a final
 
 Both xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. Each generated phase and land prompt also carries a `%approve` directive, so the
-spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. If launching the
-multi-prompt fails partway through, the launcher SIGTERMs any already-spawned children before rolling back the
-pre-claims and the `is_ready_to_work` flag (best-effort), so the epic can be retried without leaving zombie agents
-behind.
+spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves.
+
+When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
+current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a
+`#pr` reference for the ChangeSpec, while later phase and land segments target the ChangeSpec ref directly. For
+non-ChangeSpec epics launched from a known SASE workspace, each segment is still prefixed with the detected VCS workflow
+and project name (for example `#git:sase` or `#gh:sase-org/sase`). If the current directory is not associated with a
+SASE project, the prompts are left unprefixed and run in the caller's normal launch context.
+
+If launching the multi-prompt fails partway through, the launcher SIGTERMs any already-spawned children before rolling
+back the pre-claims and the `is_ready_to_work` flag when this run set it (best-effort), so the epic can be retried
+without leaving zombie agents behind.
 
 ## Multi-Workspace Support
 
@@ -241,6 +250,9 @@ When running in version-controlled mode with multiple workspace variants (e.g., 
 - **Reads** (list, show, ready, blocked, stats) aggregate issues from all workspace variants using an in-memory SQLite
   merge. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins.
 - **Writes** (create, update, close, rm, dep add) always go to the primary workspace only.
+- **ID allocation** scans JSONL stores from all discovered workspace variants before assigning the next top-level or
+  child ID, preventing agents in sibling workspaces from reusing IDs that have not yet been merged into the primary
+  SQLite database.
 
 This enables multiple agents working in different workspace clones to track their own issues while still providing a
 unified view of all work.

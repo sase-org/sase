@@ -49,6 +49,9 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 | `sase axe lumberjack list`    | List configured lumberjacks and their chops     |
 | `sase axe lumberjack run <n>` | Run a single lumberjack in foreground           |
 | `sase axe lumberjack status`  | Show status of all lumberjacks                  |
+| `sase axe maintenance enter`  | Pause lumberjack ticks until maintenance exits  |
+| `sase axe maintenance exit`   | Clear the maintenance marker                    |
+| `sase axe maintenance status` | Show whether maintenance mode is active         |
 
 ### Examples
 
@@ -66,6 +69,11 @@ sase axe lumberjack run hooks
 
 # Run a single chop once
 sase axe chop run hook_checks
+
+# Pause/resume scheduled lumberjack work
+sase axe maintenance enter --reason "install plugin update"
+sase axe maintenance status
+sase axe maintenance exit
 ```
 
 ## Default Lumberjacks
@@ -208,11 +216,24 @@ committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are
 missing conversion tools or render failures omit that source without failing the agent run. See
 [`agent_images.md`](agent_images.md) for the full contract.
 
+## Maintenance Mode
+
+Maintenance mode is a lightweight pause switch for scheduled axe work. `sase axe maintenance enter --reason <text>`
+writes `~/.sase/axe/maintenance.json` with the reason, caller PID, and start timestamp. Each lumberjack checks that
+marker at the start of every tick; while it is active, the lumberjack records a cycle and skips the chop execution for
+that tick.
+
+Use maintenance mode before operations that temporarily make scheduled work unsafe or noisy, such as installing plugin
+updates, moving workspace directories, or running one-off cleanup. `sase axe maintenance exit` removes the marker.
+`sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can use it as a guard. Stale markers
+older than 24 hours are cleared automatically by the next lumberjack tick.
+
 ## State Directory
 
 ```
 ~/.sase/axe/
 ├── orchestrator.pid                # Orchestrator PID
+├── maintenance.json                # Optional maintenance marker that pauses lumberjack ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
 │   └── lumberjack-{name}.log       # Per-lumberjack logs
@@ -236,7 +257,7 @@ missing conversion tools or render failures omit that source without failing the
 1. `sase axe start` checks for an existing orchestrator via PID file. If one is running, it sends SIGTERM (waits 15
    seconds) then SIGKILL if needed, preventing duplicate orchestrators from corrupting shared state
 2. The orchestrator spawns all configured lumberjacks as child processes
-3. Each lumberjack runs its chops on its configured interval
+3. Each lumberjack runs its chops on its configured interval, unless maintenance mode is active
 4. The orchestrator monitors children and restarts any that exit unexpectedly
 5. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children
 6. If children don't exit within 10 seconds, SIGKILL is sent
