@@ -16,7 +16,7 @@ from sase.ace.tui.actions.agents._toasts import (
 )
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
-    NotificationUpdateOutcomeWire,
+    NotificationStoreSnapshotWire,
 )
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
@@ -291,23 +291,26 @@ class _FakeApp(AgentNotificationMixin):
         )
 
 
-def _patch_load(notifications: list[Notification]) -> Any:
-    return patch(
-        "sase.notifications.load_notifications",
-        return_value=list(notifications),
+def _snapshot(
+    notifications: list[Notification],
+    *,
+    expired_ids: list[str] | None = None,
+) -> NotificationStoreSnapshotWire:
+    return NotificationStoreSnapshotWire(
+        schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+        notifications=list(notifications),
+        expired_ids=expired_ids or [],
     )
 
 
-def _snooze_expiry_outcome(
+def _patch_snapshot(
     notifications: list[Notification],
-) -> NotificationUpdateOutcomeWire:
-    return NotificationUpdateOutcomeWire(
-        schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
-        matched_count=len(notifications),
-        changed_count=len(notifications),
-        rewritten=bool(notifications),
-        notifications=notifications,
-        expired_ids=[n.id for n in notifications],
+    *,
+    expired_ids: list[str] | None = None,
+) -> Any:
+    return patch(
+        "sase.notifications.read_notification_snapshot",
+        return_value=_snapshot(notifications, expired_ids=expired_ids),
     )
 
 
@@ -316,7 +319,7 @@ class TestPollingDelta:
         app = _FakeApp()
         existing = _make(action="PlanApproval", notes=["already-seen"])
         app._last_unread_ids = {existing.id}
-        with _patch_load([existing]):
+        with _patch_snapshot([existing]):
             asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
@@ -329,7 +332,7 @@ class TestPollingDelta:
             action_data={"agent_name": "sase-n.4"},
             files=["/p/sase_plan_foo.md"],
         )
-        with _patch_load([new_notif]):
+        with _patch_snapshot([new_notif]):
             asyncio.run(app._poll_agent_completions())
         assert app._bell_rung == 1
         assert app.notify.call_count == 1
@@ -343,7 +346,7 @@ class TestPollingDelta:
         app = _FakeApp()
         a = _make(action="PlanApproval", notes=["Plan ready for review: a.md"])
         b = _make(action="UserQuestion", notes=["What?"])
-        with _patch_load([a, b]):
+        with _patch_snapshot([a, b]):
             asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 2
 
@@ -356,7 +359,7 @@ class TestPollingDelta:
             _make(action="ViewErrorReport", notes=["1 error"]),
             _make(action="JumpToChangeSpec", notes=["Sync success for x"]),
         ]
-        with _patch_load(notifs):
+        with _patch_snapshot(notifs):
             asyncio.run(app._poll_agent_completions())
         # Three severity buckets → three toasts.
         assert app.notify.call_count == 3
@@ -364,7 +367,7 @@ class TestPollingDelta:
     def test_silent_notifications_never_toast(self) -> None:
         app = _FakeApp()
         silent = _make(action="PlanApproval", notes=["silent one"], silent=True)
-        with _patch_load([silent]):
+        with _patch_snapshot([silent]):
             asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
@@ -372,11 +375,11 @@ class TestPollingDelta:
     def test_seen_ids_do_not_retoast(self) -> None:
         app = _FakeApp()
         first = _make(action="UserQuestion", notes=["q1?"])
-        with _patch_load([first]):
+        with _patch_snapshot([first]):
             asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 1
         # Poll again with the same notification — no new toast.
-        with _patch_load([first]):
+        with _patch_snapshot([first]):
             asyncio.run(app._poll_agent_completions())
         assert app.notify.call_count == 1
 
@@ -386,28 +389,24 @@ class TestSnoozeExpiry:
 
     def test_expired_snooze_flips_to_unread_and_rings_bell(self) -> None:
         """A snooze whose deadline passed re-enters unread + triggers the bell."""
-        from datetime import timedelta
-
         app = _FakeApp()
-        past = (datetime.now(get_timezone()) - timedelta(minutes=1)).isoformat()
-        snoozed = _make(
+        expired = _make(
             action="JumpToAgent",
             notes=["resurfaced"],
-            muted=True,
-            snooze_until=past,
+            id="expired-snooze",
         )
         with (
-            _patch_load([snoozed]),
-            patch(
-                "sase.notifications.store._rust_apply_notification_state_update",
-                return_value=_snooze_expiry_outcome([snoozed]),
-            ),
+            _patch_snapshot([expired], expired_ids=[expired.id]),
+            patch("sase.notifications.load_notifications") as mock_load,
+            patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
             asyncio.run(app._poll_agent_completions())
 
-        # Row is unmuted in-memory and in the indicator's unread (rest) bucket.
-        assert snoozed.muted is False
-        assert snoozed.snooze_until is None
+        mock_load.assert_not_called()
+        mock_expire.assert_not_called()
+        # Row is returned unmuted by the snapshot and lands in the unread bucket.
+        assert expired.muted is False
+        assert expired.snooze_until is None
         assert app._indicator_rest == 1
         assert app._indicator_muted == 0
         assert app._bell_rung == 1
@@ -425,14 +424,12 @@ class TestSnoozeExpiry:
             snooze_until=future,
         )
         with (
-            _patch_load([snoozed]),
-            patch(
-                "sase.notifications.store._rust_apply_notification_state_update"
-            ) as mock_update,
+            _patch_snapshot([snoozed]),
+            patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
             asyncio.run(app._poll_agent_completions())
 
-        mock_update.assert_not_called()
+        mock_expire.assert_not_called()
         assert snoozed.muted is True
         assert snoozed.snooze_until == future
         assert app._indicator_muted == 1
@@ -442,26 +439,20 @@ class TestSnoozeExpiry:
 
     def test_expired_read_snooze_rings_bell_without_unread_increase(self) -> None:
         """A snoozed-then-read row rings on expiry but does not become unread."""
-        from datetime import timedelta
-
         app = _FakeApp()
-        past = (datetime.now(get_timezone()) - timedelta(minutes=1)).isoformat()
         snoozed_read = _make(
             action="JumpToAgent",
             notes=["already read but snoozed"],
-            muted=True,
             read=True,
-            snooze_until=past,
+            id="expired-read-snooze",
         )
         with (
-            _patch_load([snoozed_read]),
-            patch(
-                "sase.notifications.store._rust_apply_notification_state_update",
-                return_value=_snooze_expiry_outcome([snoozed_read]),
-            ),
+            _patch_snapshot([snoozed_read], expired_ids=[snoozed_read.id]),
+            patch("sase.notifications.expire_due_snoozes") as mock_expire,
         ):
             asyncio.run(app._poll_agent_completions())
 
+        mock_expire.assert_not_called()
         # Row is no longer snoozed, but stays read — so unread bucket is empty.
         assert snoozed_read.muted is False
         assert snoozed_read.snooze_until is None
@@ -479,7 +470,25 @@ class TestRefreshNotificationCount:
         b = _make(action="PlanApproval", notes=["Plan ready for review: x.md"])
         app._last_unread_ids = {a.id, b.id}
         # After external dismissal, only `a` remains.
-        with _patch_load([a]):
+        with _patch_snapshot([a]):
             app._refresh_notification_count()
         assert app._last_unread_ids == {a.id}
         assert app._indicator_count == 1
+
+    def test_counts_priority_rest_muted_and_ignored_rows(self) -> None:
+        app = _FakeApp()
+        priority = _make(action="PlanApproval", notes=["Plan ready"])
+        rest = _make(action="JumpToAgent", notes=["done"])
+        muted_priority = _make(action="UserQuestion", notes=["q?"], muted=True)
+        silent_priority = _make(action="PlanApproval", notes=["silent"], silent=True)
+        read_rest = _make(action="JumpToAgent", notes=["read"], read=True)
+
+        with _patch_snapshot(
+            [priority, rest, muted_priority, silent_priority, read_rest]
+        ):
+            app._refresh_notification_count()
+
+        assert app._indicator_priority == 1
+        assert app._indicator_rest == 1
+        assert app._indicator_muted == 1
+        assert app._last_unread_ids == {priority.id, rest.id}

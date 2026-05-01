@@ -15,6 +15,25 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _unread_notification_buckets(
+    notifications: list[Notification],
+) -> tuple[list[Notification], list[Notification], list[Notification]]:
+    from sase.notifications import is_priority
+
+    unread_priority = [
+        n
+        for n in notifications
+        if not n.read and not n.silent and not n.muted and is_priority(n)
+    ]
+    unread_rest = [
+        n
+        for n in notifications
+        if not n.read and not n.silent and not n.muted and not is_priority(n)
+    ]
+    unread_muted = [n for n in notifications if not n.read and not n.silent and n.muted]
+    return unread_priority, unread_rest, unread_muted
+
+
 class AgentNotificationMixin:
     """Mixin providing notification polling and display methods.
 
@@ -41,29 +60,20 @@ class AgentNotificationMixin:
         """
         import asyncio
 
-        from sase.notifications import (
-            expire_due_snoozes,
-            is_priority,
-            load_notifications,
-        )
+        from sase.notifications import read_notification_snapshot
 
         from ._toasts import format_batch_toasts
 
-        notifications = await asyncio.to_thread(load_notifications)
-        expired_snoozes = expire_due_snoozes(notifications)
-        unread_priority = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and is_priority(n)
-        ]
-        unread_rest = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and not is_priority(n)
-        ]
-        unread_muted = [
-            n for n in notifications if not n.read and not n.silent and n.muted
-        ]
+        snapshot = await asyncio.to_thread(
+            read_notification_snapshot,
+            False,
+            True,
+        )
+        notifications = snapshot.notifications
+        expired_snoozes = snapshot.expired_ids
+        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
+            notifications
+        )
 
         unread_active = unread_priority + unread_rest
         current_ids = {n.id for n in unread_active}
@@ -252,24 +262,14 @@ class AgentNotificationMixin:
         Called after notifications are dismissed outside the notification modal
         (e.g. when an agent is killed or dismissed-done).
         """
-        from sase.notifications import is_priority, load_notifications
+        from sase.notifications import read_notification_snapshot
 
         from ...widgets import NotificationIndicator
 
-        notifications = load_notifications()
-        unread_priority = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and is_priority(n)
-        ]
-        unread_rest = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and not is_priority(n)
-        ]
-        unread_muted = [
-            n for n in notifications if not n.read and not n.silent and n.muted
-        ]
+        snapshot = read_notification_snapshot()
+        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
+            snapshot.notifications
+        )
 
         self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
@@ -285,24 +285,14 @@ class AgentNotificationMixin:
         """
         import asyncio
 
-        from sase.notifications import is_priority, load_notifications
+        from sase.notifications import read_notification_snapshot
 
         from ...widgets import NotificationIndicator
 
-        notifications = await asyncio.to_thread(load_notifications)
-        unread_priority = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and is_priority(n)
-        ]
-        unread_rest = [
-            n
-            for n in notifications
-            if not n.read and not n.silent and not n.muted and not is_priority(n)
-        ]
-        unread_muted = [
-            n for n in notifications if not n.read and not n.silent and n.muted
-        ]
+        snapshot = await asyncio.to_thread(read_notification_snapshot)
+        unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
+            snapshot.notifications
+        )
 
         self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
@@ -369,11 +359,12 @@ class AgentNotificationMixin:
         if agent is None:
             return
 
-        from sase.notifications import load_notifications
+        from sase.notifications import read_notification_snapshot
 
         from ...models._timestamps import normalize_to_14_digit
 
-        notifications = load_notifications()
+        snapshot = read_notification_snapshot()
+        notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read]
 
         # Find the notification matching this agent
@@ -414,7 +405,7 @@ class AgentNotificationMixin:
         Args:
             initial_index: Index of the notification to highlight initially.
         """
-        from sase.notifications import load_notifications, mark_read
+        from sase.notifications import mark_read, read_notification_snapshot
 
         from ._notification_actions import (
             handle_hitl,
@@ -428,7 +419,8 @@ class AgentNotificationMixin:
         )
         from ...modals import NotificationModal
 
-        notifications = load_notifications()
+        snapshot = read_notification_snapshot()
+        notifications = snapshot.notifications
         unread = [n for n in notifications if not n.read and not n.silent]
 
         def _on_dismiss(result: Notification | None) -> None:

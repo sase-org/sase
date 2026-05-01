@@ -124,6 +124,19 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     return _clone_notifications(notifications)
 
 
+def read_notification_snapshot(
+    include_dismissed: bool = False,
+    expire_due_snoozes: bool = False,
+) -> Any:
+    """Read a Rust-backed notification snapshot for count-sensitive callers."""
+    snapshot = _rust_read_notifications_snapshot(
+        _notifications_path(), include_dismissed, expire_due_snoozes
+    )
+    if snapshot.expired_ids:
+        _invalidate_load_cache()
+    return snapshot
+
+
 def rewrite_notifications(notifications: list[Notification]) -> None:
     """Rewrite the entire notifications file through the Rust store."""
     _ensure_notifications_dir()
