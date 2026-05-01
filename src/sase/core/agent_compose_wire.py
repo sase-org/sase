@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.agent_scan_wire import AgentArtifactScanWire, agent_scan_wire_from_dict
+from sase.core.time import get_timezone
 from sase.core.wire import ChangeSpecWire
 from sase.core.wire_conversion import changespec_wire_from_dict
 
@@ -198,7 +199,12 @@ def _datetime_list_to_wire(values: list[datetime]) -> list[str]:
 
 
 def _datetime_from_wire(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value is not None else None
+    if value is None:
+        return None
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        return dt
+    return dt.astimezone(get_timezone()).replace(tzinfo=None)
 
 
 def _datetime_list_from_wire(values: list[str]) -> list[datetime]:

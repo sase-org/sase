@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import sys
 import types
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.models.agent import compute_row_runtime
 from sase.core.agent_compose_facade import (
     build_agent_compose_input,
     compose_agent_list,
@@ -119,6 +121,35 @@ def test_composed_wire_rehydrates_agent_relationships() -> None:
     assert [agent.identity for agent in retry_parent.retry_chain_siblings] == [
         (agents[5].agent_type, "retry_case", "20260501110200")
     ]
+
+
+def test_composed_wire_rehydrates_offset_timestamps_as_local_naive() -> None:
+    result = composed_agent_list_from_dict(
+        {
+            "schema_version": AGENT_COMPOSE_WIRE_SCHEMA_VERSION,
+            "agents": [
+                {
+                    "agent_type": "workflow",
+                    "cl_name": "sase",
+                    "project_file": "/tmp/projects/sase/sase.gp",
+                    "status": "RUNNING",
+                    "start_time": "2026-05-01T01:24:26",
+                    "run_start_time": "2026-05-01T06:10:06.476466+00:00",
+                    "raw_suffix": "20260501012426",
+                }
+            ],
+        }
+    )
+
+    agent = composed_agent_list_to_agents(result)[0]
+    assert agent.start_time == datetime(2026, 5, 1, 1, 24, 26)
+    assert agent.run_start_time is not None
+    assert agent.run_start_time.tzinfo is None
+    ts, elapsed = compute_row_runtime(
+        agent, now=agent.run_start_time + timedelta(seconds=206)
+    )
+    assert ts is None
+    assert elapsed == "3m26s"
 
 
 def test_reference_facade_delegates_to_current_loader() -> None:
