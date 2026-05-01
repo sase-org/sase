@@ -156,6 +156,14 @@ def composed_agent_list_to_agents(record: ComposedAgentListWire) -> list[Agent]:
     return agents
 
 
+def composed_agent_list_to_dismissed_agents(
+    record: ComposedAgentListWire,
+) -> list[Agent]:
+    """Rehydrate Rust-composed dismissed rows for loader cleanup/revive paths."""
+
+    return [agent_from_wire(agent_wire) for agent_wire in record.dismissed_from_loader]
+
+
 # pyvision: tests/test_core_agent_compose.py
 def log_compose_mismatch(
     *,
@@ -181,6 +189,7 @@ __all__ = [
     "build_agent_compose_input",
     "compose_agent_list",
     "compose_agent_list_reference",
+    "composed_agent_list_to_dismissed_agents",
     "composed_agent_list_to_agents",
     "compose_python_agents_to_wire",
     "log_compose_mismatch",

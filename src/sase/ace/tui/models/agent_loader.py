@@ -794,21 +794,28 @@ def _shadow_compare_agent_compose(
     )
 
 
-def _compose_rust_agent_list(compose_input: AgentComposeInputWire) -> list[Agent]:
+def _compose_rust_agent_list_with_dismissed(
+    compose_input: AgentComposeInputWire,
+) -> tuple[list[Agent], list[Agent]]:
     from sase.core.agent_compose_facade import (
         compose_agent_list,
         composed_agent_list_to_agents,
+        composed_agent_list_to_dismissed_agents,
     )
 
-    return composed_agent_list_to_agents(compose_agent_list(compose_input))
+    record = compose_agent_list(compose_input)
+    return (
+        composed_agent_list_to_agents(record),
+        composed_agent_list_to_dismissed_agents(record),
+    )
 
 
-def load_all_agents(
+def load_all_agents_with_dismissed(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     dismissed_agents: set[tuple[AgentType, str, str | None]] | None = None,
-) -> list[Agent]:
-    """Load all running agents from all sources.
+) -> tuple[list[Agent], list[Agent]]:
+    """Load all running agents and loader-sourced dismissed agents.
 
     Sources:
     1. RUNNING field in project files (workspace claims)
@@ -823,8 +830,7 @@ def load_all_agents(
             call and reuses this snapshot.
 
     Returns:
-        List of Agent objects sorted by start time (most recent first),
-        with agents that have no start time at the end.
+        Tuple of (visible agents, dismissed agents found by the loader).
     """
     backend = _agent_compose_backend()
     inputs = _collect_agent_loader_inputs(
@@ -838,7 +844,7 @@ def load_all_agents(
     compose_input = _compose_input_with_liveness(inputs.compose_input, pid_liveness)
 
     if backend == "rust":
-        return _compose_rust_agent_list(compose_input)
+        return _compose_rust_agent_list_with_dismissed(compose_input)
 
     composed_agents = _compose_python_agent_list(
         agents,
@@ -852,4 +858,17 @@ def load_all_agents(
         workflow_agent_steps,
         dismissed_from_loader,
     )
-    return composed_agents
+    return composed_agents, dismissed_from_loader
+
+
+def load_all_agents(
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    dismissed_agents: set[tuple[AgentType, str, str | None]] | None = None,
+) -> list[Agent]:
+    """Load visible running agents from all sources."""
+    agents, _ = load_all_agents_with_dismissed(
+        changespec_snapshot=changespec_snapshot,
+        dismissed_agents=dismissed_agents,
+    )
+    return agents

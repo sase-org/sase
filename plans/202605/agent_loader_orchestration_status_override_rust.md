@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 00:09:19
-status: draft
+status: done
 bead_id: sase-1p
 ---
 

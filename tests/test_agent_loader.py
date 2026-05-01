@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
 from sase.core.agent_compose_wire import AgentWire, ComposedAgentListWire
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
@@ -183,6 +184,60 @@ def test_load_all_agents_default_rust_backend_returns_rehydrated_agents() -> Non
     assert agents[0].identity == (AgentType.RUNNING, "my_feature", "20260501120000")
     assert agents[0].status == "RUNNING"
     assert agents[0].pid == 12345
+
+
+def test_load_agents_from_disk_preserves_rust_dismissed_rows() -> None:
+    """The TUI loader keeps Rust-composed dismissed rows for cleanup/revive."""
+    dismissed_wire = AgentWire(
+        agent_type="run",
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        raw_suffix="20260501123000",
+    )
+
+    def fake_rust_compose(_input_wire):
+        return ComposedAgentListWire(
+            agents=[],
+            dismissed_from_loader=[dismissed_wire],
+        )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=["/tmp/test.gp"],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.agent_tags.load_agent_tags",
+            return_value={},
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
+            ".dismissed_bundles",
+            return_value=[],
+        ),
+        patch(
+            "sase.core.agent_compose_facade.compose_agent_list",
+            side_effect=fake_rust_compose,
+        ),
+    ):
+        agents, dismissed = load_agents_from_disk(
+            {(AgentType.RUNNING, "my_feature", "20260501123000")}
+        )
+
+    assert agents == []
+    assert [agent.identity for agent in dismissed] == [
+        (AgentType.RUNNING, "my_feature", "20260501123000")
+    ]
 
 
 def test_load_all_agents_python_backend_is_explicit_reference_route() -> None:
