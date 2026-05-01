@@ -55,6 +55,14 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
 
 _VCS_TAG_PATTERN: re.Pattern[str] | None = None
 _VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
+_GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
+    r"(?:^|(?<=\s)|(?<=[(\"']))"
+    r"#(?P<workflow>[a-zA-Z_][a-zA-Z0-9_]*)"
+    r"(?:!!|\?\?)?"
+    r"(?:[_:](?P<colon>[a-zA-Z0-9_.~/-]+)|\((?P<paren>[a-zA-Z0-9_.~/-]+)\))"
+    r"(?=\s|$)"
+)
+_KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "hg", "jj", "p4"})
 
 
 def normalize_vcs_underscore_refs(prompt: str) -> str:
@@ -126,6 +134,52 @@ def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
     )
 
 
+def extract_known_project_vcs_ref(prompt: str) -> tuple[str, str] | None:
+    """Return ``(workflow_type, project)`` for a generic known-project VCS ref.
+
+    This recognizes project refs such as ``#gh:sase`` even when the ``gh``
+    workspace provider is not registered in the current process.  The project
+    must be known via ``~/.sase/projects/*/*.gp`` to avoid treating ordinary
+    xprompt references as workspace selectors.
+    """
+    if "#" not in prompt:
+        return None
+
+    from sase.xprompt.loader import get_known_project_workspaces
+
+    known_projects = get_known_project_workspaces()
+    if not known_projects:
+        return None
+
+    normalized = normalize_vcs_underscore_refs(prompt)
+    for match in _GENERIC_PROJECT_VCS_REF_PATTERN.finditer(normalized):
+        workflow_type = match.group("workflow")
+        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
+            continue
+        ref = match.group("colon") or match.group("paren")
+        if ref in known_projects:
+            return workflow_type, ref
+    return None
+
+
+def strip_known_project_vcs_refs(prompt: str) -> str:
+    """Remove generic VCS refs that point at known projects."""
+    from sase.xprompt.loader import get_known_project_workspaces
+
+    known_projects = get_known_project_workspaces()
+    if not known_projects or "#" not in prompt:
+        return prompt.strip()
+
+    def _replace(match: re.Match[str]) -> str:
+        workflow_type = match.group("workflow")
+        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
+            return match.group(0)
+        ref = match.group("colon") or match.group("paren")
+        return "" if ref in known_projects else match.group(0)
+
+    return _GENERIC_PROJECT_VCS_REF_PATTERN.sub(_replace, prompt).strip()
+
+
 def normalize_default_vcs_workflow_segment(
     segment: str,
     *,
@@ -141,7 +195,11 @@ def normalize_default_vcs_workflow_segment(
     if "cd" not in get_ref_patterns():
         return segment
 
-    if not segment.strip() or _prompt_segment_has_vcs_workflow_ref(segment):
+    if (
+        not segment.strip()
+        or _prompt_segment_has_vcs_workflow_ref(segment)
+        or extract_known_project_vcs_ref(segment) is not None
+    ):
         return segment
 
     leading_ws_match = re.match(r"\s*", segment)
@@ -354,6 +412,7 @@ __all__ = [
     "_process_text_block",
     "escape_for_xprompt",
     "extract_project_from_vcs_tag",
+    "extract_known_project_vcs_ref",
     "extract_vcs_workflow_tag",
     "find_double_colon_text_end",
     "find_matching_paren_for_args",
@@ -367,6 +426,7 @@ __all__ = [
     "preprocess_shorthand_syntax",
     "replace_ref_in_vcs_tag",
     "replace_vcs_workflow_tags",
+    "strip_known_project_vcs_refs",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
     "xprompt_reference_from_match",

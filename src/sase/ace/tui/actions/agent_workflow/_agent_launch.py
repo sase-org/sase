@@ -300,6 +300,7 @@ class AgentLaunchMixin(
         # the embedded workflow must share the same workspace number,
         # so pass pre-allocation env vars to prevent allocation of a
         # different workspace.
+        known_project_vcs_ref: tuple[str, str] | None = None
         if vcs_ref is None:
             ref_patterns = get_ref_patterns()
             for wf_name, pattern in ref_patterns.items():
@@ -309,6 +310,10 @@ class AgentLaunchMixin(
                     if ref_value:
                         vcs_ref = (wf_name, ref_value)
                         break
+            if vcs_ref is None:
+                from sase.xprompt._parsing import extract_known_project_vcs_ref
+
+                known_project_vcs_ref = extract_known_project_vcs_ref(_vcs_prompt)
 
         # Ensure %wait agents have a valid CWD when the VCS provider
         # doesn't provide a primary_workspace_dir (e.g. hg).
@@ -322,11 +327,17 @@ class AgentLaunchMixin(
         workflow_prompt = prompt
         if vcs_ref is not None:
             workflow_prompt = strip_all_vcs_refs(workflow_prompt)
+        elif known_project_vcs_ref is not None:
+            from sase.xprompt._parsing import strip_known_project_vcs_refs
+
+            workflow_prompt = strip_known_project_vcs_refs(workflow_prompt)
 
         if workflow_prompt.startswith("#"):
             with timer.stage("workflow_dispatch"):
                 workflow_result = self._try_execute_workflow(  # type: ignore[attr-defined]
-                    workflow_prompt, has_vcs_ref=vcs_ref is not None
+                    workflow_prompt,
+                    has_vcs_ref=vcs_ref is not None
+                    or known_project_vcs_ref is not None,
                 )
             if workflow_result is True:
                 # Full workflow executed successfully

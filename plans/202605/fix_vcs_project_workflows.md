@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 14:40:52
-status: wip
+status: done
 ---
 # Plan: Resolve VCS-scoped standalone workflows from the target project
 

@@ -11,6 +11,7 @@ from sase.config import load_workflows_by_source
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
+    get_known_project_workspaces,
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
 )
@@ -466,6 +467,34 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
     return workflows
 
 
+def _load_workflows_from_project_workspace(project: str) -> dict[str, Workflow]:
+    """Load workflows from the known primary workspace for *project*.
+
+    This mirrors CWD-local workflow discovery for callers that are currently
+    running from another directory but already know the target project name.
+    """
+    workspace_dir = get_known_project_workspaces().get(project)
+    if workspace_dir is None:
+        return {}
+
+    workflows: dict[str, Workflow] = {}
+    for xprompt_dir in (workspace_dir / ".xprompts", workspace_dir / "xprompts"):
+        if not xprompt_dir.is_dir():
+            continue
+
+        for extension in ("*.yml", "*.yaml"):
+            for workflow_file in sorted(xprompt_dir.glob(extension)):
+                if not workflow_file.is_file():
+                    continue
+                workflow = _load_workflow_from_file(workflow_file)
+                if not workflow:
+                    continue
+                ns = _namespace_workflow(project, workflow)
+                workflows.setdefault(ns.name, ns)
+
+    return workflows
+
+
 def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     """Get all workflows from all sources, respecting priority order.
 
@@ -478,10 +507,11 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     2. xprompts/*.yml (CWD, non-hidden)
     3. ~/.xprompts/*.yml (home, hidden)
     4. ~/xprompts/*.yml (home, non-hidden)
-    5. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
-    6. ``workflows:`` config entries
-    7. Plugin packages (via sase_xprompts entry points)
-    8. <sase_package>/xprompts/*.yml (internal)
+    5. Known project workspace xprompts (project fallback, if project given)
+    6. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
+    7. ``workflows:`` config entries
+    8. Plugin packages (via sase_xprompts entry points)
+    9. <sase_package>/xprompts/*.yml (internal)
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -508,6 +538,11 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     if effective_project:
         project_workflows = _load_workflows_from_project(effective_project)
         all_workflows.update(project_workflows)
+
+        project_workspace_workflows = _load_workflows_from_project_workspace(
+            effective_project
+        )
+        all_workflows.update(project_workspace_workflows)
 
     # File-based workflows (highest priority) - already sorted
     file_workflows = _load_workflows_from_files(project=effective_project)

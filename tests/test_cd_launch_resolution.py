@@ -138,6 +138,67 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
     ws_dir.assert_not_called()
 
 
+def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wrapped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.agent.launcher import launch_agent_from_cwd
+
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    home = str(Path.home().resolve())
+    spawn_result = MagicMock(pid=123, workspace_dir=home, workspace_num=0)
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"sase": workspace},
+    )
+
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            return_value=spawn_result,
+        ) as spawn,
+    ):
+        result = launch_agent_from_cwd("#gh:sase #!sase/fix_just")
+
+    assert result is spawn_result
+    kwargs = spawn.call_args.kwargs
+    assert kwargs["prompt"] == "#gh:sase #!sase/fix_just"
+    assert kwargs["workspace_dir"] == home
+    assert kwargs["workspace_num"] == 0
+    assert kwargs["is_home_mode"] is True
+    assert kwargs["vcs_ref"] is None
+
+
+def test_resolve_vcs_cwd_uses_known_project_workspace_without_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _patch_cd_metadata(monkeypatch)
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"sase": workspace},
+    )
+
+    with patch("sase.xprompt.loader.detect_project") as detect_project:
+        result = _resolve_vcs_cwd("#gh:sase #!sase/fix_just")
+
+    assert result == ("sase", "sase")
+    assert Path.cwd() == workspace
+    detect_project.cache_clear.assert_called_once_with()
+
+
 def test_launch_agent_from_cwd_wait_cd_stays_directory_mode(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

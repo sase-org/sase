@@ -104,12 +104,16 @@ def test_get_all_workflows_without_project_excludes_project_workflows() -> None:
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project"
         ) as mock_load_project,
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace"
+        ) as mock_load_project_workspace,
         patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
     ):
         get_all_workflows()  # No project param
 
     # Should not have called _load_workflows_from_project
     mock_load_project.assert_not_called()
+    mock_load_project_workspace.assert_not_called()
 
 
 def test_get_all_workflows_file_overrides_project() -> None:
@@ -143,6 +147,10 @@ def test_get_all_workflows_file_overrides_project() -> None:
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={"test": project_workflow},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            return_value={},
         ),
     ):
         workflows = get_all_workflows(project="testproj")
@@ -251,6 +259,10 @@ def test_get_all_workflows_config_overrides_plugin_and_file_overrides_config() -
             return_value={},
         ),
         patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            return_value={},
+        ),
+        patch(
             "sase.xprompt.workflow_loader._load_workflows_from_files",
             return_value={"refresh_docs": file_workflow},
         ),
@@ -287,6 +299,10 @@ def test_get_all_workflows_config_visible_as_refresh_docs() -> None:
             return_value={},
         ),
         patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            return_value={},
+        ),
+        patch(
             "sase.xprompt.workflow_loader._load_workflows_from_files",
             return_value={},
         ),
@@ -294,3 +310,47 @@ def test_get_all_workflows_config_visible_as_refresh_docs() -> None:
         workflows = get_all_workflows(project="sase")
 
     assert workflows["refresh_docs"].source_path == "config_overlay:sase_athena.yml"
+
+
+def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """Project-scoped workflows load from the known primary checkout."""
+    workspace = tmp_path / "sase"
+    other_cwd = tmp_path / "other"
+    xprompts = workspace / "xprompts"
+    xprompts.mkdir(parents=True)
+    other_cwd.mkdir()
+    (xprompts / "fix_just.yml").write_text(
+        "steps:\n  - name: run\n    bash: echo fix\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(other_cwd)
+
+    with (
+        patch(
+            "sase.xprompt.workflow_loader.get_known_project_workspaces",
+            return_value={"sase": workspace},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_config",
+            return_value={},
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            return_value={},
+        ),
+    ):
+        workflows = get_all_workflows(project="sase")
+
+    assert "sase/fix_just" in workflows
+    assert workflows["sase/fix_just"].source_path == str(xprompts / "fix_just.yml")

@@ -34,11 +34,25 @@ def _metadata() -> tuple[WorkflowMetadata, ...]:
     )
 
 
+def _cd_only_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (_metadata()[0],)
+
+
 def _patch_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     import sase.workspace_provider._registry as registry
     import sase.xprompt._parsing as parsing
 
     monkeypatch.setattr(registry, "get_all_workflow_metadata", _metadata)
+    parsing._VCS_TAG_PATTERN = None
+    parsing._VCS_REPLACE_PATTERN = None
+    parsing._VCS_UNDERSCORE_NORMALIZER = None
+
+
+def _patch_cd_only_metadata(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import sase.workspace_provider._registry as registry
+    import sase.xprompt._parsing as parsing
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_only_metadata)
     parsing._VCS_TAG_PATTERN = None
     parsing._VCS_REPLACE_PATTERN = None
     parsing._VCS_UNDERSCORE_NORMALIZER = None
@@ -106,6 +120,41 @@ def test_normalize_default_vcs_workflow_preserves_existing_ref(monkeypatch) -> N
 
     assert normalize_default_vcs_workflow("#git:repo Fix it") == "#git:repo Fix it"
     assert normalize_default_vcs_workflow("#cd:~ Fix it") == "#cd:~ Fix it"
+
+
+def test_normalize_default_vcs_workflow_preserves_known_project_ref_without_provider(
+    monkeypatch,
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_cd_only_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"sase": tmp_path},
+    )
+
+    assert (
+        normalize_default_vcs_workflow("#gh:sase #!sase/fix_just")
+        == "#gh:sase #!sase/fix_just"
+    )
+
+
+def test_normalize_default_vcs_workflow_wraps_non_vcs_colon_arg(
+    monkeypatch,
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_cd_only_metadata(monkeypatch)
+
+    from sase.xprompt._parsing import normalize_default_vcs_workflow
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"sase": tmp_path},
+    )
+
+    assert normalize_default_vcs_workflow("#foo:sase") == "#cd:~ #foo:sase"
 
 
 def test_normalize_default_vcs_workflow_preserves_leading_directives(

@@ -68,7 +68,13 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
         workflow_type = match.group(1)
         ref = match.group(2)
 
+    from sase.xprompt.loader import detect_project, get_known_project_workspaces
+
     if workflow_type not in get_workflow_names():
+        workspace_dir = get_known_project_workspaces().get(ref)
+        if workspace_dir is not None:
+            os.chdir(workspace_dir)
+            detect_project.cache_clear()
         return ref, ref
 
     try:
@@ -76,13 +82,15 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     except Exception:
         if is_non_workspace_workflow(workflow_type):
             raise
+        workspace_dir = get_known_project_workspaces().get(ref)
+        if workspace_dir is not None:
+            os.chdir(workspace_dir)
+            detect_project.cache_clear()
         return ref, ref
 
     if resolved and resolved.primary_workspace_dir:
         os.chdir(resolved.primary_workspace_dir)
         # Clear cached project detection since CWD changed
-        from sase.xprompt.loader import detect_project
-
         detect_project.cache_clear()
         return resolved.project_name or ref, ref
 
