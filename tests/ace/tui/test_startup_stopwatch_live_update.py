@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -51,11 +52,26 @@ def test_read_unread_notification_ids_returns_set() -> None:
     n_muted = MagicMock(id="d", read=False, silent=False, muted=True)
     n_unread = MagicMock(id="c", read=False, silent=False, muted=False)
     with patch(
-        "sase.notifications.load_notifications",
-        return_value=[n_read, n_silent, n_muted, n_unread],
+        "sase.notifications.read_notification_snapshot",
+        return_value=SimpleNamespace(
+            notifications=[n_read, n_silent, n_muted, n_unread]
+        ),
     ):
         result = mixin._read_unread_notification_ids()
     assert result == {"c"}
+
+
+def test_read_notifications_for_startup_uses_snapshot_counts() -> None:
+    """Startup indicator counts come from the Rust-backed snapshot counts."""
+    mixin = LifecycleMixin.__new__(LifecycleMixin)
+    n_priority = MagicMock(id="a", read=False, silent=False, muted=False)
+    n_muted = MagicMock(id="b", read=False, silent=False, muted=True)
+    snapshot = SimpleNamespace(
+        notifications=[n_priority, n_muted],
+        counts=SimpleNamespace(priority=7, rest=3, muted=2),
+    )
+    with patch("sase.notifications.read_notification_snapshot", return_value=snapshot):
+        assert mixin._read_notifications_for_startup() == ({"a"}, 7, 3, 2)
 
 
 def test_read_last_selection_name_delegates_to_loader() -> None:

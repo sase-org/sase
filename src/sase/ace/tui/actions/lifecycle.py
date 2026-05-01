@@ -34,9 +34,9 @@ class LifecycleMixin:
         thread (e.g. via ``asyncio.to_thread``) during startup so the
         Textual event loop stays free for the startup stopwatch to tick.
         """
-        from sase.notifications import load_notifications
+        from sase.notifications import read_notification_snapshot
 
-        notifications = load_notifications()
+        notifications = read_notification_snapshot().notifications
         return {
             n.id for n in notifications if not n.read and not n.silent and not n.muted
         }
@@ -47,24 +47,20 @@ class LifecycleMixin:
         Avoids parsing the JSONL twice during startup (once for the unread-id
         seed, once for the indicator counts).
         """
-        from sase.notifications import is_priority, load_notifications
+        from sase.notifications import read_notification_snapshot
 
-        notifications = load_notifications()
+        snapshot = read_notification_snapshot()
+        notifications = snapshot.notifications
         unread_ids: set[str] = set()
-        priority_count = 0
-        rest_count = 0
-        muted_count = 0
         for n in notifications:
             if n.read or n.silent:
                 continue
             if not n.muted:
                 unread_ids.add(n.id)
-            if n.muted:
-                muted_count += 1
-            elif is_priority(n):
-                priority_count += 1
-            else:
-                rest_count += 1
+        counts = snapshot.counts
+        priority_count = counts.priority
+        rest_count = counts.rest
+        muted_count = counts.muted
         return unread_ids, priority_count, rest_count, muted_count
 
     def _initialize_agent_tracking(

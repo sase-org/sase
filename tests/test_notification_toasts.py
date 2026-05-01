@@ -16,9 +16,11 @@ from sase.ace.tui.actions.agents._toasts import (
 )
 from sase.core.notification_store_wire import (
     NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+    NotificationCountsWire,
     NotificationStoreSnapshotWire,
 )
 from sase.core.time import get_timezone
+from sase.notifications import is_priority
 from sase.notifications.models import Notification
 
 
@@ -296,9 +298,27 @@ def _snapshot(
     *,
     expired_ids: list[str] | None = None,
 ) -> NotificationStoreSnapshotWire:
+    priority_count = 0
+    rest_count = 0
+    muted_count = 0
+    for notification in notifications:
+        if notification.read or notification.silent:
+            continue
+        if notification.muted:
+            muted_count += 1
+        elif is_priority(notification):
+            priority_count += 1
+        else:
+            rest_count += 1
+    counts = NotificationCountsWire(
+        priority=priority_count,
+        rest=rest_count,
+        muted=muted_count,
+    )
     return NotificationStoreSnapshotWire(
         schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
         notifications=list(notifications),
+        counts=counts,
         expired_ids=expired_ids or [],
     )
 

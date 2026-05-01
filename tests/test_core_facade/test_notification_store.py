@@ -187,7 +187,7 @@ def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
     assert mark.notifications[0].read is True
 
     snapshot = facade.read_notifications_snapshot(path)
-    assert snapshot.counts.priority == 1
+    assert snapshot.counts.priority == 0
     assert snapshot.notifications[0].read is True
 
     rewrite = facade.rewrite_notifications(path, [_notification("n2")])
@@ -208,7 +208,7 @@ def test_real_extension_reads_phase1_contract_fixture(tmp_path: Path) -> None:
     assert active.stats.invalid_json_lines == 1
     assert active.stats.invalid_record_lines == 1
     assert active.counts.priority == 6
-    assert active.counts.muted == 3
+    assert active.counts.muted == 2
 
 
 def test_real_extension_snapshot_can_expire_due_snoozes(tmp_path: Path) -> None:

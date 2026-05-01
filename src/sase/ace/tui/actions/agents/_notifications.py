@@ -99,10 +99,11 @@ class AgentNotificationMixin:
         # Update persistent notification indicator
         from ...widgets import NotificationIndicator
 
+        counts = snapshot.counts
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
+        indicator.set_counts(counts.priority, counts.rest, counts.muted)
 
         # Status overrides apply regardless of mute — muting quiets the
         # indicator, it shouldn't break the agent's lifecycle.
@@ -270,13 +271,14 @@ class AgentNotificationMixin:
         unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
             snapshot.notifications
         )
+        counts = snapshot.counts
 
         self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
+        indicator.set_counts(counts.priority, counts.rest, counts.muted)
 
     async def _refresh_notification_count_async(self) -> None:
         """Async variant that reads the notifications file off the main thread.
@@ -293,13 +295,14 @@ class AgentNotificationMixin:
         unread_priority, unread_rest, unread_muted = _unread_notification_buckets(
             snapshot.notifications
         )
+        counts = snapshot.counts
 
         self._last_unread_ids = {n.id for n in unread_priority + unread_rest}
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_counts(len(unread_priority), len(unread_rest), len(unread_muted))
+        indicator.set_counts(counts.priority, counts.rest, counts.muted)
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""

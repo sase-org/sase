@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-30 21:14:43
-status: wip
+status: done
 bead_id: sase-1n
 ---
 # Notification Store Rust Migration Plan
