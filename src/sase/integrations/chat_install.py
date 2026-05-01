@@ -31,7 +31,6 @@ LaunchStatus = Literal[
 ]
 
 
-# pyvision: public_api_methods.txt
 @dataclass(frozen=True)
 class ChatInstallConfig:
     command: str
@@ -50,7 +49,6 @@ class ChatInstallLaunchResult:
     pid: int | None = None
 
 
-# pyvision: public_api_methods.txt
 def load_chat_install_config() -> ChatInstallConfig:
     """Read and normalize the ``chat_install`` merged-config section."""
     raw = load_merged_config().get("chat_install", {})
@@ -78,7 +76,6 @@ def resolve_primary_workspace_for_chat_install() -> Path | None:
     return resolve_primary_workspace()
 
 
-# pyvision: public_api_methods.txt
 def start_chat_install_worker() -> ChatInstallLaunchResult:
     """Launch the detached chat install worker, returning chat-safe status."""
     config = load_chat_install_config()
@@ -144,7 +141,6 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         os.close(lock_fd)
 
 
-# pyvision: public_api_methods.txt
 def run_worker(workspace: Path) -> int:
     """Run the stop/sync/install/start sequence in the detached worker."""
     lock_fd = _adopt_lock_fd()
