@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from sase.xprompt.directives import split_prompt_for_models
 from sase.xprompt.models import XPrompt
+from tests._agent_names_fixtures import make_agent as _make_agent
 
 
 def test_split_prompt_for_models_two_models() -> None:
@@ -395,6 +396,44 @@ def test_split_prompt_for_models_pure_alt_auto_generated_base() -> None:
     assert result[1] == "%name:z.2\ny\nDo work"
 
 
+def test_split_prompt_for_models_pure_alt_auto_base_skips_active_names(
+    tmp_path: Path,
+) -> None:
+    """Auto base allocation skips occupied visible agents for pure %alt."""
+    _make_agent(tmp_path, "proj", "run-a", "a", done=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models("%alt(x,y)\nDo work")
+
+    assert result is not None
+    assert result[0] == "%name:b.1\nx\nDo work"
+    assert result[1] == "%name:b.2\ny\nDo work"
+
+
+def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
+    """Pure %alt fan-out without %name uses one resume-derived base."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models("#resume:foo\n%alt(x,y)\nDo work")
+
+    assert result is not None
+    assert result[0] == "%name:foo.r1.1\n#resume:foo\nx\nDo work"
+    assert result[1] == "%name:foo.r1.2\n#resume:foo\ny\nDo work"
+
+
+def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
+    tmp_path: Path,
+) -> None:
+    """Pure %alt resume allocation skips existing descendant resume slots."""
+    _make_agent(tmp_path, "proj", "run-old", "foo.r1.sec", done=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models("#resume:foo\n%alt(sec=x,perf=y)\nDo work")
+
+    assert result is not None
+    assert result[0] == "%name:foo.r2.sec\n#resume:foo\nx\nDo work"
+    assert result[1] == "%name:foo.r2.perf\n#resume:foo\ny\nDo work"
+
+
 def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:
     """Named model branches use the branch ids instead of runtime suffixes."""
     prompt = "%n:foo\n%alt(sec=%model:opus,perf=%model:sonnet)\nReview"
@@ -403,6 +442,33 @@ def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> Non
     assert len(result) == 2
     assert result[0] == "%name:foo.sec\n%model:opus\nReview"
     assert result[1] == "%name:foo.perf\n%model:sonnet\nReview"
+
+
+def test_split_prompt_for_models_numeric_named_alt_ids_do_not_collide() -> None:
+    """Unnamed numeric ids skip user-provided numeric branch names."""
+    prompt = "%n:foo\n%(2=[[named two]], [[first]], [[second]])\nDo work"
+    result = split_prompt_for_models(prompt)
+
+    assert result is not None
+    assert result == [
+        "%name:foo.2\nnamed two\nDo work",
+        "%name:foo.1\nfirst\nDo work",
+        "%name:foo.3\nsecond\nDo work",
+    ]
+
+
+def test_split_prompt_for_models_explicit_alt_base_becomes_explicit_child_names(
+    tmp_path: Path,
+) -> None:
+    """Explicit %name fan-out emits explicit child %name directives for claim-time dedup."""
+    _make_agent(tmp_path, "proj", "run-old", "foo.sec", done=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = split_prompt_for_models("%n:foo\n%alt(sec=x,perf=y)\nDo work")
+
+    assert result is not None
+    assert result[0] == "%name:foo.sec\nx\nDo work"
+    assert result[1] == "%name:foo.perf\ny\nDo work"
 
 
 def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() -> None:

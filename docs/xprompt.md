@@ -801,6 +801,7 @@ Directives use the same argument syntax as xprompt references:
 %r:5                         # Same, using alias
 %alt(#review,#test)          # Split into two prompts: one with #review, one with #test
 %(#review,#test)             # Same, using shorthand syntax
+%alt(sec=#review,perf=#test) # Named variants become child name suffixes
 %alt(extra instructions)     # Single arg: split into with/without variants
 %(extra instructions)        # Same, using shorthand
 %approve                     # Run fully autonomously
@@ -961,6 +962,11 @@ Analyze the codebase.
 This produces three agents, each with "Analyze the codebase." but with `#review`, `#test`, or `#docs` substituted in
 place of the directive. Arguments can be arbitrary text — xprompt references, directives, plain instructions, or
 `[[text blocks]]`.
+
+Arguments can also be named with `id=value`. The `value` is inserted into the spawned prompt and the `id` becomes the
+child agent suffix. For example, `%name:review %alt(sec=[[security]],perf=[[performance]])` launches `review.sec` and
+`review.perf`. Unnamed alternatives use numeric suffixes while skipping any numeric ids already provided by named
+arguments, so `%(2=[[named]], [[first]], [[second]])` launches suffixes `2`, `1`, and `3`.
 
 `%(...)` is syntactic sugar for `%alt(...)`:
 

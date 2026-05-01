@@ -162,6 +162,25 @@ def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
         assert "%wait\n%name reviewer Review the fix" in texts
 
 
+def test_prompt_history_preserves_raw_alt_prompt(tmp_path: Path) -> None:
+    """Fan-out name injection is spawn-time only; history keeps user input."""
+    test_file = tmp_path / "prompt_history.json"
+    prompt = "%name review\n%alt(sec=[[security pass]],perf=[[perf pass]])\nAudit"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt(prompt)
+        entries = _load_prompt_history()
+
+    assert [entry.text for entry in entries] == [prompt]
+    assert all("%name:review.sec" not in entry.text for entry in entries)
+
+
 def test_multi_prompt_skips_short_segments(tmp_path: Path) -> None:
     """Test that short segments in a multi-prompt are skipped but the whole is kept."""
     test_file = tmp_path / "prompt_history.json"

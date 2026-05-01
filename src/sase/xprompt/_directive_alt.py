@@ -487,11 +487,11 @@ def apply_fanout_naming(
         )
 
         resume_target = first_resume_agent_name(sub_prompts[0])
-        if resume_target:
-            with agent_name_allocation_lock():
+        with agent_name_allocation_lock():
+            if resume_target:
                 base = allocate_resume_name(resume_target)
-        else:
-            base = get_next_auto_name()
+            else:
+                base = get_next_auto_name()
 
     out: list[str] = []
     for sub, suffix in zip(sub_prompts, suffixes, strict=True):
