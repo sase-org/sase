@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import os
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -27,7 +27,7 @@ def _spawn_agent_for_env_test(
     *,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     extra_env: dict[str, str] | None = None,
 ) -> None:
     output_path = tmp_path / "proj_ace-run-260101_120000.txt"
@@ -35,9 +35,7 @@ def _spawn_agent_for_env_test(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
-    mock_proc = MagicMock()
-    mock_proc.pid = 4321
-    mock_popen.return_value = mock_proc
+    mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
 
@@ -52,6 +50,19 @@ def _spawn_agent_for_env_test(
         project_name="proj",
         extra_env=extra_env,
     )
+
+
+def _fake_spawn_success(
+    _prepared: object,
+    *,
+    env: dict[str, str],
+    claim_callback: Callable[[int], bool] | None = None,
+) -> int:
+    if claim_callback is not None:
+        assert callable(claim_callback)
+        assert claim_callback(4321) is True
+    assert env["SASE_AGENT"] == "1"
+    return 4321
 
 
 def test_build_chop_launch_env() -> None:
@@ -94,9 +105,9 @@ def test_agent_meta_from_chop_env() -> None:
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_removes_inherited_sase_codex_home(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -107,17 +118,17 @@ def test_spawn_agent_subprocess_removes_inherited_sase_codex_home(
     monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
 
     _spawn_agent_for_env_test(
-        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_popen=mock_popen
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_spawn=mock_spawn
     )
 
-    env = mock_popen.call_args.kwargs["env"]
+    env = mock_spawn.call_args.kwargs["env"]
     assert "CODEX_HOME" not in env
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_preserves_custom_codex_home(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -128,17 +139,17 @@ def test_spawn_agent_subprocess_preserves_custom_codex_home(
     monkeypatch.setenv("CODEX_HOME", str(custom_home))
 
     _spawn_agent_for_env_test(
-        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_popen=mock_popen
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_spawn=mock_spawn
     )
 
-    env = mock_popen.call_args.kwargs["env"]
+    env = mock_spawn.call_args.kwargs["env"]
     assert env["CODEX_HOME"] == str(custom_home)
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_extra_env_codex_home_wins(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -152,18 +163,18 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
     _spawn_agent_for_env_test(
         tmp_path=tmp_path,
         monkeypatch=monkeypatch,
-        mock_popen=mock_popen,
+        mock_spawn=mock_spawn,
         extra_env={"CODEX_HOME": str(explicit_shadow)},
     )
 
-    env = mock_popen.call_args.kwargs["env"]
+    env = mock_spawn.call_args.kwargs["env"]
     assert env["CODEX_HOME"] == str(explicit_shadow)
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -174,9 +185,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
-    mock_proc = MagicMock()
-    mock_proc.pid = 4321
-    mock_popen.return_value = mock_proc
+    mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
     monkeypatch.setenv(ENV_CHOP_NAME, "split")
     monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
@@ -196,23 +205,19 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     )
 
     assert result.pid == 4321
-    popen_kwargs = mock_popen.call_args.kwargs
-    popen_argv = mock_popen.call_args.args[0]
-    assert popen_argv[2:9] == [
+    prepared = mock_spawn.call_args.args[0]
+    assert prepared.argv[2:9] == [
         "proj",
         "/tmp/projects/proj/proj.gp",
         str(workspace_dir),
         str(output_path),
         "3",
         "ace(run)-260101_120000",
-        popen_argv[8],
+        prepared.argv[8],
     ]
-    assert Path(popen_argv[8]).read_text() == "do work"
-    assert Path(popen_argv[8]).parent == tmp_dir
-    assert popen_kwargs["stdin"] == subprocess.DEVNULL
-    assert popen_kwargs["stdout"].name == str(output_path)
-    assert popen_kwargs["stderr"] == subprocess.STDOUT
-    assert popen_kwargs["start_new_session"] is True
+    assert Path(prepared.argv[8]).read_text() == "do work"
+    assert Path(prepared.argv[8]).parent == tmp_dir
+    assert mock_spawn.call_args.kwargs["claim_callback"] is not None
     records = get_live_chop_agent_records("hooks", chop_name="split")
     assert len(records) == 1
     assert records[0].pid == 4321
@@ -255,9 +260,9 @@ def test_live_records_prune_when_done_marker_exists(
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -270,9 +275,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     tmp_dir.mkdir()
     xprompts_file = tmp_path / "xprompts.json"
     xprompts_file.write_text("{}")
-    mock_proc = MagicMock()
-    mock_proc.pid = 4321
-    mock_popen.return_value = mock_proc
+    mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
@@ -295,7 +298,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
         extra_env={"SASE_REPEAT_NAME": "task.1"},
     )
 
-    env = mock_popen.call_args.kwargs["env"]
+    env = mock_spawn.call_args.kwargs["env"]
     assert env["SASE_AGENT"] == "1"
     assert env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "gh"
     assert env["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
@@ -309,9 +312,9 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.agent.launcher.subprocess.Popen")
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_does_not_record_without_chop_env(
-    mock_popen: MagicMock,
+    mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -322,9 +325,7 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
-    mock_proc = MagicMock()
-    mock_proc.pid = 4321
-    mock_popen.return_value = mock_proc
+    mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
 

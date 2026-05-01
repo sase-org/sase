@@ -5,7 +5,6 @@ Extracts the common subprocess-spawning logic used by both
 """
 
 import os
-import subprocess
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
@@ -102,7 +101,11 @@ def spawn_agent_subprocess(
             terminated before the error is raised).
     """
     from sase.agent.launch_timing import LaunchTimingRecorder
-    from sase.core.agent_launch_facade import prepare_agent_launch, safe_launch_name
+    from sase.core.agent_launch_facade import (
+        prepare_agent_launch,
+        safe_launch_name,
+        spawn_prepared_agent_process,
+    )
     from sase.core.agent_launch_wire import (
         AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
         AgentLaunchRequestWire,
@@ -181,25 +184,16 @@ def spawn_agent_subprocess(
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
     )
 
-    # Spawn detached subprocess
-    with timer.stage("subprocess_spawn"):
-        with open(prepared.output_path, "w") as output_file:
-            process = subprocess.Popen(
-                prepared.argv,
-                cwd=prepared.cwd,
-                stdin=subprocess.DEVNULL,
-                stdout=output_file,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                env=subprocess_env,
-            )
+    def _claim_spawned_child(pid: int) -> bool:
+        # Claim workspace so agent appears in Agents tab while running.
+        # For deferred-workspace agents (%wait), claim with workspace_num=0
+        # so the agent appears in the TUI but doesn't reserve a real workspace.
+        # For retry spawns, transfer an existing claim atomically so the slot
+        # stays continuously held across the parent->child handoff.
+        with timer.stage("workspace_claim"):
+            return _claim_or_prepare_home_project(pid)
 
-    # Claim workspace so agent appears in Agents tab while running.
-    # For deferred-workspace agents (%wait), claim with workspace_num=0
-    # so the agent appears in the TUI but doesn't reserve a real workspace.
-    # For retry spawns, transfer an existing claim atomically so the slot
-    # stays continuously held across the parent→child handoff.
-    with timer.stage("workspace_claim"):
+    def _claim_or_prepare_home_project(pid: int) -> bool:
         if prepared.claim_request is not None:
             artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
             claim_request = prepared.claim_request
@@ -209,17 +203,12 @@ def spawn_agent_subprocess(
                     claim_request.project_file,
                     claim_num,
                     from_pid=claim_request.transfer_from_pid,
-                    to_pid=process.pid,
+                    to_pid=pid,
                     new_workflow=claim_request.workflow_name,
                     new_artifacts_timestamp=artifacts_timestamp,
                     cl_name=claim_request.cl_name,
                 )
                 if not transferred:
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
                     timer.finish(outcome="claim_failed")
                     raise RuntimeError(
                         f"Failed to transfer workspace #{claim_num} from "
@@ -229,15 +218,10 @@ def spawn_agent_subprocess(
                 claim_request.project_file,
                 claim_num,
                 claim_request.workflow_name,
-                process.pid,
+                pid,
                 claim_request.cl_name,
                 artifacts_timestamp=artifacts_timestamp,
             ):
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
                 timer.finish(outcome="claim_failed")
                 raise RuntimeError(f"Failed to claim workspace #{claim_num}")
         else:
@@ -248,10 +232,20 @@ def spawn_agent_subprocess(
             if not os.path.exists(home_project_file):
                 with open(home_project_file, "w", encoding="utf-8") as f:
                     f.write("")
+        return True
+
+    # Spawn detached subprocess. Rust owns the process creation and will
+    # terminate the child if the Python claim/home callback raises.
+    with timer.stage("subprocess_spawn"):
+        pid = spawn_prepared_agent_process(
+            prepared,
+            env=subprocess_env,
+            claim_callback=_claim_spawned_child,
+        )
 
     with timer.stage("chop_registry_record"):
         record_chop_agent_launch_from_env(
-            pid=process.pid,
+            pid=pid,
             project_file=project_file,
             project_name=resolved_project_name,
             workspace_num=workspace_num,
@@ -262,9 +256,9 @@ def spawn_agent_subprocess(
             env=subprocess_env,
         )
 
-    timer.finish(outcome="ok", pid=process.pid)
+    timer.finish(outcome="ok", pid=pid)
     return AgentLaunchResult(
-        pid=process.pid,
+        pid=pid,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
         output_path=prepared.output_path,

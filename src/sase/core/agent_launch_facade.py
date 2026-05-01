@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import os
 from pathlib import Path
 
@@ -115,6 +116,24 @@ def prepare_agent_launch(
     return agent_launch_prepared_from_dict(dict(payload))
 
 
+def spawn_prepared_agent_process(
+    prepared: AgentLaunchPreparedWire,
+    *,
+    env: dict[str, str],
+    claim_callback: Callable[[int], bool] | None = None,
+) -> int:
+    """Spawn a Rust-backed detached process from prepared launch data."""
+
+    binding = require_rust_binding("spawn_prepared_agent_process")
+    return int(
+        binding(
+            agent_launch_wire_to_json_dict(prepared),
+            {str(key): str(value) for key, value in env.items()},
+            claim_callback,
+        )
+    )
+
+
 def allocate_launch_timestamp_batch(
     count: int,
     *,
@@ -214,4 +233,5 @@ __all__ = [
     "prepare_agent_launch",
     "prepare_agent_launch_python",
     "safe_launch_name",
+    "spawn_prepared_agent_process",
 ]

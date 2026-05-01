@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -264,18 +265,24 @@ def test_spawn_cd_sets_resolved_directory_env_without_claim(
     output = tmp_path / "agent.log"
     captured_env: dict[str, str] = {}
 
-    class _Process:
-        pid = 12345
-
-    def fake_popen(*_args: object, **kwargs: object) -> _Process:
-        env = kwargs["env"]
-        assert isinstance(env, dict)
+    def fake_spawn(
+        _prepared: object,
+        *,
+        env: dict[str, str],
+        claim_callback: Callable[[int], bool] | None = None,
+    ) -> int:
         captured_env.update(env)
-        return _Process()
+        if claim_callback is not None:
+            assert callable(claim_callback)
+            assert claim_callback(12345) is True
+        return 12345
 
     with (
         patch("sase.core.paths.sharded_path", return_value=str(output)),
-        patch("subprocess.Popen", side_effect=fake_popen),
+        patch(
+            "sase.core.agent_launch_facade.spawn_prepared_agent_process",
+            side_effect=fake_spawn,
+        ),
         patch("sase.running_field.claim_workspace") as claim,
         patch("sase.running_field.transfer_workspace_claim") as transfer,
         patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),

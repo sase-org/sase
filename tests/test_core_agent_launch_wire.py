@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import sys
+import time
 
 import pytest
 
@@ -17,9 +20,11 @@ from sase.core.agent_launch_facade import (
     prepare_agent_launch,
     prepare_agent_launch_python,
     safe_launch_name,
+    spawn_prepared_agent_process,
 )
 from sase.core.agent_launch_wire import (
     AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+    AgentLaunchPreparedWire,
     AgentLaunchRequestWire,
     WorkspaceClaimRequestWire,
     agent_launch_wire_to_json_dict,
@@ -251,6 +256,115 @@ def test_prepare_agent_launch_rust_deferred_vcs_env_and_home_claim(
     )
     assert home.claim_request is None
     assert home.argv[-1] == "1"
+
+
+def _prepared_process(
+    tmp_path: Path,
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+) -> AgentLaunchPreparedWire:
+    return AgentLaunchPreparedWire(
+        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        prompt_file=str(tmp_path / "prompt.md"),
+        output_path=str(tmp_path / "agent.log"),
+        safe_name="agent",
+        argv=argv,
+        cwd=str(cwd or tmp_path),
+        env_delta={},
+        claim_request=None,
+    )
+
+
+def _wait_for_output(path: Path, expected: str, timeout: float = 5.0) -> str:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            text = path.read_text()
+            if expected in text:
+                return text
+        time.sleep(0.02)
+    return path.read_text() if path.exists() else ""
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def test_spawn_prepared_agent_process_redirects_output_and_env(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    prepared = _prepared_process(
+        tmp_path,
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os, sys; "
+                "print(os.environ['SASE_TEST_ENV']); "
+                "print('stderr-line', file=sys.stderr)"
+            ),
+        ],
+    )
+
+    pid = spawn_prepared_agent_process(
+        prepared,
+        env={**os.environ, "SASE_TEST_ENV": "env-ok"},
+        claim_callback=lambda child_pid: child_pid > 0,
+    )
+
+    assert pid > 0
+    output = _wait_for_output(Path(prepared.output_path), "stderr-line")
+    assert "env-ok" in output
+    assert "stderr-line" in output
+
+
+def test_spawn_prepared_agent_process_reports_bad_cwd(tmp_path: Path) -> None:
+    pytest.importorskip("sase_core_rs")
+    prepared = _prepared_process(
+        tmp_path,
+        [sys.executable, "-c", "print('unreachable')"],
+        cwd=tmp_path / "missing",
+    )
+
+    with pytest.raises(RuntimeError, match="failed to spawn prepared agent process"):
+        spawn_prepared_agent_process(prepared, env=dict(os.environ))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="uses POSIX pid liveness check")
+def test_spawn_prepared_agent_process_cleans_up_on_claim_failure(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    seen_pid: list[int] = []
+    prepared = _prepared_process(
+        tmp_path,
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+    )
+
+    def fail_claim(pid: int) -> bool:
+        seen_pid.append(pid)
+        raise RuntimeError("claim failed deliberately")
+
+    with pytest.raises(RuntimeError, match="claim failed deliberately"):
+        spawn_prepared_agent_process(
+            prepared,
+            env=dict(os.environ),
+            claim_callback=fail_claim,
+        )
+
+    assert seen_pid
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and _pid_alive(seen_pid[0]):
+        time.sleep(0.02)
+    assert not _pid_alive(seen_pid[0])
 
 
 def test_fanout_plan_round_trips_slots() -> None:
