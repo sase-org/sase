@@ -2,20 +2,20 @@
 
 Phase 2A (sase-17.1) of `plans/202604/rust_backend_phase2_query.md` captured
 the optimized Python baseline before any Rust query backend landed. Phase 4 of
-`plans/202604/query_batch_persistent_corpus.md` extends the same harness with
-persistent-corpus rows so product routing can be gated against the Python batch
-path without confusing it with the known-regressed legacy one-shot binding.
+`plans/202604/query_batch_persistent_corpus.md` extended the same harness with
+persistent-corpus rows so product routing could be gated against a Python batch
+reference without confusing it with the known-regressed direct one-shot binding.
 
 Scenarios (per workload):
 
-- Python direct parse: :func:`sase.ace.query.parser.parse_query_python`.
-- Python facade parse: :func:`sase.core.query_facade.parse_query` with the
-  default Python backend.
+- Python direct parse: :func:`sase.ace.query.parser._parse_query_python`.
+- Python facade parse: :func:`sase.core.query_facade.parse_query` through the
+  public facade.
 - Python parse + evaluate: parse once, then evaluate against ``N`` specs
   using :func:`sase.core.query_facade.evaluate_query_with_context` with a
   context built once per workload (the optimized post-Phase-1 path).
-- Legacy Rust one-shot direct: ``sase_core_rs.evaluate_query_many(query, dicts)``
-  with prebuilt wire dicts, kept only as a diagnostic comparison.
+- Rust one-shot diagnostic: ``sase_core_rs.evaluate_query_many(query, dicts)``
+  with prebuilt wire dicts, kept only as a non-product comparison.
 - Rust persistent corpus compile: product-visible
   :func:`sase.core.query_corpus_facade.compile_query_corpus` cost.
 - Rust persistent fully compiled evaluation: corpus and query program compiled
@@ -59,7 +59,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from sase.ace.changespec.models import ChangeSpec  # noqa: E402
-from sase.ace.query.parser import parse_query_python  # noqa: E402
+from sase.ace.query import evaluator as query_evaluator  # noqa: E402
+from sase.ace.query.parser import _parse_query_python  # noqa: E402
 from sase.core import parser_facade, query_corpus_facade, query_facade  # noqa: E402
 from sase.core.wire import to_json_dict  # noqa: E402
 from sase.core.wire_conversion import changespec_to_wire  # noqa: E402
@@ -168,7 +169,7 @@ def _measure_parse_only(
     warmup: int,
 ) -> dict[str, Any]:
     def py_direct() -> int:
-        return id(parse_query_python(query))
+        return id(_parse_query_python(query))
 
     def py_facade() -> int:
         return id(query_facade.parse_query(query))
@@ -230,7 +231,7 @@ def _measure_query_workload(
 ) -> dict[str, Any]:
 
     def py_direct_parse() -> int:
-        return id(parse_query_python(query))
+        return id(_parse_query_python(query))
 
     def py_facade_parse() -> int:
         return id(query_facade.parse_query(query))
@@ -246,8 +247,12 @@ def _measure_query_workload(
                 hits += 1
         return hits
 
-    def py_batch() -> int:
-        return sum(query_facade._evaluate_query_many_python(query, specs))
+    def py_batch_reference() -> int:
+        expr = _parse_query_python(query)
+        ctx = query_evaluator.build_query_context(specs)
+        return sum(
+            query_evaluator.evaluate_query_with_context(expr, cs, ctx) for cs in specs
+        )
 
     scenarios: dict[str, dict[str, float]] = {
         "python_direct_parse": _time_calls(py_direct_parse, runs=runs, warmup=warmup),
@@ -255,18 +260,20 @@ def _measure_query_workload(
         "python_parse_and_evaluate": _time_calls(
             py_parse_and_eval, runs=runs, warmup=warmup
         ),
-        "python_batch_evaluate_many": _time_calls(py_batch, runs=runs, warmup=warmup),
+        "reference_python_batch_evaluate_many": _time_calls(
+            py_batch_reference, runs=runs, warmup=warmup
+        ),
     }
 
     rust_module = _load_rust_module()
     if rust_module is not None:
         spec_dicts = [to_json_dict(changespec_to_wire(cs)) for cs in specs]
 
-        def rust_legacy_direct_eval() -> int:
+        def rust_one_shot_diagnostic_eval() -> int:
             return sum(rust_module.evaluate_query_many(query, spec_dicts))
 
-        scenarios["rust_legacy_direct_evaluate_many"] = _time_calls(
-            rust_legacy_direct_eval, runs=runs, warmup=warmup
+        scenarios["rust_one_shot_diagnostic_evaluate_many"] = _time_calls(
+            rust_one_shot_diagnostic_eval, runs=runs, warmup=warmup
         )
 
         if all(
@@ -430,7 +437,7 @@ def _query_corpus_gate(workloads: list[dict[str, Any]]) -> dict[str, Any]:
         if label not in required or workload.get("skipped"):
             continue
         scenarios = workload.get("scenarios", {})
-        py = scenarios.get("python_batch_evaluate_many", {}).get("median_ms")
+        py = scenarios.get("reference_python_batch_evaluate_many", {}).get("median_ms")
         rust = scenarios.get("rust_persistent_query_keystroke_evaluate_many", {}).get(
             "median_ms"
         )

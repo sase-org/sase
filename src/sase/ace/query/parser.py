@@ -284,8 +284,7 @@ class _Parser:
 def parse_query(query: str) -> QueryExpr:
     """Parse a query string into an AST.
 
-    Public entry point — routes through :mod:`sase.core.query`. The default
-    backend dispatches back to :func:`parse_query_python` below.
+    Public entry point — routes through :mod:`sase.core.query`.
 
     Examples:
         >>> parse_query('"foobar"')
@@ -302,8 +301,8 @@ def parse_query(query: str) -> QueryExpr:
     return _facade(query)
 
 
-def parse_query_python(query: str) -> QueryExpr:
-    """Python implementation of :func:`parse_query`.
+def _parse_query_python(query: str) -> QueryExpr:
+    """Python reference implementation of :func:`parse_query`.
 
     Args:
         query: The query string to parse.
@@ -316,3 +315,8 @@ def parse_query_python(query: str) -> QueryExpr:
     """
     parser = _Parser(query)
     return parser.parse()
+
+
+# Keep a same-file reference so pyvision accepts this test-only reference helper
+# as intentionally private.
+_PYTHON_REFERENCE_PARSER = _parse_query_python

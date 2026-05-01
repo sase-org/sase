@@ -1,10 +1,10 @@
 """Persistent-corpus query facade for Rust-backed batch evaluation.
 
-The legacy :func:`sase.core.query_facade.evaluate_query_many` entry point
-intentionally remains on the Python batch path during this phase. This module
-exposes the new handle-oriented Rust API so callers can compile a corpus once
-for a stable ``list[ChangeSpec]`` object and evaluate many query strings
-against it without rebuilding ChangeSpec wire records per keystroke.
+This module exposes the handle-oriented Rust API so callers can compile a
+corpus once for a stable ``list[ChangeSpec]`` object and evaluate many query
+strings against it without rebuilding ChangeSpec wire records per keystroke.
+The public :func:`sase.core.query_facade.evaluate_query_many` compatibility
+entry point uses this same path with a temporary corpus.
 """
 
 from __future__ import annotations

@@ -1,10 +1,10 @@
 """Tests for ``sase.core.query_facade``.
 
 :func:`sase.core.query_facade.parse_query` calls ``sase_core_rs`` directly
-through :func:`sase.core.rust.require_rust_binding`. The unported entry
-points (per-row evaluators, ``build_query_context``, the deferred
-``evaluate_query_many`` batch path) call their Python implementations
-directly as host logic.
+through :func:`sase.core.rust.require_rust_binding`. Per-row evaluators and
+``build_query_context`` remain Python-owned host logic. The batch
+``evaluate_query_many`` compatibility API routes through the persistent Rust
+query corpus facade.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.query import evaluator as raw_evaluator
-from sase.ace.query.parser import parse_query_python as raw_parse_query
+from sase.ace.query.parser import _parse_query_python as raw_parse_query
 from sase.core import parser_facade, query_corpus_facade, query_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire_conversion import changespec_to_wire
@@ -102,30 +102,45 @@ def test_unported_query_facade_apis_call_python_directly(
     assert query_facade.evaluate_query_with_context(expr, specs[0], ctx) is True
 
 
-def test_evaluate_query_many_runs_python_after_phase8b_deferral(
+def test_evaluate_query_many_compatibility_api_uses_temporary_corpus(
     sample_project: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Phase 8B reclassified ``evaluate_query_many`` as deferred/unported.
-
-    The facade must execute the Python batch implementation directly. With
-    a fake Rust module exposing ``evaluate_query_many`` the binding is
-    *not* called — the facade no longer registers any Rust path for this
-    surface.
-    """
+    """Public batch compatibility compiles one temporary persistent corpus."""
     specs = parser_facade.parse_project_file(str(sample_project))
-    rust_calls: list[tuple[str, int]] = []
+    calls: list[tuple[str, object]] = []
 
-    def fake_evaluate(query: str, spec_dicts: list[dict]) -> list[bool]:
-        rust_calls.append((query, len(spec_dicts)))
-        return [False] * len(spec_dicts)
+    def compile_query_corpus(
+        changespecs: list[object],
+    ) -> query_corpus_facade.QueryCorpus:
+        calls.append(("compile", changespecs))
+        return query_corpus_facade.QueryCorpus(
+            source_list_id=id(changespecs),
+            expected_length=len(changespecs),
+            rust_handle=_FakeRustCorpus(len(changespecs)),
+        )
 
-    install_fake_query_module(monkeypatch, evaluate_query_many=fake_evaluate)
+    def evaluate_query_many_with_corpus(
+        query: str, corpus: query_corpus_facade.QueryCorpus
+    ) -> list[bool]:
+        calls.append(("evaluate", query))
+        corpus.validate()
+        return [True] * corpus.expected_length
 
-    expected = query_facade._evaluate_query_many_python('"example"', specs)
+    monkeypatch.setattr(
+        query_corpus_facade,
+        "compile_query_corpus",
+        compile_query_corpus,
+    )
+    monkeypatch.setattr(
+        query_corpus_facade,
+        "evaluate_query_many_with_corpus",
+        evaluate_query_many_with_corpus,
+    )
+
     result = query_facade.evaluate_query_many('"example"', specs)
-    assert result == expected
-    assert rust_calls == []
+    assert result == [True] * len(specs)
+    assert calls == [("compile", specs), ("evaluate", '"example"')]
 
 
 def test_compile_query_corpus_converts_specs_once(

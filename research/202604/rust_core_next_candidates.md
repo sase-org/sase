@@ -12,6 +12,12 @@ shipped operation; the Rust crate is now the only implementation of `parse_proje
 `plan_agent_cleanup`. The remaining surface is the *next* set of candidates against
 that same wire-record + golden-corpus playbook.
 
+Status update (2026-05-01): the #2 query batch recommendation below has shipped through
+the persistent-corpus migration in `plans/202604/query_batch_persistent_corpus.md`.
+The TUI product path now uses cached Rust query corpora, and the public batch
+compatibility wrapper compiles a temporary Rust corpus for one-off callers. The rest of
+this file remains a research snapshot for the original candidate ranking.
+
 ## What's still Python today
 
 Pulled from the Phase 8A operation disposition and a fresh code-map sweep of

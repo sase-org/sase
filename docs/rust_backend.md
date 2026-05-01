@@ -19,6 +19,8 @@ The shipped Rust-backed operations are:
 - `derive_git_workspace_name`
 - `parse_git_conflicted_files`
 - `parse_git_local_changes`
+- persistent query corpus handles (`compile_corpus`, `compile_query`, `evaluate_many`) used by
+  `sase.core.query_corpus_facade`
 - `plan_agent_cleanup`
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
@@ -27,9 +29,9 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 
 - `parse_project_file` — Python file-path API. The Rust binding consumes bytes; routing the file-path API through it
   would either re-read the file or duplicate the Python parser's tokenization for no measurable win.
-- `build_query_context`, `evaluate_query`, `evaluate_query_with_context`, `evaluate_query_many` — query evaluation
-  helpers. `evaluate_query_many` is the deferred entry: a prototype Rust path was 6-9× slower than the optimised Python
-  batch path because PyO3 had to rebuild `ChangeSpecWire` from a fresh dict on every call.
+- `build_query_context`, `evaluate_query`, `evaluate_query_with_context` — per-row query host logic. Batch product
+  filtering uses a cached Rust query corpus; the public `evaluate_query_many(query, changespecs)` API remains as a
+  compatibility wrapper that compiles a temporary Rust corpus for one call.
 - `build_changespec_graph_index` — ChangeSpec graph index construction.
 - `transition_changespec_status` — the side-effecting status transition (acquires a file lock, rewrites the project
   file, performs archive moves and suffix renames). The pure decision step inside it routes through Rust via
@@ -71,25 +73,26 @@ large search results, axe lumberjack scans), so it was the first operation route
 
 The facade lives at `src/sase/core/`:
 
-| Module                       | Purpose                                                                             |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| `rust.py`                    | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)     |
-| `health.py`                  | `sase core health` Rust-extension probe + report                                    |
-| `parser_facade.py`           | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                 |
-| `wire.py`                    | Stable wire record types that cross the Python ↔ Rust boundary                      |
-| `wire_conversion.py`         | Python `ChangeSpec` ↔ wire record serialization                                     |
-| `query_facade.py`            | `parse_query` (Rust); query context / per-row eval / batch (Python host logic)      |
-| `status_facade.py`           | Status line helpers + planner (Rust); side-effecting transition (Python host logic) |
-| `graph_index_facade.py`      | `build_changespec_graph_index()` facade (Python host logic)                         |
-| `agent_scan_facade.py`       | `scan_agent_artifacts()` snapshot facade (Rust)                                     |
-| `agent_scan_wire.py`         | Stable wire records for the agent-artifact scan snapshot                            |
-| `agent_cleanup_wire.py`      | Stable cleanup planning and side-effect intent wires                                |
-| `agent_cleanup_facade.py`    | Agent cleanup target conversion and `plan_agent_cleanup()` facade                   |
-| `agent_cleanup_execution.py` | Host-safe wrappers for Rust-backed deterministic cleanup mutations                  |
-| `status_wire.py`             | Stable wire records for the status state machine                                    |
-| `status_wire_conversion.py`  | Python plan reference + project-file → request-wire converter                       |
-| `git_query_facade.py`        | Pure Git query parsers facade (Rust)                                                |
-| `git_query_wire.py`          | Stable wire records for the Git query parsers                                       |
+| Module                       | Purpose                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `rust.py`                    | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
+| `health.py`                  | `sase core health` Rust-extension probe + report                                                                   |
+| `parser_facade.py`           | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `wire.py`                    | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
+| `wire_conversion.py`         | Python `ChangeSpec` ↔ wire record serialization                                                                    |
+| `query_facade.py`            | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
+| `query_corpus_facade.py`     | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
+| `status_facade.py`           | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
+| `graph_index_facade.py`      | `build_changespec_graph_index()` facade (Python host logic)                                                        |
+| `agent_scan_facade.py`       | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
+| `agent_scan_wire.py`         | Stable wire records for the agent-artifact scan snapshot                                                           |
+| `agent_cleanup_wire.py`      | Stable cleanup planning and side-effect intent wires                                                               |
+| `agent_cleanup_facade.py`    | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
+| `agent_cleanup_execution.py` | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `status_wire.py`             | Stable wire records for the status state machine                                                                   |
+| `status_wire_conversion.py`  | Python plan reference + project-file → request-wire converter                                                      |
+| `git_query_facade.py`        | Pure Git query parsers facade (Rust)                                                                               |
+| `git_query_wire.py`          | Stable wire records for the Git query parsers                                                                      |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
@@ -232,9 +235,11 @@ envelope, the relevant scenario summaries, and pre-computed `(workload, scenario
 | `parse_git_conflicted_files` | normalizers_50_lines     | parse_git_conflicted_files |              5.35 µs |     6.83 µs |     0.78× |
 | `parse_git_local_changes`    | normalizers_150_entries  | parse_git_local_changes    |              4.51 µs |     5.68 µs |     0.79× |
 
-`evaluate_query_many` was deferred in Phase 8B and stays on Python (`_evaluate_query_many_python` in `query_facade.py`);
-the Phase 7B regression numbers were the primary justification for keeping it that way. See the Phase 8B handoff
-(`plans/202604/rust_backend_phase8_phase8b_handoff.md`) for the prototype-Rust comparison.
+The historical one-shot Rust `evaluate_query_many(query, dicts)` binding remains a non-product diagnostic row only. The
+shipped product route uses a persistent Rust query corpus: compile `ChangeSpec` wire records once per stable list
+object, then compile/evaluate each query string against that cached corpus. Query-corpus Phase 6 measured the product
+query-keystroke path at 37-74x faster than the Python batch reference on the synthetic workloads and added the
+`synthetic_1000_specs` persistent query-keystroke row to the regression floor.
 
 The full per-percentile data (min / median / p95 / max) is in each artifact's `workloads[].baseline` /
 `workloads[].candidate`; the `comparisons[]` rows pre-compute `ratio`, `speedup`, and `percent_delta` for every
@@ -290,10 +295,10 @@ push the boundary further toward provider resolution without invalidating the co
 (`golden_myproj` and `synthetic_200_specs` for `parse_project_bytes`, `parse_only` for `parse_query`,
 `synthetic_6p_200pp` for `scan_agent_artifacts`, and `golden_myproj_pure` for `apply_status_update`). The relative
 `must_beat_python` check is disabled for anchors whose Python halves were deleted in Phase 8D — only the absolute Rust
-ceiling stays in force. `parse_query.parse_only.direct` keeps `must_beat_python: true` because both `parse_query_python`
-and the Rust binding are still callable on the same machine in the same process. The CI `phase7-perf-floor` GitHub
-Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and uploads
-`rust_backend_phase7_floor_check.json` as the build artifact.
+ceiling stays in force. `parse_query.parse_only.direct` keeps `must_beat_python: true` because both
+`_parse_query_python` and the Rust binding are still callable on the same machine in the same process. The CI
+`phase7-perf-floor` GitHub Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and
+uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 
 ### Triage support note
 

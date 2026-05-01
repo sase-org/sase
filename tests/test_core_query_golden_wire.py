@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from inline_snapshot import snapshot
 
-from sase.ace.query.parser import parse_query_python
+from sase.ace.query.parser import _parse_query_python
 from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
 from sase.core.query_wire import QUERY_WIRE_SCHEMA_VERSION, query_wire_to_json_dict
@@ -22,7 +22,7 @@ from tests._query_golden_corpus import GOLDEN_QUERIES
 def test_query_program_wire_round_trip() -> None:
     """``query_expr_from_wire(query_expr_to_wire(x))`` must round-trip."""
     for q in GOLDEN_QUERIES:
-        expr = parse_query_python(q)
+        expr = _parse_query_python(q)
         wire = query_expr_to_wire(expr)
         rebuilt = query_expr_from_wire(wire)
         # AST round-trip equality via canonical string (the AST dataclasses
@@ -48,7 +48,7 @@ def test_query_program_wire_snapshot() -> None:
     snapshot file.
     """
     q = '("alpha" OR "beta") AND NOT status:Submitted'
-    program = build_query_program_wire(q, parse_query_python(q))
+    program = build_query_program_wire(q, _parse_query_python(q))
     assert query_wire_to_json_dict(program) == snapshot(
         {
             "schema_version": QUERY_WIRE_SCHEMA_VERSION,

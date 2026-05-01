@@ -25,7 +25,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from sase.ace.changespec.models import ChangeSpec
-from sase.ace.query.parser import parse_query_python
+from sase.ace.query.parser import _parse_query_python
 from sase.ace.query.tokenizer import tokenize
 from sase.ace.query.types import to_canonical_string
 from sase.core import parser_facade
@@ -132,7 +132,7 @@ def token_dicts(query: str) -> list[dict]:
 
 
 def canonical(query: str) -> str:
-    return to_canonical_string(parse_query_python(query))
+    return to_canonical_string(_parse_query_python(query))
 
 
 def names(matched: Iterable[ChangeSpec]) -> list[str]:

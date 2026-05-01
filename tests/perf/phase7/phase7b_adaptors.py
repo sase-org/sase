@@ -131,14 +131,16 @@ def _bench_core_query(
                         "query": w.get("query"),
                     },
                     "baseline": {
-                        "facade": scenarios.get("python_batch_evaluate_many", {}),
+                        "facade": scenarios.get(
+                            "reference_python_batch_evaluate_many", {}
+                        ),
                         "parse_and_evaluate": scenarios.get(
                             "python_parse_and_evaluate", {}
                         ),
                     },
                     "candidate": {
-                        "legacy_direct": scenarios.get(
-                            "rust_legacy_direct_evaluate_many", {}
+                        "one_shot_diagnostic": scenarios.get(
+                            "rust_one_shot_diagnostic_evaluate_many", {}
                         ),
                         "persistent_corpus_compile": scenarios.get(
                             "rust_persistent_corpus_compile", {}

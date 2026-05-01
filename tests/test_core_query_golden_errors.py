@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from inline_snapshot import snapshot
 
-from sase.ace.query.parser import QueryParseError, parse_query_python
+from sase.ace.query.parser import QueryParseError, _parse_query_python
 from sase.core.query_wire import QueryErrorWire
 
 from tests._query_golden_corpus import MALFORMED_QUERIES
@@ -20,7 +20,7 @@ def test_malformed_query_messages_snapshot() -> None:
     errors: dict[str, dict[str, object]] = {}
     for q in MALFORMED_QUERIES:
         with pytest.raises(QueryParseError) as exc:
-            parse_query_python(q)
+            _parse_query_python(q)
         wire_error = QueryErrorWire(
             kind="parse_error",
             message=str(exc.value),

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from inline_snapshot import snapshot
 
-from sase.ace.query.parser import parse_query_python
+from sase.ace.query.parser import _parse_query_python
 from sase.core import query_facade
 
 from tests._query_golden_corpus import (
@@ -74,7 +74,7 @@ def test_evaluation_matrix_snapshot() -> None:
     ctx = query_facade.build_query_context(specs)
     matrix: dict[str, list[str]] = {}
     for q in GOLDEN_QUERIES:
-        expr = parse_query_python(q)
+        expr = _parse_query_python(q)
         matrix[q] = [
             cs.name
             for cs in specs
@@ -142,12 +142,12 @@ def test_substring_semantics_not_regex() -> None:
     ctx = query_facade.build_query_context(specs)
     # ``.*`` is not a wildcard — it would only match if the literal ``.*``
     # appeared in the searchable text, which it does not.
-    expr = parse_query_python('".*"')
+    expr = _parse_query_python('".*"')
     assert all(
         not query_facade.evaluate_query_with_context(expr, cs, ctx) for cs in specs
     )
     # Backslashes are taken literally outside the documented escape set.
-    expr = parse_query_python(r'"foo\\bar"')
+    expr = _parse_query_python(r'"foo\\bar"')
     assert all(
         not query_facade.evaluate_query_with_context(expr, cs, ctx) for cs in specs
     )
@@ -162,7 +162,7 @@ def test_facade_and_python_eval_agree() -> None:
     specs = load_specs()
     ctx = query_facade.build_query_context(specs)
     for q in GOLDEN_QUERIES:
-        expr = parse_query_python(q)
+        expr = _parse_query_python(q)
         via_facade = names(
             cs
             for cs in specs

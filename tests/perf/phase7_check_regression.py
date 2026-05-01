@@ -300,7 +300,8 @@ def _baseline_scenario_for_anchor(spec: _AnchorSpec) -> str:
     Most anchors use the same backend-neutral scenario name on both sides.
     The persistent query-corpus product row is different: the Rust candidate
     is named for the shipped persistent route, while the comparable Python
-    baseline remains the batch facade row.
+    baseline remains the reference batch row exposed as ``facade`` by the
+    harness adaptor.
     """
     if (
         spec.surface == "evaluate_query_many"
