@@ -101,10 +101,8 @@ class TestCoderFollowupSuffix:
     """Tests for plan-done resume coder follow-up classification."""
 
     def test_canonical_coder_suffix(self) -> None:
-        assert _is_coder_followup_suffix(".coder") is True
-
-    def test_legacy_code_suffix(self) -> None:
         assert _is_coder_followup_suffix(".code") is True
 
     def test_non_coder_suffix(self) -> None:
+        assert _is_coder_followup_suffix(".coder") is False
         assert _is_coder_followup_suffix(".epic") is False

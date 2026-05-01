@@ -8,7 +8,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
-from sase.plan_chain import LEGACY_PLAN_CHAIN_CODER_SUFFIX, PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -212,8 +212,8 @@ def _is_feedback_suffix(suffix: str | None) -> bool:
 
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
-    """Check if a role suffix is a canonical or legacy coder follow-up."""
-    return suffix in {PLAN_CHAIN_CODER_SUFFIX, LEGACY_PLAN_CHAIN_CODER_SUFFIX}
+    """Check if a role suffix is the coder follow-up suffix."""
+    return suffix == PLAN_CHAIN_CODER_SUFFIX
 
 
 def _is_root_plan_workflow(agent: Agent) -> bool:

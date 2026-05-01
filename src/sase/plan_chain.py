@@ -7,8 +7,7 @@ from collections.abc import Mapping
 
 PLAN_CHAIN_PLAN_SUFFIX = ".plan"
 PLAN_CHAIN_QUESTION_SUFFIX = ".q"
-PLAN_CHAIN_CODER_SUFFIX = ".coder"
-LEGACY_PLAN_CHAIN_CODER_SUFFIX = ".code"
+PLAN_CHAIN_CODER_SUFFIX = ".code"
 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
 
 _FEEDBACK_SUFFIX_RE = re.compile(r"^\.(\d+)$")
@@ -16,7 +15,6 @@ _KNOWN_SUFFIXES = {
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
     PLAN_CHAIN_CODER_SUFFIX,
-    LEGACY_PLAN_CHAIN_CODER_SUFFIX,
 }
 
 
@@ -35,20 +33,10 @@ def _is_plan_chain_feedback_suffix(suffix: object) -> bool:
     return match is not None and int(match.group(1)) >= 2
 
 
-def _is_plan_chain_coder_suffix(suffix: object) -> bool:
-    """Return ``True`` for canonical and legacy coder suffixes."""
-    return suffix in {
-        PLAN_CHAIN_CODER_SUFFIX,
-        LEGACY_PLAN_CHAIN_CODER_SUFFIX,
-    }
-
-
 def canonical_plan_chain_suffix(suffix: object) -> str | None:
     """Return the canonical plan-chain suffix, or ``None`` if unrecognized."""
     if not isinstance(suffix, str):
         return None
-    if _is_plan_chain_coder_suffix(suffix):
-        return PLAN_CHAIN_CODER_SUFFIX
     if suffix in _KNOWN_SUFFIXES or _is_plan_chain_feedback_suffix(suffix):
         return suffix
     return None
@@ -86,7 +74,6 @@ def plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
             PLAN_CHAIN_PLAN_SUFFIX,
             PLAN_CHAIN_QUESTION_SUFFIX,
             PLAN_CHAIN_CODER_SUFFIX,
-            LEGACY_PLAN_CHAIN_CODER_SUFFIX,
         ):
             if name.endswith(candidate):
                 return canonical_plan_chain_suffix(candidate)

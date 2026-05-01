@@ -71,16 +71,16 @@ def test_create_followup_with_name_override(tmp_path) -> None:
         create_followup_artifacts(
             "proj",
             {"name": "a", "model": "test"},
-            ".coder",
+            ".code",
             "20260326120000",
-            agent_name_override="a.coder",
+            agent_name_override="a.code",
             workflow_name="a",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
-    assert meta["name"] == "a.coder"
+    assert meta["name"] == "a.code"
     assert meta["workflow_name"] == "a"
-    assert meta["role_suffix"] == ".coder"
+    assert meta["role_suffix"] == ".code"
     assert meta["parent_timestamp"] == "20260326120000"
     assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
 

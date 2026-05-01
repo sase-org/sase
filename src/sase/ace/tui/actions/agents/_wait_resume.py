@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.plan_chain import LEGACY_PLAN_CHAIN_CODER_SUFFIX, PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -15,8 +15,8 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
-    """Return True for canonical and legacy coder follow-up suffixes."""
-    return suffix in {PLAN_CHAIN_CODER_SUFFIX, LEGACY_PLAN_CHAIN_CODER_SUFFIX}
+    """Return True for the coder follow-up suffix."""
+    return suffix == PLAN_CHAIN_CODER_SUFFIX
 
 
 def _resolve_vcs_tag(

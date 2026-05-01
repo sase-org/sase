@@ -81,7 +81,7 @@ class TestAddDismissedPrefix:
         assert add_dismissed_prefix("a.1", _DAY) == "260428.a.1"
 
     def test_preserves_workflow_child_segment(self) -> None:
-        assert add_dismissed_prefix("sase-z.2.coder", _DAY) == "260428.sase-z.2.coder"
+        assert add_dismissed_prefix("sase-z.2.code", _DAY) == "260428.sase-z.2.code"
 
 
 class TestStripDismissedPrefix:
