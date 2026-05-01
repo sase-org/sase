@@ -62,8 +62,8 @@ def format_banner_option(
       ``Needs Attention``) + bold sky-blue label + heavy rule.
     - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
-    - BY_DATE L1 (hour-of-day, ``HH:00``): same name-root visual
-      treatment by design — hour banners share the dim-gray ``▸`` /
+    - BY_DATE L1 (4-hour window, e.g. ``8AM-12PM``): same name-root visual
+      treatment by design — time-window banners share the dim-gray ``▸`` /
       teal-label / light-rule register so we don't introduce a new
       visual language inside an already-busy tab.
 

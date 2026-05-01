@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 12:04:35
-status: wip
+status: done
 ---
 # Plan: Agents by-date 4-hour windows
 

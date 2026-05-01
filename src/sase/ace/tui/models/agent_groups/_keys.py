@@ -14,8 +14,8 @@ from ._buckets import (
     hour_anchor_time,
     bucket_sort_index,
     date_bucket_for,
-    hour_bucket_for,
     status_bucket_for,
+    time_window_bucket_for,
 )
 
 
@@ -83,17 +83,30 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
+_TIME_WINDOW_START_BY_LABEL: dict[str, int] = {
+    "12AM-4AM": 0,
+    "4AM-8AM": 4,
+    "8AM-12PM": 8,
+    "12PM-4PM": 12,
+    "4PM-8PM": 16,
+    "8PM-12AM": 20,
+}
+
+
 def _hour_sort_key(hour: str) -> tuple[int, int]:
-    """Sort key for hour buckets — newest hour first, ``(no time)`` last.
+    """Sort key for time windows — newest window first, ``(no time)`` last.
 
     Empty ``hour`` is the non-BY_DATE neutral (``(0, 0)``) so existing
     orderings under STANDARD / BY_STATUS are preserved byte-for-byte.
     """
     if hour == "":
         return (0, 0)
+    start = _TIME_WINDOW_START_BY_LABEL.get(hour)
+    if start is not None:
+        return (0, -start)
     if hour == NO_HOUR_LABEL:
-        return (1, 0)
-    return (0, -int(hour[:2]))
+        return (2, 0)
+    return (1, 0)
 
 
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
@@ -141,7 +154,7 @@ def grouping_keys_for(
             else ""
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
-        hour=hour_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
+        hour=time_window_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
     )
 
 

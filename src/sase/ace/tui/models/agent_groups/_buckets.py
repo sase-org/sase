@@ -22,7 +22,7 @@ NO_PROJECT = ""
 #: panel that otherwise has at least one ChangeSpec.
 NO_CHANGESPEC_LABEL = "(no ChangeSpec)"
 
-#: Synthetic hour-bucket label for agents with no usable anchor time
+#: Synthetic time-window label for agents with no usable anchor time
 #: under :data:`GroupingMode.BY_DATE`.  Sorts last within its date bucket.
 NO_HOUR_LABEL = "(no time)"
 
@@ -39,7 +39,7 @@ class GroupingMode(Enum):
       ``status`` and retry-chain lineage.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
-    levels disappear.  ``BY_DATE`` renders date bucket → hour, while
+    levels disappear.  ``BY_DATE`` renders date bucket → time window, while
     ``BY_STATUS`` renders status bucket → name-root with the same
     singleton-suppression rule as ``STANDARD`` mode.
     """
@@ -78,13 +78,13 @@ def date_bucket_for(agent: Agent, now: datetime) -> str:
 
 
 def hour_anchor_time(agent: Agent) -> datetime | None:
-    """Return the datetime an agent's hour bucket should anchor on.
+    """Return the datetime an agent's time window should anchor on.
 
     Terminal agents (``DONE`` / ``PLAN DONE`` / ``PLAN REJECTED`` /
     ``EPIC CREATED``) anchor on
     ``stop_time`` (falling back to ``start_time`` when missing); everything
     else anchors on ``start_time``.  Mirrors :func:`walk_anchors` so the
-    hour banner emitted for an agent always agrees with the anchor used
+    time-window banner emitted for an agent always agrees with the anchor used
     to sort it inside its date bucket.
     """
     if (agent.status or "") in _TERMINAL_STATUSES:
@@ -92,27 +92,47 @@ def hour_anchor_time(agent: Agent) -> datetime | None:
     return agent.start_time
 
 
-def hour_bucket_for(agent: Agent) -> str:
-    """Map an agent's anchor time to an ``HH:00`` bucket label.
+def _format_time_window_label(start_hour: int) -> str:
+    """Format a 4-hour window start as a compact 12-hour range label."""
+
+    def label(hour: int) -> str:
+        hour %= 24
+        if hour == 0:
+            return "12AM"
+        if hour < 12:
+            return f"{hour}AM"
+        if hour == 12:
+            return "12PM"
+        return f"{hour - 12}PM"
+
+    return f"{label(start_hour)}-{label(start_hour + 4)}"
+
+
+def time_window_bucket_for(agent: Agent) -> str:
+    """Map an agent's anchor time to a 4-hour window label.
 
     Uses ``stop_time`` for terminal agents (falling back to ``start_time``
     when missing) and ``start_time`` otherwise — same rule as
-    :func:`walk_anchors` so hour banners agree with the sort order inside
-    each date bucket.
+    :func:`walk_anchors` so time-window banners agree with the sort order
+    inside each date bucket.
 
     Returns :data:`NO_HOUR_LABEL` for agents with no usable anchor; that
     bucket sorts last within its date bucket.
 
     Note: under ``BY_DATE``'s ``Earlier`` bucket, agents with the same
-    hour-of-day on different calendar dates land in the same ``HH:00``
-    sub-bucket.  This is intentional for v1 — the design trades calendar
-    precision for compactness inside the already-coarse ``Earlier``
-    bucket — not a bug.
+    4-hour window on different calendar dates land in the same sub-bucket.
+    This is intentional — the design trades calendar precision for
+    compactness inside the already-coarse ``Earlier`` bucket.
     """
     anchor = hour_anchor_time(agent)
     if anchor is None:
         return NO_HOUR_LABEL
-    return f"{anchor.hour:02d}:00"
+    return _format_time_window_label((anchor.hour // 4) * 4)
+
+
+def hour_bucket_for(agent: Agent) -> str:
+    """Compatibility alias for :func:`time_window_bucket_for`."""
+    return time_window_bucket_for(agent)
 
 
 def status_bucket_for(agent: Agent) -> str:

@@ -109,7 +109,7 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
         cl_name="cl-b",
         project_file="/r/projB/proj.gp",
         agent_name="solo",
-        start_time=datetime(2026, 4, 26, 10, 0, 0),
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
     )
     entries = build_agent_tree([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
     l0_banners = [
@@ -120,14 +120,14 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
     # Single "Today" banner — project / changespec are no longer in the
     # hierarchy, so two different projects collapse into one L0 group.
     assert l0_banners == [("Today",)]
-    # L1 is now the hour layer under BY_DATE; no project or ChangeSpec
+    # L1 is now the time-window layer under BY_DATE; no project or ChangeSpec
     # identity is retained in those keys.
     l1_banners = [
         e.group.group_key  # type: ignore[union-attr]
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
+    assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
     assert all("cl-" not in key for banner in l1_banners for key in banner)
     assert all("proj" not in key for banner in l1_banners for key in banner)
 
@@ -153,7 +153,7 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
     """Under BY_DATE the name-root banner is suppressed entirely.
 
     Within a date bucket, same-base-name agents are not a meaningful unit
-    — the bucket renders with hour banners sorted by ``start_time``.
+    — the bucket renders with time-window banners sorted by ``start_time``.
     """
     a = _agent(
         cl_name="x",
@@ -163,7 +163,7 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
     b = _agent(
         cl_name="y",
         agent_name="coder.codex",
-        start_time=datetime(2026, 4, 26, 10, 0, 0),
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
     )
     entries = build_agent_tree([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
     l1_banners = [
@@ -171,7 +171,7 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
+    assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
     assert ("Today", "coder") not in l1_banners
 
 
@@ -271,7 +271,7 @@ def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
     today_b = _agent(
         cl_name="y",
         agent_name="coder.bar",
-        start_time=datetime(2026, 4, 26, 10, 0, 0),
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
     )
     earlier_a = _agent(
         cl_name="z",
@@ -287,9 +287,9 @@ def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [
-        ("Today", "10:00"),
-        ("Today", "09:00"),
-        ("Earlier", "09:00"),
+        ("Today", "12PM-4PM"),
+        ("Today", "8AM-12PM"),
+        ("Earlier", "8AM-12PM"),
     ]
     assert all(banner[-1] != "coder" for banner in l1_banners)
 

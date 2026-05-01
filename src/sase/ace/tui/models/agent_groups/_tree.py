@@ -27,7 +27,7 @@ from ._keys import (
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
-    level: int  # 0 = project, 1 = changespec / name-root / hour, 2 = name-root
+    level: int  # 0 = project, 1 = changespec / name-root / time window, 2 = name-root
     group_key: tuple[str, ...]
     agent_indices: tuple[int, ...]
     is_collapsed: bool = False
@@ -52,8 +52,8 @@ class _BannerSummary:
     awaiting: int
 
 
-def _should_emit_hour_banner(hour: str, count: int) -> bool:
-    """Whether a BY_DATE hour bucket should have a visible banner."""
+def _should_emit_time_window_banner(hour: str, count: int) -> bool:
+    """Whether a BY_DATE time-window bucket should have a visible banner."""
     if not hour:
         return False
     if hour == NO_HOUR_LABEL:
@@ -71,7 +71,7 @@ def enumerate_group_keys(
     Partitions *agents* by panel key so each panel's mode (2- vs 3-level)
     is decided independently, mirroring :func:`build_agent_tree`.  The
     name-root banner is only included when its group has 2+ entries;
-    BY_DATE hour keys mirror the visible hour-banner predicate.
+    BY_DATE time-window keys mirror the visible banner predicate.
     """
     if not agents:
         return []
@@ -114,7 +114,7 @@ def enumerate_group_keys(
                 parent = l1
             else:
                 parent = l0
-            if mode is GroupingMode.BY_DATE and _should_emit_hour_banner(
+            if mode is GroupingMode.BY_DATE and _should_emit_time_window_banner(
                 k.hour, hour_counts.get((k.project, k.hour), 0)
             ):
                 hour_key: GroupKey = (k.project, k.hour)
@@ -146,7 +146,7 @@ def build_agent_tree(
         mode: How to bucket agents at L0.  Defaults to ``STANDARD``
             (existing project / ChangeSpec hierarchy).  ``BY_DATE`` and
             ``BY_STATUS`` drop the ChangeSpec level entirely; L0 becomes
-            the bucket.  ``BY_DATE`` uses hour banners under the bucket;
+            the bucket.  ``BY_DATE`` uses time-window banners under the bucket;
             ``BY_STATUS`` uses the name-root layer.
         now: Reference time for ``BY_DATE`` bucketing.  Defaults to
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
@@ -252,7 +252,7 @@ def build_agent_tree(
             cur_root = ""
             cur_root_collapsed = False
             hour_count = len(hour_indices.get((k.project, k.hour), []))
-            if _should_emit_hour_banner(k.hour, hour_count):
+            if _should_emit_time_window_banner(k.hour, hour_count):
                 hour_key: GroupKey = (k.project, k.hour)
                 cur_hour_collapsed = registry.is_collapsed(hour_key)
                 entries.append(
@@ -334,8 +334,8 @@ def banner_label(group: GroupRow) -> str:
       ChangeSpec name or the synthetic ``"(no ChangeSpec)"`` bucket.
     * Level 1, 2-level mode (2-tuple ``(project, name_root)``) → the
       bare name-root (always non-empty for a real banner).
-    * Level 1, BY_DATE mode (2-tuple ``(date_bucket, "HH:00")``) → the
-      bare ``HH:00`` hour label.
+    * Level 1, BY_DATE mode (2-tuple ``(date_bucket, "8AM-12PM")``) → the
+      bare 4-hour window label.
     * Level 2 (3-tuple ``(project, changespec, name_root)``) → the
       bare name-root.
 

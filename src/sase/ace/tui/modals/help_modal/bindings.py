@@ -456,7 +456,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: project → date → status",
                 ),
-                ("by date", "Sub-grouped by hour-of-day"),
+                ("by date", "Sub-grouped by 4-hour windows"),
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Needs Attention", "User must act"),
                 ("▶ Running", "Actively executing"),

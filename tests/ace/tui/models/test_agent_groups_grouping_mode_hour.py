@@ -1,4 +1,4 @@
-"""GroupingMode: hour bucketing under BY_DATE."""
+"""GroupingMode: time-window bucketing under BY_DATE."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_groups import (
     build_agent_tree,
     enumerate_group_keys,
     hour_bucket_for,
+    time_window_bucket_for,
 )
 
 from ._agent_groups_helpers import _NOW, _agent
@@ -17,7 +18,7 @@ from ._agent_groups_helpers import _NOW, _agent
 
 def test_hour_bucket_for_running_uses_start_time() -> None:
     a = _agent(status="RUNNING", start_time=datetime(2026, 4, 26, 9, 30, 0))
-    assert hour_bucket_for(a) == "09:00"
+    assert hour_bucket_for(a) == "8AM-12PM"
 
 
 def test_hour_bucket_for_terminal_uses_stop_time() -> None:
@@ -26,7 +27,7 @@ def test_hour_bucket_for_terminal_uses_stop_time() -> None:
         start_time=datetime(2026, 4, 26, 7, 30, 0),
         stop_time=datetime(2026, 4, 26, 11, 45, 0),
     )
-    assert hour_bucket_for(a) == "11:00"
+    assert hour_bucket_for(a) == "8AM-12PM"
 
 
 def test_hour_bucket_for_terminal_no_stop_falls_back_to_start_time() -> None:
@@ -35,7 +36,7 @@ def test_hour_bucket_for_terminal_no_stop_falls_back_to_start_time() -> None:
         start_time=datetime(2026, 4, 26, 7, 30, 0),
         stop_time=None,
     )
-    assert hour_bucket_for(a) == "07:00"
+    assert hour_bucket_for(a) == "4AM-8AM"
 
 
 def test_hour_bucket_for_no_anchor_returns_no_time_label() -> None:
@@ -43,8 +44,28 @@ def test_hour_bucket_for_no_anchor_returns_no_time_label() -> None:
     assert hour_bucket_for(a) == NO_HOUR_LABEL
 
 
-def test_build_agent_tree_by_date_emits_hour_banner_under_date_bucket() -> None:
-    """Two same-hour agents in Today get a ("Today", "09:00") L1 banner."""
+def test_time_window_bucket_for_boundary_labels() -> None:
+    cases = [
+        (0, "12AM-4AM"),
+        (3, "12AM-4AM"),
+        (4, "4AM-8AM"),
+        (7, "4AM-8AM"),
+        (8, "8AM-12PM"),
+        (11, "8AM-12PM"),
+        (12, "12PM-4PM"),
+        (15, "12PM-4PM"),
+        (16, "4PM-8PM"),
+        (19, "4PM-8PM"),
+        (20, "8PM-12AM"),
+        (23, "8PM-12AM"),
+    ]
+    for hour, expected in cases:
+        a = _agent(start_time=datetime(2026, 4, 26, hour, 30, 0))
+        assert time_window_bucket_for(a) == expected
+
+
+def test_build_agent_tree_by_date_emits_window_banner_under_date_bucket() -> None:
+    """Two same-window agents in Today get a ("Today", "8AM-12PM") L1 banner."""
     a = _agent(
         cl_name="x",
         agent_name="coder.aa",
@@ -61,11 +82,11 @@ def test_build_agent_tree_by_date_emits_hour_banner_under_date_bucket() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "09:00")]
+    assert l1_banners == [("Today", "8AM-12PM")]
 
 
-def test_build_agent_tree_by_date_singleton_real_hours_emit_banners() -> None:
-    """Agents at distinct real hours each get an L1 hour banner."""
+def test_build_agent_tree_by_date_singleton_real_windows_emit_banners() -> None:
+    """Agents at distinct real windows each get an L1 time-window banner."""
     a = _agent(
         cl_name="x",
         agent_name="coder.aa",
@@ -74,7 +95,7 @@ def test_build_agent_tree_by_date_singleton_real_hours_emit_banners() -> None:
     b = _agent(
         cl_name="y",
         agent_name="coder.bb",
-        start_time=datetime(2026, 4, 26, 10, 0, 0),
+        start_time=datetime(2026, 4, 26, 14, 0, 0),
     )
     entries = build_agent_tree([a, b], mode=GroupingMode.BY_DATE, now=_NOW)
     l1_banners = [
@@ -82,11 +103,11 @@ def test_build_agent_tree_by_date_singleton_real_hours_emit_banners() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "10:00"), ("Today", "09:00")]
+    assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
 
 
-def test_build_agent_tree_by_date_hour_buckets_newest_first() -> None:
-    """Hour banners within a date bucket sort newest hour first."""
+def test_build_agent_tree_by_date_time_windows_newest_first() -> None:
+    """Time-window banners within a date bucket sort newest window first."""
     eight_a = _agent(
         cl_name="a", agent_name="x.a", start_time=datetime(2026, 4, 26, 8, 0, 0)
     )
@@ -99,14 +120,14 @@ def test_build_agent_tree_by_date_hour_buckets_newest_first() -> None:
     fourteen_b = _agent(
         cl_name="d", agent_name="y.b", start_time=datetime(2026, 4, 26, 14, 30, 0)
     )
-    nine_a = _agent(
-        cl_name="e", agent_name="z.a", start_time=datetime(2026, 4, 26, 9, 0, 0)
+    twenty_a = _agent(
+        cl_name="e", agent_name="z.a", start_time=datetime(2026, 4, 26, 20, 0, 0)
     )
-    nine_b = _agent(
-        cl_name="f", agent_name="z.b", start_time=datetime(2026, 4, 26, 9, 30, 0)
+    twenty_b = _agent(
+        cl_name="f", agent_name="z.b", start_time=datetime(2026, 4, 26, 21, 30, 0)
     )
     entries = build_agent_tree(
-        [eight_a, eight_b, fourteen_a, fourteen_b, nine_a, nine_b],
+        [eight_a, eight_b, fourteen_a, fourteen_b, twenty_a, twenty_b],
         mode=GroupingMode.BY_DATE,
         now=_NOW,
     )
@@ -116,14 +137,14 @@ def test_build_agent_tree_by_date_hour_buckets_newest_first() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [
-        ("Today", "14:00"),
-        ("Today", "09:00"),
-        ("Today", "08:00"),
+        ("Today", "8PM-12AM"),
+        ("Today", "12PM-4PM"),
+        ("Today", "8AM-12PM"),
     ]
 
 
-def test_build_agent_tree_by_date_no_time_hour_sorts_last() -> None:
-    """``(no time)`` hour bucket sorts after all numeric hour buckets."""
+def test_build_agent_tree_by_date_no_time_window_sorts_last() -> None:
+    """``(no time)`` bucket sorts after all real time-window buckets."""
     eight_a = _agent(
         cl_name="a",
         agent_name="x.a",
@@ -147,7 +168,7 @@ def test_build_agent_tree_by_date_no_time_hour_sorts_last() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [
-        ("Earlier", "08:00"),
+        ("Earlier", "8AM-12PM"),
         ("Earlier", NO_HOUR_LABEL),
     ]
 
@@ -164,11 +185,11 @@ def test_build_agent_tree_by_date_singleton_no_time_has_no_hour_banner() -> None
     assert l1_banners == []
 
 
-def test_build_agent_tree_by_date_workflow_child_inherits_parents_hour() -> None:
-    """A workflow child renders under its parent's hour banner.
+def test_build_agent_tree_by_date_workflow_child_inherits_parents_window() -> None:
+    """A workflow child renders under its parent's time-window banner.
 
-    The child's own ``start_time`` is in a different hour, but it
-    inherits the parent's hour for grouping just like every other level.
+    The child's own ``start_time`` is in a different window, but it
+    inherits the parent's window for grouping just like every other level.
     """
     parent_a = _agent(
         cl_name="x",
@@ -191,7 +212,7 @@ def test_build_agent_tree_by_date_workflow_child_inherits_parents_hour() -> None
     entries = build_agent_tree(
         [parent_a, child, sibling], mode=GroupingMode.BY_DATE, now=_NOW
     )
-    # Find the 09:00 banner; it must reference all three agent indices
+    # Find the 8AM-12PM banner; it must reference all three agent indices
     # (parent, child, sibling) — child does not become its own bucket.
     hour_banner = next(
         e.group  # type: ignore[union-attr]
@@ -199,17 +220,17 @@ def test_build_agent_tree_by_date_workflow_child_inherits_parents_hour() -> None
         if e.kind == "group"
         and e.group is not None
         and e.group.level == 1
-        and e.group.group_key == ("Today", "09:00")
+        and e.group.group_key == ("Today", "8AM-12PM")
     )
     assert sorted(hour_banner.agent_indices) == [0, 1, 2]
 
 
-def test_build_agent_tree_by_date_terminal_and_running_share_hour() -> None:
+def test_build_agent_tree_by_date_terminal_and_running_share_window() -> None:
     """A DONE agent's stop_time and a RUNNING agent's start_time agree.
 
     DONE with stop_time=09:30 and RUNNING with start_time=09:15 cluster
-    under a single ``09:00`` banner — the hour-anchor rule mirrors the
-    sort rule.
+    under a single ``8AM-12PM`` banner — the anchor rule mirrors the sort
+    rule.
     """
     done = _agent(
         cl_name="x",
@@ -230,11 +251,11 @@ def test_build_agent_tree_by_date_terminal_and_running_share_hour() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "09:00")]
+    assert l1_banners == [("Today", "8AM-12PM")]
 
 
-def test_enumerate_group_keys_by_date_includes_hour_keys() -> None:
-    """``enumerate_group_keys`` lists visible hour groups under BY_DATE."""
+def test_enumerate_group_keys_by_date_includes_window_keys() -> None:
+    """``enumerate_group_keys`` lists visible time-window groups under BY_DATE."""
     a = _agent(
         cl_name="x",
         agent_name="coder.aa",
@@ -251,5 +272,5 @@ def test_enumerate_group_keys_by_date_includes_hour_keys() -> None:
         start_time=datetime(2026, 4, 26, 14, 0, 0),
     )
     keys = enumerate_group_keys([a, b, solo], mode=GroupingMode.BY_DATE, now=_NOW)
-    assert ("Today", "09:00") in keys
-    assert ("Today", "14:00") in keys
+    assert ("Today", "8AM-12PM") in keys
+    assert ("Today", "12PM-4PM") in keys
