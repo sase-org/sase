@@ -30,6 +30,7 @@ sase bead list --status=open                            # List open issues
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
+sase bead open beads-001.1                              # Reopen an issue
 sase bead close beads-001.1                             # Close an issue
 sase bead dep add beads-001.2 beads-001.1               # Add dependency
 sase bead blocked                                       # Show blocked issues
@@ -59,7 +60,8 @@ to a parent plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 | `in_progress` | `◐`  | Currently being worked on |
 | `closed`      | `✓`  | Completed or abandoned    |
 
-Status can transition freely between any values via `sase bead update --status=<status>`.
+Status can transition freely between any values via `sase bead update --status=<status>`. `sase bead open <id>` is a
+shortcut for `sase bead update <id> --status=open`.
 
 ### Dependencies
 
@@ -141,6 +143,10 @@ notes, and linked plan path.
 ### `sase bead ready`
 
 Show issues that are ready to work on: `open` status with all dependencies `closed`.
+
+### `sase bead open <id>`
+
+Reopen an issue by setting its status to `open`. This is equivalent to `sase bead update <id> --status=open`.
 
 ### `sase bead update <id>`
 

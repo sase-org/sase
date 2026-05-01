@@ -51,6 +51,7 @@ Quick Start:
   sase bead ready                                Show issues ready to work
   sase bead show <id>                            View issue details
   sase bead update <id> --status=in_progress     Claim an issue
+  sase bead open <id>                            Reopen an issue
   sase bead close <id>                           Close an issue
   sase bead rm <id>                              Remove an issue (and children)
   sase bead dep add <issue> <depends-on>         Add dependency

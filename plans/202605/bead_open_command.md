@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:00:42
-status: wip
+status: done
 ---
 # Plan: Add `sase bead open <id>`
 

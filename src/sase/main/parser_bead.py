@@ -76,6 +76,10 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead onboard
     bead_subparsers.add_parser("onboard", help="Show quick-start guide")
 
+    # sase bead open
+    bead_open_parser = bead_subparsers.add_parser("open", help="Reopen an issue")
+    bead_open_parser.add_argument("id", help="Issue ID to reopen")
+
     # sase bead ready
     bead_subparsers.add_parser("ready", help="Show issues ready to work")
 

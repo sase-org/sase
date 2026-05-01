@@ -135,6 +135,16 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         print(f"✓ Updated issue: {issue.id} — {issue.title}")
 
 
+def handle_bead_open(args: argparse.Namespace) -> None:
+    with get_project() as proj:
+        try:
+            issue = proj.update(args.id, status="open")
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        print(f"○ Opened: {issue.id} — {issue.title}")
+
+
 def handle_bead_close(args: argparse.Namespace) -> None:
     with get_project() as proj:
         try:
