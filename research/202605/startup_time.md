@@ -17,18 +17,35 @@ All measurements taken on the user's primary box, `time` of the installed `sase`
 
 | Command                       | Wall                  | Notes                                                        |
 | ----------------------------- | --------------------- | ------------------------------------------------------------ |
-| `python3 -c "import sys"`     | ~85 ms                | Bare interpreter floor. Anything below this is free.         |
+| `python3 -c "import sys"`     | ~85 ms                | Bare interpreter floor for the installed `sase` environment measured in the first pass. Anything below this is free. |
 | `sase bead list` (Rust path)  | ~50 ms                | **Below baseline** — uses bare `python -m sase.main.entry` interpreter; Rust fast path skips parser/handler imports entirely. Good. |
 | `sase --help`                 | ~155–165 ms           | Builds full argparse but does no command-handler imports.    |
 | `sase changespec --help`      | ~155–165 ms           | Same: parser-only path.                                      |
 | `sase ace --help`             | ~165–175 ms           | Same.                                                        |
 | `sase bead --help`            | ~155–170 ms           | Argparse path; bypasses bead Rust fast path because of `-h`. |
-| `sase chat --help`            | ~155 ms               |                                                              |
-| `sase run --help`             | **~370–390 ms**       | Worst observed. Triggers `query_handler` special-case path.  |
+| `sase chats --help`           | ~155 ms               |                                                              |
+| `sase run --help`             | **~370–390 ms**       | Worst parser/help path in the first pass. Triggers `query_handler` special-case path. |
 
-So the budget shape is: **Python interpreter floor ~85 ms, Sase parser tax ~70 ms baseline, +200 ms only
-on `sase run`.** TUI launch (`sase ace` w/o `--help`) was not benchmarked here but inherits the parser tax
-plus textual/Rust binding init; that warrants a separate pass.
+Follow-up measurements in this workspace (`sase_100`, Python 3.14 venv, warm cache) found the same
+shape but one additional outlier:
+
+| Command / import                            | Median wall | Notes |
+| ------------------------------------------- | ----------- | ----- |
+| `.venv/bin/python -c "import sys"`          | ~14 ms      | Local Python 3.14 venv has a much lower warm interpreter floor than the installed tool env. |
+| `.venv/bin/sase --help`                     | ~200 ms     | Same parser path, slower in this editable venv than the installed `sase` on PATH. |
+| `.venv/bin/sase run --help`                 | ~418 ms     | Same `query_handler` problem, still worst among help paths. |
+| `.venv/bin/sase file-history list`          | ~189 ms     | Pure JSON helper, but still pays full parser construction. |
+| `.venv/bin/sase file list -t s`             | **~750-800 ms** | Editor helper; unexpectedly imports the TUI widget package and Textual before listing files. |
+
+Measurement caveat: `sase` on PATH currently points at `/home/bryan/projects/github/sase-org/sase`,
+while this document lives in `/home/bryan/projects/github/sase-org/sase_100`. The two copies are close
+enough for the import-shape findings below, but verification for changes in this workspace should use
+`.venv/bin/sase` or run `just install` first and then use the resulting entry point.
+
+For parser/help paths, the budget shape is: **Python interpreter floor ~85 ms, Sase parser tax ~70 ms
+baseline, +200 ms only on `sase run`.** Command-specific handlers can still be worse; `sase file list`
+is the current proof. TUI launch (`sase ace` w/o `--help`) was not benchmarked here but inherits the
+parser tax plus textual/Rust binding init; that warrants a separate pass.
 
 ## Where the Time Actually Goes
 
@@ -127,26 +144,99 @@ Every `sase` invocation reads `~/.sase/last_query.txt` and `~/.sase/saved_querie
 (b) it fails the "argparse construction should be pure" invariant, and (c) it makes the cost of
 adding more "smart defaults" tempting and load-bearing.
 
+### Hot spot 5 — `sase file list` imports the TUI widget package (≈700 ms in `sase_100`)
+
+This is the biggest gap missed by the first pass because it only looked at parser/help startup.
+`sase file list` is an editor-integration command used by the `<ctrl+t>` completion flow, so it is
+latency-sensitive. The handler does:
+
+```python
+from sase.ace.tui.widgets.file_completion import build_completion_candidates
+```
+
+The target leaf module (`src/sase/ace/tui/widgets/file_completion.py`) is deliberately pure logic:
+stdlib-only, dataclass + `os.scandir`, no Textual. But Python must execute every package
+`__init__.py` on the dotted path before loading the leaf:
+
+- `src/sase/ace/__init__.py` imports `.changespec` (hot spot 1).
+- `src/sase/ace/tui/__init__.py` imports `AceApp` from `.app`.
+- `src/sase/ace/tui/widgets/__init__.py` imports nearly every widget class.
+
+The last two bullets load Textual, Rich syntax rendering, TUI models, agent loaders, workflow models,
+and ChangeSpec machinery before the CLI can run a filesystem completion. `-X importtime` for only
+`import sase.ace.tui.widgets.file_completion` showed:
+
+```
+110892 us  textual.app
+ 86449 us  sase.ace.tui.models
+ 70794 us  sase.ace.changespec
+ 69890 us  sase.ace.tui.models.workflow
+ 71327 us  textual
+ 40185 us  sase.ace.changespec.section_parsers
+```
+
+Warm-cache wall measurements in the local venv:
+
+| Operation                                    | Median wall |
+| -------------------------------------------- | ----------- |
+| `import sase.main.file_handler`              | ~32 ms      |
+| `import sase.ace.tui.widgets.file_completion` | ~722 ms     |
+| `.venv/bin/sase file list -t s`              | ~778 ms     |
+
+This should be treated as a T1 bug because it directly affects editor keystroke latency. Move the
+pure completion engine out of the TUI package path, for example to `sase.completion.file` or
+`sase.core.file_completion`, and have both the TUI and CLI import the neutral module. Also make
+`sase/ace/tui/__init__.py` and `sase/ace/tui/widgets/__init__.py` lazy like the other barrels.
+
+### Hot spot 6 — `special_cases.py` itself imports normal `run` execution too early
+
+T1.3 correctly identifies `query_handler/__init__.py` as a barrel, but even after that barrel is
+slimmed, `src/sase/main/query_handler/special_cases.py` still imports far more than it needs at
+module load:
+
+```python
+from sase.history.chat import list_chat_histories
+from sase.artifacts import create_artifacts_directory
+from ._daemon import run_query_daemon
+from ._editor import open_editor_for_prompt, show_prompt_history_picker
+from ._query import run_query
+from ._resume import handle_run_with_resume
+```
+
+That top-level set loads `sase.output`/Rich through `artifacts`, `sase.agent.launcher` through
+`_daemon`, and `sase.running_field` through `_query`. Most `sase run --help` invocations need none
+of it: the special-case probe should decide "not handled" and fall through to argparse.
+
+After T1.3, do a second pass on `special_cases.py`: keep only `sys` and `Path` at module top, and
+move each helper import into the branch that actually uses it. That should make `sase run --help`
+pay almost no pre-parser cost when no special case is executed. It also lowers latency for ordinary
+`sase run <single-token-query>` values that fall through to argparse.
+
 ### Smaller offenders worth listing
 
-- **`sase.telemetry.metrics`** is imported transitively by the changespec graph. It pulls
-  `urllib.request` → `http.client` → `ssl` (≈22 ms). No `--help` path needs telemetry.
+- **`sase.telemetry.metrics`** is imported transitively by the changespec graph. The metrics module
+  itself is mostly lightweight stubs, but `from sase.telemetry.metrics import X` still executes
+  `sase/telemetry/__init__.py` first. That package `__init__` eagerly imports `_registry`, which
+  pulls `urllib.request` → `http.client` → `ssl` and config loading. No `--help` path needs
+  telemetry registry helpers.
 - **`sase.config.core`** is pulled in by `sase.ace.display_helpers` to read the YAML config; this
   brings in PyYAML's full loader/dumper (16 ms) regardless of subcommand.
 - **`pyinstrument`** is a `dependencies = [...]` requirement (used by `sase ace -p`) but is not
   imported at startup — confirmed clean. Leave alone.
-- **`textual[syntax]`** is the heaviest dep but is only loaded by the TUI, not the CLI startup
-  path. Out of scope here, but TUI startup needs its own profiling pass.
+- **`textual[syntax]`** is the heaviest dep. It is not loaded by normal parser-only CLI startup,
+  but it is loaded by `sase file list` today because of the TUI package barrel described above.
+  TUI launch still needs its own profiling pass.
 - The 24 `parser_*` modules are all imported by `parser.py` regardless of which subcommand the
   user picked. Each is small (~100 µs) but they collectively trigger the hot spots above by
   pulling their respective business modules.
 
 ## Architectural Patterns at Fault
 
-The hot spots above are not isolated bugs — they're four instances of three recurring patterns:
+The hot spots above are not isolated bugs — they're instances of three recurring patterns:
 
 1. **Barrel `__init__.py` files that re-export submodules** (`sase.ace`, `sase.ace.changespec`,
-   `sase.main.query_handler`). Convenient for callers (`from sase.ace.changespec import X`) but
+   `sase.main.query_handler`, `sase.ace.tui`, `sase.ace.tui.widgets`, `sase.telemetry`). Convenient
+   for callers (`from sase.ace.changespec import X`) but
    they convert "import one symbol" into "execute everything". Under PEP 562, package `__getattr__`
    gives you the same ergonomics with lazy load — see the proposal section.
 2. **Argparse `choices=` / `default=` that calls into business modules**. `parser_commit.py`
@@ -241,6 +331,34 @@ if args.query is _LAST_QUERY_SENTINEL:
 
 This also stops `sase --help` from touching the user's home dir.
 
+**T1.5 — Move file-completion logic out of the TUI package path.**
+Estimated saving: 500-700 ms for `sase file list`; also speeds tests and any non-TUI imports of the
+completion engine.
+
+Create a neutral module, for example `sase/completion/file.py`, containing `CompletionCandidate`,
+`MAX_VISIBLE`, `is_path_like_token`, `extract_token_around_cursor`, `build_completion_candidates`,
+and `build_file_history_completion_candidates`. Then:
+
+- Change `src/sase/main/file_handler.py` to import `build_completion_candidates` from the neutral module.
+- Change TUI callers (`prompt_text_area.py`, `_file_completion.py`, `xprompt_completion.py`,
+  `prompt_input_bar.py`) to import the same neutral module.
+- Leave a compatibility re-export in `sase.ace.tui.widgets.file_completion` if needed for tests or
+  external callers, but make it import the neutral module only.
+
+This fix is independent of the Rust fast path proposal. It should happen first because it corrects
+an accidental dependency inversion: editor completion logic should not depend on Textual widget
+package initialization.
+
+**T1.6 — Make `query_handler.special_cases` branch-lazy.**
+Estimated saving: tens of milliseconds on `sase run --help` after T1.3; larger on environments where
+`sase.output`, `sase.agent.launcher`, or `sase.running_field` are cold.
+
+After slimming `query_handler/__init__.py`, move these imports inside their use branches:
+`list_chat_histories`, `create_artifacts_directory`, `run_query_daemon`, `open_editor_for_prompt`,
+`show_prompt_history_picker`, `run_query`, and `handle_run_with_resume`. Keep the early special-case
+probe cheap: parse flags and decide whether a special case applies before importing execution
+machinery.
+
 ### Tier 2 — medium impact, moderate risk
 
 **T2.1 — Lazy-import `sase.output` at use-site only.**
@@ -251,12 +369,15 @@ itself going to be deferred via T1.2, this becomes mostly moot — but it's wort
 rule: never import `sase.output` at module top. `--help` and pure-data subcommands (`sase path`,
 `sase file list`) never need rich.
 
-**T2.2 — Defer telemetry HTTP libs.**
+**T2.2 — Slim `sase/telemetry/__init__.py` and defer telemetry HTTP libs.**
 Estimated saving: ~22 ms on every command that touches telemetry-imports transitively.
 
-`sase.telemetry.metrics` does `import urllib.request` at module top, presumably for a Pushgateway
-client. Move that import inside the function that talks to Pushgateway. The metric-registration
-side has no use for `urllib`.
+`sase.telemetry.metrics` is not the direct culprit; `sase/telemetry/__init__.py` is. Because Python
+executes the package before loading `sase.telemetry.metrics`, every metrics import currently pays for
+`sase.telemetry._registry`, including `urllib.request` and config helpers. Make package exports lazy,
+or stop re-exporting registry helpers from `__init__.py`. Then move `_registry`'s `urllib.error` /
+`urllib.request` imports inside `cleanup_stale_groups`, the only function in that module that uses
+them directly.
 
 **T2.3 — Lazy parser registration.**
 Estimated saving: 10–30 ms (mostly accumulated parser-module fixed cost) and decouples
@@ -277,6 +398,24 @@ This is implementable as a thin pre-dispatcher in `entry.py` analogous to the ex
 fast-paths. Care needed: subcommand aliases, `sase` (no args) → full help, and `sase <unknown>`
 must still surface argparse's "invalid choice" message with the full known set. The simplest
 discipline is to fall through to the full parser whenever we're not 100% sure.
+
+**T2.4 — Add Python fast paths for JSON helper commands before a Rust port.**
+Estimated saving: 100-170 ms for `file-history` and other tiny helpers; up to 700 ms for `file list`
+after T1.5 removes the TUI import.
+
+The Rust fast path is the right long-term home for core/editor helpers, but `entry.py` can get a
+large fraction of the win with a tiny, conservative Python pre-dispatch. Candidates:
+
+- `sase file-history list`
+- `sase file-history delete -p <path>`
+- `sase file list [-p PATH] [-t TOKEN]` after T1.5
+- `sase path config-schema`
+- `sase path xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`
+
+These commands have simple fixed argv shapes and either emit JSON or a single path. Handle only exact
+safe forms, reject `-h/--help`, and fall through to argparse on anything ambiguous. This preserves
+the full parser's help and error behavior while making the editor hot path faster before any Rust
+packaging work.
 
 ### Tier 3 — high impact, larger surface change
 
@@ -313,8 +452,14 @@ only be considered after T1/T2 land and we know the Python startup is as flat as
 Estimated saving: prevents regressions of T1.1/T1.3.
 
 Add a ruff custom rule (or a unit test that imports `sase.ace`, `sase.main.query_handler`,
-`sase.workflows.commit`, `sase.ace.changespec` and asserts `sys.modules` does not contain the
-expensive submodules). Failing tests catch the next person who adds a "convenient" re-export.
+`sase.workflows.commit`, `sase.ace.changespec`, `sase.ace.tui.widgets.file_completion`, and
+`sase.telemetry.metrics`, then asserts `sys.modules` does not contain the expensive submodules).
+Failing tests catch the next person who adds a "convenient" re-export. Important assertions:
+
+- Importing `sase.ace.saved_queries` must not import `sase.ace.changespec.parser`.
+- Importing `sase.telemetry.metrics` must not import `urllib.request`.
+- Importing the file-completion engine must not import `textual`, `textual.app`, or
+  `sase.ace.tui.app`.
 
 ### Considered and rejected
 
@@ -337,13 +482,18 @@ expensive submodules). Failing tests catch the next person who adds a "convenien
 2. Land T1.2 (constants module). Once both T1.1 and T1.2 are in, re-measure: target is `sase --help`
    under ~110 ms (parser tax cut from ~70 ms to ~25 ms).
 3. Add the lint test from T3.3 to lock in the win before adding more changes.
-4. Land T1.3 next; target is `sase run --help` under ~250 ms.
-5. Land T1.4, T2.1, T2.2 as a cleanup batch (uncontroversial).
-6. Decide whether T2.3 (lazy parser registration) is worth its complexity given the new baseline.
+4. Land T1.5 next if editor completion latency matters; it is the largest single missed hot spot
+   and is independent of the parser work.
+5. Land T1.3 and T1.6 together; target is `sase run --help` under ~250 ms, ideally closer to the
+   normal parser path.
+6. Land T1.4, T2.1, T2.2 as a cleanup batch (uncontroversial).
+7. Consider T2.4 for `file-history` and `path` helpers if editor integration still shells out
+   frequently after T1.5.
+8. Decide whether T2.3 (lazy parser registration) is worth its complexity given the new baseline.
    If parser tax is already <15 ms, probably not.
-7. T3.1 (more Rust fast-path commands) is independent and can run in parallel; pick the editor-hit
+9. T3.1 (more Rust fast-path commands) is independent and can run in parallel; pick the editor-hit
    commands first.
-8. Defer T3.2 (Rust shim) until after the above; it's a packaging change with downstream impact
+10. Defer T3.2 (Rust shim) until after the above; it's a packaging change with downstream impact
    on plugin discovery (`sase_llm`, `sase_vcs`, `sase_workspace` entry points).
 
 ## How to Verify
@@ -351,9 +501,11 @@ expensive submodules). Failing tests catch the next person who adds a "convenien
 A reliable repro sits in three commands:
 
 ```bash
-SASE_PY=/home/bryan/.local/share/uv/tools/sase/bin/python
+just install  # if measuring this workspace rather than the globally-installed sase
+SASE=.venv/bin/sase
+SASE_PY=.venv/bin/python
 # Cold (drop FS cache between runs in a clean shell):
-for i in 1 2 3; do (time sase --help >/dev/null) 2>&1 | grep total; done
+for i in 1 2 3; do (time "$SASE" --help >/dev/null) 2>&1 | grep total; done
 # Importtime trace, sorted by cumulative for top-level entries:
 $SASE_PY -X importtime -c "from sase.main.parser import create_parser; create_parser()" 2> /tmp/it.log
 awk '/^import time:/ {match($0, /^import time: *([0-9]+) *\| *([0-9]+) *\| *(.*)$/, a); if (a[1]!="" && match(a[3],/[^ ]/)<=5) printf "%8d %s\n", a[2]+0, a[3]}' /tmp/it.log | sort -rn | head -20
@@ -362,6 +514,26 @@ awk '/^import time:/ {match($0, /^import time: *([0-9]+) *\| *([0-9]+) *\| *(.*)
 For per-fix verification, the cleanest assertion is "after my change, `sys.modules` does not contain
 `sase.ace.changespec.parser` after `from sase.main.parser import create_parser; create_parser()`."
 That's what the proposed lint test in T3.3 should encode.
+
+Additional targeted checks for the gaps found in the follow-up pass:
+
+```bash
+$SASE_PY - <<'PY'
+import sys
+import sase.telemetry.metrics
+assert "urllib.request" not in sys.modules
+PY
+
+$SASE_PY - <<'PY'
+import sys
+import sase.completion.file
+assert "textual" not in sys.modules
+assert "sase.ace.tui.app" not in sys.modules
+PY
+
+for i in 1 2 3; do (time "$SASE" file list -t src >/dev/null) 2>&1 | grep total; done
+for i in 1 2 3; do (time "$SASE" file-history list >/dev/null) 2>&1 | grep total; done
+```
 
 ## Out of Scope (but related)
 
