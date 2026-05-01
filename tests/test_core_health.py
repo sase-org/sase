@@ -24,11 +24,13 @@ def _install_fake_extension(
     parse_query: Any = None,
     agent_launch_wire_schema_version: Any = None,
     plan_agent_launch_fanout: Any = None,
+    bead_cli_execute: Any = None,
     version: str | None = "0.0.0-fake",
     file_path: str | None = "/fake/sase_core_rs/__init__.py",
     omit_parse_query: bool = False,
     omit_agent_launch_wire_schema_version: bool = False,
     omit_plan_agent_launch_fanout: bool = False,
+    omit_bead_cli_execute: bool = False,
 ) -> types.ModuleType:
     """Install a fake ``sase_core_rs`` in ``sys.modules`` for the test."""
 
@@ -53,6 +55,21 @@ def _install_fake_extension(
             "requires_sequential_naming_wait": False,
         }
 
+    def _bead_cli_execute(
+        argv: list[str],
+        _read_beads_dirs: list[str],
+        _write_beads_dir: str,
+        _cwd: str,
+        _relativize_design_paths: bool,
+    ) -> dict[str, Any]:
+        return {
+            "handled": True,
+            "exit_code": 0,
+            "stdout": f"○ {argv[1]} · Health   [OPEN]\n",
+            "stderr": "",
+            "mutation_summary": None,
+        }
+
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     if not omit_parse_query:
         fake.parse_query = parse_query if parse_query is not None else _ok  # type: ignore[attr-defined]
@@ -67,6 +84,10 @@ def _install_fake_extension(
             plan_agent_launch_fanout
             if plan_agent_launch_fanout is not None
             else _launch_plan
+        )
+    if not omit_bead_cli_execute:
+        fake.bead_cli_execute = (  # type: ignore[attr-defined]
+            bead_cli_execute if bead_cli_execute is not None else _bead_cli_execute
         )
     if version is not None:
         fake.__version__ = version  # type: ignore[attr-defined]
@@ -102,6 +123,7 @@ def test_health_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.extras["probes"]["parse_query"] is True
     assert report.extras["probes"]["agent_launch_wire_schema_version"] is True
     assert report.extras["probes"]["plan_agent_launch_fanout"] is True
+    assert report.extras["probes"]["bead_cli_execute"] is True
     assert report.error is None
 
 
@@ -182,6 +204,42 @@ def test_health_extension_missing_launch_binding(
     assert "plan_agent_launch_fanout" in report.error
     assert report.extras["probes"]["parse_query"] is True
     assert report.extras["probes"]["plan_agent_launch_fanout"] is False
+
+
+def test_health_extension_missing_bead_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_extension(monkeypatch, omit_bead_cli_execute=True)
+
+    report = check_backend_health()
+
+    assert report.status == HEALTH_ERROR
+    assert report.rust_extension_loaded is True
+    assert report.probe_ok is False
+    assert report.error_kind == "AttributeError"
+    assert report.error is not None
+    assert "bead_cli_execute" in report.error
+    assert report.extras["probes"]["parse_query"] is True
+    assert report.extras["probes"]["plan_agent_launch_fanout"] is True
+    assert report.extras["probes"]["bead_cli_execute"] is False
+
+
+def test_health_bead_probe_failure_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _broken_bead_cli_execute(*_args: Any) -> dict[str, Any]:
+        return {"handled": False, "exit_code": 0, "stdout": "", "stderr": ""}
+
+    _install_fake_extension(monkeypatch, bead_cli_execute=_broken_bead_cli_execute)
+
+    report = check_backend_health()
+
+    assert report.status == HEALTH_ERROR
+    assert report.rust_extension_loaded is True
+    assert report.probe_ok is False
+    assert report.error_kind == "RuntimeError"
+    assert report.error is not None
+    assert "bead CLI probe was not handled" in report.error
 
 
 def test_report_to_dict_is_json_serializable(

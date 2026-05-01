@@ -2,7 +2,7 @@
 
 A subset of sase's core APIs is served by a Rust extension distributed as
 [`sase-core-rs`](https://pypi.org/project/sase-core-rs/) on PyPI and built from the sibling
-[`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares `sase-core-rs>=0.1.0,<0.2.0` as a hard
+[`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares `sase-core-rs>=0.1.1,<0.2.0` as a hard
 runtime dependency, so a normal `pip install sase` (or `uv tool install sase`) on a supported platform pulls a prebuilt
 wheel automatically — no Rust toolchain required, no env-var selection, no Python fallback for ported operations.
 
@@ -31,6 +31,12 @@ The shipped Rust-backed operations are:
   - `prepare_agent_launch`
   - `spawn_prepared_agent_process`
   - `plan_agent_launch_fanout`
+- Rust-backed bead operations:
+  - read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups)
+  - merged multi-workspace read queries
+  - mutations (`init`, `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags, JSONL export)
+  - deterministic epic work DAG planning
+  - the early `sase bead` CLI fast path for common read/write commands
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 
@@ -52,6 +58,10 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - Agent cleanup process signalling and TUI orchestration stay on the host. The Rust boundary owns reusable planning,
   deterministic dismissed-agent data mutations, artifact deletion, workspace-release content rewrites, and
   ChangeSpec-entry kill marking exposed through Python helpers in `sase.core.agent_cleanup_*`.
+- Bead host responsibilities stay in Python where they touch the surrounding application: storage-location discovery,
+  SASE workspace/project lookup, VCS prompt context for `sase bead work`, xprompt resolution, user confirmation, agent
+  launch, rollback of already-spawned children, and telemetry increments. Rust owns the bead data model, storage/query
+  engine, JSONL codecs, mutation transactions, workspace merge, deterministic work-plan DAG, and CLI output planning.
 
 ## Why a Rust Backend?
 
@@ -105,6 +115,9 @@ The facade lives at `src/sase/core/`:
 | `agent_launch_wire.py`         | Stable launch, workspace-claim, and fan-out wire records                                                           |
 | `agent_launch_facade.py`       | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
 | `agent_launch_claims.py`       | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
+| `bead_read_facade.py`          | Rust-backed bead read and merged-workspace read facade                                                             |
+| `bead_mutation_facade.py`      | Rust-backed bead mutation facade                                                                                   |
+| `bead_wire.py`                 | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
 | `status_wire.py`               | Stable wire records for the status state machine                                                                   |
 | `status_wire_conversion.py`    | Python plan reference + project-file → request-wire converter                                                      |
 | `git_query_facade.py`          | Pure Git query parsers facade (Rust)                                                                               |
@@ -113,10 +126,13 @@ The facade lives at `src/sase/core/`:
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
 
-## Bead Migration Baseline
+## Bead Backend
 
-The `sase bead` migration is tracked by `plans/202605/bead_rust_backend_migration.md`. Phase A freezes the Python-owned
-behavior with golden fixtures before any bead storage/query/mutation logic moves into `sase-core`.
+The `sase bead` migration is tracked by `plans/202605/bead_rust_backend_migration.md`. The shipped path is now
+Rust-owned for data operations: JSONL/config parsing, SQLite rebuild/query, mutations, workspace merge, deterministic
+epic work planning, and common CLI output planning all live in `sase-core` and are exposed through `sase_core_rs`.
+Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts, launch/rollback,
+and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
 
@@ -147,7 +163,7 @@ installed console script. The harness reports JSON summaries for:
 - merged workspace reads across three bead stores;
 - synthetic stores sized by `--issues` and `--dependencies`.
 
-Current Phase A local baseline on the active 399-line store was approximately:
+The Phase A local baseline on the then-active 399-line store was approximately:
 
 | Command / action            | Baseline |
 | --------------------------- | -------- |
@@ -158,7 +174,7 @@ Current Phase A local baseline on the active 399-line store was approximately:
 | Importing `sase.main.entry` | 0.23s    |
 | Importing `sase_core_rs`    | 0.02s    |
 
-Initial proposed gates for later Rust-backed phases:
+Post-migration targets for bead checks and future regression floors:
 
 - `sase bead list`, `ready`, and `show` on the current-size store: p50 under 120ms from shell command start.
 - Direct Rust read bindings after Python startup: p50 under 10ms.
@@ -221,9 +237,9 @@ If a contributor's local checkout does not have a working `sase_core_rs`, the fi
 ## Backend Health Check
 
 `sase core health` is the scriptable answer to "is the Rust extension loadable and working?". It imports `sase_core_rs`,
-calls cheap parser and launch probes (`parse_query("status:Ready")`, `agent_launch_wire_schema_version()`, and
-`plan_agent_launch_fanout(...)`), and reports module path / version / Python version / platform tag in one block. Two
-output modes:
+calls cheap parser, launch, and bead probes (`parse_query("status:Ready")`, `agent_launch_wire_schema_version()`,
+`plan_agent_launch_fanout(...)`, and a temporary-store `bead_cli_execute(["show", ...])`), and reports module path /
+version / Python version / platform tag in one block. Two output modes:
 
 ```bash
 sase core health        # human-readable, line-oriented
@@ -234,9 +250,9 @@ Exit codes:
 
 | Extension state                                 | `status` | Exit |
 | ----------------------------------------------- | -------- | ---- |
-| importable, parser + launch probes work         | `ok`     | 0    |
+| importable, parser + launch + bead probes work  | `ok`     | 0    |
 | missing or misbuilt                             | `error`  | 1    |
-| importable but a parser/launch probe fails      | `error`  | 1    |
+| importable but a parser/launch/bead probe fails | `error`  | 1    |
 | importable but missing a representative binding | `error`  | 1    |
 
 A misbuilt wheel that fails to import with a non-`ImportError` is surfaced verbatim in the `error` / `error_kind` fields
@@ -261,6 +277,7 @@ sibling checkout are never blocked.
 | `just rust-check`           | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                         |
 | `just rust-bench`           | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                          |
 | `just bench-core`           | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                          |
+| `just bead-perf-smoke`      | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                             |
 | `just bench-agent-scan`     | Python agent-artifact scan benchmark vs current direct loaders                                              |
 | `just bench-agent-launch`   | Fake-spawn launch benchmark through the Rust preparation binding                                            |
 | `just launch-perf-check`    | CI-friendly launch regression check against the Phase 1 fan-out baseline                                    |
@@ -396,8 +413,8 @@ uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 When investigating a Rust-extension issue:
 
 - **Confirm the extension is loaded.** `sase core health` (or `sase core health -j` for scripts) prints the
-  `sase_core_rs` module path / version and the result of cheap parser plus launch binding probes. Exit code 0 means the
-  extension loaded and worked; non-zero means the wheel is missing, stale, or misbuilt.
+  `sase_core_rs` module path / version and the result of cheap parser, launch, and bead binding probes. Exit code 0
+  means the extension loaded and worked; non-zero means the wheel is missing, stale, or misbuilt.
 - **Recognise a wheel-load failure.** A missing or stale extension surfaces as `ImportError` / `AttributeError` from a
   shipped operation, or as `sase core health` exit code 1 with `error_kind` / `error` fields naming the underlying
   import error. The publish-workflow `install-smoke` runs `sase core health` on every release and dumps `pip list` plus
@@ -415,14 +432,16 @@ sase core health -j          # same, JSON for scripting
 
 just check                   # full lint + type + test pass
 just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
+just bead-perf-smoke         # tiny Rust-backed bead shell/facade/work-plan benchmark
 just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline
 just phase7-perf-check       # Phase 7 regression-floor check against the recorded Rust ceilings
 ```
 
-CI runs the full test suite under CPython 3.12 / 3.13 / 3.14 (`.github/workflows/ci.yml`); the publish workflow's
-`install-smoke` job installs the built `sase` wheel into a fresh venv and runs `sase core health`; on failure it dumps
-`pip list`, Python/platform info, and `sase_core_rs.__file__` / `__version__` so missing-wheel or ABI-mismatch failures
-are diagnosable from the build log without a manual repro.
+CI runs the full test suite under CPython 3.12 / 3.13 / 3.14 (`.github/workflows/ci.yml`). The dedicated `bead-backend`
+job checks the sibling Rust core (`just rust-check`), focused Python bead tests, cross-repo bead facade parity tests,
+and `just bead-perf-smoke`. The publish workflow's `install-smoke` job installs the built `sase` wheel into a fresh venv
+and runs `sase core health`; on failure it dumps `pip list`, Python/platform info, and `sase_core_rs.__file__` /
+`__version__` so missing-wheel or ABI-mismatch failures are diagnosable from the build log without a manual repro.
 
 ## Golden Contract
 
@@ -439,6 +458,7 @@ across parser, query, agent scan, status, and Git query helpers:
 | Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`                |
 | Git query parsers            | `tests/test_core_git_query.py`                                                                                              |
 | Agent launch                 | `tests/test_core_agent_launch_wire.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
+| Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/bead_*`                   |
 | Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                      |
 
 The `tests/core_golden/` corpus (`myproj.gp`, `myproj-archive.gp`) plus the `inline_snapshot` JSON expectations in

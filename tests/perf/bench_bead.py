@@ -1,7 +1,8 @@
-"""Benchmark the current Python-owned ``sase bead`` implementation.
+"""Benchmark the Rust-backed ``sase bead`` implementation.
 
-The Phase A bead migration contract uses this as the reproducible baseline
-before later phases move storage/query/mutation work into ``sase-core``.
+The bead migration uses this harness for both historical baselines and the
+post-migration smoke/regression floor. It measures shell commands, Python
+facade calls, merged workspace reads, and epic work-plan construction.
 
 Run directly:
 

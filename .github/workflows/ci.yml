@@ -147,6 +147,53 @@ jobs:
       - name: Build and verify package
         run: just build-check
 
+  # Bead backend gate for the `sase bead` Rust migration. This job keeps the
+  # focused Python bead contract, Rust bead/parity tests, cross-repo facade
+  # tests, and a small benchmark smoke together so stale bindings are caught
+  # before the broad matrix hides the cause.
+  bead-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          path: sase-core
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.50.0/just-1.50.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/just.tar.gz
+          echo "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0  /tmp/just.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/just.tar.gz -C /tmp just
+          sudo install -m 0755 /tmp/just /usr/local/bin/just
+          just --version
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: just install
+      - name: Run Rust bead checks
+        run: just rust-check
+      - name: Run Python bead parity and CLI tests
+        run: |
+          .venv/bin/pytest \
+            tests/test_bead \
+            tests/test_core_facade/test_bead_read.py \
+            tests/test_core_facade/test_bead_mutation.py
+      - name: Run bead performance smoke
+        run: just bead-perf-smoke
+      - name: Upload bead performance smoke
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bead-perf-smoke
+          path: plans/202605/perf_artifacts/bead_perf_smoke.json
+
   # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
   # Phase 7B core-operation benchmarks against the recorded
   # tests/perf/baselines/phase7_regression_floor.json and fails on a

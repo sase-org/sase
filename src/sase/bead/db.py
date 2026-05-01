@@ -1,4 +1,7 @@
-"""SQLite database layer for issue storage."""
+"""Compatibility SQLite helpers for bead tests and legacy callers.
+
+Production bead reads and mutations route through ``sase_core_rs`` facades.
+"""
 
 from __future__ import annotations
 

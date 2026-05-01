@@ -1,8 +1,9 @@
 # Bead Issue Tracking
 
-Bead is a lightweight, git-native issue tracking system built into sase. It uses SQLite for local querying with JSONL
-export for git portability (inspired by [Fossil](https://fossil-scm.org/)). Issues are organized into a two-tier
-hierarchy: **Plans** (epics) group related work, and **Phases** (child tasks) break plans into actionable steps.
+Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed SQLite/query/mutation logic
+through the required `sase_core_rs` extension, with JSONL export for git portability (inspired by
+[Fossil](https://fossil-scm.org/)). Issues are organized into a two-tier hierarchy: **Plans** (epics) group related
+work, and **Phases** (child tasks) break plans into actionable steps.
 
 ## Table of Contents
 
@@ -16,6 +17,7 @@ hierarchy: **Plans** (epics) group related work, and **Phases** (child tasks) br
   - [SQLite + JSONL Dual Storage](#sqlite--jsonl-dual-storage)
   - [Sync Mechanism](#sync-mechanism)
 - [CLI Commands](#cli-commands)
+- [Rust Backend](#rust-backend)
 - [Multi-Workspace Support](#multi-workspace-support)
 - [ACE TUI Integration](#ace-tui-integration)
 
@@ -87,11 +89,11 @@ In non-version-controlled mode, the directory is `.sase/sdd/beads/` with the sam
 
 ### SQLite + JSONL Dual Storage
 
-SQLite is the primary store for fast local queries. JSONL is the git-portable format that gets committed. The two are
-kept in sync:
+Rust owns the bead storage/query/mutation path. SQLite is the local query cache and mutation target; JSONL is the
+git-portable format that gets committed. The two are kept in sync:
 
-- **Writes** go to SQLite first, then export to JSONL on sync.
-- **Reads** come from SQLite for speed.
+- **Writes** run through Rust mutation transactions, update SQLite, then export the portable JSONL state.
+- **Reads** run through Rust read APIs, rebuilding SQLite from JSONL first when the cache is missing or stale.
 - **Fresh clones** rebuild the SQLite database automatically from `issues.jsonl` on first access.
 
 The `.gitignore` excludes `beads.db*` files so only `issues.jsonl` and `config.json` are tracked in git.
@@ -201,6 +203,9 @@ Run health checks on the beads database. Checks for:
 - Uncommitted JSONL changes
 - Orphan children (phases whose parent plan is missing)
 
+If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
+extension is importable and exposes the representative bead CLI binding used by the fast path.
+
 ### `sase bead onboard`
 
 Display a quick-start guide with common command examples.
@@ -242,13 +247,33 @@ If launching the multi-prompt fails partway through, the launcher SIGTERMs any a
 back the pre-claims and the `is_ready_to_work` flag when this run set it (best-effort), so the epic can be retried
 without leaving zombie agents behind.
 
+## Rust Backend
+
+The bead data model, JSONL/config codecs, SQLite rebuild/query layer, mutation transactions, ID allocation, workspace
+merge, deterministic work-plan DAG, and common CLI output planning are implemented in `sase-core` and exposed through
+`sase_core_rs`. Python keeps the host logic that belongs in the application layer: locating the active bead stores,
+relativizing plan paths, resolving VCS context and xprompts for `sase bead work`, prompting the user, launching agents,
+rolling back failed launches, and incrementing telemetry counters.
+
+Common `sase bead` commands dispatch through an early CLI fast path before the full top-level parser is built. Help text
+and host-coupled commands still fall through to the normal Python parser/handlers where needed.
+
+Use these checks when changing bead internals:
+
+```bash
+sase core health -j
+pytest tests/test_bead tests/test_core_facade/test_bead_read.py tests/test_core_facade/test_bead_mutation.py
+just rust-check
+just bead-perf-smoke
+```
+
 ## Multi-Workspace Support
 
 When running in version-controlled mode with multiple workspace variants (e.g., `myproject/`, `myproject_2/`,
 `myproject_3/`), bead provides a merged read view across all workspaces:
 
-- **Reads** (list, show, ready, blocked, stats) aggregate issues from all workspace variants using an in-memory SQLite
-  merge. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins.
+- **Reads** (list, show, ready, blocked, stats) aggregate issues from all workspace variants using the Rust merged
+  workspace view. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins.
 - **Writes** (create, update, close, rm, dep add) always go to the primary workspace only.
 - **ID allocation** scans JSONL stores from all discovered workspace variants before assigning the next top-level or
   child ID, preventing agents in sibling workspaces from reusing IDs that have not yet been merged into the primary

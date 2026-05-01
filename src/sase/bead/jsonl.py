@@ -1,4 +1,8 @@
-"""JSONL import/export for git-portable issue storage."""
+"""Compatibility JSONL import/export helpers for bead tests and sync mirrors.
+
+Production bead codecs live in ``sase_core_rs``; these helpers remain for
+legacy callers that operate on an existing SQLite connection.
+"""
 
 from __future__ import annotations
 

@@ -39,7 +39,9 @@ BEADS_DIRNAME_NON_VC = "beads"
 class BeadProject:
     """Main API for beads issue tracking.
 
-    Wraps the database, config, and sync layers into a single interface.
+    Preserves the historical Python API while delegating storage, reads, and
+    mutations to Rust-backed facades. The local SQLite connection is kept as a
+    compatibility mirror for legacy helpers/tests that still need one.
     """
 
     def __init__(

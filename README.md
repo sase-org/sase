@@ -483,8 +483,9 @@ drastically simplifying the surface area:
 - **Multi-workspace aggregation** — Because sase already manages multiple parallel workspaces, `sase bead` can read
   issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
   project state without Dolt's sync machinery.
-- **No external binary** — beads ships as a ~37MB Go binary with its own daemon process; `sase bead` is pure Python,
-  installed as part of sase, with zero additional dependencies.
+- **No external binary** — beads ships as a ~37MB Go binary with its own daemon process; `sase bead` is installed as
+  part of sase and uses the required `sase_core_rs` extension for local storage/query/mutation speed, with no separate
+  daemon to run.
 
 The philosophical debt is real: beads proved that giving agents structured issue tracking — not just chat history —
 fundamentally changes what's possible in multi-session agentic workflows. `sase bead` takes the ~5% of that system that

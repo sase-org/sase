@@ -238,12 +238,17 @@ rust-install-uv-tool:
      just rust-install "$TOOL_VENV"
 
 # Run `cargo test --workspace` in ../sase-core.
-rust-test:
+rust-test: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-test] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
         exit 0; \
     fi
-    cd {{ sase_core_dir }} && cargo test --workspace
+    PY_LIBDIR="$({{ venv_bin_abs }}/python -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR") or "")')"; \
+    cd {{ sase_core_dir }} && \
+        VIRTUAL_ENV={{ venv_dir_abs }} \
+        LD_LIBRARY_PATH="$PY_LIBDIR:${LD_LIBRARY_PATH:-}" \
+        PYO3_PYTHON={{ venv_bin_abs }}/python \
+        cargo test --workspace
 
 # Auto-format Rust sources in ../sase-core.
 rust-fmt:
@@ -262,12 +267,15 @@ rust-fmt-check:
     cd {{ sase_core_dir }} && cargo fmt --all -- --check
 
 # Run clippy with warnings-as-errors in ../sase-core.
-rust-clippy:
+rust-clippy: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-clippy] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
         exit 0; \
     fi
-    cd {{ sase_core_dir }} && cargo clippy --workspace --all-targets -- -D warnings
+    cd {{ sase_core_dir }} && \
+        VIRTUAL_ENV={{ venv_dir_abs }} \
+        PYO3_PYTHON={{ venv_bin_abs }}/python \
+        cargo clippy --workspace --all-targets -- -D warnings
 
 # Run the Rust direct-parser benchmark (no Python in the loop).
 rust-bench *args:
@@ -310,6 +318,19 @@ bench-agent-launch *args: _setup
 launch-perf-check *args: _setup
     @printf "\n---------- Agent launch regression floor (sase-1r.9) ----------\n"
     {{ venv_bin }}/python tests/perf/check_agent_launch_regression.py {{ args }}
+
+# Run a tiny bead benchmark as a CI smoke. This records the Rust-backed
+# shell/facade/work-plan path without enforcing workstation-sensitive latency
+# thresholds.
+bead-perf-smoke *args: _setup
+    @printf "\n---------- Bead backend performance smoke (sase-1u) ----------\n"
+    mkdir -p plans/202605/perf_artifacts
+    {{ venv_bin }}/python tests/perf/bench_bead.py \
+        --runs 1 \
+        --issues 50 \
+        --dependencies 25 \
+        --output plans/202605/perf_artifacts/bead_perf_smoke.json \
+        {{ args }}
 
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,

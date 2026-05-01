@@ -11,15 +11,17 @@ Behavior summary:
   the CLI exits non-zero. Non-``ImportError`` import-time failures (e.g. ABI
   mismatch) surface verbatim so a misbuilt wheel does not look like a
   missing install.
-- The extension must expose representative parser and agent-launch bindings.
-  Any missing or failing probe produces ``status="error"``.
+- The extension must expose representative parser, agent-launch, and bead
+  bindings. Any missing or failing probe produces ``status="error"``.
 """
 
 from __future__ import annotations
 
 import platform
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME, require_rust_extension
@@ -30,6 +32,7 @@ HEALTH_ERROR = "error"
 _HEALTH_PROBE_QUERY = "status:Ready"
 _HEALTH_PROBE_PROMPT = "health check launch prompt"
 _HEALTH_PROBE_LAUNCH_KIND = "multi_prompt"
+_HEALTH_PROBE_BEAD_ID = "health-1"
 
 
 @dataclass(frozen=True)
@@ -81,9 +84,9 @@ def check_backend_health() -> BackendHealthReport:
     Steps:
 
     1. Try to import ``sase_core_rs`` via the strict loader.
-    2. Call cheap shipped parser and launch-planning bindings. The launch
-       probe catches stale wheels from the Rust-backed launch migration before
-       a user discovers the missing binding during an agent launch.
+    2. Call cheap shipped parser, launch-planning, and bead bindings. The
+       launch and bead probes catch stale wheels before a user discovers the
+       missing binding during an agent launch or ``sase bead`` command.
 
     A missing or broken ``sase_core_rs`` is reported as ``status="error"``.
     """
@@ -94,6 +97,7 @@ def check_backend_health() -> BackendHealthReport:
         "parse_query": False,
         "agent_launch_wire_schema_version": False,
         "plan_agent_launch_fanout": False,
+        "bead_cli_execute": False,
     }
 
     try:
@@ -175,6 +179,63 @@ def check_backend_health() -> BackendHealthReport:
                     f"{RUST_EXTENSION_MODULE_NAME}.plan_agent_launch_fanout("
                     f"{_HEALTH_PROBE_LAUNCH_KIND!r}) raised "
                     f"{type(exc).__name__}: {exc}"
+                )
+                error_kind = type(exc).__name__
+
+    if rust_loaded and error is None:
+        try:
+            bead_cli_execute = rust_module.bead_cli_execute
+        except AttributeError:
+            error = (
+                f"{RUST_EXTENSION_MODULE_NAME} is importable but does not "
+                "expose bead_cli_execute; the extension is too old or was "
+                "built without the Rust-backed bead bindings."
+            )
+            error_kind = "AttributeError"
+        else:
+            try:
+                with tempfile.TemporaryDirectory(prefix="sase_core_health_bead_") as td:
+                    root = Path(td)
+                    beads_dir = root / ".sase_beads"
+                    beads_dir.mkdir()
+                    (beads_dir / "config.json").write_text(
+                        '{"issue_prefix":"health","next_counter":2,"owner":""}\n',
+                        encoding="utf-8",
+                    )
+                    (beads_dir / "issues.jsonl").write_text(
+                        (
+                            '{"id":"health-1","title":"Health","status":"open",'
+                            '"issue_type":"plan","parent_id":null,"owner":"",'
+                            '"assignee":"","created_at":"2026-01-01T00:00:00Z",'
+                            '"created_by":"","updated_at":"2026-01-01T00:00:00Z",'
+                            '"closed_at":null,"close_reason":null,'
+                            '"description":"","notes":"","design":"",'
+                            '"is_ready_to_work":false,"changespec_name":"",'
+                            '"changespec_bug_id":"","dependencies":[]}\n'
+                        ),
+                        encoding="utf-8",
+                    )
+                    outcome = bead_cli_execute(
+                        ["show", _HEALTH_PROBE_BEAD_ID],
+                        [str(beads_dir)],
+                        str(beads_dir),
+                        str(root),
+                        True,
+                    )
+                if not isinstance(outcome, dict) or not outcome.get("handled"):
+                    raise RuntimeError("bead CLI probe was not handled")
+                if int(outcome.get("exit_code") or 0) != 0:
+                    raise RuntimeError(
+                        f"bead CLI probe exited {outcome.get('exit_code')}"
+                    )
+                if _HEALTH_PROBE_BEAD_ID not in str(outcome.get("stdout") or ""):
+                    raise RuntimeError("bead CLI probe did not print the issue")
+                probes["bead_cli_execute"] = True
+            except Exception as exc:  # noqa: BLE001 — surface broken wheel.
+                error = (
+                    f"{RUST_EXTENSION_MODULE_NAME}.bead_cli_execute("
+                    f"{_HEALTH_PROBE_BEAD_ID!r}) raised {type(exc).__name__}: "
+                    f"{exc}"
                 )
                 error_kind = type(exc).__name__
 
