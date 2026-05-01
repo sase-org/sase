@@ -363,11 +363,7 @@ def test_launch_multi_prompt_agents_resolves_cd_per_segment(
         ("cd", str(dir_a)),
         ("cd", str(dir_b)),
     ]
-    create_artifacts.assert_called_once_with(
-        "ace-run",
-        project_name=dir_a.name,
-        timestamp="260501_120000",
-    )
+    create_artifacts.assert_not_called()
     first_ws.assert_not_called()
 
 
@@ -419,11 +415,7 @@ def test_launch_multi_prompt_agents_defaults_bare_segment_to_cd_home(
         ("cd", str(dir_a)),
         ("cd", "~"),
     ]
-    create_artifacts.assert_called_once_with(
-        "ace-run",
-        project_name=dir_a.name,
-        timestamp="260501_120000",
-    )
+    create_artifacts.assert_not_called()
     first_ws.assert_not_called()
 
 
@@ -448,7 +440,7 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
         spawn.return_value = MagicMock(pid=1)
         wait.return_value = "home-agent"
         launch_multi_prompt_agents(
-            segments=["first", "second"],
+            segments=["first", "%wait\nsecond"],
             local_xprompts={},
             cl_name="base",
             project_file="/projects/base/base.gp",
@@ -460,7 +452,7 @@ def test_launch_multi_prompt_bare_home_wait_uses_home_artifacts(
 
     assert [c.kwargs["prompt"] for c in spawn.call_args_list] == [
         "#cd:~ first",
-        "#cd:~ second",
+        "%wait:home-agent\n#cd:~ second",
     ]
     assert [c.kwargs["workspace_dir"] for c in spawn.call_args_list] == [home, home]
     create_artifacts.assert_called_once_with(

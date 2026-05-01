@@ -30,6 +30,19 @@ def get_next_auto_name() -> str:
     return _next_available_name(used)
 
 
+def allocate_auto_names(count: int, *, reserved: set[str] | None = None) -> list[str]:
+    """Allocate *count* auto names from one active-name snapshot."""
+    if count <= 0:
+        raise ValueError(f"count must be positive, got {count}")
+    used = get_active_agent_names() if reserved is None else reserved
+    names: list[str] = []
+    for _ in range(count):
+        name = _next_available_name(used)
+        used.add(name)
+        names.append(name)
+    return names
+
+
 def get_active_agent_names() -> set[str]:
     """Return the set of names reserved by visible, non-dismissed agents.
 

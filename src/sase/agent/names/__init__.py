@@ -15,6 +15,7 @@ import json
 import os
 
 from sase.agent.names._auto import (
+    allocate_auto_names,
     allocate_revived_name,
     dedup_name,
     get_active_agent_name_map,
@@ -140,6 +141,7 @@ __all__ = [
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
+    "allocate_auto_names",
     "agent_name_allocation_lock",
     "allocate_dismissed_name",
     "allocate_resume_name",

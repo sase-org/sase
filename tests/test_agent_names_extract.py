@@ -16,6 +16,7 @@ def _run_extract(
     tmp_path: Path,
     *,
     env_auto_dismiss: bool = False,
+    planned_name: str | None = None,
     prompt: str = "do stuff",
     raw_resolved_prompt: str | None = None,
 ) -> dict:
@@ -33,6 +34,8 @@ def _run_extract(
     env_patch: dict[str, str] = {}
     if env_auto_dismiss:
         env_patch["SASE_AGENT_AUTO_DISMISS"] = "1"
+    if planned_name is not None:
+        env_patch["SASE_AGENT_PLANNED_NAME"] = planned_name
 
     with (
         patch.dict(os.environ, env_patch, clear=False),
@@ -50,6 +53,8 @@ def _run_extract(
         # Remove the env var if not auto_dismiss (in case it leaked)
         if not env_auto_dismiss:
             os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
+        if planned_name is None:
+            os.environ.pop("SASE_AGENT_PLANNED_NAME", None)
         info = extract_directives_and_write_meta(
             prompt,
             workspace,
@@ -104,6 +109,17 @@ class TestExtractDirectivesAutoDismiss:
             )
         assert result["info"].name == "foo.r1"
         assert result["meta"].get("name") == "foo.r1"
+
+    def test_planned_name_wins_for_non_explicit_auto_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                planned_name="planned",
+                prompt="expanded prompt",
+            )
+        assert result["info"].name == "planned"
+        assert result["meta"].get("name") == "planned"
 
     def test_explicit_name_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

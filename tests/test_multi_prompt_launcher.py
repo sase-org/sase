@@ -166,7 +166,7 @@ def test_launch_multi_prompt_sequential_calls(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Verifies sequential spawn calls with naming-wait between them."""
+    """Verifies sequential spawn calls without unneeded naming waits."""
     mock_first_ws.return_value = 100
     mock_ws_dir.return_value = ("/workspace/100", None)
     mock_timestamp.return_value = "260501_120000"
@@ -186,8 +186,8 @@ def test_launch_multi_prompt_sequential_calls(
 
     assert len(results) == 3
     assert mock_spawn.call_count == 3
-    # naming-wait called between launches (not after last one)
-    assert mock_wait.call_count == 2
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
     mock_sleep.assert_not_called()
 
 
@@ -248,9 +248,11 @@ def test_launch_multi_prompt_allocates_unique_timestamps_without_sleep(
 @patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
+@patch("sase.agent.names.get_active_agent_names", return_value=set())
 @patch("sase.running_field.get_workspace_directory")
 def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     mock_wait_ws_dir: MagicMock,
+    mock_active_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
     mock_sleep: MagicMock,
@@ -287,12 +289,12 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     ]
     assert [c.kwargs["workspace_num"] for c in calls] == [0, 0, 0]
     assert [c.kwargs["deferred_workspace"] for c in calls] == [True, True, True]
-    assert (
-        mock_create_artifacts.call_args_list[0].kwargs["timestamp"] == "260501_120000"
-    )
-    assert (
-        mock_create_artifacts.call_args_list[1].kwargs["timestamp"] == "260501_120001"
-    )
+    assert mock_create_artifacts.call_count == 0
+    assert mock_wait.call_count == 0
+    assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "a"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "b"
+    assert calls[1].kwargs["prompt"].startswith("%wait:a")
+    assert calls[2].kwargs["prompt"].startswith("%wait:b")
     mock_sleep.assert_not_called()
 
 
@@ -482,9 +484,48 @@ def test_launch_multi_prompt_with_multi_model_segment(
         "260501_120002",
     ]
 
-    # Naming-wait should fire between segments (not between model variants).
-    assert mock_wait.call_count == 1
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
     mock_sleep.assert_not_called()
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Multi-model generated names are available for following bare waits."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["%n:ag\n%m(opus,sonnet)\nBuild", "%wait\nReview"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+    assert mock_spawn.call_args_list[2].kwargs["prompt"] == (
+        "%wait:ag.cld-sonnet\nReview"
+    )
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -578,6 +619,86 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
 
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Known explicit predecessor names avoid parent-side naming polling."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["%name:builder\nBuild", "%wait\nReview"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:builder\nReview"
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_active_agent_names", return_value=set())
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Auto-named predecessors are declared by env and used in bare waits."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["Build", "%wait\nReview"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+    assert (
+        mock_spawn.call_args_list[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
+        == "a"
+    )
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:a\nReview"
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -727,8 +848,8 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
         launch_multi_prompt_agents(
             segments=[
                 "#git:alpha first",
-                "#git:beta second",
-                "#git:gamma third",
+                "%wait\n#git:beta second",
+                "%wait\n#git:gamma third",
             ],
             local_xprompts={},
             cl_name="base",
@@ -745,8 +866,13 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
     ]
     assert [c.kwargs["workspace_dir"] for c in mock_spawn.call_args_list] == [
         "/work/alpha_10",
-        "/work/beta_20",
-        "/work/gamma_30",
+        "/work/beta",
+        "/work/gamma",
+    ]
+    assert [c.kwargs["workspace_num"] for c in mock_spawn.call_args_list] == [
+        10,
+        0,
+        0,
     ]
     assert [c.kwargs for c in mock_create_artifacts.call_args_list] == [
         {"project_name": "alpha", "timestamp": "260501_120000"},
@@ -760,3 +886,5 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
         ("/artifacts/alpha",),
         ("/artifacts/beta",),
     ]
+    assert mock_spawn.call_args_list[1].kwargs["prompt"].startswith("%wait:alpha-agent")
+    assert mock_spawn.call_args_list[2].kwargs["prompt"].startswith("%wait:beta-agent")

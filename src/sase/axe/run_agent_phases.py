@@ -101,6 +101,7 @@ def extract_directives_and_write_meta(
         resume_name = first_resume_agent_name(raw_resolved_prompt)
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")
+    planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
     name_requires_lock = bool(resume_name)
 
     from contextlib import AbstractContextManager, nullcontext
@@ -129,7 +130,9 @@ def extract_directives_and_write_meta(
         agent_vcs_provider = None
 
     with name_lock_context:
-        if not directives.name_explicit and resume_name is not None:
+        if not directives.name_explicit and planned_name and not auto_dismiss:
+            agent_name = planned_name
+        elif not directives.name_explicit and resume_name is not None:
             from sase.agent.names import allocate_resume_name
 
             agent_name = allocate_resume_name(resume_name)

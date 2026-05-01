@@ -1,12 +1,14 @@
 """Multi-prompt sequential launch orchestration.
 
 When a prompt splits into multiple segments (via ``---`` separators),
-launch each segment as a separate agent with naming-wait between launches.
-This enables bare ``%wait`` in segment N+1 to auto-resolve to agent N's name.
+launch each segment as a separate agent. Bare ``%wait`` in segment N+1 is
+rewritten to the planned name of agent N when that name is knowable; otherwise
+the launcher falls back to the legacy naming poll.
 """
 
 import json
 import os
+import re
 import tempfile
 import time
 from collections.abc import Callable
@@ -15,6 +17,8 @@ from dataclasses import dataclass
 from sase.agent.launcher import AgentLaunchResult
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.xprompt.models import XPrompt
+
+_PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 
 class MultiPromptPartialLaunchError(RuntimeError):
@@ -159,6 +163,148 @@ def _wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | Non
     return None
 
 
+def _extract_static_name_directive(prompt: str) -> str | None:
+    """Return an explicit top-level ``%name`` value that is safe to reuse."""
+    if "%" not in prompt:
+        return None
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+            continue
+
+        value = ""
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None:
+                inner = protected[paren_start + 1 : paren_end]
+                positional_args, _ = parse_args(inner)
+                value = positional_args[0] if positional_args else ""
+        elif match.group(3) is not None:
+            colon_arg = match.group(3)
+            value = (
+                colon_arg[1:-1]
+                if colon_arg.startswith("`") and colon_arg.endswith("`")
+                else colon_arg
+            )
+
+        if not value or "#" in value:
+            return None
+        return value
+    return None
+
+
+def _has_bare_wait_directive(prompt: str) -> bool:
+    """Return True when *prompt* contains a top-level bare ``%wait``."""
+    if "%" not in prompt:
+        return False
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.xprompt._parsing import find_matching_paren_for_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
+            continue
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None and protected[paren_start + 1 : paren_end]:
+                continue
+        elif match.group(3) is not None or match.group(4) is not None:
+            continue
+        return True
+    return False
+
+
+def _rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
+    """Rewrite top-level bare ``%wait``/``%w`` directives to *agent_name*."""
+    if "%" not in prompt:
+        return prompt
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+    from sase.xprompt._parsing import find_matching_paren_for_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    replacements: list[tuple[int, int, str]] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
+            continue
+        if match.group(2) is not None:
+            paren_start = match.end() - 1
+            paren_end = find_matching_paren_for_args(protected, paren_start)
+            if paren_end is not None and protected[paren_start + 1 : paren_end]:
+                continue
+            end = paren_end + 1 if paren_end is not None else match.end()
+        elif match.group(3) is not None or match.group(4) is not None:
+            continue
+        else:
+            end = match.end()
+        replacements.append((match.start(), end, f"%{raw_name}:{agent_name}"))
+
+    rewritten = protected
+    for start, end, value in reversed(replacements):
+        rewritten = rewritten[:start] + value + rewritten[end:]
+    rewritten = unprotect_disabled_regions(rewritten, disabled)
+    return unprotect_fenced_blocks(rewritten, fenced)
+
+
+class _PlannedNameAllocator:
+    """Allocate parent-side names for multi-prompt wait rewrites."""
+
+    def __init__(self) -> None:
+        self._auto_reserved: set[str] | None = None
+
+    def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
+        """Return ``(name, env_value)`` for a prompt, if safely knowable."""
+        explicit_name = _extract_static_name_directive(prompt)
+        if explicit_name is not None:
+            return explicit_name, None
+
+        if "#" in prompt:
+            return None, None
+
+        from sase.agent.names import allocate_auto_names
+
+        if self._auto_reserved is None:
+            from sase.agent.names import get_active_agent_names
+
+            self._auto_reserved = get_active_agent_names()
+        name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
+        return name, name
+
+
 @dataclass(frozen=True)
 class _SegmentVcsContext:
     cl_name: str
@@ -266,13 +412,14 @@ def launch_multi_prompt_agents(
     extra_env: dict[str, str] | None = None,
     default_bare_segments_to_home: bool = False,
 ) -> list[AgentLaunchResult]:
-    """Launch each segment as a separate agent with naming-wait between launches.
+    """Launch each segment as a separate agent.
 
     For each segment:
     1. Serialize only segment-referenced local xprompts (if any) to a temp JSON file.
     2. Allocate a workspace and timestamp.
     3. Spawn the agent subprocess.
-    4. Wait for the agent to write its name to ``agent_meta.json``.
+    4. Poll for the predecessor name only when a following bare ``%wait`` cannot
+       be rewritten from the launch plan.
 
     Returns a list of ``AgentLaunchResult`` for all launched agents.
 
@@ -339,15 +486,25 @@ def _spawn_segments_into(
             "home_mode": is_home_mode,
         },
     )
+    name_allocator = _PlannedNameAllocator()
+    previous_agent_name: str | None = None
     for i, segment in enumerate(segments):
         if default_bare_segments_to_home:
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
+        with timer.stage("wait_rewrite", segment_index=i):
+            segment_has_bare_wait = _has_bare_wait_directive(segment)
+            if segment_has_bare_wait and previous_agent_name:
+                segment = _rewrite_bare_wait_directives(segment, previous_agent_name)
+                segment_has_bare_wait = False
         with timer.stage("prompt_parse", segment_index=i):
             has_wait = has_wait_directive(segment)
             segment_local_xprompts = _local_xprompts_for_segment(
                 segment, local_xprompts
             )
+        next_segment_needs_name = i < len(segments) - 1 and _has_bare_wait_directive(
+            segments[i + 1]
+        )
 
         # Check for multi-model directive (e.g., %m(opus,sonnet)).
         # Try the raw segment first; if no match and the segment contains
@@ -381,11 +538,20 @@ def _spawn_segments_into(
 
         last_timestamp: str | None = None
         last_project_name: str | None = None
+        last_planned_name: str | None = None
         for j, sub_prompt in enumerate(sub_prompts):
             with timer.stage("timestamp_allocate", segment_index=i, slot_index=j):
                 timestamp = timestamps[j]
                 last_timestamp = timestamp
                 workflow_name = f"ace(run)-{timestamp}"
+            with timer.stage("name_plan", segment_index=i, slot_index=j):
+                if next_segment_needs_name:
+                    planned_name, planned_env_name = (
+                        name_allocator.planned_name_for_prompt(sub_prompt)
+                    )
+                else:
+                    planned_name, planned_env_name = None, None
+                last_planned_name = planned_name
 
             # Each sub-prompt gets its own copy of the local xprompts file
             # (the agent runner deletes it after reading).
@@ -428,6 +594,9 @@ def _spawn_segments_into(
                     )
 
             with timer.stage("low_level_spawn", segment_index=i, slot_index=j):
+                slot_extra_env = dict(extra_env or {})
+                if planned_env_name is not None:
+                    slot_extra_env[_PLANNED_AGENT_NAME_ENV] = planned_env_name
                 result = spawn_agent_subprocess(
                     cl_name=segment_ctx.cl_name,
                     project_file=segment_ctx.project_file,
@@ -443,7 +612,7 @@ def _spawn_segments_into(
                     vcs_ref=segment_ctx.vcs_ref,
                     deferred_workspace=has_wait,
                     local_xprompts_file=local_xprompts_file,
-                    extra_env=extra_env,
+                    extra_env=slot_extra_env or None,
                 )
             results.append(result)
             last_project_name = segment_ctx.project_name
@@ -451,9 +620,10 @@ def _spawn_segments_into(
             if on_agent_spawned is not None:
                 on_agent_spawned()
 
-        # Wait for agent naming before launching the next segment,
-        # so bare %wait in the next segment can resolve to this agent.
-        if i < len(segments) - 1:
+        previous_agent_name = last_planned_name
+        # Fall back to the legacy naming poll only when the next segment has
+        # a bare %wait and the previous agent name could not be planned.
+        if next_segment_needs_name and previous_agent_name is None:
             assert last_timestamp is not None
             assert last_project_name is not None
             artifacts_dir = create_artifacts_directory(
@@ -466,6 +636,7 @@ def _spawn_segments_into(
             with timer.stage("multi_prompt_naming_wait", segment_index=i):
                 agent_name = _wait_for_agent_naming(artifacts_dir)
             if agent_name:
+                previous_agent_name = agent_name
                 print(f"  Agent {i + 1}/{len(segments)} named '{agent_name}'")
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
