@@ -1,4 +1,6 @@
 input:
+  project: { type: line, default: "sase" }
+  gh_ref: { type: line, default: "sase" }
   threshold: { type: int, default: 50 }
 
 steps:
@@ -8,7 +10,7 @@ steps:
       import subprocess
       from pathlib import Path
 
-      marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
+      marker = Path.home() / ".sase" / "projects" / "{{ project }}" / "refresh_docs_marker"
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
       if marker.exists():
@@ -40,7 +42,7 @@ steps:
   - name: run_docs
     if: "{{ count_commits.count >= threshold }}"
     agent: |
-      #gh:sase #sase/docs
+      #gh:{{ gh_ref }} #sase/docs
 
   - name: update_marker
     if: "{{ count_commits.count >= threshold }}"
@@ -50,7 +52,7 @@ steps:
 
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
       ts = subprocess.check_output(["git", "log", "-1", "--format=%ct", "HEAD"], text=True).strip()
-      marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
+      marker = Path.home() / ".sase" / "projects" / "{{ project }}" / "refresh_docs_marker"
       marker.parent.mkdir(parents=True, exist_ok=True)
       marker.write_text(f"{head} {ts}")
       print("updated=true")
