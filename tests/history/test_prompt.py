@@ -1,9 +1,13 @@
 """Tests for prompt history functionality."""
 
+import json
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
+import sase.history.prompt as prompt_history
 from sase.history.prompt import (
     PromptEntry,
     _format_prompt_for_display,
@@ -70,6 +74,72 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         assert result[0].timestamp == "251231_100000"
         # last_used should be updated
         assert result[0].last_used == "251231_200000"
+
+
+def test_save_prompt_history_uses_atomic_replace(tmp_path: Path) -> None:
+    """Test that saving writes a temp file and atomically replaces the store."""
+    test_file = tmp_path / "prompt_history.json"
+    entry = PromptEntry(
+        text="test prompt",
+        branch_or_workspace="main",
+        timestamp="251231_100000",
+        last_used="251231_100000",
+        workspace="myproject",
+    )
+    replace_calls: list[tuple[Path, Path]] = []
+    original_replace = os.replace
+
+    def tracking_replace(
+        src: str | os.PathLike[str], dst: str | os.PathLike[str]
+    ) -> None:
+        replace_calls.append((Path(src), Path(dst)))
+        original_replace(src, dst)
+
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch("sase.history.prompt.os.replace", side_effect=tracking_replace),
+    ):
+        assert _save_prompt_history([entry]) is True
+
+    assert len(replace_calls) == 1
+    temp_path, final_path = replace_calls[0]
+    assert temp_path.parent == tmp_path
+    assert temp_path.name.startswith(".prompt_history.json.")
+    assert final_path == test_file
+    assert not temp_path.exists()
+    assert json.loads(test_file.read_text(encoding="utf-8"))["prompts"][0]["text"] == (
+        "test prompt"
+    )
+
+
+def test_save_prompt_history_keeps_existing_file_when_replace_fails(
+    tmp_path: Path,
+) -> None:
+    """Test that a failed atomic replace leaves the existing history intact."""
+    test_file = tmp_path / "prompt_history.json"
+    initial_entry = PromptEntry(
+        text="initial prompt",
+        branch_or_workspace="main",
+        timestamp="251231_100000",
+        last_used="251231_100000",
+        workspace="myproject",
+    )
+    new_entry = PromptEntry(
+        text="new prompt",
+        branch_or_workspace="main",
+        timestamp="251231_200000",
+        last_used="251231_200000",
+        workspace="myproject",
+    )
+
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+        assert _save_prompt_history([initial_entry]) is True
+        with patch("sase.history.prompt.os.replace", side_effect=OSError):
+            assert _save_prompt_history([new_entry]) is False
+
+        result = _load_prompt_history()
+        assert [entry.text for entry in result] == ["initial prompt"]
+        assert list(tmp_path.glob(".prompt_history.json.*.tmp")) == []
 
 
 def test_format_prompt_truncates_long_prompts() -> None:
@@ -139,6 +209,64 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = _load_prompt_history()
         assert result == []
+
+
+def test_add_prompt_does_not_overwrite_after_transient_decode_failure(
+    tmp_path: Path,
+) -> None:
+    """Test that writer load failures do not turn history into a new tiny file."""
+    test_file = tmp_path / "prompt_history.json"
+    initial_entry = PromptEntry(
+        text="initial prompt",
+        branch_or_workspace="main",
+        timestamp="251231_100000",
+        last_used="251231_100000",
+        workspace="myproject",
+    )
+
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+        assert _save_prompt_history([initial_entry]) is True
+
+        with (
+            patch(
+                "sase.history.prompt._get_current_branch_or_workspace",
+                return_value="main",
+            ),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+            patch(
+                "sase.history.prompt.generate_timestamp",
+                return_value="251231_200000",
+            ),
+            patch(
+                "sase.history.prompt.json.load",
+                side_effect=json.JSONDecodeError("transient", "", 0),
+            ),
+        ):
+            add_or_update_prompt("new prompt")
+
+        result = _load_prompt_history()
+        assert [entry.text for entry in result] == ["initial prompt"]
+
+
+def test_concurrent_prompt_writers_preserve_all_entries(tmp_path: Path) -> None:
+    """Test that concurrent writers serialize read/modify/write cycles."""
+    test_file = tmp_path / "prompt_history.json"
+    prompts = [f"prompt number {i}" for i in range(12)]
+
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace",
+            return_value="main",
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            list(executor.map(add_or_update_prompt, prompts))
+
+        result = _load_prompt_history()
+        assert {entry.text for entry in result} == set(prompts)
 
 
 def test_add_cancelled_prompt(tmp_path: Path) -> None:
@@ -323,6 +451,39 @@ def test_multi_prompt_saves_combined_and_segments(tmp_path: Path) -> None:
         assert "Fix the auth bug\n---\n%wait Review the fix and add tests" in texts
         assert "Fix the auth bug" in texts
         assert "%wait Review the fix and add tests" in texts
+
+
+def test_multi_prompt_saves_combined_and_segments_in_one_mutation(
+    tmp_path: Path,
+) -> None:
+    """Test that multi-prompt history does not load/save once per segment."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace",
+            return_value="main",
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+        patch(
+            "sase.history.prompt._load_prompt_history_for_write",
+            wraps=prompt_history._load_prompt_history_for_write,
+        ) as load_for_write,
+        patch(
+            "sase.history.prompt._save_prompt_history",
+            wraps=prompt_history._save_prompt_history,
+        ) as save_history,
+    ):
+        add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
+
+        assert load_for_write.call_count == 1
+        assert save_history.call_count == 1
+        assert {entry.text for entry in _load_prompt_history()} == {
+            "Fix the auth bug\n---\nAdd tests",
+            "Fix the auth bug",
+            "Add tests",
+        }
 
 
 def test_multi_prompt_segment_dedup(tmp_path: Path) -> None:

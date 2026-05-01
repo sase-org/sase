@@ -1,6 +1,11 @@
 """Prompt history storage and retrieval for sase run commands."""
 
+import fcntl
 import json
+import os
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -27,6 +32,20 @@ class PromptEntry:
     last_used: str
     workspace: str
     cancelled: bool = False
+
+
+@dataclass(frozen=True)
+class _PromptMutation:
+    """A prompt history mutation to apply under the writer lock."""
+
+    text: str
+    branch_or_workspace: str
+    workspace: str
+    cancelled: bool
+
+
+class _PromptHistoryLoadError(Exception):
+    """Raised when prompt history cannot be loaded for a safe mutation."""
 
 
 def _get_current_branch_or_workspace() -> str:
@@ -87,8 +106,57 @@ def _load_prompt_history() -> list[PromptEntry]:
             and "last_used" in p
             and "workspace" in p
         ]
-    except (OSError, json.JSONDecodeError, KeyError):
+    except (AttributeError, OSError, json.JSONDecodeError, KeyError):
         return []
+
+
+def _load_prompt_history_for_write() -> list[PromptEntry]:
+    """Load prompt history for a writer without masking corrupt/partial files."""
+    if not _PROMPT_HISTORY_FILE.exists():
+        return []
+
+    try:
+        with open(_PROMPT_HISTORY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+
+        prompts = data.get("prompts", [])
+        return [
+            PromptEntry(
+                text=p["text"],
+                branch_or_workspace=p["branch_or_workspace"],
+                timestamp=p["timestamp"],
+                last_used=p["last_used"],
+                workspace=p["workspace"],
+                cancelled=p.get("cancelled", False),
+            )
+            for p in prompts
+            if isinstance(p, dict)
+            and "text" in p
+            and "branch_or_workspace" in p
+            and "timestamp" in p
+            and "last_used" in p
+            and "workspace" in p
+        ]
+    except (AttributeError, OSError, json.JSONDecodeError, KeyError) as exc:
+        raise _PromptHistoryLoadError from exc
+
+
+def _prompt_history_lock_file() -> Path:
+    """Return the lock file path for prompt history mutations."""
+    return _PROMPT_HISTORY_FILE.with_name(f"{_PROMPT_HISTORY_FILE.name}.lock")
+
+
+@contextmanager
+def _locked_prompt_history() -> Iterator[None]:
+    """Hold an exclusive lock for prompt-history read/modify/write cycles."""
+    lock_file = _prompt_history_lock_file()
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "a+", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
@@ -103,8 +171,25 @@ def _save_prompt_history(prompts: list[PromptEntry]) -> bool:
     try:
         _PROMPT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
         data = {"prompts": [asdict(p) for p in prompts]}
-        with open(_PROMPT_HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{_PROMPT_HISTORY_FILE.name}.",
+            suffix=f".{os.getpid()}.tmp",
+            dir=_PROMPT_HISTORY_FILE.parent,
+            text=True,
+        )
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, _PROMPT_HISTORY_FILE)
+        except OSError:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+            return False
         return True
     except OSError:
         return False
@@ -134,7 +219,6 @@ def add_or_update_prompt(
     if len(text.split()) < _MIN_PROMPT_WORDS:
         return
 
-    prompts = _load_prompt_history()
     current_timestamp = generate_timestamp()
     current_branch = (
         branch_or_workspace
@@ -143,45 +227,88 @@ def add_or_update_prompt(
     )
     current_workspace = project_name if project_name else _get_workspace_name()
 
-    # Check if prompt already exists (by exact text match)
-    existing = next((p for p in prompts if p.text == text), None)
-    if existing:
-        # Update existing prompt's last_used timestamp
-        existing.last_used = current_timestamp
-        # Only upgrade from cancelled to non-cancelled, never downgrade
-        if not cancelled:
-            existing.cancelled = False
-        _save_prompt_history(prompts)
-    else:
-        # Add new prompt
-        new_entry = PromptEntry(
+    mutations = [
+        _PromptMutation(
             text=text,
             branch_or_workspace=current_branch,
-            timestamp=current_timestamp,
-            last_used=current_timestamp,
             workspace=current_workspace,
             cancelled=cancelled,
         )
-        prompts.append(new_entry)
-        _save_prompt_history(prompts)
+    ]
+    mutations.extend(
+        _multi_prompt_segment_mutations(
+            text,
+            project_name=current_workspace,
+            branch_or_workspace=current_branch,
+            cancelled=cancelled,
+        )
+    )
 
-    # Also save individual segments for multi-agent prompts
+    _apply_prompt_mutations(mutations, current_timestamp)
+
+
+def _multi_prompt_segment_mutations(
+    text: str,
+    *,
+    project_name: str,
+    branch_or_workspace: str | None,
+    cancelled: bool,
+) -> list[_PromptMutation]:
+    """Return history mutations for long-enough multi-prompt segments."""
     from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
 
-    if is_multi_prompt(text):
-        multi = parse_multi_prompt(text)
-        for segment in multi.segments:
-            segment_branch = _branch_or_workspace_for_segment(
-                segment, branch_or_workspace
-            )
-            # Recursive call for each segment (won't re-trigger since
-            # individual segments aren't multi-prompts)
-            add_or_update_prompt(
-                segment,
-                project_name=project_name,
-                branch_or_workspace=segment_branch,
+    if not is_multi_prompt(text):
+        return []
+
+    multi = parse_multi_prompt(text)
+    mutations = []
+    for segment in multi.segments:
+        if len(segment.split()) < _MIN_PROMPT_WORDS:
+            continue
+        segment_branch = _branch_or_workspace_for_segment(segment, branch_or_workspace)
+        mutations.append(
+            _PromptMutation(
+                text=segment,
+                branch_or_workspace=segment_branch or "unknown",
+                workspace=project_name,
                 cancelled=cancelled,
             )
+        )
+    return mutations
+
+
+def _apply_prompt_mutations(
+    mutations: list[_PromptMutation],
+    current_timestamp: str,
+) -> bool:
+    """Apply prompt mutations in one locked read/modify/write cycle."""
+    with _locked_prompt_history():
+        try:
+            prompts = _load_prompt_history_for_write()
+        except _PromptHistoryLoadError:
+            return False
+
+        for mutation in mutations:
+            existing = next((p for p in prompts if p.text == mutation.text), None)
+            if existing:
+                existing.last_used = current_timestamp
+                # Only upgrade from cancelled to non-cancelled, never downgrade.
+                if not mutation.cancelled:
+                    existing.cancelled = False
+                continue
+
+            prompts.append(
+                PromptEntry(
+                    text=mutation.text,
+                    branch_or_workspace=mutation.branch_or_workspace,
+                    timestamp=current_timestamp,
+                    last_used=current_timestamp,
+                    workspace=mutation.workspace,
+                    cancelled=mutation.cancelled,
+                )
+            )
+
+        return _save_prompt_history(prompts)
 
 
 def _branch_or_workspace_for_segment(segment: str, fallback: str | None) -> str | None:

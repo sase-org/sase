@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:45:59
-status: wip
+status: done
 ---
 # Plan: Fix prompt history data loss
 
