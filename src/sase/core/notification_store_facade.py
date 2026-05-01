@@ -25,9 +25,7 @@ def read_notifications_snapshot(
 ) -> NotificationStoreSnapshotWire:
     """Read notification rows through ``sase_core_rs`` and rehydrate wires."""
     binding = require_rust_binding("read_notifications_snapshot")
-    payload: dict[str, Any] = binding(
-        str(path), include_dismissed, expire_due_snoozes
-    )
+    payload: dict[str, Any] = binding(str(path), include_dismissed, expire_due_snoozes)
     return notification_snapshot_from_dict(payload)
 
 
