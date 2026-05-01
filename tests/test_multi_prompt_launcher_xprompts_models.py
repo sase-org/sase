@@ -106,7 +106,6 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -118,7 +117,6 @@ def test_launch_multi_prompt_with_multi_model_segment(
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
-    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -159,7 +157,6 @@ def test_launch_multi_prompt_with_multi_model_segment(
 
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
-    mock_sleep.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -203,7 +200,6 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch("sase.artifacts.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
@@ -216,7 +212,6 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
-    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -254,4 +249,3 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
         finally:
             if path and os.path.exists(path):
                 os.unlink(path)
-    mock_sleep.assert_not_called()

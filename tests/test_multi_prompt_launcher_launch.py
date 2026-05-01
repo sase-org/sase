@@ -7,7 +7,6 @@ from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -17,7 +16,6 @@ def test_launch_multi_prompt_sequential_calls(
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
-    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -43,12 +41,10 @@ def test_launch_multi_prompt_sequential_calls(
     assert mock_spawn.call_count == 3
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
-    mock_sleep.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -58,7 +54,6 @@ def test_launch_multi_prompt_allocates_unique_timestamps_without_sleep(
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
-    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -95,12 +90,10 @@ def test_launch_multi_prompt_allocates_unique_timestamps_without_sleep(
         "ace(run)-260501_120001",
         "ace(run)-260501_120002",
     ]
-    mock_sleep.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.agent.multi_prompt_launcher.time.sleep")
 @patch("sase.core.time.generate_timestamp")
 @patch("sase.artifacts.create_artifacts_directory")
 @patch("sase.agent.names.get_active_agent_names", return_value=set())
@@ -110,7 +103,6 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     mock_active_names: MagicMock,
     mock_create_artifacts: MagicMock,
     mock_timestamp: MagicMock,
-    mock_sleep: MagicMock,
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
@@ -150,7 +142,6 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "b"
     assert calls[1].kwargs["prompt"].startswith("%wait:a")
     assert calls[2].kwargs["prompt"].startswith("%wait:b")
-    mock_sleep.assert_not_called()
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
