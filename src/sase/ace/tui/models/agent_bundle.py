@@ -6,8 +6,6 @@ import dataclasses
 from datetime import datetime
 from typing import Any
 
-from sase.core.time import to_local_naive
-
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -50,7 +48,7 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
         agent_type = AgentType(raw_type)
     start_time = data.get("start_time")
     if isinstance(start_time, str):
-        start_time = to_local_naive(datetime.fromisoformat(start_time))
+        start_time = datetime.fromisoformat(start_time)
 
     kwargs: dict[str, Any] = {
         "agent_type": agent_type,
@@ -94,11 +92,10 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
             continue
         # Deserialize ISO datetime strings for datetime fields
         if f.name in _DATETIME_FIELDS and isinstance(value, str):
-            value = to_local_naive(datetime.fromisoformat(value))
+            value = datetime.fromisoformat(value)
         elif f.name in _DATETIME_LIST_FIELDS and isinstance(value, list):
             value = [
-                to_local_naive(datetime.fromisoformat(v)) if isinstance(v, str) else v
-                for v in value
+                datetime.fromisoformat(v) if isinstance(v, str) else v for v in value
             ]
         kwargs[f.name] = value
 

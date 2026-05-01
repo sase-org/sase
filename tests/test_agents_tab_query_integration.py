@@ -15,9 +15,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
-from sase.ace.tui.actions.agents._loading_finalize import (
-    apply_transient_status_overrides,
-)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.fold_state import FoldStateManager
@@ -231,56 +228,3 @@ def test_empty_query_means_no_filter() -> None:
     assert app._agents == [a, b]
     assert app._agent_query_cache is None
     assert app._agent_query_parse_error is None
-
-
-# --- Transient status overrides ---------------------------------------------
-
-
-def test_transient_override_updates_active_agent_status() -> None:
-    agent = _make_agent(status="RUNNING", raw_suffix="20260501090000")
-    status_overrides = {agent.identity: "QUESTION"}
-    pre_question_status = {agent.identity: "PLAN APPROVED"}
-
-    cleared = apply_transient_status_overrides(
-        [agent],
-        status_overrides,
-        pre_question_status,
-    )
-
-    assert agent.status == "QUESTION"
-    assert status_overrides == {agent.identity: "QUESTION"}
-    assert pre_question_status == {agent.identity: "PLAN APPROVED"}
-    assert cleared == ()
-
-
-def test_transient_override_clears_terminal_agent_state() -> None:
-    agent = _make_agent(status="DONE", raw_suffix="20260501090000")
-    status_overrides = {agent.identity: "QUESTION"}
-    pre_question_status = {agent.identity: "PLAN APPROVED"}
-
-    cleared = apply_transient_status_overrides(
-        [agent],
-        status_overrides,
-        pre_question_status,
-    )
-
-    assert agent.status == "DONE"
-    assert status_overrides == {}
-    assert pre_question_status == {}
-    assert cleared == (agent.identity,)
-
-
-def test_transient_override_clears_missing_agent_state() -> None:
-    gone_identity = (AgentType.RUNNING, "missing", "20260501090000")
-    status_overrides = {gone_identity: "QUESTION"}
-    pre_question_status = {gone_identity: "PLAN APPROVED"}
-
-    cleared = apply_transient_status_overrides(
-        [_make_agent(cl_name="present")],
-        status_overrides,
-        pre_question_status,
-    )
-
-    assert status_overrides == {}
-    assert pre_question_status == {}
-    assert cleared == (gone_identity,)

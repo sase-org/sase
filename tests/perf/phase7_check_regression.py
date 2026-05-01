@@ -66,7 +66,6 @@ _HARNESS_FOR_SURFACE: Mapping[str, str] = {
     "apply_status_update": "status_state_machine",
     "plan_status_transition": "status_state_machine",
     "notification_store": "notification_store",
-    "compose_agent_list": "agent_compose",
 }
 
 
@@ -162,7 +161,6 @@ class _HarnessConfig:
     agent_scan: Mapping[str, Any]
     status_state_machine: Mapping[str, Any]
     notification_store: Mapping[str, Any]
-    agent_compose: Mapping[str, Any]
 
 
 _DEFAULT_CONFIG = _HarnessConfig(
@@ -183,7 +181,6 @@ _DEFAULT_CONFIG = _HarnessConfig(
         "transition_runs": 5,
     },
     notification_store={"runs": 3, "warmup": 1, "count": 5_000},
-    agent_compose={"runs": 10, "warmup": 2, "sizes": (1_000,)},
 )
 
 # Smoke runs keep the workload labels compatible with the committed
@@ -206,7 +203,6 @@ _SMOKE_CONFIG = _HarnessConfig(
         "transition_runs": 2,
     },
     notification_store={"runs": 1, "warmup": 1, "count": 5_000},
-    agent_compose={"runs": 3, "warmup": 1, "sizes": (25,)},
 )
 
 
@@ -236,28 +232,12 @@ def _config_for_anchors(
 
     core_query = dict(cfg.core_query)
     core_query["spec_sizes"] = tuple(sorted(required_query_sizes))
-    required_compose_sizes = set(cfg.agent_compose.get("sizes", ()))
-    for anchor in anchors:
-        if anchor.surface != "compose_agent_list":
-            continue
-        prefix = "synthetic_"
-        suffix = "_running_claims"
-        if anchor.workload.startswith(prefix) and anchor.workload.endswith(suffix):
-            value = anchor.workload[len(prefix) : -len(suffix)]
-            try:
-                required_compose_sizes.add(int(value))
-            except ValueError:
-                continue
-
-    agent_compose = dict(cfg.agent_compose)
-    agent_compose["sizes"] = tuple(sorted(required_compose_sizes))
     return _HarnessConfig(
         core_parse=cfg.core_parse,
         core_query=core_query,
         agent_scan=cfg.agent_scan,
         status_state_machine=cfg.status_state_machine,
         notification_store=cfg.notification_store,
-        agent_compose=agent_compose,
     )
 
 
@@ -296,11 +276,6 @@ def _run_required_harnesses(
 
         print("\n==== Phase 7 floor: bench_notification_store ====")
         by_surface.update(run_phase7_floor_payload(**cfg.notification_store))
-    if "agent_compose" in harnesses:
-        from tests.perf.bench_agent_compose import run_phase7_floor_payload
-
-        print("\n==== Phase 7 floor: bench_agent_compose ====")
-        by_surface.update(run_phase7_floor_payload(**cfg.agent_compose))
 
     return by_surface
 
@@ -333,16 +308,6 @@ def _baseline_scenario_for_anchor(spec: _AnchorSpec) -> str:
         and spec.scenario == "persistent_query_keystroke"
     ):
         return "facade"
-    if spec.surface == "compose_agent_list" and spec.scenario in {
-        "rust_compose_wire",
-        "rust_compose_to_python_agents",
-    }:
-        return "python_candidate_compose"
-    if (
-        spec.surface == "compose_agent_list"
-        and spec.scenario == "load_all_agents_rust_backend"
-    ):
-        return "python_candidate_compose"
     return spec.scenario
 
 

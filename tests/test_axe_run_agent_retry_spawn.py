@@ -418,9 +418,7 @@ class TestTransferWorkspaceClaim:
 
 class TestAgentLoaderRetryChain:
     def test_chain_linkage_built_after_load(self) -> None:
-        from sase.ace.tui.models.agent_loader_status import (
-            apply_status_overrides as _apply_status_overrides,
-        )
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
         from sase.ace.tui.models.agent import Agent, AgentType
 
         parent = Agent(

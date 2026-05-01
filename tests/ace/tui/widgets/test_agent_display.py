@@ -214,9 +214,7 @@ class TestFollowupAgentsField:
 
 class TestLoaderFollowupPopulation:
     def test_coder_attached_to_parent(self) -> None:
-        from sase.ace.tui.models.agent_loader_status import (
-            apply_status_overrides as _apply_status_overrides,
-        )
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
         parent = _make_agent(
             agent_type=AgentType.WORKFLOW,
@@ -234,9 +232,7 @@ class TestLoaderFollowupPopulation:
         assert parent.followup_agents[0] is coder
 
     def test_feedback_attached(self) -> None:
-        from sase.ace.tui.models.agent_loader_status import (
-            apply_status_overrides as _apply_status_overrides,
-        )
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
         parent = _make_agent(
             agent_type=AgentType.WORKFLOW,
@@ -254,9 +250,7 @@ class TestLoaderFollowupPopulation:
         assert parent.followup_agents[0] is fb
 
     def test_sorted_chronologically(self) -> None:
-        from sase.ace.tui.models.agent_loader_status import (
-            apply_status_overrides as _apply_status_overrides,
-        )
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
         parent = _make_agent(
             agent_type=AgentType.WORKFLOW,
@@ -281,9 +275,7 @@ class TestLoaderFollowupPopulation:
         assert parent.followup_agents[1] is coder
 
     def test_workflow_child_not_attached(self) -> None:
-        from sase.ace.tui.models.agent_loader_status import (
-            apply_status_overrides as _apply_status_overrides,
-        )
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
         parent = _make_agent(
             agent_type=AgentType.WORKFLOW,

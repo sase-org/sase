@@ -2,13 +2,9 @@
 
 from unittest.mock import patch
 
-import pytest
-
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
-
-pytestmark = pytest.mark.usefixtures("python_agent_compose_backend")
 
 
 def test_embedded_vcs_removed_by_axe_pid() -> None:

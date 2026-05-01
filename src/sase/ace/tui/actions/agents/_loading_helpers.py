@@ -99,12 +99,9 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
-    from ...models import load_all_agents_with_dismissed
+    from ...models import load_all_agents
 
-    all_agents, dismissed_from_loader = load_all_agents_with_dismissed(
-        changespec_snapshot=changespec_snapshot,
-        dismissed_agents=dismissed_agents,
-    )
+    all_agents = load_all_agents(changespec_snapshot=changespec_snapshot)
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
@@ -137,6 +134,25 @@ def _load_agents_from_disk_impl(
         agent.retry_status = retry_state.status
         if retry_state.status == "retrying":
             agent.status = "RETRYING"
+
+    # Build secondary index for robust dismissed matching
+    dismissed_suffixes: set[str] = {
+        raw_suffix for _, _, raw_suffix in dismissed_agents if raw_suffix is not None
+    }
+
+    # Capture dismissed agents found by the loader (for revive + self-healing).
+    # Exclude RUNNING agents: a done.json auto-dismiss can share the same
+    # identity/raw_suffix as a still-active RUNNING field agent; treating the
+    # running agent as dismissed would delete its artifacts and hide it.
+    dismissed_from_loader = [
+        a
+        for a in all_agents
+        if a.status != "RUNNING"
+        and (
+            a.identity in dismissed_agents
+            or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
+        )
+    ]
 
     # Supplement with bundles: the bundle archive is the durable revive source,
     # so load every saved bundle, including entries whose identity index was

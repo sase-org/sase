@@ -22,18 +22,6 @@ def get_timezone() -> ZoneInfo:
     return _cached_timezone
 
 
-def to_local_naive(value: datetime) -> datetime:
-    """Return *value* in the configured timezone without tzinfo.
-
-    The Agents-tab model stores local-naive datetimes. Persisted metadata may
-    carry offsets, so boundary code should normalize before comparing or
-    sorting model timestamps.
-    """
-    if value.tzinfo is None or value.utcoffset() is None:
-        return value
-    return value.astimezone(get_timezone()).replace(tzinfo=None)
-
-
 def generate_timestamp() -> str:
     """Generate a timestamp in YYmmdd_HHMMSS format using the configured timezone.
 

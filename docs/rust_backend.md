@@ -24,7 +24,6 @@ The shipped Rust-backed operations are:
 - notification JSONL store operations (`read_notifications_snapshot`, `append_notification`,
   `apply_notification_state_update`, `rewrite_notifications`) used by `sase.core.notification_store_facade`
 - `plan_agent_cleanup`
-- agent-list composition (`compose_agent_list`) used by the TUI loader through `sase.core.agent_compose_facade`
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
 
@@ -41,9 +40,6 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   `plan_status_transition`.
 - Subprocess invocation, process liveness, filesystem mutation, TUI rendering, and plugin entry points stay on the host
   by design.
-- Agent-list host input collection, process liveness checks, retry/tag/attempt dismissed-bundle supplements, and
-  transient notification-driven UI status overrides stay on Python. The deterministic list composition route is Rust;
-  there is no Python composition backend or env-var fallback for the TUI product path.
 - Agent cleanup process signalling and TUI orchestration stay on the host. The Rust boundary owns reusable planning,
   deterministic dismissed-agent data mutations, artifact deletion, workspace-release content rewrites, and
   ChangeSpec-entry kill marking exposed through Python helpers in `sase.core.agent_cleanup_*`.
@@ -94,8 +90,6 @@ The facade lives at `src/sase/core/`:
 | `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
 | `agent_scan_facade.py`         | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
 | `agent_scan_wire.py`           | Stable wire records for the agent-artifact scan snapshot                                                           |
-| `agent_compose_facade.py`      | Rust agent-list composer facade                                                                                    |
-| `agent_compose_wire.py`        | Stable wire records for coarse agent-list composition inputs and outputs                                           |
 | `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
 | `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |

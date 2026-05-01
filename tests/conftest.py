@@ -90,12 +90,6 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(key)
 
 
-@pytest.fixture
-def python_agent_compose_backend() -> None:
-    """Compatibility marker for tests pending Rust-compose fixture rewrites."""
-    pytest.skip("legacy Python agent composition backend has been removed")
-
-
 @pytest.fixture(autouse=True)
 def _mock_system_clipboard():
     """Prevent tests from touching the real system clipboard."""

@@ -165,9 +165,7 @@ def test_load_agents_from_disk_includes_bundles_missing_from_index() -> None:
     )
 
     with (
-        patch(
-            "sase.ace.tui.models.load_all_agents_with_dismissed", return_value=([], [])
-        ),
+        patch("sase.ace.tui.models.load_all_agents", return_value=[]),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
             ".dismissed_bundles",
