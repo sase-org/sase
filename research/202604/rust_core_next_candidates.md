@@ -18,6 +18,13 @@ The TUI product path now uses cached Rust query corpora, and the public batch
 compatibility wrapper compiles a temporary Rust corpus for one-off callers. The rest of
 this file remains a research snapshot for the original candidate ranking.
 
+Status update (2026-05-01): the #3 agent-loader orchestration recommendation was
+attempted as bead `sase-1p` and then reverted. Do not retry the `agent_compose`
+plan below as written. Treat the Python loader composition path as the product
+oracle, migrate smaller colder slices first, require real TUI/status parity
+before routing, preserve a kill switch, and keep the Python path until live-ish
+end-to-end evidence passes.
+
 ## What's still Python today
 
 Pulled from the Phase 8A operation disposition and a fresh code-map sweep of
@@ -28,7 +35,7 @@ a worker that the user is waiting for). Sizes are LOC, not bytes.
 |---|---|---|---|---|
 | **Notification store (JSONL)** | `src/sase/notifications/store.py` + `senders.py` | ~480 | **Yes — modal actions, notification polling, and kill/dismiss persistence** | Whole-file rewrite on every state transition. Every dismissed/read/snooze touch parses the entire JSONL, mutates a row, and rewrites the file. The kill immediate stage has since moved this work to a worker, but the store still blocks notification-modal actions and can serialize the post-kill badge refresh. |
 | **Query batch evaluation** | `src/sase/ace/query/context.py`, `evaluator.py`, `query_facade.py` | ~1,100 | **Yes — runs on every filter keystroke** | `evaluate_query_many` was deferred in Phase 8B because the prototype routed Rust path was 6–9× *slower* than the optimised Python batch (per-call `ChangeSpecWire` rebuild dominated). |
-| **Agent loader orchestration** | `src/sase/ace/tui/models/agent_loader.py` (+ `_dedup.py`, `_loaders/*`) | ~1,800 | **Yes — runs on every refresh on a worker** | Consumes the Rust `scan_agent_artifacts` snapshot but then runs `_apply_status_overrides`, several `dedup_*` passes, and `_filter_dead_pids` in pure Python over the full agent list. |
+| **Agent loader orchestration** | `src/sase/ace/tui/models/agent_loader.py` (+ `_dedup.py`, `_loaders/*`) | ~1,800 | **Yes — runs on every refresh on a worker** | **Do not retry as written.** The `agent_compose` orchestration migration was attempted as `sase-1p` and reverted; keep Python composition as product/oracle and carve out smaller colder slices first. |
 | **ChangeSpec graph index** | `src/sase/ace/tui/models/changespec_graph_index.py` (+ facade) | ~125 | Weak — rebuilt only per `_all_changespecs` list identity | Phase 8A explicitly kept this Python. The current TUI already caches the index in `_get_changespec_graph_index()`, so this is no longer a per-selection blocker. |
 | **Agent supplement scan** | `src/sase/ace/tui/actions/agents/_snapshot_cache.py`, `src/sase/ace/dismissed_agents.py`, `src/sase/ace/agent_tags.py` | ~700 | **Yes — consulted on every refresh on a worker** | `attempts/<N>/attempt_meta.json`, `retry_state.json`, the sharded `dismissed_bundles/` tree, and `agent_tags.json`. The Python cache skips unchanged files, but cold/post-write refreshes still walk/stat/parse a large home tree. |
 | **Agent artifact content reads** | `src/sase/agent/agent_artifacts_cache.py`, `src/sase/ace/tui/widgets/prompt_panel/*` | ~900 | **Yes — runs on debounced selection detail** | The immediate path is now header-only, but the full detail update still globs/reads prompt, response, chat, live-reply, and timestamp chunks on first touch. Rich rendering itself stays Python, but raw IO + chunk slicing can move. |
@@ -111,9 +118,10 @@ Same gates Phase 6+ used, ordered by what Phase 7 actually proved:
 
 ## Top 5 next things to migrate
 
-Highest-priority first. Each entry names the wire surface, the user-visible
-win, the FFI shape that will not regress, and the hard prerequisite before
-the Python path can be deleted.
+Historical priority order from the original research pass, with 2026-05-01
+status notes folded in. Candidate #3 is no longer a straightforward next
+migration; it is retained to document the reverted hypothesis and the safer
+replacement direction.
 
 ### 1. Notification store (`sase.notifications.store`)
 
@@ -185,39 +193,42 @@ compile both the query and the corpus once, evaluate many.
   acceptance criterion, restated.)
 - **Estimated LOC:** ~700 Python → ~1,000 Rust + ~200 PyO3 glue.
 
-### 3. Agent loader orchestration & status override pipeline
+### 3. Agent loader orchestration & status override pipeline -- do not retry as written
 
 After Phase 3 the artifact scan is in Rust, but the merge / dedup /
 status-override layer is still Python and runs over the union of every agent
-the scan + ChangeSpec sweep produces. On a 6.5k-row home tree this is the
-biggest fully-Python step on the refresh path.
+the scan + ChangeSpec sweep produces. On a 6.5k-row home tree this is a large
+fully-Python step on the refresh path, but the direct Rust orchestration port
+described in this section was attempted as `sase-1p` on 2026-05-01 and then
+reverted. Keep this section as a record of the original hypothesis, not as an
+implementation plan to pick up unchanged.
 
-- **Rust crate location:** `crates/sase_core/src/agent_compose/`.
-- **Wire records:** consume the existing `AgentArtifactScanWire` from
-  Phase 3 and the `ChangeSpecWire` list; produce
-  `ComposedAgentListWire { agents: Vec<AgentWire>, workflow_steps,
-  dropped: Vec<DropReasonWire> }`.
-- **PyO3 surface:** `compose_agent_list(scan, changespecs, dismissed_set,
-  options) -> ComposedAgentListWire`. Python keeps process-running checks
-  (PID liveness is host-OS specific) but feeds them in via an
-  `AlivePidPredicate` callback or a pre-collected set.
-- **Why it wins:** removes the Python `_apply_status_overrides`,
-  `dedup_axe_spawned_agents`, `dedup_by_pid`, `dedup_running_vs_workflow`,
-  `dedup_workflow_entries`, `remove_vcs_workspace_claims`, and
-  `_filter_dead_pids` passes from the worker. Gets us out of the
-  "Python iterates 6,500 agents twice per refresh" regime, and produces a
-  stable shape for `sase agents status -j` to render directly without a
-  second Python sweep.
-- **FFI shape:** one call per refresh; the result is a single owned
-  `Vec<AgentWire>` plus a small drop log.
-- **Prereq before Phase-8-style deletion:** Phase 7-style end-to-end
-  regression floor on `sase agents status -j` and the TUI agents-tab
-  refresh trace; parity tests covering the status-override edge cases
-  (`PLANNING`, `PLAN APPROVED`, `EPIC CREATED`, `QUESTION`, RETRYING
-  promotion) since these were historically the source of TUI status drift
-  bugs. The first Rust cut should include a `dropped` / `merge_reason` log
-  so parity failures explain which dedup/status pass diverged.
-- **Estimated LOC:** ~1,400 Python (loader + dedup + overrides) → ~1,800 Rust.
+**Postmortem-aware replacement direction:** keep Python composition as the
+product path and oracle. If this area is revisited, first migrate smaller,
+colder, easier-to-isolate slices around the loader rather than the whole
+orchestration/status override pipeline: for example supplemental scan payloads,
+content reads, or narrow pure-data helpers with stable fixtures. Any routed
+Rust path must prove real TUI agents-tab and `sase agents status -j` parity,
+including status text, ordering, dismissed rows, retry/workflow rows, and stale
+PID handling. Preserve a runtime kill switch until after live-ish end-to-end
+evidence passes, and do not delete the Python path while it is still needed as
+the product oracle.
+
+- **What not to do:** do not rebuild the whole merge/dedup/status-override
+  layer in Rust as a single `agent_compose` route, do not treat an opt-in smoke
+  run as product parity, and do not remove Python composition before the TUI
+  and CLI surfaces have both run against realistic agent trees.
+- **Safer first slices:** prefer cold-path supplement scanning, detail content
+  reads, or small pure-data helpers whose inputs and outputs can be replayed
+  against the Python loader without changing the product route.
+- **Parity floor before routing:** capture fixtures that include planning
+  states, approved plans, created epics, questions, retry promotion,
+  workflow-spawned rows, dismissed bundles, stale PIDs, and VCS workspace
+  claims. Validate both row content and ordering against the Python route.
+- **Routing discipline:** if a future slice earns routing, keep the switch
+  narrow and reversible. Treat Python as the oracle until live-ish TUI
+  refreshes and `sase agents status -j` runs pass against the same home-tree
+  corpus, with status labels and dismissed-row behavior included in the gate.
 
 ### 4. Agent supplement scan (`AgentSnapshotCache` payload)
 
@@ -323,9 +334,11 @@ The Phase 0–8 discipline still applies. Rephrased for these candidates:
 2. **Capture the workload before writing Rust.** For #1, that is a real
    `notifications.jsonl` snapshot from a heavy user (sanitised) plus a
    synthetic 5k corpus. For #2, the Phase 7B query benches plus a home-tree
-   corpus. For #3, the Phase 7C `sase agents status` baseline. For #4,
-   a home-tree fixture with attempt history, retry state, dismissed bundles,
-   and tags. For #5, cold/cached/growing-live-reply prompt-panel fixtures.
+   corpus. For any future work near #3, start with the postmortem fixture:
+   real TUI agents-tab refreshes, `sase agents status -j`, dismissed rows,
+   retry/workflow rows, stale PIDs, and ordering. For #4, a home-tree fixture
+   with attempt history, retry state, dismissed bundles, and tags. For #5,
+   cold/cached/growing-live-reply prompt-panel fixtures.
 3. **Design for FFI granularity first.** None of these should call Rust
    per row, per file, or per spec. The persistent-handle pattern in
    candidate #2 is the template.
@@ -336,10 +349,11 @@ The Phase 0–8 discipline still applies. Rephrased for these candidates:
 5. **Sequence around the user's blocking path.** #1 first because it is
    the remaining backend primitive behind notification UI stalls and
    post-kill persistence. #2 next because every keystroke into the filter
-   input pays `evaluate_query_many`. #3 and #4 next as the agents-refresh
-   double-feature; they share a fixture and should probably share or chain
-   one scan result. #5 follows because it affects selection/detail latency
-   rather than the list refresh itself.
+   input pays `evaluate_query_many`. Do not treat the old #3 direct
+   orchestration port as the next agents-refresh step; after the `sase-1p`
+   revert, prefer #4 and #5-style cold slices or narrower helpers that leave
+   Python composition in charge. #5 affects selection/detail latency rather
+   than the list refresh itself.
 
 ## References
 
@@ -350,7 +364,8 @@ The Phase 0–8 discipline still applies. Rephrased for these candidates:
 - `research/202604/rust_backend_phase2_query_handoff.md` — wire-record
   contract for the query path; reused by candidate #2.
 - `research/202604/sase_perf_research.md` — original TUI hot-path memo;
-  candidates #3, #4, #5 close out items P2.5, P2.7, P4.10.
+  candidates #4 and #5 still address items P2.7 and P4.10, while the old #3
+  P2.5 direction now requires the postmortem constraints above.
 - `research/202604/sase_perf_v2_research.md` — second-pass audit;
   candidate #1 closes out the remaining notification-store I/O finding
   after the kill immediate-stage fix.
