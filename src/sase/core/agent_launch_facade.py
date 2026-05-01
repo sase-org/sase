@@ -12,7 +12,10 @@ from sase.core.agent_launch_wire import (
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
     WorkspaceClaimRequestWire,
+    agent_launch_prepared_from_dict,
+    agent_launch_wire_to_json_dict,
 )
+from sase.core.rust import require_rust_binding
 
 
 def safe_launch_name(cl_name: str) -> str:
@@ -53,17 +56,15 @@ def prepare_agent_launch_python(
         "1" if request.is_home_mode else "",
     ]
 
-    env_delta = {
-        "SASE_AGENT": "1",
-        "SASE_AGENT_CL_NAME": request.cl_name,
-        "SASE_AGENT_PROJECT_FILE": request.project_file,
-        "SASE_AGENT_TIMESTAMP": request.timestamp,
-        **request.extra_env,
-    }
+    env_delta = dict(request.extra_env)
+    env_delta["SASE_AGENT"] = "1"
+    env_delta["SASE_AGENT_CL_NAME"] = request.cl_name
+    env_delta["SASE_AGENT_PROJECT_FILE"] = request.project_file
+    env_delta["SASE_AGENT_TIMESTAMP"] = request.timestamp
     if request.deferred_workspace:
         env_delta["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
-    if request.vcs_workflow_type is not None:
-        env_delta["SASE_AGENT_VCS_WORKFLOW_TYPE"] = request.vcs_workflow_type
+        if request.vcs_workflow_type is not None:
+            env_delta["SASE_AGENT_VCS_WORKFLOW_TYPE"] = request.vcs_workflow_type
     if request.local_xprompts_file:
         env_delta["SASE_AGENT_LOCAL_XPROMPTS"] = request.local_xprompts_file
 
@@ -88,6 +89,29 @@ def prepare_agent_launch_python(
         env_delta=env_delta,
         claim_request=claim_request,
     )
+
+
+def prepare_agent_launch(
+    request: AgentLaunchRequestWire,
+    *,
+    python_executable: str,
+    runner_script: str,
+    sase_tmpdir: str | None,
+    output_root: str,
+    preallocated_env: dict[str, str] | None = None,
+) -> AgentLaunchPreparedWire:
+    """Write prompt bytes and return Rust-prepared launch process data."""
+
+    binding = require_rust_binding("prepare_agent_launch")
+    payload = binding(
+        agent_launch_wire_to_json_dict(request),
+        python_executable,
+        runner_script,
+        output_root,
+        sase_tmpdir,
+        preallocated_env or {},
+    )
+    return agent_launch_prepared_from_dict(dict(payload))
 
 
 def plan_fake_fanout(
@@ -131,6 +155,7 @@ __all__ = [
     "fake_output_path",
     "fake_prompt_path",
     "plan_fake_fanout",
+    "prepare_agent_launch",
     "prepare_agent_launch_python",
     "safe_launch_name",
 ]

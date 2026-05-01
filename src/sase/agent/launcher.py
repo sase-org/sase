@@ -7,8 +7,8 @@ Extracts the common subprocess-spawning logic used by both
 import os
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
+from functools import lru_cache
 
 
 @dataclass
@@ -36,6 +36,36 @@ def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
 
     if is_sase_managed_codex_home(codex_home):
         env.pop("CODEX_HOME", None)
+
+
+@lru_cache(maxsize=1)
+def _get_runner_script() -> str:
+    import importlib.util
+
+    _spec = importlib.util.find_spec("sase.axe.run_agent_runner")
+    assert _spec is not None and _spec.origin is not None
+    return os.path.abspath(_spec.origin)
+
+
+def _preallocated_workspace_env(
+    vcs_ref: tuple[str, str] | None,
+    *,
+    workspace_num: int,
+    workspace_dir: str,
+) -> dict[str, str]:
+    if vcs_ref is None:
+        return {}
+
+    from sase.workspace_provider import get_pre_allocated_env_prefix
+
+    prefix = get_pre_allocated_env_prefix(vcs_ref[0])
+    if not prefix:
+        return {}
+    return {
+        f"{prefix}_PRE_ALLOCATED": "1",
+        f"{prefix}_WORKSPACE_NUM": str(workspace_num),
+        f"{prefix}_WORKSPACE_DIR": workspace_dir,
+    }
 
 
 def spawn_agent_subprocess(
@@ -72,10 +102,16 @@ def spawn_agent_subprocess(
             terminated before the error is raised).
     """
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.core.agent_launch_facade import prepare_agent_launch, safe_launch_name
+    from sase.core.agent_launch_wire import (
+        AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        AgentLaunchRequestWire,
+    )
     from sase.running_field import claim_workspace, transfer_workspace_claim
     from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
     from sase.axe.chop_agents import record_chop_agent_launch_from_env
+    from sase.core.paths import get_sase_tmpdir
 
     timer = LaunchTimingRecorder(
         "agent_launch_spawn",
@@ -88,62 +124,58 @@ def spawn_agent_subprocess(
         },
     )
 
-    # Write prompt to temp file (runner will read and delete)
-    from sase.core.paths import get_sase_tmpdir
-
-    with timer.stage("prompt_temp_file_create", prompt_len=len(prompt)):
-        fd, prompt_file = tempfile.mkstemp(
-            suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
-        )
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(prompt)
-
-    # Build output file path (sharded by YYYYMM).
-    with timer.stage("output_path_derive"):
-        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
-        output_path = sharded_path("workflows", f"{safe_name}_ace-run-{timestamp}.txt")
-
     # Resolve runner script path without importing the module (its top-level
     # code calls signal.signal() which fails from non-main threads).
-    import importlib.util
-
     with timer.stage("runner_script_resolution"):
-        _spec = importlib.util.find_spec("sase.axe.run_agent_runner")
-        assert _spec is not None and _spec.origin is not None
-        runner_script = os.path.abspath(_spec.origin)
+        runner_script = _get_runner_script()
+
+    # Compute the output shard root in Python because sharding is still a
+    # host-side policy. Rust owns the deterministic filename/path assembly.
+    with timer.stage("output_path_derive"):
+        output_filename = f"{safe_launch_name(cl_name)}_ace-run-{timestamp}.txt"
+        output_path_hint = sharded_path("workflows", output_filename)
+        output_root = os.path.dirname(output_path_hint)
+
+    request = AgentLaunchRequestWire(
+        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        cl_name=cl_name,
+        project_file=project_file,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        workflow_name=workflow_name,
+        prompt=prompt,
+        timestamp=timestamp,
+        update_target=update_target,
+        project_name=project_name,
+        history_sort_key=history_sort_key,
+        is_home_mode=is_home_mode,
+        vcs_workflow_type=None if vcs_ref is None else vcs_ref[0],
+        vcs_ref=None if vcs_ref is None else vcs_ref[1],
+        deferred_workspace=deferred_workspace,
+        local_xprompts_file=local_xprompts_file,
+        extra_env=extra_env or {},
+        retry_transfer_from_pid=retry_transfer_from_pid,
+    )
+
+    with timer.stage("launch_prepare", prompt_len=len(prompt)):
+        prepared = prepare_agent_launch(
+            request,
+            python_executable=sys.executable,
+            runner_script=runner_script,
+            sase_tmpdir=get_sase_tmpdir(),
+            output_root=output_root,
+            preallocated_env=_preallocated_workspace_env(
+                vcs_ref,
+                workspace_num=workspace_num,
+                workspace_dir=workspace_dir,
+            ),
+        )
 
     # Build subprocess environment (copy to avoid mutating os.environ)
     with timer.stage("env_shape"):
         subprocess_env = dict(os.environ)
         _remove_inherited_sase_codex_home(subprocess_env)
-        if extra_env:
-            subprocess_env.update(extra_env)
-        subprocess_env["SASE_AGENT"] = "1"
-        subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
-        subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
-        subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
-        if deferred_workspace:
-            subprocess_env["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
-            if vcs_ref is not None:
-                subprocess_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] = vcs_ref[0]
-                from sase.workspace_provider import get_pre_allocated_env_prefix
-
-                prefix = get_pre_allocated_env_prefix(vcs_ref[0])
-                if prefix:
-                    subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
-                    subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-                    subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-        elif vcs_ref is not None:
-            from sase.workspace_provider import get_pre_allocated_env_prefix
-
-            prefix = get_pre_allocated_env_prefix(vcs_ref[0])
-            if prefix:
-                subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
-                subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-                subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-
-        if local_xprompts_file:
-            subprocess_env["SASE_AGENT_LOCAL_XPROMPTS"] = local_xprompts_file
+        subprocess_env.update(prepared.env_delta)
 
     resolved_project_name = project_name or (
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
@@ -151,25 +183,10 @@ def spawn_agent_subprocess(
 
     # Spawn detached subprocess
     with timer.stage("subprocess_spawn"):
-        with open(output_path, "w") as output_file:
+        with open(prepared.output_path, "w") as output_file:
             process = subprocess.Popen(
-                [
-                    sys.executable,
-                    runner_script,
-                    cl_name,
-                    project_file,
-                    workspace_dir,
-                    output_path,
-                    str(workspace_num),
-                    workflow_name,
-                    prompt_file,
-                    timestamp,
-                    update_target,
-                    project_name,
-                    history_sort_key,
-                    "1" if is_home_mode else "",
-                ],
-                cwd=workspace_dir,
+                prepared.argv,
+                cwd=prepared.cwd,
                 stdin=subprocess.DEVNULL,
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
@@ -183,18 +200,19 @@ def spawn_agent_subprocess(
     # For retry spawns, transfer an existing claim atomically so the slot
     # stays continuously held across the parent→child handoff.
     with timer.stage("workspace_claim"):
-        if not is_home_mode:
+        if prepared.claim_request is not None:
             artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-            claim_num = 0 if deferred_workspace else workspace_num
-            if retry_transfer_from_pid is not None:
+            claim_request = prepared.claim_request
+            claim_num = claim_request.workspace_num
+            if claim_request.transfer_from_pid is not None:
                 transferred = transfer_workspace_claim(
-                    project_file,
+                    claim_request.project_file,
                     claim_num,
-                    from_pid=retry_transfer_from_pid,
+                    from_pid=claim_request.transfer_from_pid,
                     to_pid=process.pid,
-                    new_workflow=workflow_name,
+                    new_workflow=claim_request.workflow_name,
                     new_artifacts_timestamp=artifacts_timestamp,
-                    cl_name=cl_name,
+                    cl_name=claim_request.cl_name,
                 )
                 if not transferred:
                     process.terminate()
@@ -205,14 +223,14 @@ def spawn_agent_subprocess(
                     timer.finish(outcome="claim_failed")
                     raise RuntimeError(
                         f"Failed to transfer workspace #{claim_num} from "
-                        f"pid {retry_transfer_from_pid}"
+                        f"pid {claim_request.transfer_from_pid}"
                     )
             elif not claim_workspace(
-                project_file,
+                claim_request.project_file,
                 claim_num,
-                workflow_name,
+                claim_request.workflow_name,
                 process.pid,
-                cl_name,
+                claim_request.cl_name,
                 artifacts_timestamp=artifacts_timestamp,
             ):
                 process.terminate()
@@ -249,7 +267,7 @@ def spawn_agent_subprocess(
         pid=process.pid,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
-        output_path=output_path,
+        output_path=prepared.output_path,
         project_file=project_file,
         project_name=resolved_project_name,
         workflow_name=workflow_name,

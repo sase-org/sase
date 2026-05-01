@@ -132,6 +132,29 @@ def workspace_claim_request_from_dict(
     )
 
 
+def agent_launch_prepared_from_dict(
+    data: dict[str, Any],
+) -> AgentLaunchPreparedWire:
+    claim_data = data.get("claim_request")
+    return AgentLaunchPreparedWire(
+        schema_version=int(data["schema_version"]),
+        prompt_file=str(data["prompt_file"]),
+        output_path=str(data["output_path"]),
+        safe_name=str(data["safe_name"]),
+        argv=[str(item) for item in data.get("argv", [])],
+        cwd=str(data["cwd"]),
+        env_delta={
+            str(key): str(value)
+            for key, value in dict(data.get("env_delta", {})).items()
+        },
+        claim_request=(
+            None
+            if claim_data is None
+            else workspace_claim_request_from_dict(dict(claim_data))
+        ),
+    )
+
+
 def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
     return LaunchFanoutPlanWire(
         schema_version=int(data["schema_version"]),
@@ -174,6 +197,7 @@ __all__ = [
     "LaunchFanoutSlotWire",
     "WorkspaceClaimOutcomeWire",
     "WorkspaceClaimRequestWire",
+    "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",
     "launch_fanout_plan_from_dict",
     "workspace_claim_request_from_dict",

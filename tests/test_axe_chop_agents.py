@@ -30,7 +30,7 @@ def _spawn_agent_for_env_test(
     mock_popen: MagicMock,
     extra_env: dict[str, str] | None = None,
 ) -> None:
-    output_path = tmp_path / "out.txt"
+    output_path = tmp_path / "proj_ace-run-260101_120000.txt"
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
@@ -169,7 +169,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Launcher records every agent spawned under SASE_CHOP_* env vars."""
-    output_path = tmp_path / "out.txt"
+    output_path = tmp_path / "proj_ace-run-260101_120000.txt"
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
@@ -197,6 +197,18 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
 
     assert result.pid == 4321
     popen_kwargs = mock_popen.call_args.kwargs
+    popen_argv = mock_popen.call_args.args[0]
+    assert popen_argv[2:9] == [
+        "proj",
+        "/tmp/projects/proj/proj.gp",
+        str(workspace_dir),
+        str(output_path),
+        "3",
+        "ace(run)-260101_120000",
+        popen_argv[8],
+    ]
+    assert Path(popen_argv[8]).read_text() == "do work"
+    assert Path(popen_argv[8]).parent == tmp_dir
     assert popen_kwargs["stdin"] == subprocess.DEVNULL
     assert popen_kwargs["stdout"].name == str(output_path)
     assert popen_kwargs["stderr"] == subprocess.STDOUT
@@ -240,6 +252,60 @@ def test_live_records_prune_when_done_marker_exists(
     (done_dir / "done.json").write_text(json.dumps({"outcome": "ok"}))
 
     assert get_live_chop_agent_records("hooks", chop_name="split") == []
+
+
+@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.agent.launcher.subprocess.Popen")
+def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
+    mock_popen: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rust preparation preserves launch env for VCS and local xprompts."""
+    output_path = tmp_path / "out.txt"
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    tmp_dir = tmp_path / "tmp"
+    tmp_dir.mkdir()
+    xprompts_file = tmp_path / "xprompts.json"
+    xprompts_file.write_text("{}")
+    mock_proc = MagicMock()
+    mock_proc.pid = 4321
+    mock_popen.return_value = mock_proc
+    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_pre_allocated_env_prefix",
+        lambda _workflow_type: "GH",
+    )
+
+    spawn_agent_subprocess(
+        cl_name="feature/test",
+        project_file="/tmp/projects/proj/proj.gp",
+        workspace_dir=str(workspace_dir),
+        workspace_num=8,
+        workflow_name="ace(run)-260101_120000",
+        prompt="do work",
+        timestamp="260101_120000",
+        project_name="proj",
+        vcs_ref=("gh", "feature/test"),
+        deferred_workspace=True,
+        local_xprompts_file=str(xprompts_file),
+        extra_env={"SASE_REPEAT_NAME": "task.1"},
+    )
+
+    env = mock_popen.call_args.kwargs["env"]
+    assert env["SASE_AGENT"] == "1"
+    assert env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "gh"
+    assert env["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
+    assert env["GH_PRE_ALLOCATED"] == "1"
+    assert env["GH_WORKSPACE_NUM"] == "8"
+    assert env["GH_WORKSPACE_DIR"] == str(workspace_dir)
+    assert env["SASE_AGENT_LOCAL_XPROMPTS"] == str(xprompts_file)
+    assert env["SASE_REPEAT_NAME"] == "task.1"
+    mock_claim.assert_called_once()
+    assert mock_claim.call_args.args[1] == 0
 
 
 @patch("sase.running_field.claim_workspace", return_value=True)
