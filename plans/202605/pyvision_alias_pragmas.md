@@ -1,5 +1,6 @@
 ---
 create_time: 2026-05-01 02:12:31
+bead_id: sase-1q
 status: wip
 ---
 # Pyvision Alias Usage and Test-Pragma Ban Plan
