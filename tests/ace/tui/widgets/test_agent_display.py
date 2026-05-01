@@ -38,7 +38,11 @@ class TestGetPhaseLabel:
         agent = _make_agent(role_suffix=".plan")
         assert get_phase_label(agent) == "PLANNER"
 
-    def test_code(self) -> None:
+    def test_coder(self) -> None:
+        agent = _make_agent(role_suffix=".coder")
+        assert get_phase_label(agent) == "CODER"
+
+    def test_legacy_code(self) -> None:
         agent = _make_agent(role_suffix=".code")
         assert get_phase_label(agent) == "CODER"
 
@@ -287,6 +291,24 @@ class TestLoaderFollowupPopulation:
         )
         coder = _make_agent(
             parent_timestamp="20240101142345",
+            role_suffix=".coder",
+            status="RUNNING",
+        )
+        _apply_status_overrides([parent, coder])
+        assert len(parent.followup_agents) == 1
+        assert parent.followup_agents[0] is coder
+
+    def test_legacy_code_attached_to_parent(self) -> None:
+        from sase.ace.tui.models.agent_loader import _apply_status_overrides
+
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            raw_suffix="20240101142345",
+            role_suffix=".plan",
+            status="DONE",
+        )
+        coder = _make_agent(
+            parent_timestamp="20240101142345",
             role_suffix=".code",
             status="RUNNING",
         )
@@ -323,7 +345,7 @@ class TestLoaderFollowupPopulation:
         )
         coder = _make_agent(
             parent_timestamp="20240101142345",
-            role_suffix=".code",
+            role_suffix=".coder",
             status="RUNNING",
             start_time=datetime(2024, 1, 1, 16, 0),
         )

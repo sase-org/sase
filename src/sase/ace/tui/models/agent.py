@@ -187,7 +187,7 @@ class Agent:
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
-    # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
+    # Role suffix annotation (e.g., ".plan", ".coder", ".q") for follow-up agents
     role_suffix: str | None = None
 
     # User-managed tag (no '@' prefix; at most one per agent).

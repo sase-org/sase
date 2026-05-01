@@ -38,7 +38,7 @@ def get_phase_label(agent: Agent) -> str:
     suffix = agent.role_suffix
     if suffix == ".plan":
         return "PLANNER"
-    if suffix == ".code":
+    if suffix in (".coder", ".code"):
         return "CODER"
     if suffix == ".q":
         return "QUESTIONS"

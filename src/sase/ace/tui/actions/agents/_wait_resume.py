@@ -211,8 +211,14 @@ class AgentWaitResumeMixin:
 
         if agent.status == "PLAN DONE":
             # Find the coder follow-up agent to resume its conversation
+            from sase.plan_chain import is_plan_chain_coder_suffix
+
             coder = next(
-                (f for f in agent.followup_agents if f.role_suffix == ".code"),
+                (
+                    f
+                    for f in agent.followup_agents
+                    if is_plan_chain_coder_suffix(f.role_suffix)
+                ),
                 None,
             )
             if coder and coder.agent_name:

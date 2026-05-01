@@ -274,3 +274,21 @@ def test_old_bundle_synthesis_skips_workflow_children() -> None:
     }
     restored = Agent.from_bundle_dict(bundle)
     assert restored.agent_name is None
+
+
+def test_old_bundle_synthesis_keeps_legacy_code_phase_independent() -> None:
+    """Legacy plan-chain ``.code`` bundles get their own dismissed name."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "feature",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": datetime(2026, 4, 28, 9, 30, 0).isoformat(),
+        "stop_time": datetime(2026, 4, 28, 10, 0, 0).isoformat(),
+        "parent_timestamp": "20260428090000",
+        "raw_suffix": "20260428093000",
+        "role_suffix": ".code",
+        "agent_name": "feature.code",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_name == "260428.feature.code"

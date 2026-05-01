@@ -357,7 +357,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                             parent.step_output = {}
                         parent.step_output.update(meta_fields)
 
-                # Propagate code_time from .code child to parent so
+                # Propagate code_time from coder child to parent so
                 # the metadata panel shows when the coder was launched.
                 if _is_coder_suffix(agent.role_suffix):
                     parent.code_time = agent.run_start_time or agent.start_time
@@ -519,8 +519,8 @@ def _sort_and_reorder(
                 )
             )
 
-        # Set step numbering on follow-up agents (e.g., .code, .q) from their
-        # parent workflow's main prompt step so they render as "1/1.code".
+        # Set step numbering on legacy follow-up agents (e.g., .coder, .q) from
+        # their parent workflow's main prompt step so they render as "1/1.coder".
         prompt_step_by_parent: dict[str, tuple[int, int]] = {}
         for parent_ts, steps in steps_by_parent.items():
             for step in steps:

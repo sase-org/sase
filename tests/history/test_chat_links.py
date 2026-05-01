@@ -11,7 +11,7 @@ from sase.history.chat_links import (
 
 SAMPLE_LINKS = [
     (".plan", "~/.sase/chats/branch-ace_run-a.plan-260327_152207.md"),
-    (".code", "~/.sase/chats/branch-ace_run-a.code-260327_153045.md"),
+    (".coder", "~/.sase/chats/branch-ace_run-a.coder-260327_153045.md"),
 ]
 
 
@@ -20,13 +20,20 @@ class TestBuildLinkedChatsSection:
         result = build_linked_chats_section(SAMPLE_LINKS)
         assert "## Linked Chats" in result
         assert "- 1. .plan" in result
-        assert "- 2. .code" in result
+        assert "- 2. .coder" in result
 
     def test_highlights_current(self) -> None:
         result = build_linked_chats_section(SAMPLE_LINKS, current_role=".plan")
         assert "- **1. .plan**" in result
         # Other entry should NOT be bold
-        assert "- 2. .code" in result
+        assert "- 2. .coder" in result
+
+    def test_preserves_legacy_code_links(self) -> None:
+        result = build_linked_chats_section(
+            [(".code", "~/.sase/chats/branch-ace_run-a.code-260327_153045.md")]
+        )
+        assert "- 1. .code" in result
+        assert "a.code-260327_153045.md" in result
 
     def test_single_entry(self) -> None:
         result = build_linked_chats_section([(".plan", "~/path.md")])
@@ -92,7 +99,7 @@ class TestAppendLinksToChat:
         assert "~/old.md" not in content
         # New entries present
         assert "a.plan-260327_152207.md" in content
-        assert "a.code-260327_153045.md" in content
+        assert "a.coder-260327_153045.md" in content
         # Only one linked-chats section
         assert content.count("## Linked Chats") == 1
 

@@ -73,7 +73,7 @@ def _is_child_of(child: Agent, parent: Agent) -> bool:
     """Check if *child* is a workflow step, follow-up, or retry of *parent*.
 
     Matches workflow step children (``parent_workflow`` set), follow-up
-    agents like ``.code`` / ``.q`` (``parent_timestamp`` set,
+    agents like ``.coder`` / ``.q`` (``parent_timestamp`` set,
     ``parent_workflow`` is None), and spawn-on-retry children
     (``retry_of_timestamp`` set).
     """
@@ -220,7 +220,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         if agent.raw_suffix:
             revived_suffixes.add(agent.raw_suffix)
 
-        # Also revive child steps and follow-up agents (e.g. .code, .q)
+        # Also revive child steps and follow-up agents (e.g. .coder, .q)
         child_raw_suffixes: set[str] = set()
         revival_group: list[Agent] = [agent]
         if not agent.is_workflow_child and agent.raw_suffix:
