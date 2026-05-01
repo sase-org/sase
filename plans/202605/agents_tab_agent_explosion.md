@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:52:40
-status: wip
+status: done
 ---
 # Diagnose and Fix Agents Tab Agent Explosion
 

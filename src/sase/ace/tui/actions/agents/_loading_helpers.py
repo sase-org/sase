@@ -26,7 +26,7 @@ DISMISSABLE_STATUSES = {
 
 
 def is_always_visible(agent: Agent) -> bool:
-    """Check if agent should always be visible (dismissable or running).
+    """Check if agent should stay in the default active/attention view.
 
     Args:
         agent: The agent to check.
@@ -34,16 +34,15 @@ def is_always_visible(agent: Agent) -> bool:
     Returns:
         True if agent should always be visible, False if it's hideable.
     """
-    # Workflow children: visibility managed by fold state, not hide toggle
-    if agent.is_workflow_child:
-        return True
-
     # Agents marked hidden (via %hide directive, axe-spawned detection, etc.)
     # are hideable (hidden by default, shown with '.' toggle)
     if agent.hidden:
         return False
 
-    return True
+    # Terminal/dismissable rows stay available through the hidden toggle once
+    # there is active work to show, including workflow child rows inserted from
+    # historical prompt_step markers.
+    return agent.status not in DISMISSABLE_STATUSES
 
 
 def is_axe_spawned_agent(agent: Agent) -> bool:
