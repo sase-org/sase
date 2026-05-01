@@ -13,6 +13,7 @@ The implementation lives here as a free function so the mixin in
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,42 @@ if TYPE_CHECKING:
     from ._loading import AgentLoadingMixin
 
 log = logging.getLogger(__name__)
+
+
+# pyvision: tests/test_agents_tab_query_integration.py
+def apply_transient_status_overrides(
+    agents: list[Agent],
+    status_overrides: MutableMapping[tuple[AgentType, str, str | None], str],
+    pre_question_status: MutableMapping[tuple[AgentType, str, str | None], str | None],
+) -> tuple[tuple[AgentType, str, str | None], ...]:
+    """Apply UI-owned status overrides and prune entries that no longer apply.
+
+    These overrides are transient app state from notification actions, not
+    loader facts. The helper is intentionally data-only so the finalizer can
+    keep the policy isolated without coupling the Rust composer to TUI state.
+    """
+    loaded_identities = {a.identity for a in agents}
+    cleared: list[tuple[AgentType, str, str | None]] = []
+
+    for agent in agents:
+        if agent.status in DISMISSABLE_STATUSES:
+            if (
+                agent.identity in status_overrides
+                or agent.identity in pre_question_status
+            ):
+                cleared.append(agent.identity)
+            status_overrides.pop(agent.identity, None)
+            pre_question_status.pop(agent.identity, None)
+        elif agent.identity in status_overrides:
+            agent.status = status_overrides[agent.identity]
+
+    for identity in list(status_overrides):
+        if identity not in loaded_identities:
+            cleared.append(identity)
+            status_overrides.pop(identity, None)
+            pre_question_status.pop(identity, None)
+
+    return tuple(cleared)
 
 
 def get_or_parse_agent_query(app: AgentLoadingMixin) -> QueryExpr | None:
@@ -145,22 +182,12 @@ def finalize_agent_list(
         # memory stays bounded across many refresh cycles.
         content_cache.prune(app._agents)
 
-    # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
-    loaded_identities = {a.identity for a in app._agents}
-    for agent in app._agents:
-        if agent.status in DISMISSABLE_STATUSES:
-            # Agent finished (DONE/FAILED, including dead-PID detection)
-            # -- clear any override
-            app._agent_status_overrides.pop(agent.identity, None)
-            app._agent_pre_question_status.pop(agent.identity, None)
-        elif agent.identity in app._agent_status_overrides:
-            agent.status = app._agent_status_overrides[agent.identity]
-
-    # Clean overrides for agents that no longer exist in the loaded list
-    for identity in list(app._agent_status_overrides):
-        if identity not in loaded_identities:
-            app._agent_status_overrides.pop(identity, None)
-            app._agent_pre_question_status.pop(identity, None)
+    # Apply transient notification-driven status overrides.
+    apply_transient_status_overrides(
+        app._agents,
+        app._agent_status_overrides,
+        app._agent_pre_question_status,
+    )
 
     # Calculate the new index
     # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
