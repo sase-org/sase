@@ -36,8 +36,8 @@ class GroupingMode(Enum):
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
       ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
     - ``BY_STATUS``: L0 is a status bucket (``Needs Attention`` /
-      ``Running`` / ``Failed`` / ``Done``) derived from each agent's
-      ``status`` and retry-chain lineage.
+      ``Failed`` / ``Running`` / ``Waiting`` / ``Done``) derived from each
+      agent's ``status``.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
     levels disappear.  ``BY_DATE`` renders date bucket → 4-hour window →
@@ -133,12 +133,12 @@ def hour_bucket_for(agent: Agent) -> str:
 
 
 def status_bucket_for(agent: Agent) -> str:
-    """Map ``agent.status`` (plus retry lineage) to a status bucket.
+    """Map ``agent.status`` to a status bucket.
 
     See the ``_NEEDS_ATTENTION_STATUSES`` comment above for the mapping
-    rules.  All ``WAITING`` variants land in ``Waiting``.  Anything not
-    explicitly bucketed lands in ``Running`` (the agent is in flight from
-    the user's perspective).
+    rules.  ``FAILED`` display statuses land in ``Failed`` and ``WAITING``
+    statuses land in ``Waiting``.  Anything not explicitly bucketed lands in
+    ``Running`` (the agent is in flight from the user's perspective).
     """
     return status_bucket_for_values(agent.status, agent.retried_as_timestamp)
 

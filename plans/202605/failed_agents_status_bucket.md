@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:49:37
-status: wip
+status: done
 ---
 # Plan: Separate Failed Agents From Needs Attention
 

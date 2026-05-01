@@ -259,21 +259,16 @@ def test_banner_summary_text_renders_chips_separated_by_dots() -> None:
     assert "1 failed" in text
 
 
-def test_banner_summary_text_handles_failed_retried_status() -> None:
-    """Only ``FAILED`` agents with retry lineage count toward the failed chip.
-
-    A bare ``FAILED`` (no ``retried_as_timestamp``) buckets into Needs
-    Attention, so it counts toward the awaiting chip — matching how the
-    banner labels it in practice.
-    """
+def test_banner_summary_text_handles_failed_statuses() -> None:
+    """Every displayed ``FAILED`` status counts toward the failed chip."""
     agents = [
         _agent(cl_name="a", status="FAILED"),
         _agent(cl_name="b", status="FAILED (RETRIED)", retried_as_timestamp="ts-retry"),
     ]
     group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1))
     summary = compute_banner_summary(group, agents)
-    assert summary.failed == 1
-    assert summary.awaiting == 1
+    assert summary.failed == 2
+    assert summary.awaiting == 0
 
 
 def test_banner_summary_text_empty_when_count_is_zero() -> None:

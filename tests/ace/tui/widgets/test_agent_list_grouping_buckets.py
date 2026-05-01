@@ -25,6 +25,17 @@ from sase.ace.tui.widgets.agent_list import AgentList
 from ._agent_list_grouping_helpers import BR, make_agent
 
 
+def _status_bucket_banner_labels(widget: AgentList) -> list[str]:
+    labels: list[str] = []
+    for option in widget._options:
+        plain = option.prompt.plain  # type: ignore[union-attr]
+        for bucket, glyph in _STATUS_BUCKET_GLYPHS.items():
+            if plain.startswith(f"{glyph} {bucket}"):
+                labels.append(bucket)
+                break
+    return labels
+
+
 def test_by_date_mode_emits_bucket_banner_per_date_group() -> None:
     """In BY_DATE mode L0 banners are date buckets, ChangeSpec layer is dropped."""
     now = datetime(2026, 4, 25, 12, 0, 0)
@@ -90,7 +101,7 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
         current_idx=0,
         grouping_mode=GroupingMode.BY_STATUS,
     )
-    # Order is (Needs Attention, Running, Done) — Failed bucket absent.
+    # Absent buckets are omitted.
     assert widget._row_entries == [
         BR,  # Needs Attention
         (1, None),
@@ -100,6 +111,29 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
         BR,  # spacer
         BR,  # Done
         (2, None),
+    ]
+
+
+def test_by_status_mode_renders_actionable_and_failed_buckets_adjacent() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [
+            make_agent(cl_name="done", status="DONE"),
+            make_agent(cl_name="waiting", status="WAITING"),
+            make_agent(cl_name="running", status="RUNNING"),
+            make_agent(cl_name="failed", status="FAILED"),
+            make_agent(cl_name="question", status="QUESTION"),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+
+    assert _status_bucket_banner_labels(widget) == [
+        "Needs Attention",
+        "Failed",
+        "Running",
+        "Waiting",
+        "Done",
     ]
 
 

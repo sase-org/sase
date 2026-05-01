@@ -4,9 +4,9 @@ from __future__ import annotations
 
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Needs Attention",
+    "Failed",
     "Running",
     "Waiting",
-    "Failed",
     "Done",
 )
 
@@ -19,15 +19,16 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
 }
 
 # Status mapping for status bucketing.  The semantic line is:
-# **Needs Attention** = "you need to act right now"; everything else is a
-# state the agent is moving through on its own.
+# **Needs Attention** = "you need to act right now"; **Failed** = terminal
+# failure; everything else is a state the agent is moving through on its own.
 #
 # Members of Needs Attention:
 #   * ``PLANNING`` — a plan is being drafted and the user is expected to
 #     review/answer questions as they arise
 #   * ``QUESTION`` — the agent has explicitly paused for an answer
-#   * ``FAILED`` without ``retried_as_timestamp`` (handled by the
-#     ``startswith("FAILED")`` branch below, not by this frozenset)
+#
+# ``FAILED`` statuses are terminal failure states and always land in
+# **Failed**, independent of retry-chain lineage.
 #
 # ``PLAN DONE``, ``PLAN REJECTED``, and ``EPIC CREATED`` are post-plan handoff
 # states: the planning work is finished and any code work has been spun off,
@@ -55,7 +56,12 @@ def status_bucket_for_values(
     status: str | None,
     retried_as_timestamp: str | None = None,
 ) -> str:
-    """Map a status string plus retry lineage to a status bucket."""
+    """Map a status string to a status bucket.
+
+    ``retried_as_timestamp`` remains accepted for callers that already have
+    retry metadata, but failure bucketing is based on the displayed status.
+    """
+    del retried_as_timestamp
     status_text = status or ""
     if status_text in _TERMINAL_STATUSES:
         return "Done"
@@ -66,7 +72,5 @@ def status_bucket_for_values(
     if status_text == "WAITING":
         return "Waiting"
     if status_text.startswith("FAILED"):
-        if not retried_as_timestamp:
-            return "Needs Attention"
         return "Failed"
     return "Running"

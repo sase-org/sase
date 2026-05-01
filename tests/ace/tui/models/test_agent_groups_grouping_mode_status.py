@@ -62,10 +62,10 @@ def test_status_bucket_waiting_with_waiting_for_is_waiting() -> None:
     assert _status_bucket_for(a) == "Waiting"
 
 
-def test_status_bucket_failed_terminal_is_needs_attention() -> None:
-    """A FAILED agent the user has not yet retried demands attention."""
+def test_status_bucket_failed_terminal_is_failed() -> None:
+    """Every displayed ``FAILED`` status lands in the Failed bucket."""
     a = _agent(status="FAILED", retried_as_timestamp=None)
-    assert _status_bucket_for(a) == "Needs Attention"
+    assert _status_bucket_for(a) == "Failed"
 
 
 def test_status_bucket_failed_then_retried_is_failed() -> None:
@@ -76,7 +76,7 @@ def test_status_bucket_failed_then_retried_is_failed() -> None:
 
 def test_status_bucket_failed_retried_status_string_is_failed() -> None:
     """``FAILED (RETRIED)`` is the display status of a handed-off failure."""
-    a = _agent(status="FAILED (RETRIED)", retried_as_timestamp="ts-child")
+    a = _agent(status="FAILED (RETRIED)", retried_as_timestamp=None)
     assert _status_bucket_for(a) == "Failed"
 
 

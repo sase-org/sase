@@ -45,7 +45,7 @@ def test_agent_status_bucket_question() -> None:
 
 
 def test_agent_status_bucket_failed_without_retry() -> None:
-    assert agent_status_bucket(_agent("a", "FAILED")) == "Needs Attention"
+    assert agent_status_bucket(_agent("a", "FAILED")) == "Failed"
 
 
 def test_agent_status_bucket_failed_with_retry() -> None:
@@ -66,16 +66,19 @@ def test_group_agent_statuses_omits_empty_buckets_and_preserves_order() -> None:
             _agent("done-1", "DONE"),
             _agent("run-2", "RUNNING"),
             _agent("question-1", "QUESTION"),
+            _agent("failed-1", "FAILED"),
         ]
     )
 
     assert [group.bucket for group in groups] == [
         "Needs Attention",
+        "Failed",
         "Running",
         "Done",
     ]
     assert [[agent.name for agent in group.agents] for group in groups] == [
         ["question-1"],
+        ["failed-1"],
         ["run-1", "run-2"],
         ["done-1"],
     ]
