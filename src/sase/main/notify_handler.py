@@ -1,5 +1,7 @@
 """Handler for the 'sase notify' CLI subcommand."""
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
@@ -13,6 +15,26 @@ from sase.core.time import get_timezone
 
 
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:
+    """Dispatch notification subcommands or preserve legacy creation."""
+    subcommand = getattr(args, "notify_subcommand", None)
+    if subcommand in (None, "create"):
+        _handle_notify_create(args)
+    if subcommand == "list":
+        from sase.notifications.cli_list import handle_notify_list
+
+        handle_notify_list(args)
+        sys.exit(0)
+    if subcommand == "show":
+        from sase.notifications.cli_show import handle_notify_show
+
+        handle_notify_show(args)
+        sys.exit(0)
+
+    print("Usage: sase notify [create|list|show]", file=sys.stderr)
+    sys.exit(1)
+
+
+def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
     """Create a notification from stdin JSON and/or CLI flags."""
     data: dict = {}
 

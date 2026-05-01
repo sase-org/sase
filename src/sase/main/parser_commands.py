@@ -206,13 +206,87 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'notify' subcommand parser."""
     notify_parser = subparsers.add_parser(
         "notify",
-        help="Create a notification (reads JSON from stdin or uses flags)",
+        help="Create, list, or inspect notifications",
     )
     notify_parser.add_argument(
         "-s",
         "--sender",
         default=None,
         help="Notification sender name (overrides sender in JSON input)",
+    )
+    notify_sub = notify_parser.add_subparsers(
+        dest="notify_subcommand", help="Notification subcommands"
+    )
+
+    create_parser = notify_sub.add_parser(
+        "create",
+        help="Create a notification (reads JSON from stdin or uses flags)",
+    )
+    create_parser.add_argument(
+        "-s",
+        "--sender",
+        default=None,
+        help="Notification sender name (overrides sender in JSON input)",
+    )
+
+    list_parser = notify_sub.add_parser(
+        "list",
+        help="List recent notifications (pretty output by default, JSON with -j)",
+    )
+    list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON array (stable schema)",
+    )
+    list_parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of notifications to return (default: 20)",
+    )
+    list_parser.add_argument(
+        "-q",
+        "--query",
+        default=None,
+        help="Case-insensitive substring filter over notification fields",
+    )
+    list_parser.add_argument(
+        "-s",
+        "--sender",
+        default=None,
+        help="Only include notifications from this sender",
+    )
+    list_parser.add_argument(
+        "-u",
+        "--unread",
+        action="store_true",
+        help="Only include unread notifications",
+    )
+    list_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Include dismissed notifications",
+    )
+
+    show_parser = notify_sub.add_parser(
+        "show",
+        help="Show one notification by id",
+    )
+    show_parser.add_argument(
+        "-i",
+        "--id",
+        required=True,
+        help="Notification id to inspect",
+    )
+    show_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="Output format: 'markdown' (default) or 'json'",
     )
 
 
