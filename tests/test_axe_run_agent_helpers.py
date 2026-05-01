@@ -10,6 +10,7 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
 )
+from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
 
 def test_update_meta_field_sets_key(tmp_path) -> None:
@@ -41,7 +42,21 @@ def test_promote_to_workflow_renames_and_adds_workflow_name(tmp_path) -> None:
     meta = json.loads(meta_path.read_text())
     assert meta["name"] == "a.plan"
     assert meta["workflow_name"] == "a"
+    assert meta["role_suffix"] == ".plan"
     assert meta["pid"] == 123
+
+
+def test_promote_to_workflow_can_promote_question_phase(tmp_path) -> None:
+    """Question handoff roots are named with the question suffix."""
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(json.dumps({"name": "a", "pid": 123}))
+
+    promote_to_workflow(str(tmp_path), "a", role_suffix=".q")
+
+    meta = json.loads(meta_path.read_text())
+    assert meta["name"] == "a.q"
+    assert meta["workflow_name"] == "a"
+    assert meta["role_suffix"] == ".q"
 
 
 def test_create_followup_with_name_override(tmp_path) -> None:
@@ -56,15 +71,18 @@ def test_create_followup_with_name_override(tmp_path) -> None:
         create_followup_artifacts(
             "proj",
             {"name": "a", "model": "test"},
-            ".code",
+            ".coder",
             "20260326120000",
-            agent_name_override="a.code",
+            agent_name_override="a.coder",
             workflow_name="a",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
-    assert meta["name"] == "a.code"
+    assert meta["name"] == "a.coder"
     assert meta["workflow_name"] == "a"
+    assert meta["role_suffix"] == ".coder"
+    assert meta["parent_timestamp"] == "20260326120000"
+    assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
 
 
 def test_create_followup_inherits_name_without_override(tmp_path) -> None:

@@ -24,9 +24,14 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.history.chat import save_chat_history
-from sase.telemetry.metrics import AGENT_KILLS
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import RetryState, get_retry_config
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    canonical_plan_chain_suffix,
+    plan_chain_agent_name,
+)
+from sase.telemetry.metrics import AGENT_KILLS
 
 
 @dataclass
@@ -124,7 +129,10 @@ def _finalize_loop(
     # Multi-agent workflows use the last child name; single-agent keeps original.
     _done_agent_name: str | None
     if state.agent_step > 1 and ctx.agent_name:
-        if state.current_role_suffix in (".code", ".epic"):
+        plan_chain_suffix = canonical_plan_chain_suffix(state.current_role_suffix)
+        if plan_chain_suffix is not None:
+            _done_agent_name = plan_chain_agent_name(ctx.agent_name, plan_chain_suffix)
+        elif state.current_role_suffix == ".epic":
             _done_agent_name = f"{ctx.agent_name}{state.current_role_suffix}"
         else:
             _done_agent_name = f"{ctx.agent_name}.{state.agent_step}"
@@ -159,7 +167,7 @@ def _finalize_loop(
     if state.loop_outcome == "completed":
         # Cross-link all chat files in multi-step workflows
         state.saved_chat_paths.append(
-            (state.current_role_suffix or ".code", saved_path)
+            (state.current_role_suffix or PLAN_CHAIN_CODER_SUFFIX, saved_path)
         )
         if len(state.saved_chat_paths) > 1:
             from sase.history.chat_links import (

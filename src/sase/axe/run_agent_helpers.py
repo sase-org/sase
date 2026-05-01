@@ -13,6 +13,12 @@ from typing import Any
 
 from sase.axe.runner_utils import was_killed
 from sase.artifacts import create_artifacts_directory
+from sase.plan_chain import (
+    PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    is_plan_chain_artifact_meta,
+    plan_chain_agent_name,
+)
 
 
 def is_workflow_noop(artifacts_dir: str) -> bool:
@@ -190,8 +196,12 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
         pass
 
 
-def promote_to_workflow(artifacts_dir: str, base_name: str) -> None:
-    """Retroactively rename the initial agent to ``<base_name>.plan``.
+def promote_to_workflow(
+    artifacts_dir: str,
+    base_name: str,
+    role_suffix: str = PLAN_CHAIN_PLAN_SUFFIX,
+) -> None:
+    """Retroactively rename the initial agent to a named plan-chain phase.
 
     Called when the first follow-up agent is created, promoting a
     single-agent run into a multi-agent workflow.  Sets both
@@ -201,8 +211,9 @@ def promote_to_workflow(artifacts_dir: str, base_name: str) -> None:
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["name"] = f"{base_name}.plan"
+        meta["name"] = plan_chain_agent_name(base_name, role_suffix)
         meta["workflow_name"] = base_name
+        meta["role_suffix"] = role_suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -354,6 +365,8 @@ def create_followup_artifacts(
         followup_meta["workflow_name"] = workflow_name
     followup_meta["role_suffix"] = suffix
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
+    if is_plan_chain_artifact_meta(followup_meta):
+        followup_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = prev_artifacts_timestamp
     if workspace_num is not None:
         followup_meta["workspace_num"] = workspace_num
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()

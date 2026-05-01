@@ -25,6 +25,13 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.runner_utils import reset_killed, was_killed
+from sase.plan_chain import (
+    PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_PLAN_SUFFIX,
+    PLAN_CHAIN_QUESTION_SUFFIX,
+    plan_chain_agent_name,
+    plan_chain_feedback_suffix,
+)
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -205,7 +212,7 @@ def handle_plan_marker(
     # Only set the ".plan" suffix on the original workflow entry;
     # feedback round agents (suffix ".2", ".3", …) keep theirs.
     if state.feedback_round == 0:
-        update_meta_suffix(state.current_artifacts_dir, ".plan")
+        update_meta_suffix(state.current_artifacts_dir, PLAN_CHAIN_PLAN_SUFFIX)
 
     update_meta_field(
         state.current_artifacts_dir,
@@ -242,7 +249,7 @@ def handle_plan_marker(
     from sase.history.chat_links import format_plan_as_response
 
     plan_response = format_plan_as_response(plan_result.plan_file)
-    _planner_suffix = state.current_role_suffix or ".plan"
+    _planner_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     planner_agent = f"{ctx.agent_name}{_planner_suffix}" if ctx.agent_name else None
     _planner_extra = format_extra_sections(state.current_artifacts_dir)
     _planner_chat = save_chat_history(
@@ -271,7 +278,7 @@ def handle_plan_marker(
             datetime.now(UTC).isoformat(),
         )
 
-        suffix = f".{state.feedback_round + 1}"
+        suffix = plan_chain_feedback_suffix(state.feedback_round)
         state.current_role_suffix = suffix
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
@@ -282,7 +289,10 @@ def handle_plan_marker(
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
-            agent_name_override=f"{ctx.agent_name}.{state.agent_step}"
+            agent_name_override=plan_chain_agent_name(
+                ctx.agent_name,
+                state.current_role_suffix,
+            )
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
@@ -399,7 +409,7 @@ def handle_plan_marker(
         )
     else:
         # Approve: spawn coder with plan as prompt
-        state.current_role_suffix = ".code"
+        state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
 
         # Point SASE_PLAN at the committed in-repo plan file so
         # the commit workflow can update its frontmatter without copying.
@@ -417,7 +427,10 @@ def handle_plan_marker(
             state.current_role_suffix,
             convert_timestamp_to_artifacts_format(ctx.timestamp),
             workspace_num=ctx.workspace_num,
-            agent_name_override=f"{ctx.agent_name}{state.current_role_suffix}"
+            agent_name_override=plan_chain_agent_name(
+                ctx.agent_name,
+                state.current_role_suffix,
+            )
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
@@ -465,10 +478,10 @@ def handle_questions_marker(
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
     normalize_handoff_interruption_state(state.current_artifacts_dir)
-    state.current_role_suffix += ".q"
+    state.current_role_suffix = PLAN_CHAIN_QUESTION_SUFFIX
     update_meta_suffix(
         state.current_artifacts_dir,
-        state.current_role_suffix or ".q",
+        state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX,
     )
 
     update_meta_field(
@@ -491,7 +504,7 @@ def handle_questions_marker(
     from sase.history.chat import save_chat_history
     from sase.history.chat_extras import format_extra_sections
 
-    _q_suffix = state.current_role_suffix or ".q"
+    _q_suffix = state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX
     _q_agent = f"{ctx.agent_name}{_q_suffix}" if ctx.agent_name else None
     _q_extra = format_extra_sections(state.current_artifacts_dir)
     _q_chat = save_chat_history(
@@ -509,14 +522,21 @@ def handle_questions_marker(
 
     state.agent_step += 1
     if state.agent_step == 2 and ctx.agent_name:
-        promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
+        promote_to_workflow(
+            ctx.artifacts_dir,
+            ctx.agent_name,
+            role_suffix=PLAN_CHAIN_QUESTION_SUFFIX,
+        )
     state.current_artifacts_dir = create_followup_artifacts(
         ctx.project_name,
         ctx.agent_meta,
         state.current_role_suffix,
         convert_timestamp_to_artifacts_format(ctx.timestamp),
         workspace_num=ctx.workspace_num,
-        agent_name_override=f"{ctx.agent_name}.{state.agent_step}"
+        agent_name_override=plan_chain_agent_name(
+            ctx.agent_name,
+            plan_chain_feedback_suffix(state.agent_step - 1),
+        )
         if ctx.agent_name
         else None,
         workflow_name=ctx.agent_name,
