@@ -74,7 +74,9 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260501 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260501 \
+        --epic-symbol 'sase-1r(WorkspaceClaimOutcomeWire)' \
+        src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -299,6 +301,11 @@ bench-query *args: _setup
 # backend against.
 bench-agent-scan *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_scan.py {{ args }}
+
+# Run the Python agent-launch benchmark. Uses fake subprocesses and temp
+# ProjectSpec files so launch planning/spawn baselines do not start LLM CLIs.
+bench-agent-launch *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_agent_launch.py {{ args }}
 
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,

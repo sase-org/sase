@@ -1,0 +1,67 @@
+{
+  "include_sleeps": true,
+  "runs": 1,
+  "scenarios": {
+    "model_fanout": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 2000.0,
+      "max_ms": 2001.187292044051,
+      "median_ms": 2001.187292044051,
+      "min_ms": 2001.187292044051,
+      "p95_ms": 2001.187292044051,
+      "prepared_count": 3,
+      "requires_sequential_naming_wait": false
+    },
+    "multi_prompt": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 0.0,
+      "max_ms": 0.554839032702148,
+      "median_ms": 0.554839032702148,
+      "min_ms": 0.554839032702148,
+      "p95_ms": 0.554839032702148,
+      "prepared_count": 2,
+      "requires_sequential_naming_wait": true
+    },
+    "plain_prompt": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 0.0,
+      "max_ms": 0.23424706887453794,
+      "median_ms": 0.23424706887453794,
+      "min_ms": 0.23424706887453794,
+      "p95_ms": 0.23424706887453794,
+      "prepared_count": 1,
+      "requires_sequential_naming_wait": false
+    },
+    "repeat_fanout": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 2000.0,
+      "max_ms": 2001.1504330905154,
+      "median_ms": 2001.1504330905154,
+      "min_ms": 2001.1504330905154,
+      "p95_ms": 2001.1504330905154,
+      "prepared_count": 3,
+      "requires_sequential_naming_wait": false
+    },
+    "vcs_prompt": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 0.0,
+      "max_ms": 0.20414905156940222,
+      "median_ms": 0.20414905156940222,
+      "min_ms": 0.20414905156940222,
+      "p95_ms": 0.20414905156940222,
+      "prepared_count": 1,
+      "requires_sequential_naming_wait": false
+    },
+    "wait_deferred": {
+      "count": 1.0,
+      "expected_parent_sleep_ms": 0.0,
+      "max_ms": 0.2566189505159855,
+      "median_ms": 0.2566189505159855,
+      "min_ms": 0.2566189505159855,
+      "p95_ms": 0.2566189505159855,
+      "prepared_count": 1,
+      "requires_sequential_naming_wait": false
+    }
+  },
+  "schema_version": 1
+}

@@ -200,9 +200,18 @@ def spawn_repeat_batch(
         for k in range(1, count + 1)
     ]
 
+    from sase.agent.launch_timing import LaunchTimingRecorder
+
+    timer = LaunchTimingRecorder(
+        "agent_launch_repeat_batch",
+        {"slot_count": len(specs), "sleep_between": sleep_between},
+    )
     for i, spec in enumerate(specs):
         if i > 0 and sleep_between > 0:
-            time.sleep(sleep_between)
-        base_spawn_fn(spec)
+            with timer.stage("fanout_sleep", seconds=sleep_between, slot_index=i):
+                time.sleep(sleep_between)
+        with timer.stage("slot_spawn", slot_index=i):
+            base_spawn_fn(spec)
 
+    timer.finish(outcome="ok")
     return specs

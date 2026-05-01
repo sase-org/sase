@@ -56,6 +56,7 @@ class BulkLaunchMixin:
     def _run_bulk_launch(self, prompt: str, changespecs: list[ChangeSpec]) -> None:
         """Worker-thread body for :meth:`_launch_bulk_agents`."""
         try:
+            from sase.agent.launch_timing import LaunchTimingRecorder
             from sase.workspace_provider import detect_workflow_type
             from sase.core.time import generate_timestamp
             from sase.running_field import (
@@ -63,12 +64,17 @@ class BulkLaunchMixin:
                 get_workspace_directory_for_num,
             )
 
+            timer = LaunchTimingRecorder(
+                "tui_agent_launch_fanout",
+                {"fanout_kind": "bulk", "slot_count": len(changespecs)},
+            )
             launched_count = 0
             failed_count = 0
 
             for i, cs in enumerate(changespecs):
                 if i > 0:
-                    time.sleep(1)
+                    with timer.stage("fanout_sleep", seconds=1.0, slot_index=i):
+                        time.sleep(1)
                 project_name = cs.project_basename
                 cl_name = cs.name
 
@@ -82,12 +88,13 @@ class BulkLaunchMixin:
                     continue
 
                 try:
-                    workspace_num = get_first_available_axe_workspace(project_file)
-                    timestamp = generate_timestamp()
-                    workflow_name = f"ace(run)-{timestamp}"
-                    workspace_dir, _ = get_workspace_directory_for_num(
-                        workspace_num, project_name
-                    )
+                    with timer.stage("workspace_allocation", slot_index=i):
+                        workspace_num = get_first_available_axe_workspace(project_file)
+                        timestamp = generate_timestamp()
+                        workflow_name = f"ace(run)-{timestamp}"
+                        workspace_dir, _ = get_workspace_directory_for_num(
+                            workspace_num, project_name
+                        )
                 except RuntimeError as e:
                     log.warning("Workspace error for %s: %s", cl_name, e)
                     failed_count += 1
@@ -97,19 +104,20 @@ class BulkLaunchMixin:
                 workflow_type = detect_workflow_type(project_file)
                 cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
-                self._launch_background_agent(  # type: ignore[attr-defined]
-                    cl_name=cl_name,
-                    project_file=project_file,
-                    workspace_dir=workspace_dir,
-                    workspace_num=workspace_num,
-                    workflow_name=workflow_name,
-                    prompt=cl_prompt,
-                    timestamp=timestamp,
-                    update_target="" if workflow_type else cl_name,
-                    project_name=project_name,
-                    history_sort_key=cl_name,
-                    vcs_ref=(workflow_type, cl_name),
-                )
+                with timer.stage("low_level_spawn", slot_index=i):
+                    self._launch_background_agent(  # type: ignore[attr-defined]
+                        cl_name=cl_name,
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        workflow_name=workflow_name,
+                        prompt=cl_prompt,
+                        timestamp=timestamp,
+                        update_target="" if workflow_type else cl_name,
+                        project_name=project_name,
+                        history_sort_key=cl_name,
+                        vcs_ref=(workflow_type, cl_name),
+                    )
                 launched_count += 1
                 self.call_later(  # type: ignore[attr-defined]
                     self.request_agents_refresh,  # type: ignore[attr-defined]
@@ -124,6 +132,7 @@ class BulkLaunchMixin:
             else:
                 msg = f"Started {launched_count} agent(s)"
                 self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            timer.finish(outcome="ok", launched=launched_count, failed=failed_count)
         except Exception:
             log.exception("Bulk launch failed")
             self.call_later(  # type: ignore[attr-defined]

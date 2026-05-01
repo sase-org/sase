@@ -114,6 +114,16 @@ class AgentLaunchMixin(
             # (e.g. another launch path ran); nothing to do.
             return
         ctx = self._prompt_context
+        from sase.agent.launch_timing import LaunchTimingRecorder
+
+        timer = LaunchTimingRecorder(
+            "tui_agent_launch",
+            {
+                "prompt_len": len(prompt),
+                "project_name": ctx.project_name,
+                "home_mode": ctx.is_home_mode,
+            },
+        )
 
         # Check if this is a bulk run
         if self._bulk_changespecs:
@@ -145,10 +155,14 @@ class AgentLaunchMixin(
         from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
         from sase.agent.multi_prompt import parse_multi_prompt
 
-        multi = parse_multi_prompt(prompt)
-        multi.segments = expand_multi_agent_xprompts(
-            multi.segments, multi.local_xprompts
-        )
+        with timer.stage("prompt_parse"):
+            multi = parse_multi_prompt(prompt)
+        with timer.stage(
+            "multi_agent_xprompt_expand", segment_count=len(multi.segments)
+        ):
+            multi.segments = expand_multi_agent_xprompts(
+                multi.segments, multi.local_xprompts
+            )
         if len(multi.segments) > 1:
             if ctx.is_home_mode:
                 multi.segments = [
@@ -157,87 +171,92 @@ class AgentLaunchMixin(
                 ]
             normalized_prompt = "\n---\n".join(multi.segments)
             _vcs_prompt = normalized_prompt
-            try:
-                from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
+            with timer.stage("vcs_resolution", launch_kind="multi_prompt"):
+                try:
+                    from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
 
-                _vcs_prompt, _ = resolve_agent_refs_in_prompt(normalized_prompt)
-            except Exception:
-                pass  # Agent not found — runner will resolve later
+                    _vcs_prompt, _ = resolve_agent_refs_in_prompt(normalized_prompt)
+                except Exception:
+                    pass  # Agent not found — runner will resolve later
 
-            mp_vcs_ref: tuple[str, str] | None = None
-            ref_patterns = get_ref_patterns()
-            for wf_name, pattern in ref_patterns.items():
-                match = pattern.search(_vcs_prompt)
-                if match is not None:
-                    ref_value = match.group(1) or match.group(2)
-                    if ref_value:
-                        mp_vcs_ref = (wf_name, ref_value)
-                        ctx.display_name = ref_value
-                        ctx.history_sort_key = ref_value
-                        break
+                mp_vcs_ref: tuple[str, str] | None = None
+                ref_patterns = get_ref_patterns()
+                for wf_name, pattern in ref_patterns.items():
+                    match = pattern.search(_vcs_prompt)
+                    if match is not None:
+                        ref_value = match.group(1) or match.group(2)
+                        if ref_value:
+                            mp_vcs_ref = (wf_name, ref_value)
+                            ctx.display_name = ref_value
+                            ctx.history_sort_key = ref_value
+                            break
             from sase.history.prompt import add_or_update_prompt
 
-            add_or_update_prompt(
-                normalized_prompt,
-                project_name=ctx.project_name,
-                branch_or_workspace=ctx.history_sort_key,
-            )
-            _record_prompt_file_references(normalized_prompt)
+            with timer.stage("history_write", launch_kind="multi_prompt"):
+                add_or_update_prompt(
+                    normalized_prompt,
+                    project_name=ctx.project_name,
+                    branch_or_workspace=ctx.history_sort_key,
+                )
+                _record_prompt_file_references(normalized_prompt)
             self._prompt_context = None
+            timer.finish(dispatch="multi_prompt", segment_count=len(multi.segments))
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_prompt_agents, multi, ctx, mp_vcs_ref
             )
             return
 
-        if ctx.is_home_mode:
-            prompt = normalize_default_vcs_workflow(prompt)
+        with timer.stage("prompt_normalize"):
+            if ctx.is_home_mode:
+                prompt = normalize_default_vcs_workflow(prompt)
 
-        has_wait = has_wait_directive(prompt)
+            has_wait = has_wait_directive(prompt)
 
         # Resolve @name agent references in VCS tags (e.g. #gh:@d → #gh:sase)
         # so the VCS ref pattern can match the resolved name for display_name.
         _vcs_prompt = prompt
-        try:
-            from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
+        with timer.stage("vcs_resolution", launch_kind="single_or_fanout"):
+            try:
+                from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
 
-            _vcs_prompt, _ = resolve_agent_refs_in_prompt(prompt)
-        except Exception:
-            pass  # Agent not found — runner will resolve later
+                _vcs_prompt, _ = resolve_agent_refs_in_prompt(prompt)
+            except Exception:
+                pass  # Agent not found — runner will resolve later
 
-        # Record VCS xprompt usage for MRU cycling
-        from sase.xprompt._parsing import extract_vcs_workflow_tag
+            # Record VCS xprompt usage for MRU cycling
+            from sase.xprompt._parsing import extract_vcs_workflow_tag
 
-        _vcs_tag = extract_vcs_workflow_tag(_vcs_prompt)
-        if _vcs_tag:
-            from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+            _vcs_tag = extract_vcs_workflow_tag(_vcs_prompt)
+            if _vcs_tag:
+                from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
 
-            record_vcs_xprompt_usage(_vcs_tag.strip())
+                record_vcs_xprompt_usage(_vcs_tag.strip())
 
-        # Detect workspace-managing embedded workflows in home mode
-        vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
-        if ctx.is_home_mode:
-            for wf_name in get_workflow_names():
-                resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
-                    _vcs_prompt, wf_name, skip_workspace=has_wait
-                )
-                if resolved is not None:
-                    (
-                        ctx.project_file,
-                        ctx.project_name,
-                        ctx.workspace_dir,
-                        ctx.workspace_num,
-                        ref_value,
-                    ) = resolved
-                    vcs_ref = (wf_name, ref_value)
-                    ctx.display_name = ref_value
-                    ctx.history_sort_key = ref_value
-                    ctx.update_target = ""  # workflow .yml handles checkout
-                    if is_non_workspace_workflow(wf_name):
-                        ctx.is_home_mode = True
-                    else:
-                        # Enable workspace claiming/releasing for VCS workspaces.
-                        ctx.is_home_mode = False
-                    break
+            # Detect workspace-managing embedded workflows in home mode
+            vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
+            if ctx.is_home_mode:
+                for wf_name in get_workflow_names():
+                    resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
+                        _vcs_prompt, wf_name, skip_workspace=has_wait
+                    )
+                    if resolved is not None:
+                        (
+                            ctx.project_file,
+                            ctx.project_name,
+                            ctx.workspace_dir,
+                            ctx.workspace_num,
+                            ref_value,
+                        ) = resolved
+                        vcs_ref = (wf_name, ref_value)
+                        ctx.display_name = ref_value
+                        ctx.history_sort_key = ref_value
+                        ctx.update_target = ""  # workflow .yml handles checkout
+                        if is_non_workspace_workflow(wf_name):
+                            ctx.is_home_mode = True
+                        else:
+                            # Enable workspace claiming/releasing for VCS workspaces.
+                            ctx.is_home_mode = False
+                        break
 
             # Update `,<space>` saved selection to reflect the resolved VCS
             # ref from the actual submitted prompt.  Without this, editing
@@ -269,12 +288,13 @@ class AgentLaunchMixin(
         # Save prompt to history after VCS resolution so project/branch are correct
         from sase.history.prompt import add_or_update_prompt
 
-        add_or_update_prompt(
-            prompt,
-            project_name=ctx.project_name,
-            branch_or_workspace=ctx.history_sort_key,
-        )
-        _record_prompt_file_references(prompt)
+        with timer.stage("history_write"):
+            add_or_update_prompt(
+                prompt,
+                project_name=ctx.project_name,
+                branch_or_workspace=ctx.history_sort_key,
+            )
+            _record_prompt_file_references(prompt)
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and
         # the embedded workflow must share the same workspace number,
@@ -304,12 +324,14 @@ class AgentLaunchMixin(
             workflow_prompt = strip_all_vcs_refs(workflow_prompt)
 
         if workflow_prompt.startswith("#"):
-            workflow_result = self._try_execute_workflow(  # type: ignore[attr-defined]
-                workflow_prompt, has_vcs_ref=vcs_ref is not None
-            )
+            with timer.stage("workflow_dispatch"):
+                workflow_result = self._try_execute_workflow(  # type: ignore[attr-defined]
+                    workflow_prompt, has_vcs_ref=vcs_ref is not None
+                )
             if workflow_result is True:
                 # Full workflow executed successfully
                 self._prompt_context = None
+                timer.finish(dispatch="workflow")
                 self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
                 return
             elif vcs_ref is None and isinstance(workflow_result, str):
@@ -321,8 +343,9 @@ class AgentLaunchMixin(
         # (Multi-prompts were already caught by early detection above;
         # this re-parse handles single prompts whose text may have been
         # modified by the workflow check.)
-        multi = parse_multi_prompt(prompt)
-        local_xprompts = multi.local_xprompts
+        with timer.stage("prompt_parse", pass_name="local_xprompts"):
+            multi = parse_multi_prompt(prompt)
+            local_xprompts = multi.local_xprompts
 
         raw_prompt = prompt
 
@@ -332,10 +355,11 @@ class AgentLaunchMixin(
         from sase.xprompt.directives import split_prompt_for_models
 
         dispatch_prompt = "\n---\n".join(multi.segments)
-        model_prompts = split_prompt_for_models(
-            dispatch_prompt,
-            extra_xprompts=local_xprompts or None,
-        )
+        with timer.stage("fanout_plan", fanout_kind="model"):
+            model_prompts = split_prompt_for_models(
+                dispatch_prompt,
+                extra_xprompts=local_xprompts or None,
+            )
         if model_prompts is None:
             # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
             # only when the prompt has a lexical xprompt candidate.  The agent
@@ -358,6 +382,7 @@ class AgentLaunchMixin(
                     extra_xprompts=local_xprompts or None,
                 )
         if model_prompts is not None:
+            timer.finish(dispatch="multi_model", slot_count=len(model_prompts))
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_multi_model_agents,
                 model_prompts,
@@ -371,8 +396,10 @@ class AgentLaunchMixin(
         # top-level agents, each with its own workspace and agent_meta.json.
         from sase.agent.repeat_launcher import extract_repeat_and_name
 
-        repeat_count, _, _ = extract_repeat_and_name(raw_prompt)
+        with timer.stage("fanout_plan", fanout_kind="repeat"):
+            repeat_count, _, _ = extract_repeat_and_name(raw_prompt)
         if repeat_count is not None and repeat_count > 1:
+            timer.finish(dispatch="repeat", slot_count=repeat_count)
             self.call_later(  # type: ignore[attr-defined]
                 self._launch_repeat_agents, raw_prompt, ctx, vcs_ref, has_wait
             )
@@ -384,33 +411,37 @@ class AgentLaunchMixin(
         if has_wait and not ctx.is_home_mode and ctx.workspace_num != 0:
             from sase.running_field import get_workspace_directory
 
-            ctx.workspace_num = 0
-            ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
+            with timer.stage("workspace_directory_resolution", deferred=True):
+                ctx.workspace_num = 0
+                ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
 
         # Launch single background agent from this worker thread. Pass raw
         # (unexpanded) prompt so the runner saves the original user input as
         # raw_xprompt.md.
         display_name = ctx.display_name
         try:
-            self._launch_background_agent(
-                cl_name=ctx.display_name,
-                project_file=ctx.project_file,
-                workspace_dir=ctx.workspace_dir,
-                workspace_num=ctx.workspace_num,
-                workflow_name=ctx.workflow_name,
-                prompt=raw_prompt,
-                timestamp=ctx.timestamp,
-                update_target=ctx.update_target,
-                project_name=ctx.project_name,
-                history_sort_key=ctx.history_sort_key,
-                is_home_mode=ctx.is_home_mode,
-                vcs_ref=vcs_ref,
-                deferred_workspace=has_wait,
-            )
+            with timer.stage("low_level_spawn"):
+                self._launch_background_agent(
+                    cl_name=ctx.display_name,
+                    project_file=ctx.project_file,
+                    workspace_dir=ctx.workspace_dir,
+                    workspace_num=ctx.workspace_num,
+                    workflow_name=ctx.workflow_name,
+                    prompt=raw_prompt,
+                    timestamp=ctx.timestamp,
+                    update_target=ctx.update_target,
+                    project_name=ctx.project_name,
+                    history_sort_key=ctx.history_sort_key,
+                    is_home_mode=ctx.is_home_mode,
+                    vcs_ref=vcs_ref,
+                    deferred_workspace=has_wait,
+                )
+            timer.finish(dispatch="single")
             self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
             msg = f"Agent started for {display_name}"
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
         except Exception:
+            timer.finish(dispatch="single", outcome="error")
             log.exception("Agent launch failed")
             self.call_later(  # type: ignore[attr-defined]
                 lambda: self.notify(  # type: ignore[attr-defined]

@@ -71,45 +71,69 @@ def spawn_agent_subprocess(
         RuntimeError: If workspace claiming/transfer fails (process is
             terminated before the error is raised).
     """
+    from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.running_field import claim_workspace, transfer_workspace_claim
     from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
     from sase.axe.chop_agents import record_chop_agent_launch_from_env
 
+    timer = LaunchTimingRecorder(
+        "agent_launch_spawn",
+        {
+            "project_name": project_name,
+            "cl_name": cl_name,
+            "workspace_num": workspace_num,
+            "home_mode": is_home_mode,
+            "deferred_workspace": deferred_workspace,
+        },
+    )
+
     # Write prompt to temp file (runner will read and delete)
     from sase.core.paths import get_sase_tmpdir
 
-    fd, prompt_file = tempfile.mkstemp(
-        suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
-    )
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(prompt)
+    with timer.stage("prompt_temp_file_create", prompt_len=len(prompt)):
+        fd, prompt_file = tempfile.mkstemp(
+            suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(prompt)
 
     # Build output file path (sharded by YYYYMM).
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
-    output_path = sharded_path("workflows", f"{safe_name}_ace-run-{timestamp}.txt")
+    with timer.stage("output_path_derive"):
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
+        output_path = sharded_path("workflows", f"{safe_name}_ace-run-{timestamp}.txt")
 
     # Resolve runner script path without importing the module (its top-level
     # code calls signal.signal() which fails from non-main threads).
     import importlib.util
 
-    _spec = importlib.util.find_spec("sase.axe.run_agent_runner")
-    assert _spec is not None and _spec.origin is not None
-    runner_script = os.path.abspath(_spec.origin)
+    with timer.stage("runner_script_resolution"):
+        _spec = importlib.util.find_spec("sase.axe.run_agent_runner")
+        assert _spec is not None and _spec.origin is not None
+        runner_script = os.path.abspath(_spec.origin)
 
     # Build subprocess environment (copy to avoid mutating os.environ)
-    subprocess_env = dict(os.environ)
-    _remove_inherited_sase_codex_home(subprocess_env)
-    if extra_env:
-        subprocess_env.update(extra_env)
-    subprocess_env["SASE_AGENT"] = "1"
-    subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
-    subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
-    subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
-    if deferred_workspace:
-        subprocess_env["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
-        if vcs_ref is not None:
-            subprocess_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] = vcs_ref[0]
+    with timer.stage("env_shape"):
+        subprocess_env = dict(os.environ)
+        _remove_inherited_sase_codex_home(subprocess_env)
+        if extra_env:
+            subprocess_env.update(extra_env)
+        subprocess_env["SASE_AGENT"] = "1"
+        subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
+        subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
+        subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
+        if deferred_workspace:
+            subprocess_env["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
+            if vcs_ref is not None:
+                subprocess_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] = vcs_ref[0]
+                from sase.workspace_provider import get_pre_allocated_env_prefix
+
+                prefix = get_pre_allocated_env_prefix(vcs_ref[0])
+                if prefix:
+                    subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
+                    subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+                    subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
+        elif vcs_ref is not None:
             from sase.workspace_provider import get_pre_allocated_env_prefix
 
             prefix = get_pre_allocated_env_prefix(vcs_ref[0])
@@ -117,112 +141,110 @@ def spawn_agent_subprocess(
                 subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
                 subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
                 subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-    elif vcs_ref is not None:
-        from sase.workspace_provider import get_pre_allocated_env_prefix
 
-        prefix = get_pre_allocated_env_prefix(vcs_ref[0])
-        if prefix:
-            subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
-            subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-            subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-
-    if local_xprompts_file:
-        subprocess_env["SASE_AGENT_LOCAL_XPROMPTS"] = local_xprompts_file
+        if local_xprompts_file:
+            subprocess_env["SASE_AGENT_LOCAL_XPROMPTS"] = local_xprompts_file
 
     resolved_project_name = project_name or (
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
     )
 
     # Spawn detached subprocess
-    with open(output_path, "w") as output_file:
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                runner_script,
-                cl_name,
-                project_file,
-                workspace_dir,
-                output_path,
-                str(workspace_num),
-                workflow_name,
-                prompt_file,
-                timestamp,
-                update_target,
-                project_name,
-                history_sort_key,
-                "1" if is_home_mode else "",
-            ],
-            cwd=workspace_dir,
-            stdin=subprocess.DEVNULL,
-            stdout=output_file,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            env=subprocess_env,
-        )
+    with timer.stage("subprocess_spawn"):
+        with open(output_path, "w") as output_file:
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    runner_script,
+                    cl_name,
+                    project_file,
+                    workspace_dir,
+                    output_path,
+                    str(workspace_num),
+                    workflow_name,
+                    prompt_file,
+                    timestamp,
+                    update_target,
+                    project_name,
+                    history_sort_key,
+                    "1" if is_home_mode else "",
+                ],
+                cwd=workspace_dir,
+                stdin=subprocess.DEVNULL,
+                stdout=output_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env=subprocess_env,
+            )
 
     # Claim workspace so agent appears in Agents tab while running.
     # For deferred-workspace agents (%wait), claim with workspace_num=0
     # so the agent appears in the TUI but doesn't reserve a real workspace.
     # For retry spawns, transfer an existing claim atomically so the slot
     # stays continuously held across the parent→child handoff.
-    if not is_home_mode:
-        artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-        claim_num = 0 if deferred_workspace else workspace_num
-        if retry_transfer_from_pid is not None:
-            transferred = transfer_workspace_claim(
+    with timer.stage("workspace_claim"):
+        if not is_home_mode:
+            artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+            claim_num = 0 if deferred_workspace else workspace_num
+            if retry_transfer_from_pid is not None:
+                transferred = transfer_workspace_claim(
+                    project_file,
+                    claim_num,
+                    from_pid=retry_transfer_from_pid,
+                    to_pid=process.pid,
+                    new_workflow=workflow_name,
+                    new_artifacts_timestamp=artifacts_timestamp,
+                    cl_name=cl_name,
+                )
+                if not transferred:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    timer.finish(outcome="claim_failed")
+                    raise RuntimeError(
+                        f"Failed to transfer workspace #{claim_num} from "
+                        f"pid {retry_transfer_from_pid}"
+                    )
+            elif not claim_workspace(
                 project_file,
                 claim_num,
-                from_pid=retry_transfer_from_pid,
-                to_pid=process.pid,
-                new_workflow=workflow_name,
-                new_artifacts_timestamp=artifacts_timestamp,
-                cl_name=cl_name,
-            )
-            if not transferred:
+                workflow_name,
+                process.pid,
+                cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+            ):
                 process.terminate()
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     process.kill()
-                raise RuntimeError(
-                    f"Failed to transfer workspace #{claim_num} from "
-                    f"pid {retry_transfer_from_pid}"
-                )
-        elif not claim_workspace(
-            project_file,
-            claim_num,
-            workflow_name,
-            process.pid,
-            cl_name,
-            artifacts_timestamp=artifacts_timestamp,
-        ):
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-            raise RuntimeError(f"Failed to claim workspace #{claim_num}")
-    else:
-        # Ensure home project directory and file exist
-        home_project_dir = os.path.expanduser("~/.sase/projects/home")
-        home_project_file = os.path.join(home_project_dir, "home.gp")
-        os.makedirs(home_project_dir, exist_ok=True)
-        if not os.path.exists(home_project_file):
-            with open(home_project_file, "w", encoding="utf-8") as f:
-                f.write("")
+                timer.finish(outcome="claim_failed")
+                raise RuntimeError(f"Failed to claim workspace #{claim_num}")
+        else:
+            # Ensure home project directory and file exist
+            home_project_dir = os.path.expanduser("~/.sase/projects/home")
+            home_project_file = os.path.join(home_project_dir, "home.gp")
+            os.makedirs(home_project_dir, exist_ok=True)
+            if not os.path.exists(home_project_file):
+                with open(home_project_file, "w", encoding="utf-8") as f:
+                    f.write("")
 
-    record_chop_agent_launch_from_env(
-        pid=process.pid,
-        project_file=project_file,
-        project_name=resolved_project_name,
-        workspace_num=workspace_num,
-        workflow_name=workflow_name,
-        cl_name=cl_name,
-        timestamp=timestamp,
-        prompt=prompt,
-        env=subprocess_env,
-    )
+    with timer.stage("chop_registry_record"):
+        record_chop_agent_launch_from_env(
+            pid=process.pid,
+            project_file=project_file,
+            project_name=resolved_project_name,
+            workspace_num=workspace_num,
+            workflow_name=workflow_name,
+            cl_name=cl_name,
+            timestamp=timestamp,
+            prompt=prompt,
+            env=subprocess_env,
+        )
 
+    timer.finish(outcome="ok", pid=process.pid)
     return AgentLaunchResult(
         pid=process.pid,
         workspace_num=workspace_num,

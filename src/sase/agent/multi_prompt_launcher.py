@@ -337,6 +337,7 @@ def _spawn_segments_into(
     timestamp_allocator: _BatchTimestampAllocator,
     results: list[AgentLaunchResult],
 ) -> None:
+    from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.agent.launcher import spawn_agent_subprocess
     from sase.running_field import (
         get_first_available_axe_workspace,
@@ -347,31 +348,45 @@ def _spawn_segments_into(
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 
+    timer = LaunchTimingRecorder(
+        "agent_launch_multi_prompt",
+        {
+            "segment_count": len(segments),
+            "project_name": project_name,
+            "home_mode": is_home_mode,
+        },
+    )
     for i, segment in enumerate(segments):
         if default_bare_segments_to_home:
-            segment = normalize_default_vcs_workflow_segment(segment)
-        has_wait = has_wait_directive(segment)
-        segment_local_xprompts = _local_xprompts_for_segment(segment, local_xprompts)
+            with timer.stage("prompt_normalize", segment_index=i):
+                segment = normalize_default_vcs_workflow_segment(segment)
+        with timer.stage("prompt_parse", segment_index=i):
+            has_wait = has_wait_directive(segment)
+            segment_local_xprompts = _local_xprompts_for_segment(
+                segment, local_xprompts
+            )
 
         # Check for multi-model directive (e.g., %m(opus,sonnet)).
         # Try the raw segment first; if no match and the segment contains
         # xprompt references, expand them and re-check (a referenced xprompt
         # may inject a multi-model directive).
-        model_prompts = split_prompt_for_models(
-            segment,
-            extra_xprompts=segment_local_xprompts or None,
-        )
-        if model_prompts is None and "#" in segment:
-            from sase.xprompt.processor import process_xprompt_references
-
-            expanded = process_xprompt_references(
+        with timer.stage("fanout_plan", segment_index=i, fanout_kind="model"):
+            model_prompts = split_prompt_for_models(
                 segment,
                 extra_xprompts=segment_local_xprompts or None,
             )
-            model_prompts = split_prompt_for_models(
-                expanded,
-                extra_xprompts=segment_local_xprompts or None,
-            )
+        if model_prompts is None and "#" in segment:
+            from sase.xprompt.processor import process_xprompt_references
+
+            with timer.stage("xprompt_expand", segment_index=i):
+                expanded = process_xprompt_references(
+                    segment,
+                    extra_xprompts=segment_local_xprompts or None,
+                )
+                model_prompts = split_prompt_for_models(
+                    expanded,
+                    extra_xprompts=segment_local_xprompts or None,
+                )
 
         sub_prompts = model_prompts if model_prompts is not None else [segment]
 
@@ -379,66 +394,74 @@ def _spawn_segments_into(
         last_project_name: str | None = None
         for j, sub_prompt in enumerate(sub_prompts):
             if j > 0:
-                time.sleep(1)
+                with timer.stage(
+                    "fanout_sleep", seconds=1.0, segment_index=i, slot_index=j
+                ):
+                    time.sleep(1)
 
-            timestamp = timestamp_allocator.next()
-            last_timestamp = timestamp
-            workflow_name = f"ace(run)-{timestamp}"
+            with timer.stage("timestamp_allocate", segment_index=i, slot_index=j):
+                timestamp = timestamp_allocator.next()
+                last_timestamp = timestamp
+                workflow_name = f"ace(run)-{timestamp}"
 
             # Each sub-prompt gets its own copy of the local xprompts file
             # (the agent runner deletes it after reading).
-            local_xprompts_file = (
-                _serialize_local_xprompts(segment_local_xprompts)
-                if segment_local_xprompts
-                else None
-            )
+            with timer.stage("local_xprompts_serialize", segment_index=i, slot_index=j):
+                local_xprompts_file = (
+                    _serialize_local_xprompts(segment_local_xprompts)
+                    if segment_local_xprompts
+                    else None
+                )
 
-            segment_ctx = _resolve_segment_vcs_context(
-                prompt=sub_prompt,
-                fallback_cl_name=cl_name,
-                fallback_project_file=project_file,
-                fallback_project_name=project_name,
-                fallback_is_home_mode=is_home_mode,
-                fallback_vcs_ref=vcs_ref,
-                has_wait=has_wait,
-            )
+            with timer.stage("vcs_resolution", segment_index=i, slot_index=j):
+                segment_ctx = _resolve_segment_vcs_context(
+                    prompt=sub_prompt,
+                    fallback_cl_name=cl_name,
+                    fallback_project_file=project_file,
+                    fallback_project_name=project_name,
+                    fallback_is_home_mode=is_home_mode,
+                    fallback_vcs_ref=vcs_ref,
+                    has_wait=has_wait,
+                )
 
             # Allocate workspace for this sub-prompt.
-            if segment_ctx.workspace_dir is not None:
-                workspace_dir = segment_ctx.workspace_dir
-                assert segment_ctx.workspace_num is not None
-                workspace_num = segment_ctx.workspace_num
-            elif segment_ctx.is_home_mode:
-                workspace_dir = os.path.expanduser("~")
-                workspace_num = 0
-            elif has_wait:
-                workspace_num = 0
-                workspace_dir = get_workspace_directory(segment_ctx.project_name, 1)
-            else:
-                workspace_num = get_first_available_axe_workspace(
-                    segment_ctx.project_file
-                )
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, segment_ctx.project_name
-                )
+            with timer.stage("workspace_allocation", segment_index=i, slot_index=j):
+                if segment_ctx.workspace_dir is not None:
+                    workspace_dir = segment_ctx.workspace_dir
+                    assert segment_ctx.workspace_num is not None
+                    workspace_num = segment_ctx.workspace_num
+                elif segment_ctx.is_home_mode:
+                    workspace_dir = os.path.expanduser("~")
+                    workspace_num = 0
+                elif has_wait:
+                    workspace_num = 0
+                    workspace_dir = get_workspace_directory(segment_ctx.project_name, 1)
+                else:
+                    workspace_num = get_first_available_axe_workspace(
+                        segment_ctx.project_file
+                    )
+                    workspace_dir, _ = get_workspace_directory_for_num(
+                        workspace_num, segment_ctx.project_name
+                    )
 
-            result = spawn_agent_subprocess(
-                cl_name=segment_ctx.cl_name,
-                project_file=segment_ctx.project_file,
-                workspace_dir=workspace_dir,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                prompt=sub_prompt,
-                timestamp=timestamp,
-                update_target=segment_ctx.update_target,
-                project_name=segment_ctx.project_name,
-                history_sort_key=segment_ctx.history_sort_key,
-                is_home_mode=segment_ctx.is_home_mode,
-                vcs_ref=segment_ctx.vcs_ref,
-                deferred_workspace=has_wait,
-                local_xprompts_file=local_xprompts_file,
-                extra_env=extra_env,
-            )
+            with timer.stage("low_level_spawn", segment_index=i, slot_index=j):
+                result = spawn_agent_subprocess(
+                    cl_name=segment_ctx.cl_name,
+                    project_file=segment_ctx.project_file,
+                    workspace_dir=workspace_dir,
+                    workspace_num=workspace_num,
+                    workflow_name=workflow_name,
+                    prompt=sub_prompt,
+                    timestamp=timestamp,
+                    update_target=segment_ctx.update_target,
+                    project_name=segment_ctx.project_name,
+                    history_sort_key=segment_ctx.history_sort_key,
+                    is_home_mode=segment_ctx.is_home_mode,
+                    vcs_ref=segment_ctx.vcs_ref,
+                    deferred_workspace=has_wait,
+                    local_xprompts_file=local_xprompts_file,
+                    extra_env=extra_env,
+                )
             results.append(result)
             last_project_name = segment_ctx.project_name
 
@@ -457,11 +480,13 @@ def _spawn_segments_into(
             )
             # The artifacts dir is already created by the runner; we just
             # need the path to poll agent_meta.json.
-            agent_name = _wait_for_agent_naming(artifacts_dir)
+            with timer.stage("multi_prompt_naming_wait", segment_index=i):
+                agent_name = _wait_for_agent_naming(artifacts_dir)
             if agent_name:
                 print(f"  Agent {i + 1}/{len(segments)} named '{agent_name}'")
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
+    timer.finish(outcome="ok", launched=len(results))
 
 
 # Import sentinel at module level (after function definitions to avoid
