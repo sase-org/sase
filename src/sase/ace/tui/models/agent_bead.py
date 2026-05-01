@@ -27,3 +27,40 @@ def derive_agent_bead_id(agent: Agent) -> str | None:
         return normalized
 
     return None
+
+
+def _lookup_bead_description(bead_id: str) -> str | None:
+    """Return the raw persisted description for *bead_id*, if available."""
+    try:
+        from sase.bead.cli_common import get_read_view
+
+        with get_read_view() as view:
+            issue = view.show(bead_id)
+    except Exception:
+        return None
+
+    return issue.description
+
+
+def _normalize_bead_description(description: str | None) -> str | None:
+    """Collapse bead descriptions for display on a single metadata line."""
+    if not description:
+        return None
+    normalized = " ".join(description.split())
+    return normalized or None
+
+
+def format_agent_bead_display(
+    agent: Agent, *, include_description: bool = True
+) -> str | None:
+    """Format the bead metadata value for an agent details header."""
+    bead_id = derive_agent_bead_id(agent)
+    if not bead_id:
+        return None
+
+    if include_description:
+        description = _normalize_bead_description(_lookup_bead_description(bead_id))
+        if description:
+            return f"{bead_id} - {description}"
+
+    return bead_id

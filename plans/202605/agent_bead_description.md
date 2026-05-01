@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:38:17
-status: wip
+status: done
 ---
 # Plan: Enrich Agents Bead Metadata
 

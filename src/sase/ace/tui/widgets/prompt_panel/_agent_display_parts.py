@@ -8,7 +8,7 @@ from rich.text import Text
 from sase.agent.agent_artifacts_cache import get_global_cache
 
 from ...models.agent import Agent, AttemptRecord
-from ...models.agent_bead import derive_agent_bead_id
+from ...models.agent_bead import format_agent_bead_display
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     append_model_field,
@@ -277,10 +277,10 @@ def build_header_text(
     if agent.agent_name:
         header_text.append("Name: ", style="bold #87D7FF")
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
-        bead_id = derive_agent_bead_id(agent)
-        if bead_id:
+        bead_display = format_agent_bead_display(agent, include_description=not cheap)
+        if bead_display:
             header_text.append("Bead: ", style="bold #87D7FF")
-            header_text.append(f"{bead_id}\n", style="bold #FFAF00")
+            header_text.append(f"{bead_display}\n", style="bold #FFAF00")
 
     # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
     if agent.waiting_for or agent.wait_duration or agent.wait_until:

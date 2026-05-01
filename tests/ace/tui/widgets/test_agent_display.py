@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
@@ -101,6 +103,67 @@ class TestAgentBeadMetadata:
 
         assert "Name: @reviewer\n" in header.plain
         assert "Bead:" not in header.plain
+
+    def test_full_header_renders_bead_description(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.3")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            lambda bead_id: "First line\n\n second\tline ",
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert "Name: @sase-x.3\nBead: sase-x.3 - First line second line\n" in (
+            header.plain
+        )
+
+    def test_full_header_falls_back_for_empty_bead_description(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.3")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            lambda bead_id: " \n\t ",
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
+
+    def test_full_header_falls_back_for_missing_bead(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.3")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            lambda bead_id: None,
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
+
+    def test_cheap_header_does_not_lookup_bead_description(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.3")
+
+        def fail_lookup(bead_id: str) -> str | None:
+            raise AssertionError("cheap header must not touch bead storage")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            fail_lookup,
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
 
 
 # -- agent list bead badge ----------------------------------------------------
