@@ -1,0 +1,15 @@
+{"action": "JumpToChangeSpec", "action_data": {"changespec_name": "valid-full", "project_file": "/tmp/project.gp"}, "dismissed": false, "files": ["/tmp/full.py"], "id": "valid-full", "muted": true, "notes": ["full row", "all fields populated"], "read": true, "sender": "crs", "silent": true, "snooze_until": "2026-04-30T13:00:00+00:00", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"id": "legacy-minimal", "sender": "legacy", "timestamp": "2026-04-30T12:00:00+00:00"}
+{this is not valid json
+{"id": "missing-required", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToChangeSpec", "action_data": {"changespec_name": "dismissed-row"}, "dismissed": true, "id": "dismissed-row", "sender": "sync", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"id": "silent-row", "sender": "user-workflow", "silent": true, "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToAgent", "action_data": {"cl_name": "sase-1n-demo", "raw_suffix": "20260430121530"}, "id": "muted-row", "muted": true, "sender": "user-agent", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "UserQuestion", "action_data": {"agent_cl_name": "sase-1n-demo", "agent_timestamp": "260430_121530", "response_dir": "/tmp/question", "session_id": "session-question"}, "id": "snoozed-row", "muted": true, "sender": "question", "snooze_until": "2026-04-30T13:00:00+00:00", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "PlanApproval", "action_data": {"agent_cl_name": "sase-1n-demo", "agent_timestamp": "20260430121530", "response_dir": "/tmp/plan", "session_id": "session-plan"}, "id": "priority-plan", "sender": "plan", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "UserQuestion", "action_data": {"response_dir": "/tmp/question-2", "session_id": "session-question-2"}, "id": "priority-question", "sender": "question", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToMentorReview", "action_data": {"changespec_name": "mentor-cl", "entry_id": "1"}, "id": "priority-mentor", "sender": "mentors", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "ViewErrorReport", "action_data": {"error_report_path": "/tmp/digest.txt"}, "id": "priority-axe", "sender": "axe", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToChangeSpec", "action_data": {"changespec_name": "crs-cl"}, "id": "priority-crs", "sender": "crs", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "ViewErrorReport", "action_data": {"error_report_path": "/tmp/agent-error.txt"}, "id": "priority-user-agent-error", "sender": "user-agent", "timestamp": "2026-04-30T12:00:00+00:00"}
+{"action": "JumpToAgent", "action_data": {"cl_name": "sase-1n-demo"}, "id": "agent-jump-no-suffix", "sender": "user-agent", "timestamp": "2026-04-30T12:00:00+00:00"}
