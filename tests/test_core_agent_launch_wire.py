@@ -26,6 +26,8 @@ from sase.core.agent_launch_wire import (
     AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
     AgentLaunchPreparedWire,
     AgentLaunchRequestWire,
+    LaunchFanoutPlanWire,
+    LaunchFanoutSlotWire,
     WorkspaceClaimRequestWire,
     agent_launch_wire_to_json_dict,
     launch_fanout_plan_from_dict,
@@ -283,15 +285,30 @@ def test_spawn_prepared_agent_process_cleans_up_on_claim_failure(
 
 
 def test_fanout_plan_round_trips_slots() -> None:
-    plan = plan_fake_fanout(
-        "multi_prompt",
-        ["first", "%wait\nsecond"],
+    plan = LaunchFanoutPlanWire(
+        schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
+        launch_kind="multi_prompt",
+        slots=[
+            LaunchFanoutSlotWire(
+                prompt="first",
+                launch_kind="multi_prompt",
+                slot_index=0,
+                alt_id="first",
+            ),
+            LaunchFanoutSlotWire(
+                prompt="%wait\nsecond",
+                launch_kind="multi_prompt",
+                slot_index=1,
+                alt_id="second",
+            ),
+        ],
         fanout_sleep_seconds=0.0,
         requires_sequential_naming_wait=True,
     )
     payload = agent_launch_wire_to_json_dict(plan)
 
     assert payload["schema_version"] == AGENT_LAUNCH_WIRE_SCHEMA_VERSION
+    assert payload["slots"][0]["alt_id"] == "first"
     assert payload["slots"][1]["prompt"] == "%wait\nsecond"
     assert launch_fanout_plan_from_dict(payload) == plan
 
@@ -321,9 +338,43 @@ def test_plan_agent_launch_fanout_rust_model_and_alt() -> None:
     assert plan.launch_kind == "model"
     assert len(plan.slots) == 4
     assert plan.slots[0].model == "opus"
+    assert plan.slots[0].alt_id == "1.1"
     assert plan.slots[0].prompt == "%n:foo\n%model:opus\n x\nReview"
     assert plan.slots[3].model == "sonnet"
+    assert plan.slots[3].alt_id == "2.2"
     assert plan.slots[3].prompt == "%n:foo\n%model:sonnet\n y\nReview"
+
+
+def test_plan_agent_launch_fanout_rust_exposes_alt_ids() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%alt(sec=[[security]],perf=[[performance]])\nReview",
+        launch_kind="alternatives",
+    )
+
+    assert [slot.alt_id for slot in plan.slots] == ["sec", "perf"]
+    assert [slot.prompt for slot in plan.slots] == [
+        "security\nReview",
+        "performance\nReview",
+    ]
+
+
+def test_plan_agent_launch_fanout_rust_allocates_named_and_numeric_alt_ids() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%(fast=a,b) %alt(red=x,blue=y)",
+        launch_kind="alternatives",
+    )
+
+    assert [slot.alt_id for slot in plan.slots] == [
+        "fast.red",
+        "fast.blue",
+        "1.red",
+        "1.blue",
+    ]
+    assert [slot.prompt for slot in plan.slots] == ["a x", "a y", "b x", "b y"]
 
 
 def test_plan_agent_launch_fanout_rust_repeat() -> None:

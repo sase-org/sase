@@ -72,6 +72,7 @@ class LaunchFanoutSlotWire:
     prompt: str
     launch_kind: str
     slot_index: int
+    alt_id: str | None = None
     timestamp: str | None = None
     workflow_name: str | None = None
     model: str | None = None
@@ -153,6 +154,7 @@ def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
                 prompt=str(slot["prompt"]),
                 launch_kind=str(slot["launch_kind"]),
                 slot_index=int(slot["slot_index"]),
+                alt_id=None if slot.get("alt_id") is None else str(slot["alt_id"]),
                 timestamp=(
                     None if slot.get("timestamp") is None else str(slot["timestamp"])
                 ),
