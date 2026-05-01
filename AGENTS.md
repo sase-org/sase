@@ -7,6 +7,7 @@ The following memory files contain core (always loaded) context:
 - @memory/short/build_and_run.md
 - @memory/short/glossary.md
 - @memory/short/gotchas.md
+- @memory/short/rust_core_backend_boundary.md
 - @memory/short/workspaces.md
 
 ## Tier 2 (dynamic) Memory

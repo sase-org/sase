@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 16:37:24
-status: wip
+status: done
 ---
 # Plan: Short-Term Memory for Rust Core Backend Boundary
 
