@@ -23,8 +23,14 @@ xprompts:
     - Review git commits since the last documentation update to identify any important changes worth documenting.
 
     When you have completed the review, please improve the documentation as needed.
+  gact: |
+    Can you help me review the most recent GitHub Actions workflow failure (use `gh` for this), diagnose the root cause
+    of the failure, and fix it?
   remember: |
     Can you update / create the appropriate AGENTS.md file so you never forget about this again?
+  research/more: |
+    Can you help me improve this research markdown file by doing your own research and filling in any gaps missed by the
+    previous agent?
   research/prompt:
     input:
       prompt: text
