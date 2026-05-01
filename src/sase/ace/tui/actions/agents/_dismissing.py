@@ -144,7 +144,6 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
         self._apply_dismissal_in_memory(agents)
         apply_in_memory_reference_rewrites(self._agents_with_children, name_map)
-        self._refresh_notification_count()  # type: ignore[attr-defined]
 
         self.call_later(  # type: ignore[attr-defined]
             self._run_bulk_dismiss_persistence_async,
@@ -170,6 +169,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         self._dismiss_persistence_inflight.update(identities)
 
         started = time.perf_counter()
+        success = True
         try:
             await asyncio.to_thread(
                 persist_bulk_dismiss_transaction,
@@ -180,6 +180,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 cleanup_plan,
             )
         except Exception as exc:
+            success = False
             self.notify(  # type: ignore[attr-defined]
                 f"Bulk dismiss cleanup failed: {exc}",
                 severity="error",
@@ -192,6 +193,8 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 len(agents),
                 time.perf_counter() - started,
             )
+            if success:
+                await self._refresh_notification_count_async()  # type: ignore[attr-defined]
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent."""

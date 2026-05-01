@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.notification_store_wire import NotificationUpdateOutcomeWire
 
 
 def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
@@ -340,3 +341,66 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
     assert app.refresh_schedules == 1
     assert app._notifications == [("Bulk kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()
+
+
+def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
+    """Bulk kill/dismiss cleanup batches notification dismissal into one Rust update."""
+    from sase.ace.tui.actions.agents._kill_persistence import (
+        persist_bulk_kill_side_effects,
+    )
+
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_one",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix-hook",
+        pid=111,
+        raw_suffix="20260501010101",
+    )
+    done = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature_two",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="mentor",
+        pid=None,
+        raw_suffix="20260501020202",
+    )
+    item = BulkKillItem(agent=running, kind="hook", identities={running.identity})
+    outcome = NotificationUpdateOutcomeWire(
+        schema_version=1,
+        matched_count=2,
+        changed_count=2,
+        rewritten=True,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._kill_persistence.persist_kill_side_effects"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._kill_persistence.persist_dismiss_side_effects"
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            return_value=outcome,
+        ) as mock_update,
+    ):
+        persist_bulk_kill_side_effects(
+            [item],
+            [done],
+            {running.identity, done.identity},
+            [running, done],
+        )
+
+    mock_update.assert_called_once()
+    update = mock_update.call_args.args[1]
+    assert update.kind == "dismiss_matching_agents"
+    assert [(agent.cl_name, agent.raw_suffix) for agent in update.agents] == [
+        ("feature_one", "20260501010101"),
+        ("feature_two", "20260501020202"),
+    ]

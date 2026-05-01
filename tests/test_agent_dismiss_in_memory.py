@@ -16,6 +16,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.core.notification_store_wire import NotificationUpdateOutcomeWire
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -405,6 +406,7 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
 
     assert app.load_count == 0
     assert app.refilter_count == 1
+    assert app.notification_refreshes == 0
     assert a1.identity in app._dismissed_agents
     assert a2.identity in app._dismissed_agents
     assert app._agents_with_children == []
@@ -445,6 +447,8 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
     mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once()
     assert mock_save.call_args[0][0] == {a1.identity, a2.identity}
+    assert app.notification_refreshes_async == 1
+    assert app.notification_refreshes == 0
 
 
 def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
@@ -464,7 +468,46 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
         asyncio.run(callback(*args))  # type: ignore[misc]
 
     assert app.async_refreshes == 1
+    assert app.notification_refreshes_async == 0
     assert any(sev == "error" for _, sev in app.notifications)
+
+
+def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
+    """Bulk dismiss cleanup batches notification dismissal into one Rust update."""
+    from sase.ace.tui.actions.agents._dismissing import persist_bulk_dismiss_transaction
+
+    a1 = _make_agent(cl_name="feature_one", raw_suffix="20260501010101")
+    a2 = _make_agent(cl_name="feature_two", raw_suffix="20260501020202")
+    outcome = NotificationUpdateOutcomeWire(
+        schema_version=1,
+        matched_count=2,
+        changed_count=2,
+        rewritten=True,
+    )
+
+    with (
+        patch("sase.ace.tui.actions.agents._dismissing.persist_dismiss_side_effects"),
+        patch("sase.agent.dismissed_name_rewrites.rewrite_dismissed_references"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            return_value=outcome,
+        ) as mock_update,
+    ):
+        persist_bulk_dismiss_transaction(
+            [a1, a2],
+            {a1.identity, a2.identity},
+            [a1, a2],
+            {},
+        )
+
+    mock_update.assert_called_once()
+    update = mock_update.call_args.args[1]
+    assert update.kind == "dismiss_matching_agents"
+    assert [(agent.cl_name, agent.raw_suffix) for agent in update.agents] == [
+        ("feature_one", "20260501010101"),
+        ("feature_two", "20260501020202"),
+    ]
 
 
 # ---------------------------------------------------------------------------
