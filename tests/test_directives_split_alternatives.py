@@ -81,6 +81,23 @@ def testsplit_prompt_for_alternatives_text_block_args() -> None:
     assert result[1] == "Focus on performance\nReview this code"
 
 
+def testsplit_prompt_for_alternatives_named_args_insert_values_only() -> None:
+    """Named %alt args use names as metadata and insert only arg values."""
+    prompt = "%alt(sec=[[security]],perf=[[performance]])\nReview"
+    result = split_prompt_for_alternatives(prompt)
+
+    assert result is not None
+    assert result == ["security\nReview", "performance\nReview"]
+
+
+def testsplit_prompt_for_alternatives_named_shorthand_mixes_numeric_ids() -> None:
+    """The %(...) shorthand accepts named and unnamed arguments."""
+    result = split_prompt_for_alternatives("%(fast=[[fast pass]], [[slow pass]])")
+
+    assert result is not None
+    assert result == ["fast pass", "slow pass"]
+
+
 def testsplit_prompt_for_alternatives_nested_directives() -> None:
     """Nested directives in args (e.g., %m:opus) are preserved."""
     prompt = "%alt(%m:opus %name:reviewer,%m:sonnet %name:coder)\nDo work"

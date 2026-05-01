@@ -365,14 +365,44 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
     assert result[1] == "%name:o.gem-flash3\n%model:gemini-3-flash-preview\nReview"
 
 
-def test_split_prompt_for_models_pure_alt_not_renamed() -> None:
-    """A %alt(...) with no %model branches is left unchanged (no naming)."""
+def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
+    """A %alt(...) with no %model branches gets shared-base child names."""
     prompt = "%n:foo\n%alt(x,y)\nDo work"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%n:foo\nx\nDo work"
-    assert result[1] == "%n:foo\ny\nDo work"
+    assert result[0] == "%name:foo.1\nx\nDo work"
+    assert result[1] == "%name:foo.2\ny\nDo work"
+
+
+def test_split_prompt_for_models_named_shorthand_alt_ids() -> None:
+    """Named shorthand alt args use the branch name and unnamed args use numbers."""
+    prompt = "%n:foo\n%(fast=[[fast pass]], [[slow pass]])\nDo work"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.fast\nfast pass\nDo work"
+    assert result[1] == "%name:foo.1\nslow pass\nDo work"
+
+
+def test_split_prompt_for_models_pure_alt_auto_generated_base() -> None:
+    """Pure alt fan-out without %name auto-generates one shared base."""
+    with patch("sase.agent.names.get_next_auto_name", return_value="z"):
+        result = split_prompt_for_models("%alt(x,y)\nDo work")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:z.1\nx\nDo work"
+    assert result[1] == "%name:z.2\ny\nDo work"
+
+
+def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:
+    """Named model branches use the branch ids instead of runtime suffixes."""
+    prompt = "%n:foo\n%alt(sec=%model:opus,perf=%model:sonnet)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%name:foo.sec\n%model:opus\nReview"
+    assert result[1] == "%name:foo.perf\n%model:sonnet\nReview"
 
 
 def test_split_prompt_for_models_alt_with_nested_model_not_double_collected() -> None:

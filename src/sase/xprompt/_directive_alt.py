@@ -21,6 +21,8 @@ from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
 
 if TYPE_CHECKING:
+    from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
+
     from .models import XPrompt
 
 # Pattern to match %alt( or %( at a directive-valid position.
@@ -110,7 +112,7 @@ def split_prompt_for_models(
             raise DirectiveError(str(exc)) from exc
         if not plan.slots:
             return None
-        return _apply_multi_model_naming([slot.prompt for slot in plan.slots])
+        return apply_fanout_naming(plan)
 
     if "%" not in prompt:
         return None
@@ -180,10 +182,10 @@ def split_prompt_for_models(
     if not directive_spans:
         # No collectable %model directives — fall through to alt-only handling
         # on the original (unprotected) prompt.
-        sub_prompts = split_prompt_for_alternatives(prompt)
-        if sub_prompts is None:
+        fanout_plan = _plan_model_fanout(prompt)
+        if fanout_plan is None:
             return None
-        return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
+        return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
 
     # Dedupe model args in document order (first occurrence wins).
     seen_models: set[str] = set()
@@ -197,11 +199,14 @@ def split_prompt_for_models(
 
     if len(unique_models) <= 1:
         # Zero or one unique model — no split needed.  Any duplicate scalar
-        # %model directives are tolerated by extract_prompt_directives.
-        sub_prompts = split_prompt_for_alternatives(prompt)
-        if sub_prompts is None:
+        # %model directives are tolerated by extract_prompt_directives.  A
+        # real %alt/%(...) beside the single model still fans out.
+        if not has_alt_directive(prompt):
             return None
-        return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
+        fanout_plan = _plan_model_fanout(prompt)
+        if fanout_plan is None:
+            return None
+        return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
 
     # Two or more unique models — collapse every collected span into a
     # single %alt(%model:a,%model:b,...) directive at the first span's
@@ -234,10 +239,22 @@ def split_prompt_for_models(
     rewritten = unprotect_disabled_regions(rewritten, disabled_regions)
     rewritten = unprotect_fenced_blocks(rewritten, fenced_blocks)
 
-    sub_prompts = split_prompt_for_alternatives(rewritten)
-    if sub_prompts is None:
+    fanout_plan = _plan_model_fanout(rewritten)
+    if fanout_plan is None:
         return None
-    return _apply_multi_model_naming(sub_prompts, extra_xprompts=extra_xprompts)
+    return apply_fanout_naming(fanout_plan, extra_xprompts=extra_xprompts)
+
+
+def _plan_model_fanout(prompt: str) -> LaunchFanoutPlanWire | None:
+    from sase.core.agent_launch_facade import plan_agent_launch_fanout
+
+    try:
+        plan = plan_agent_launch_fanout(prompt, launch_kind="model")
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    if not plan.slots:
+        return None
+    return plan
 
 
 def _extract_first_model_value(prompt: str) -> str | None:
@@ -395,20 +412,21 @@ def _inject_name_directive(prompt: str, name: str) -> str:
     return f"%name:{name}\n{prompt}"
 
 
-def _apply_multi_model_naming(
-    sub_prompts: list[str],
+def apply_fanout_naming(
+    plan: LaunchFanoutPlanWire,
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> list[str]:
-    """Add ``%name:<base>.<runtime>`` to each sub-prompt of a multi-model fan-out.
+    """Add ``%name:<base>.<id>`` to each named child of a fan-out plan.
 
-    Triggers only when the sub-prompts span at least two distinct ``%model``
-    values.  The base name is taken from the first ``%name`` directive found
-    across the sub-prompts; if none, an auto name is generated once and
-    shared.  Same-runtime collisions disambiguate with the model suffix
-    (``foo.claude-opus`` / ``foo.claude-sonnet``).
+    The base name is taken from the first explicit ``%name`` directive found
+    across the slots; if none, a resume-derived or auto name is generated once
+    and shared.  Multi-model fan-outs preserve the existing runtime/model
+    suffixes unless a named ``%alt`` branch supplies the slot identity.
     """
-    models_per_sub = [_extract_first_model_value(s) for s in sub_prompts]
+    slots = list(plan.slots)
+    sub_prompts = [slot.prompt for slot in slots]
+    models_per_sub = [_slot_model_value(slot) for slot in slots]
     label_models_per_sub = [
         _model_value_for_naming(model, extra_xprompts=extra_xprompts)
         if model is not None
@@ -416,7 +434,13 @@ def _apply_multi_model_naming(
         for model in models_per_sub
     ]
     distinct_label_models = [m for m in dict.fromkeys(label_models_per_sub) if m]
-    if len(distinct_label_models) < 2:
+    suffixes = _fanout_suffixes(
+        slots,
+        models_per_sub=models_per_sub,
+        label_models_per_sub=label_models_per_sub,
+        distinct_label_models=distinct_label_models,
+    )
+    if all(suffix is None for suffix in suffixes):
         return sub_prompts
 
     base: str | None = None
@@ -439,6 +463,62 @@ def _apply_multi_model_naming(
                 base = allocate_resume_name(resume_target)
         else:
             base = get_next_auto_name()
+
+    out: list[str] = []
+    for sub, suffix in zip(sub_prompts, suffixes, strict=True):
+        if suffix is None:
+            out.append(sub)
+            continue
+        stripped, _, _ = _extract_and_strip_name_directive(sub)
+        out.append(_inject_name_directive(stripped, f"{base}.{suffix}"))
+    return out
+
+
+def _slot_model_value(slot: LaunchFanoutSlotWire) -> str | None:
+    if slot.model is not None:
+        return slot.model
+    return _extract_first_model_value(slot.prompt)
+
+
+def _fanout_suffixes(
+    slots: list[LaunchFanoutSlotWire],
+    *,
+    models_per_sub: list[str | None],
+    label_models_per_sub: list[str | None],
+    distinct_label_models: list[str],
+) -> list[str | None]:
+    model_suffix_for = _model_suffixes(
+        models_per_sub=models_per_sub,
+        label_models_per_sub=label_models_per_sub,
+        distinct_label_models=distinct_label_models,
+    )
+
+    suffixes: list[str | None] = []
+    for slot, label_model in zip(slots, label_models_per_sub, strict=True):
+        alt_suffix = _safe_fanout_suffix(slot.alt_id)
+        if (
+            label_model is not None
+            and len(distinct_label_models) >= 2
+            and label_model in model_suffix_for
+        ):
+            suffixes.append(
+                alt_suffix
+                if _alt_id_has_named_component(slot.alt_id)
+                else model_suffix_for[label_model]
+            )
+        else:
+            suffixes.append(alt_suffix)
+    return suffixes
+
+
+def _model_suffixes(
+    *,
+    models_per_sub: list[str | None],
+    label_models_per_sub: list[str | None],
+    distinct_label_models: list[str],
+) -> dict[str, str]:
+    if len(distinct_label_models) < 2:
+        return {}
 
     from sase.llm_provider.registry import model_short_alias_map
 
@@ -470,14 +550,18 @@ def _apply_multi_model_naming(
                 suffix_for[m] = (
                     f"{r}-{_model_disambiguator_for_naming(raw_for_label[m], m)}"
                 )
+    return suffix_for
 
-    out: list[str] = []
-    for sub, label_model in zip(sub_prompts, label_models_per_sub, strict=True):
-        if label_model is None or label_model not in suffix_for:
-            out.append(sub)
-            continue
-        stripped, _, _ = _extract_and_strip_name_directive(sub)
-        out.append(
-            _inject_name_directive(stripped, f"{base}.{suffix_for[label_model]}")
-        )
-    return out
+
+def _alt_id_has_named_component(alt_id: str | None) -> bool:
+    if not alt_id:
+        return False
+    return any(not part.isdigit() for part in alt_id.split(".") if part)
+
+
+def _safe_fanout_suffix(alt_id: str | None) -> str | None:
+    if not alt_id:
+        return None
+    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", alt_id.strip())
+    suffix = re.sub(r"\.+", ".", suffix).strip("._-")
+    return suffix or None

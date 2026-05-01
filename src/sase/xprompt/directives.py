@@ -29,6 +29,7 @@ import from ``sase.xprompt.directives``.
 import re
 
 from ._directive_alt import (
+    apply_fanout_naming,
     has_alt_directive,
     split_prompt_for_alternatives,
     split_prompt_for_models,
@@ -53,6 +54,7 @@ from .processor import process_xprompt_references
 
 __all__ = [
     "PromptDirectives",
+    "apply_fanout_naming",
     "extract_prompt_directives",
     "has_alt_directive",
     "has_model_directive",
