@@ -49,8 +49,6 @@ def _agent(
     parent_timestamp: str | None = None,
     tag: str | None = None,
     agent_name: str | None = None,
-    role_suffix: str | None = None,
-    plan_chain_parent_timestamp: str | None = None,
     workspace_num: int | None = 7,
     artifacts_dir: str | None = "/tmp/artifacts",
     start_time: datetime | None = _START,
@@ -71,8 +69,6 @@ def _agent(
         parent_timestamp=parent_timestamp,
         tag=tag,
         agent_name=agent_name,
-        role_suffix=role_suffix,
-        plan_chain_parent_timestamp=plan_chain_parent_timestamp,
         artifacts_dir=artifacts_dir,
     )
 
@@ -428,83 +424,6 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         ("workflow", "20260428100000"),
         ("child", "20260428100000_c0"),
     ]
-
-
-def test_cleanup_planner_treats_plan_chain_phase_as_selectable_row() -> None:
-    phase = _agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="phase",
-        status="DONE",
-        pid=None,
-        raw_suffix="20260428101010",
-        workflow="plan",
-        parent_timestamp="20260428100000",
-        plan_chain_parent_timestamp="20260428100000",
-        role_suffix=".coder",
-        agent_name="a.coder",
-        artifacts_dir="/tmp/coder",
-    )
-    request = _request(
-        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
-        mode=CLEANUP_MODE_DISMISS_COMPLETED,
-        identities=(_id(phase),),
-    )
-
-    target = agent_to_cleanup_target(phase)
-    plan = plan_agent_cleanup_python((target,), request)
-
-    assert target.is_workflow_child is False
-    assert [item.identity.cl_name for item in plan.dismiss_items] == ["phase"]
-    assert plan.skipped_items == ()
-    assert [item.artifacts_dir for item in plan.side_effects.artifact_delete_paths] == [
-        "/tmp/coder"
-    ]
-
-
-def test_cleanup_planner_root_dismiss_cascades_plan_chain_phases() -> None:
-    root = _agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="root",
-        status="DONE",
-        pid=None,
-        raw_suffix="20260428100000",
-        workflow="plan",
-        role_suffix=".plan",
-        agent_name="a.plan",
-        artifacts_dir="/tmp/plan",
-    )
-    phase = _agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="phase",
-        status="DONE",
-        pid=None,
-        raw_suffix="20260428101010",
-        workflow="plan",
-        parent_timestamp="20260428100000",
-        plan_chain_parent_timestamp="20260428100000",
-        role_suffix=".coder",
-        agent_name="a.coder",
-        artifacts_dir="/tmp/coder",
-    )
-    request = _request(
-        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
-        mode=CLEANUP_MODE_DISMISS_COMPLETED,
-        identities=(_id(root),),
-    )
-
-    plan = plan_agent_cleanup_python(agents_to_cleanup_targets([root, phase]), request)
-
-    assert [item.identity.cl_name for item in plan.dismiss_items] == ["root"]
-    assert [
-        item.identity.cl_name for item in plan.side_effects.bundle_save_candidates
-    ] == ["root", "phase"]
-    assert [item.artifacts_dir for item in plan.side_effects.artifact_delete_paths] == [
-        "/tmp/plan",
-        "/tmp/coder",
-    ]
-    assert [
-        intent.new_name for intent in plan.side_effects.dismissal_rename_allocations
-    ] == ["260430.a.plan", "260430.a.coder"]
 
 
 def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:

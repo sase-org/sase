@@ -38,24 +38,6 @@ def _make_child(
     )
 
 
-def _make_plan_chain_followup(
-    parent_timestamp: str,
-    role_suffix: str = ".coder",
-) -> Agent:
-    """Create an independent plan-chain follow-up linked to a parent."""
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="test_cl",
-        project_file="/tmp/test.gp",
-        status="DONE",
-        start_time=None,
-        parent_timestamp=parent_timestamp,
-        plan_chain_parent_timestamp=parent_timestamp,
-        role_suffix=role_suffix,
-        raw_suffix=f"{parent_timestamp}-followup",
-    )
-
-
 def _make_appears_as_agent(raw_suffix: str) -> Agent:
     """Create a workflow that appears as a regular agent."""
     return Agent(
@@ -84,20 +66,6 @@ def test_expanded_shows_non_hidden_children() -> None:
     assert filtered[0] is parent
     assert filtered[1] is child1
     assert counts["ts1"] == (1, 1)  # 1 non-hidden, 1 hidden
-
-
-def test_plan_chain_followups_ignore_workflow_fold_state() -> None:
-    """Plan-chain phases remain selectable independent rows when parent folds."""
-    parent = _make_parent("ts1")
-    child = _make_child("ts1", "step1")
-    followup = _make_plan_chain_followup("ts1")
-    agents = [parent, child, followup]
-
-    mgr = FoldStateManager()
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert filtered == [parent, followup]
-    assert counts["ts1"] == (1, 0)
 
 
 # --- Tests for _compute_fold_annotation ---

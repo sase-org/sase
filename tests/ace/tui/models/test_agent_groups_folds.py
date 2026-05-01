@@ -231,21 +231,6 @@ def test_compute_banner_summary_excludes_workflow_children() -> None:
     assert summary.running == 1
 
 
-def test_compute_banner_summary_counts_plan_chain_phase_rows() -> None:
-    parent = _agent(cl_name="parent", raw_suffix="ts1", status="RUNNING")
-    phase = _agent(
-        cl_name="coder",
-        parent_timestamp="ts1",
-        plan_chain_parent_timestamp="ts1",
-        role_suffix=".coder",
-        status="RUNNING",
-    )
-    group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1))
-    summary = compute_banner_summary(group, [parent, phase])
-    assert summary.count == 2
-    assert summary.running == 2
-
-
 def test_banner_summary_text_renders_chips_separated_by_dots() -> None:
     agents = [
         _agent(cl_name="a", status="RUNNING"),

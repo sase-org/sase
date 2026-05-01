@@ -288,7 +288,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             if has_diff:
                 self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
                 # For .plan agents without a code diff, default to showing
-                # the plan file.  When a follow-up coder agent has completed
+                # the plan file.  When a follow-up .code agent has completed
                 # and propagated its diff_path, show the diff instead (index 0)
                 # so the user sees the code changes by default.
                 if agent.role_suffix == ".plan" and not agent.diff_path:

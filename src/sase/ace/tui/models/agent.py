@@ -85,12 +85,6 @@ class Agent:
     # Parent timestamp for agent steps (links to parent workflow entry)
     parent_timestamp: str | None = None
 
-    # Explicit plan-chain lineage for plan/question/feedback/coder handoffs.
-    # Older artifacts only have ``parent_timestamp``; model helpers below
-    # keep those loadable while avoiding raw parent-timestamp checks in the
-    # loader's status aggregation.
-    plan_chain_parent_timestamp: str | None = None
-
     # Workflow step name (clean, without tree decoration)
     step_name: str | None = None
 
@@ -187,7 +181,7 @@ class Agent:
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
-    # Role suffix annotation (e.g., ".plan", ".coder", ".q") for follow-up agents
+    # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
     # User-managed tag (no '@' prefix; at most one per agent).
@@ -271,7 +265,7 @@ class Agent:
             if self.is_anonymous:
                 return "workflow"
             return self.workflow if self.workflow else "agent"
-        if self.is_rendered_workflow_child and self.step_type:
+        if self.is_workflow_child and self.step_type:
             return self.step_type
         if self.agent_type == AgentType.RUNNING:
             return "agent"
@@ -292,7 +286,7 @@ class Agent:
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent
-            and not self.is_rendered_workflow_child
+            and not self.is_workflow_child
             and self.workflow
         ):
             return self.workflow
@@ -426,63 +420,6 @@ class Agent:
         return self.parent_workflow is not None or self.parent_timestamp is not None
 
     @property
-    def is_workflow_step_child(self) -> bool:
-        """True for entries loaded from prompt_step_*.json workflow markers."""
-        return self.parent_workflow is not None
-
-    @property
-    def is_rendered_workflow_child(self) -> bool:
-        """True when the Agents tab should render this row under a parent.
-
-        Plan-chain follow-up artifacts keep parent lineage for summaries and
-        compatibility, but they are independent selectable rows in the list.
-        Non-plan-chain artifact follow-ups keep the old child-row behavior
-        until their lifecycle semantics are handled separately.
-        """
-        if self.is_workflow_step_child:
-            return True
-        return self.is_artifact_followup and not self.is_plan_chain_phase
-
-    @property
-    def is_artifact_followup(self) -> bool:
-        """True for a separate artifact dir linked to a parent agent."""
-        return self.parent_timestamp is not None and not self.is_workflow_step_child
-
-    @property
-    def plan_chain_suffix(self) -> str | None:
-        """Canonical plan-chain suffix for plan/q/feedback/coder phases."""
-        from sase.plan_chain import canonical_plan_chain_suffix
-
-        return canonical_plan_chain_suffix(self.role_suffix)
-
-    @property
-    def is_plan_chain_phase(self) -> bool:
-        """True for plan/question/feedback/coder handoff agents."""
-        return (
-            self.plan_chain_suffix is not None
-            or self.plan_chain_parent_timestamp is not None
-        )
-
-    @property
-    def plan_chain_parent(self) -> str | None:
-        """Parent timestamp for a plan-chain phase, including legacy artifacts."""
-        if self.plan_chain_parent_timestamp:
-            return self.plan_chain_parent_timestamp
-        if self.is_plan_chain_phase and self.is_artifact_followup:
-            return self.parent_timestamp
-        return None
-
-    @property
-    def is_plan_chain_followup(self) -> bool:
-        """True for plan-chain phases stored in their own artifact directory."""
-        return self.plan_chain_parent is not None
-
-    @property
-    def is_independent_plan_chain_entry(self) -> bool:
-        """True for plan-chain entries that are not prompt-step children."""
-        return self.is_plan_chain_phase and not self.is_workflow_step_child
-
-    @property
     def is_agent_entry(self) -> bool:
         """Check if this entry represents an agent process (with thinking support).
 
@@ -495,7 +432,7 @@ class Agent:
         if self.agent_type == AgentType.WORKFLOW:
             if self.appears_as_agent:
                 return True
-            if self.is_rendered_workflow_child and self.step_type == "agent":
+            if self.is_workflow_child and self.step_type == "agent":
                 return True
         return False
 

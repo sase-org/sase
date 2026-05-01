@@ -73,7 +73,7 @@ def _is_child_of(child: Agent, parent: Agent) -> bool:
     """Check if *child* is a workflow step, follow-up, or retry of *parent*.
 
     Matches workflow step children (``parent_workflow`` set), follow-up
-    agents like ``.coder`` / ``.q`` (``parent_timestamp`` set,
+    agents like ``.code`` / ``.q`` (``parent_timestamp`` set,
     ``parent_workflow`` is None), and spawn-on-retry children
     (``retry_of_timestamp`` set).
     """
@@ -180,10 +180,9 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
         )
 
-        # Only hide rendered workflow child steps. Independent plan-chain
-        # phases keep parent lineage but should remain revivable on their own.
+        # Only show top-level DONE entries (no child steps)
         all_in_scope = list(filtered)
-        filtered = [a for a in filtered if not a.is_rendered_workflow_child]
+        filtered = [a for a in filtered if not a.is_workflow_child]
 
         if not filtered:
             self.notify("No dismissed agents in this scope")  # type: ignore[attr-defined]
@@ -220,7 +219,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         if agent.raw_suffix:
             revived_suffixes.add(agent.raw_suffix)
 
-        # Also revive child steps and follow-up agents (e.g. .coder, .q)
+        # Also revive child steps and follow-up agents (e.g. .code, .q)
         child_raw_suffixes: set[str] = set()
         revival_group: list[Agent] = [agent]
         if not agent.is_workflow_child and agent.raw_suffix:

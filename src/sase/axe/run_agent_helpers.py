@@ -16,7 +16,6 @@ from sase.artifacts import create_artifacts_directory
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     PLAN_CHAIN_PLAN_SUFFIX,
-    canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
     plan_chain_agent_name,
 )
@@ -190,7 +189,7 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
-        meta["role_suffix"] = canonical_plan_chain_suffix(suffix) or suffix
+        meta["role_suffix"] = suffix
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -208,7 +207,6 @@ def promote_to_workflow(
     single-agent run into a multi-agent workflow.  Sets both
     ``name`` and ``workflow_name`` in the agent's ``agent_meta.json``.
     """
-    role_suffix = canonical_plan_chain_suffix(role_suffix) or role_suffix
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
@@ -355,7 +353,6 @@ def create_followup_artifacts(
     """
     from datetime import UTC, datetime
 
-    suffix = canonical_plan_chain_suffix(suffix) or suffix
     new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
 
     followup_meta: dict[str, Any] = {"pid": os.getpid()}

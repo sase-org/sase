@@ -21,8 +21,6 @@ def make_agent(
     pid: int | None = None,
     appears_as_agent: bool | None = None,
     parent_timestamp: str | None = None,
-    plan_chain_parent_timestamp: str | None = None,
-    role_suffix: str | None = None,
     workflow_name: str | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
@@ -35,10 +33,6 @@ def make_agent(
         meta["pid"] = pid
     if parent_timestamp is not None:
         meta["parent_timestamp"] = parent_timestamp
-    if plan_chain_parent_timestamp is not None:
-        meta["plan_chain_parent_timestamp"] = plan_chain_parent_timestamp
-    if role_suffix is not None:
-        meta["role_suffix"] = role_suffix
     if workflow_name is not None:
         meta["workflow_name"] = workflow_name
     (artifact_dir / "agent_meta.json").write_text(json.dumps(meta))

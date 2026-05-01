@@ -244,12 +244,9 @@ def _persist_workflow_kill(
     if not agent.is_workflow_child and agent.raw_suffix:
         for step in agents_with_children_snapshot:
             if (
-                (step.is_rendered_workflow_child or step.is_plan_chain_phase)
+                step.is_workflow_child
                 and step.parent_timestamp == agent.raw_suffix
-                and (
-                    step.parent_workflow is None
-                    or step.parent_workflow == agent.workflow
-                )
+                and step.parent_workflow == agent.workflow
             ):
                 if not step._from_changespec:
                     save_dismissed_bundle(step)

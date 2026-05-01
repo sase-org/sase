@@ -109,7 +109,7 @@ def agent_render_key(
         derive_agent_bead_id(agent),
         agent.hidden,
         agent.retry_attempt,
-        agent.is_rendered_workflow_child,
+        agent.is_workflow_child,
         agent.appears_as_agent,
         agent.is_anonymous,
         agent.step_index,
@@ -146,7 +146,7 @@ def banner_render_key(
     of the key because they affect the rendered Option directly.
     """
     member_sig = tuple(
-        (a.identity, a.status, a.hidden, a.is_rendered_workflow_child) for a in agents
+        (a.identity, a.status, a.hidden, a.is_workflow_child) for a in agents
     )
     return (
         group.group_key,

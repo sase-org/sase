@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-from sase.plan_chain import plan_chain_suffix_from_meta
-
 
 def claim_agent_name(name: str, claiming_dir: str, *, explicit: bool = False) -> None:
     """Enforce agent name uniqueness.
@@ -96,7 +94,6 @@ def _claim_explicit(name: str, claiming_dir: str) -> None:
     reserved.add(name)
 
     name_map: dict[str, str] = {}
-    workflow_renames: dict[str, str] = {}
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -134,27 +131,17 @@ def _claim_explicit(name: str, claiming_dir: str) -> None:
             if not (matched_name or matched_workflow):
                 continue
 
-            if matched_workflow:
-                new_name = workflow_renames.get(name)
-                if new_name is None:
-                    new_name = dedup_name(name, reserved)
-                    workflow_renames[name] = new_name
-            else:
-                new_name = dedup_name(name, reserved)
+            new_name = dedup_name(name, reserved)
             try:
                 if matched_name:
                     data["name"] = new_name
                 if matched_workflow:
                     data["workflow_name"] = new_name
                     # When workflow_name matched, the agent's own name is
-                    # derived from the workflow. Rewrite exact root names and
-                    # independent plan-chain phase names such as
-                    # ``foo.plan`` / ``foo.coder`` to keep the renamed chain
-                    # under one prefix.
+                    # derived from the workflow — also rewrite the name
+                    # field if it equals the old workflow name.
                     if data.get("name") == name:
                         data["name"] = new_name
-                    else:
-                        _rewrite_plan_chain_name_prefix(data, name, new_name)
                 with open(meta_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
             except (OSError, KeyError):
@@ -166,6 +153,10 @@ def _claim_explicit(name: str, claiming_dir: str) -> None:
                 _rename_in_done_json(done_path, name, new_name)
 
             name_map[name] = new_name
+            # TODO: workflow children of a renamed parent (e.g. ``foo.code``,
+            # ``foo.q``) keep their old prefix. If user feedback bites, walk
+            # ``parent_timestamp == <renamed_parent_raw_suffix>`` and
+            # prefix-substitute their ``name`` fields here.
 
     if name_map:
         try:
@@ -176,24 +167,6 @@ def _claim_explicit(name: str, claiming_dir: str) -> None:
             rewrite_dismissed_references(name_map)
         except Exception:
             pass
-
-
-def _rewrite_plan_chain_name_prefix(
-    data: dict[str, object],
-    old_prefix: str,
-    new_prefix: str,
-) -> bool:
-    """Rewrite ``name`` from ``old_prefix.<phase>`` to ``new_prefix.<phase>``."""
-    current = data.get("name")
-    if not isinstance(current, str):
-        return False
-    suffix = current[len(old_prefix) :] if current.startswith(old_prefix) else ""
-    if not suffix or not isinstance(data.get("workflow_name"), str):
-        return False
-    if plan_chain_suffix_from_meta({**data, "role_suffix": suffix}) is None:
-        return False
-    data["name"] = f"{new_prefix}{suffix}"
-    return True
 
 
 def _rename_in_done_json(path: Path, old: str, new: str) -> None:
@@ -210,8 +183,6 @@ def _rename_in_done_json(path: Path, old: str, new: str) -> None:
         if data.get("workflow_name") == old:
             data["workflow_name"] = new
             changed = True
-            if _rewrite_plan_chain_name_prefix(data, old, new):
-                changed = True
         if not changed:
             return
         with open(path, "w", encoding="utf-8") as f:

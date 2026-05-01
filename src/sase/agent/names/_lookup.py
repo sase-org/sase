@@ -28,11 +28,6 @@ from sase.agent.names._common import (
     is_dismissed_prefixed,
     is_process_alive,
 )
-from sase.plan_chain import (
-    LEGACY_PLAN_CHAIN_CODER_SUFFIX,
-    PLAN_CHAIN_CODER_SUFFIX,
-    is_plan_chain_artifact_meta,
-)
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -58,21 +53,6 @@ def _projects_root() -> Path:
     return Path.home() / ".sase" / "projects"
 
 
-def _lookup_name_aliases(name: str) -> set[str]:
-    """Return accepted lookup spellings for *name*.
-
-    New coder phases are named ``.coder``; legacy artifacts and prompts may
-    still refer to ``.code``. Treat the two as input aliases for lookup while
-    preserving the caller's spelling in the returned ``NamedAgent``.
-    """
-    aliases = {name}
-    if name.endswith(PLAN_CHAIN_CODER_SUFFIX):
-        aliases.add(f"{name[: -len(PLAN_CHAIN_CODER_SUFFIX)]}.code")
-    elif name.endswith(LEGACY_PLAN_CHAIN_CODER_SUFFIX):
-        aliases.add(f"{name[: -len(LEGACY_PLAN_CHAIN_CODER_SUFFIX)]}.coder")
-    return aliases
-
-
 def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
     """Project the record's ``agent_meta`` fields needed by ``is_process_alive``.
 
@@ -89,20 +69,6 @@ def _meta_dict(record: AgentArtifactRecordWire) -> dict[str, Any]:
     if meta.stopped_at is not None:
         out["stopped_at"] = meta.stopped_at
     return out
-
-
-def _record_meta_mapping(record: AgentArtifactRecordWire) -> dict[str, Any]:
-    """Return plan-chain classification fields from a scan record."""
-    meta = record.agent_meta
-    if meta is None:
-        return {}
-    return {
-        "name": meta.name,
-        "workflow_name": meta.workflow_name,
-        "role_suffix": meta.role_suffix,
-        "parent_timestamp": meta.parent_timestamp,
-        "plan_chain_parent_timestamp": meta.plan_chain_parent_timestamp,
-    }
 
 
 def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None:
@@ -134,7 +100,6 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
 
     snapshot = scan_agent_artifacts(projects_dir, _ace_run_scan_options())
 
-    name_aliases = _lookup_name_aliases(name)
     best_match: NamedAgent | None = None
     best_priority: tuple[int, str] = (0, "")
 
@@ -145,7 +110,7 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
         if meta is None:
             continue
 
-        exact = meta.name in name_aliases
+        exact = meta.name == name
         workflow = meta.workflow_name == name
         if not exact and not workflow:
             continue
@@ -180,11 +145,7 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
         # (no parent_timestamp) to avoid matching intermediate steps.
         if not is_done:
             if not only_done and is_process_alive(_meta_dict(record), artifact_dir):
-                if (
-                    exact
-                    or not meta.parent_timestamp
-                    or is_plan_chain_artifact_meta(_record_meta_mapping(record))
-                ):
+                if exact or not meta.parent_timestamp:
                     return agent
             continue
 
@@ -224,7 +185,6 @@ def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:
     if not bundles_dir.is_dir():
         return None
 
-    name_aliases = _lookup_name_aliases(name)
     best: NamedAgent | None = None
     best_ts = ""
     try:
@@ -243,10 +203,7 @@ def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:
         if not isinstance(data, dict):
             continue
 
-        if (
-            data.get("agent_name") not in name_aliases
-            and data.get("workflow_name") != name
-        ):
+        if data.get("agent_name") != name and data.get("workflow_name") != name:
             continue
 
         raw_suffix = data.get("raw_suffix")

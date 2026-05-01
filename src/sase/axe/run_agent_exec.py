@@ -98,44 +98,6 @@ def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
     return ctx.project_name
 
 
-def _current_chat_agent_name(
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    """Return the chat-history agent suffix for the current plan-chain phase."""
-    if not ctx.agent_name:
-        return None
-    suffix = canonical_plan_chain_suffix(state.current_role_suffix)
-    if suffix is not None:
-        return plan_chain_agent_name(ctx.agent_name, suffix)
-    if state.current_role_suffix == ".epic":
-        return f"{ctx.agent_name}.epic"
-    if state.agent_step > 1:
-        return f"{ctx.agent_name}.{state.agent_step}"
-    return None
-
-
-def _set_predicted_agent_chat_path(
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> None:
-    """Set the chat path stop hooks should reference for the current phase."""
-    from pathlib import Path
-
-    from sase.history.chat import generate_chat_filename, get_chat_file_path
-
-    chat_basename = generate_chat_filename(
-        workflow="ace-run",
-        agent=_current_chat_agent_name(ctx, state),
-        branch_or_workspace=ctx.cl_name,
-        timestamp=ctx.timestamp,
-    )
-    predicted_chat_path = get_chat_file_path(chat_basename).replace(
-        str(Path.home()), "~"
-    )
-    os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
-
-
 def _finalize_loop(
     ctx: AgentExecContext,
     state: LoopState,
@@ -196,7 +158,6 @@ def _finalize_loop(
         prompt=state.current_prompt,
         response=response_content,
         workflow="ace-run",
-        agent=_current_chat_agent_name(ctx, state) if state.agent_step > 1 else None,
         timestamp=ctx.timestamp,
         extra_sections=extra,
         branch_or_workspace=ctx.cl_name,
@@ -382,6 +343,22 @@ def run_execution_loop(
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 
+    # Pre-set SASE_AGENT_CHAT_PATH so the commit stop hook (and
+    # create_changespec_for_workflow) can reference the ace-run chat file.
+    # The file won't exist yet — it's written in _finalize_loop — but the
+    # COMMITS entry only stores the path string.
+    from pathlib import Path
+
+    from sase.history.chat import generate_chat_filename, get_chat_file_path
+
+    chat_basename = generate_chat_filename(
+        workflow="ace-run", branch_or_workspace=ctx.cl_name, timestamp=ctx.timestamp
+    )
+    predicted_chat_path = get_chat_file_path(chat_basename).replace(
+        str(Path.home()), "~"
+    )
+    os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
+
     tracker = RetryTracker(
         retry_cfg=get_retry_config(ctx.agent_llm_provider)
         if ctx.agent_llm_provider
@@ -399,10 +376,6 @@ def run_execution_loop(
     result = None
 
     while True:
-        # Pre-set SASE_AGENT_CHAT_PATH so stop hooks can reference the chat file
-        # this phase will write in _finalize_loop.  The file does not exist yet;
-        # commit bookkeeping only stores the path string.
-        _set_predicted_agent_chat_path(ctx, state)
         reset_killed()
         os.environ["SASE_ARTIFACTS_DIR"] = state.current_artifacts_dir
         anon_workflow = create_anonymous_workflow(state.current_prompt)

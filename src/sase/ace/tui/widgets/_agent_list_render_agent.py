@@ -54,12 +54,12 @@ def format_agent_option(
     # Indentation for retry-chain attempts: render under the chain
     # root so the user sees the lineage at a glance.  retry_attempt
     # tracks chain depth (1 = first retry, 2 = retry-of-retry, …).
-    if agent.retry_attempt > 0 and not agent.is_rendered_workflow_child:
+    if agent.retry_attempt > 0 and not agent.is_workflow_child:
         indent = "  " * agent.retry_attempt + "↳ "
         text.append(indent, style="dim #808080")
 
     # Indentation for workflow child agents
-    if agent.is_rendered_workflow_child:
+    if agent.is_workflow_child:
         text.append(_CHILD_INDENT, style="dim #808080")
         if agent.step_index is not None:
             if (
@@ -102,7 +102,7 @@ def format_agent_option(
     )
     if is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
-    elif agent.is_rendered_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
+    elif agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
         color = _STEP_TYPE_COLORS[agent.step_type]
     else:
         color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
@@ -112,7 +112,7 @@ def format_agent_option(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if not (is_appears_as_agent or agent.is_rendered_workflow_child):
+    if not (is_appears_as_agent or agent.is_workflow_child):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
             text.append(f"{type_glyph} ", style=f"bold {color}")

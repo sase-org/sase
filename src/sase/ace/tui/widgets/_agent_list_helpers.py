@@ -16,7 +16,7 @@ def short_model_name(model: str) -> str:
 def step_role_suffix(agent: Agent) -> str:
     """Return role suffix to include in step number, or empty string.
 
-    Shows role_suffix (e.g., ".plan", ".coder", ".q") as part of the step number
+    Shows role_suffix (e.g., ".plan", ".code", ".q") as part of the step number
     only for agent-type workflow steps and follow-up agents.  Other step types
     (bash, python) and workflow parents do not display it.
     """
@@ -31,7 +31,7 @@ def step_role_suffix(agent: Agent) -> str:
 
 def _is_foldable_parent(agent: Agent) -> bool:
     """Check if an agent is a foldable parent (workflow)."""
-    if agent.is_rendered_workflow_child:
+    if agent.is_workflow_child:
         return False
     if agent.agent_type == AgentType.WORKFLOW:
         return True

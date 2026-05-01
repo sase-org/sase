@@ -68,26 +68,6 @@ class TestFindNamedAgent:
         assert result.outcome == "completed"
         assert result.artifacts_dir == str(child_dir)
 
-    def test_finds_coder_phase_by_legacy_code_alias(self, tmp_path: Path) -> None:
-        """``#resume:a.code`` still resolves a new ``a.coder`` artifact."""
-        coder_dir = _make_agent(
-            tmp_path,
-            "proj",
-            "run-coder",
-            "a.coder",
-            workflow_name="a",
-            parent_timestamp="run-plan",
-            plan_chain_parent_timestamp="run-plan",
-            role_suffix=".coder",
-            done=True,
-            outcome="completed",
-        )
-        with patch.object(Path, "home", return_value=tmp_path):
-            result = find_named_agent("a.code", only_done=True)
-        assert result is not None
-        assert result.is_done
-        assert result.artifacts_dir == str(coder_dir)
-
     def test_exact_name_preferred_over_workflow(self, tmp_path: Path) -> None:
         """Exact name match takes priority over workflow_name match."""
         _make_agent(
@@ -446,39 +426,6 @@ class TestClaimAgentNameExplicit:
 
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "a"
-
-    def test_explicit_rename_rewrites_plan_chain_prefixes(self, tmp_path: Path) -> None:
-        plan = _make_agent(
-            tmp_path,
-            "proj",
-            "run-plan",
-            "a.plan",
-            workflow_name="a",
-            role_suffix=".plan",
-            done=True,
-        )
-        coder = _make_agent(
-            tmp_path,
-            "proj",
-            "run-coder",
-            "a.coder",
-            workflow_name="a",
-            parent_timestamp="run-plan",
-            plan_chain_parent_timestamp="run-plan",
-            role_suffix=".coder",
-            done=True,
-        )
-        new_dir = _make_agent(tmp_path, "proj", "run-new", "a")
-
-        with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("a", str(new_dir), explicit=True)
-
-        plan_meta = json.loads((plan / "agent_meta.json").read_text())
-        coder_meta = json.loads((coder / "agent_meta.json").read_text())
-        assert plan_meta["workflow_name"] == "a.2"
-        assert plan_meta["name"] == "a.2.plan"
-        assert coder_meta["workflow_name"] == "a.2"
-        assert coder_meta["name"] == "a.2.coder"
 
     def test_multiple_collisions_get_sequential_suffixes(self, tmp_path: Path) -> None:
         first = _make_agent(tmp_path, "proj", "run-1", "foo", pid=os.getpid())

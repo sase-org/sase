@@ -97,7 +97,7 @@ def enumerate_group_keys(
         parent_lookup: dict[str, Agent] = {
             a.raw_suffix: a
             for a in panel_agents
-            if a.raw_suffix and not a.is_rendered_workflow_child
+            if a.raw_suffix and not a.is_workflow_child
         }
         anchors = walk_anchors(panel_agents, parent_lookup, mode)
         use_cs = panel_uses_changespec_level(panel_agents, mode)
@@ -185,9 +185,7 @@ def build_agent_tree(
     """
     registry = fold_registry if fold_registry is not None else AgentGroupFoldRegistry()
     parent_lookup: dict[str, Agent] = {
-        a.raw_suffix: a
-        for a in agents
-        if a.raw_suffix and not a.is_rendered_workflow_child
+        a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
     reference = now if now is not None else datetime.now()
     keys_per_agent = [
@@ -367,7 +365,7 @@ def build_agent_tree(
 def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSummary:
     """Aggregate status counts for the agents referenced by *group*.
 
-    Only independently rendered agents are counted so the summary mirrors
+    Only non-workflow-child agents are counted so the summary mirrors
     the user's mental model of "agents in this group".  Counts are
     derived from :func:`status_bucket_for` so the chip line can never
     disagree with the banner it sits on.
@@ -380,7 +378,7 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
         if idx < 0 or idx >= len(agents):
             continue
         agent = agents[idx]
-        if agent.is_rendered_workflow_child:
+        if agent.is_workflow_child:
             continue
         count += 1
         bucket = status_bucket_for(agent)

@@ -123,10 +123,10 @@ def _synthesize_dismissed_name(agent: Agent) -> None:
     if agent.agent_name and is_dismissed_prefixed(agent.agent_name):
         return
 
-    # Only skip rendered workflow children.  Independent plan-chain phases keep
-    # parent lineage too, but old dismissed bundles for ``.code`` / ``.coder``
-    # still need their own prefixed names.
-    if agent.is_rendered_workflow_child:
+    # Only synthesize for top-level agents — workflow children inherit
+    # the parent's prefixed identity through ``parent_timestamp`` and
+    # were not expected to carry an ``agent_name`` in older bundles.
+    if agent.is_workflow_child:
         return
 
     completion = agent.stop_time or agent.start_time

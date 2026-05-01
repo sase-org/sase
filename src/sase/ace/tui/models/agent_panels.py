@@ -8,7 +8,7 @@ Each Agents-tab panel renders a tag-bucket of agents:
   insensitive).  Their order matches the order the user used to see as
   tag-level banners in the old three-level tree.
 
-Rendered workflow children inherit their parent's tag so they appear in the
+Workflow children inherit their parent's tag so they appear in the
 parent's panel even if the child has no tag of its own.
 """
 
@@ -24,16 +24,12 @@ PanelKey = str | None
 
 
 def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:
-    return {
-        a.raw_suffix: a
-        for a in agents
-        if a.raw_suffix and not a.is_rendered_workflow_child
-    }
+    return {a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child}
 
 
 def _panel_key_for_agent(agent: Agent, parent_lookup: dict[str, Agent]) -> PanelKey:
     target = agent
-    if agent.is_rendered_workflow_child and agent.parent_timestamp:
+    if agent.is_workflow_child and agent.parent_timestamp:
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent

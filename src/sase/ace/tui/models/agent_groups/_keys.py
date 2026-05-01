@@ -128,8 +128,8 @@ def grouping_keys_for(
 ) -> _GroupingKeys:
     """Compute (L0, changespec, name_root) for *agent* under *mode*.
 
-    Rendered workflow children inherit grouping from their parent so a banner
-    is never inserted between a parent and its workflow steps.  ``now`` is
+    Workflow children inherit grouping from their parent so a banner is
+    never inserted between a parent and its workflow steps.  ``now`` is
     only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
     ``changespec`` is always empty in non-STANDARD modes since the
     ChangeSpec level disappears from the hierarchy.  ``name_root`` is
@@ -138,7 +138,7 @@ def grouping_keys_for(
     renders as a flat list sorted by ``start_time``.
     """
     target = agent
-    if agent.is_rendered_workflow_child and agent.parent_timestamp:
+    if agent.is_workflow_child and agent.parent_timestamp:
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent
@@ -163,9 +163,7 @@ def grouping_keys_for_agents(
 ) -> list[_GroupingKeys]:
     """Public-ish helper exposing per-agent grouping keys."""
     parent_lookup: dict[str, Agent] = {
-        a.raw_suffix: a
-        for a in agents
-        if a.raw_suffix and not a.is_rendered_workflow_child
+        a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
     reference = now if now is not None else datetime.now()
     return [grouping_keys_for(a, parent_lookup, mode, reference) for a in agents]
@@ -185,11 +183,11 @@ def panel_uses_changespec_level(
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a
         for a in panel_agents
-        if a.raw_suffix and not a.is_rendered_workflow_child
+        if a.raw_suffix and not a.is_workflow_child
     }
     for agent in panel_agents:
         target = agent
-        if agent.is_rendered_workflow_child and agent.parent_timestamp:
+        if agent.is_workflow_child and agent.parent_timestamp:
             target = parent_lookup.get(agent.parent_timestamp, agent)
         if _changespec_name_for_grouping(target):
             return True
@@ -203,7 +201,7 @@ def walk_anchors(
 ) -> list[tuple[float, int]]:
     """Per-agent ``(-anchor_epoch, is_child)`` tiebreak under ``BY_DATE``.
 
-    Rendered workflow children adopt their parent's anchor and a ``1`` in the
+    Workflow children adopt their parent's anchor and a ``1`` in the
     ``is_child`` slot so they sort immediately after the parent
     regardless of the child's own timestamps.  Non-``BY_DATE`` modes
     return a constant ``(0.0, 0)`` per agent so the sort is unchanged.
@@ -223,7 +221,7 @@ def walk_anchors(
     for agent in agents:
         target = agent
         is_child = 0
-        if agent.is_rendered_workflow_child and agent.parent_timestamp:
+        if agent.is_workflow_child and agent.parent_timestamp:
             parent = parent_lookup.get(agent.parent_timestamp)
             if parent is not None:
                 target = parent

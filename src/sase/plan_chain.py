@@ -27,7 +27,7 @@ def plan_chain_feedback_suffix(feedback_round: int) -> str:
     return f".{feedback_round + 1}"
 
 
-def is_plan_chain_feedback_suffix(suffix: object) -> bool:
+def _is_plan_chain_feedback_suffix(suffix: object) -> bool:
     """Return ``True`` for feedback suffixes such as ``.2`` and ``.3``."""
     if not isinstance(suffix, str):
         return False
@@ -35,7 +35,7 @@ def is_plan_chain_feedback_suffix(suffix: object) -> bool:
     return match is not None and int(match.group(1)) >= 2
 
 
-def is_plan_chain_coder_suffix(suffix: object) -> bool:
+def _is_plan_chain_coder_suffix(suffix: object) -> bool:
     """Return ``True`` for canonical and legacy coder suffixes."""
     return suffix in {
         PLAN_CHAIN_CODER_SUFFIX,
@@ -47,9 +47,9 @@ def canonical_plan_chain_suffix(suffix: object) -> str | None:
     """Return the canonical plan-chain suffix, or ``None`` if unrecognized."""
     if not isinstance(suffix, str):
         return None
-    if is_plan_chain_coder_suffix(suffix):
+    if _is_plan_chain_coder_suffix(suffix):
         return PLAN_CHAIN_CODER_SUFFIX
-    if suffix in _KNOWN_SUFFIXES or is_plan_chain_feedback_suffix(suffix):
+    if suffix in _KNOWN_SUFFIXES or _is_plan_chain_feedback_suffix(suffix):
         return suffix
     return None
 

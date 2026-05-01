@@ -1,7 +1,6 @@
 """Tests for run_agent_exec workflow project selection."""
 
 import json
-import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,10 +9,8 @@ from unittest.mock import patch
 from sase.axe.run_agent_exec import (
     AgentExecContext,
     _AgentExecResult,
-    _current_chat_agent_name,
     _finalize_loop,
     _resolve_workflow_project,
-    _set_predicted_agent_chat_path,
     LoopState,
     run_execution_loop,
 )
@@ -120,84 +117,6 @@ def test_run_execution_loop_non_home_mode_passes_project(tmp_path: Path) -> None
     assert result == final_result
     assert mock_execute.call_count == 1
     assert mock_execute.call_args.kwargs["project"] == "sase"
-
-
-def test_current_chat_agent_name_uses_canonical_coder_suffix(tmp_path: Path) -> None:
-    ctx = _make_ctx(tmp_path, is_home_mode=False)
-    state = LoopState(
-        current_prompt="implement",
-        current_role_suffix=".coder",
-        current_artifacts_dir=ctx.artifacts_dir,
-        loop_outcome="completed",
-        sdd_spec_path=None,
-        original_prompt="implement",
-        agent_step=2,
-    )
-
-    assert _current_chat_agent_name(ctx, state) == "agent.coder"
-
-
-def test_predicted_chat_path_uses_current_phase_agent(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    ctx = _make_ctx(tmp_path, is_home_mode=False)
-    state = LoopState(
-        current_prompt="implement",
-        current_role_suffix=".coder",
-        current_artifacts_dir=ctx.artifacts_dir,
-        loop_outcome="completed",
-        sdd_spec_path=None,
-        original_prompt="implement",
-        agent_step=2,
-    )
-
-    captured: dict = {}
-
-    def fake_generate(**kwargs):
-        captured.update(kwargs)
-        return "test-cl-ace_run-agent.coder-260408_120000"
-
-    monkeypatch.setattr("sase.history.chat.generate_chat_filename", fake_generate)
-    monkeypatch.setattr(
-        "sase.history.chat.get_chat_file_path",
-        lambda basename: f"/home/test/.sase/chats/{basename}.md",
-    )
-
-    _set_predicted_agent_chat_path(ctx, state)
-
-    assert captured["agent"] == "agent.coder"
-    assert "agent.coder" in os.environ["SASE_AGENT_CHAT_PATH"]
-
-
-def test_finalize_loop_saves_coder_chat_with_phase_agent(tmp_path: Path) -> None:
-    ctx = _make_ctx(tmp_path, is_home_mode=False)
-    state = LoopState(
-        current_prompt="implement",
-        current_role_suffix=".coder",
-        current_artifacts_dir=ctx.artifacts_dir,
-        loop_outcome="completed",
-        sdd_spec_path=None,
-        original_prompt="implement",
-        agent_step=2,
-    )
-    captured: dict = {}
-
-    def fake_save_chat_history(**kwargs):
-        captured.update(kwargs)
-        return str(tmp_path / "chat.md")
-
-    with patch(
-        "sase.axe.run_agent_exec.save_chat_history", side_effect=fake_save_chat_history
-    ):
-        _finalize_loop(
-            ctx,
-            state,
-            RetryTracker(retry_cfg=None),
-            SimpleNamespace(response_text="done"),
-        )
-
-    assert captured["agent"] == "agent.coder"
 
 
 def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(

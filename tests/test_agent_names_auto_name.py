@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.names import get_active_agent_names, get_next_auto_name
+from sase.agent.names import get_next_auto_name
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -299,26 +299,6 @@ class TestGetNextAutoName:
         )
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "b"
-
-    def test_plan_chain_follow_up_reserves_full_phase_name(
-        self, tmp_path: Path
-    ) -> None:
-        """Independent plan-chain phases reserve their visible phase names."""
-        _make_agent(
-            tmp_path,
-            "proj",
-            "run-followup",
-            "a.coder",
-            workflow_name="a",
-            parent_timestamp="run-parent",
-            plan_chain_parent_timestamp="run-parent",
-            role_suffix=".coder",
-            pid=os.getpid(),
-        )
-        with patch.object(Path, "home", return_value=tmp_path):
-            names = get_active_agent_names()
-        assert "a" in names
-        assert "a.coder" in names
 
     def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
         """Dismissed agent suffixes are excluded from auto-name reservation."""

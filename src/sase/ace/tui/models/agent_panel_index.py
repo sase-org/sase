@@ -26,7 +26,7 @@ class PanelSlice:
 
 @dataclass
 class AgentPanelIndex:
-    """O(1) lookup of panel slices, independent-row positions, and counts."""
+    """O(1) lookup of panel slices, non-child positions, and counts."""
 
     keys_per_agent: list[PanelKey] = field(default_factory=list)
     panels: dict[PanelKey, PanelSlice] = field(default_factory=dict)
@@ -45,7 +45,7 @@ class AgentPanelIndex:
         return self.panels.get(key, PanelSlice()).global_to_local.get(global_idx, -1)
 
     def non_child_position(self, current_idx: int) -> int:
-        """1-based independent-row position of ``current_idx`` for info panels."""
+        """1-based non-child position of ``current_idx`` for the info panel."""
         from bisect import bisect_right
 
         if not self.non_child_indices and not self.keys_per_agent:
@@ -78,7 +78,7 @@ def build_agent_panel_index(
         slot.agents.append(agent)
         slot.global_indices.append(i)
         slot.global_to_local[i] = local
-        if not agent.is_rendered_workflow_child:
+        if not agent.is_workflow_child:
             non_child_indices.append(i)
         if agent.status in dismissable:
             completed_count += 1
