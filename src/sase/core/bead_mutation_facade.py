@@ -11,7 +11,6 @@ from sase.core.bead_wire import issue_from_dict, issue_type_value, issues_from_l
 from sase.core.rust import require_rust_binding
 
 
-# pyvision: public_api_methods.txt
 def init_store(
     root_dir: Path | str,
     beads_dirname: str,
@@ -146,13 +145,11 @@ def unmark_ready_to_work(
     return _issue_payload(payload), payload
 
 
-# pyvision: public_api_methods.txt
 def export_jsonl(beads_dir: Path | str) -> dict[str, Any]:
     binding = require_rust_binding("bead_export_jsonl")
     return dict(binding(str(beads_dir)))
 
 
-# pyvision: public_api_methods.txt
 def sync_is_clean(beads_dir: Path | str) -> bool:
     binding = require_rust_binding("bead_sync_is_clean")
     return bool(binding(str(beads_dir)))

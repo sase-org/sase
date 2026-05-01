@@ -6,14 +6,10 @@ a merged read-only view of beads across all of them.
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import sqlite3
 from pathlib import Path
 
-from sase.bead import db as db_mod
-from sase.bead.jsonl import dict_to_issue
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
@@ -165,20 +161,19 @@ class MergedBeadView:
     """
 
     def __init__(self, beads_dirs: list[Path]) -> None:
-        self._conn = _build_merged_db(beads_dirs)
+        self._beads_dirs = beads_dirs
 
     def __enter__(self) -> MergedBeadView:
         return self
 
     def __exit__(self, *_: object) -> None:
-        self._conn.close()
+        return None
 
     def show(self, issue_id: str) -> Issue:
         """Get a single issue by ID. Raises KeyError if not found."""
-        issue = db_mod.get_issue(self._conn, issue_id)
-        if issue is None:
-            raise KeyError(f"Issue not found: {issue_id}")
-        return issue
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.merged_show(self._beads_dirs, issue_id)
 
     def list_issues(
         self,
@@ -186,73 +181,32 @@ class MergedBeadView:
         issue_types: list[IssueType] | None = None,
     ) -> list[Issue]:
         """List issues with optional filters."""
-        return db_mod.list_issues(
-            self._conn, statuses=statuses, issue_types=issue_types
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.merged_list_issues(
+            self._beads_dirs, statuses=statuses, issue_types=issue_types
         )
 
     def ready(self) -> list[Issue]:
         """Return open issues with no active blockers."""
-        return db_mod.ready_issues(self._conn)
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.merged_ready(self._beads_dirs)
 
     def blocked(self) -> list[Issue]:
         """Return issues with at least one active blocker."""
-        return db_mod.blocked_issues(self._conn)
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.merged_blocked(self._beads_dirs)
 
     def stats(self) -> dict[str, int]:
         """Return counts by status and type."""
-        return db_mod.stats(self._conn)
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.merged_stats(self._beads_dirs)
 
     def get_epic_children(self, epic_id: str) -> list[Issue]:
         """Get all child issues of an epic."""
-        return db_mod.get_epic_children(self._conn, epic_id)
+        from sase.core import bead_read_facade as rust_beads
 
-
-def _build_merged_db(beads_dirs: list[Path]) -> sqlite3.Connection:
-    """Create an in-memory SQLite DB with merged data from all workspaces.
-
-    For each issue ID, takes the version with the most recent ``updated_at``.
-    """
-    conn = db_mod.create_memory_db()
-
-    # Parse all JSONL files and merge by updated_at
-    merged_issues: dict[str, Issue] = {}
-    for beads_dir in beads_dirs:
-        jsonl_path = beads_dir / "issues.jsonl"
-        if not jsonl_path.exists():
-            continue
-        text = jsonl_path.read_text().strip()
-        if not text:
-            continue
-        for line in text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                issue = dict_to_issue(data)
-            except (json.JSONDecodeError, KeyError, ValueError):
-                continue
-            existing = merged_issues.get(issue.id)
-            if existing is None or issue.updated_at > existing.updated_at:
-                merged_issues[issue.id] = issue
-
-    # Insert into DB: epics first (for FK constraints on children)
-    sorted_issues = sorted(
-        merged_issues.values(),
-        key=lambda i: (0 if i.issue_type == IssueType.PLAN else 1, i.id),
-    )
-    for issue in sorted_issues:
-        db_mod.create_issue(conn, issue)
-        for dep in issue.dependencies:
-            try:
-                db_mod.add_dependency(
-                    conn,
-                    dep.issue_id,
-                    dep.depends_on_id,
-                    dep.created_at,
-                    dep.created_by,
-                )
-            except Exception:
-                pass  # Already exists or FK violation
-
-    return conn
+        return rust_beads.merged_get_epic_children(self._beads_dirs, epic_id)

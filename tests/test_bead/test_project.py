@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -258,16 +259,20 @@ def test_doctor_clean(project):
 
 
 def test_doctor_detects_orphan(project):
-    """Create a child whose parent doesn't exist (via direct db manipulation)."""
-    # Create a parent first to satisfy the constraint, then delete it
+    """Create a child whose parent doesn't exist in JSONL."""
     epic = project.create("Epic", IssueType.PLAN)
-    project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
 
-    # Disable FK constraints temporarily so cascade doesn't remove child
-    project._conn.execute("PRAGMA foreign_keys=OFF")
-    project._conn.execute("DELETE FROM issues WHERE id = ?", (epic.id,))
-    project._conn.commit()
-    project._conn.execute("PRAGMA foreign_keys=ON")
+    jsonl_path = project.beads_dir / "issues.jsonl"
+    rows = [json.loads(line) for line in jsonl_path.read_text().splitlines()]
+    jsonl_path.write_text(
+        "\n".join(
+            json.dumps(row, separators=(",", ":"))
+            for row in rows
+            if row["id"] == child.id
+        )
+        + "\n"
+    )
 
     messages = project.doctor()
     assert any("orphan" in m.lower() for m in messages)
