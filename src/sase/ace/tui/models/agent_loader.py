@@ -472,15 +472,15 @@ def _sort_and_reorder(
 
     sorted_agents = agents_with_time + agents_without_time
 
-    # Separate follow-up agents (parent_timestamp set, no parent_workflow)
-    # from regular agents so they can be grouped with their parent's main
-    # agent step (plan → feedback rounds → coder) instead of scattering
-    # by start time.
+    # Separate non-plan-chain follow-up agents (parent_timestamp set, no
+    # parent_workflow) from regular agents so legacy follow-up rows keep their
+    # parent-adjacent placement. Plan-chain phases are independent rows and
+    # remain in the normal sorted stream.
     followups_by_parent: dict[str, list[Agent]] = {}
     non_followup: list[Agent] = []
     for agent in sorted_agents:
         followup_parent = _followup_parent_timestamp(agent)
-        if followup_parent:
+        if followup_parent and not agent.is_plan_chain_followup:
             followups_by_parent.setdefault(followup_parent, []).append(agent)
         else:
             non_followup.append(agent)

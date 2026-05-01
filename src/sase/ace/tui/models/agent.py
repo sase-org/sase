@@ -431,6 +431,19 @@ class Agent:
         return self.parent_workflow is not None
 
     @property
+    def is_rendered_workflow_child(self) -> bool:
+        """True when the Agents tab should render this row under a parent.
+
+        Plan-chain follow-up artifacts keep parent lineage for summaries and
+        compatibility, but they are independent selectable rows in the list.
+        Non-plan-chain artifact follow-ups keep the old child-row behavior
+        until their lifecycle semantics are handled separately.
+        """
+        if self.is_workflow_step_child:
+            return True
+        return self.is_artifact_followup and not self.is_plan_chain_phase
+
+    @property
     def is_artifact_followup(self) -> bool:
         """True for a separate artifact dir linked to a parent agent."""
         return self.parent_timestamp is not None and not self.is_workflow_step_child

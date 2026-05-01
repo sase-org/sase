@@ -31,7 +31,7 @@ def step_role_suffix(agent: Agent) -> str:
 
 def _is_foldable_parent(agent: Agent) -> bool:
     """Check if an agent is a foldable parent (workflow)."""
-    if agent.is_workflow_child:
+    if agent.is_rendered_workflow_child:
         return False
     if agent.agent_type == AgentType.WORKFLOW:
         return True

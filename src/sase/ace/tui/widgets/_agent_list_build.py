@@ -52,7 +52,7 @@ def _compute_visible_parents(
     parents_with_visible_children: set[str] = set()
     fully_expanded_parents: set[str] = set()
     for agent in agents:
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_rendered_workflow_child and agent.parent_timestamp:
             parents_with_visible_children.add(agent.parent_timestamp)
             if agent.is_hidden_step:
                 fully_expanded_parents.add(agent.parent_timestamp)
@@ -373,10 +373,13 @@ def try_remove_rows(
     # orphan rows behind. Defense-in-depth — the caller should also gate.
     for _, local_idx in rows_to_remove:
         agent = widget._agents[local_idx]
-        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_rendered_workflow_child
+        ):
             for other in widget._agents:
                 if (
-                    other.is_workflow_child
+                    other.is_rendered_workflow_child
                     and other.parent_timestamp == agent.raw_suffix
                     and other.parent_workflow == agent.workflow
                 ):

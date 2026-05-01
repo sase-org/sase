@@ -26,7 +26,7 @@ def filter_agents_by_fold_state(
     children_by_parent: dict[str, list[Agent]] = {}
 
     for agent in agents:
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_rendered_workflow_child and agent.parent_timestamp:
             parent_key = agent.parent_timestamp
             if parent_key not in children_by_parent:
                 children_by_parent[parent_key] = []
@@ -47,7 +47,7 @@ def filter_agents_by_fold_state(
     # Second pass: build filtered list
     result: list[Agent] = []
     for agent in agents:
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_rendered_workflow_child and agent.parent_timestamp:
             parent_key = agent.parent_timestamp
             if parent_key in hidden_only_parents:
                 continue

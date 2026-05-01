@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models.agent_loader import _apply_status_overrides, _sort_and_reorder
 
 
 def test_apply_status_overrides_propagates_code_time() -> None:
@@ -107,6 +107,86 @@ def test_model_marks_root_plan_as_independent_plan_chain_entry() -> None:
     assert root_plan.is_independent_plan_chain_entry
     assert not root_plan.is_plan_chain_followup
     assert not root_plan.is_workflow_step_child
+
+
+def test_sort_keeps_plan_chain_phases_as_independent_rows() -> None:
+    """Plan-chain follow-ups stay in the main list; prompt steps stay nested."""
+    plan = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    question = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 5, 0),
+        raw_suffix="20250615100500",
+        parent_timestamp="20250615100000",
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".q",
+        agent_name="myagent.q",
+    )
+    feedback = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        raw_suffix="20250615101000",
+        parent_timestamp="20250615100000",
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".2",
+        agent_name="myagent.2",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 10, 15, 0),
+        raw_suffix="20250615101500",
+        parent_timestamp="20250615100000",
+        plan_chain_parent_timestamp="20250615100000",
+        role_suffix=".coder",
+        agent_name="myagent.coder",
+    )
+    workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="wf_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 11, 0, 0),
+        raw_suffix="20250615110000",
+        workflow="real-wf",
+    )
+    workflow_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="step",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=datetime(2025, 6, 15, 11, 0, 0),
+        raw_suffix="20250615110000",
+        parent_workflow="real-wf",
+        parent_timestamp="20250615110000",
+        step_name="step",
+        step_type="agent",
+    )
+
+    result = _sort_and_reorder(
+        [plan, question, feedback, coder, workflow],
+        [workflow_step],
+    )
+
+    assert result[:2] == [workflow, workflow_step]
+    assert result[2:] == [coder, feedback, question, plan]
+    assert all(not a.is_rendered_workflow_child for a in [coder, feedback, question])
+    assert workflow_step.is_rendered_workflow_child
 
 
 def test_apply_status_overrides_uses_explicit_plan_chain_parent() -> None:

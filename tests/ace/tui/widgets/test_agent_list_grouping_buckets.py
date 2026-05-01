@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_groups._tree import (
+    GroupRow,
+    banner_summary_text,
+    compute_banner_summary,
+)
 from sase.ace.tui.widgets._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
     _CHANGESPEC_BANNER_RULE_STYLE,
@@ -161,6 +167,56 @@ def test_by_status_name_root_banner_uses_existing_palette() -> None:
     spans = {s.style for s in name_root_text.spans}  # type: ignore[union-attr]
     assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
     assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
+
+
+def test_plan_chain_phases_count_as_independent_group_members() -> None:
+    """Plan-chain rows count in banners; real workflow steps remain children."""
+    agents = [
+        make_agent(cl_name="chain", agent_name="chain.plan", status="DONE"),
+        make_agent(
+            cl_name="chain",
+            agent_name="chain.q",
+            status="DONE",
+            start_time=datetime(2026, 4, 25, 12, 5, 0),
+        ),
+        make_agent(
+            cl_name="chain",
+            agent_name="chain.2",
+            status="DONE",
+            start_time=datetime(2026, 4, 25, 12, 10, 0),
+        ),
+        make_agent(
+            cl_name="chain",
+            agent_name="chain.coder",
+            status="RUNNING",
+            start_time=datetime(2026, 4, 25, 12, 15, 0),
+        ),
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="step",
+            project_file="/repo/proj.gp",
+            status="RUNNING",
+            start_time=datetime(2026, 4, 25, 12, 0, 0),
+            parent_workflow="wf",
+            parent_timestamp="20260425120000",
+            step_name="step",
+            step_type="agent",
+        ),
+    ]
+    for agent, suffix in zip(agents[:4], (".plan", ".q", ".2", ".coder"), strict=True):
+        agent.parent_timestamp = "20260425120000"
+        agent.plan_chain_parent_timestamp = "20260425120000"
+        agent.role_suffix = suffix
+
+    group = GroupRow(
+        level=2,
+        group_key=("proj", "chain", "chain"),
+        agent_indices=tuple(range(len(agents))),
+    )
+
+    assert banner_summary_text(compute_banner_summary(group, agents)).startswith(
+        "4 agents"
+    )
 
 
 def test_standard_mode_banner_unchanged_after_phase_2() -> None:
