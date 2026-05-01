@@ -32,6 +32,7 @@ from sase.bead import db as db_mod
 from sase.bead.config import save_config
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.bead.work import build_epic_work_plan_from_beads_dir
 from sase.bead.workspace import MergedBeadView
 
 pytestmark = pytest.mark.slow
@@ -125,6 +126,50 @@ def _write_project(root: Path, *, issue_count: int, dependency_count: int) -> No
         conn.close()
 
 
+def _write_work_plan_project(root: Path, *, phase_count: int) -> None:
+    beads_dir = root / ".sase_beads"
+    beads_dir.mkdir(parents=True, exist_ok=True)
+    save_config(
+        beads_dir,
+        {"issue_prefix": "work", "next_counter": phase_count + 2, "owner": ""},
+    )
+    conn = db_mod.init_db(beads_dir / "beads.db")
+    try:
+        epic = Issue(
+            id="work-1",
+            title="Work planning benchmark",
+            status=Status.OPEN,
+            issue_type=IssueType.PLAN,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+        )
+        db_mod.create_issue(conn, epic)
+        for idx in range(phase_count):
+            phase = Issue(
+                id=f"work-1.{idx + 1}",
+                title=f"Phase {idx + 1}",
+                status=Status.OPEN,
+                issue_type=IssueType.PHASE,
+                parent_id=epic.id,
+                created_at=f"2026-01-01T01:{idx % 60:02d}:00Z",
+                updated_at=f"2026-01-01T01:{idx % 60:02d}:00Z",
+            )
+            db_mod.create_issue(conn, phase)
+            if idx > 0:
+                db_mod.add_dependency(
+                    conn,
+                    phase.id,
+                    f"work-1.{idx}",
+                    f"2026-01-02T00:{idx % 60:02d}:00Z",
+                )
+
+        from sase.bead.jsonl import export_to_jsonl
+
+        export_to_jsonl(conn, beads_dir / "issues.jsonl")
+    finally:
+        conn.close()
+
+
 def _bench_shell(
     root: Path,
     *,
@@ -194,6 +239,19 @@ def _bench_merged(primary: Path, *, runs: int) -> dict[str, dict[str, float]]:
     return results
 
 
+def _bench_work_plan(root: Path, *, runs: int) -> dict[str, dict[str, float]]:
+    timings = [
+        _time_call(
+            lambda: build_epic_work_plan_from_beads_dir(
+                root / ".sase_beads",
+                "work-1",
+            )
+        )
+        for _ in range(runs)
+    ]
+    return {"build_epic_work_plan": _summarize(timings)}
+
+
 def _with_merged_view(
     beads_dirs: list[Path],
     fn: Callable[[MergedBeadView], object],
@@ -213,6 +271,12 @@ def run_benchmark(
         root = Path(td) / "workspace"
         root.mkdir()
         _write_project(root, issue_count=issue_count, dependency_count=dependency_count)
+        work_root = Path(td) / "work_plan"
+        work_root.mkdir()
+        _write_work_plan_project(
+            work_root,
+            phase_count=max(1, min(issue_count, 2_000)),
+        )
 
         merged_root = Path(td) / "merged"
         merged_root.mkdir()
@@ -227,6 +291,7 @@ def run_benchmark(
             "shell": _bench_shell(root, runs=runs, sase_bin=sase_bin),
             "project": _bench_project(root, runs=runs),
             "merged_workspace": _bench_merged(merged_root / "workspace1", runs=runs),
+            "work_plan": _bench_work_plan(work_root, runs=runs),
         }
 
 

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Any
 
 from sase.bead import db
-from sase.bead.model import IssueType, Status
+from sase.bead.model import Dependency, Issue
+from sase.core.rust import require_rust_binding
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -66,16 +69,10 @@ class CrossEpicBlockerError(EpicPlanError):
     """Raised when a phase has an out-of-epic blocker that is not closed."""
 
 
-def _phase_agent_name(bead_id: str) -> str:
-    # Phase bead IDs are <epic_id>.<N> by construction; use as-is.
-    return bead_id
-
-
-def _land_agent_name(epic_id: str) -> str:
-    return f"{epic_id}.land"
-
-
-def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan:
+def build_epic_work_plan(
+    source: sqlite3.Connection | str | Path,
+    epic_id: str,
+) -> EpicWorkPlan:
     """Compute a wave-partitioned plan to work non-closed phase children.
 
     Non-closed phase children are layered Kahn-style: wave 0 is every phase
@@ -90,84 +87,107 @@ def build_epic_work_plan(conn: sqlite3.Connection, epic_id: str) -> EpicWorkPlan
             that is not closed.
         CycleError: If the open phases form a dependency cycle.
     """
-    epic = db.get_issue(conn, epic_id)
-    if epic is None:
-        raise EpicPlanError(f"Epic {epic_id!r} not found")
-    if epic.issue_type != IssueType.PLAN:
-        raise EpicPlanError(f"{epic_id!r} is not a plan/epic bead")
+    if isinstance(source, sqlite3.Connection):
+        return _build_epic_work_plan_from_issues(db.list_issues(source), epic_id)
 
-    children = db.get_epic_children(conn, epic_id)
-    open_phases = [
-        c
-        for c in children
-        if c.issue_type == IssueType.PHASE and c.status != Status.CLOSED
-    ]
-    if not open_phases:
-        raise EpicPlanError(f"Epic {epic_id!r} has no non-closed phase children")
+    binding = require_rust_binding("bead_build_epic_work_plan")
+    try:
+        payload: dict[str, Any] = binding(str(source), epic_id)
+    except ValueError as exc:
+        _raise_epic_plan_error(exc)
+    return _plan_from_payload(payload)
 
-    in_epic_phase_ids = {c.id for c in children if c.issue_type == IssueType.PHASE}
-    open_phase_ids = {p.id for p in open_phases}
 
-    deps: dict[str, set[str]] = {}
-    for phase in open_phases:
-        in_epic_open: set[str] = set()
-        for dep in phase.dependencies:
-            blocker_id = dep.depends_on_id
-            if blocker_id in in_epic_phase_ids:
-                if blocker_id in open_phase_ids:
-                    in_epic_open.add(blocker_id)
-                continue
-            blocker = db.get_issue(conn, blocker_id)
-            if blocker is None or blocker.status != Status.CLOSED:
-                raise CrossEpicBlockerError(
-                    f"Phase {phase.id!r} depends on out-of-epic blocker "
-                    f"{blocker_id!r} that is not closed"
-                )
-        deps[phase.id] = in_epic_open
+def build_epic_work_plan_from_beads_dir(
+    beads_dir: str | Path,
+    epic_id: str,
+) -> EpicWorkPlan:
+    """Compute an epic work plan directly from a bead store through Rust."""
+    return build_epic_work_plan(beads_dir, epic_id)
 
-    waves: list[list[str]] = []
-    placed: set[str] = set()
-    remaining = set(open_phase_ids)
-    sort_key = {p.id: (p.created_at, p.id) for p in open_phases}
-    while remaining:
-        ready = sorted(
-            (pid for pid in remaining if deps[pid] <= placed),
-            key=lambda pid: sort_key[pid],
+
+def _build_epic_work_plan_from_issues(
+    issues: list[Issue],
+    epic_id: str,
+) -> EpicWorkPlan:
+    binding = require_rust_binding("bead_build_epic_work_plan_from_issues")
+    try:
+        payload: dict[str, Any] = binding(
+            [_issue_to_wire_dict(issue) for issue in issues],
+            epic_id,
         )
-        if not ready:
-            raise CycleError(
-                f"Cycle detected among phases of epic {epic_id!r}: {sorted(remaining)}"
-            )
-        waves.append(ready)
-        placed.update(ready)
-        remaining.difference_update(ready)
+    except ValueError as exc:
+        _raise_epic_plan_error(exc)
+    return _plan_from_payload(payload)
 
-    assigned_waves: list[tuple[PhaseAssignment, ...]] = []
-    for wave_index, wave_ids in enumerate(waves):
-        assignments = []
-        for pid in wave_ids:
-            waits = tuple(_phase_agent_name(b) for b in sorted(deps[pid]))
-            assignments.append(
-                PhaseAssignment(
-                    bead_id=pid,
-                    agent_name=_phase_agent_name(pid),
-                    waits_on=waits,
-                    wave=wave_index,
-                )
-            )
-        assigned_waves.append(tuple(assignments))
 
-    has_dependent: set[str] = set()
-    for blockers in deps.values():
-        has_dependent.update(blockers)
-    leaves = sorted(open_phase_ids - has_dependent)
-
+def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
     return EpicWorkPlan(
-        epic_id=epic_id,
-        waves=tuple(assigned_waves),
-        land_agent_name=_land_agent_name(epic_id),
-        land_waits_on=tuple(_phase_agent_name(b) for b in leaves),
+        epic_id=str(payload["epic_id"]),
+        waves=tuple(
+            tuple(
+                PhaseAssignment(
+                    bead_id=str(assignment["bead_id"]),
+                    agent_name=str(assignment["agent_name"]),
+                    waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
+                    wave=int(assignment["wave"]),
+                )
+                for assignment in wave
+            )
+            for wave in payload["waves"]
+        ),
+        land_agent_name=str(payload["land_agent_name"]),
+        land_waits_on=tuple(str(v) for v in payload.get("land_waits_on", [])),
     )
+
+
+def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
+    return {
+        "id": issue.id,
+        "title": issue.title,
+        "status": issue.status.value,
+        "issue_type": issue.issue_type.value,
+        "parent_id": issue.parent_id,
+        "owner": issue.owner,
+        "assignee": issue.assignee,
+        "created_at": issue.created_at,
+        "created_by": issue.created_by,
+        "updated_at": issue.updated_at,
+        "closed_at": issue.closed_at,
+        "close_reason": issue.close_reason,
+        "description": issue.description,
+        "notes": issue.notes,
+        "design": issue.design,
+        "is_ready_to_work": issue.is_ready_to_work,
+        "changespec_name": issue.changespec_name,
+        "changespec_bug_id": issue.changespec_bug_id,
+        "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
+    }
+
+
+def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:
+    return {
+        "issue_id": dep.issue_id,
+        "depends_on_id": dep.depends_on_id,
+        "created_at": dep.created_at,
+        "created_by": dep.created_by,
+    }
+
+
+def _raise_epic_plan_error(exc: ValueError) -> None:
+    kind, message = _split_rust_error(str(exc))
+    if kind == "cycle":
+        raise CycleError(message) from exc
+    if kind == "cross_epic_blocker":
+        raise CrossEpicBlockerError(message) from exc
+    raise EpicPlanError(message) from exc
+
+
+def _split_rust_error(text: str) -> tuple[str, str]:
+    if ": " not in text:
+        return "validation", text
+    kind, message = text.split(": ", 1)
+    return kind, message
 
 
 def render_multi_prompt(

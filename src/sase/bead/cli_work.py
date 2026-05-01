@@ -20,7 +20,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
     from sase.bead.work import (
         ChangeSpecLaunchContext,
         EpicPlanError,
-        build_epic_work_plan,
+        build_epic_work_plan_from_beads_dir,
         render_multi_prompt,
     )
     from sase.bead.xprompts import (
@@ -53,7 +53,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
         try:
-            plan = build_epic_work_plan(proj._conn, args.id)
+            plan = build_epic_work_plan_from_beads_dir(proj.beads_dir, args.id)
         except EpicPlanError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)

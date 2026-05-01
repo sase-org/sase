@@ -15,7 +15,6 @@ from sase.core.bead_wire import (
 from sase.core.rust import require_rust_binding
 
 
-# pyvision: public_api_methods.txt
 def show(beads_dir: Path | str, issue_id: str) -> Issue:
     binding = require_rust_binding("bead_show")
     try:
@@ -40,14 +39,12 @@ def list_issues(
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def ready(beads_dir: Path | str) -> list[Issue]:
     binding = require_rust_binding("bead_ready")
     payload: list[dict[str, Any]] = binding(str(beads_dir))
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def blocked(beads_dir: Path | str) -> list[Issue]:
     binding = require_rust_binding("bead_blocked")
     payload: list[dict[str, Any]] = binding(str(beads_dir))
@@ -60,7 +57,6 @@ def stats(beads_dir: Path | str) -> dict[str, int]:
     return {str(key): int(value) for key, value in payload.items()}
 
 
-# pyvision: public_api_methods.txt
 def doctor(beads_dir: Path | str) -> list[str]:
     binding = require_rust_binding("bead_doctor")
     return [str(message) for message in binding(str(beads_dir))]
@@ -72,7 +68,6 @@ def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def merged_show(beads_dirs: list[Path] | list[str], issue_id: str) -> Issue:
     binding = require_rust_binding("bead_merged_show")
     try:
@@ -83,7 +78,6 @@ def merged_show(beads_dirs: list[Path] | list[str], issue_id: str) -> Issue:
     return issue_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def merged_list_issues(
     beads_dirs: list[Path] | list[str],
     statuses: list[Status] | tuple[Status, ...] | None = None,
@@ -98,28 +92,24 @@ def merged_list_issues(
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def merged_ready(beads_dirs: list[Path] | list[str]) -> list[Issue]:
     binding = require_rust_binding("bead_merged_ready")
     payload: list[dict[str, Any]] = binding(_path_strings(beads_dirs))
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def merged_blocked(beads_dirs: list[Path] | list[str]) -> list[Issue]:
     binding = require_rust_binding("bead_merged_blocked")
     payload: list[dict[str, Any]] = binding(_path_strings(beads_dirs))
     return issues_from_list(payload)
 
 
-# pyvision: public_api_methods.txt
 def merged_stats(beads_dirs: list[Path] | list[str]) -> dict[str, int]:
     binding = require_rust_binding("bead_merged_stats")
     payload: dict[str, int] = binding(_path_strings(beads_dirs))
     return {str(key): int(value) for key, value in payload.items()}
 
 
-# pyvision: public_api_methods.txt
 def merged_get_epic_children(
     beads_dirs: list[Path] | list[str],
     epic_id: str,
