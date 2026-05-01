@@ -18,7 +18,6 @@ from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import changespec_to_wire
 
 
-# pyvision: tests/test_core_facade/test_query.py
 @dataclass(frozen=True)
 class QueryCorpus:
     """Python-side cache metadata for a Rust query corpus handle."""
@@ -39,7 +38,6 @@ class QueryCorpus:
             )
 
 
-# pyvision: tests/test_core_facade/test_query.py
 def compile_query_corpus(changespecs: list[ChangeSpec]) -> QueryCorpus:
     """Compile ``changespecs`` into a persistent Rust query corpus handle."""
     compile_corpus = require_rust_binding("compile_corpus")
@@ -54,7 +52,6 @@ def compile_query_corpus(changespecs: list[ChangeSpec]) -> QueryCorpus:
     return corpus
 
 
-# pyvision: tests/test_core_facade/test_query.py
 def evaluate_query_many_with_corpus(query: str, corpus: QueryCorpus) -> list[bool]:
     """Evaluate ``query`` against a previously compiled query corpus."""
     corpus.validate()

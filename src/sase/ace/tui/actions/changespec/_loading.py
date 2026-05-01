@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
+    from sase.core.query_corpus_facade import QueryCorpus
 
 from ....changespec import ChangeSpec
 from ...util.trace import tui_trace
@@ -31,6 +32,8 @@ class ChangeSpecLoadingMixin:
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
     _current_changespec_group_key: tuple[str, ...] | None
+    _query_corpus: QueryCorpus | None
+    _query_corpus_source_list_id: int | None
 
     def _read_changespecs_from_disk(self) -> list[ChangeSpec]:
         """Return the full changespec list freshly read from disk.
@@ -77,7 +80,7 @@ class ChangeSpecLoadingMixin:
     def _filter_changespecs_impl(
         self, changespecs: list[ChangeSpec]
     ) -> list[ChangeSpec]:
-        from sase.core.query_facade import evaluate_query_many
+        from sase.core.query_corpus_facade import evaluate_query_many_with_corpus
 
         from ....changespec import get_base_status
         from ....query import build_query_context
@@ -93,9 +96,8 @@ class ChangeSpecLoadingMixin:
         ctx = build_query_context(changespecs)
         status_map = ctx.status_map
 
-        # Single batch evaluation per refresh — one FFI hop when the
-        # Rust backend is registered, instead of one dispatch per row.
-        mask = evaluate_query_many(self.query_string, changespecs)
+        corpus = self._get_query_corpus_for_changespecs(changespecs)
+        mask = evaluate_query_many_with_corpus(self.query_string, corpus)
         result = [cs for cs, keep in zip(changespecs, mask, strict=True) if keep]
 
         # Count reverted/archived and submitted in query results (for tab bar)
@@ -138,6 +140,38 @@ class ChangeSpecLoadingMixin:
             result = filtered
 
         return result
+
+    def _get_query_corpus_for_changespecs(
+        self, changespecs: list[ChangeSpec]
+    ) -> QueryCorpus:
+        """Return the cached Rust query corpus for this exact list object."""
+        from sase.core.query_corpus_facade import compile_query_corpus
+
+        source_list_id = id(changespecs)
+        cached = getattr(self, "_query_corpus", None)
+        cached_source_list_id = getattr(self, "_query_corpus_source_list_id", None)
+        if (
+            cached is not None
+            and cached_source_list_id == source_list_id
+            and cached.source_list_id == source_list_id
+            and cached.expected_length == len(changespecs)
+        ):
+            return cached
+
+        corpus = compile_query_corpus(changespecs)
+        if corpus.source_list_id != source_list_id:
+            raise ValueError(
+                "compiled query corpus source list id does not match the "
+                "current ChangeSpec list; rebuild the corpus before filtering"
+            )
+        if corpus.expected_length != len(changespecs):
+            raise ValueError(
+                "compiled query corpus length does not match the current "
+                "ChangeSpec list; rebuild the corpus before filtering"
+            )
+        self._query_corpus = corpus
+        self._query_corpus_source_list_id = source_list_id
+        return corpus
 
     def _reload_and_reposition(self, current_name: str | None = None) -> None:
         """Reload changespecs and try to stay on the same one."""

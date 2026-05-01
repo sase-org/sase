@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from ..models.agent import AgentType
     from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
+    from sase.core.query_corpus_facade import QueryCorpus
 
 log = logging.getLogger(__name__)
 
@@ -192,6 +193,8 @@ class StateInitMixin:
         from ...changespec import ChangeSpec
 
         self._all_changespecs: list[ChangeSpec] = []  # Cache for ancestry lookup
+        self._query_corpus: QueryCorpus | None = None
+        self._query_corpus_source_list_id: int | None = None
         self._hidden_reverted_count: int = 0  # Count of filtered reverted CLs
 
         # Tab state - track position in each tab
