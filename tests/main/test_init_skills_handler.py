@@ -613,10 +613,48 @@ def test_sase_chats_source_is_discoverable_for_all_providers(
     assert providers, "expected at least one registered llm provider"
 
     for provider in providers:
-        target = (
-            tmp_path / "home" / f".{provider}" / "skills" / "sase_chats" / "SKILL.md"
-        )
+        target = _get_target_path(provider, "sase_chats", use_chezmoi=False)
         assert target.exists(), f"sase_chats not generated for provider {provider}"
         rendered = target.read_text(encoding="utf-8")
         assert "sase chats list -j" in rendered
         assert "sase chats show" in rendered
+
+
+def test_sase_notify_source_is_discoverable_for_all_providers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shipped sase_notify.md source must render to every registered provider."""
+    from sase.xprompt.loader import get_sase_package_xprompts_dir
+    from sase.xprompt.loader_parsing import parse_yaml_front_matter
+
+    src = get_sase_package_xprompts_dir() / "skills" / "sase_notify.md"
+    assert src.is_file(), f"missing skill source: {src}"
+
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    assert front_matter is not None
+    assert front_matter.get("name") == "sase_notify"
+    assert front_matter.get("skill") is True
+    assert front_matter.get("description")
+    assert body.strip(), "skill body must not be empty"
+
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(_make_args())
+    assert exc.value.code == 0
+
+    providers = [
+        name
+        for name, _ in __import__(
+            "sase.llm_provider.registry", fromlist=["iter_plugins"]
+        ).iter_plugins()
+    ]
+    assert providers, "expected at least one registered llm provider"
+
+    for provider in providers:
+        target = _get_target_path(provider, "sase_notify", use_chezmoi=False)
+        assert target.exists(), f"sase_notify not generated for provider {provider}"
+        rendered = target.read_text(encoding="utf-8")
+        assert "sase notify list -j" in rendered
+        assert "sase notify show --id" in rendered
