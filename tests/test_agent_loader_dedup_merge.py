@@ -2,9 +2,13 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+
+pytestmark = pytest.mark.usefixtures("python_agent_compose_backend")
 
 
 def test_load_all_agents_dedup_preserves_workspace_num() -> None:

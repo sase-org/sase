@@ -90,6 +90,12 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(key)
 
 
+@pytest.fixture
+def python_agent_compose_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Route loader tests that target legacy Python composition internals."""
+    monkeypatch.setenv("SASE_AGENT_COMPOSE_BACKEND", "python")
+
+
 @pytest.fixture(autouse=True)
 def _mock_system_clipboard():
     """Prevent tests from touching the real system clipboard."""

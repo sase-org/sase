@@ -114,7 +114,8 @@ def compose_agent_list(input_wire: AgentComposeInputWire) -> ComposedAgentListWi
 
     The binding is required and stale wheels fail through
     :func:`sase.core.rust.require_rust_binding`; no Python fallback is provided.
-    Product TUI/CLI paths still use the Python reference until later phases.
+    The TUI loader uses this route by default; missing or stale Rust bindings fail
+    through the strict loader rather than falling back to Python.
     """
     rust_compose = require_rust_binding("compose_agent_list")
     payload = agent_compose_wire_to_json_dict(input_wire)

@@ -92,7 +92,7 @@ def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
     consumer.
     """
     return scan_agent_artifacts(
-        Path.home() / ".sase" / "projects",
+        Path("~/.sase/projects").expanduser(),
         _TUI_SCAN_OPTIONS,
     )
 
@@ -730,7 +730,7 @@ def _agent_compose_shadow_enabled() -> bool:
 
 
 def _agent_compose_backend() -> str:
-    backend = os.environ.get(_AGENT_COMPOSE_BACKEND_ENV, "python").strip().lower()
+    backend = os.environ.get(_AGENT_COMPOSE_BACKEND_ENV, "rust").strip().lower()
     if backend not in _AGENT_COMPOSE_BACKENDS:
         expected = ", ".join(sorted(_AGENT_COMPOSE_BACKENDS))
         raise ValueError(

@@ -16,6 +16,7 @@ def test_load_all_agents_with_running_claims() -> None:
     mock_claim.cl_name = "my_feature"
 
     with (
+        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": "python"}),
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
             return_value=["/tmp/test.gp"],
@@ -69,7 +70,10 @@ def test_load_all_agents_shadow_collects_compose_input() -> None:
         return ComposedAgentListWire()
 
     with (
-        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_SHADOW": "1"}),
+        patch.dict(
+            "os.environ",
+            {"SASE_AGENT_COMPOSE_BACKEND": "python", "SASE_AGENT_COMPOSE_SHADOW": "1"},
+        ),
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
             return_value=["/tmp/test.gp"],
@@ -118,8 +122,8 @@ def test_load_all_agents_shadow_collects_compose_input() -> None:
     assert compose_input.alive_pids == [12345]
 
 
-def test_load_all_agents_rust_backend_returns_rehydrated_agents() -> None:
-    """Opt-in Rust backend returns normal Agent objects for downstream TUI code."""
+def test_load_all_agents_default_rust_backend_returns_rehydrated_agents() -> None:
+    """Default Rust backend returns normal Agent objects for downstream TUI code."""
     captured = []
 
     def fake_rust_compose(input_wire):
@@ -138,7 +142,6 @@ def test_load_all_agents_rust_backend_returns_rehydrated_agents() -> None:
         )
 
     with (
-        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": "rust"}),
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
             return_value=["/tmp/test.gp"],
@@ -180,6 +183,58 @@ def test_load_all_agents_rust_backend_returns_rehydrated_agents() -> None:
     assert agents[0].identity == (AgentType.RUNNING, "my_feature", "20260501120000")
     assert agents[0].status == "RUNNING"
     assert agents[0].pid == 12345
+
+
+def test_load_all_agents_python_backend_is_explicit_reference_route() -> None:
+    """The legacy composer is still available only through an explicit switch."""
+    mock_claim = MagicMock()
+    mock_claim.workspace_num = 1
+    mock_claim.workflow = "crs"
+    mock_claim.cl_name = "my_feature"
+    mock_claim.pid = None
+    mock_claim.artifacts_timestamp = "20260501120000"
+
+    with (
+        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": "python"}),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=["/tmp/test.gp"],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[mock_claim],
+        ),
+        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.core.agent_compose_facade.compose_agent_list",
+            side_effect=AssertionError("rust composer should not run"),
+        ),
+    ):
+        agents = load_all_agents()
+
+    assert [agent.identity for agent in agents] == [
+        (AgentType.RUNNING, "my_feature", "20260501120000")
+    ]
 
 
 def test_load_all_agents_rejects_unknown_compose_backend() -> None:

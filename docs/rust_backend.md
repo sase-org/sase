@@ -24,8 +24,7 @@ The shipped Rust-backed operations are:
 - notification JSONL store operations (`read_notifications_snapshot`, `append_notification`,
   `apply_notification_state_update`, `rewrite_notifications`) used by `sase.core.notification_store_facade`
 - `plan_agent_cleanup`
-- experimental agent-list composition (`compose_agent_list`) used only by `sase.core.agent_compose_facade` parity and
-  debug callers; the TUI/CLI loader is not routed to it by default
+- agent-list composition (`compose_agent_list`) used by the TUI loader through `sase.core.agent_compose_facade`
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
 
@@ -42,6 +41,10 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
   `plan_status_transition`.
 - Subprocess invocation, process liveness, filesystem mutation, TUI rendering, and plugin entry points stay on the host
   by design.
+- Agent-list host input collection, process liveness checks, retry/tag/attempt dismissed-bundle supplements, and
+  transient notification-driven UI status overrides stay on Python. The deterministic list composition route is Rust by
+  default; `SASE_AGENT_COMPOSE_BACKEND=python` remains only an explicit diagnostic/reference route during the migration
+  window and is not a silent product fallback.
 - Agent cleanup process signalling and TUI orchestration stay on the host. The Rust boundary owns reusable planning,
   deterministic dismissed-agent data mutations, artifact deletion, workspace-release content rewrites, and
   ChangeSpec-entry kill marking exposed through Python helpers in `sase.core.agent_cleanup_*`.
