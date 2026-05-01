@@ -23,10 +23,11 @@ def issue_type_values(
 ) -> list[str] | None:
     if issue_types is None:
         return None
-    return [
-        issue_type.value if isinstance(issue_type, IssueType) else str(issue_type)
-        for issue_type in issue_types
-    ]
+    return [issue_type_value(issue_type) for issue_type in issue_types]
+
+
+def issue_type_value(issue_type: IssueType | str) -> str:
+    return issue_type.value if isinstance(issue_type, IssueType) else str(issue_type)
 
 
 def issue_from_dict(data: dict[str, Any]) -> Issue:
@@ -89,6 +90,7 @@ def issues_from_list(items: list[dict[str, Any]]) -> list[Issue]:
 
 __all__ = [
     "issue_from_dict",
+    "issue_type_value",
     "issue_type_values",
     "issues_from_list",
     "status_values",

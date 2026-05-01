@@ -38,3 +38,14 @@ merged_ready
 merged_blocked
 merged_stats
 merged_get_epic_children
+init_store
+create
+update
+open_issue
+close
+remove
+add_dependency
+mark_ready_to_work
+unmark_ready_to_work
+export_jsonl
+sync_is_clean
