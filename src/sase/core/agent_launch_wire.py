@@ -28,17 +28,6 @@ class WorkspaceClaimRequestWire:
 
 
 @dataclass(frozen=True)
-class WorkspaceClaimOutcomeWire:
-    """Result of applying a workspace claim request."""
-
-    success: bool
-    workspace_num: int
-    project_file: str
-    pid: int | None = None
-    error: str | None = None
-
-
-@dataclass(frozen=True)
 class AgentLaunchRequestWire:
     """Resolved host request for one low-level agent launch."""
 
@@ -195,7 +184,6 @@ __all__ = [
     "AgentLaunchRequestWire",
     "LaunchFanoutPlanWire",
     "LaunchFanoutSlotWire",
-    "WorkspaceClaimOutcomeWire",
     "WorkspaceClaimRequestWire",
     "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",

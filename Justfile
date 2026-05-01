@@ -75,7 +75,6 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260501 \
-        --epic-symbol 'sase-1r(WorkspaceClaimOutcomeWire)' \
         src/sase
 
 # Auto-fix all code (format + keep-sorted)
