@@ -17,6 +17,13 @@ from sase.agent.names._common import (
     strip_dismissed_prefix,
 )
 
+_COLLISION_DEDUP_FIRST_SUFFIX = 2
+_COLLISION_DEDUP_SEPARATOR = "_"
+
+
+def _collision_dedup_name(base: str, suffix: int) -> str:
+    return f"{base}{_COLLISION_DEDUP_SEPARATOR}{suffix}"
+
 
 def get_next_auto_name() -> str:
     """Return the lowest available alphabetic agent name.
@@ -320,7 +327,7 @@ def get_active_child_names(base: str) -> set[str]:
 
 
 def dedup_name(base: str, reserved: set[str]) -> str:
-    """Return *base* if free, else the lowest ``<base>.<n>`` (n >= 2) not in *reserved*.
+    """Return *base* if free, else the lowest ``<base>_<n>`` (n >= 2) not in *reserved*.
 
     Mutates *reserved* in place with the chosen name so callers can chain
     allocations across a batch (mirrors :func:`allocate_revived_name`'s
@@ -329,9 +336,9 @@ def dedup_name(base: str, reserved: set[str]) -> str:
     if base not in reserved:
         reserved.add(base)
         return base
-    n = 2
+    n = _COLLISION_DEDUP_FIRST_SUFFIX
     while True:
-        candidate = f"{base}.{n}"
+        candidate = _collision_dedup_name(base, n)
         if candidate not in reserved:
             reserved.add(candidate)
             return candidate
@@ -347,7 +354,7 @@ def allocate_revived_name(
 
     Strips the ``YYmmdd.`` prefix from *prefixed_name*. When the stripped
     name is already claimed (by *reserved* or, when ``None``, by the
-    current active-agent set), falls back to ``<base>.<n>`` via
+    current active-agent set), falls back to ``<base>_<n>`` via
     :func:`dedup_name` and returns the originally requested name as the
     second tuple element so the caller can surface "original name was
     taken" feedback. When the stripped name is free the second element

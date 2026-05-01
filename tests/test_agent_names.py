@@ -313,38 +313,38 @@ class TestDedupName:
         assert dedup_name("foo", reserved) == "foo"
         assert reserved == {"foo"}
 
-    def test_returns_dot_2_on_first_collision(self) -> None:
+    def test_returns_underscore_2_on_first_collision(self) -> None:
         reserved = {"foo"}
-        assert dedup_name("foo", reserved) == "foo.2"
-        assert reserved == {"foo", "foo.2"}
+        assert dedup_name("foo", reserved) == "foo_2"
+        assert reserved == {"foo", "foo_2"}
 
-    def test_skips_existing_dot_2(self) -> None:
-        reserved = {"foo", "foo.2"}
-        assert dedup_name("foo", reserved) == "foo.3"
-        assert reserved == {"foo", "foo.2", "foo.3"}
+    def test_skips_existing_underscore_2(self) -> None:
+        reserved = {"foo", "foo_2"}
+        assert dedup_name("foo", reserved) == "foo_3"
+        assert reserved == {"foo", "foo_2", "foo_3"}
 
     def test_chains_across_calls(self) -> None:
         reserved = {"foo"}
         first = dedup_name("foo", reserved)
         second = dedup_name("foo", reserved)
-        assert first == "foo.2"
-        assert second == "foo.3"
+        assert first == "foo_2"
+        assert second == "foo_3"
 
 
 class TestAllocateRevivedNameDedup:
-    def test_collision_falls_back_to_dot_2(self) -> None:
+    def test_collision_falls_back_to_underscore_2(self) -> None:
         reserved = {"foo"}
         new, fallback = allocate_revived_name("260428.foo", reserved=reserved)
-        assert new == "foo.2"
+        assert new == "foo_2"
         assert fallback == "foo"
-        assert reserved == {"foo", "foo.2"}
+        assert reserved == {"foo", "foo_2"}
 
     def test_batch_revive_sequential_suffixes(self) -> None:
         reserved = {"foo"}
         first, fb1 = allocate_revived_name("260427.foo", reserved=reserved)
         second, fb2 = allocate_revived_name("260428.foo", reserved=reserved)
-        assert first == "foo.2"
-        assert second == "foo.3"
+        assert first == "foo_2"
+        assert second == "foo_3"
         assert fb1 == "foo"
         assert fb2 == "foo"
 
@@ -357,7 +357,7 @@ class TestAllocateRevivedNameDedup:
 
 
 class TestClaimAgentNameExplicit:
-    def test_renames_running_collision_to_dot_2(self, tmp_path: Path) -> None:
+    def test_renames_running_collision_to_underscore_2(self, tmp_path: Path) -> None:
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", pid=os.getpid())
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
@@ -365,14 +365,14 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo.2"
+        assert existing_meta["name"] == "foo_2"
         # Other fields preserved
         assert existing_meta["model"] == "test"
 
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "foo"
 
-    def test_renames_done_collision_to_dot_2(self, tmp_path: Path) -> None:
+    def test_renames_done_collision_to_underscore_2(self, tmp_path: Path) -> None:
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
@@ -380,7 +380,7 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo.2"
+        assert existing_meta["name"] == "foo_2"
 
         # done.json is also rewritten so loaders see the dedup'd name.
         # The fixture only writes done.json with outcome; explicit-rename
@@ -400,9 +400,9 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo.2"
+        assert existing_meta["name"] == "foo_2"
         existing_done = json.loads(done_path.read_text())
-        assert existing_done["name"] == "foo.2"
+        assert existing_done["name"] == "foo_2"
 
     def test_workflow_name_collision_renamed(self, tmp_path: Path) -> None:
         child_dir = _make_agent(
@@ -420,7 +420,7 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("a", str(new_dir), explicit=True)
 
         child_meta = json.loads((child_dir / "agent_meta.json").read_text())
-        assert child_meta["workflow_name"] == "a.2"
+        assert child_meta["workflow_name"] == "a_2"
         # Child name "a.1" did NOT match "a" so its name field is unchanged.
         assert child_meta["name"] == "a.1"
 
@@ -441,7 +441,7 @@ class TestClaimAgentNameExplicit:
                 json.loads((second / "agent_meta.json").read_text())["name"],
             ]
         )
-        assert names == ["foo.2", "foo.3"]
+        assert names == ["foo_2", "foo_3"]
 
     def test_non_explicit_retains_strip_behavior(self, tmp_path: Path) -> None:
         # Mirrors test_strips_name_from_stale_agents but verifies the
@@ -458,7 +458,7 @@ class TestClaimAgentNameExplicit:
     def test_explicit_rewrites_wait_references(self, tmp_path: Path) -> None:
         """Other agents' wait_for markers are rewritten to track the rename."""
         existing = _make_agent(tmp_path, "proj", "run-old", "foo", pid=os.getpid())
-        # Waiter references "foo" — should follow the rename to "foo.2".
+        # Waiter references "foo" — should follow the rename to "foo_2".
         waiter = _make_agent(tmp_path, "proj", "run-waiter", "bar", pid=os.getpid())
         waiter_meta_path = waiter / "agent_meta.json"
         waiter_meta = json.loads(waiter_meta_path.read_text())
@@ -470,6 +470,6 @@ class TestClaimAgentNameExplicit:
             claim_agent_name("foo", str(new_dir), explicit=True)
 
         existing_meta = json.loads((existing / "agent_meta.json").read_text())
-        assert existing_meta["name"] == "foo.2"
+        assert existing_meta["name"] == "foo_2"
         waiter_after = json.loads(waiter_meta_path.read_text())
-        assert waiter_after["wait_for"] == ["foo.2"]
+        assert waiter_after["wait_for"] == ["foo_2"]

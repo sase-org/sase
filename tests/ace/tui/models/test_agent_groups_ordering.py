@@ -136,6 +136,23 @@ def test_dotless_and_singleton_agents_both_precede_grouped_name_root() -> None:
     ]
 
 
+def test_underscore_dedup_names_do_not_create_name_root_group() -> None:
+    entries = build_agent_tree(
+        [
+            _agent(cl_name="demo", agent_name="foo"),
+            _agent(cl_name="demo", agent_name="foo_2"),
+            _agent(cl_name="demo", agent_name="bar.cld"),
+            _agent(cl_name="demo", agent_name="bar.cdx"),
+        ]
+    )
+    name_root_groups = [
+        e.group.group_key[-1]  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None and e.group.level == 2
+    ]
+    assert name_root_groups == ["bar"]
+
+
 def test_dotless_parent_and_resume_child_sort_inside_name_root_group() -> None:
     entries = build_agent_tree(
         [

@@ -371,11 +371,11 @@ def test_same_day_two_named_foo_get_unique_dismissed_names_then_revive(
         _flush_persistence(app)
 
         names = sorted(a.agent_name or "" for a in [foo_a, foo_b])
-        assert names == ["260428.foo", "260428.foo.2"]
+        assert names == ["260428.foo", "260428.foo_2"]
 
         # Each prefixed name resolves through find_named_agent's bundle path.
         assert find_named_agent("260428.foo") is not None
-        assert find_named_agent("260428.foo.2") is not None
+        assert find_named_agent("260428.foo_2") is not None
 
         # Revive each one. The first revive frees ``foo``; the second hits
         # the now-claimed ``foo`` slot and falls back to a fresh auto-name.
@@ -394,7 +394,7 @@ def test_same_day_two_named_foo_get_unique_dismissed_names_then_revive(
         app._do_revive_agent(foo_b)
         assert foo_b.agent_name is not None
         # Either an auto-name fallback (when the first revive's "foo" is
-        # observable through scan), or the unique base "foo.2" preserved
+        # observable through scan), or the unique base "foo_2" preserved
         # from the dismissal collision suffix. Both keep the agents
         # distinct, which is the lifecycle invariant.
         assert foo_b.agent_name != first_live_name

@@ -125,8 +125,8 @@ def strip_dismissed_prefix(name: str) -> str:
     """Return *name* with its leading ``YYmmdd.`` dismissal prefix removed.
 
     Strips at most one prefix and only the canonical six-digit form; names
-    without a matching prefix are returned unchanged. A collision suffix
-    such as ``.2`` is preserved on the returned base.
+    without a matching prefix are returned unchanged. Any collision suffix
+    on the returned base is preserved.
     """
     m = DISMISSED_NAME_PREFIX_RE.match(name)
     if m is None:

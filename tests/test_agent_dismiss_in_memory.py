@@ -587,7 +587,7 @@ def test_dismiss_unnamed_agent_gets_prefixed_name(tmp_path) -> None:  # type: ig
 
 
 def test_batch_dismiss_unique_names_for_same_day_same_base(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """Two same-day agents with name ``foo`` get ``260428.foo`` and ``260428.foo.2``."""
+    """Two same-day agents with name ``foo`` get ``260428.foo`` and ``260428.foo_2``."""
     app = FakeDismissApp()
     a1 = _make_agent(
         cl_name="cl_a",
@@ -614,7 +614,7 @@ def test_batch_dismiss_unique_names_for_same_day_same_base(tmp_path) -> None:  #
             p.stop()
 
     names = sorted(a.agent_name or "" for a in [a1, a2])
-    assert names == ["260428.foo", "260428.foo.2"]
+    assert names == ["260428.foo", "260428.foo_2"]
 
 
 def test_dismiss_renames_named_workflow_children(tmp_path) -> None:  # type: ignore[no-untyped-def]

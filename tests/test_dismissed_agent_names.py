@@ -29,7 +29,7 @@ class TestIsDismissedPrefixed:
         assert is_dismissed_prefixed("260428.foo")
 
     def test_matches_with_collision_suffix(self) -> None:
-        assert is_dismissed_prefixed("260428.foo.2")
+        assert is_dismissed_prefixed("260428.foo_2")
 
     def test_matches_when_base_has_dots(self) -> None:
         assert is_dismissed_prefixed("260428.m.claude.plan")
@@ -96,7 +96,7 @@ class TestStripDismissedPrefix:
 
     def test_preserves_collision_suffix(self) -> None:
         # Phase 4 exit criterion: ``revive`` must keep collision suffix.
-        assert strip_dismissed_prefix("260428.foo.2") == "foo.2"
+        assert strip_dismissed_prefix("260428.foo_2") == "foo_2"
 
     def test_preserves_dotted_base(self) -> None:
         assert strip_dismissed_prefix("260428.m.claude.plan") == "m.claude.plan"
@@ -114,17 +114,17 @@ class TestAllocateDismissedName:
 
     def test_appends_collision_suffix_starting_at_two(self) -> None:
         assert (
-            allocate_dismissed_name("foo", _DAY, taken={"260428.foo"}) == "260428.foo.2"
+            allocate_dismissed_name("foo", _DAY, taken={"260428.foo"}) == "260428.foo_2"
         )
 
     def test_skips_taken_collision_suffixes(self) -> None:
-        taken = {"260428.foo", "260428.foo.2", "260428.foo.3"}
-        assert allocate_dismissed_name("foo", _DAY, taken=taken) == "260428.foo.4"
+        taken = {"260428.foo", "260428.foo_2", "260428.foo_3"}
+        assert allocate_dismissed_name("foo", _DAY, taken=taken) == "260428.foo_4"
 
     def test_different_days_do_not_collide(self) -> None:
         # ``foo`` dismissed on a previous day does not block a fresh
         # ``YYmmdd.foo`` on a different day.
-        taken = {"260427.foo", "260427.foo.2"}
+        taken = {"260427.foo", "260427.foo_2"}
         assert allocate_dismissed_name("foo", _DAY, taken=taken) == "260428.foo"
 
     def test_strips_prefix_from_already_prefixed_base(self) -> None:
@@ -145,7 +145,7 @@ class TestAllocateDismissedName:
         taken = {"260428.m.claude.plan"}
         assert (
             allocate_dismissed_name("m.claude.plan", _DAY, taken=taken)
-            == "260428.m.claude.plan.2"
+            == "260428.m.claude.plan_2"
         )
 
     def test_passing_empty_taken_explicitly_skips_default_scan(self) -> None:
@@ -266,4 +266,4 @@ class TestCollectDismissedTakenNames:
             ),
             patch.object(Path, "home", return_value=tmp_path),
         ):
-            assert allocate_dismissed_name("foo", _DAY) == "260428.foo.2"
+            assert allocate_dismissed_name("foo", _DAY) == "260428.foo_2"

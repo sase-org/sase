@@ -376,7 +376,7 @@ def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
 
 
 def test_revive_with_taken_name_falls_back_to_auto_name(tmp_path: Path) -> None:
-    """When the original name is now claimed, revive dedups to ``<base>.2``."""
+    """When the original name is now claimed, revive dedups to ``<base>_2``."""
     # Plant an active agent named "foo" so the revival sees the slot taken.
     active_dir = (
         tmp_path
@@ -412,10 +412,10 @@ def test_revive_with_taken_name_falls_back_to_auto_name(tmp_path: Path) -> None:
     assert agent.agent_name != "260428.foo"
     assert agent.agent_name != "foo"
     # Dedup'd name preserves the original base for visibility on the Agents tab.
-    assert agent.agent_name == "foo.2"
+    assert agent.agent_name == "foo_2"
     assert any(
         "Original name 'foo' was taken" in msg
-        and "revived as 'foo.2'" in msg
+        and "revived as 'foo_2'" in msg
         and sev == "warning"
         for msg, sev in app.notifications
     )

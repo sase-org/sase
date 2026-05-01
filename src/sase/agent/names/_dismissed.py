@@ -23,7 +23,7 @@ def allocate_dismissed_name(
 ) -> str:
     """Allocate a unique dismissed name for *base* completing on *completion_date*.
 
-    Returns ``YYmmdd.<base>`` when free; otherwise appends ``.2``, ``.3``,
+    Returns ``YYmmdd.<base>`` when free; otherwise appends ``_2``, ``_3``,
     ... until an unused name is found. *base* may itself be dismissal-prefixed
     — the prefix is stripped first so callers can pass the live name or an
     already-dismissed name interchangeably.
@@ -41,7 +41,7 @@ def allocate_dismissed_name(
         return primary
     n = 2
     while True:
-        candidate = f"{primary}.{n}"
+        candidate = f"{primary}_{n}"
         if candidate not in pool:
             return candidate
         n += 1

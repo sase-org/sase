@@ -936,7 +936,7 @@ agent that referenced the dismissed name (`%wait:foo`, `#resume:foo`) has those 
 form so cross-agent dependencies keep resolving after dismissal.
 
 If the same base name was already used by a previous dismissed agent on the same date, the new dismissal allocates a
-collision suffix (`YYmmdd.<base>.2`, `.3`, …) so historical names stay unique.
+collision suffix (`YYmmdd.<base>_2`, `_3`, ...) so historical names stay unique.
 
 On revive the prefix is stripped and any visible references to the prefixed name are rewritten back to the base name, so
 a revived agent rejoins its old peers transparently. Bare `%wait` (no target) intentionally skips dismissal-prefixed

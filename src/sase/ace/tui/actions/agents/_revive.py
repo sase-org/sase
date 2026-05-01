@@ -21,7 +21,7 @@ def _build_revive_name_map(
     Each agent whose ``agent_name`` carries a ``YYmmdd.`` dismissal prefix is
     mutated in-place to its stripped form. When the stripped name is already
     claimed by an active agent (or by another revive in the same batch), a
-    ``<base>.<n>`` dedup'd name is allocated instead and the
+    ``<base>_<n>`` dedup'd name is allocated instead and the
     ``(original, allocated)`` pair is appended to the returned ``taken`` list
     so the caller can surface a notification.
     Agents without a dismissal prefix (legacy bundles) are skipped — they

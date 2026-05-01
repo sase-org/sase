@@ -16,7 +16,7 @@ def claim_agent_name(name: str, claiming_dir: str, *, explicit: bool = False) ->
 
     When ``explicit`` is ``True`` (the launching agent typed
     ``%name:<name>``): renames the colliding agent — running OR done —
-    by appending ``.2``, ``.3``, ... so the launching agent keeps the
+    by appending ``_2``, ``_3``, ... so the launching agent keeps the
     requested name and the existing agent stays visible on the Agents
     tab under a dedup'd name. Wait/resume references in other agents'
     on-disk markers are rewritten via
@@ -74,7 +74,7 @@ def _claim_strip(name: str, claiming_dir: str) -> None:
 
 
 def _claim_explicit(name: str, claiming_dir: str) -> None:
-    """Explicit-claim path: rename colliding agents to ``<name>.<n>``."""
+    """Explicit-claim path: rename colliding agents to ``<name>_<n>``."""
     from sase.agent.names._auto import dedup_name, get_active_agent_names
 
     projects_dir = Path.home() / ".sase" / "projects"
@@ -86,7 +86,7 @@ def _claim_explicit(name: str, claiming_dir: str) -> None:
     dismissed_suffixes = _load_dismissed_suffixes()
 
     # The claimer owns *name*; mark it reserved so colliding agents are
-    # renamed to ``<name>.2``, ``<name>.3``, ... (and never reuse the
+    # renamed to ``<name>_2``, ``<name>_3``, ... (and never reuse the
     # base name itself). The claimer's own ``agent_meta.json`` was just
     # written so ``get_active_agent_names`` typically already lists
     # *name* — the explicit ``add`` is defensive against ordering churn.
