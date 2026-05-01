@@ -148,7 +148,10 @@ def test_by_date_hourly_banner_carries_bucket_and_window_gutters() -> None:
     """BY_DATE hourly headings sit under the date bucket and 4-hour window."""
     widget = AgentList()
     widget.update_list(
-        [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],
+        [
+            make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0)),
+            make_agent(start_time=datetime(2026, 4, 25, 9, 30, 0)),
+        ],
         current_idx=0,
         grouping_mode=GroupingMode.BY_DATE,
         now=datetime(2026, 4, 25, 12, 0, 0),
@@ -178,5 +181,5 @@ def test_by_date_agent_row_carries_bucket_and_window_gutters() -> None:
         now=datetime(2026, 4, 25, 12, 0, 0),
     )
     options = list(widget._options)
-    agent_plain = options[3].prompt.plain  # type: ignore[union-attr]
+    agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
     assert agent_plain.startswith("│  │  ")

@@ -63,6 +63,11 @@ def _should_emit_time_window_banner(hour: str, count: int) -> bool:
     return True
 
 
+def _should_emit_one_hour_banner(parent_count: int, one_hour: str) -> bool:
+    """Whether a BY_DATE one-hour bucket should have a visible banner."""
+    return bool(one_hour) and parent_count >= 2
+
+
 def enumerate_group_keys(
     agents: list[Agent],
     mode: GroupingMode = GroupingMode.STANDARD,
@@ -137,7 +142,9 @@ def enumerate_group_keys(
                 if hour_key not in seen:
                     seen.add(hour_key)
                     out.append(hour_key)
-            if mode is GroupingMode.BY_DATE and k.one_hour:
+            if mode is GroupingMode.BY_DATE and _should_emit_one_hour_banner(
+                hour_counts.get((k.project, k.hour), 0), k.one_hour
+            ):
                 one_hour_key: GroupKey = (k.project, k.hour, k.one_hour)
                 if one_hour_key not in seen:
                     seen.add(one_hour_key)
@@ -299,23 +306,29 @@ def build_agent_tree(
         if cur_hour_collapsed:
             continue
 
-        if mode is GroupingMode.BY_DATE and k.one_hour and k.one_hour != cur_one_hour:
-            cur_one_hour = k.one_hour
-            one_hour_key: GroupKey = (k.project, k.hour, k.one_hour)
-            cur_one_hour_collapsed = registry.is_collapsed(one_hour_key)
-            entries.append(
-                TreeEntry(
-                    kind="group",
-                    group=GroupRow(
-                        level=2,
-                        group_key=one_hour_key,
-                        agent_indices=tuple(
-                            one_hour_indices[(k.project, k.hour, k.one_hour)]
-                        ),
-                        is_collapsed=cur_one_hour_collapsed,
-                    ),
-                )
-            )
+        if mode is GroupingMode.BY_DATE and k.one_hour:
+            parent_count = len(hour_indices.get((k.project, k.hour), []))
+            if _should_emit_one_hour_banner(parent_count, k.one_hour):
+                if k.one_hour != cur_one_hour:
+                    cur_one_hour = k.one_hour
+                    one_hour_key: GroupKey = (k.project, k.hour, k.one_hour)
+                    cur_one_hour_collapsed = registry.is_collapsed(one_hour_key)
+                    entries.append(
+                        TreeEntry(
+                            kind="group",
+                            group=GroupRow(
+                                level=2,
+                                group_key=one_hour_key,
+                                agent_indices=tuple(
+                                    one_hour_indices[(k.project, k.hour, k.one_hour)]
+                                ),
+                                is_collapsed=cur_one_hour_collapsed,
+                            ),
+                        )
+                    )
+            else:
+                cur_one_hour = ""
+                cur_one_hour_collapsed = False
         elif mode is GroupingMode.BY_DATE and not k.one_hour:
             cur_one_hour = ""
             cur_one_hour_collapsed = False

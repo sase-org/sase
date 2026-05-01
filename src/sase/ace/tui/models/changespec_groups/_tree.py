@@ -38,6 +38,11 @@ class ChangeSpecTreeEntry:
     changespec_idx: int | None = None
 
 
+def _should_emit_hour_subgroup(parent_count: int, hour: str) -> bool:
+    """Whether a BY_DATE one-hour subgroup should have a visible banner."""
+    return bool(hour) and parent_count >= 2
+
+
 def enumerate_changespec_group_keys(
     changespecs: list[ChangeSpec],
     mode: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
@@ -88,6 +93,13 @@ def enumerate_changespec_group_keys(
                     seen.add(deep)
                     out.append(deep)
     elif mode is ChangeSpecGroupingMode.BY_DATE:
+        date_subgroup_counts: dict[tuple[str, str], int] = {}
+        for i in walk:
+            k = keys[i]
+            if k.date_subgroup:
+                date_subgroup_counts[(k.l0, k.date_subgroup)] = (
+                    date_subgroup_counts.get((k.l0, k.date_subgroup), 0) + 1
+                )
         for i in walk:
             k = keys[i]
             l0_key = (k.l0,)
@@ -99,7 +111,8 @@ def enumerate_changespec_group_keys(
                 if deep not in seen:
                     seen.add(deep)
                     out.append(deep)
-            if k.hour_subgroup:
+            parent_count = date_subgroup_counts.get((k.l0, k.date_subgroup), 0)
+            if _should_emit_hour_subgroup(parent_count, k.hour_subgroup):
                 hourly = (k.l0, k.date_subgroup, k.hour_subgroup)
                 if hourly not in seen:
                     seen.add(hourly)
@@ -238,24 +251,29 @@ def build_changespec_tree(
             continue
 
         if has_date_subgroups and k.hour_subgroup:
-            if k.hour_subgroup != cur_hour_subgroup:
-                cur_hour_subgroup = k.hour_subgroup
-                hour_index_key = (k.l0, k.date_subgroup, k.hour_subgroup)
-                hour_key: GroupKey = hour_index_key
-                cur_hour_subgroup_collapsed = registry.is_collapsed(hour_index_key)
-                entries.append(
-                    ChangeSpecTreeEntry(
-                        kind="group",
-                        group=ChangeSpecGroupRow(
-                            level=2,
-                            group_key=hour_key,
-                            changespec_indices=tuple(
-                                hour_subgroup_indices[hour_index_key]
+            parent_count = len(date_subgroup_indices[(k.l0, k.date_subgroup)])
+            if _should_emit_hour_subgroup(parent_count, k.hour_subgroup):
+                if k.hour_subgroup != cur_hour_subgroup:
+                    cur_hour_subgroup = k.hour_subgroup
+                    hour_index_key = (k.l0, k.date_subgroup, k.hour_subgroup)
+                    hour_key: GroupKey = hour_index_key
+                    cur_hour_subgroup_collapsed = registry.is_collapsed(hour_index_key)
+                    entries.append(
+                        ChangeSpecTreeEntry(
+                            kind="group",
+                            group=ChangeSpecGroupRow(
+                                level=2,
+                                group_key=hour_key,
+                                changespec_indices=tuple(
+                                    hour_subgroup_indices[hour_index_key]
+                                ),
+                                is_collapsed=cur_hour_subgroup_collapsed,
                             ),
-                            is_collapsed=cur_hour_subgroup_collapsed,
-                        ),
+                        )
                     )
-                )
+            else:
+                cur_hour_subgroup = ""
+                cur_hour_subgroup_collapsed = False
         else:
             cur_hour_subgroup = ""
             cur_hour_subgroup_collapsed = False

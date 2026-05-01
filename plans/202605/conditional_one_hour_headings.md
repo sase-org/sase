@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 13:22:31
-status: wip
+status: done
 ---
 # Conditional one-hour heading visibility
 

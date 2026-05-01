@@ -116,7 +116,7 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
     widget, _ = _wire_widget(monkeypatch)
     css = [
         _cs("night", timestamps=[_ts("260425_210000")]),
-        _cs("afternoon", timestamps=[_ts("260425_140000")]),
+        _cs("late_evening", timestamps=[_ts("260425_200000")]),
     ]
 
     widget.update_list(
@@ -132,13 +132,12 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
         if widget._row_entries[i] == _BANNER_ROW
         and not (widget.get_option_at_index(i).id or "").startswith("cs-spacer:")
     ]
-    assert len(banner_rows) == 5
+    assert len(banner_rows) == 4
     assert widget._row_entries == [
         _BANNER_ROW,
         _BANNER_ROW,
         _BANNER_ROW,
         0,
-        _BANNER_ROW,
         _BANNER_ROW,
         1,
     ]
@@ -200,7 +199,7 @@ def test_by_date_collapsed_hourly_banner_maps_to_group_key(monkeypatch: Any) -> 
     widget, _ = _wire_widget(monkeypatch)
     css = [
         _cs("night", timestamps=[_ts("260425_210000")]),
-        _cs("afternoon", timestamps=[_ts("260425_140000")]),
+        _cs("late_evening", timestamps=[_ts("260425_200000")]),
     ]
     fold = GroupFoldRegistry()
     fold.collapse(("Yesterday", "8PM-12AM", "21:00"))
