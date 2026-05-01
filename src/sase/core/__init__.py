@@ -8,6 +8,7 @@ This package also hosts the Rust-bindable facade layer (see
 - :mod:`sase.core.wire_conversion` — Python ``ChangeSpec`` -> wire records.
 - :mod:`sase.core.parser_facade` — :func:`parse_project_file` / ``_bytes``.
 - :mod:`sase.core.query_facade` — query parse / build context / evaluate.
+- :mod:`sase.core.query_corpus_facade` — persistent Rust query corpus handles.
 - :mod:`sase.core.graph_index_facade` — :func:`build_changespec_graph_index`.
 - :mod:`sase.core.status_facade` — status transitions + pure status helpers.
 - :mod:`sase.core.git_query_facade` — Git query parsers.

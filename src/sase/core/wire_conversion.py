@@ -275,7 +275,6 @@ def _delta_wire_from_dict(record: dict[str, Any]) -> DeltaWire:
     )
 
 
-# pyvision: tests/test_core_facade/_helpers.py
 def changespec_to_wire(
     cs: ChangeSpec,
     *,

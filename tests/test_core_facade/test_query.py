@@ -16,10 +16,19 @@ import pytest
 
 from sase.ace.query import evaluator as raw_evaluator
 from sase.ace.query.parser import parse_query_python as raw_parse_query
-from sase.core import parser_facade, query_facade
+from sase.core import parser_facade, query_corpus_facade, query_facade
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.core.wire_conversion import changespec_to_wire
 
 from tests.test_core_facade._helpers import install_fake_query_module
+
+
+class _FakeRustCorpus:
+    def __init__(self, length: int) -> None:
+        self.length = length
+
+    def __len__(self) -> int:
+        return self.length
 
 
 def test_query_parse_and_evaluate_match_python(
@@ -117,6 +126,141 @@ def test_evaluate_query_many_runs_python_after_phase8b_deferral(
     result = query_facade.evaluate_query_many('"example"', specs)
     assert result == expected
     assert rust_calls == []
+
+
+def test_compile_query_corpus_converts_specs_once(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Corpus compilation converts each ChangeSpec once before crossing FFI."""
+    specs = parser_facade.parse_project_file(str(sample_project))
+    converted_names: list[str] = []
+    compiled_batches: list[list[dict]] = []
+
+    def tracking_changespec_to_wire(cs):
+        converted_names.append(cs.name)
+        return changespec_to_wire(cs)
+
+    def fake_compile_corpus(spec_dicts: list[dict]) -> _FakeRustCorpus:
+        compiled_batches.append(spec_dicts)
+        return _FakeRustCorpus(len(spec_dicts))
+
+    install_fake_query_module(monkeypatch, compile_corpus=fake_compile_corpus)
+    monkeypatch.setattr(
+        query_corpus_facade, "changespec_to_wire", tracking_changespec_to_wire
+    )
+
+    corpus = query_corpus_facade.compile_query_corpus(specs)
+
+    assert converted_names == [cs.name for cs in specs]
+    assert len(compiled_batches) == 1
+    assert [record["name"] for record in compiled_batches[0]] == [
+        cs.name for cs in specs
+    ]
+    assert corpus.source_list_id == id(specs)
+    assert corpus.expected_length == len(specs)
+
+
+def test_evaluate_query_many_with_corpus_uses_handle_api_not_legacy(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistent corpus evaluation must not call legacy evaluate_query_many."""
+    specs = parser_facade.parse_project_file(str(sample_project))
+    calls: list[tuple[str, object]] = []
+    rust_corpus = _FakeRustCorpus(len(specs))
+
+    def fake_compile_query(query: str) -> object:
+        calls.append(("compile_query", query))
+        return {"query": query}
+
+    def fake_evaluate_many(program: object, corpus: object) -> list[bool]:
+        calls.append(("evaluate_many", program))
+        assert corpus is rust_corpus
+        return [True, False]
+
+    def fake_legacy_evaluate_many(query: str, spec_dicts: list[dict]) -> list[bool]:
+        raise AssertionError("legacy evaluate_query_many should not be called")
+
+    install_fake_query_module(
+        monkeypatch,
+        compile_query=fake_compile_query,
+        evaluate_many=fake_evaluate_many,
+        evaluate_query_many=fake_legacy_evaluate_many,
+    )
+    corpus = query_corpus_facade.QueryCorpus(
+        source_list_id=id(specs),
+        expected_length=len(specs),
+        rust_handle=rust_corpus,
+    )
+
+    assert query_corpus_facade.evaluate_query_many_with_corpus('"example"', corpus) == [
+        True,
+        False,
+    ]
+    assert calls == [
+        ("compile_query", '"example"'),
+        ("evaluate_many", {"query": '"example"'}),
+    ]
+
+
+def test_evaluate_query_many_with_stale_corpus_refuses_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Length mismatches fail before query compilation or evaluation."""
+    calls: list[str] = []
+
+    def fake_compile_query(query: str) -> object:
+        calls.append("compile_query")
+        return object()
+
+    def fake_evaluate_many(program: object, corpus: object) -> list[bool]:
+        calls.append("evaluate_many")
+        return [False]
+
+    install_fake_query_module(
+        monkeypatch,
+        compile_query=fake_compile_query,
+        evaluate_many=fake_evaluate_many,
+    )
+    stale = query_corpus_facade.QueryCorpus(
+        source_list_id=123,
+        expected_length=2,
+        rust_handle=_FakeRustCorpus(1),
+    )
+
+    with pytest.raises(ValueError, match="stale query corpus wrapper"):
+        query_corpus_facade.evaluate_query_many_with_corpus('"example"', stale)
+    assert calls == []
+
+
+def test_compile_query_corpus_missing_binding_raises_attributeerror(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stale wheels fail through require_rust_binding with the missing op name."""
+    specs = parser_facade.parse_project_file(str(sample_project))
+    install_fake_query_module(monkeypatch)
+
+    with pytest.raises(AttributeError, match="compile_corpus"):
+        query_corpus_facade.compile_query_corpus(specs)
+
+
+def test_evaluate_query_many_with_corpus_missing_binding_raises_attributeerror(
+    sample_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evaluation surfaces stale wheels through the strict Rust binding loader."""
+    specs = parser_facade.parse_project_file(str(sample_project))
+    corpus = query_corpus_facade.QueryCorpus(
+        source_list_id=id(specs),
+        expected_length=len(specs),
+        rust_handle=_FakeRustCorpus(len(specs)),
+    )
+    install_fake_query_module(monkeypatch, evaluate_many=lambda _p, _c: [])
+
+    with pytest.raises(AttributeError, match="compile_query"):
+        query_corpus_facade.evaluate_query_many_with_corpus('"example"', corpus)
 
 
 def test_parse_query_uses_rust_binding(monkeypatch: pytest.MonkeyPatch) -> None:

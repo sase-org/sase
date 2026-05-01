@@ -102,13 +102,22 @@ def install_fake_query_module(
     *,
     parse_query=None,
     evaluate_query_many=None,
+    compile_corpus=None,
+    compile_query=None,
+    evaluate_many=None,
 ) -> types.ModuleType:
-    """Register a fake ``sase_core_rs`` exposing the Phase 2D query bindings."""
+    """Register a fake ``sase_core_rs`` exposing query-related bindings."""
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     if parse_query is not None:
         fake.parse_query = parse_query  # type: ignore[attr-defined]
     if evaluate_query_many is not None:
         fake.evaluate_query_many = evaluate_query_many  # type: ignore[attr-defined]
+    if compile_corpus is not None:
+        fake.compile_corpus = compile_corpus  # type: ignore[attr-defined]
+    if compile_query is not None:
+        fake.compile_query = compile_query  # type: ignore[attr-defined]
+    if evaluate_many is not None:
+        fake.evaluate_many = evaluate_many  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
     return fake
 
