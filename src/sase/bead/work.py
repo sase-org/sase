@@ -39,12 +39,18 @@ class EpicWorkPlan:
 
 
 @dataclass(frozen=True)
-class ChangeSpecLaunchContext:
+class VCSLaunchContext:
+    """VCS launch wrapper for project-scoped epic work."""
+
+    vcs_workflow: str
+    project_name: str
+
+
+@dataclass(frozen=True)
+class ChangeSpecLaunchContext(VCSLaunchContext):
     """VCS launch wrapper for ChangeSpec-attached epic work."""
 
     changespec_name: str
-    vcs_workflow: str
-    project_name: str
     bug_id: str = ""
 
 
@@ -168,6 +174,7 @@ def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,
     land_epic_xprompt: Workflow,
+    vcs_context: VCSLaunchContext | None = None,
     changespec_context: ChangeSpecLaunchContext | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
@@ -178,11 +185,17 @@ def render_multi_prompt(
     phase agent. Tag-resolved xprompt names are substituted into the ``#...``
     references so user overrides flow through unchanged.
 
-    When *changespec_context* is provided, every segment is prefixed with the
-    appropriate VCS xprompt. The first phase segment targets the project ref and
-    includes ``#pr`` to create/own the ChangeSpec; later phase segments and the
-    land segment target the ChangeSpec ref directly.
+    When *vcs_context* is provided, every segment is prefixed with the project
+    VCS xprompt. When *changespec_context* is provided, the first phase segment
+    targets the project ref and includes ``#pr`` to create/own the ChangeSpec;
+    later phase segments and the land segment target the ChangeSpec ref
+    directly.
     """
+    if vcs_context is not None and changespec_context is not None:
+        raise ValueError("provide either vcs_context or changespec_context, not both")
+    launch_context = changespec_context or vcs_context
+    if launch_context is not None:
+        _validate_vcs_context(launch_context)
     if changespec_context is not None:
         _validate_changespec_context(changespec_context)
 
@@ -190,7 +203,7 @@ def render_multi_prompt(
     is_first_phase = True
     for wave in plan.waves:
         for assignment in wave:
-            lines = _segment_prefix(changespec_context, is_first_phase)
+            lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
             lines.extend([f"%name:{assignment.agent_name}", "%approve"])
             if assignment.waits_on:
@@ -198,7 +211,7 @@ def render_multi_prompt(
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
             segments.append("\n".join(lines))
 
-    land_lines = _segment_prefix(changespec_context, is_first_phase=False)
+    land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.extend([f"%name:{plan.land_agent_name}", "%approve"])
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
@@ -208,14 +221,22 @@ def render_multi_prompt(
     return "\n---\n".join(segments)
 
 
-def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
+def _validate_vcs_context(ctx: VCSLaunchContext) -> None:
     missing = []
-    if not ctx.changespec_name:
-        missing.append("changespec_name")
     if not ctx.vcs_workflow:
         missing.append("vcs_workflow")
     if not ctx.project_name:
         missing.append("project_name")
+    if missing:
+        raise ValueError(
+            "VCS launch context is missing required field(s): " + ", ".join(missing)
+        )
+
+
+def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
+    missing = []
+    if not ctx.changespec_name:
+        missing.append("changespec_name")
     if missing:
         raise ValueError(
             "ChangeSpec launch context is missing required field(s): "
@@ -224,15 +245,18 @@ def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
 
 
 def _segment_prefix(
-    ctx: ChangeSpecLaunchContext | None,
+    ctx: VCSLaunchContext | None,
     is_first_phase: bool,
 ) -> list[str]:
     if ctx is None:
         return []
 
-    ref = ctx.project_name if is_first_phase else ctx.changespec_name
+    if isinstance(ctx, ChangeSpecLaunchContext):
+        ref = ctx.project_name if is_first_phase else ctx.changespec_name
+    else:
+        ref = ctx.project_name
     line = f"#{ctx.vcs_workflow}:{ref}"
-    if is_first_phase:
+    if is_first_phase and isinstance(ctx, ChangeSpecLaunchContext):
         line = f"{line} {_pr_reference(ctx)}"
     return [line]
 

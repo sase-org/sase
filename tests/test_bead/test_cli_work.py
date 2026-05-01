@@ -154,6 +154,54 @@ def test_work_dry_run_never_mutates_or_launches(
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
 
 
+def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = _seed_diamond(project_dir)
+    fake_home = tmp_path / "home"
+    project_root = fake_home / ".sase" / "projects" / "sase"
+    project_root.mkdir(parents=True)
+    (project_root / "sase.gp").write_text(
+        "WORKSPACE_DIR: /tmp/sase\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: "sase",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.detect_workflow_type",
+        lambda project_file: "git",
+    )
+
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(_make_args(epic_id, dry_run=True, yes=True))
+
+    assert launch_calls == []
+    out = capsys.readouterr().out
+    for pid in phase_ids:
+        assert f"#git:sase\n%name:{pid}" in out
+        assert f"#bd/work_phase_bead:{pid}" in out
+    assert f"#git:sase\n%name:{epic_id}.land" in out
+    assert f"#bd/land_epic:{epic_id}" in out
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is False
+        for pid in phase_ids:
+            phase = proj.show(pid)
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
+
+
 def test_work_dry_run_renders_changespec_launch_wrappers(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

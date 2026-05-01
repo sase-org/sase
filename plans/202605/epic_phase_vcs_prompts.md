@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 12:56:06
-status: wip
+status: done
 ---
 # Plan: Preserve VCS Workspace For Epic Phase Agents
 

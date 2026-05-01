@@ -15,6 +15,7 @@ from sase.bead.work import (
     EpicPlanError,
     EpicWorkPlan,
     PhaseAssignment,
+    VCSLaunchContext,
     build_epic_work_plan,
     render_multi_prompt,
 )
@@ -353,6 +354,26 @@ class TestEpicValidation:
 
 
 class TestRenderEdgeCases:
+    def test_vcs_context_prefixes_every_regular_epic_segment(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(conn, [_epic("e1"), _phase("p1"), _phase("p2")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+        )
+
+        segments = rendered.split("\n---\n")
+        assert len(segments) == 3
+        assert all(segment.startswith("#git:sase\n") for segment in segments)
+        assert "#bd/work_phase_bead:p1" in rendered
+        assert "#bd/work_phase_bead:p2" in rendered
+        assert "#bd/land_epic:e1" in rendered
+
     def test_user_override_xprompt_names_propagate(
         self, conn: sqlite3.Connection
     ) -> None:

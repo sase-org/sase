@@ -13,7 +13,7 @@ from sase.bead.model import IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
-    from sase.bead.work import ChangeSpecLaunchContext, EpicWorkPlan
+    from sase.bead.work import ChangeSpecLaunchContext, EpicWorkPlan, VCSLaunchContext
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
@@ -57,6 +57,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         except EpicPlanError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+        vcs_context: VCSLaunchContext | None = None
         changespec_context: ChangeSpecLaunchContext | None = None
         if issue.changespec_name:
             try:
@@ -67,6 +68,8 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             except ValueError as e:
                 print(f"Error: {e}", file=sys.stderr)
                 sys.exit(1)
+        else:
+            vcs_context = _resolve_vcs_launch_context()
 
         collisions = find_live_name_collisions(plan)
         if collisions and not dry_run:
@@ -87,6 +90,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             plan,
             work_phase_xprompt=work_phase_xprompt,
             land_epic_xprompt=land_epic_xprompt,
+            vcs_context=vcs_context,
             changespec_context=changespec_context,
         )
 
@@ -176,15 +180,39 @@ def resolve_changespec_launch_context(
     bug_id: str,
 ) -> ChangeSpecLaunchContext:
     """Resolve VCS/project context for a ChangeSpec-attached epic launch."""
-    from sase.bead.project_name import infer_project_name_from_cwd
     from sase.bead.work import ChangeSpecLaunchContext
+
+    vcs_context = _resolve_required_vcs_launch_context(
+        purpose="ChangeSpec-attached epic"
+    )
+
+    return ChangeSpecLaunchContext(
+        changespec_name=changespec_name,
+        bug_id=bug_id,
+        vcs_workflow=vcs_context.vcs_workflow,
+        project_name=vcs_context.project_name,
+    )
+
+
+def _resolve_vcs_launch_context() -> VCSLaunchContext | None:
+    """Best-effort VCS/project context for regular epic launches."""
+    try:
+        return _resolve_required_vcs_launch_context(purpose="regular epic")
+    except ValueError:
+        return None
+
+
+def _resolve_required_vcs_launch_context(*, purpose: str) -> VCSLaunchContext:
+    """Resolve current project/workflow context or raise a purpose-specific error."""
+    from sase.bead.project_name import infer_project_name_from_cwd
+    from sase.bead.work import VCSLaunchContext
     from sase.workspace_provider import detect_workflow_type
 
     project_name = infer_project_name_from_cwd()
     if not project_name:
         raise ValueError(
-            "cannot launch ChangeSpec-attached epic: unable to infer the "
-            "current SASE project from this workspace"
+            f"cannot launch {purpose}: unable to infer the current SASE "
+            "project from this workspace"
         )
 
     project_file = (
@@ -192,24 +220,18 @@ def resolve_changespec_launch_context(
     )
     if not project_file.exists():
         raise ValueError(
-            "cannot launch ChangeSpec-attached epic: project file not found at "
-            f"{project_file}"
+            f"cannot launch {purpose}: project file not found at {project_file}"
         )
 
     try:
         vcs_workflow = detect_workflow_type(str(project_file))
     except ValueError as exc:
         raise ValueError(
-            "cannot launch ChangeSpec-attached epic: unable to detect VCS "
-            f"workflow for {project_file}: {exc}"
+            f"cannot launch {purpose}: unable to detect VCS workflow for "
+            f"{project_file}: {exc}"
         ) from exc
 
-    return ChangeSpecLaunchContext(
-        changespec_name=changespec_name,
-        bug_id=bug_id,
-        vcs_workflow=vcs_workflow,
-        project_name=project_name,
-    )
+    return VCSLaunchContext(vcs_workflow=vcs_workflow, project_name=project_name)
 
 
 def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
