@@ -24,6 +24,8 @@ The shipped Rust-backed operations are:
 - notification JSONL store operations (`read_notifications_snapshot`, `append_notification`,
   `apply_notification_state_update`, `rewrite_notifications`) used by `sase.core.notification_store_facade`
 - `plan_agent_cleanup`
+- experimental agent-list composition (`compose_agent_list`) used only by `sase.core.agent_compose_facade` parity and
+  debug callers; the TUI/CLI loader is not routed to it by default
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
 
@@ -90,6 +92,8 @@ The facade lives at `src/sase/core/`:
 | `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
 | `agent_scan_facade.py`         | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
 | `agent_scan_wire.py`           | Stable wire records for the agent-artifact scan snapshot                                                           |
+| `agent_compose_facade.py`      | Experimental Rust agent-list composer facade for parity/debug use                                                  |
+| `agent_compose_wire.py`        | Stable wire records for coarse agent-list composition inputs and outputs                                           |
 | `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
 | `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |

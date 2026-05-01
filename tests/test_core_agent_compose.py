@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from sase.core.agent_compose_facade import (
+    build_agent_compose_input,
+    compose_agent_list,
     compose_agent_list_reference,
     compose_python_agents_to_wire,
+    log_compose_mismatch,
     with_options,
 )
 from sase.core.agent_compose_wire import (
@@ -21,11 +27,13 @@ from sase.core.agent_compose_wire import (
     MergeReasonWire,
     RunningClaimWire,
     agent_compose_input_from_dict,
+    agent_compose_wire_to_json_dict,
     agent_from_wire,
     agent_to_wire,
     composed_agent_list_from_dict,
     composed_agent_list_to_json_dict,
 )
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from .agent_compose_golden import build_golden_agents, fixture_summary
 
@@ -173,3 +181,170 @@ def test_agent_wire_from_dict_uses_defaults_for_new_optional_fields() -> None:
             status="RUNNING",
         )
     ]
+
+
+def test_compose_wire_json_projection_matches_rust_tuple_shape() -> None:
+    input_wire = build_agent_compose_input(
+        running_claims=[
+            RunningClaimWire(
+                project_file="/tmp/projects/demo/demo.gp",
+                project_name="demo",
+                cl_name="feature_alpha",
+                workflow="ace(run)",
+                raw_suffix="20260429120000",
+                pid=12345,
+            )
+        ],
+        alive_pids=[12345],
+        dismissed_identities=[("run", "feature_alpha", "20260429120000")],
+    )
+
+    payload = agent_compose_wire_to_json_dict(input_wire)
+
+    assert payload["schema_version"] == AGENT_COMPOSE_WIRE_SCHEMA_VERSION
+    assert payload["running_claims"][0]["pid"] == 12345
+    assert payload["dismissed_identities"] == [
+        ("run", "feature_alpha", "20260429120000")
+    ]
+
+
+def test_facade_marshals_input_and_rehydrates_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    def fake_compose(payload: dict) -> dict:
+        calls.append(payload)
+        return {
+            "schema_version": AGENT_COMPOSE_WIRE_SCHEMA_VERSION,
+            "agents": [
+                {
+                    "agent_type": "run",
+                    "cl_name": "feature_alpha",
+                    "project_file": "/tmp/projects/demo/demo.gp",
+                    "status": "RUNNING",
+                    "raw_suffix": "20260429120000",
+                }
+            ],
+            "workflow_agent_steps": [],
+            "dismissed_from_loader": [],
+            "dropped": [],
+            "merge_log": [],
+        }
+
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.compose_agent_list = fake_compose  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    result = compose_agent_list(
+        build_agent_compose_input(
+            running_claims=[
+                RunningClaimWire(
+                    project_file="/tmp/projects/demo/demo.gp",
+                    project_name="demo",
+                    cl_name="feature_alpha",
+                    workflow="ace(run)",
+                    raw_suffix="20260429120000",
+                    pid=12345,
+                )
+            ],
+            alive_pids=[12345],
+        )
+    )
+
+    assert calls[0]["running_claims"][0]["pid"] == 12345
+    assert result.agents == [
+        AgentWire(
+            agent_type="run",
+            cl_name="feature_alpha",
+            project_file="/tmp/projects/demo/demo.gp",
+            status="RUNNING",
+            raw_suffix="20260429120000",
+        )
+    ]
+
+
+def test_facade_missing_binding_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    with pytest.raises(AttributeError, match="compose_agent_list"):
+        compose_agent_list(AgentComposeInputWire())
+
+
+def test_log_compose_mismatch_includes_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    expected = composed_agent_list_from_dict(
+        {
+            "schema_version": AGENT_COMPOSE_WIRE_SCHEMA_VERSION,
+            "agents": [],
+            "workflow_agent_steps": [],
+            "dismissed_from_loader": [],
+            "dropped": [],
+            "merge_log": [],
+        }
+    )
+    actual = composed_agent_list_from_dict(
+        {
+            "schema_version": AGENT_COMPOSE_WIRE_SCHEMA_VERSION,
+            "agents": [
+                {
+                    "agent_type": "run",
+                    "cl_name": "feature_alpha",
+                    "project_file": "/tmp/projects/demo/demo.gp",
+                    "status": "RUNNING",
+                }
+            ],
+            "workflow_agent_steps": [],
+            "dismissed_from_loader": [],
+            "dropped": [
+                {
+                    "stage": "dead_pid_filter",
+                    "identity": ["run", "feature_alpha", None],
+                    "reason": "dead_pid",
+                    "detail": "999",
+                }
+            ],
+            "merge_log": [],
+        }
+    )
+
+    assert (
+        log_compose_mismatch(label="fixture", expected=expected, actual=actual) is False
+    )
+    assert "dead_pid_filter" in caplog.text
+
+
+def test_real_extension_composes_running_claim(tmp_path: Path) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "compose_agent_list"):
+        pytest.skip("sase_core_rs is too old (no compose_agent_list).")
+
+    project_file = tmp_path / "demo.gp"
+    result = compose_agent_list(
+        build_agent_compose_input(
+            running_claims=[
+                RunningClaimWire(
+                    project_file=str(project_file),
+                    project_name="demo",
+                    cl_name="feature_alpha",
+                    workspace_num=3,
+                    workflow="ace(run)",
+                    raw_suffix="20260429120000",
+                    pid=12345,
+                    model="gpt-test",
+                )
+            ],
+            alive_pids=[12345],
+        )
+    )
+
+    assert len(result.agents) == 1
+    agent = result.agents[0]
+    assert agent.agent_type == "run"
+    assert agent.cl_name == "feature_alpha"
+    assert agent.status == "RUNNING"
+    assert agent.start_time == "2026-04-29T12:00:00"
+    assert agent.workspace_num == 3
+    assert agent.model == "gpt-test"
