@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 15:47:48
-status: wip
+status: done
 ---
 # Chat Install / Restart Command Plan
 

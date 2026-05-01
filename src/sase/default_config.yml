@@ -2,6 +2,12 @@ timezone: "America/New_York"
 use_chezmoi: false
 precommit_command: ""
 
+chat_install:
+  command: ""
+  sync_workspace: true
+  timeout_seconds: 900
+  restart_attempts: 3
+
 ace:
   inactive_seconds: 600
   snippets: {}

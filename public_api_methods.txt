@@ -22,3 +22,9 @@ agent_status_bucket_glyph
 group_agent_statuses
 status_bucket_header
 enter_maintenance
+ChatInstallConfig
+ChatInstallLaunchResult
+load_chat_install_config
+resolve_primary_workspace_for_chat_install
+run_worker
+start_chat_install_worker
