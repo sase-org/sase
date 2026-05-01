@@ -21,6 +21,8 @@ The shipped Rust-backed operations are:
 - `parse_git_local_changes`
 - persistent query corpus handles (`compile_corpus`, `compile_query`, `evaluate_many`) used by
   `sase.core.query_corpus_facade`
+- notification JSONL store operations (`read_notifications_snapshot`, `append_notification`,
+  `apply_notification_state_update`, `rewrite_notifications`) used by `sase.core.notification_store_facade`
 - `plan_agent_cleanup`
 - agent cleanup execution helpers for dismissed indexes/bundles, artifact deletion, workspace release text mutation, and
   hook/mentor/comment kill marking
@@ -73,26 +75,28 @@ large search results, axe lumberjack scans), so it was the first operation route
 
 The facade lives at `src/sase/core/`:
 
-| Module                       | Purpose                                                                                                            |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `rust.py`                    | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
-| `health.py`                  | `sase core health` Rust-extension probe + report                                                                   |
-| `parser_facade.py`           | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
-| `wire.py`                    | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
-| `wire_conversion.py`         | Python `ChangeSpec` ↔ wire record serialization                                                                    |
-| `query_facade.py`            | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
-| `query_corpus_facade.py`     | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
-| `status_facade.py`           | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
-| `graph_index_facade.py`      | `build_changespec_graph_index()` facade (Python host logic)                                                        |
-| `agent_scan_facade.py`       | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
-| `agent_scan_wire.py`         | Stable wire records for the agent-artifact scan snapshot                                                           |
-| `agent_cleanup_wire.py`      | Stable cleanup planning and side-effect intent wires                                                               |
-| `agent_cleanup_facade.py`    | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
-| `agent_cleanup_execution.py` | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
-| `status_wire.py`             | Stable wire records for the status state machine                                                                   |
-| `status_wire_conversion.py`  | Python plan reference + project-file → request-wire converter                                                      |
-| `git_query_facade.py`        | Pure Git query parsers facade (Rust)                                                                               |
-| `git_query_wire.py`          | Stable wire records for the Git query parsers                                                                      |
+| Module                         | Purpose                                                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `rust.py`                      | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
+| `health.py`                    | `sase core health` Rust-extension probe + report                                                                   |
+| `parser_facade.py`             | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `wire.py`                      | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
+| `wire_conversion.py`           | Python `ChangeSpec` ↔ wire record serialization                                                                    |
+| `query_facade.py`              | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
+| `query_corpus_facade.py`       | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
+| `notification_store_facade.py` | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
+| `notification_store_wire.py`   | Stable notification snapshot/update wire records across the Rust boundary                                          |
+| `status_facade.py`             | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
+| `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
+| `agent_scan_facade.py`         | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
+| `agent_scan_wire.py`           | Stable wire records for the agent-artifact scan snapshot                                                           |
+| `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
+| `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
+| `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `status_wire.py`               | Stable wire records for the status state machine                                                                   |
+| `status_wire_conversion.py`    | Python plan reference + project-file → request-wire converter                                                      |
+| `git_query_facade.py`          | Pure Git query parsers facade (Rust)                                                                               |
+| `git_query_wire.py`            | Stable wire records for the Git query parsers                                                                      |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
@@ -293,10 +297,11 @@ push the boundary further toward provider resolution without invalidating the co
 
 `tests/perf/baselines/phase7_regression_floor.json` pins absolute Rust ceilings for the anchors that matter
 (`golden_myproj` and `synthetic_200_specs` for `parse_project_bytes`, `parse_only` for `parse_query`,
-`synthetic_6p_200pp` for `scan_agent_artifacts`, and `golden_myproj_pure` for `apply_status_update`). The relative
-`must_beat_python` check is disabled for anchors whose Python halves were deleted in Phase 8D — only the absolute Rust
-ceiling stays in force. `parse_query.parse_only.direct` keeps `must_beat_python: true` because both
-`_parse_query_python` and the Rust binding are still callable on the same machine in the same process. The CI
+`synthetic_6p_200pp` for `scan_agent_artifacts`, `golden_myproj_pure` for `apply_status_update`, the
+`synthetic_1000_specs` persistent query-corpus product route, and the synthetic 5k notification-store snapshot/mutation
+routes). The relative `must_beat_python` check is disabled for anchors whose Python halves were deleted in Phase 8D —
+only the absolute Rust ceiling stays in force. `parse_query.parse_only.direct` and the persistent query-corpus product
+route keep `must_beat_python: true` because both comparable rows are still produced by the current harnesses. The CI
 `phase7-perf-floor` GitHub Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and
 uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 
@@ -343,6 +348,7 @@ across parser, query, agent scan, status, and Git query helpers:
 | ChangeSpec parser            | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`              |
 | Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`     |
 | Agent artifact scan          | `tests/test_core_agent_scan.py` + `tests/agent_scan_golden/` fixture builder                                 |
+| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                 |
 | Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py` |
 | Git query parsers            | `tests/test_core_git_query.py`                                                                               |
 | Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                       |

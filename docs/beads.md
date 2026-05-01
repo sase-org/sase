@@ -118,6 +118,11 @@ Create a new issue.
 | `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
 | `-d, --description` | no       | Issue description                                                           |
 | `-a, --assignee`    | no       | Assignee name                                                               |
+| `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                     |
+| `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
+
+ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
+beads linked to the ChangeSpec they are intended to produce.
 
 ### `sase bead list`
 

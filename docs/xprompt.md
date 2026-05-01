@@ -678,6 +678,22 @@ To see the exact body of any built-in inline xprompt, run `sase xprompt expand -
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
 name without a `#` or `#!` marker.
 
+### Bundled Standalone Workflows
+
+The repo-level `xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
+
+| Reference              | Inputs                           | Purpose                                                                                          |
+| ---------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `#!sase/refresh_docs`  | `project`, `gh_ref`, `threshold` | Count commits since the repo's docs marker and launch `#sase/docs` when the threshold is reached |
+| `#!sase/fix_just`      | none                             | Repair or validate `just` workflow issues                                                        |
+| `#!sase/pylimit_split` | `limits`                         | Assist with Python file-size splitting                                                           |
+
+`#!sase/refresh_docs` defaults to the main `sase` repo behavior (`project=sase`, `gh_ref=sase`, `threshold=50`). For
+scheduled checks in sibling repos, pass repo-specific values such as
+`#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
+marker path under `~/.sase/projects/<project>/refresh_docs_marker`; `gh_ref` is forwarded to the nested docs agent as
+`#gh:<gh_ref>`.
+
 ## Config-Based XPrompts
 
 XPrompts can be defined inline in `sase.yml` under the `xprompts:` key.

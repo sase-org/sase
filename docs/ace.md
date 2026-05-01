@@ -412,6 +412,10 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `⚡`  | Autonomous (`%approve`) agent                        |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
+Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tag/name. A
+phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>.land` agent displays the parent epic
+bead ID. Dismissed agents keep the badge by stripping only the date-prefix used for dismissal.
+
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
 panel. For finished agents, the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit
 the existing 15-cell slot:
@@ -936,6 +940,7 @@ candidates so it always anchors on a live, visible agent.
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
 
 - **Agent details**: Name, status, model, provider, CL association, and chronologically sorted timestamps:
+  - `Bead` — shown for agents launched by `sase bead work`, inferred from the phase agent name or `.land` epic agent
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when execution started
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)

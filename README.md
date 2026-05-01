@@ -285,10 +285,13 @@ src/sase/
 │   ├── parser_facade.py   # parse_project_file host API + Rust-backed parse_project_bytes
 │   ├── wire.py            # Stable wire record types across the Rust boundary
 │   ├── wire_conversion.py # Python ChangeSpec ↔ wire record serialization
-│   ├── query_facade.py    # Query parse/build/evaluate facade
+│   ├── query_facade.py    # Query parse/build/evaluate compatibility facade
+│   ├── query_corpus_facade.py # Persistent Rust query corpus for cached batch filtering
 │   ├── status_facade.py   # Status transition helpers facade
 │   ├── agent_scan_facade.py # Rust-backed agent artifact scanner
 │   ├── agent_cleanup_*.py # Agent cleanup planning/execution facade and wires
+│   ├── notification_store_*.py # Rust-backed notification JSONL snapshot/mutation facade
+│   ├── git_query_*.py     # Rust-backed Git output parsers
 │   ├── time.py            # Time formatting and parsing
 │   ├── paths.py           # Path resolution helpers
 │   ├── shell.py           # Shell command utilities
@@ -335,7 +338,8 @@ src/sase/
 │   ├── _plugin_manager.py # Plugin manager wrapping pluggy
 │   ├── _registry.py       # Workspace detection and metadata registry
 │   └── plugins/           # Built-in workspace plugins
-│       └── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
+│       ├── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
+│       └── cd_workspace.py # `#cd:<path>` local-directory workflow
 ├── running_field/         # Workspace claim and slot management
 ├── bead/                  # Git-native issue tracking (plans, phases, dependencies)
 ├── logs/                  # Agent run log collection and packaging
@@ -388,6 +392,9 @@ the canonical install check. See [`docs/rust_backend.md`](docs/rust_backend.md) 
 semantics, and benchmarking.
 
 ## Documentation
+
+Start with the user-facing guides for the surface you are operating, then drop into the references for exact formats and
+extension APIs:
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
 - [`docs/agent_images.md`](docs/agent_images.md) — Generated image attachments and ACE terminal graphics preview notes
