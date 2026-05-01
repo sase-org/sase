@@ -215,6 +215,20 @@ class TestSpawnRepeatBatch:
             )
         assert [s.name for s in specs] == ["foo.r2", "foo.r3"]
 
+    def test_resume_repeat_normalizes_role_and_generation_segments(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:3 #resume:ma.code.r1.code do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [s.name for s in specs] == ["ma.r2", "ma.r3", "ma.r4"]
+        assert specs[0].prompt.startswith("%n:ma.r2\n")
+        assert specs[1].prompt.startswith("%n:ma.r3\n%wait:ma.r2\n")
+        assert specs[2].prompt.startswith("%n:ma.r4\n%wait:ma.r3\n")
+
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(

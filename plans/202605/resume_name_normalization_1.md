@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 15:09:47
-status: wip
+status: done
 ---
 # Resume-derived agent name normalization
 
