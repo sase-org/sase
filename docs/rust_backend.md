@@ -113,6 +113,59 @@ The facade lives at `src/sase/core/`:
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
 
+## Bead Migration Baseline
+
+The `sase bead` migration is tracked by `plans/202605/bead_rust_backend_migration.md`. Phase A freezes the Python-owned
+behavior with golden fixtures before any bead storage/query/mutation logic moves into `sase-core`.
+
+Golden contract fixtures live under `tests/test_bead/golden/`:
+
+- `cli/` pins stdout/stderr for `init`, `create`, `list`, `show`, `ready`, `blocked`, `stats`, `dep add`, `update`,
+  `open`, `close`, `rm`, `sync --status`, and representative error paths.
+- `jsonl/` pins current and legacy JSONL shapes, corrupt-line tolerance, empty/missing import behavior, hierarchy,
+  dependencies, cross-epic blockers, and ChangeSpec metadata.
+- `stores/current/` is a complete deterministic bead store used by the CLI golden tests.
+
+Run the focused contract tests with:
+
+```bash
+pytest tests/test_bead/test_cli_golden.py tests/test_bead/test_jsonl_golden_fixtures.py
+```
+
+The reproducible bead benchmark harness is:
+
+```bash
+python tests/perf/bench_bead.py --runs 5 --output /tmp/bead-bench.json
+python tests/perf/bench_bead.py --runs 5 --issues 10000 --dependencies 20000 --output /tmp/bead-bench-large.json
+```
+
+By default the shell measurements run `python -m sase.main.entry`; pass `--sase-bin "$(command -v sase)"` to measure an
+installed console script. The harness reports JSON summaries for:
+
+- shell command latency for `sase bead list`, `ready`, and `show`;
+- direct Python `BeadProject` reads;
+- merged workspace reads across three bead stores;
+- synthetic stores sized by `--issues` and `--dependencies`.
+
+Current Phase A local baseline on the active 399-line store was approximately:
+
+| Command / action            | Baseline |
+| --------------------------- | -------- |
+| `sase bead list`            | 0.32s    |
+| `sase bead ready`           | 0.34s    |
+| `sase bead show <id>`       | 0.36s    |
+| Plain Python startup        | 0.08s    |
+| Importing `sase.main.entry` | 0.23s    |
+| Importing `sase_core_rs`    | 0.02s    |
+
+Initial proposed gates for later Rust-backed phases:
+
+- `sase bead list`, `ready`, and `show` on the current-size store: p50 under 120ms from shell command start.
+- Direct Rust read bindings after Python startup: p50 under 10ms.
+- Large synthetic store, 10k issues / 20k dependencies: direct Rust read queries under 50ms p50, merged workspace reads
+  under 100ms p50 for three stores, and write plus JSONL export under 150ms p50.
+- No drift in the Phase A golden CLI output unless the migration plan records an intentional compatibility change.
+
 ## Installing the Rust Backend
 
 ### Released `sase` (recommended for users)
