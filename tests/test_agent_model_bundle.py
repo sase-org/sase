@@ -127,6 +127,27 @@ def test_bundle_round_trip_plan_and_code_time() -> None:
     assert restored.code_time == datetime(2025, 6, 15, 10, 10, 0)
 
 
+def test_bundle_rehydrates_offset_timestamps_as_local_naive() -> None:
+    """Aware persisted timestamps do not poison Agent datetime comparisons."""
+    bundle = {
+        "agent_type": "run",
+        "cl_name": "test",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": "2026-05-01T02:43:11",
+        "plan_times": ["2026-05-01T06:45:58.475291+00:00"],
+        "code_time": "2026-05-01T02:46:20.505019",
+    }
+
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.plan_times[0].tzinfo is None
+    assert restored.code_time is not None
+    assert restored.code_time.tzinfo is None
+    assert "PLAN" in restored.timestamps_display
+    assert "CODE" in restored.timestamps_display
+
+
 def test_bundle_backward_compat_plan_time_to_plan_times() -> None:
     """Test that old bundles with plan_time are migrated to plan_times."""
     bundle = {

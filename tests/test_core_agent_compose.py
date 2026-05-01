@@ -152,6 +152,42 @@ def test_composed_wire_rehydrates_offset_timestamps_as_local_naive() -> None:
     assert elapsed == "3m26s"
 
 
+def test_composed_wire_rehydrates_offset_timestamp_lists_as_local_naive() -> None:
+    result = composed_agent_list_from_dict(
+        {
+            "schema_version": AGENT_COMPOSE_WIRE_SCHEMA_VERSION,
+            "agents": [
+                {
+                    "agent_type": "workflow",
+                    "cl_name": "sase",
+                    "project_file": "/tmp/projects/sase/sase.gp",
+                    "status": "PLAN DONE",
+                    "start_time": "2026-05-01T02:43:11",
+                    "stop_time": "2026-05-01T06:45:58.475291+00:00",
+                    "plan_times": ["2026-05-01T06:45:58.475291+00:00"],
+                    "feedback_times": ["2026-05-01T06:46:01.000000+00:00"],
+                    "questions_times": ["2026-05-01T06:46:02.000000+00:00"],
+                    "retry_times": ["2026-05-01T06:46:03.000000+00:00"],
+                    "code_time": "2026-05-01T02:46:20.505019",
+                    "raw_suffix": "20260501024311",
+                }
+            ],
+            "workflow_agent_steps": [],
+            "dismissed_from_loader": [],
+        }
+    )
+
+    agent = composed_agent_list_to_agents(result)[0]
+    assert agent.plan_times[0].tzinfo is None
+    assert agent.feedback_times[0].tzinfo is None
+    assert agent.questions_times[0].tzinfo is None
+    assert agent.retry_times[0].tzinfo is None
+    assert agent.code_time is not None
+    assert agent.code_time.tzinfo is None
+    assert "PLAN" in agent.timestamps_display
+    assert "CODE" in agent.timestamps_display
+
+
 def test_reference_facade_delegates_to_current_loader() -> None:
     agents = build_golden_agents()
     with patch(
