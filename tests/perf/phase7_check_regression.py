@@ -342,7 +342,7 @@ def _baseline_scenario_for_anchor(spec: _AnchorSpec) -> str:
         spec.surface == "compose_agent_list"
         and spec.scenario == "load_all_agents_rust_backend"
     ):
-        return "load_all_agents_python_backend"
+        return "python_candidate_compose"
     return spec.scenario
 
 

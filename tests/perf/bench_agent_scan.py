@@ -53,7 +53,7 @@ For each workload the benchmark times these scenarios:
   snapshot across multiple call sites.
 - ``tui_artifact_load``: ``load_done_agents`` + ``load_running_home_agents``
   + ``load_workflow_states`` + ``load_workflow_agent_steps`` (the artifact
-  / workflow portions of ``_load_agents_from_all_sources``).
+  / workflow snapshot adapter portions used before Rust agent composition).
 - ``scan_rust_to_dict``: bare ``sase_core_rs.scan_agent_artifacts``
   call — Rust filesystem walk + JSON parse + PyO3 dict construction,
   with no Python-side wire conversion. Phase 3G uses this to attribute

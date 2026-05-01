@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 02:41:41
-status: wip
+status: done
 ---
 # Agents Tab Rust WAITING and Startup Regression Plan
 

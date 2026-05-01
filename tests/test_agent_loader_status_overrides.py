@@ -3,7 +3,9 @@
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models.agent_loader_status import (
+    apply_status_overrides as _apply_status_overrides,
+)
 
 
 def test_apply_status_overrides_propagates_code_time() -> None:

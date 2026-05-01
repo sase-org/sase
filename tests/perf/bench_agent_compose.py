@@ -40,6 +40,8 @@ from sase.ace.tui.models._dedup import (  # noqa: E402
     dedup_workflow_entries,
     remove_vcs_workspace_claims,
 )
+from sase.ace.tui.models.agent_loader_ordering import sort_and_reorder  # noqa: E402
+from sase.ace.tui.models.agent_loader_status import apply_status_overrides  # noqa: E402
 from sase.core.agent_compose_facade import (  # noqa: E402
     build_agent_compose_input,
     compose_agent_list,
@@ -106,14 +108,42 @@ def _time_call(
 
 def _run_python_pipeline(base_agents: list[Agent]) -> list[Agent]:
     agents = copy.deepcopy(base_agents)
-    agents = agent_loader._filter_dead_pids(agents)
+    agents = _filter_dead_pids(agents)
     agents = dedup_axe_spawned_agents(agents)
     agents = remove_vcs_workspace_claims(agents)
     agents = dedup_workflow_entries(agents)
     agents = dedup_running_vs_workflow(agents)
     agents = dedup_by_pid(agents)
-    agent_loader._apply_status_overrides(agents)
-    return agent_loader._sort_and_reorder(agents, [])
+    apply_status_overrides(agents)
+    return sort_and_reorder(agents, [])
+
+
+def _filter_dead_pids(
+    agents: list[Agent],
+    pid_liveness: dict[int, bool] | None = None,
+) -> list[Agent]:
+    completed_statuses = ("DONE", "FAILED")
+    return [
+        agent
+        for agent in agents
+        if agent.status in completed_statuses
+        or agent.pid is None
+        or (pid_liveness or {}).get(agent.pid, True)
+    ]
+
+
+def _compose_python_diagnostic_agent_list(
+    agents: list[Agent],
+    pid_liveness: dict[int, bool],
+) -> list[Agent]:
+    agents = _filter_dead_pids(agents, pid_liveness)
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
+    apply_status_overrides(agents)
+    return sort_and_reorder(agents, [])
 
 
 def _make_running_claims(count: int) -> list[RunningClaimWire]:
@@ -153,10 +183,9 @@ def _python_compose_from_claims(claims: list[RunningClaimWire]) -> list[Agent]:
         running_claims=copy.deepcopy(claims),
     )
     pid_liveness = {claim.pid: True for claim in claims if claim.pid is not None}
-    return agent_loader._compose_python_agent_list(
+    return _compose_python_diagnostic_agent_list(
         agents,
-        [],
-        pid_liveness=pid_liveness,
+        pid_liveness,
     )
 
 
@@ -164,10 +193,9 @@ def _python_compose_candidates(
     agents: list[Agent],
     pid_liveness: dict[int, bool],
 ) -> list[Agent]:
-    return agent_loader._compose_python_agent_list(
+    return _compose_python_diagnostic_agent_list(
         copy.deepcopy(agents),
-        [],
-        pid_liveness=pid_liveness,
+        pid_liveness,
     )
 
 
@@ -210,9 +238,7 @@ def _collected_inputs_for_claims(
     )
 
 
-def _load_all_agents_backend(
-    claims: list[RunningClaimWire], backend: str
-) -> list[Agent]:
+def _load_all_agents_rust(claims: list[RunningClaimWire]) -> list[Agent]:
     inputs = _collected_inputs_for_claims(claims)
     with (
         patch(
@@ -223,7 +249,6 @@ def _load_all_agents_backend(
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
-        patch.dict("os.environ", {"SASE_AGENT_COMPOSE_BACKEND": backend}),
     ):
         return agent_loader.load_all_agents()
 
@@ -245,7 +270,7 @@ def _legacy_python_rows(
                 {
                     "agents": size,
                     "dead_pid_filter": _time_call(
-                        lambda base_agents=base_agents: agent_loader._filter_dead_pids(
+                        lambda base_agents=base_agents: _filter_dead_pids(
                             copy.deepcopy(base_agents)
                         ),
                         runs=runs,
@@ -297,11 +322,6 @@ def run_phase7_floor_payload(
         pid_liveness = {claim.pid: True for claim in claims if claim.pid is not None}
         label = f"synthetic_{size}_running_claims"
         baseline = {
-            "load_all_agents_python_backend": _time_call(
-                lambda claims=claims: _load_all_agents_backend(claims, "python"),
-                runs=runs,
-                warmup=warmup,
-            ),
             "python_candidate_compose": _time_call(
                 lambda candidate_agents=candidate_agents, pid_liveness=pid_liveness: (
                     _python_compose_candidates(
@@ -320,7 +340,7 @@ def run_phase7_floor_payload(
         }
         candidate = {
             "load_all_agents_rust_backend": _time_call(
-                lambda claims=claims: _load_all_agents_backend(claims, "rust"),
+                lambda claims=claims: _load_all_agents_rust(claims),
                 runs=runs,
                 warmup=warmup,
             ),
@@ -424,7 +444,7 @@ def _build_artifact(payload: dict[str, Any]) -> dict[str, Any]:
         )
         for scenario, candidate in workload["candidate"].items():
             baseline_scenario = (
-                "load_all_agents_python_backend"
+                "python_candidate_compose"
                 if scenario == "load_all_agents_rust_backend"
                 else "python_candidate_compose"
             )

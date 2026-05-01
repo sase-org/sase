@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from sase.core.agent_compose_wire import ComposedAgentListWire
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -44,28 +45,8 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.get_workflow_timestamp_dirs",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
-            return_value=([], {}),
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
-            return_value=[],
+            "sase.core.agent_compose_facade.compose_agent_list",
+            return_value=ComposedAgentListWire(),
         ),
         patch(
             "sase.ace.agent_tags.load_agent_tags",
@@ -97,28 +78,8 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
             return_value=_empty_artifact_snapshot(),
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.get_workflow_timestamp_dirs",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
-            return_value=([], {}),
-        ),
-        patch(
-            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
-            return_value=[],
+            "sase.core.agent_compose_facade.compose_agent_list",
+            return_value=ComposedAgentListWire(),
         ),
         patch(
             "sase.ace.agent_tags.load_agent_tags",

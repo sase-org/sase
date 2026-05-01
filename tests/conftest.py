@@ -91,9 +91,9 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def python_agent_compose_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Route loader tests that target legacy Python composition internals."""
-    monkeypatch.setenv("SASE_AGENT_COMPOSE_BACKEND", "python")
+def python_agent_compose_backend() -> None:
+    """Compatibility marker for tests pending Rust-compose fixture rewrites."""
+    pytest.skip("legacy Python agent composition backend has been removed")
 
 
 @pytest.fixture(autouse=True)
