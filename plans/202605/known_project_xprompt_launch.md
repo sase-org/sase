@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 17:48:06
-status: wip
+status: done
 ---
 # Plan: Fix known-project VCS xprompt launch resolution
 

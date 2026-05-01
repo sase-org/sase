@@ -25,6 +25,14 @@ class AgentLaunchResult:
     timestamp: str = ""
 
 
+@dataclass(frozen=True)
+class _KnownProjectVcsLaunchRef:
+    workflow_type: str
+    ref: str
+    workspace_dir: str
+    project_file: str
+
+
 def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
     """Drop CODEX_HOME when it points at a SASE-managed temporary Codex home."""
     codex_home = env.get("CODEX_HOME")
@@ -65,6 +73,33 @@ def _preallocated_workspace_env(
         f"{prefix}_WORKSPACE_NUM": str(workspace_num),
         f"{prefix}_WORKSPACE_DIR": workspace_dir,
     }
+
+
+def resolve_known_project_vcs_launch_ref(
+    prompt: str,
+) -> _KnownProjectVcsLaunchRef | None:
+    """Resolve a generic VCS ref that points at a known project checkout."""
+    from pathlib import Path
+
+    from sase.xprompt._parsing import extract_known_project_vcs_ref
+    from sase.xprompt.loader import get_known_project_workspaces
+
+    known_ref = extract_known_project_vcs_ref(prompt)
+    if known_ref is None:
+        return None
+
+    workflow_type, ref = known_ref
+    workspace_dir = get_known_project_workspaces().get(ref)
+    if workspace_dir is None:
+        return None
+
+    project_file = Path.home() / ".sase" / "projects" / ref / f"{ref}.gp"
+    return _KnownProjectVcsLaunchRef(
+        workflow_type=workflow_type,
+        ref=ref,
+        workspace_dir=str(workspace_dir),
+        project_file=str(project_file),
+    )
 
 
 def spawn_agent_subprocess(
@@ -461,6 +496,7 @@ def launch_agent_from_cwd(
 
     has_wait = has_wait_directive(query)
     vcs_ref: tuple[str, str] | None = None
+    known_project_vcs_fallback = False
     workspace_dir: str | None = None
 
     # Try full VCS ref resolution — this updates project_file, workspace_dir,
@@ -477,6 +513,17 @@ def launch_agent_from_cwd(
             vcs_ref = (wf_name, ref_value)
             is_home_mode = is_non_workspace_workflow(wf_name)
             break
+
+    if vcs_ref is None:
+        known_ref = resolve_known_project_vcs_launch_ref(query)
+        if known_ref is not None:
+            project_file = known_ref.project_file
+            project_name = known_ref.ref
+            workspace_dir = known_ref.workspace_dir
+            workspace_num = 0
+            vcs_ref = (known_ref.workflow_type, known_ref.ref)
+            is_home_mode = False
+            known_project_vcs_fallback = True
 
     if vcs_ref is None and not is_home_mode:
         from sase.workspace_provider import get_ref_patterns
@@ -519,7 +566,7 @@ def launch_agent_from_cwd(
     if vcs_ref is not None:
         cl_name = vcs_ref[1]
         history_sort_key = vcs_ref[1]
-        if is_non_workspace_workflow(vcs_ref[0]):
+        if known_project_vcs_fallback or is_non_workspace_workflow(vcs_ref[0]):
             update_target = ""
         else:
             from sase.vcs_provider import VCS_DEFAULT_REVISION

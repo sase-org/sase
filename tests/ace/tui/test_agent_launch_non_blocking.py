@@ -385,3 +385,58 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
     assert launch["is_home_mode"] is True
     assert launch["update_target"] == ""
     assert launch["vcs_ref"] == ("cd", "~")
+
+
+def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
+    tmp_path: Path,
+) -> None:
+    app = _LaunchBodyApp()
+    app._prompt_context = _fake_context()
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+                side_effect=lambda p: (p, None),
+            )
+        )
+        stack.enter_context(
+            patch("sase.workspace_provider.get_ref_patterns", return_value={})
+        )
+        stack.enter_context(
+            patch("sase.workspace_provider.get_workflow_names", return_value=set())
+        )
+        stack.enter_context(
+            patch(
+                "sase.xprompt.loader.get_known_project_workspaces",
+                return_value={"sase": workspace},
+            )
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+        stack.enter_context(
+            patch(
+                "sase.history.file_references.extract_recordable_file_refs",
+                return_value=[],
+            )
+        )
+        stack.enter_context(
+            patch("sase.history.file_references.record_file_references")
+        )
+        stack.enter_context(
+            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+        )
+        app._run_agent_launch_body("#gh:sase #!sase/fix_just")
+
+    assert len(app.launched) == 1
+    launch = app.launched[0]
+    assert launch["prompt"] == "#gh:sase #!sase/fix_just"
+    assert launch["project_name"] == "sase"
+    assert launch["project_file"] == project_file
+    assert launch["workspace_dir"] == str(workspace)
+    assert launch["workspace_num"] == 0
+    assert launch["is_home_mode"] is False
+    assert launch["update_target"] == ""
+    assert launch["vcs_ref"] == ("gh", "sase")

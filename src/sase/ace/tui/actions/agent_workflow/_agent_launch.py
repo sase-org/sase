@@ -234,6 +234,7 @@ class AgentLaunchMixin(
 
             # Detect workspace-managing embedded workflows in home mode
             vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
+            known_project_vcs_fallback = False
             if ctx.is_home_mode:
                 for wf_name in get_workflow_names():
                     resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
@@ -257,6 +258,21 @@ class AgentLaunchMixin(
                             # Enable workspace claiming/releasing for VCS workspaces.
                             ctx.is_home_mode = False
                         break
+                if vcs_ref is None:
+                    from sase.agent.launcher import resolve_known_project_vcs_launch_ref
+
+                    known_ref = resolve_known_project_vcs_launch_ref(_vcs_prompt)
+                    if known_ref is not None:
+                        ctx.project_file = known_ref.project_file
+                        ctx.project_name = known_ref.ref
+                        ctx.workspace_dir = known_ref.workspace_dir
+                        ctx.workspace_num = 0
+                        ctx.display_name = known_ref.ref
+                        ctx.history_sort_key = known_ref.ref
+                        ctx.update_target = ""
+                        ctx.is_home_mode = False
+                        vcs_ref = (known_ref.workflow_type, known_ref.ref)
+                        known_project_vcs_fallback = True
 
             # Update `,<space>` saved selection to reflect the resolved VCS
             # ref from the actual submitted prompt.  Without this, editing
@@ -325,7 +341,11 @@ class AgentLaunchMixin(
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
         # When VCS refs are present, strip them to find the core workflow reference
         workflow_prompt = prompt
-        if vcs_ref is not None:
+        if known_project_vcs_fallback:
+            from sase.xprompt._parsing import strip_known_project_vcs_refs
+
+            workflow_prompt = strip_known_project_vcs_refs(workflow_prompt)
+        elif vcs_ref is not None:
             workflow_prompt = strip_all_vcs_refs(workflow_prompt)
         elif known_project_vcs_ref is not None:
             from sase.xprompt._parsing import strip_known_project_vcs_refs

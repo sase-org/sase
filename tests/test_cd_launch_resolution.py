@@ -154,8 +154,8 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
 
     workspace = tmp_path / "sase"
     workspace.mkdir()
-    home = str(Path.home().resolve())
-    spawn_result = MagicMock(pid=123, workspace_dir=home, workspace_num=0)
+    project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
+    spawn_result = MagicMock(pid=123, workspace_dir=str(workspace), workspace_num=0)
     monkeypatch.setattr(
         "sase.xprompt.loader.get_known_project_workspaces",
         lambda: {"sase": workspace},
@@ -181,10 +181,15 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     assert result is spawn_result
     kwargs = spawn.call_args.kwargs
     assert kwargs["prompt"] == "#gh:sase #!sase/fix_just"
-    assert kwargs["workspace_dir"] == home
+    assert kwargs["project_name"] == "sase"
+    assert kwargs["project_file"] == project_file
+    assert kwargs["workspace_dir"] == str(workspace)
     assert kwargs["workspace_num"] == 0
-    assert kwargs["is_home_mode"] is True
-    assert kwargs["vcs_ref"] is None
+    assert kwargs["is_home_mode"] is False
+    assert kwargs["update_target"] == ""
+    assert kwargs["cl_name"] == "sase"
+    assert kwargs["history_sort_key"] == "sase"
+    assert kwargs["vcs_ref"] == ("gh", "sase")
 
 
 def test_resolve_vcs_cwd_uses_known_project_workspace_without_provider(
