@@ -1,0 +1,583 @@
+{
+  "comparisons": [
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.0014808879932388663,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_python_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.000613831914961338,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_candidate_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.0005455110222101212,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_running_claims_full_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.002924724016338587,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.0012415599776431918,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_wire",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.0016325059114024043,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.04118436702992767,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_python_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.026176868937909603,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_candidate_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.030332291964441538,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_running_claims_full_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.11884454300161451,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.06769693701062351,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_wire",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.07557059801183641,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.2777635749662295,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_python_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.19835578196216375,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_candidate_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": 0.20479737897403538,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": null,
+      "notes": [
+        "candidate missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "python_running_claims_full_compose",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.8554598729824647,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.4593546550022438,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_wire",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_reference",
+      "baseline_median_s": null,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.545710299978964,
+      "notes": [
+        "baseline missing"
+      ],
+      "percent_delta": null,
+      "ratio": null,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": null,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    }
+  ],
+  "gate_results": [
+    {
+      "baseline_label": "load_all_agents_python_backend",
+      "baseline_median_s": 0.0014808879932388663,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.002924724016338587,
+      "notes": [],
+      "percent_delta": 97.49798969886243,
+      "ratio": 1.9749798969886243,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": 0.5063342677688835,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.000613831914961338,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.0012415599776431918,
+      "notes": [],
+      "percent_delta": 102.2638359755848,
+      "ratio": 2.022638359755848,
+      "scenario": "rust_compose_wire",
+      "speedup": 0.4944037549652276,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.000613831914961338,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.0016325059114024043,
+      "notes": [],
+      "percent_delta": 165.95324739757578,
+      "ratio": 2.6595324739757578,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": 0.37600593705294805,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_25_running_claims"
+    },
+    {
+      "baseline_label": "load_all_agents_python_backend",
+      "baseline_median_s": 0.04118436702992767,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.11884454300161451,
+      "notes": [],
+      "percent_delta": 188.567122848466,
+      "ratio": 2.88567122848466,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": 0.34653982412442935,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.026176868937909603,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.06769693701062351,
+      "notes": [],
+      "percent_delta": 158.61357663209344,
+      "ratio": 2.5861357663209343,
+      "scenario": "rust_compose_wire",
+      "speedup": 0.3866773017190088,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.026176868937909603,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.07557059801183641,
+      "notes": [],
+      "percent_delta": 188.69227328557358,
+      "ratio": 2.886922732855736,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": 0.34638959630582244,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_1000_running_claims"
+    },
+    {
+      "baseline_label": "load_all_agents_python_backend",
+      "baseline_median_s": 0.2777635749662295,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.8554598729824647,
+      "notes": [],
+      "percent_delta": 207.98130139507006,
+      "ratio": 3.0798130139507007,
+      "scenario": "load_all_agents_rust_backend",
+      "speedup": 0.3246950368318715,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.19835578196216375,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.4593546550022438,
+      "notes": [],
+      "percent_delta": 131.5811772453729,
+      "ratio": 2.315811772453729,
+      "scenario": "rust_compose_wire",
+      "speedup": 0.43181402387485296,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    },
+    {
+      "baseline_label": "python_candidate_compose",
+      "baseline_median_s": 0.19835578196216375,
+      "candidate_label": "rust_compose",
+      "candidate_median_s": 0.545710299978964,
+      "notes": [],
+      "percent_delta": 175.11691092678,
+      "ratio": 2.7511691092678,
+      "scenario": "rust_compose_to_python_agents",
+      "speedup": 0.36348183636960846,
+      "surface": "compose_agent_list",
+      "workload": "synthetic_6000_running_claims"
+    }
+  ],
+  "legacy_python_rows": [],
+  "metadata": {
+    "backend": "summary",
+    "extra": {
+      "boundary": "pre-collected RunningClaimWire inputs; Rust candidate includes wire-to-Agent hydration in the gated scenario"
+    },
+    "git_dirty": true,
+    "git_sha": "e807fda47e32",
+    "machine": "x86_64",
+    "phase": "7",
+    "processor": "unknown",
+    "python": "3.14.3",
+    "runs": 5,
+    "rust_available": true,
+    "rust_module_path": "/home/bryan/projects/github/sase-org/sase_101/.venv/lib/python3.14/site-packages/sase_core_rs/__init__.py",
+    "rust_module_version": null,
+    "surface": "compose_agent_list",
+    "system": "Linux",
+    "timestamp": "2026-05-01T05:37:11Z",
+    "tool": "bench_agent_compose",
+    "warmup": 1,
+    "workload": "synthetic_running_claims"
+  },
+  "workloads": [
+    {
+      "baseline": {
+        "load_all_agents_python_backend": {
+          "count": 5.0,
+          "max_ms": 2.302645007148385,
+          "median_ms": 1.4808879932388663,
+          "min_ms": 1.4711989788338542
+        },
+        "python_candidate_compose": {
+          "count": 5.0,
+          "max_ms": 0.6630560383200645,
+          "median_ms": 0.613831914961338,
+          "min_ms": 0.6101449253037572
+        },
+        "python_running_claims_full_compose": {
+          "count": 5.0,
+          "max_ms": 0.605866895057261,
+          "median_ms": 0.5455110222101212,
+          "min_ms": 0.5332070868462324
+        }
+      },
+      "candidate": {
+        "load_all_agents_rust_backend": {
+          "count": 5.0,
+          "max_ms": 3.2031539594754577,
+          "median_ms": 2.924724016338587,
+          "min_ms": 2.8948959661647677
+        },
+        "rust_compose_to_python_agents": {
+          "count": 5.0,
+          "max_ms": 1.793143106624484,
+          "median_ms": 1.6325059114024043,
+          "min_ms": 1.4490460744127631
+        },
+        "rust_compose_wire": {
+          "count": 5.0,
+          "max_ms": 1.2563890777528286,
+          "median_ms": 1.2415599776431918,
+          "min_ms": 1.224235980771482
+        }
+      },
+      "extra": {
+        "agents": 25,
+        "input": "RunningClaimWire only",
+        "python_supplements": "none for this synthetic routed boundary"
+      },
+      "label": "synthetic_25_running_claims",
+      "parity": {
+        "agents_match": true,
+        "python_agents": 25,
+        "rust_agents": 25,
+        "rust_dropped": 0,
+        "rust_merge_log": 0
+      }
+    },
+    {
+      "baseline": {
+        "load_all_agents_python_backend": {
+          "count": 5.0,
+          "max_ms": 42.341155000030994,
+          "median_ms": 41.18436702992767,
+          "min_ms": 40.18750402610749
+        },
+        "python_candidate_compose": {
+          "count": 5.0,
+          "max_ms": 36.1713080201298,
+          "median_ms": 26.176868937909603,
+          "min_ms": 25.45117400586605
+        },
+        "python_running_claims_full_compose": {
+          "count": 5.0,
+          "max_ms": 31.47096501197666,
+          "median_ms": 30.332291964441538,
+          "min_ms": 29.997943085618317
+        }
+      },
+      "candidate": {
+        "load_all_agents_rust_backend": {
+          "count": 5.0,
+          "max_ms": 145.27196995913982,
+          "median_ms": 118.84454300161451,
+          "min_ms": 114.27534103859216
+        },
+        "rust_compose_to_python_agents": {
+          "count": 5.0,
+          "max_ms": 96.27936803735793,
+          "median_ms": 75.57059801183641,
+          "min_ms": 71.19584595784545
+        },
+        "rust_compose_wire": {
+          "count": 5.0,
+          "max_ms": 92.0364490011707,
+          "median_ms": 67.69693701062351,
+          "min_ms": 66.89427501987666
+        }
+      },
+      "extra": {
+        "agents": 1000,
+        "input": "RunningClaimWire only",
+        "python_supplements": "none for this synthetic routed boundary"
+      },
+      "label": "synthetic_1000_running_claims",
+      "parity": {
+        "agents_match": true,
+        "python_agents": 1000,
+        "rust_agents": 1000,
+        "rust_dropped": 0,
+        "rust_merge_log": 0
+      }
+    },
+    {
+      "baseline": {
+        "load_all_agents_python_backend": {
+          "count": 5.0,
+          "max_ms": 332.2302360320464,
+          "median_ms": 277.7635749662295,
+          "min_ms": 260.167806991376
+        },
+        "python_candidate_compose": {
+          "count": 5.0,
+          "max_ms": 241.38696596492082,
+          "median_ms": 198.35578196216375,
+          "min_ms": 174.24853390548378
+        },
+        "python_running_claims_full_compose": {
+          "count": 5.0,
+          "max_ms": 238.04143897723407,
+          "median_ms": 204.79737897403538,
+          "min_ms": 197.93438899796456
+        }
+      },
+      "candidate": {
+        "load_all_agents_rust_backend": {
+          "count": 5.0,
+          "max_ms": 899.100987939164,
+          "median_ms": 855.4598729824647,
+          "min_ms": 798.674475052394
+        },
+        "rust_compose_to_python_agents": {
+          "count": 5.0,
+          "max_ms": 571.4554040459916,
+          "median_ms": 545.710299978964,
+          "min_ms": 511.47496805060655
+        },
+        "rust_compose_wire": {
+          "count": 5.0,
+          "max_ms": 477.8476459905505,
+          "median_ms": 459.3546550022438,
+          "min_ms": 427.9087280156091
+        }
+      },
+      "extra": {
+        "agents": 6000,
+        "input": "RunningClaimWire only",
+        "python_supplements": "none for this synthetic routed boundary"
+      },
+      "label": "synthetic_6000_running_claims",
+      "parity": {
+        "agents_match": true,
+        "python_agents": 6000,
+        "rust_agents": 6000,
+        "rust_dropped": 0,
+        "rust_merge_log": 0
+      }
+    }
+  ]
+}
