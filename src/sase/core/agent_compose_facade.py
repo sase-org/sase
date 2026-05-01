@@ -53,7 +53,6 @@ def compose_python_agents_to_wire(
     )
 
 
-# pyvision: tests/test_core_agent_compose.py
 def compose_agent_list_reference(
     input_wire: AgentComposeInputWire | None = None,
     *,
@@ -74,7 +73,6 @@ def compose_agent_list_reference(
     return compose_python_agents_to_wire(agents)
 
 
-# pyvision: tests/test_core_agent_compose.py
 def with_options(
     base: AgentComposeOptionsWire,
     **overrides: Any,
@@ -84,7 +82,6 @@ def with_options(
     return replace(base, **overrides)
 
 
-# pyvision: tests/test_core_agent_compose.py
 def build_agent_compose_input(
     *,
     artifact_scan: AgentArtifactScanWire | None = None,
@@ -164,7 +161,6 @@ def composed_agent_list_to_dismissed_agents(
     return [agent_from_wire(agent_wire) for agent_wire in record.dismissed_from_loader]
 
 
-# pyvision: tests/test_core_agent_compose.py
 def log_compose_mismatch(
     *,
     label: str,

@@ -8,7 +8,6 @@ _ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
 _lock = threading.Lock()
 
 
-# pyvision: tests/test_bead/test_ids.py
 def to_base36(n: int) -> str:
     """Convert a non-negative integer to a base36 string."""
     if n < 0:
@@ -22,7 +21,6 @@ def to_base36(n: int) -> str:
     return "".join(reversed(digits))
 
 
-# pyvision: tests/test_bead/test_ids.py
 def from_base36(s: str) -> int:
     """Convert a base36 string to an integer."""
     return int(s, 36)

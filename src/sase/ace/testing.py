@@ -12,7 +12,6 @@ from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
-# pyvision: tests/test_ace_testing.py
 def make_changespec(
     name: str = "test_feature",
     description: str = "Test description",
@@ -113,7 +112,6 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
     return state
 
 
-# pyvision: tests/test_ace_testing.py
 class AcePage:
     """Async context manager wrapping AceApp + Pilot for fluent TUI testing."""
 
@@ -305,7 +303,6 @@ class _PromptTestApp(App[None]):
         yield PromptTextArea(id="ta")
 
 
-# pyvision: tests/test_ace_testing.py
 class PromptPage:
     """Async context manager wrapping PromptTextArea + Pilot for fluent testing.
 

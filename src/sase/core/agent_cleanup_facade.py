@@ -468,7 +468,6 @@ def _build_cleanup_side_effects(
     )
 
 
-# pyvision: tests/test_core_facade/test_agent_cleanup.py
 def plan_agent_cleanup_python(
     targets: Sequence[AgentCleanupTargetWire | dict[str, Any]],
     request: AgentCleanupRequestWire | dict[str, Any],

@@ -235,7 +235,6 @@ class StatusTransitionPlanWire:
     revert_siblings: bool = False
 
 
-# pyvision: tests/test_core_status_wire.py
 @dataclass(frozen=True)
 class StatusFieldReadWire:
     """Inputs for :func:`read_status_from_lines`.
@@ -250,7 +249,6 @@ class StatusFieldReadWire:
     changespec_name: str
 
 
-# pyvision: tests/test_core_status_wire.py
 @dataclass(frozen=True)
 class StatusFieldUpdateWire:
     """Inputs for :func:`apply_status_update`.
@@ -298,7 +296,6 @@ def _children_from_seq(data: Any) -> tuple[ChangespecChildWire, ...]:
     return tuple(out)
 
 
-# pyvision: tests/test_core_status_wire.py
 def status_request_from_dict(data: dict[str, Any]) -> StatusTransitionRequestWire:
     """Rehydrate a :class:`StatusTransitionRequestWire` from a dict.
 

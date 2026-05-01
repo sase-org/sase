@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
 
 
-# pyvision: tests/test_bead/test_work.py
 @dataclass(frozen=True)
 class PhaseAssignment:
     """One phase bead's assignment to an agent in a wave."""
@@ -53,12 +52,10 @@ class EpicPlanError(ValueError):
     """Base error for epic-work-plan construction failures."""
 
 
-# pyvision: tests/test_bead/test_work.py
 class CycleError(EpicPlanError):
     """Raised when the open phase children form a dependency cycle."""
 
 
-# pyvision: tests/test_bead/test_work.py
 class CrossEpicBlockerError(EpicPlanError):
     """Raised when a phase has an out-of-epic blocker that is not closed."""
 

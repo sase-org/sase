@@ -26,7 +26,6 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
     return _facade(lines, changespec_name, new_status)
 
 
-# pyvision: tests/test_core_facade/test_status.py
 def apply_status_update_python(
     lines: list[str], changespec_name: str, new_status: str
 ) -> str:
@@ -169,7 +168,6 @@ def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None
     return _facade(lines, changespec_name)
 
 
-# pyvision: tests/test_core_facade/test_status.py
 def read_status_from_lines_python(lines: list[str], changespec_name: str) -> str | None:
     """Host-logic golden reference for :func:`read_status_from_lines`.
 

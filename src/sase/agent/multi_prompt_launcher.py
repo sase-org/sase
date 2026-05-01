@@ -16,7 +16,6 @@ from sase.agent.launcher import AgentLaunchResult
 from sase.xprompt.models import XPrompt
 
 
-# pyvision: tests/test_bead/test_cli_work.py
 class MultiPromptPartialLaunchError(RuntimeError):
     """Raised when one segment of a multi-prompt launch fails after others succeeded.
 

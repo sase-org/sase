@@ -75,7 +75,6 @@ class GitNameStatusEntryWire:
     path: str
 
 
-# pyvision: tests/test_core_git_query.py
 def git_query_wire_to_json_dict(record: Any) -> Any:
     """Project a Git-query wire record (or list of them) to a JSON-safe shape.
 

@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-# pyvision: tests/test_agents_tab_query_integration.py
 def apply_transient_status_overrides(
     agents: list[Agent],
     status_overrides: MutableMapping[tuple[AgentType, str, str | None], str],

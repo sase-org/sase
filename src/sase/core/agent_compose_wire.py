@@ -69,7 +69,6 @@ class AgentComposeInputWire:
     options: AgentComposeOptionsWire = field(default_factory=AgentComposeOptionsWire)
 
 
-# pyvision: tests/test_core_agent_compose.py
 @dataclass(frozen=True)
 class DropReasonWire:
     """Diagnostic describing a candidate dropped during composition."""
@@ -80,7 +79,6 @@ class DropReasonWire:
     detail: str | None = None
 
 
-# pyvision: tests/test_core_agent_compose.py
 @dataclass(frozen=True)
 class MergeReasonWire:
     """Diagnostic describing data merged from one candidate into another."""
@@ -92,7 +90,6 @@ class MergeReasonWire:
     fields: list[str] = field(default_factory=list)
 
 
-# pyvision: tests/test_core_agent_compose.py
 @dataclass(frozen=True)
 class AgentWire:
     """Stable wire projection of one ``Agent`` row."""
@@ -531,7 +528,6 @@ def _merge_reason_from_dict(data: dict[str, Any]) -> MergeReasonWire:
     )
 
 
-# pyvision: tests/test_core_agent_compose.py
 def agent_compose_input_from_dict(data: dict[str, Any]) -> AgentComposeInputWire:
     schema_version = data.get("schema_version")
     if schema_version != AGENT_COMPOSE_WIRE_SCHEMA_VERSION:

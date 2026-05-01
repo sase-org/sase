@@ -37,7 +37,6 @@ class ChangeSpecTagListing:
     skipped: list[str]
 
 
-# pyvision: public_api_methods.txt
 def list_changespec_xprompt_tags(project: str | None = None) -> ChangeSpecTagListing:
     """List active ChangeSpecs and their copyable VCS xprompt tags.
 

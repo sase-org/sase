@@ -44,7 +44,6 @@ _DELTA_GLYPH_TO_CODE = {
 }
 
 
-# pyvision: tests/test_core_wire.py
 def commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
     return CommitWire(
         number=entry.number,
@@ -59,7 +58,6 @@ def commit_entry_to_wire(entry: CommitEntry) -> CommitWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def hook_status_line_to_wire(line: HookStatusLine) -> HookStatusLineWire:
     return HookStatusLineWire(
         commit_entry_num=line.commit_entry_num,
@@ -89,7 +87,6 @@ def comment_entry_to_wire(entry: CommentEntry) -> CommentWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def mentor_status_line_to_wire(line: MentorStatusLine) -> MentorStatusLineWire:
     return MentorStatusLineWire(
         profile_name=line.profile_name,
@@ -112,7 +109,6 @@ def mentor_entry_to_wire(entry: MentorEntry) -> MentorWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def timestamp_entry_to_wire(entry: TimestampEntry) -> TimestampWire:
     return TimestampWire(
         timestamp=entry.timestamp,
@@ -121,7 +117,6 @@ def timestamp_entry_to_wire(entry: TimestampEntry) -> TimestampWire:
     )
 
 
-# pyvision: tests/test_core_wire.py
 def delta_entry_to_wire(entry: DeltaEntry) -> DeltaWire:
     # ``DeltaEntry.change_type`` is already the long form ("A"/"M"/"D"); the
     # mapping is here so callers reading raw on-disk glyphs can still produce
@@ -129,7 +124,6 @@ def delta_entry_to_wire(entry: DeltaEntry) -> DeltaWire:
     return DeltaWire(path=entry.path, change_type=entry.change_type)
 
 
-# pyvision: tests/test_core_wire.py
 def delta_glyph_to_change_type(glyph: str) -> str:
     """Translate an on-disk DELTAS glyph (``+``/``~``/``-``) to its long form."""
     try:

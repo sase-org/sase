@@ -35,7 +35,6 @@ class SourceSpanWire:
     end_line: int
 
 
-# pyvision: tests/test_core_wire.py
 @dataclass
 class SectionWire:
     """A raw section captured by line range so Python can rewrite atomically."""
@@ -136,7 +135,6 @@ class DeltaWire:
     change_type: str
 
 
-# pyvision: tests/test_core_wire.py
 @dataclass
 class RawChangeSpecWire:
     """A raw, unparsed ChangeSpec slice — exactly the bytes between
@@ -178,7 +176,6 @@ class ChangeSpecWire:
     deltas: list[DeltaWire] = field(default_factory=list)
 
 
-# pyvision: tests/test_core_wire.py
 @dataclass
 class ParseErrorWire:
     """Structured error a Rust parser may emit instead of a ChangeSpecWire."""

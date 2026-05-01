@@ -266,7 +266,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
         success = True
         try:
             await asyncio.to_thread(
-                persist_single_dismiss_transaction,
+                _persist_single_dismiss_transaction,
                 agent,
                 dismissed_snapshot,
                 agents_with_children_snapshot,
@@ -293,7 +293,7 @@ class AgentDismissingMixin(AgentDismissMemoryMixin):
                 self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
 
 
-def persist_single_dismiss_transaction(
+def _persist_single_dismiss_transaction(
     agent: Agent,
     dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],

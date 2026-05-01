@@ -442,7 +442,6 @@ class AgentArtifactScanWire:
     records: list[AgentArtifactRecordWire] = field(default_factory=list)
 
 
-# pyvision: tests/test_core_agent_scan.py
 def agent_scan_wire_to_json_dict(record: Any) -> Any:
     """Project an agent-scan wire record (or list of them) to a JSON-safe shape.
 

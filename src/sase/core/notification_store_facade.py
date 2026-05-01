@@ -17,7 +17,6 @@ from sase.core.rust import require_rust_binding
 from sase.notifications.models import Notification
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 def read_notifications_snapshot(
     path: Path | str,
     include_dismissed: bool = False,
@@ -29,7 +28,6 @@ def read_notifications_snapshot(
     return notification_snapshot_from_dict(payload)
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 def apply_notification_state_update(
     path: Path | str,
     update: NotificationStateUpdateWire | dict[str, Any],

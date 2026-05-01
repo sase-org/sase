@@ -260,7 +260,7 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
     app._dismiss_done_agent(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing.persist_single_dismiss_transaction",
+        "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
         callback, args = app._scheduled[0]

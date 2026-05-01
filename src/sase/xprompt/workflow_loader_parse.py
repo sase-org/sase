@@ -61,7 +61,7 @@ def parse_workflow_inputs(
     return inputs
 
 
-def _parse_workflow_step(
+def parse_workflow_step(
     step_data: dict[str, Any],
     index: int,
     is_nested: bool = False,
@@ -281,7 +281,7 @@ def _parse_workflow_step(
                 raise WorkflowValidationError(
                     f"Step '{name}' parallel item {nested_idx} must be a dict"
                 )
-            nested_step = _parse_workflow_step(nested_data, nested_idx, is_nested=True)
+            nested_step = parse_workflow_step(nested_data, nested_idx, is_nested=True)
 
             # Check for duplicate step names within parallel block
             if nested_step.name in nested_step_names:
@@ -312,6 +312,9 @@ def _parse_workflow_step(
         artifact=str(artifact) if artifact else None,
         on_error=on_error,  # type: ignore[arg-type]
     )
+
+
+_parse_workflow_step = parse_workflow_step
 
 
 def validate_workflow_variables(workflow: Workflow) -> None:

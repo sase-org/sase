@@ -10,7 +10,6 @@ from sase.notifications.models import Notification
 NOTIFICATION_STORE_WIRE_SCHEMA_VERSION = 1
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 @dataclass(frozen=True)
 class NotificationCountsWire:
     priority: int = 0
@@ -18,7 +17,6 @@ class NotificationCountsWire:
     muted: int = 0
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 @dataclass(frozen=True)
 class NotificationStoreStatsWire:
     total_lines: int = 0
@@ -55,7 +53,6 @@ class NotificationUpdateOutcomeWire:
     )
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 @dataclass(frozen=True)
 class NotificationAgentKeyWire:
     cl_name: str
@@ -97,7 +94,6 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
     return record
 
 
-# pyvision: tests/test_core_facade/test_notification_store.py
 def notification_from_dict(data: dict[str, Any]) -> Notification:
     return Notification(
         id=str(data["id"]),

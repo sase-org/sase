@@ -101,7 +101,6 @@ def clear_stale_maintenance(
     return None
 
 
-# pyvision: public_api_methods.txt
 @contextmanager
 def enter_maintenance(reason: str) -> Iterator[dict[str, Any]]:
     """Context manager that creates and clears an axe maintenance marker."""

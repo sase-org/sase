@@ -15,7 +15,6 @@ from .agent import Agent
 from .agent_panels import PanelKey, panel_key_per_agent
 
 
-# pyvision: tests/ace/tui/models/test_agent_panel_index.py
 @dataclass
 class PanelSlice:
     """The agents that belong to a single panel, with reverse-index maps."""

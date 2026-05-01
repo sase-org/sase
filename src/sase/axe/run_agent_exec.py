@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sase.axe.run_agent_exec_plan import (
-    _get_embedded_workflow_refs as _get_embedded_workflow_refs,
+    get_embedded_workflow_refs as _get_embedded_workflow_refs,
     handle_plan_marker,
     handle_questions_marker,
 )

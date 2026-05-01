@@ -141,7 +141,6 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-# pyvision: tests/test_bead/test_db.py
 def init_db(db_path: Path) -> sqlite3.Connection:
     """Create or open the database, ensuring schema exists."""
     conn = _connect(db_path)
@@ -152,7 +151,6 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-# pyvision: public_api_methods.txt
 def create_memory_db() -> sqlite3.Connection:
     """Create an in-memory database with the beads schema."""
     conn = sqlite3.connect(":memory:")
@@ -202,7 +200,6 @@ def _load_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependen
     ]
 
 
-# pyvision: tests/test_bead/test_db.py
 def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
     """Insert a new issue into the database."""
     issue.validate()
@@ -238,7 +235,6 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
     return issue
 
 
-# pyvision: tests/test_bead/test_db.py
 def get_issue(conn: sqlite3.Connection, issue_id: str) -> Issue | None:
     """Fetch a single issue by ID, with its dependencies."""
     row = conn.execute("SELECT * FROM issues WHERE id = ?", (issue_id,)).fetchone()
@@ -249,7 +245,6 @@ def get_issue(conn: sqlite3.Connection, issue_id: str) -> Issue | None:
     return issue
 
 
-# pyvision: tests/test_bead/test_db.py
 def list_issues(
     conn: sqlite3.Connection,
     statuses: list[Status] | None = None,
@@ -276,7 +271,6 @@ def list_issues(
     return issues
 
 
-# pyvision: tests/test_bead/test_db.py
 def update_issue(
     conn: sqlite3.Connection, issue_id: str, **fields: str | int | None
 ) -> Issue | None:
@@ -312,7 +306,6 @@ def update_issue(
     return get_issue(conn, issue_id)
 
 
-# pyvision: tests/test_bead/test_db.py
 def mark_issue_ready_to_work(
     conn: sqlite3.Connection, issue_id: str, updated_at: str
 ) -> Issue | None:
@@ -326,7 +319,6 @@ def mark_issue_ready_to_work(
     return get_issue(conn, issue_id)
 
 
-# pyvision: tests/test_bead/test_db.py
 def close_issue(
     conn: sqlite3.Connection,
     issue_id: str,
@@ -343,7 +335,6 @@ def close_issue(
     return get_issue(conn, issue_id)
 
 
-# pyvision: tests/test_bead/test_db.py
 def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     """Return open issues with no active (non-closed) blockers."""
     rows = conn.execute(
@@ -364,7 +355,6 @@ def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     return issues
 
 
-# pyvision: tests/test_bead/test_db.py
 def blocked_issues(conn: sqlite3.Connection) -> list[Issue]:
     """Return issues that have at least one active (non-closed) blocker."""
     rows = conn.execute(
@@ -382,7 +372,6 @@ def blocked_issues(conn: sqlite3.Connection) -> list[Issue]:
     return issues
 
 
-# pyvision: tests/test_bead/test_db.py
 def delete_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
     """Delete an issue by ID.
 
@@ -394,7 +383,6 @@ def delete_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
     return cursor.rowcount > 0
 
 
-# pyvision: tests/test_bead/test_db.py
 def add_dependency(
     conn: sqlite3.Connection,
     issue_id: str,
@@ -417,13 +405,11 @@ def add_dependency(
     )
 
 
-# pyvision: tests/test_bead/test_db.py
 def get_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependency]:
     """Get all dependencies for an issue."""
     return _load_dependencies(conn, issue_id)
 
 
-# pyvision: tests/test_bead/test_db.py
 def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
     """Get all child issues of an epic."""
     rows = conn.execute(
@@ -438,7 +424,6 @@ def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
     return issues
 
 
-# pyvision: tests/test_bead/test_db.py
 def stats(conn: sqlite3.Connection) -> dict[str, int]:
     """Return counts by status and type."""
     result: dict[str, int] = {}

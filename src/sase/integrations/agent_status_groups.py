@@ -30,7 +30,6 @@ class AgentStatusGroup:
     agents: list[RunningAgentInfo]
 
 
-# pyvision: public_api_methods.txt
 def agent_status_bucket(info: RunningAgentInfo) -> str:
     """Return the shared Agents-tab status bucket for a running-agent record."""
     status = info.status if isinstance(info.status, str) else None
@@ -46,7 +45,6 @@ def agent_status_bucket_glyph(bucket: str) -> str:
     return AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
 
 
-# pyvision: public_api_methods.txt
 def group_agent_statuses(
     agents: Iterable[RunningAgentInfo],
 ) -> list[AgentStatusGroup]:

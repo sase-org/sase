@@ -40,7 +40,6 @@ class _MultiAgentXPromptError(ValueError):
     """Base class for multi-agent xprompt expansion errors."""
 
 
-# pyvision: tests/test_multi_agent_xprompt.py
 class MultiAgentXPromptUsageError(_MultiAgentXPromptError):
     """Raised when a multi-agent xprompt is referenced mid-segment.
 
@@ -51,7 +50,6 @@ class MultiAgentXPromptUsageError(_MultiAgentXPromptError):
     """
 
 
-# pyvision: tests/test_multi_agent_xprompt.py
 class MultiAgentXPromptDepthError(_MultiAgentXPromptError):
     """Raised when recursive multi-agent xprompt expansion exceeds the depth cap."""
 
@@ -66,7 +64,6 @@ class _XPromptCall:
     leading_directives: list[str] = field(default_factory=list)
 
 
-# pyvision: tests/test_multi_agent_xprompt.py
 def xprompt_has_segment_separators(xp: XPrompt) -> bool:
     """Return True iff *xp*'s body contains a ``---`` line outside fenced blocks."""
     blocks: list[str] = []
@@ -98,7 +95,6 @@ def _split_leading_directives(segment: str) -> tuple[list[str], str]:
     return directives, remaining
 
 
-# pyvision: tests/test_multi_agent_xprompt.py
 def extract_top_level_xprompt_reference(
     segment: str, available: set[str]
 ) -> _XPromptCall | None:

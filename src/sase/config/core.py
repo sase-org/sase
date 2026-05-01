@@ -83,7 +83,6 @@ def current_config_token() -> tuple[Any, ...]:
     return tuple(parts)
 
 
-# pyvision: tests/conftest.py
 def clear_config_cache() -> None:
     """Drop all cached config layers.  Call from tests or explicit refresh paths."""
     global _default_config_cache, _plugin_configs_cache

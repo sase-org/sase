@@ -60,7 +60,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         changespec_context: ChangeSpecLaunchContext | None = None
         if issue.changespec_name:
             try:
-                changespec_context = _resolve_changespec_launch_context(
+                changespec_context = resolve_changespec_launch_context(
                     changespec_name=issue.changespec_name,
                     bug_id=issue.changespec_bug_id,
                 )
@@ -68,7 +68,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 print(f"Error: {e}", file=sys.stderr)
                 sys.exit(1)
 
-        collisions = _find_live_name_collisions(plan)
+        collisions = find_live_name_collisions(plan)
         if collisions and not dry_run:
             print(
                 "Error: refusing to launch; these phase agent names are still live:",
@@ -95,7 +95,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 f"Epic {args.id} is already ready; retrying remaining "
                 "non-closed phases."
             )
-        _print_work_plan_summary(args.id, issue.title, plan)
+        print_work_plan_summary(args.id, issue.title, plan)
 
         if dry_run:
             if collisions:
@@ -109,7 +109,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             print(query)
             return
 
-        if not yes and not _confirm_launch():
+        if not yes and not confirm_launch():
             print("Aborted.")
             return
 
@@ -139,7 +139,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                     )
         except (KeyError, ValueError) as e:
             print(f"Error: pre-claim failed for epic {args.id}: {e}", file=sys.stderr)
-            _rollback_work_launch(
+            rollback_work_launch(
                 proj, args.id, claimed, unmark_ready=marked_ready_this_run
             )
             sys.exit(1)
@@ -154,7 +154,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 file=sys.stderr,
             )
             launched_pids = [r.pid for r in getattr(e, "results", [])]
-            _rollback_work_launch(
+            rollback_work_launch(
                 proj,
                 args.id,
                 claimed,
@@ -170,7 +170,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
     )
 
 
-def _resolve_changespec_launch_context(
+def resolve_changespec_launch_context(
     *,
     changespec_name: str,
     bug_id: str,
@@ -212,22 +212,22 @@ def _resolve_changespec_launch_context(
     )
 
 
-def _expected_agent_names(plan: EpicWorkPlan) -> set[str]:
+def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
     names = {a.agent_name for wave in plan.waves for a in wave}
     names.add(plan.land_agent_name)
     return names
 
 
-def _find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
+def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     """Return ``{agent_name: artifact_dir}`` for plan names owned by live agents."""
     from sase.agent.names import get_live_agent_name_map
 
-    expected = _expected_agent_names(plan)
+    expected = expected_agent_names(plan)
     live = get_live_agent_name_map()
     return {name: live[name] for name in expected if name in live}
 
 
-def _print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
+def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
     phase_count = sum(len(w) for w in plan.waves)
     wave_count = len(plan.waves)
     print(
@@ -241,12 +241,12 @@ def _print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> No
         print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
 
 
-def _confirm_launch() -> bool:
+def confirm_launch() -> bool:
     answer = input("Launch these agents? [y/N] ").strip().lower()
     return answer in ("y", "yes")
 
 
-def _rollback_work_launch(
+def rollback_work_launch(
     proj: BeadProject,
     epic_id: str,
     claimed: list[tuple[str, Status, str]],

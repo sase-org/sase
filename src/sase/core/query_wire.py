@@ -137,7 +137,6 @@ class QueryProgramWire:
     ast: QueryExprWire
 
 
-# pyvision: tests/test_core_query_golden_errors.py
 @dataclass(frozen=True)
 class QueryErrorWire:
     """Structured error a Rust query implementation may emit.
@@ -181,7 +180,6 @@ EXPR_KIND_AND = "and"
 EXPR_KIND_OR = "or"
 
 
-# pyvision: tests/test_core_query_golden_wire.py
 def query_wire_to_json_dict(record: Any) -> Any:
     """Project a query wire record (or list of them) to a JSON-safe shape.
 

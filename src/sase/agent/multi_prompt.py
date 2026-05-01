@@ -91,7 +91,6 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     )
 
 
-# pyvision: xprompts/pylimit_split.yml
 def build_wait_chained_multi_prompt(prompts: list[str]) -> str:
     """Join *prompts* into a multi-prompt where every segment after the first
     starts with a ``%wait`` directive.

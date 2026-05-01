@@ -65,7 +65,6 @@ def get_last_keypress() -> float | None:
         return None
 
 
-# pyvision: public_api_methods.txt
 def get_tui_last_activity() -> float | None:
     """Return the epoch stored in the activity file, or ``None``."""
     try:
@@ -164,7 +163,6 @@ def _is_tui_running() -> bool:
     return True
 
 
-# pyvision: public_api_methods.txt
 def is_idle() -> bool:
     """Return True if the user is idle.
 

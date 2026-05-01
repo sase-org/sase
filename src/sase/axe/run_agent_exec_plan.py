@@ -88,7 +88,7 @@ def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
         pass
 
 
-def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
+def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     """Reconstruct non-VCS embedded workflow refs from artifacts metadata.
 
     Reads embedded_workflows.json (written during workflow expansion before
@@ -136,6 +136,9 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     if not refs:
         return ""
     return " ".join(refs) + " "
+
+
+_get_embedded_workflow_refs = get_embedded_workflow_refs
 
 
 def _update_coder_model_meta(
@@ -344,9 +347,7 @@ def handle_plan_marker(
     # Reconstruct non-VCS embedded workflow refs (e.g. #propose,
     # #commit) to append after the main prompt so their post-steps
     # run after the follow-up agent.
-    embedded_refs = _get_embedded_workflow_refs(
-        state.current_artifacts_dir, ctx.vcs_tag
-    )
+    embedded_refs = get_embedded_workflow_refs(state.current_artifacts_dir, ctx.vcs_tag)
 
     # Use coder_model override from plan approval if provided,
     # otherwise inherit the planner's model.

@@ -65,7 +65,6 @@ def scan_agent_artifacts(
     return agent_scan_wire_from_dict(payload)
 
 
-# pyvision: tests/test_core_agent_scan.py
 def with_options(
     base: AgentArtifactScanOptionsWire,
     **overrides: Any,

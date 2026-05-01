@@ -18,7 +18,7 @@ from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import UNSET, InputArg, InputType
 from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_parse import (
-    _parse_workflow_step as _parse_workflow_step,
+    parse_workflow_step as _parse_workflow_step,
     parse_workflow_inputs,
     validate_workflow_variables,
 )

@@ -78,7 +78,6 @@ def _parse_git_name_status_z_python(stdout: str) -> list[GitNameStatusEntryWire]
     return result
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_name_status_z_python(stdout: str) -> list[tuple[str, str]]:
     """Public Python golden-contract implementation of :func:`parse_git_name_status_z`.
 
@@ -109,7 +108,6 @@ def parse_git_name_status_z(stdout: str) -> list[tuple[str, str]]:
     ]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_numstat_z_python(stdout: str) -> list[tuple[str, str, str]]:
     """Parse ``git diff --numstat -z`` output.
 
@@ -159,7 +157,6 @@ def parse_git_numstat_z(stdout: str) -> list[tuple[str, str, str]]:
     return parse_git_numstat_z_python(stdout)
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_branch_name_python(stdout: str) -> str | None:
     """Pure-Python golden-contract implementation of :func:`parse_git_branch_name`."""
     name = stdout.strip()
@@ -180,7 +177,6 @@ def parse_git_branch_name(stdout: str) -> str | None:
     return binding(stdout)  # type: ignore[no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def derive_git_workspace_name_python(
     remote_url: str | None, root_path: str | None
 ) -> str | None:
@@ -219,7 +215,6 @@ def derive_git_workspace_name(
     return binding(remote_url, root_path)  # type: ignore[no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_conflicted_files_python(stdout: str) -> list[str]:
     """Pure-Python golden-contract implementation of :func:`parse_git_conflicted_files`."""
     return [line for line in stdout.split("\n") if line.strip()]
@@ -238,7 +233,6 @@ def parse_git_conflicted_files(stdout: str) -> list[str]:
     return binding(stdout)  # type: ignore[no-any-return]
 
 
-# pyvision: tests/test_core_git_query.py
 def parse_git_local_changes_python(stdout: str) -> str | None:
     """Pure-Python golden-contract implementation of :func:`parse_git_local_changes`."""
     text = stdout.strip()
