@@ -1,6 +1,7 @@
 """Prompt history selection modal with filtering for the ace TUI."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
 
 from sase.history.prompt import PromptEntry, get_prompts_for_fzf
@@ -13,6 +14,10 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .base import FilterInput, OptionListNavigationMixin
+
+_LAST_USED_WIDTH = 11
+_CONTEXT_WIDTH = 24
+_PROMPT_PREVIEW_WIDTH = 72
 
 
 class PromptHistoryAction(Enum):
@@ -36,8 +41,70 @@ class _PromptDisplayItem:
     """Wrapper for prompt entry with display info."""
 
     entry: PromptEntry
-    marker: str  # "*", "~", " ", or "✗"
-    display_branch: str  # Padded branch name
+    marker: str  # "*", "~", " ", or "x"
+    display_context: str  # Compact branch/workspace context
+
+
+def _normalize_prompt_preview(prompt: str) -> str:
+    """Return the first prompt line with whitespace collapsed."""
+    lines = prompt.splitlines()
+    first_line = lines[0] if lines else ""
+    return " ".join(first_line.split())
+
+
+def _ellipsize_right(value: str, width: int) -> str:
+    """Trim text to width, reserving space for an ellipsis when possible."""
+    if width <= 0:
+        return ""
+    if len(value) <= width:
+        return value
+    if width <= 3:
+        return "." * width
+    return f"{value[: width - 3]}..."
+
+
+def _format_history_timestamp(timestamp: str) -> str:
+    """Format SASE history timestamps as compact MM-DD HH:MM values."""
+    raw_timestamp = timestamp.strip()
+    try:
+        return datetime.strptime(raw_timestamp, "%y%m%d_%H%M%S").strftime("%m-%d %H:%M")
+    except ValueError:
+        return raw_timestamp[:_LAST_USED_WIDTH].ljust(_LAST_USED_WIDTH)
+
+
+def _create_prompt_history_label(item: _PromptDisplayItem) -> Text:
+    """Create a single-line styled label for a prompt history item."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    is_cancelled = item.entry.cancelled or item.marker == "x"
+
+    if is_cancelled:
+        text.append("x ", style="magenta")
+    elif item.marker == "*":
+        text.append("* ", style="bold green")
+    elif item.marker == "~":
+        text.append("~ ", style="bold yellow")
+    else:
+        text.append("  ")
+
+    metadata_style = "dim italic" if is_cancelled else "dim"
+    context_style = "dim italic" if is_cancelled else "dim cyan"
+    prompt_style = "dim italic" if is_cancelled else ""
+
+    last_used = _format_history_timestamp(item.entry.last_used)
+    context = _ellipsize_right(item.display_context, _CONTEXT_WIDTH).ljust(
+        _CONTEXT_WIDTH
+    )
+    prompt = _ellipsize_right(
+        _normalize_prompt_preview(item.entry.text), _PROMPT_PREVIEW_WIDTH
+    )
+
+    text.append(last_used, style=metadata_style)
+    text.append(" ", style="dim")
+    text.append(context, style=context_style)
+    text.append("  ", style="dim")
+    text.append(prompt, style=prompt_style)
+
+    return text
 
 
 class PromptHistoryModal(
@@ -85,22 +152,18 @@ class PromptHistoryModal(
         if not items:
             return
 
-        # Calculate max branch length for alignment
-        max_branch_len = max(len(entry.branch_or_workspace) for _, entry in items)
-
         for display_str, entry in items:
             if entry.cancelled:
-                marker = "✗"
+                marker = "x"
             else:
                 # Parse marker from display string (first char)
                 marker = display_str[0] if display_str else " "
-            display_branch = entry.branch_or_workspace.ljust(max_branch_len)
 
             self._all_items.append(
                 _PromptDisplayItem(
                     entry=entry,
                     marker=marker,
-                    display_branch=display_branch,
+                    display_context=entry.branch_or_workspace,
                 )
             )
 
@@ -159,38 +222,13 @@ class PromptHistoryModal(
             text.append("= current branch")
         if include_cancelled:
             text.append("  ")
-            text.append("✗ ", style="magenta")
+            text.append("x ", style="magenta")
             text.append("= cancelled")
         return text
 
     def _create_styled_label(self, item: _PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
-        text = Text()
-        is_cancelled = item.marker == "✗"
-
-        # Color-coded marker
-        if is_cancelled:
-            text.append("✗ ", style="magenta")
-        elif item.marker == "*":
-            text.append("* ", style="bold green")
-        elif item.marker == "~":
-            text.append("~ ", style="bold yellow")
-        else:
-            text.append("  ")
-
-        # Branch/workspace name
-        branch_style = "dim" if is_cancelled else "dim cyan"
-        text.append(item.display_branch, style=branch_style)
-        text.append(" | ", style="dim")
-
-        # Truncated prompt preview
-        preview = item.entry.text.replace("\n", " ").replace("\r", " ")
-        if len(preview) > 40:
-            preview = preview[:40] + "..."
-        preview_style = "dim italic" if is_cancelled else ""
-        text.append(preview, style=preview_style)
-
-        return text
+        return _create_prompt_history_label(item)
 
     def _create_options(self, items: list[_PromptDisplayItem]) -> list[Option]:
         """Create options from prompt items."""
