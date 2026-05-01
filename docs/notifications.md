@@ -150,7 +150,8 @@ See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI ref
 
 ## Storage
 
-Notifications are stored in JSONL format at `~/.sase/notifications/notifications.jsonl`. File locking (via `fcntl`) is
-used for concurrent read/write safety, since multiple axe processes and the TUI may access the file simultaneously.
+Notifications are stored in JSONL format at `~/.sase/notifications/notifications.jsonl`. The production store backend is
+`sase_core_rs`: appends and state mutations take a shared sidecar lock, and rewrites use a tempfile plus rename so
+multiple axe processes and the TUI can access the file without truncate-before-lock exposure.
 
 Source: `src/sase/notifications/`

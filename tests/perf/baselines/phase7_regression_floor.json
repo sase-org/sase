@@ -4,7 +4,7 @@
   "captured_from": "plans/202604/perf_artifacts/rust_backend_phase7_<surface>_summary.json",
   "git_sha_at_capture": "e0f3b4a9f0f4",
   "capture_machine": "Linux x86_64, Python 3.14.3, sase_core_rs default install",
-  "comment": "Phase 7E (sase-1e.5) regression-floor baseline; updated in Phase 8F when the Python halves of parser_facade, query_facade.parse_query, and agent_scan_facade were deleted. Surfaces that previously paired Rust against a live Python median now run only the absolute Rust ceiling check (must_beat_python flipped to false) — the historical phase7b_python_median_s fields stay so future tooling can still pivot on them. Anchors are the stable subset Phase 7B recommended: parse_project_bytes (golden + synthetic_200), parse_query parse-only direct, scan_agent_artifacts synthetic 6p/200pp scan_facade, and apply_status_update golden_myproj_pure (must-not-regress-further guard).",
+  "comment": "Phase 7E (sase-1e.5) regression-floor baseline; updated in Phase 8F when the Python halves of parser_facade, query_facade.parse_query, and agent_scan_facade were deleted, then extended by notification-store migration Phase 7 (sase-1n.7). Surfaces that previously paired Rust against a live Python median now run only the absolute Rust ceiling check (must_beat_python flipped to false) — historical phase7b_python_median_s fields stay so future tooling can still pivot on them. Core anchors are the stable subset Phase 7B recommended: parse_project_bytes (golden + synthetic_200), parse_query parse-only direct, scan_agent_artifacts synthetic 6p/200pp scan_facade, and apply_status_update golden_myproj_pure (must-not-regress-further guard). Notification anchors pin Rust-backed JSONL snapshot, mutation, modal dismiss, and append/rewrite concurrency surfaces from plans/202604/notification_rust_migration.md Phase 7.",
   "tolerance": {
     "rust_slowdown_factor": 1.4,
     "comment": "Rust median may be up to 40% slower than the Phase 7B captured Rust median before failing. The 40% headroom (above the plan's 25-35% recommendation) covers GitHub-hosted runner variance vs the Phase 7B capture machine; tighten in Phase 7F or later once we have CI history showing the data is stable. The relative 'must_beat_python' check is hardware-independent and runs on the same machine in the same process, so it stays at parity (no slack)."
@@ -59,6 +59,56 @@
       "phase7b_rust_median_s": 5.801033694297075e-06,
       "must_beat_python": false,
       "rationale": "Must-not-regress-further guard, not a must-beat-python anchor. Phase 7B showed Rust at parity with Python on this golden workload (~5.8 vs ~5.6 us); the synthetic_200_specs version regresses by ~30% but is too noisy to anchor on. This anchor catches the case where Rust suddenly drops below the recorded floor on an absolute-time basis."
+    },
+    {
+      "id": "notification_store.synthetic_5k.notification_store_5k_load_snapshot",
+      "surface": "notification_store",
+      "workload": "synthetic_5k",
+      "scenario": "notification_store_5k_load_snapshot",
+      "phase7b_python_median_s": 0.0127,
+      "phase7b_rust_median_s": 0.013190,
+      "must_beat_python": false,
+      "rationale": "Rust-backed snapshot/count load anchor for the deterministic 5k notification corpus. Phase 1 Python median was 12.700 ms; Phase 7 Rust median was 13.190 ms on this workspace, so this is an absolute ceiling guard rather than a must-beat-python gate."
+    },
+    {
+      "id": "notification_store.synthetic_5k.notification_store_5k_mark_dismissed_burst",
+      "surface": "notification_store",
+      "workload": "synthetic_5k",
+      "scenario": "notification_store_5k_mark_dismissed_burst",
+      "phase7b_python_median_s": 5.857335,
+      "phase7b_rust_median_s": 4.865040,
+      "must_beat_python": false,
+      "rationale": "Rust-backed one-at-a-time dismiss burst over the deterministic 5k corpus. Phase 7 Rust was materially faster than the Phase 1 Python median (4.865 s vs 5.857 s) while using the production lock/tempfile/rename write path."
+    },
+    {
+      "id": "notification_store.synthetic_5k.notification_store_5k_mark_all_read",
+      "surface": "notification_store",
+      "workload": "synthetic_5k",
+      "scenario": "notification_store_5k_mark_all_read",
+      "phase7b_python_median_s": 0.079459,
+      "phase7b_rust_median_s": 0.071685,
+      "must_beat_python": false,
+      "rationale": "Rust-backed full-store read-state mutation over the deterministic 5k corpus. Phase 7 Rust was faster than the Phase 1 Python median (71.685 ms vs 79.459 ms)."
+    },
+    {
+      "id": "notification_store.synthetic_5k.notification_store_append_plus_rewrite_concurrency",
+      "surface": "notification_store",
+      "workload": "synthetic_5k",
+      "scenario": "notification_store_append_plus_rewrite_concurrency",
+      "phase7b_python_median_s": 0.16046,
+      "phase7b_rust_median_s": 1.940894,
+      "must_beat_python": false,
+      "rationale": "Correctness-first concurrency anchor for append racing a rewrite on the 5k corpus. The Rust path is intentionally serialized through one sidecar lock and tempfile rename, so Phase 7 treats the slower median as the cost of eliminating truncate-before-lock empty-file/lost-row exposure."
+    },
+    {
+      "id": "notification_store.synthetic_5k.notification_modal_dismiss_burst",
+      "surface": "notification_store",
+      "workload": "synthetic_5k",
+      "scenario": "notification_modal_dismiss_burst",
+      "phase7b_python_median_s": 3.186558,
+      "phase7b_rust_median_s": 3.186558,
+      "must_beat_python": false,
+      "rationale": "Notification modal dismiss burst anchor over a loaded 5k inbox with production Rust-backed persistence. No Phase 1 Python modal baseline was captured, so this guards the Phase 7 Rust median as an absolute ceiling."
     }
   ]
 }

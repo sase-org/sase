@@ -65,6 +65,7 @@ _HARNESS_FOR_SURFACE: Mapping[str, str] = {
     "read_status_from_lines": "status_state_machine",
     "apply_status_update": "status_state_machine",
     "plan_status_transition": "status_state_machine",
+    "notification_store": "notification_store",
 }
 
 
@@ -159,6 +160,7 @@ class _HarnessConfig:
     core_query: Mapping[str, Any]
     agent_scan: Mapping[str, Any]
     status_state_machine: Mapping[str, Any]
+    notification_store: Mapping[str, Any]
 
 
 _DEFAULT_CONFIG = _HarnessConfig(
@@ -178,18 +180,18 @@ _DEFAULT_CONFIG = _HarnessConfig(
         "num_specs": 200,
         "transition_runs": 5,
     },
+    notification_store={"runs": 3, "warmup": 1, "count": 5_000},
 )
 
-# Even smaller config for local smoke runs / unit tests. Numbers here are
-# chosen for speed; the relative floor check still works because it
-# compares medians produced in the same run.
+# Smoke runs keep the workload labels compatible with the committed
+# anchors, but use fewer samples than the default CI-style floor.
 _SMOKE_CONFIG = _HarnessConfig(
-    core_parse={"runs": 3, "warmup": 1, "num_specs": 20},
+    core_parse={"runs": 3, "warmup": 1, "num_specs": 200},
     core_query={"runs": 3, "warmup": 1, "spec_sizes": (50,)},
     agent_scan={
-        "projects": 2,
-        "per_project": 5,
-        "workflow_fraction": 0.5,
+        "projects": 6,
+        "per_project": 200,
+        "workflow_fraction": 0.25,
         "runs": 3,
         "warmup": 1,
         "include_home": False,
@@ -200,6 +202,7 @@ _SMOKE_CONFIG = _HarnessConfig(
         "num_specs": 20,
         "transition_runs": 2,
     },
+    notification_store={"runs": 1, "warmup": 1, "count": 5_000},
 )
 
 
@@ -233,6 +236,11 @@ def _run_required_harnesses(
     if "status_state_machine" in harnesses:
         print("\n==== Phase 7E floor: bench_status_state_machine ====")
         by_surface.update(_bench_status_state_machine(**cfg.status_state_machine))
+    if "notification_store" in harnesses:
+        from tests.perf.bench_notification_store import run_phase7_floor_payload
+
+        print("\n==== Phase 7 floor: bench_notification_store ====")
+        by_surface.update(run_phase7_floor_payload(**cfg.notification_store))
 
     return by_surface
 

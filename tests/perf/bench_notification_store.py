@@ -1,8 +1,8 @@
-"""Benchmark notification-store Python baselines for the Rust migration.
+"""Benchmark notification-store regression surfaces for the Rust migration.
 
-Phase 1 of ``plans/202604/notification_rust_migration.md``. These workloads
-define the contract future Rust implementations must preserve while making the
-current Python cost visible:
+Phase 1 of ``plans/202604/notification_rust_migration.md`` used these
+workloads to capture the Python baseline. Phase 7 reuses the same harness as
+the Rust-backed regression-floor source:
 
 - ``notification_store_5k_load_snapshot``: load and classify a 5k JSONL corpus.
 - ``notification_store_5k_mark_dismissed_burst``: mark a burst of agent
@@ -10,6 +10,8 @@ current Python cost visible:
 - ``notification_store_5k_mark_all_read``: run the current full-file read/rewrite.
 - ``notification_store_append_plus_rewrite_concurrency``: race append and
   rewrite operations and validate the resulting JSONL remains parseable.
+- ``notification_modal_dismiss_burst``: drive the modal dismiss action against a
+  loaded 5k inbox while persistence uses the production store backend.
 
 Run directly with::
 
@@ -48,6 +50,7 @@ from sase.notifications.store import (
 
 pytestmark = pytest.mark.slow
 REPO_ROOT = Path(__file__).resolve().parents[2]
+FLOOR_WORKLOAD_LABEL = "synthetic_5k"
 
 
 def _notification_fixture_module() -> Any:
@@ -165,6 +168,19 @@ def _run_append_plus_rewrite_race() -> int:
     return len(load_notifications(include_dismissed=True))
 
 
+def _run_modal_dismiss_burst() -> int:
+    from sase.ace.tui.modals.notification_modal import NotificationModal
+
+    notifications = load_notifications()
+    modal = NotificationModal(notifications)
+    modal._rebuild_list = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    dismissed = 0
+    while modal._notifications and dismissed < 25:
+        modal._dismiss_notification_by_index(0)
+        dismissed += 1
+    return dismissed
+
+
 def run_bench(
     *,
     runs: int,
@@ -213,6 +229,11 @@ def run_bench(
                 runs=runs,
                 warmup=warmup,
             ),
+            "notification_modal_dismiss_burst": _time_calls(
+                with_fresh_store(_run_modal_dismiss_burst),
+                runs=runs,
+                warmup=warmup,
+            ),
         }
 
     report = {
@@ -225,6 +246,27 @@ def run_bench(
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     return report
+
+
+def run_phase7_floor_payload(
+    *,
+    runs: int,
+    warmup: int,
+    count: int,
+) -> dict[str, Any]:
+    """Return a Phase 7 checker-compatible payload for notification anchors."""
+    report = run_bench(runs=runs, warmup=warmup, count=count)
+    return {
+        "notification_store": {
+            "workloads": [
+                {
+                    "label": FLOOR_WORKLOAD_LABEL,
+                    "baseline": {},
+                    "candidate": report["scenarios"],
+                }
+            ]
+        }
+    }
 
 
 def _print_human(report: dict[str, Any]) -> None:
@@ -248,7 +290,15 @@ def test_bench_smoke() -> None:
         "notification_store_5k_mark_dismissed_burst",
         "notification_store_5k_mark_all_read",
         "notification_store_append_plus_rewrite_concurrency",
+        "notification_modal_dismiss_burst",
     }
+
+
+def test_phase7_floor_payload_shape() -> None:
+    payload = run_phase7_floor_payload(runs=1, warmup=0, count=100)
+    workload = payload["notification_store"]["workloads"][0]
+    assert workload["label"] == FLOOR_WORKLOAD_LABEL
+    assert "notification_modal_dismiss_burst" in workload["candidate"]
 
 
 def main(argv: list[str] | None = None) -> int:
