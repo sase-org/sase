@@ -38,6 +38,7 @@ from .chop_agents import (
     record_chop_agent_launch_result,
 )
 from .config import AxeConfig, ChopConfig, LumberjackConfig
+from .maintenance import clear_stale_maintenance, read_maintenance
 from .state import (
     AxeMetrics,
     LumberjackMetrics,
@@ -131,6 +132,26 @@ class Lumberjack:
     def _run_tick(self) -> None:
         """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
         _tick_start = time.monotonic()
+        stale_marker = clear_stale_maintenance()
+        if stale_marker is not None:
+            self._log(
+                "Cleared stale axe maintenance marker "
+                f"(reason: {stale_marker.get('reason', 'unknown')})"
+            )
+
+        maintenance = read_maintenance()
+        if maintenance is not None:
+            tick_duration = time.monotonic() - _tick_start
+            self._log(
+                "Skipping tick during axe maintenance "
+                f"(reason: {maintenance.get('reason')}, "
+                f"pid: {maintenance.get('pid')})"
+            )
+            self._metrics.cycles_run += 1
+            AXE_CYCLES.labels(cycle_type=self.name).inc()
+            AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
+            return
+
         all_changespecs = self._check_runner.get_all_changespecs()
         filtered_changespecs = self._check_runner.get_filtered_changespecs(
             all_changespecs

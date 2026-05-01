@@ -13,6 +13,7 @@ import pytest
 from sase.axe.chop_agents import ENV_CHOP_NAME
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
+from sase.axe.maintenance import clear_maintenance, start_maintenance
 from tests._axe_lumberjack_fixtures import fail_result, ok_result
 
 
@@ -106,6 +107,57 @@ def test_run_tick_error_handling(
     lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
     lumberjack._run_tick()
 
+    assert lumberjack._metrics.errors_encountered == 1
+    assert lumberjack._metrics.cycles_run == 1
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_skips_without_error_during_maintenance(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """Maintenance skips the tick before chops run and does not record an error."""
+    start_maintenance("install_sase_github")
+
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._run_tick()
+
+    mock_find.assert_not_called()
+    mock_discover.assert_not_called()
+    mock_run.assert_not_called()
+    assert lumberjack._metrics.errors_encountered == 0
+    assert lumberjack._metrics.chops_executed == 0
+    assert lumberjack._metrics.cycles_run == 1
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_resumes_after_maintenance_cleared(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """Clearing maintenance restores normal chop execution and error handling."""
+    start_maintenance("install_sase_github")
+    clear_maintenance()
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = fail_result()
+
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    lumberjack._run_tick()
+
+    assert mock_find.call_count == 1
+    assert mock_run.call_count == 1
     assert lumberjack._metrics.errors_encountered == 1
     assert lumberjack._metrics.cycles_run == 1
 

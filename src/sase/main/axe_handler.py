@@ -20,12 +20,14 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_chop(args)
     elif axe_sub == "lumberjack":
         _handle_lumberjack(args)
+    elif axe_sub == "maintenance":
+        _handle_maintenance(args)
     elif axe_sub == "start":
         _handle_start(args)
     elif axe_sub == "stop":
         _handle_stop()
     else:
-        print("Usage: sase axe {chop,lumberjack,start,stop}")
+        print("Usage: sase axe {chop,lumberjack,maintenance,start,stop}")
         sys.exit(1)
 
 
@@ -61,6 +63,45 @@ def _handle_lumberjack(args: argparse.Namespace) -> None:
     else:
         print("Usage: sase axe lumberjack {list,run,status}")
         sys.exit(1)
+
+
+def _handle_maintenance(args: argparse.Namespace) -> None:
+    """Handle 'sase axe maintenance' subcommands."""
+    from sase.axe.maintenance import (
+        clear_maintenance,
+        read_maintenance,
+        start_maintenance,
+    )
+
+    maintenance_sub = getattr(args, "axe_maintenance_subcommand", None)
+    if maintenance_sub == "enter":
+        started_marker = start_maintenance(str(args.reason))
+        print(
+            "Axe maintenance mode enabled "
+            f"(reason: {started_marker['reason']}, pid: {started_marker['pid']})"
+        )
+        sys.exit(0)
+    if maintenance_sub == "exit":
+        if clear_maintenance():
+            print("Axe maintenance mode disabled")
+        else:
+            print("Axe maintenance mode was not active")
+        sys.exit(0)
+    if maintenance_sub == "status":
+        active_marker = read_maintenance()
+        if active_marker is None:
+            print("Axe maintenance mode is not active")
+            sys.exit(1)
+        print(
+            "Axe maintenance mode is active "
+            f"(reason: {active_marker['reason']}, "
+            f"pid: {active_marker['pid']}, "
+            f"started_at: {active_marker['started_at']})"
+        )
+        sys.exit(0)
+
+    print("Usage: sase axe maintenance {enter,exit,status}")
+    sys.exit(1)
 
 
 def _handle_start(args: argparse.Namespace) -> None:

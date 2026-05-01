@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 01:54:59
-status: wip
+status: done
 ---
 # Plan: Make `install_sase_github` Safe While Axe Is Running
 

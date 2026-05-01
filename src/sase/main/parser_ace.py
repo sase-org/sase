@@ -160,6 +160,26 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "status", help="Show status of all lumberjacks"
     )
 
+    # --- axe maintenance ---
+    axe_maintenance_parser = axe_subparsers.add_parser(
+        "maintenance", help="Manage axe maintenance mode"
+    )
+    axe_maintenance_subparsers = axe_maintenance_parser.add_subparsers(
+        dest="axe_maintenance_subcommand", help="Maintenance subcommands"
+    )
+
+    axe_maintenance_enter_parser = axe_maintenance_subparsers.add_parser(
+        "enter", help="Enter maintenance mode"
+    )
+    axe_maintenance_enter_parser.add_argument(
+        "-r",
+        "--reason",
+        required=True,
+        help="Reason for entering maintenance mode",
+    )
+    axe_maintenance_subparsers.add_parser("exit", help="Exit maintenance mode")
+    axe_maintenance_subparsers.add_parser("status", help="Show maintenance status")
+
     # --- axe start ---
     axe_start_parser = axe_subparsers.add_parser(
         "start", help="Start the axe orchestrator (spawns all lumberjacks)"
