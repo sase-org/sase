@@ -294,6 +294,22 @@ def _find_workload(
     return None
 
 
+def _baseline_scenario_for_anchor(spec: _AnchorSpec) -> str:
+    """Return the Python scenario row to compare against this anchor.
+
+    Most anchors use the same backend-neutral scenario name on both sides.
+    The persistent query-corpus product row is different: the Rust candidate
+    is named for the shipped persistent route, while the comparable Python
+    baseline remains the batch facade row.
+    """
+    if (
+        spec.surface == "evaluate_query_many"
+        and spec.scenario == "persistent_query_keystroke"
+    ):
+        return "facade"
+    return spec.scenario
+
+
 def _extract_medians(
     *,
     by_surface: Mapping[str, Mapping[str, Any]],
@@ -313,11 +329,12 @@ def _extract_medians(
         return None, None, notes
     baseline = workload.get("baseline") or {}
     candidate = workload.get("candidate") or {}
-    py_summary = baseline.get(spec.scenario)
+    baseline_scenario = _baseline_scenario_for_anchor(spec)
+    py_summary = baseline.get(baseline_scenario)
     rust_summary = candidate.get(spec.scenario)
     if not py_summary:
         notes.append(
-            f"scenario {spec.scenario!r} missing from baseline (python) summaries"
+            f"scenario {baseline_scenario!r} missing from baseline (python) summaries"
         )
     if not rust_summary:
         notes.append(

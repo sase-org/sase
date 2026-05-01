@@ -161,6 +161,37 @@ class TestExtractMedians:
         assert py == pytest.approx(2.0e-4)
         assert notes == []
 
+    def test_query_corpus_anchor_compares_against_python_batch_facade(self) -> None:
+        spec = _make_spec(
+            surface="evaluate_query_many",
+            workload="synthetic_1000_specs",
+            scenario="persistent_query_keystroke",
+            rust_med=6.0e-5,
+            py_med=3.0e-3,
+        )
+        by_surface = {
+            "evaluate_query_many": {
+                "workloads": [
+                    {
+                        "label": "synthetic_1000_specs",
+                        "baseline": {
+                            "facade": {"count": 20, "median_ms": 3.0},
+                        },
+                        "candidate": {
+                            "persistent_query_keystroke": {
+                                "count": 20,
+                                "median_ms": 0.06,
+                            },
+                        },
+                    }
+                ]
+            }
+        }
+        rust, py, notes = _extract_medians(by_surface=by_surface, spec=spec)
+        assert rust == pytest.approx(6.0e-5)
+        assert py == pytest.approx(3.0e-3)
+        assert notes == []
+
     def test_records_missing_workload(self) -> None:
         spec = _make_spec(workload="missing_workload")
         by_surface = {"parse_project_bytes": {"workloads": []}}

@@ -56,6 +56,15 @@ from .fixtures import (
 pytestmark = pytest.mark.slow
 
 _DEFAULT_J_KEYS = 50
+_QUERY_EDIT_SEQUENCE: tuple[str, ...] = (
+    '"cs_0"',
+    '"cs_00"',
+    '"cs_000"',
+    '"cs_0001"',
+    '"cs_0002"',
+    "status:Ready",
+    "status:Draft",
+)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -140,6 +149,14 @@ async def _run_scenario(
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=fixture.changespecs
     ):
+
+        def _apply_query(query: str) -> None:
+            from sase.ace.query import parse_query
+
+            app.query_string = query
+            app.parsed_query = parse_query(query)  # type: ignore[assignment]
+            app._load_changespecs()  # type: ignore[attr-defined]
+
         # Cold start
         _mark_start("cold_start")
         app = AceApp(query="!!!", auto_start_axe=False)
@@ -149,16 +166,20 @@ async def _run_scenario(
 
             # Query change: filter to a subset
             _mark_start("query_change")
-            from sase.ace.query import parse_query
-
-            app.parsed_query = parse_query('"cs_0"')  # type: ignore[assignment]
-            app._load_changespecs()  # type: ignore[attr-defined]
+            _apply_query('"cs_0"')
             await pilot.pause()
             _mark("query_change")
 
-            # Reset query so subsequent scenarios have full list
-            app.parsed_query = parse_query("!!!")  # type: ignore[assignment]
-            app._load_changespecs()  # type: ignore[attr-defined]
+            # Repeated query edits: exercise the product filter route with
+            # one cached ChangeSpec corpus and multiple query programs.
+            _mark_start("repeated_query_edits")
+            for query in _QUERY_EDIT_SEQUENCE:
+                _apply_query(query)
+                await pilot.pause()
+            _mark("repeated_query_edits")
+
+            # Reset query so subsequent scenarios have full list.
+            _apply_query("!!!")
             await pilot.pause()
 
             # 50-key j/k burst
@@ -235,6 +256,7 @@ async def _run_full_baseline(
     baseline = {
         "version": 1,
         "j_keys_per_burst": _DEFAULT_J_KEYS,
+        "query_edit_sequence": list(_QUERY_EDIT_SEQUENCE),
         "large_reply_mb": LARGE_REPLY_SIZES_MB[0],
         "scenarios": scenarios,
     }
@@ -273,6 +295,9 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
     spans = _read_jsonl(trace_path)
     assert spans, "tui_trace.jsonl was empty — instrumentation may not be wired"
     summary = _summarize_spans(spans)
+    assert "changespec.filter" in summary, (
+        f"missing changespec.filter span; saw {sorted(summary)}"
+    )
     # The two ChangeSpec hot-path spans should always appear at this size.
     assert any(name.startswith("widget.changespec_list.") for name in summary), (
         f"missing changespec_list spans; saw {sorted(summary)}"

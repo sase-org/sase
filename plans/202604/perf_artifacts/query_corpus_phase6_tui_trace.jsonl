@@ -1,0 +1,797 @@
+{"ts": 1777606657.4849002, "event": "widget.changespec_list.watch_highlighted", "current_tab": "agents", "current_idx": 5, "highlighted": null}
+{"ts": 1777606657.4864936, "event": "widget.bgcmd_list.watch_highlighted", "current_tab": "agents", "current_idx": 5, "highlighted": null}
+{"ts": 1777606657.487418, "event": "widget.agent_list.watch_highlighted", "current_tab": "agents", "current_idx": 5, "highlighted": null}
+{"ts": 1777606657.5886173, "span": "changespec.filter", "duration_ms": 50.84242997691035, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606657.5890875, "span": "widget.changespec_list.update_list", "duration_ms": 0.14364405069500208, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606657.5904872, "span": "changespec.refresh_display", "duration_ms": 1.6005750512704253, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606657.592561, "span": "changespec.filter", "duration_ms": 0.9968930389732122, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606657.5935407, "span": "changespec.filter", "duration_ms": 0.8970919298008084, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606658.7334104, "span": "changespec.filter", "duration_ms": 53.876971011050045, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606658.7381284, "span": "widget.changespec_list.update_list", "duration_ms": 0.14106999151408672, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606658.7408009, "span": "changespec.refresh_display", "duration_ms": 2.8779529966413975, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.0230134, "span": "agents.load_from_disk", "duration_ms": 1373.3315550489351, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606659.044642, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 1}
+{"ts": 1777606659.0448656, "span": "widget.agent_list.update_list", "duration_ms": 1.6096720937639475, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606659.0469935, "span": "agents.refresh_panel_widgets", "duration_ms": 3.8226660108193755, "current_tab": "agents", "current_idx": 5, "agents": 8, "panels": 1}
+{"ts": 1777606659.0479329, "span": "agents.refresh_display", "duration_ms": 4.909771960228682, "current_tab": "agents", "current_idx": 5, "agents": 8, "list_changed": true, "defer_detail": true}
+{"ts": 1777606659.240425, "span": "widget.prompt_panel.update_display", "duration_ms": 0.5469939205795527, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606659.2407868, "span": "widget.thinking_panel.update_display", "duration_ms": 0.07436203304678202, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606659.2408597, "span": "widget.file_panel.update_display", "duration_ms": 0.007844995707273483, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606659.2409039, "span": "widget.agent_detail.update_display", "duration_ms": 1.043953001499176, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606659.4806573, "span": "changespec.filter", "duration_ms": 53.58200892806053, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.48119, "span": "widget.changespec_list.update_list", "duration_ms": 0.17905200365930796, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.4826121, "span": "changespec.refresh_display", "duration_ms": 1.6665409784764051, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.5585117, "span": "changespec.filter", "duration_ms": 48.403111984953284, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.5589693, "span": "widget.changespec_list.update_list", "duration_ms": 0.15080790035426617, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.5602355, "span": "changespec.refresh_display", "duration_ms": 1.4864070108160377, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.6335225, "span": "changespec.filter", "duration_ms": 49.14835607632995, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.634515, "span": "widget.changespec_list.update_list", "duration_ms": 0.6839960115030408, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.6357508, "span": "changespec.refresh_display", "duration_ms": 1.966614043340087, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.715757, "span": "changespec.filter", "duration_ms": 52.97517997678369, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.7162786, "span": "widget.changespec_list.update_list", "duration_ms": 0.16617693472653627, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.7176015, "span": "changespec.refresh_display", "duration_ms": 1.5366930747404695, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.7898054, "span": "changespec.filter", "duration_ms": 47.61186195537448, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.790764, "span": "widget.changespec_list.update_list", "duration_ms": 0.6905379705131054, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.7919722, "span": "changespec.refresh_display", "duration_ms": 1.9419259624555707, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.8626719, "span": "changespec.filter", "duration_ms": 46.69385799206793, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.863516, "span": "widget.changespec_list.update_list", "duration_ms": 0.5885729333385825, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606659.8646824, "span": "changespec.refresh_display", "duration_ms": 1.7929220339283347, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606659.9351733, "span": "changespec.filter", "duration_ms": 46.50960792787373, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606659.936853, "event": "widget.changespec_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 1}
+{"ts": 1777606659.9369297, "span": "widget.changespec_list.update_list", "duration_ms": 0.26544707361608744, "current_tab": "agents", "current_idx": 5, "count": 1}
+{"ts": 1777606659.9379747, "span": "widget.changespec_detail.update_display", "duration_ms": 0.18295901827514172, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606659.9409063, "span": "widget.ancestors_children.update_relationships_from_index", "duration_ms": 0.024076085537672043, "current_tab": "agents", "current_idx": 5, "count": 1611}
+{"ts": 1777606659.9412477, "span": "changespec.refresh_display", "duration_ms": 4.642101936042309, "current_tab": "agents", "current_idx": 5, "changespecs": 1}
+{"ts": 1777606660.0170338, "span": "changespec.filter", "duration_ms": 47.16700396966189, "current_tab": "agents", "current_idx": 5, "count": 1986}
+{"ts": 1777606660.0177774, "event": "widget.changespec_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": null}
+{"ts": 1777606660.0179164, "span": "widget.changespec_list.update_list", "duration_ms": 0.17454300541430712, "current_tab": "agents", "current_idx": 5, "count": 0}
+{"ts": 1777606660.019094, "span": "changespec.refresh_display", "duration_ms": 1.3939409982413054, "current_tab": "agents", "current_idx": 5, "changespecs": 0}
+{"ts": 1777606660.0478067, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606660.047946, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606660.048126, "span": "widget.agent_list.update_highlight", "duration_ms": 0.19767798949033022, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606660.0484002, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5146419862285256, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606660.0493152, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3974080318585038, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606660.0493765, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.47045794781297445, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606660.049475, "span": "agents.refresh_debounced", "duration_ms": 1.5923799946904182, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606660.138852, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606660.1390505, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606660.1392558, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22873608395457268, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606660.1395319, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5407020216807723, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606660.14044, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3301700344309211, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606660.1404922, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3889319486916065, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606660.1405926, "span": "agents.refresh_debounced", "duration_ms": 1.6044629737734795, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606660.2343812, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606660.2346334, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606660.2349095, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3064859192818403, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606660.2354143, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8575370302423835, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606660.2367857, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.42605295311659575, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606660.2368824, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5322960205376148, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606660.2370567, "span": "agents.refresh_debounced", "duration_ms": 2.505421987734735, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606660.3342206, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606660.3345032, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606660.334818, "span": "widget.agent_list.update_highlight", "duration_ms": 0.34819403663277626, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606660.3353143, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8942270651459694, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606660.3367145, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41656498797237873, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606660.3368106, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5223070038482547, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606660.336983, "span": "agents.refresh_debounced", "duration_ms": 2.568362047895789, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606660.4380398, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606660.4383209, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606660.438608, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3198899794369936, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606660.439157, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9176519233733416, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606660.4405572, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41968096047639847, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606660.4406543, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5262850318104029, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606660.4408245, "span": "agents.refresh_debounced", "duration_ms": 2.5904850335791707, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606660.5836623, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606660.5838497, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606660.584057, "span": "widget.agent_list.update_highlight", "duration_ms": 0.23096089717000723, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606660.5843246, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5323559744283557, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606660.585198, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3322240663692355, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606660.5852506, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3916280111297965, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606660.5853472, "span": "agents.refresh_debounced", "duration_ms": 1.5581740299239755, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606660.6806865, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606660.6809604, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606660.6812336, "span": "widget.agent_list.update_highlight", "duration_ms": 0.30438194517046213, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606660.6817188, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8363969391211867, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606660.683273, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.6339200772345066, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606660.6833794, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.7503119995817542, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606660.6835577, "span": "agents.refresh_debounced", "duration_ms": 2.6806669775396585, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606660.7896912, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606660.78996, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606660.7901907, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2611489035189152, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606660.790679, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7980630034580827, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606660.7921245, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4715309478342533, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606660.7922287, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.586068956181407, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606660.7924016, "span": "agents.refresh_debounced", "duration_ms": 2.5261020055040717, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606660.8869298, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606660.8872054, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606660.8874905, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3177069593220949, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606660.887979, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8554928936064243, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606660.889386, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.45884610153734684, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606660.889485, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5671230610460043, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606660.8896556, "span": "agents.refresh_debounced", "duration_ms": 2.5374150136485696, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606660.9853837, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606660.985589, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606660.9857864, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22463896311819553, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606660.9862688, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7471359567716718, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606660.9875996, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.38129801396280527, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606660.9877017, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.49205892719328403, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606660.98787, "span": "agents.refresh_debounced", "duration_ms": 2.3537030210718513, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606661.0812702, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606661.0814645, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606661.0816507, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2121850848197937, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606661.0821302, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7297230185940862, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606661.083426, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.36178098525851965, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606661.083529, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.4726330516859889, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606661.083696, "span": "agents.refresh_debounced", "duration_ms": 2.3002399830147624, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606661.177158, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606661.177381, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606661.177591, "span": "widget.agent_list.update_highlight", "duration_ms": 0.23876596242189407, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606661.178073, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7633769419044256, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606661.1794162, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3776910016313195, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606661.1795182, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.48886402510106564, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606661.1796882, "span": "agents.refresh_debounced", "duration_ms": 2.3837200133129954, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606661.2726512, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606661.2728484, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606661.2730412, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22010994143784046, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606661.2735174, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7357340073212981, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606661.27477, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3487661015242338, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606661.2749066, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.49443403258919716, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606661.275074, "span": "agents.refresh_debounced", "duration_ms": 2.297224011272192, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606661.3472016, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606661.347391, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606661.3475773, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21320697851479053, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606661.3480477, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7207050221040845, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606661.349376, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.45481801498681307, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606661.349472, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5589970387518406, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606661.349638, "span": "agents.refresh_debounced", "duration_ms": 2.3158800322562456, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606661.4570045, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606661.457209, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606661.457401, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2190780360251665, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606661.4578826, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7427179953083396, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606661.4593399, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5645978963002563, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606661.4594421, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6762199336662889, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606661.4596121, "span": "agents.refresh_debounced", "duration_ms": 2.4775590281933546, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606661.5675068, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606661.567714, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606661.5679128, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22571103181689978, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606661.5683897, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7456230232492089, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606661.5697045, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41511200834065676, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606661.569817, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5376460030674934, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606661.5699878, "span": "agents.refresh_debounced", "duration_ms": 2.349243964999914, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606661.6840816, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606661.6843495, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606661.6845946, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2749750856310129, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606661.6850784, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8040539687499404, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606661.6864257, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.44148298911750317, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606661.6865244, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5496999947354198, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606661.6866963, "span": "agents.refresh_debounced", "duration_ms": 2.427101950161159, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606661.7826517, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606661.7829099, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606661.7831378, "span": "widget.agent_list.update_highlight", "duration_ms": 0.25726098101586103, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606661.783617, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7822330808266997, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606661.7849283, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.40858995635062456, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606661.7850242, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5135199753567576, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606661.7851925, "span": "agents.refresh_debounced", "duration_ms": 2.3626609472557902, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606661.881755, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606661.8820138, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606661.8822992, "span": "widget.agent_list.update_highlight", "duration_ms": 0.32125297002494335, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606661.8828518, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9210479911416769, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606661.884278, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4365240456536412, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606661.8843737, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5415040068328381, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606661.8845444, "span": "agents.refresh_debounced", "duration_ms": 2.618678961880505, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606661.9787045, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606661.9789639, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606661.9792168, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2836809726431966, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606661.9797113, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8240529568865895, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606661.9810665, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.39622699841856956, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606661.9811633, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5028099985793233, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606661.9813333, "span": "agents.refresh_debounced", "duration_ms": 2.4518300779163837, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606662.0769384, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606662.0771842, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606662.0774822, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3301700344309211, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606662.0779102, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8050970500335097, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606662.079315, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5717810709029436, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606662.0794446, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.710054999217391, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606662.0796378, "span": "agents.refresh_debounced", "duration_ms": 2.5374440010637045, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606662.1539183, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606662.15424, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606662.1545513, "span": "widget.agent_list.update_highlight", "duration_ms": 0.34760404378175735, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606662.1552105, "span": "agents.refresh_panel_highlights", "duration_ms": 1.0601939866319299, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606662.156867, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5756489699706435, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606662.1569765, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6970110116526484, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606662.1571817, "span": "agents.refresh_debounced", "duration_ms": 3.037838963791728, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606662.264213, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606662.264465, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606662.2647383, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3024870529770851, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606662.2652068, "span": "agents.refresh_panel_highlights", "duration_ms": 0.817329972051084, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606662.266645, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5794060416519642, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606662.2667236, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6681149825453758, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606662.2669306, "span": "agents.refresh_debounced", "duration_ms": 2.5457789888605475, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606662.3676145, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606662.367857, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606662.368126, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2997420961037278, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606662.3685262, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7444709772244096, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606662.36971, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41745707858353853, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606662.3697855, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5012970650568604, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606662.3699253, "span": "agents.refresh_debounced", "duration_ms": 2.148400992155075, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606662.4774535, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606662.477745, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606662.4780366, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3283669939264655, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606662.4786105, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9560349863022566, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606662.480149, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4400399047881365, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606662.4802864, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5920499097555876, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606662.4804351, "span": "agents.refresh_debounced", "duration_ms": 2.786839031614363, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606662.5673797, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606662.5675118, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606662.5676205, "span": "widget.agent_list.update_highlight", "duration_ms": 0.1278839772567153, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606662.5678902, "span": "agents.refresh_panel_highlights", "duration_ms": 0.43067196384072304, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606662.5685852, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.2111330395564437, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606662.5686386, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.26940496172755957, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606662.5687292, "span": "agents.refresh_debounced", "duration_ms": 1.272799912840128, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606662.7205148, "span": "widget.prompt_panel.update_display", "duration_ms": 0.6060369778424501, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606662.7210379, "span": "widget.thinking_panel.update_display", "duration_ms": 0.12617104221135378, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606662.7414644, "span": "widget.file_panel.update_display", "duration_ms": 20.36457310896367, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606662.7415447, "span": "widget.agent_detail.update_display", "duration_ms": 21.6676410054788, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606662.8603697, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606662.8606272, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606662.8609414, "span": "widget.agent_list.update_highlight", "duration_ms": 0.348504981957376, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606662.8614562, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9117299923673272, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606662.8630867, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.6689070723950863, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606662.8632786, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.8726359810680151, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606662.8635252, "span": "agents.refresh_debounced", "duration_ms": 2.9861199436709285, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606662.962281, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606662.9625587, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606662.962877, "span": "widget.agent_list.update_highlight", "duration_ms": 0.35433704033493996, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606662.9633844, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9134530555456877, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606662.9647975, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.44345599599182606, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606662.9648929, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5487779853865504, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606662.9650693, "span": "agents.refresh_debounced", "duration_ms": 2.6042310055345297, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606663.0625148, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606663.0628147, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606663.0631204, "span": "widget.agent_list.update_highlight", "duration_ms": 0.36584807094186544, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606663.0636206, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9174710139632225, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606663.0650394, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4414429422467947, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606663.065136, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5482460837811232, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606663.0653102, "span": "agents.refresh_debounced", "duration_ms": 2.6124659925699234, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606663.136829, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606663.1370997, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606663.1374063, "span": "widget.agent_list.update_highlight", "duration_ms": 0.34172204323112965, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606663.137902, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8886160794645548, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606663.1394987, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5902870325371623, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606663.1396022, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.704264035448432, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606663.13978, "span": "agents.refresh_debounced", "duration_ms": 2.771961037069559, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606663.2505534, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606663.2508798, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606663.2512362, "span": "widget.agent_list.update_highlight", "duration_ms": 0.39272999856621027, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606663.2517695, "span": "agents.refresh_panel_highlights", "duration_ms": 1.0191960027441382, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606663.2534046, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.6451020017266273, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606663.2535017, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.7533479947596788, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606663.2536795, "span": "agents.refresh_debounced", "duration_ms": 2.934640971943736, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606663.3661702, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606663.3664439, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606663.3667452, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3356609959155321, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606663.3672884, "span": "agents.refresh_panel_highlights", "duration_ms": 0.929545029066503, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606663.3687837, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5148219643160701, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606663.368878, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6189310224726796, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606663.3690553, "span": "agents.refresh_debounced", "duration_ms": 2.701747929677367, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606663.4639487, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606663.4641778, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606663.4643726, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22831500973552465, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606663.4648595, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7672549691051245, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606663.4661963, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4172659246250987, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606663.4662926, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5240209866315126, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606663.4664714, "span": "agents.refresh_debounced", "duration_ms": 2.3849530844017863, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606663.5603013, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606663.5604863, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606663.560671, "span": "widget.agent_list.update_highlight", "duration_ms": 0.20874803885817528, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606663.5611331, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7043639197945595, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606663.5623415, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.35218207631260157, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606663.5624366, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.4552390892058611, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606663.562596, "span": "agents.refresh_debounced", "duration_ms": 2.1719560027122498, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606663.6821563, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606663.6823883, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606663.6826043, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2465610159561038, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606663.6831076, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7917110342532396, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606663.6843953, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41319907177239656, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606663.6844916, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5200729938223958, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606663.6846628, "span": "agents.refresh_debounced", "duration_ms": 2.3520089453086257, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606663.7825603, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606663.782858, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606663.7831511, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3263329854235053, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606663.7836428, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8934750221669674, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606663.7850285, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4500689683482051, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606663.7851222, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5536769749596715, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606663.7852917, "span": "agents.refresh_debounced", "duration_ms": 2.547631971538067, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606663.8814254, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606663.8817828, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606663.882214, "span": "widget.agent_list.update_highlight", "duration_ms": 0.47817290760576725, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606663.882979, "span": "agents.refresh_panel_highlights", "duration_ms": 1.3136569177731872, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606663.8844173, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.45144197065383196, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606663.8845127, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5573839880526066, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606663.8846903, "span": "agents.refresh_debounced", "duration_ms": 3.032859996892512, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606663.9528992, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606663.9530795, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606663.9532962, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2431339817121625, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606663.9535663, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5499389953911304, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606663.9544659, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3614899469539523, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606663.954518, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.42094301898032427, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606663.954622, "span": "agents.refresh_debounced", "duration_ms": 1.6091909492388368, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606664.0507545, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606664.051087, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606664.051424, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3793139476329088, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606664.0519698, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9841690771281719, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606664.0536726, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.6815519882366061, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606664.0537739, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.7948670536279678, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606664.0539641, "span": "agents.refresh_debounced", "duration_ms": 2.9844180680811405, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606664.1633267, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606664.16355, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606664.163763, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2397480420768261, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606664.1640446, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5590880755335093, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606664.1649487, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3380250418558717, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606664.1650019, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.39832096081227064, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606664.1651056, "span": "agents.refresh_debounced", "duration_ms": 1.6235799994319677, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606664.2584734, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606664.2587457, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606664.2590003, "span": "widget.agent_list.update_highlight", "duration_ms": 0.28524501249194145, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606664.259352, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6840260466560721, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606664.2602472, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3215339966118336, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606664.2603004, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3826910397037864, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606664.2604036, "span": "agents.refresh_debounced", "duration_ms": 1.7399709904566407, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606664.3533697, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606664.353582, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606664.3538039, "span": "widget.agent_list.update_highlight", "duration_ms": 0.24781306274235249, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606664.3541434, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6260450463742018, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606664.3550763, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3480640007182956, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606664.3551357, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.41581294499337673, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606664.355248, "span": "agents.refresh_debounced", "duration_ms": 1.733498997054994, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606664.445752, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 3, "new": 4}
+{"ts": 1777606664.4460208, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606664.446318, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3301700344309211, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606664.4468586, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9197250474244356, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606664.4483032, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4549280274659395, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606664.4484012, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5630949744954705, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606664.4485784, "span": "agents.refresh_debounced", "duration_ms": 2.64477904420346, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606664.5439193, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 4, "new": 1}
+{"ts": 1777606664.5441585, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606664.5444267, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2985399914905429, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606664.5448363, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7522759260609746, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606664.546027, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.39156805723905563, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606664.546098, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.47100894153118134, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606664.5462408, "span": "agents.refresh_debounced", "duration_ms": 2.161065931431949, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606664.6578245, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 1, "new": 2}
+{"ts": 1777606664.6580443, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606664.658298, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2805850235745311, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606664.6587098, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7333799730986357, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606664.659563, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.28203800320625305, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606664.6596193, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3440870204940438, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606664.659721, "span": "agents.refresh_debounced", "duration_ms": 1.7491689650341868, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606664.7279744, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 2, "new": 6}
+{"ts": 1777606664.7281666, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606664.728384, "span": "widget.agent_list.update_highlight", "duration_ms": 0.24135096464306116, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606664.7286525, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5439779488369823, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606664.729528, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3296190407127142, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606664.7295816, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3899639705196023, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606664.7296798, "span": "agents.refresh_debounced", "duration_ms": 1.5745849814265966, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606664.8334892, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 6, "new": 7}
+{"ts": 1777606664.8336911, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606664.8338985, "span": "widget.agent_list.update_highlight", "duration_ms": 0.23249397054314613, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606664.8341684, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5354819586500525, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606664.835108, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3996930317953229, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606664.8351634, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.4608600866049528, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606664.835261, "span": "agents.refresh_debounced", "duration_ms": 1.6315849497914314, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606664.9873161, "span": "widget.prompt_panel.update_display", "duration_ms": 1.193807926028967, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606664.9878242, "span": "widget.thinking_panel.update_display", "duration_ms": 0.11652300599962473, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606664.9880624, "span": "widget.agent_detail.update_display", "duration_ms": 1.9649600144475698, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606666.818191, "span": "agents.load_from_disk", "duration_ms": 1290.7963460311294, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606666.847485, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": null}
+{"ts": 1777606666.8495545, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606666.8496346, "span": "widget.agent_list.update_list", "duration_ms": 2.1991970716044307, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606666.8497505, "span": "agents.refresh_panel_widgets", "duration_ms": 2.64164200052619, "current_tab": "agents", "current_idx": 7, "agents": 8, "panels": 1}
+{"ts": 1777606666.8503609, "span": "agents.refresh_display", "duration_ms": 3.3257079776376486, "current_tab": "agents", "current_idx": 7, "agents": 8, "list_changed": true, "defer_detail": true}
+{"ts": 1777606666.9141405, "span": "changespec.filter", "duration_ms": 54.99446496833116, "current_tab": "agents", "current_idx": 7, "count": 1986}
+{"ts": 1777606666.9146369, "span": "widget.changespec_list.update_list", "duration_ms": 0.17549493350088596, "current_tab": "agents", "current_idx": 7, "count": 0}
+{"ts": 1777606666.9161544, "span": "changespec.refresh_display", "duration_ms": 1.7616719705983996, "current_tab": "agents", "current_idx": 7, "changespecs": 0}
+{"ts": 1777606666.9302046, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 7, "new": 0}
+{"ts": 1777606666.9303913, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606666.930636, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2666889922693372, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606666.930979, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6381779676303267, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606666.932404, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.8321489440277219, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606666.932459, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.9030739311128855, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606666.9325676, "span": "agents.refresh_debounced", "duration_ms": 2.2297559771686792, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606667.0437405, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606667.0439267, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606667.0440881, "span": "widget.agent_list.update_highlight", "duration_ms": 0.1857549650594592, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606667.0443494, "span": "agents.refresh_panel_highlights", "duration_ms": 0.4866790259256959, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606667.045134, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.24517800193279982, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606667.0451853, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3030189545825124, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606667.0452852, "span": "agents.refresh_debounced", "duration_ms": 1.4274140121415257, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606667.1379297, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 5, "new": 3}
+{"ts": 1777606667.1381226, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606667.138319, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2235668944194913, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606667.1387424, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6891760276630521, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606667.1403131, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4083389649167657, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606667.1404066, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5136099644005299, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606667.1405635, "span": "agents.refresh_debounced", "duration_ms": 2.5152700254693627, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606667.2320383, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606667.2322345, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606667.2324152, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2072349889203906, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606667.232887, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7191029144451022, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606667.2341583, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.360728008672595, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606667.2342527, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.4641759442165494, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606667.234427, "span": "agents.refresh_debounced", "duration_ms": 2.2649039747193456, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606667.327828, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606667.3280392, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606667.3282251, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21202396601438522, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606667.3286893, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7170089520514011, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606667.329891, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.30968093778938055, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606667.3299835, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.4114860203117132, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606667.3301504, "span": "agents.refresh_debounced", "duration_ms": 2.183548058383167, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606667.4226258, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606667.4229422, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606667.4232228, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3154620062559843, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606667.4237013, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8463859558105469, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606667.4251356, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4714089445769787, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606667.4252288, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5757890176028013, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606667.425403, "span": "agents.refresh_debounced", "duration_ms": 2.55433504935354, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606667.5330327, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606667.5332348, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606667.533429, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22122194059193134, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606667.5339022, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7386000361293554, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606667.5353265, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.481257913634181, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606667.5354269, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5900269607082009, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606667.5356004, "span": "agents.refresh_debounced", "duration_ms": 2.442572033032775, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606667.6645136, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606667.6647606, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606667.6650188, "span": "widget.agent_list.update_highlight", "duration_ms": 0.290062977001071, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606667.6654994, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8101060520857573, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606667.6668313, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4215249791741371, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606667.6669328, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5324159283190966, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606667.6671221, "span": "agents.refresh_debounced", "duration_ms": 2.439027070067823, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606667.7621295, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606667.7624414, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606667.7628434, "span": "widget.agent_list.update_highlight", "duration_ms": 0.4409420071169734, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606667.763524, "span": "agents.refresh_panel_highlights", "duration_ms": 1.1840809602290392, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606667.765383, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.47309393994510174, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606667.7655063, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.608201022259891, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606667.7657447, "span": "agents.refresh_debounced", "duration_ms": 3.4134460147470236, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606667.8371837, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606667.837408, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606667.83763, "span": "widget.agent_list.update_highlight", "duration_ms": 0.25221100077033043, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606667.8380594, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7276079850271344, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606667.8392816, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.34191308077424765, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606667.8393703, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.43891696259379387, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606667.8395154, "span": "agents.refresh_debounced", "duration_ms": 2.188878017477691, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606667.9286525, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606667.928877, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606667.9290977, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2501979470252991, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606667.929576, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7744889007881284, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606667.9308844, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3742539556697011, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606667.930986, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.48491498455405235, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606667.931163, "span": "agents.refresh_debounced", "duration_ms": 2.367799053899944, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606668.0260172, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606668.0261946, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606668.0263839, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21119299344718456, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606668.02665, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5116870161145926, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606668.0274594, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.2422319957986474, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606668.0275226, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3122159978374839, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606668.0276265, "span": "agents.refresh_debounced", "duration_ms": 1.4920779503881931, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606668.1173038, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606668.1174781, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606668.1176527, "span": "widget.agent_list.update_highlight", "duration_ms": 0.19692606292665005, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606668.1179197, "span": "agents.refresh_panel_highlights", "duration_ms": 0.4982510581612587, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606668.1186674, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.21827698219567537, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606668.1187193, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.2764570526778698, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606668.1188407, "span": "agents.refresh_debounced", "duration_ms": 1.4226359780877829, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606668.2144861, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606668.214804, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606668.2151206, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3684830153360963, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606668.2156932, "span": "agents.refresh_panel_highlights", "duration_ms": 0.99562993273139, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606668.2171767, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4916680045425892, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606668.217276, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.60248002409935, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606668.2174766, "span": "agents.refresh_debounced", "duration_ms": 2.7853259816765785, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606668.3278093, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606668.328077, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606668.3283346, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2903050044551492, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606668.3288708, "span": "agents.refresh_panel_highlights", "duration_ms": 0.876131933182478, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606668.3304145, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5487779853865504, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606668.330514, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.658486969769001, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606668.3306837, "span": "agents.refresh_debounced", "duration_ms": 2.6956949150189757, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606668.4602172, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606668.4604278, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606668.460649, "span": "widget.agent_list.update_highlight", "duration_ms": 0.24529802612960339, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606668.4610064, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6399709964171052, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606668.4618673, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.2796140033751726, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606668.4619257, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.346560962498188, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606668.4620488, "span": "agents.refresh_debounced", "duration_ms": 1.6869799001142383, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606668.5535014, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606668.553748, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606668.5540218, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3034489927813411, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606668.5544455, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7720929570496082, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606668.5553875, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.23179303389042616, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606668.555447, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.29896991327404976, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606668.5555537, "span": "agents.refresh_debounced", "duration_ms": 1.8855190137401223, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606668.644562, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606668.6447396, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606668.644935, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21677394397556782, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606668.6452014, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5122169386595488, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606668.6459458, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.229358091019094, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606668.6459959, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.2853649202734232, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606668.646099, "span": "agents.refresh_debounced", "duration_ms": 1.4136380050331354, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606668.7378554, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606668.7380662, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606668.738247, "span": "widget.agent_list.update_highlight", "duration_ms": 0.20483997650444508, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606668.7387352, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7300630677491426, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606668.740091, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.36507693585008383, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606668.7401881, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.47165993601083755, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606668.7403662, "span": "agents.refresh_debounced", "duration_ms": 2.3654750548303127, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606668.8919551, "span": "widget.prompt_panel.update_display", "duration_ms": 0.4845339572057128, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606668.8922708, "span": "widget.thinking_panel.update_display", "duration_ms": 0.06919202860444784, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606668.8924716, "span": "widget.file_panel.update_display", "duration_ms": 0.14496699441224337, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606668.8925183, "span": "widget.agent_detail.update_display", "duration_ms": 1.0830569081008434, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606668.9436185, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606668.943846, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606668.944011, "span": "widget.agent_list.update_highlight", "duration_ms": 0.18524390179663897, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606668.944299, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5412229802459478, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606668.9451532, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.2975170500576496, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606668.9452069, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3612689906731248, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606668.9453096, "span": "agents.refresh_debounced", "duration_ms": 1.555328955873847, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606669.039948, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606669.040173, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606669.0403633, "span": "widget.agent_list.update_highlight", "duration_ms": 0.212686019949615, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606669.0406332, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5163149908185005, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606669.041433, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.2736520254984498, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606669.041483, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3297500079497695, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606669.041568, "span": "agents.refresh_debounced", "duration_ms": 1.4549570623785257, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606669.1338735, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606669.1340933, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606669.1343448, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2785419346764684, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606669.1347501, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7265160093083978, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606669.1357086, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.34843594767153263, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606669.135763, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.40870998054742813, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606669.135868, "span": "agents.refresh_debounced", "duration_ms": 1.849550986662507, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606669.2353733, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606669.2355716, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606669.2357936, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2480529947206378, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606669.2361217, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6138610187917948, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606669.2371035, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4059550119563937, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606669.2371573, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.46709191519767046, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606669.237267, "span": "agents.refresh_debounced", "duration_ms": 1.7631059745326638, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606669.332103, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606669.332404, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606669.3327086, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3400389105081558, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606669.3332353, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9183529764413834, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606669.334767, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5054950015619397, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606669.3349023, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6508920341730118, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606669.3350954, "span": "agents.refresh_debounced", "duration_ms": 2.7845860458910465, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606669.4271655, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606669.4274127, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606669.4276302, "span": "widget.agent_list.update_highlight", "duration_ms": 0.24539802689105272, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606669.4279563, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6116480799391866, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606669.4288065, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.28442288748919964, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606669.4288592, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.34451799001544714, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606669.4289632, "span": "agents.refresh_debounced", "duration_ms": 1.6232189955189824, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606669.502855, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606669.50313, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606669.5034077, "span": "widget.agent_list.update_highlight", "duration_ms": 0.31110411509871483, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606669.5039406, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8950789924710989, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606669.5053837, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.43628294952213764, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606669.505483, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5455609643831849, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606669.5056767, "span": "agents.refresh_debounced", "duration_ms": 2.637794939801097, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606669.598645, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606669.598872, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606669.5990694, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21987000945955515, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606669.5993369, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5254329880699515, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606669.6001863, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.29534404166042805, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606669.6002388, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.35469699651002884, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606669.6003401, "span": "agents.refresh_debounced", "duration_ms": 1.5552080003544688, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606669.697515, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606669.6977758, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606669.6980455, "span": "widget.agent_list.update_highlight", "duration_ms": 0.30201603658497334, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606669.6985328, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8303459035232663, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606669.7000096, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4845750518143177, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606669.700112, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5959769478067756, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606669.7002914, "span": "agents.refresh_debounced", "duration_ms": 2.59496399667114, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606669.7968755, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606669.797128, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606669.7974184, "span": "widget.agent_list.update_highlight", "duration_ms": 0.32194401137530804, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606669.7978737, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8256660075858235, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606669.7991016, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3875090042129159, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606669.7991607, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.45728194527328014, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606669.7992742, "span": "agents.refresh_debounced", "duration_ms": 2.231698948889971, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606669.8944886, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606669.894736, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606669.8950598, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3550370456650853, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606669.8955278, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8677670266479254, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606669.8968658, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4795950371772051, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606669.896944, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5663610063493252, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606669.8971272, "span": "agents.refresh_debounced", "duration_ms": 2.4724090471863747, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606669.99371, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606669.993963, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606669.994261, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3296090289950371, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606669.994768, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8823740063235164, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606669.996243, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5674930289387703, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606669.9963202, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6543489871546626, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606669.9964967, "span": "agents.refresh_debounced", "duration_ms": 2.6171850040555, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606670.0983016, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606670.0985456, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 11}
+{"ts": 1777606670.0988357, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3208019770681858, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606670.0992596, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7875040173530579, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606670.1004627, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.41895906906574965, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606670.10054, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5045430734753609, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606670.1006696, "span": "agents.refresh_debounced", "duration_ms": 2.2023849887773395, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606670.1936362, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606670.1938171, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 10}
+{"ts": 1777606670.194013, "span": "widget.agent_list.update_highlight", "duration_ms": 0.21964905317872763, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606670.194286, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5280779441818595, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606670.1951191, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.26448501739650965, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606670.195175, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3272449830546975, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606670.1952786, "span": "agents.refresh_debounced", "duration_ms": 1.5238890191540122, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606670.2652192, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606670.265383, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 7}
+{"ts": 1777606670.2655663, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2041900297626853, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606670.2658346, "span": "agents.refresh_panel_highlights", "duration_ms": 0.505786039866507, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606670.2666233, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.25566795375198126, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606670.266687, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.32496999483555555, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606670.2668085, "span": "agents.refresh_debounced", "duration_ms": 1.463082036934793, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606670.3588727, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606670.3590667, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 6}
+{"ts": 1777606670.359269, "span": "widget.agent_list.update_highlight", "duration_ms": 0.22453803103417158, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606670.359551, "span": "agents.refresh_panel_highlights", "duration_ms": 0.541654066182673, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606670.3603766, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.276878010481596, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606670.36043, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.336511991918087, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606670.3605325, "span": "agents.refresh_debounced", "duration_ms": 1.5271550510078669, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606670.4514303, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606670.4516141, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 2}
+{"ts": 1777606670.4517972, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2034690696746111, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606670.452063, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5009860033169389, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606670.4529076, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.28875202406197786, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606670.4529607, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.34866598434746265, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606670.4530637, "span": "agents.refresh_debounced", "duration_ms": 1.505523920059204, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606670.5426507, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606670.5428677, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606670.5430748, "span": "widget.agent_list.update_highlight", "duration_ms": 0.23089093156158924, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606670.543344, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5350509891286492, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606670.5442064, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3049219958484173, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606670.5442593, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3639950882643461, "current_tab": "agents", "current_idx": 0, "status": "RUNNING"}
+{"ts": 1777606670.544362, "span": "agents.refresh_debounced", "duration_ms": 1.577652059495449, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606670.6553872, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606670.655595, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 14}
+{"ts": 1777606670.6558206, "span": "widget.agent_list.update_highlight", "duration_ms": 0.2503379946574569, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606670.6561139, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5760489730164409, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606670.6570082, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3387270262464881, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606670.6570616, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.39791001472622156, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606670.6571648, "span": "agents.refresh_debounced", "duration_ms": 1.6308630583807826, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606670.7568927, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606670.7570956, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 13}
+{"ts": 1777606670.7573085, "span": "widget.agent_list.update_highlight", "duration_ms": 0.23585103917866945, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606670.7576053, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5702179623767734, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606670.758549, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3810470225289464, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606670.7586038, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.44266507029533386, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606670.758709, "span": "agents.refresh_debounced", "duration_ms": 1.6780629521235824, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606670.9105282, "span": "widget.prompt_panel.update_display", "duration_ms": 0.7743979804217815, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606670.9110105, "span": "widget.thinking_panel.update_display", "duration_ms": 0.10085292160511017, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606670.9113083, "span": "widget.agent_detail.update_display", "duration_ms": 1.5812580240890384, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606672.7981026, "span": "agents.load_from_disk", "duration_ms": 1401.877971016802, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606672.8227057, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": null}
+{"ts": 1777606672.8254066, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 15}
+{"ts": 1777606672.8254967, "span": "widget.agent_list.update_list", "duration_ms": 2.8368750354275107, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606672.82565, "span": "agents.refresh_panel_widgets", "duration_ms": 3.3081750152632594, "current_tab": "agents", "current_idx": 6, "agents": 8, "panels": 1}
+{"ts": 1777606672.826248, "span": "agents.refresh_display", "duration_ms": 3.9717209292575717, "current_tab": "agents", "current_idx": 6, "agents": 8, "list_changed": true, "defer_detail": true}
+{"ts": 1777606672.8501668, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606672.850354, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 13}
+{"ts": 1777606672.8505435, "span": "widget.agent_list.update_highlight", "duration_ms": 0.20687503274530172, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606672.8508513, "span": "agents.refresh_panel_highlights", "duration_ms": 0.5361539078876376, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606672.8519666, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5840139929205179, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606672.8520253, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6550810066983104, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606672.8521485, "span": "agents.refresh_debounced", "duration_ms": 1.8366159638389945, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606673.0031989, "span": "widget.prompt_panel.update_display", "duration_ms": 0.7312659872695804, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606673.0035212, "span": "widget.thinking_panel.update_display", "duration_ms": 0.06191793363541365, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606673.034706, "span": "widget.file_panel.update_display", "duration_ms": 31.12639393657446, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606673.0348303, "span": "widget.agent_detail.update_display", "duration_ms": 32.393772969953716, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606673.2250369, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606673.2252707, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 12}
+{"ts": 1777606673.2255504, "span": "widget.agent_list.update_highlight", "duration_ms": 0.30094501562416553, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606673.2258468, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6652099546045065, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606673.2268555, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.43738505337387323, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606673.2269177, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5100640701130033, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606673.2270305, "span": "agents.refresh_debounced", "duration_ms": 1.8525469349697232, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606673.3072383, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606673.307452, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 9}
+{"ts": 1777606673.307758, "span": "widget.agent_list.update_highlight", "duration_ms": 0.3307320876047015, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606673.3080375, "span": "agents.refresh_panel_highlights", "duration_ms": 0.6483080796897411, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606673.3089147, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3118849126622081, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606673.3089678, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.3722000401467085, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606673.3090777, "span": "agents.refresh_debounced", "duration_ms": 1.6918000765144825, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606673.4227679, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606673.4230952, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 8}
+{"ts": 1777606673.4235501, "span": "widget.agent_list.update_highlight", "duration_ms": 0.4892139695584774, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606673.4240763, "span": "agents.refresh_panel_highlights", "duration_ms": 1.070392900146544, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606673.4255865, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4768309881910682, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606673.425694, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5952159408479929, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606673.4258885, "span": "agents.refresh_debounced", "duration_ms": 2.8882529586553574, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606673.551859, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606673.5521555, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 4}
+{"ts": 1777606673.5526211, "span": "widget.agent_list.update_highlight", "duration_ms": 0.49991405103355646, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606673.5531454, "span": "agents.refresh_panel_highlights", "duration_ms": 1.080382033251226, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606673.5546782, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.519491033628583, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606673.5547779, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6305730203166604, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606673.5550215, "span": "agents.refresh_debounced", "duration_ms": 2.9620530549436808, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606673.673654, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606673.6738749, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606673.67415, "span": "widget.agent_list.update_highlight", "duration_ms": 0.30286796391010284, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606673.6746523, "span": "agents.refresh_panel_highlights", "duration_ms": 0.8480190299451351, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606673.6759984, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4294801037758589, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606673.6761003, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5418040091171861, "current_tab": "agents", "current_idx": 0, "status": "PLANNING"}
+{"ts": 1777606673.676309, "span": "agents.refresh_debounced", "duration_ms": 2.509769983589649, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606673.7999141, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 7, "old": 0, "new": 7}
+{"ts": 1777606673.8001893, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 7, "highlighted": 16}
+{"ts": 1777606673.8006852, "span": "widget.agent_list.update_highlight", "duration_ms": 0.5292600253596902, "current_tab": "agents", "current_idx": 7, "count": 8}
+{"ts": 1777606673.801094, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9938969742506742, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606673.8024323, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.530923018231988, "current_tab": "agents", "current_idx": 7}
+{"ts": 1777606673.8025033, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6116380682215095, "current_tab": "agents", "current_idx": 7, "status": "DONE"}
+{"ts": 1777606673.802658, "span": "agents.refresh_debounced", "duration_ms": 2.562302048318088, "current_tab": "agents", "current_idx": 7, "agents": 8}
+{"ts": 1777606673.9203131, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 6, "old": 7, "new": 6}
+{"ts": 1777606673.920619, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 6, "highlighted": 15}
+{"ts": 1777606673.9211354, "span": "widget.agent_list.update_highlight", "duration_ms": 0.5554300732910633, "current_tab": "agents", "current_idx": 6, "count": 8}
+{"ts": 1777606673.9217057, "span": "agents.refresh_panel_highlights", "duration_ms": 1.1864749249070883, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606673.9235346, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.7682869909331203, "current_tab": "agents", "current_idx": 6}
+{"ts": 1777606673.923649, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.8965720189735293, "current_tab": "agents", "current_idx": 6, "status": "DONE"}
+{"ts": 1777606673.9238741, "span": "agents.refresh_debounced", "duration_ms": 3.3606349024921656, "current_tab": "agents", "current_idx": 6, "agents": 8}
+{"ts": 1777606674.0572858, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 2, "old": 6, "new": 2}
+{"ts": 1777606674.0576348, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 2, "highlighted": 13}
+{"ts": 1777606674.0581012, "span": "widget.agent_list.update_highlight", "duration_ms": 0.5071479827165604, "current_tab": "agents", "current_idx": 2, "count": 8}
+{"ts": 1777606674.0587428, "span": "agents.refresh_panel_highlights", "duration_ms": 1.211381983011961, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606674.0604289, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.5442890105769038, "current_tab": "agents", "current_idx": 2}
+{"ts": 1777606674.0605347, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.6638370687142015, "current_tab": "agents", "current_idx": 2, "status": "DONE"}
+{"ts": 1777606674.060743, "span": "agents.refresh_debounced", "duration_ms": 3.2193539664149284, "current_tab": "agents", "current_idx": 2, "agents": 8}
+{"ts": 1777606674.183147, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 1, "old": 2, "new": 1}
+{"ts": 1777606674.1834252, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 1, "highlighted": 12}
+{"ts": 1777606674.18381, "span": "widget.agent_list.update_highlight", "duration_ms": 0.41796802543103695, "current_tab": "agents", "current_idx": 1, "count": 8}
+{"ts": 1777606674.184327, "span": "agents.refresh_panel_highlights", "duration_ms": 0.9825349552556872, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606674.185757, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.42541197035461664, "current_tab": "agents", "current_idx": 1}
+{"ts": 1777606674.1858556, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5341500509530306, "current_tab": "agents", "current_idx": 1, "status": "DONE"}
+{"ts": 1777606674.1860595, "span": "agents.refresh_debounced", "duration_ms": 2.7206019731238484, "current_tab": "agents", "current_idx": 1, "agents": 8}
+{"ts": 1777606674.2766864, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 4, "old": 1, "new": 4}
+{"ts": 1777606674.276948, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 4, "highlighted": 9}
+{"ts": 1777606674.277335, "span": "widget.agent_list.update_highlight", "duration_ms": 0.4169460153207183, "current_tab": "agents", "current_idx": 4, "count": 8}
+{"ts": 1777606674.27762, "span": "agents.refresh_panel_highlights", "duration_ms": 0.7479980122298002, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606674.278527, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.3288480220362544, "current_tab": "agents", "current_idx": 4}
+{"ts": 1777606674.2785788, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.38865208625793457, "current_tab": "agents", "current_idx": 4, "status": "WAITING"}
+{"ts": 1777606674.2786906, "span": "agents.refresh_debounced", "duration_ms": 1.8216479802504182, "current_tab": "agents", "current_idx": 4, "agents": 8}
+{"ts": 1777606674.3708544, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 3, "old": 4, "new": 3}
+{"ts": 1777606674.3709812, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 3, "highlighted": 8}
+{"ts": 1777606674.3711226, "span": "widget.agent_list.update_highlight", "duration_ms": 0.15616801101714373, "current_tab": "agents", "current_idx": 3, "count": 8}
+{"ts": 1777606674.3713758, "span": "agents.refresh_panel_highlights", "duration_ms": 0.43220503721386194, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606674.3720682, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.20781694911420345, "current_tab": "agents", "current_idx": 3}
+{"ts": 1777606674.3721201, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.2644049236550927, "current_tab": "agents", "current_idx": 3, "status": "WAITING"}
+{"ts": 1777606674.3722172, "span": "agents.refresh_debounced", "duration_ms": 1.2761770049110055, "current_tab": "agents", "current_idx": 3, "agents": 8}
+{"ts": 1777606674.4619892, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 3, "new": 5}
+{"ts": 1777606674.462114, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 4}
+{"ts": 1777606674.4622564, "span": "widget.agent_list.update_highlight", "duration_ms": 0.15612796414643526, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606674.4625266, "span": "agents.refresh_panel_highlights", "duration_ms": 0.4531749291345477, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606674.4638486, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4510510480031371, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606674.4639716, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.591679010540247, "current_tab": "agents", "current_idx": 5, "status": "RUNNING"}
+{"ts": 1777606674.4641416, "span": "agents.refresh_debounced", "duration_ms": 2.0711130928248167, "current_tab": "agents", "current_idx": 5, "agents": 8}
+{"ts": 1777606674.5851998, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 0, "old": 5, "new": 0}
+{"ts": 1777606674.585495, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 0, "highlighted": 1}
+{"ts": 1777606674.5859702, "span": "widget.agent_list.update_highlight", "duration_ms": 0.5132399965077639, "current_tab": "agents", "current_idx": 0, "count": 8}
+{"ts": 1777606674.5864348, "span": "agents.refresh_panel_highlights", "duration_ms": 1.0323409223929048, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606674.5878613, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.4586060531437397, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606674.5879555, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5645370110869408, "current_tab": "agents", "current_idx": 0, "status": "PLANNING"}
+{"ts": 1777606674.5881324, "span": "agents.refresh_debounced", "duration_ms": 2.7350611053407192, "current_tab": "agents", "current_idx": 0, "agents": 8}
+{"ts": 1777606674.7061927, "span": "widget.changespec_list.update_list", "duration_ms": 0.1767169451341033, "current_tab": "agents", "current_idx": 0, "count": 0}
+{"ts": 1777606674.708926, "span": "changespec.refresh_display", "duration_ms": 3.0362450052052736, "current_tab": "agents", "current_idx": 0, "changespecs": 0}
+{"ts": 1777606674.7439713, "span": "widget.prompt_panel.update_display", "duration_ms": 0.8876039646565914, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606674.7447386, "span": "widget.thinking_panel.update_display", "duration_ms": 0.1692730002105236, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606674.789598, "span": "widget.file_panel.update_display", "duration_ms": 44.75108103360981, "current_tab": "agents", "current_idx": 0}
+{"ts": 1777606674.7897627, "span": "widget.agent_detail.update_display", "duration_ms": 46.713166986592114, "current_tab": "agents", "current_idx": 0, "status": "PLANNING"}
+{"ts": 1777606675.1293683, "event": "selection.current_idx.set", "current_tab": "agents", "current_idx": 5, "old": 0, "new": 5}
+{"ts": 1777606675.1296287, "event": "widget.agent_list.watch_highlighted.suppressed", "current_tab": "agents", "current_idx": 5, "highlighted": 4}
+{"ts": 1777606675.1300807, "span": "widget.agent_list.update_highlight", "duration_ms": 0.482831965200603, "current_tab": "agents", "current_idx": 5, "count": 8}
+{"ts": 1777606675.1305897, "span": "agents.refresh_panel_highlights", "duration_ms": 1.031880034133792, "current_tab": "agents", "current_idx": 5, "agents": 1000}
+{"ts": 1777606675.1320355, "span": "widget.prompt_panel.update_header_only", "duration_ms": 0.44162303674966097, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606675.1321423, "span": "widget.agent_detail.update_display_immediate", "duration_ms": 0.5593179957941175, "current_tab": "agents", "current_idx": 5, "status": "DONE"}
+{"ts": 1777606675.1323273, "span": "agents.refresh_debounced", "duration_ms": 2.7753280010074377, "current_tab": "agents", "current_idx": 5, "agents": 1000}
+{"ts": 1777606675.283967, "span": "widget.prompt_panel.update_display", "duration_ms": 0.28609600849449635, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606675.2843854, "span": "widget.thinking_panel.update_display", "duration_ms": 0.07078493945300579, "current_tab": "agents", "current_idx": 5}
+{"ts": 1777606675.284513, "span": "widget.agent_detail.update_display", "duration_ms": 0.8480590768158436, "current_tab": "agents", "current_idx": 5, "status": "DONE"}
