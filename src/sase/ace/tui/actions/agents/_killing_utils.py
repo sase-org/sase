@@ -44,46 +44,13 @@ def dismiss_notifications_for_agents(agents: Iterable[Agent]) -> int:
     """Dismiss notifications that reference any of the given agents.
 
     Returns the number of notifications newly marked dismissed. The notification
-    file is loaded and rewritten at most once.
+    store is updated atomically by the Rust-backed notification API.
     """
-    from sase.notifications import load_notifications
-    from sase.notifications.store import rewrite_notifications
+    from sase.notifications import dismiss_notifications_matching_agents
 
-    agent_keys = {(a.cl_name, a.raw_suffix) for a in agents}
-    if not agent_keys:
-        return 0
-
-    all_notifications = load_notifications(include_dismissed=True)
-    dismissed_count = 0
-    for n in all_notifications:
-        if n.dismissed:
-            continue
-        if n.action == "JumpToAgent":
-            cl_name = n.action_data.get("cl_name")
-            raw_suffix = n.action_data.get("raw_suffix")
-            if raw_suffix is None:
-                match = any(agent_cl == cl_name for agent_cl, _ in agent_keys)
-            else:
-                match = (cl_name, raw_suffix) in agent_keys
-            if match:
-                n.dismissed = True
-                dismissed_count += 1
-        elif n.action in ("PlanApproval", "UserQuestion"):
-            cl_name = n.action_data.get("agent_cl_name")
-            timestamp = n.action_data.get("agent_timestamp")
-            if timestamp is None:
-                match = any(agent_cl == cl_name for agent_cl, _ in agent_keys)
-            else:
-                from ...models._timestamps import normalize_to_14_digit
-
-                match = (cl_name, normalize_to_14_digit(timestamp)) in agent_keys
-            if match:
-                n.dismissed = True
-                dismissed_count += 1
-
-    if dismissed_count:
-        rewrite_notifications(all_notifications)
-    return dismissed_count
+    return dismiss_notifications_matching_agents(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix} for agent in agents]
+    )
 
 
 def find_workflow_workspace_from_running_field(

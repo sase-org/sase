@@ -140,14 +140,7 @@ def test_synthetic_corpus_generator_has_expected_size_and_variety(
     assert any('"snooze_until": "2026-04-30T13:00:00+00:00"' in line for line in lines)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Current Python rewrite opens notifications.jsonl with 'w' before "
-        "locking; Phase 4 should make this pass with lock/tempfile/rename writes."
-    ),
-    strict=True,
-)
-def test_append_plus_rewrite_contract_never_exposes_empty_file(
+def test_rewrite_contract_does_not_use_python_truncate_before_lock(
     notification_store_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     existing = Notification(
@@ -158,32 +151,19 @@ def test_append_plus_rewrite_contract_never_exposes_empty_file(
     append_notification(existing)
 
     replacement = dataclasses.replace(existing, read=True)
-    writer_truncated = threading.Event()
-    release_writer = threading.Event()
     original_open = builtins.open
 
     def delayed_truncating_open(file: Any, mode: str = "r", *args: Any, **kwargs: Any):
-        f = original_open(file, mode, *args, **kwargs)
         if Path(file) == notification_store_file and mode.startswith("w"):
-            writer_truncated.set()
-            release_writer.wait(timeout=5)
-        return f
+            raise AssertionError("notification rewrite used Python truncate mode")
+        return original_open(file, mode, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "open", delayed_truncating_open)
 
-    writer = threading.Thread(
-        target=rewrite_notifications,
-        args=([replacement],),
-        daemon=True,
-    )
-    writer.start()
-    assert writer_truncated.wait(timeout=5)
+    rewrite_notifications([replacement])
+    loaded = load_notifications(include_dismissed=True)
 
-    observed_during_rewrite = load_notifications(include_dismissed=True)
-    release_writer.set()
-    writer.join(timeout=5)
-
-    assert observed_during_rewrite != []
+    assert loaded == [replacement]
 
 
 def test_append_plus_rewrite_contract_preserves_valid_jsonl_after_race(

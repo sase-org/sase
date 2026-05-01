@@ -71,6 +71,7 @@ class NotificationStateUpdateWire:
     ids: tuple[str, ...] = ()
     muted: bool | None = None
     until: str | None = None
+    now: str | None = None
     agents: tuple[NotificationAgentKeyWire, ...] = ()
     notifications: tuple[Notification, ...] = ()
 
@@ -85,7 +86,7 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
         return asdict(record)
     if isinstance(record, NotificationStateUpdateWire):
         payload: dict[str, Any] = {"kind": record.kind}
-        for key in ("id", "ids", "muted", "until", "agents", "notifications"):
+        for key in ("id", "ids", "muted", "until", "now", "agents", "notifications"):
             value = getattr(record, key)
             if value is None or value == ():
                 continue
@@ -105,7 +106,9 @@ def notification_from_dict(data: dict[str, Any]) -> Notification:
         notes=list(data.get("notes") or []),
         files=list(data.get("files") or []),
         action=None if data.get("action") is None else str(data["action"]),
-        action_data={str(k): str(v) for k, v in (data.get("action_data") or {}).items()},
+        action_data={
+            str(k): str(v) for k, v in (data.get("action_data") or {}).items()
+        },
         read=bool(data.get("read", False)),
         dismissed=bool(data.get("dismissed", False)),
         silent=bool(data.get("silent", False)),

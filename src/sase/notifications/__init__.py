@@ -15,6 +15,7 @@ from sase.notifications.senders import (
 )
 from sase.notifications.store import (
     append_notification,
+    dismiss_notifications_matching_agents,
     expire_due_snoozes,
     load_notifications,
     mark_all_read,
@@ -22,11 +23,13 @@ from sase.notifications.store import (
     mark_muted,
     mark_read,
     mark_snoozed,
+    rewrite_notifications,
 )
 
 __all__ = [
     "Notification",
     "append_notification",
+    "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
     "format_relative_time",
     "format_relative_until",
@@ -37,6 +40,7 @@ __all__ = [
     "mark_muted",
     "mark_read",
     "mark_snoozed",
+    "rewrite_notifications",
     "notify_axe_error_digest",
     "notify_hitl_request",
     "notify_mentors_complete",

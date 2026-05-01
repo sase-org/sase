@@ -6,6 +6,11 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
+
+from sase.core.notification_store_wire import (
+    NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+    NotificationUpdateOutcomeWire,
+)
 from sase.core.time import get_timezone
 
 import pytest
@@ -13,6 +18,7 @@ import pytest
 from sase.notifications.models import Notification
 from sase.notifications.store import (
     append_notification,
+    dismiss_notifications_matching_agents,
     expire_due_snoozes,
     load_notifications,
     mark_all_read,
@@ -20,6 +26,7 @@ from sase.notifications.store import (
     mark_muted,
     mark_read,
     mark_snoozed,
+    rewrite_notifications,
 )
 
 
@@ -138,6 +145,18 @@ class TestAppendNotification:
         assert len(loaded) == 1
         assert loaded[0].silent is False
 
+    def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification()
+        with patch(
+            "sase.notifications.store._rust_append_notification",
+            wraps=store._rust_append_notification,
+        ) as mock_append:
+            append_notification(n)
+
+        mock_append.assert_called_once()
+
 
 # =========================================================================
 # TestLoadNotifications
@@ -196,6 +215,20 @@ class TestMarkRead:
         assert mark_read("nonexistent") is False
         loaded = load_notifications()
         assert loaded[0].read is False
+
+    def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification()
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_read(n.id) is True
+
+        mock_update.assert_called_once()
+        assert mock_update.call_args.args[1].kind == "mark_read"
 
 
 # =========================================================================
@@ -401,24 +434,28 @@ class TestExpireDueSnoozes:
 
         notifications = load_notifications()
         with patch(
-            "sase.notifications.store._rewrite_notifications",
+            "sase.notifications.store._rust_apply_notification_state_update",
             wraps=__import__(
-                "sase.notifications.store", fromlist=["_rewrite_notifications"]
-            )._rewrite_notifications,
-        ) as mock_rewrite:
+                "sase.notifications.store",
+                fromlist=["_rust_apply_notification_state_update"],
+            )._rust_apply_notification_state_update,
+        ) as mock_update:
             expired = expire_due_snoozes(notifications)
 
         assert len(expired) == 2
-        assert mock_rewrite.call_count == 1
+        assert mock_update.call_count == 1
+        assert mock_update.call_args.args[1].kind == "expire_snoozes"
 
     def test_empty_when_nothing_snoozed(self, temp_notifications_dir: Path) -> None:
         n = _make_notification()
         append_notification(n)
         notifications = load_notifications()
-        with patch("sase.notifications.store._rewrite_notifications") as mock_rewrite:
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update"
+        ) as mock_update:
             expired = expire_due_snoozes(notifications)
         assert expired == []
-        mock_rewrite.assert_not_called()
+        mock_update.assert_not_called()
 
 
 class TestMarkAllRead:
@@ -436,6 +473,90 @@ class TestMarkAllRead:
         # No file exists yet — should not error
         count = mark_all_read()
         assert count == 0
+
+
+class TestRewriteNotifications:
+    """Tests for rewrite_notifications()."""
+
+    def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification()
+        with patch(
+            "sase.notifications.store._rust_rewrite_notifications",
+            wraps=store._rust_rewrite_notifications,
+        ) as mock_rewrite:
+            rewrite_notifications([n])
+
+        mock_rewrite.assert_called_once()
+        assert load_notifications()[0].id == n.id
+
+
+class TestRustBackedCache:
+    """Tests for cache behavior around Rust-backed writes."""
+
+    def test_rust_write_invalidates_cached_snapshot(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification()
+        append_notification(n)
+        outcome = NotificationUpdateOutcomeWire(
+            schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            matched_count=1,
+            changed_count=1,
+            rewritten=True,
+        )
+
+        with (
+            patch(
+                "sase.notifications.store._rust_read_notifications_snapshot",
+                wraps=store._rust_read_notifications_snapshot,
+            ) as mock_read,
+            patch(
+                "sase.notifications.store._rust_apply_notification_state_update",
+                return_value=outcome,
+            ),
+        ):
+            assert load_notifications()[0].id == n.id
+            assert load_notifications()[0].id == n.id
+            assert mock_read.call_count == 1
+
+            assert mark_read(n.id) is True
+            assert load_notifications()[0].id == n.id
+            assert mock_read.call_count == 2
+
+
+class TestDismissNotificationsMatchingAgents:
+    """Tests for Rust-backed bulk agent notification dismissal."""
+
+    def test_dismisses_matching_agent_notifications(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        append_notification(
+            _make_notification(
+                id="jump",
+                action="JumpToAgent",
+                action_data={"cl_name": "cl", "raw_suffix": "20260430120000"},
+            )
+        )
+        append_notification(
+            _make_notification(
+                id="other",
+                action="JumpToAgent",
+                action_data={"cl_name": "other", "raw_suffix": "20260430120000"},
+            )
+        )
+
+        count = dismiss_notifications_matching_agents(
+            [{"cl_name": "cl", "raw_suffix": "20260430120000"}]
+        )
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+        assert count == 1
+        assert by_id["jump"].dismissed is True
+        assert by_id["other"].dismissed is False
 
 
 # =========================================================================

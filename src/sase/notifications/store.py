@@ -1,11 +1,10 @@
-"""JSONL-backed notification storage with file locking."""
+"""Rust-backed JSONL notification storage."""
 
 import dataclasses
-import fcntl
-import json
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from sase.notifications.models import Notification
 
@@ -25,36 +24,73 @@ def _invalidate_load_cache() -> None:
     _LOAD_CACHE.clear()
 
 
-def _notification_from_dict(data: dict) -> Notification | None:
-    """Safely construct a Notification from a dict, returning None on invalid data."""
-    try:
-        return Notification(
-            id=data["id"],
-            timestamp=data["timestamp"],
-            sender=data["sender"],
-            notes=data.get("notes", []),
-            files=data.get("files", []),
-            action=data.get("action"),
-            action_data=data.get("action_data", {}),
-            read=data.get("read", False),
-            dismissed=data.get("dismissed", False),
-            silent=data.get("silent", False),
-            muted=data.get("muted", False),
-            snooze_until=data.get("snooze_until"),
-        )
-    except (KeyError, TypeError):
-        return None
+def _notifications_path() -> Path:
+    return Path(NOTIFICATIONS_FILE)
+
+
+def _ensure_notifications_dir() -> None:
+    os.makedirs(NOTIFICATIONS_DIR, exist_ok=True)
+
+
+def _clone_notifications(notifications: list[Notification]) -> list[Notification]:
+    return [dataclasses.replace(n) for n in notifications]
+
+
+def _rust_append_notification(path: Path, notification: Notification) -> Any:
+    from sase.core import notification_store_facade
+
+    return notification_store_facade.append_notification(path, notification)
+
+
+def _rust_apply_notification_state_update(path: Path, update: Any) -> Any:
+    from sase.core import notification_store_facade
+
+    return notification_store_facade.apply_notification_state_update(path, update)
+
+
+def _rust_read_notifications_snapshot(
+    path: Path,
+    include_dismissed: bool = False,
+    expire_due_snoozes: bool = False,
+) -> Any:
+    from sase.core import notification_store_facade
+
+    return notification_store_facade.read_notifications_snapshot(
+        path, include_dismissed, expire_due_snoozes
+    )
+
+
+def _rust_rewrite_notifications(path: Path, notifications: list[Notification]) -> Any:
+    from sase.core.notification_store_facade import rewrite_notifications
+
+    return rewrite_notifications(path, notifications)
+
+
+def _state_update(**kwargs: Any) -> Any:
+    from sase.core import notification_store_wire
+
+    return notification_store_wire.NotificationStateUpdateWire(**kwargs)
+
+
+def _agent_key(cl_name: str, raw_suffix: str | None = None) -> Any:
+    from sase.core import notification_store_wire
+
+    return notification_store_wire.NotificationAgentKeyWire(
+        cl_name=cl_name, raw_suffix=raw_suffix
+    )
+
+
+def _apply_state_update(update: Any) -> Any:
+    outcome = _rust_apply_notification_state_update(_notifications_path(), update)
+    if outcome.rewritten or outcome.changed_count > 0:
+        _invalidate_load_cache()
+    return outcome
 
 
 def append_notification(n: Notification) -> None:
-    """Append a notification as a JSON line with exclusive file locking."""
-    os.makedirs(NOTIFICATIONS_DIR, exist_ok=True)
-    with open(NOTIFICATIONS_FILE, "a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            f.write(json.dumps(dataclasses.asdict(n)) + "\n")
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    """Append a notification as a JSON line through the Rust store."""
+    _ensure_notifications_dir()
+    _rust_append_notification(_notifications_path(), n)
     _invalidate_load_cache()
 
 
@@ -78,80 +114,35 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     if cached is not None:
         return [dataclasses.replace(n) for n in cached]
 
-    with open(path) as f:
-        fcntl.flock(f, fcntl.LOCK_SH)
-        try:
-            lines = f.readlines()
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
-
-    notifications: list[Notification] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        n = _notification_from_dict(data)
-        if n is None:
-            continue
-        if not include_dismissed and n.dismissed:
-            continue
-        notifications.append(n)
+    snapshot = _rust_read_notifications_snapshot(path, include_dismissed)
+    notifications = snapshot.notifications
 
     # Drop any prior entries — only the latest stat is interesting and
     # this keeps the cache size bounded across long-running processes.
     _LOAD_CACHE.clear()
-    _LOAD_CACHE[key] = [dataclasses.replace(n) for n in notifications]
-    return notifications
-
-
-def _rewrite_notifications(notifications: list[Notification]) -> None:
-    """Rewrite the entire notifications file with exclusive locking."""
-    os.makedirs(NOTIFICATIONS_DIR, exist_ok=True)
-    with open(NOTIFICATIONS_FILE, "w") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            for n in notifications:
-                f.write(json.dumps(dataclasses.asdict(n)) + "\n")
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
-    _invalidate_load_cache()
+    _LOAD_CACHE[key] = _clone_notifications(notifications)
+    return _clone_notifications(notifications)
 
 
 def rewrite_notifications(notifications: list[Notification]) -> None:
-    """Rewrite the entire notifications file with exclusive locking."""
-    _rewrite_notifications(notifications)
+    """Rewrite the entire notifications file through the Rust store."""
+    _ensure_notifications_dir()
+    _rust_rewrite_notifications(_notifications_path(), notifications)
+    _invalidate_load_cache()
 
 
 def mark_read(notification_id: str) -> bool:
     """Mark a notification as read. Returns True if found."""
-    all_notifications = load_notifications(include_dismissed=True)
-    found = False
-    for n in all_notifications:
-        if n.id == notification_id:
-            n.read = True
-            found = True
-            break
-    if found:
-        _rewrite_notifications(all_notifications)
-    return found
+    outcome = _apply_state_update(_state_update(kind="mark_read", id=notification_id))
+    return outcome.matched_count > 0
 
 
 def mark_dismissed(notification_id: str) -> bool:
     """Mark a notification as dismissed. Returns True if found."""
-    all_notifications = load_notifications(include_dismissed=True)
-    found = False
-    for n in all_notifications:
-        if n.id == notification_id:
-            n.dismissed = True
-            found = True
-            break
-    if found:
-        _rewrite_notifications(all_notifications)
-    return found
+    outcome = _apply_state_update(
+        _state_update(kind="mark_dismissed", id=notification_id)
+    )
+    return outcome.matched_count > 0
 
 
 def mark_muted(notification_id: str, muted: bool = True) -> bool:
@@ -160,18 +151,10 @@ def mark_muted(notification_id: str, muted: bool = True) -> bool:
     Unmuting (``muted=False``) also clears any pending ``snooze_until`` —
     snooze is mute-with-a-timer, so unmuting cancels the timer.
     """
-    all_notifications = load_notifications(include_dismissed=True)
-    found = False
-    for n in all_notifications:
-        if n.id == notification_id:
-            n.muted = muted
-            if not muted:
-                n.snooze_until = None
-            found = True
-            break
-    if found:
-        _rewrite_notifications(all_notifications)
-    return found
+    outcome = _apply_state_update(
+        _state_update(kind="mark_muted", id=notification_id, muted=muted)
+    )
+    return outcome.matched_count > 0
 
 
 def mark_snoozed(notification_id: str, until: datetime) -> bool:
@@ -181,17 +164,10 @@ def mark_snoozed(notification_id: str, until: datetime) -> bool:
     timestamp; the next expiry pass flips it back to ``muted=False`` and
     clears the timer.
     """
-    all_notifications = load_notifications(include_dismissed=True)
-    found = False
-    for n in all_notifications:
-        if n.id == notification_id:
-            n.muted = True
-            n.snooze_until = until.isoformat()
-            found = True
-            break
-    if found:
-        _rewrite_notifications(all_notifications)
-    return found
+    outcome = _apply_state_update(
+        _state_update(kind="mark_snoozed", id=notification_id, until=until.isoformat())
+    )
+    return outcome.matched_count > 0
 
 
 def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
@@ -224,24 +200,64 @@ def expire_due_snoozes(notifications: list[Notification]) -> list[Notification]:
     if not expired:
         return expired
 
-    expired_ids = {n.id for n in expired}
-    all_notifications = load_notifications(include_dismissed=True)
-    for n in all_notifications:
-        if n.id in expired_ids:
-            n.muted = False
-            n.snooze_until = None
-    _rewrite_notifications(all_notifications)
+    outcome = _apply_state_update(
+        _state_update(kind="expire_snoozes", now=now.isoformat())
+    )
+    expired_ids = set(outcome.expired_ids)
+    if not expired_ids:
+        return []
+
+    rows_by_id = {n.id: n for n in outcome.notifications}
+    expired = []
+    for n in notifications:
+        if n.id not in expired_ids:
+            continue
+        updated = rows_by_id.get(n.id)
+        n.muted = updated.muted if updated is not None else False
+        n.snooze_until = updated.snooze_until if updated is not None else None
+        expired.append(n)
     return expired
 
 
 def mark_all_read() -> int:
     """Mark all unread notifications as read. Returns count of newly marked."""
-    all_notifications = load_notifications(include_dismissed=True)
-    count = 0
-    for n in all_notifications:
-        if not n.read:
-            n.read = True
-            count += 1
-    if count > 0:
-        _rewrite_notifications(all_notifications)
-    return count
+    outcome = _apply_state_update(_state_update(kind="mark_all_read"))
+    return int(outcome.changed_count)
+
+
+def _agent_key_from_mapping(data: dict[str, Any]) -> Any | None:
+    cl_name = data.get("cl_name")
+    if not cl_name:
+        return None
+    raw_suffix = data.get("raw_suffix")
+    return _agent_key(
+        cl_name=str(cl_name),
+        raw_suffix=None if raw_suffix is None else str(raw_suffix),
+    )
+
+
+def dismiss_notifications_matching_agents(
+    agent_keys: list[dict[str, Any] | Any],
+) -> int:
+    """Dismiss unread notifications that reference any supplied agent key."""
+    from sase.core import notification_store_wire
+
+    keys: list[Any] = []
+    for item in agent_keys:
+        if isinstance(item, notification_store_wire.NotificationAgentKeyWire):
+            keys.append(item)
+            continue
+        key = _agent_key_from_mapping(item)
+        if key is not None:
+            keys.append(key)
+
+    if not keys:
+        return 0
+
+    outcome = _apply_state_update(
+        _state_update(
+            kind="dismiss_matching_agents",
+            agents=tuple(keys),
+        )
+    )
+    return int(outcome.changed_count)

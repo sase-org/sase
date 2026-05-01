@@ -14,6 +14,10 @@ from sase.ace.tui.actions.agents._toasts import (
     format_batch_toasts,
     _format_notification_toast,
 )
+from sase.core.notification_store_wire import (
+    NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+    NotificationUpdateOutcomeWire,
+)
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 
@@ -294,6 +298,19 @@ def _patch_load(notifications: list[Notification]) -> Any:
     )
 
 
+def _snooze_expiry_outcome(
+    notifications: list[Notification],
+) -> NotificationUpdateOutcomeWire:
+    return NotificationUpdateOutcomeWire(
+        schema_version=NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+        matched_count=len(notifications),
+        changed_count=len(notifications),
+        rewritten=bool(notifications),
+        notifications=notifications,
+        expired_ids=[n.id for n in notifications],
+    )
+
+
 class TestPollingDelta:
     def test_no_new_ids_no_notify(self) -> None:
         app = _FakeApp()
@@ -381,10 +398,9 @@ class TestSnoozeExpiry:
         )
         with (
             _patch_load([snoozed]),
-            patch("sase.notifications.store._rewrite_notifications"),
             patch(
-                "sase.notifications.store.load_notifications",
-                return_value=[snoozed],
+                "sase.notifications.store._rust_apply_notification_state_update",
+                return_value=_snooze_expiry_outcome([snoozed]),
             ),
         ):
             asyncio.run(app._poll_agent_completions())
@@ -410,10 +426,13 @@ class TestSnoozeExpiry:
         )
         with (
             _patch_load([snoozed]),
-            patch("sase.notifications.store._rewrite_notifications"),
+            patch(
+                "sase.notifications.store._rust_apply_notification_state_update"
+            ) as mock_update,
         ):
             asyncio.run(app._poll_agent_completions())
 
+        mock_update.assert_not_called()
         assert snoozed.muted is True
         assert snoozed.snooze_until == future
         assert app._indicator_muted == 1
@@ -436,10 +455,9 @@ class TestSnoozeExpiry:
         )
         with (
             _patch_load([snoozed_read]),
-            patch("sase.notifications.store._rewrite_notifications"),
             patch(
-                "sase.notifications.store.load_notifications",
-                return_value=[snoozed_read],
+                "sase.notifications.store._rust_apply_notification_state_update",
+                return_value=_snooze_expiry_outcome([snoozed_read]),
             ),
         ):
             asyncio.run(app._poll_agent_completions())
