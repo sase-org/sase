@@ -432,20 +432,49 @@ class AgentLaunchMixin(
         display_name = ctx.display_name
         try:
             with timer.stage("low_level_spawn"):
-                self._launch_background_agent(
-                    cl_name=ctx.display_name,
-                    project_file=ctx.project_file,
-                    workspace_dir=ctx.workspace_dir,
-                    workspace_num=ctx.workspace_num,
-                    workflow_name=ctx.workflow_name,
-                    prompt=raw_prompt,
-                    timestamp=ctx.timestamp,
-                    update_target=ctx.update_target,
-                    project_name=ctx.project_name,
-                    history_sort_key=ctx.history_sort_key,
-                    is_home_mode=ctx.is_home_mode,
-                    vcs_ref=vcs_ref,
-                    deferred_workspace=has_wait,
+                from sase.agent.launch_executor import (
+                    LaunchExecutionContext,
+                    LaunchSpawnRequest,
+                    execute_launch_plan,
+                )
+                from sase.core.agent_launch_facade import plan_fake_fanout
+
+                def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
+                    self._launch_background_agent(
+                        cl_name=request.cl_name,
+                        project_file=request.project_file,
+                        workspace_dir=request.workspace_dir,
+                        workspace_num=request.workspace_num,
+                        workflow_name=request.workflow_name,
+                        prompt=request.prompt,
+                        timestamp=request.timestamp,
+                        update_target=request.update_target,
+                        project_name=request.project_name,
+                        history_sort_key=request.history_sort_key,
+                        is_home_mode=request.is_home_mode,
+                        vcs_ref=request.vcs_ref,
+                        deferred_workspace=request.deferred_workspace,
+                        extra_env=request.extra_env,
+                        local_xprompts_file=request.local_xprompts_file,
+                    )
+
+                execute_launch_plan(
+                    plan_fake_fanout("single", [raw_prompt]),
+                    LaunchExecutionContext(
+                        cl_name=ctx.display_name,
+                        project_file=ctx.project_file,
+                        project_name=ctx.project_name,
+                        update_target=ctx.update_target,
+                        history_sort_key=ctx.history_sort_key,
+                        is_home_mode=ctx.is_home_mode,
+                        vcs_ref=vcs_ref,
+                        deferred_workspace=has_wait,
+                        workspace_num=ctx.workspace_num,
+                        workspace_dir=ctx.workspace_dir,
+                        use_preallocated_workspace=True,
+                    ),
+                    spawn=_spawn_from_tui,
+                    base_timestamp=ctx.timestamp,
                 )
             timer.finish(dispatch="single")
             self.call_later(self._schedule_agents_async_refresh)  # type: ignore[attr-defined]
@@ -476,6 +505,7 @@ class AgentLaunchMixin(
         vcs_ref: tuple[str, str] | None = None,
         deferred_workspace: bool = False,
         extra_env: dict[str, str] | None = None,
+        local_xprompts_file: str | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -495,6 +525,8 @@ class AgentLaunchMixin(
                 VCS reference.  Used to set SASE_*_PRE_ALLOCATED env vars.
             extra_env: Additional environment variables to inject into the
                 spawned subprocess (e.g. ``SASE_REPEAT_*`` for repeat fan-out).
+            local_xprompts_file: Optional serialized local-xprompt file for the
+                spawned subprocess.
         """
         from sase.agent.launcher import spawn_agent_subprocess
 
@@ -513,4 +545,5 @@ class AgentLaunchMixin(
             vcs_ref=vcs_ref,
             deferred_workspace=deferred_workspace,
             extra_env=extra_env,
+            local_xprompts_file=local_xprompts_file,
         )

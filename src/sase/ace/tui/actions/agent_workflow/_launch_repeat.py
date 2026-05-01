@@ -70,12 +70,16 @@ class RepeatLaunchMixin:
 
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
-            from sase.running_field import (
-                get_first_available_axe_workspace,
-                get_workspace_directory,
-                get_workspace_directory_for_num,
+            from sase.agent.launch_executor import (
+                LaunchExecutionContext,
+                LaunchSpawnRequest,
+                execute_launch_plan,
             )
-            from sase.core.agent_launch_facade import allocate_launch_timestamp_batch
+            from sase.core.agent_launch_facade import (
+                allocate_launch_timestamp_batch,
+                plan_fake_fanout,
+            )
+            from sase.core.agent_launch_wire import LaunchFanoutSlotWire
 
             timer = LaunchTimingRecorder(
                 "tui_agent_launch_fanout",
@@ -91,61 +95,85 @@ class RepeatLaunchMixin:
                 if repeat_count is not None
                 else None
             )
+            specs: list[RepeatAgentSpec] = []
 
-            def _spawn_one(spec: RepeatAgentSpec) -> None:
-                assert spec.timestamp is not None
-                with timer.stage("timestamp_allocate", slot_index=spec.iteration):
-                    timestamp = spec.timestamp
-                    workflow_name = f"ace(run)-{timestamp}"
+            specs = spawn_repeat_batch(
+                prompt,
+                base_spawn_fn=specs.append,
+                timestamps=timestamps,
+            )
+            plan = plan_fake_fanout("repeat", [spec.prompt for spec in specs])
+            plan = dataclasses.replace(
+                plan,
+                slots=[
+                    dataclasses.replace(
+                        slot,
+                        timestamp=spec.timestamp,
+                        workflow_name=(
+                            None
+                            if spec.timestamp is None
+                            else f"ace(run)-{spec.timestamp}"
+                        ),
+                        repeat_name=spec.name,
+                    )
+                    for slot, spec in zip(plan.slots, specs, strict=True)
+                ],
+            )
+            specs_by_slot = dict(enumerate(specs))
 
-                with timer.stage("workspace_allocation", slot_index=spec.iteration):
-                    if has_wait and not ctx.is_home_mode:
-                        workspace_num = 0
-                        workspace_dir = get_workspace_directory(ctx.project_name, 1)
-                    elif ctx.is_home_mode:
-                        workspace_num = ctx.workspace_num
-                        workspace_dir = ctx.workspace_dir
-                    else:
-                        workspace_num = get_first_available_axe_workspace(
-                            ctx.project_file
-                        )
-                        workspace_dir, _ = get_workspace_directory_for_num(
-                            workspace_num, ctx.project_name
-                        )
-
-                extra_env = {
+            def _slot_env(slot: LaunchFanoutSlotWire) -> dict[str, str]:
+                spec = specs_by_slot[slot.slot_index]
+                return {
                     REPEAT_NAME_ENV: spec.name,
                     REPEAT_ITERATION_ENV: str(spec.iteration),
                     REPEAT_TOTAL_ENV: str(spec.total),
                 }
 
-                with timer.stage("low_level_spawn", slot_index=spec.iteration):
-                    self._launch_background_agent(  # type: ignore[attr-defined]
-                        cl_name=ctx.display_name,
-                        project_file=ctx.project_file,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        workflow_name=workflow_name,
-                        prompt=spec.prompt,
-                        timestamp=timestamp,
-                        update_target=ctx.update_target,
-                        project_name=ctx.project_name,
-                        history_sort_key=ctx.history_sort_key,
-                        is_home_mode=ctx.is_home_mode,
-                        vcs_ref=vcs_ref,
-                        deferred_workspace=has_wait,
-                        extra_env=extra_env,
-                    )
+            def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
+                self._launch_background_agent(  # type: ignore[attr-defined]
+                    cl_name=request.cl_name,
+                    project_file=request.project_file,
+                    workspace_dir=request.workspace_dir,
+                    workspace_num=request.workspace_num,
+                    workflow_name=request.workflow_name,
+                    prompt=request.prompt,
+                    timestamp=request.timestamp,
+                    update_target=request.update_target,
+                    project_name=request.project_name,
+                    history_sort_key=request.history_sort_key,
+                    is_home_mode=request.is_home_mode,
+                    vcs_ref=request.vcs_ref,
+                    deferred_workspace=request.deferred_workspace,
+                    extra_env=request.extra_env,
+                )
+
+            def _refresh_after_slot(_record: object) -> None:
                 self.call_later(  # type: ignore[attr-defined]
                     self.request_agents_refresh,  # type: ignore[attr-defined]
                     "launch",
                 )
 
-            specs = spawn_repeat_batch(
-                prompt,
-                base_spawn_fn=_spawn_one,
-                timestamps=timestamps,
+            context = LaunchExecutionContext(
+                cl_name=ctx.display_name,
+                project_file=ctx.project_file,
+                project_name=ctx.project_name,
+                update_target=ctx.update_target,
+                history_sort_key=ctx.history_sort_key,
+                is_home_mode=ctx.is_home_mode,
+                vcs_ref=vcs_ref,
+                deferred_workspace=has_wait,
+                workspace_num=ctx.workspace_num,
+                workspace_dir=ctx.workspace_dir,
             )
+            with timer.stage("execute_launch_plan", slot_count=len(specs)):
+                execute_launch_plan(
+                    plan,
+                    context,
+                    spawn=_spawn_from_tui,
+                    on_slot_executed=_refresh_after_slot,
+                    slot_extra_env=_slot_env,
+                )
+
             msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(specs))
             self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]

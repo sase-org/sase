@@ -500,7 +500,6 @@ def launch_agent_from_cwd(
 
     # --- Allocate axe workspace ---
     timestamp = timestamp or generate_timestamp()
-    workflow_name = f"ace(run)-{timestamp}"
 
     if not workspace_dir:
         if is_home_mode:
@@ -540,19 +539,25 @@ def launch_agent_from_cwd(
 
     assert workspace_num is not None
     assert workspace_dir is not None
-    return spawn_agent_subprocess(
-        cl_name=cl_name,
-        project_file=project_file,
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        workflow_name=workflow_name,
-        prompt=query,
-        timestamp=timestamp,
-        update_target=update_target,
-        project_name=project_name,
-        history_sort_key=history_sort_key,
-        is_home_mode=is_home_mode,
-        vcs_ref=vcs_ref,
-        deferred_workspace=has_wait,
+    from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
+    from sase.core.agent_launch_facade import plan_fake_fanout
+
+    execution = execute_launch_plan(
+        plan_fake_fanout("single", [query]),
+        LaunchExecutionContext(
+            cl_name=cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            update_target=update_target,
+            history_sort_key=history_sort_key,
+            is_home_mode=is_home_mode,
+            vcs_ref=vcs_ref,
+            deferred_workspace=has_wait,
+            workspace_num=workspace_num,
+            workspace_dir=workspace_dir,
+            use_preallocated_workspace=True,
+        ),
         extra_env=extra_env,
+        base_timestamp=timestamp,
     )
+    return execution.results[0]

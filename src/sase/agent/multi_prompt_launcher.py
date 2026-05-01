@@ -468,12 +468,11 @@ def _spawn_segments_into(
     results: list[AgentLaunchResult],
 ) -> None:
     from sase.agent.launch_timing import LaunchTimingRecorder
-    from sase.agent.launcher import spawn_agent_subprocess
-    from sase.running_field import (
-        get_first_available_axe_workspace,
-        get_workspace_directory,
-        get_workspace_directory_for_num,
+    from sase.agent.launch_executor import (
+        LaunchExecutionContext,
+        execute_launch_plan,
     )
+    from sase.core.agent_launch_facade import plan_fake_fanout
     from sase.artifacts import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
@@ -529,21 +528,18 @@ def _spawn_segments_into(
                 )
 
         sub_prompts = model_prompts if model_prompts is not None else [segment]
-        with timer.stage(
-            "timestamp_allocate_batch",
-            segment_index=i,
-            slot_count=len(sub_prompts),
-        ):
-            timestamps = timestamp_allocator.allocate(len(sub_prompts))
+        plan = plan_fake_fanout(
+            "model" if model_prompts is not None else "multi_prompt",
+            sub_prompts,
+        )
 
-        last_timestamp: str | None = None
-        last_project_name: str | None = None
-        last_planned_name: str | None = None
-        for j, sub_prompt in enumerate(sub_prompts):
-            with timer.stage("timestamp_allocate", segment_index=i, slot_index=j):
-                timestamp = timestamps[j]
-                last_timestamp = timestamp
-                workflow_name = f"ace(run)-{timestamp}"
+        slot_contexts: dict[int, LaunchExecutionContext] = {}
+        slot_planned_env: dict[int, dict[str, str]] = {}
+        slot_local_xprompts_files: dict[int, str | None] = {}
+        planned_names: dict[int, str | None] = {}
+        for slot in plan.slots:
+            j = slot.slot_index
+            sub_prompt = slot.prompt
             with timer.stage("name_plan", segment_index=i, slot_index=j):
                 if next_segment_needs_name:
                     planned_name, planned_env_name = (
@@ -551,12 +547,17 @@ def _spawn_segments_into(
                     )
                 else:
                     planned_name, planned_env_name = None, None
-                last_planned_name = planned_name
+                planned_names[j] = planned_name
+                slot_planned_env[j] = (
+                    {_PLANNED_AGENT_NAME_ENV: planned_env_name}
+                    if planned_env_name is not None
+                    else {}
+                )
 
             # Each sub-prompt gets its own copy of the local xprompts file
             # (the agent runner deletes it after reading).
             with timer.stage("local_xprompts_serialize", segment_index=i, slot_index=j):
-                local_xprompts_file = (
+                slot_local_xprompts_files[j] = (
                     _serialize_local_xprompts(segment_local_xprompts)
                     if segment_local_xprompts
                     else None
@@ -572,53 +573,65 @@ def _spawn_segments_into(
                     fallback_vcs_ref=vcs_ref,
                     has_wait=has_wait,
                 )
-
-            # Allocate workspace for this sub-prompt.
-            with timer.stage("workspace_allocation", segment_index=i, slot_index=j):
-                if segment_ctx.workspace_dir is not None:
-                    workspace_dir = segment_ctx.workspace_dir
-                    assert segment_ctx.workspace_num is not None
-                    workspace_num = segment_ctx.workspace_num
-                elif segment_ctx.is_home_mode:
-                    workspace_dir = os.path.expanduser("~")
-                    workspace_num = 0
-                elif has_wait:
-                    workspace_num = 0
-                    workspace_dir = get_workspace_directory(segment_ctx.project_name, 1)
-                else:
-                    workspace_num = get_first_available_axe_workspace(
-                        segment_ctx.project_file
-                    )
-                    workspace_dir, _ = get_workspace_directory_for_num(
-                        workspace_num, segment_ctx.project_name
-                    )
-
-            with timer.stage("low_level_spawn", segment_index=i, slot_index=j):
-                slot_extra_env = dict(extra_env or {})
-                if planned_env_name is not None:
-                    slot_extra_env[_PLANNED_AGENT_NAME_ENV] = planned_env_name
-                result = spawn_agent_subprocess(
+                slot_contexts[j] = LaunchExecutionContext(
                     cl_name=segment_ctx.cl_name,
                     project_file=segment_ctx.project_file,
-                    workspace_dir=workspace_dir,
-                    workspace_num=workspace_num,
-                    workflow_name=workflow_name,
-                    prompt=sub_prompt,
-                    timestamp=timestamp,
                     update_target=segment_ctx.update_target,
                     project_name=segment_ctx.project_name,
                     history_sort_key=segment_ctx.history_sort_key,
                     is_home_mode=segment_ctx.is_home_mode,
                     vcs_ref=segment_ctx.vcs_ref,
                     deferred_workspace=has_wait,
-                    local_xprompts_file=local_xprompts_file,
-                    extra_env=slot_extra_env or None,
+                    workspace_num=segment_ctx.workspace_num,
+                    workspace_dir=segment_ctx.workspace_dir,
+                    use_preallocated_workspace=segment_ctx.workspace_dir is not None,
                 )
-            results.append(result)
-            last_project_name = segment_ctx.project_name
 
-            if on_agent_spawned is not None:
-                on_agent_spawned()
+        with timer.stage(
+            "execute_launch_plan",
+            segment_index=i,
+            slot_count=len(plan.slots),
+        ):
+
+            def _slot_context(
+                slot: object,
+                _context: LaunchExecutionContext,
+                contexts: dict[int, LaunchExecutionContext] = slot_contexts,
+            ) -> LaunchExecutionContext:
+                return contexts[slot.slot_index]  # type: ignore[attr-defined]
+
+            def _slot_extra_env(
+                slot: object,
+                env_by_slot: dict[int, dict[str, str]] = slot_planned_env,
+            ) -> dict[str, str]:
+                return env_by_slot[slot.slot_index]  # type: ignore[attr-defined]
+
+            def _slot_local_xprompts_file(
+                slot: object,
+                files_by_slot: dict[int, str | None] = slot_local_xprompts_files,
+            ) -> str | None:
+                return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
+
+            execution = execute_launch_plan(
+                plan,
+                slot_contexts[0],
+                slot_context=_slot_context,
+                slot_extra_env=_slot_extra_env,
+                slot_local_xprompts_file=_slot_local_xprompts_file,
+                extra_env=extra_env,
+                timestamp_allocator=timestamp_allocator,
+                on_slot_executed=(
+                    None
+                    if on_agent_spawned is None
+                    else lambda _record: on_agent_spawned()
+                ),
+            )
+
+        results.extend(execution.results)
+        last_record = execution.records[-1]
+        last_timestamp = last_record.request.timestamp
+        last_project_name = last_record.request.project_name
+        last_planned_name = planned_names.get(last_record.slot.slot_index)
 
         previous_agent_name = last_planned_name
         # Fall back to the legacy naming poll only when the next segment has
