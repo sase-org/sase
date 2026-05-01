@@ -22,7 +22,10 @@ def _agent(
     agent_name: str | None = None,
     status: str = "RUNNING",
     raw_suffix: str | None = "20260425143000",
+    parent_workflow: str | None = None,
     parent_timestamp: str | None = None,
+    plan_chain_parent_timestamp: str | None = None,
+    role_suffix: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -33,7 +36,10 @@ def _agent(
         agent_name=agent_name,
         tag=tag,
         raw_suffix=raw_suffix,
+        parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
+        plan_chain_parent_timestamp=plan_chain_parent_timestamp,
+        role_suffix=role_suffix,
     )
 
 
@@ -89,7 +95,11 @@ def test_completed_count_counts_dismissable_statuses_only() -> None:
 
 def test_non_child_indices_excludes_workflow_children() -> None:
     parent = _agent(raw_suffix="parent")
-    child = _agent(raw_suffix=None, parent_timestamp="parent")
+    child = _agent(
+        raw_suffix=None,
+        parent_workflow="workflow-demo",
+        parent_timestamp="parent",
+    )
     extra = _agent(raw_suffix="x")
     agents = [parent, child, extra]
     index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
@@ -99,6 +109,21 @@ def test_non_child_indices_excludes_workflow_children() -> None:
     assert index.non_child_position(0) == 1
     assert index.non_child_position(1) == 1  # child shares parent's position
     assert index.non_child_position(2) == 2
+
+
+def test_non_child_indices_count_plan_chain_phase_rows() -> None:
+    parent = _agent(raw_suffix="parent", role_suffix=".plan")
+    phase = _agent(
+        raw_suffix="phase",
+        parent_timestamp="parent",
+        plan_chain_parent_timestamp="parent",
+        role_suffix=".coder",
+    )
+    agents = [parent, phase]
+    index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
+    assert index.non_child_indices == [0, 1]
+    assert index.non_child_total == 2
+    assert index.non_child_position(1) == 2
 
 
 def test_slice_for_unknown_key_returns_empty_slice() -> None:

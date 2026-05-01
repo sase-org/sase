@@ -148,6 +148,7 @@ def test_non_child_position_is_o1_lookup() -> None:
             start_time=datetime(2026, 4, 25, 12, 0, 0),
             agent_name="child",
             raw_suffix=None,
+            parent_workflow="workflow-demo",
             parent_timestamp="parent",
         ),
         _agent(suffix="next"),

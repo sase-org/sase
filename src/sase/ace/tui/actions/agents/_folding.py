@@ -40,11 +40,11 @@ class AgentFoldingMixin:
         """
         from ...models.agent import AgentType
 
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_rendered_workflow_child and agent.parent_timestamp:
             return agent.parent_timestamp
         if (
             agent.agent_type == AgentType.WORKFLOW
-            and not agent.is_workflow_child
+            and not agent.is_rendered_workflow_child
             and agent.raw_suffix
         ):
             return agent.raw_suffix
@@ -264,12 +264,12 @@ class AgentFoldingMixin:
                     key is not None
                     and self._fold_manager.get(key) != FoldLevel.COLLAPSED
                 ):
-                    if agent.is_workflow_child and agent.parent_timestamp:
+                    if agent.is_rendered_workflow_child and agent.parent_timestamp:
                         if self._fold_manager.get(key) == FoldLevel.EXPANDED:
                             for idx, a in enumerate(self._agents):
                                 if (
                                     a.raw_suffix == agent.parent_timestamp
-                                    and not a.is_workflow_child
+                                    and not a.is_rendered_workflow_child
                                 ):
                                     self.current_idx = idx
                                     break
@@ -309,12 +309,12 @@ class AgentFoldingMixin:
             return
         from ...models.fold_state import FoldLevel
 
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_rendered_workflow_child and agent.parent_timestamp:
             if self._fold_manager.get(key) == FoldLevel.EXPANDED:
                 for idx, a in enumerate(self._agents):
                     if (
                         a.raw_suffix == agent.parent_timestamp
-                        and not a.is_workflow_child
+                        and not a.is_rendered_workflow_child
                     ):
                         self.current_idx = idx
                         break

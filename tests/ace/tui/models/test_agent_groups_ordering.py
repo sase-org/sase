@@ -76,6 +76,30 @@ def test_full_tree_workflow_children_stay_with_parent_after_sort() -> None:
     assert agent_order == [0, 1, 3, 2]
 
 
+def test_plan_chain_phase_does_not_inherit_parent_grouping() -> None:
+    """Plan-chain lineage keeps the phase independent in the rendered tree."""
+    parent = _agent(
+        cl_name="root-cl",
+        project_file="/r/root/root.gp",
+        agent_name="alpha.plan",
+        raw_suffix="ts1",
+    )
+    phase = _agent(
+        cl_name="phase-cl",
+        project_file="/r/phase/phase.gp",
+        agent_name="alpha.coder",
+        parent_timestamp="ts1",
+        plan_chain_parent_timestamp="ts1",
+        role_suffix=".coder",
+    )
+    entries = build_agent_tree([parent, phase])
+
+    agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
+    proj_keys = _group_keys(entries, level=0)
+    assert agent_order == [1, 0]
+    assert proj_keys == [("phase",), ("root",)]
+
+
 def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:
     """Sort-driven walk doesn't regress the singleton name-root suppression."""
     entries = build_agent_tree(

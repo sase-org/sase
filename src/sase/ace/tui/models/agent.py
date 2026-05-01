@@ -271,7 +271,7 @@ class Agent:
             if self.is_anonymous:
                 return "workflow"
             return self.workflow if self.workflow else "agent"
-        if self.is_workflow_child and self.step_type:
+        if self.is_rendered_workflow_child and self.step_type:
             return self.step_type
         if self.agent_type == AgentType.RUNNING:
             return "agent"
@@ -292,7 +292,7 @@ class Agent:
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent
-            and not self.is_workflow_child
+            and not self.is_rendered_workflow_child
             and self.workflow
         ):
             return self.workflow
@@ -495,7 +495,7 @@ class Agent:
         if self.agent_type == AgentType.WORKFLOW:
             if self.appears_as_agent:
                 return True
-            if self.is_workflow_child and self.step_type == "agent":
+            if self.is_rendered_workflow_child and self.step_type == "agent":
                 return True
         return False
 
