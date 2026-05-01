@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
+from sase.bead.model import Issue
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -110,8 +111,12 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_description",
-            lambda bead_id: "First line\n\n second\tline ",
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            lambda bead_id: Issue(
+                id=bead_id,
+                title="Phase title",
+                description="First line\n\n second\tline ",
+            ),
         )
 
         header, _ = build_header_text(agent, cheap=False)
@@ -126,8 +131,12 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_description",
-            lambda bead_id: " \n\t ",
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            lambda bead_id: Issue(
+                id=bead_id,
+                title="Phase title",
+                description=" \n\t ",
+            ),
         )
 
         header, _ = build_header_text(agent, cheap=False)
@@ -140,7 +149,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
             lambda bead_id: None,
         )
 
@@ -153,17 +162,58 @@ class TestAgentBeadMetadata:
     ) -> None:
         agent = _make_agent(agent_name="sase-x.3")
 
-        def fail_lookup(bead_id: str) -> str | None:
+        def fail_lookup(bead_id: str) -> Issue | None:
             raise AssertionError("cheap header must not touch bead storage")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_description",
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
             fail_lookup,
         )
 
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
+
+    def test_full_land_header_uses_plan_title_when_description_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.land")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            lambda bead_id: Issue(
+                id=bead_id,
+                title=" Make `sase bead` Fast With `sase-core` ",
+                description=" \n\t ",
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert (
+            "Name: @sase-x.land\n"
+            "Bead: sase-x - Land epic: Make `sase bead` Fast With `sase-core`\n"
+        ) in header.plain
+
+    def test_full_land_header_prefers_explicit_plan_description(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x.land")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            lambda bead_id: Issue(
+                id=bead_id,
+                title="Plan title",
+                description="Use the explicit plan description",
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert (
+            "Name: @sase-x.land\nBead: sase-x - Use the explicit plan description\n"
+        ) in header.plain
 
 
 # -- agent list bead badge ----------------------------------------------------
