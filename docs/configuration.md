@@ -942,9 +942,14 @@ Supported date range formats:
 
 ### `sase notify`
 
-| Flag           | Values | Default | Description                                               |
-| -------------- | ------ | ------- | --------------------------------------------------------- |
-| `-s, --sender` | string | -       | Notification sender name (overrides sender in JSON input) |
+`sase notify` without a subcommand preserves the legacy create behavior and reads notification JSON from stdin.
+
+| Form                 | Flags                                                                             | Description                                                 |
+| -------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `sase notify`        | `-s/--sender`                                                                     | Create a notification from stdin JSON                       |
+| `sase notify create` | `-s/--sender`                                                                     | Explicit alias for the legacy create path                   |
+| `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
+| `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                   | Show one notification by id; defaults to markdown           |
 
 ### `sase plan`
 

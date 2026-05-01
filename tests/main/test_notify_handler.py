@@ -320,3 +320,88 @@ def test_show_store_read_failure_exits_1(capsys: pytest.CaptureFixture[str]) -> 
 
     assert excinfo.value.code == 1
     assert "cannot read notifications" in capsys.readouterr().err
+
+
+def test_notify_skill_recommended_flow_lists_shows_and_reads_axe_digest(
+    temp_notifications_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del temp_notifications_dir
+    digest_path = tmp_path / "axe_digest.txt"
+    digest_path.write_text(
+        "Axe error digest\n\n- bgcmd hooks failed with exit code 1\n",
+        encoding="utf-8",
+    )
+
+    append_notification(
+        _make_notification(
+            "regular",
+            minutes_ago=15,
+            sender="sync",
+            notes=["regular notification"],
+        )
+    )
+    append_notification(
+        _make_notification(
+            "axe-digest",
+            minutes_ago=5,
+            sender="axe",
+            notes=["1 error(s) in the last hour"],
+            files=[str(digest_path)],
+            action="ViewErrorReport",
+            action_data={"error_report_path": str(digest_path)},
+            read=False,
+        )
+    )
+    append_notification(
+        _make_notification(
+            "dismissed-axe",
+            minutes_ago=1,
+            sender="axe",
+            notes=["old dismissed digest"],
+            dismissed=True,
+        )
+    )
+
+    parser = create_parser()
+    list_args = parser.parse_args(
+        ["notify", "list", "-j", "-l", "20", "--sender", "axe"]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(list_args)
+    assert excinfo.value.code == 0
+
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["id"] for row in rows] == ["axe-digest"]
+    axe_row = rows[0]
+    assert axe_row["priority"] is True
+    assert axe_row["read"] is False
+    assert axe_row["files"] == [str(digest_path)]
+    assert axe_row["action_data"]["error_report_path"] == str(digest_path)
+
+    show_args = parser.parse_args(["notify", "show", "--id", axe_row["id"]])
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(show_args)
+    assert excinfo.value.code == 0
+
+    markdown = capsys.readouterr().out
+    assert "# Notification axe-digest" in markdown
+    assert "1 error(s) in the last hour" in markdown
+    assert str(digest_path) in markdown
+    assert "ViewErrorReport" in markdown
+
+    digest_text = Path(axe_row["action_data"]["error_report_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "bgcmd hooks failed with exit code 1" in digest_text
+
+    all_args = parser.parse_args(
+        ["notify", "list", "-j", "-l", "20", "--sender", "axe", "--all"]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(all_args)
+    assert excinfo.value.code == 0
+
+    all_rows = json.loads(capsys.readouterr().out)
+    assert [row["id"] for row in all_rows] == ["dismissed-axe", "axe-digest"]

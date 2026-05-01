@@ -139,12 +139,42 @@ agents from drowning out real updates.
 
 ## CLI
 
-The `sase notify` command creates a notification from the command line:
+The `sase notify` command can create notifications and inspect the local notification inbox.
+
+Create remains backward-compatible with the original bare command form:
 
 ```bash
 echo '{"sender": "test", "notes": ["Hello"]}' | sase notify
 sase notify -s my_sender < notification.json
+sase notify create -s my_sender < notification.json
 ```
+
+For read-only inspection, list recent notifications as either a compact table or stable JSON:
+
+```bash
+sase notify list
+sase notify list -j -l 20
+sase notify list -j --sender axe
+sase notify list -j --unread
+sase notify list -j -q digest
+sase notify list -j --all
+```
+
+`sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `priority`, `notes`,
+`files`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. Dismissed notifications
+are hidden unless `--all` is provided.
+
+Inspect one notification by id:
+
+```bash
+sase notify show --id <notification_id>
+sase notify show --id <notification_id> -f json
+sase notify show --id <notification_id> -f markdown
+```
+
+The default `show` format is markdown. It includes the notification notes, attached file paths, action data, and state
+flags. Axe error digest notifications usually point to the actionable report through `files` or
+`action_data.error_report_path`; read that attached file for the detailed errors.
 
 See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI reference.
 
