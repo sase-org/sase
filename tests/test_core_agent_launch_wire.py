@@ -18,6 +18,7 @@ from sase.core.agent_launch_facade import (
     plan_agent_launch_fanout,
     plan_fake_fanout,
     prepare_agent_launch,
+    reserve_launch_timestamp_batch,
     safe_launch_name,
     spawn_prepared_agent_process,
 )
@@ -349,12 +350,36 @@ def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:
     ) == ["260501_120000", "260501_120001", "260501_120002"]
 
 
-def test_launch_timestamp_allocator_tracks_previous_batch() -> None:
+def test_reserve_launch_timestamp_batch_uses_global_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    assert reserve_launch_timestamp_batch(
+        2,
+        base_timestamp="260501_120000",
+    ) == ["260501_120000", "260501_120001"]
+    assert reserve_launch_timestamp_batch(
+        2,
+        base_timestamp="260501_120000",
+    ) == ["260501_120002", "260501_120003"]
+
+    state_path = (
+        tmp_path / ".sase" / "agent_launch_timestamps" / "last_reserved_timestamp"
+    )
+    assert state_path.read_text(encoding="utf-8").strip() == "260501_120003"
+
+
+def test_launch_timestamp_allocator_tracks_previous_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("HOME", str(tmp_path))
     allocator = LaunchTimestampBatchAllocator()
 
-    with pytest.MonkeyPatch.context() as monkeypatch:
-        monkeypatch.setattr(
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
             "sase.core.time.generate_timestamp",
             lambda: "260501_120000",
         )

@@ -76,8 +76,8 @@ class RepeatLaunchMixin:
                 execute_launch_plan,
             )
             from sase.core.agent_launch_facade import (
-                allocate_launch_timestamp_batch,
                 plan_fake_fanout,
+                reserve_launch_timestamp_batch,
             )
             from sase.core.agent_launch_wire import LaunchFanoutSlotWire
 
@@ -91,7 +91,7 @@ class RepeatLaunchMixin:
             )
             repeat_count, _, _ = extract_repeat_and_name(prompt)
             timestamps = (
-                allocate_launch_timestamp_batch(repeat_count)
+                reserve_launch_timestamp_batch(repeat_count)
                 if repeat_count is not None
                 else None
             )

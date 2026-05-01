@@ -58,7 +58,7 @@ class BulkLaunchMixin:
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
             from sase.workspace_provider import detect_workflow_type
-            from sase.core.time import generate_timestamp
+            from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
             from sase.running_field import (
                 get_first_available_axe_workspace,
                 get_workspace_directory_for_num,
@@ -90,7 +90,7 @@ class BulkLaunchMixin:
                 try:
                     with timer.stage("workspace_allocation", slot_index=i):
                         workspace_num = get_first_available_axe_workspace(project_file)
-                        timestamp = generate_timestamp()
+                        timestamp = reserve_launch_timestamp_batch(1)[0]
                         workflow_name = f"ace(run)-{timestamp}"
                         workspace_dir, _ = get_workspace_directory_for_num(
                             workspace_num, project_name

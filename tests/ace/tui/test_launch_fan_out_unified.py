@@ -350,7 +350,7 @@ def test_multi_model_launch_runs_off_main_thread_and_unifies_refresh() -> None:
             return_value=("/tmp/ws", None),
         ):
             with patch(
-                "sase.core.agent_launch_facade.allocate_launch_timestamp_batch",
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
                 return_value=["260501_120000", "260501_120001"],
             ):
                 # Run the worker body directly to verify behavior.
@@ -405,7 +405,7 @@ def test_repeat_launch_runs_off_main_thread_and_unifies_refresh() -> None:
                 "sase.running_field.get_workspace_directory", return_value="/tmp/ws"
             ):
                 with patch(
-                    "sase.core.agent_launch_facade.allocate_launch_timestamp_batch",
+                    "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
                     return_value=[
                         "260501_120000",
                         "260501_120001",

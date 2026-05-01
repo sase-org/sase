@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import fcntl
 import os
 from pathlib import Path
 
@@ -87,6 +88,52 @@ def allocate_launch_timestamp_batch(
     ]
 
 
+def _latest_timestamp(*timestamps: str | None) -> str | None:
+    values = [timestamp for timestamp in timestamps if timestamp]
+    return max(values) if values else None
+
+
+def reserve_launch_timestamp_batch(
+    count: int,
+    *,
+    base_timestamp: str | None = None,
+    after_timestamp: str | None = None,
+) -> list[str]:
+    """Reserve globally unique launch timestamps across concurrent processes."""
+
+    if count <= 0:
+        return []
+    if base_timestamp is None:
+        from sase.core.time import generate_timestamp
+
+        base_timestamp = generate_timestamp()
+
+    from sase.core.paths import ensure_sase_directory
+
+    reservation_dir = Path(ensure_sase_directory("agent_launch_timestamps"))
+    lock_path = reservation_dir / "lock"
+    state_path = reservation_dir / "last_reserved_timestamp"
+
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            persisted_timestamp = (
+                state_path.read_text(encoding="utf-8").strip()
+                if state_path.exists()
+                else None
+            )
+            reserved_after = _latest_timestamp(after_timestamp, persisted_timestamp)
+            timestamps = allocate_launch_timestamp_batch(
+                count,
+                base_timestamp=base_timestamp,
+                after_timestamp=reserved_after,
+            )
+            state_path.write_text(f"{timestamps[-1]}\n", encoding="utf-8")
+            return timestamps
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def plan_agent_launch_fanout(
     prompt: str,
     *,
@@ -106,7 +153,7 @@ class LaunchTimestampBatchAllocator:
         self._last_timestamp: str | None = None
 
     def allocate(self, count: int) -> list[str]:
-        timestamps = allocate_launch_timestamp_batch(
+        timestamps = reserve_launch_timestamp_batch(
             count,
             after_timestamp=self._last_timestamp,
         )
@@ -163,6 +210,7 @@ __all__ = [
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
     "prepare_agent_launch",
+    "reserve_launch_timestamp_batch",
     "safe_launch_name",
     "spawn_prepared_agent_process",
 ]

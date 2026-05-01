@@ -69,10 +69,10 @@ class AgentLaunchMixin(
             return
 
         # Regenerate timestamp at launch time (not when prompt bar was opened)
-        from sase.core.time import generate_timestamp
+        from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
         ctx = self._prompt_context
-        ctx.timestamp = generate_timestamp()
+        ctx.timestamp = reserve_launch_timestamp_batch(1)[0]
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
         # Unmount prompt bar first (transfers focus to the active tab's list

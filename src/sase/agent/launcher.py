@@ -304,7 +304,6 @@ def launch_agent_from_cwd(
         get_workspace_directory,
         get_workspace_directory_for_num,
     )
-    from sase.core.time import generate_timestamp
     from sase.workspace_provider import get_workflow_names
 
     # --- Resolve project context ---
@@ -389,12 +388,12 @@ def launch_agent_from_cwd(
         extract_repeat_and_name,
         spawn_repeat_batch,
     )
-    from sase.core.agent_launch_facade import allocate_launch_timestamp_batch
+    from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
     repeat_count, _, _ = extract_repeat_and_name(query)
     if repeat_count is not None and repeat_count > 1:
         slot_results: list[AgentLaunchResult] = []
-        repeat_timestamps = allocate_launch_timestamp_batch(repeat_count)
+        repeat_timestamps = reserve_launch_timestamp_batch(repeat_count)
 
         def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
             assert spec.timestamp is not None
@@ -499,7 +498,8 @@ def launch_agent_from_cwd(
         project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
 
     # --- Allocate axe workspace ---
-    timestamp = timestamp or generate_timestamp()
+    if timestamp is None:
+        timestamp = reserve_launch_timestamp_batch(1)[0]
 
     if not workspace_dir:
         if is_home_mode:

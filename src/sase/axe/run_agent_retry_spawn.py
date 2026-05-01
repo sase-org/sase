@@ -240,7 +240,7 @@ def spawn_retry_agent(
     retry.
     """
     from sase.agent.launcher import spawn_agent_subprocess
-    from sase.core.time import generate_timestamp
+    from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
     from sase.telemetry.metrics import RETRY_SPAWNS_TOTAL
 
     handoff = _build_handoff(
@@ -255,7 +255,7 @@ def spawn_retry_agent(
     # and the loader can read it from the parent side.
     handoff_path = handoff.write_to(ctx.artifacts_dir)
 
-    child_timestamp = generate_timestamp()
+    child_timestamp = reserve_launch_timestamp_batch(1)[0]
     child_workflow_name = f"ace(run)-{child_timestamp}"
     child_prompt = _build_resume_prompt(handoff)
 

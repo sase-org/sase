@@ -82,7 +82,10 @@ def test_launch_agent_from_cwd_cd_launches_in_target_without_workspace_claim(
             return_value=(None, None, None),
         ),
         patch("sase.history.prompt.add_or_update_prompt"),
-        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
         patch(
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
@@ -117,7 +120,10 @@ def test_launch_agent_from_cwd_no_ref_defaults_to_cd_home(
             return_value=("/projects/repo/repo.gp", 3, "repo"),
         ),
         patch("sase.history.prompt.add_or_update_prompt"),
-        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
         patch(
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
@@ -161,7 +167,10 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
             return_value=(None, None, None),
         ),
         patch("sase.history.prompt.add_or_update_prompt"),
-        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
         patch(
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
@@ -214,7 +223,10 @@ def test_launch_agent_from_cwd_wait_cd_stays_directory_mode(
             return_value=(None, None, None),
         ),
         patch("sase.history.prompt.add_or_update_prompt"),
-        patch("sase.core.time.generate_timestamp", return_value="ts"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
         patch(
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
