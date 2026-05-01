@@ -14,6 +14,7 @@ from ..date_subgroups import (
     day_subgroup_sort_key,
     four_hour_window_label,
     four_hour_window_sort_key,
+    one_hour_window_label,
     week_subgroup_label,
     week_subgroup_sort_key,
 )
@@ -177,23 +178,34 @@ def date_subgroup_for_changespec(
 ) -> str:
     """Return the optional BY_DATE L1 subgroup label for *cs*.
 
-    ``Today`` remains flat.  ``Yesterday`` groups by 4-hour windows,
-    ``This Week`` by calendar day, and ``Earlier`` by Monday-start week;
-    CLs without a parseable TIMESTAMPS entry land in
-    :data:`NO_TIMESTAMP_LABEL`.
+    ``Today`` and ``Yesterday`` group by 4-hour windows, ``This Week`` by
+    calendar day, and ``Earlier`` by Monday-start week; CLs without a
+    parseable TIMESTAMPS entry land in :data:`NO_TIMESTAMP_LABEL`.
     """
     latest = latest_from_map(cs, latest_map)
-    if date_bucket == "Today":
-        return ""
     if latest is None:
         return NO_TIMESTAMP_LABEL if date_bucket == _EARLIER else ""
-    if date_bucket == "Yesterday":
+    if date_bucket in {"Today", "Yesterday"}:
         return four_hour_window_label(latest)
     if date_bucket == "This Week":
         return day_subgroup_label(latest)
     if date_bucket == _EARLIER:
         return week_subgroup_label(latest)
     return ""
+
+
+def hour_subgroup_for_changespec(
+    cs: ChangeSpec,
+    date_bucket: str,
+    latest_map: LatestTimestampMap | None = None,
+) -> str:
+    """Return the optional BY_DATE L2 one-hour subgroup label for *cs*."""
+    if date_bucket not in {"Today", "Yesterday"}:
+        return ""
+    latest = latest_from_map(cs, latest_map)
+    if latest is None:
+        return ""
+    return one_hour_window_label(latest)
 
 
 def date_subgroup_sort_key(
@@ -213,7 +225,7 @@ def date_subgroup_sort_key(
         return (2, 0)
     if latest is None:
         return (1, 0)
-    if date_bucket == "Yesterday":
+    if date_bucket in {"Today", "Yesterday"}:
         return four_hour_window_sort_key(subgroup)
     if date_bucket == "This Week":
         return day_subgroup_sort_key(latest)

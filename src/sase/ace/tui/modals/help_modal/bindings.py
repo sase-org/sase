@@ -226,7 +226,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: proj→date→status",
                 ),
-                ("CL by date", "Yesterday by 4h, this week by day, older by week"),
+                ("CL by date", "Today/Yesterday by 4h then hour; week/older unchanged"),
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
                     "Expand/collapse group",
@@ -457,7 +457,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
                     "Cycle: project → date → status",
                 ),
-                ("by date", "Sub-grouped by 4-hour windows"),
+                ("by date", "Sub-grouped by 4-hour then hourly windows"),
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Needs Attention", "User must act"),
                 ("▶ Running", "Actively executing"),

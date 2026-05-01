@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import (
     NO_HOUR_LABEL,
     GroupingMode,
@@ -13,7 +14,7 @@ from sase.ace.tui.models.agent_groups import (
     time_window_bucket_for,
 )
 
-from ._agent_groups_helpers import _NOW, _agent
+from ._agent_groups_helpers import _NOW, _agent, _group_keys, _kinds
 
 
 def test_hour_bucket_for_running_uses_start_time() -> None:
@@ -83,6 +84,7 @@ def test_build_agent_tree_by_date_emits_window_banner_under_date_bucket() -> Non
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [("Today", "8AM-12PM")]
+    assert _group_keys(entries, 2) == [("Today", "8AM-12PM", "09:00")]
 
 
 def test_build_agent_tree_by_date_singleton_real_windows_emit_banners() -> None:
@@ -104,6 +106,10 @@ def test_build_agent_tree_by_date_singleton_real_windows_emit_banners() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
+    assert _group_keys(entries, 2) == [
+        ("Today", "12PM-4PM", "14:00"),
+        ("Today", "8AM-12PM", "09:00"),
+    ]
 
 
 def test_build_agent_tree_by_date_time_windows_newest_first() -> None:
@@ -141,6 +147,12 @@ def test_build_agent_tree_by_date_time_windows_newest_first() -> None:
         ("Today", "12PM-4PM"),
         ("Today", "8AM-12PM"),
     ]
+    assert _group_keys(entries, 2) == [
+        ("Today", "8PM-12AM", "21:00"),
+        ("Today", "8PM-12AM", "20:00"),
+        ("Today", "12PM-4PM", "14:00"),
+        ("Today", "8AM-12PM", "08:00"),
+    ]
 
 
 def test_build_agent_tree_by_date_no_time_window_sorts_last() -> None:
@@ -171,6 +183,7 @@ def test_build_agent_tree_by_date_no_time_window_sorts_last() -> None:
         ("Earlier", "8AM-12PM"),
         ("Earlier", NO_HOUR_LABEL),
     ]
+    assert _group_keys(entries, 2) == [("Earlier", "8AM-12PM", "08:00")]
 
 
 def test_build_agent_tree_by_date_singleton_no_time_has_no_hour_banner() -> None:
@@ -183,6 +196,7 @@ def test_build_agent_tree_by_date_singleton_no_time_has_no_hour_banner() -> None
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == []
+    assert _group_keys(entries, 2) == []
 
 
 def test_build_agent_tree_by_date_workflow_child_inherits_parents_window() -> None:
@@ -223,6 +237,15 @@ def test_build_agent_tree_by_date_workflow_child_inherits_parents_window() -> No
         and e.group.group_key == ("Today", "8AM-12PM")
     )
     assert sorted(hour_banner.agent_indices) == [0, 1, 2]
+    one_hour_banner = next(
+        e.group  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group"
+        and e.group is not None
+        and e.group.level == 2
+        and e.group.group_key == ("Today", "8AM-12PM", "09:00")
+    )
+    assert sorted(one_hour_banner.agent_indices) == [0, 1, 2]
 
 
 def test_build_agent_tree_by_date_terminal_and_running_share_window() -> None:
@@ -252,6 +275,51 @@ def test_build_agent_tree_by_date_terminal_and_running_share_window() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [("Today", "8AM-12PM")]
+    assert _group_keys(entries, 2) == [("Today", "8AM-12PM", "09:00")]
+
+
+def test_build_agent_tree_by_date_collapsed_window_hides_hourly_banners() -> None:
+    a = _agent(
+        cl_name="x",
+        agent_name="coder.aa",
+        start_time=datetime(2026, 4, 26, 9, 15, 0),
+    )
+    b = _agent(
+        cl_name="y",
+        agent_name="coder.bb",
+        start_time=datetime(2026, 4, 26, 10, 45, 0),
+    )
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("Today", "8AM-12PM"))
+    entries = build_agent_tree(
+        [a, b], fold_registry=registry, mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    assert _kinds(entries) == [("group", 0), ("group", 1)]
+
+
+def test_build_agent_tree_by_date_collapsed_hour_hides_only_that_hour() -> None:
+    a = _agent(
+        cl_name="x",
+        agent_name="coder.aa",
+        start_time=datetime(2026, 4, 26, 9, 15, 0),
+    )
+    b = _agent(
+        cl_name="y",
+        agent_name="coder.bb",
+        start_time=datetime(2026, 4, 26, 10, 45, 0),
+    )
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("Today", "8AM-12PM", "10:00"))
+    entries = build_agent_tree(
+        [a, b], fold_registry=registry, mode=GroupingMode.BY_DATE, now=_NOW
+    )
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("group", 2),
+        ("agent", 0),
+    ]
 
 
 def test_enumerate_group_keys_by_date_includes_window_keys() -> None:
@@ -274,3 +342,5 @@ def test_enumerate_group_keys_by_date_includes_window_keys() -> None:
     keys = enumerate_group_keys([a, b, solo], mode=GroupingMode.BY_DATE, now=_NOW)
     assert ("Today", "8AM-12PM") in keys
     assert ("Today", "12PM-4PM") in keys
+    assert ("Today", "8AM-12PM", "09:00") in keys
+    assert ("Today", "12PM-4PM", "14:00") in keys

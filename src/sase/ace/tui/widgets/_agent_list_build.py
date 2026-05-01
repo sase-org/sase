@@ -19,6 +19,7 @@ from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
+    NO_HOUR_LABEL,
     TreeEntry,
     build_agent_tree,
 )
@@ -31,6 +32,7 @@ from ._agent_list_rendering import (
 from ._agent_list_styling import (
     _BANNER_ROW,
     _CHANGESPEC_BANNER_RULE_STYLE,
+    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _MIN_BANNER_WIDTH,
     _PROJECT_BANNER_RULE_STYLE,
 )
@@ -61,6 +63,7 @@ def compute_tier_styles(
     tree: list[TreeEntry],
     *,
     panel_uses_cs: bool,
+    mode: GroupingMode = GroupingMode.STANDARD,
 ) -> tuple[dict[int, tuple[str, ...]], list[tuple[str, ...]]]:
     """Walk *tree* and compute per-row tier-guide gutter styles.
 
@@ -72,9 +75,10 @@ def compute_tier_styles(
 
     The gutter for a row is the list of ancestor tier styles that
     contribute a ``│  `` segment.  L0 (project / bucket) and L1
-    ChangeSpec banners contribute; L1/L2 name-root banners do not
-    (the indent already groups their agents).  Order is outermost
-    first.
+    ChangeSpec banners contribute; BY_DATE L1 4-hour banners also
+    contribute so hourly headings and agent rows stay visually nested.
+    L1/L2 name-root banners do not (the indent already groups their
+    agents).  Order is outermost first.
     """
     agent_styles: dict[int, tuple[str, ...]] = {}
     banner_styles: list[tuple[str, ...]] = []
@@ -90,6 +94,16 @@ def compute_tier_styles(
             elif g.level == 1 and panel_uses_cs and len(g.group_key) == 2:
                 banner_styles.append((cur_l0,) if cur_l0 is not None else ())
                 cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
+            elif (
+                g.level == 1
+                and mode is GroupingMode.BY_DATE
+                and g.group_key[-1] != NO_HOUR_LABEL
+            ):
+                banner_styles.append((cur_l0,) if cur_l0 is not None else ())
+                cur_l1 = _NAME_ROOT_BANNER_BRANCH_STYLE
+            elif g.level == 1 and mode is GroupingMode.BY_DATE:
+                banner_styles.append((cur_l0,) if cur_l0 is not None else ())
+                cur_l1 = None
             else:
                 banner_styles.append(
                     tuple(s for s in (cur_l0, cur_l1) if s is not None)
@@ -181,7 +195,7 @@ def build_list(
         a.cl_name for a in agents
     )
     agent_tier_styles, banner_tier_styles = compute_tier_styles(
-        tree, panel_uses_cs=panel_uses_cs
+        tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
 
     # Pre-format agent rows so we know their widths before emitting banner

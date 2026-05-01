@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import re
 
 NO_TIMESTAMP_LABEL = "(no timestamp)"
 
@@ -38,6 +39,20 @@ def four_hour_window_sort_key(label: str) -> tuple[int, int]:
     start = _TIME_WINDOW_START_BY_LABEL.get(label)
     if start is not None:
         return (0, -start)
+    return (1, 0)
+
+
+def one_hour_window_label(anchor: datetime) -> str:
+    """Return the zero-padded hour label containing *anchor*."""
+    return f"{anchor.hour:02d}:00"
+
+
+def one_hour_window_sort_key(label: str) -> tuple[int, int]:
+    """Sort real one-hour labels newest-first, with unknown labels last."""
+    if re.fullmatch(r"\d{2}:00", label):
+        hour = int(label[:2])
+        if 0 <= hour <= 23:
+            return (0, -hour)
     return (1, 0)
 
 

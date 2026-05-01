@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets._agent_list_styling import (
     _CHANGESPEC_BANNER_RULE_STYLE,
+    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
 )
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -119,3 +122,34 @@ def test_agent_row_under_by_status_carries_one_bucket_gutter_segment() -> None:
     agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
     assert agent_plain.startswith("│  ")
     assert not agent_plain.startswith("│  │  ")
+
+
+def test_by_date_hourly_banner_carries_bucket_and_window_gutters() -> None:
+    """BY_DATE hourly headings sit under the date bucket and 4-hour window."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_DATE,
+        now=datetime(2026, 4, 25, 12, 0, 0),
+    )
+    options = list(widget._options)
+    hourly_text = options[2].prompt
+    hourly_plain = hourly_text.plain  # type: ignore[union-attr]
+    assert hourly_plain.startswith("│  │  ▸ 09:00 ")
+    hourly_styles = {s.style for s in hourly_text.spans}  # type: ignore[union-attr]
+    assert _PROJECT_BANNER_RULE_STYLE in hourly_styles
+    assert _NAME_ROOT_BANNER_BRANCH_STYLE in hourly_styles
+
+
+def test_by_date_agent_row_carries_bucket_and_window_gutters() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_DATE,
+        now=datetime(2026, 4, 25, 12, 0, 0),
+    )
+    options = list(widget._options)
+    agent_plain = options[3].prompt.plain  # type: ignore[union-attr]
+    assert agent_plain.startswith("│  │  ")

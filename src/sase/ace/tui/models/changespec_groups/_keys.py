@@ -15,10 +15,12 @@ from ._buckets import (
     date_bucket_sort_index,
     date_subgroup_for_changespec,
     date_subgroup_sort_key,
+    hour_subgroup_for_changespec,
     latest_from_map,
     status_bucket_for_changespec,
     status_sort_index,
 )
+from sase.ace.tui.models.date_subgroups import one_hour_window_sort_key
 
 
 @dataclass(frozen=True)
@@ -28,13 +30,15 @@ class _ChangeSpecKeys:
     ``l0`` is the level-0 group label (project name in ``BY_PROJECT``,
     bucket name in ``BY_DATE`` / ``BY_STATUS``).  ``sibling_root`` is
     populated for modes that emit a sibling-root sub-banner
-    (``BY_PROJECT`` and ``BY_STATUS``); ``date_subgroup`` is populated
-    only for BY_DATE buckets that emit an L1 date subgroup.
+    (``BY_PROJECT`` and ``BY_STATUS``); ``date_subgroup`` is the first
+    BY_DATE subgroup, and ``hour_subgroup`` is the L2 one-hour subgroup
+    used only under Today / Yesterday 4-hour headings.
     """
 
     l0: str
     sibling_root: str
     date_subgroup: str = ""
+    hour_subgroup: str = ""
 
 
 def sibling_root_for_changespec(cs: ChangeSpec) -> str:
@@ -82,6 +86,11 @@ def keys_for_changespec(
         ),
         date_subgroup=(
             date_subgroup_for_changespec(cs, l0, latest_map=latest_map)
+            if mode is ChangeSpecGroupingMode.BY_DATE
+            else ""
+        ),
+        hour_subgroup=(
+            hour_subgroup_for_changespec(cs, l0, latest_map=latest_map)
             if mode is ChangeSpecGroupingMode.BY_DATE
             else ""
         ),
@@ -164,7 +173,16 @@ def walk_order(
         if mode is ChangeSpecGroupingMode.BY_DATE:
             latest = latest_from_map(changespecs[i], latest_map)
             subgroup = date_subgroup_sort_key(k.l0, k.date_subgroup, latest)
-            return (l0, subgroup, _date_anchor_for(changespecs[i], latest_map), i)
+            hour = (
+                one_hour_window_sort_key(k.hour_subgroup) if k.hour_subgroup else (0, 0)
+            )
+            return (
+                l0,
+                subgroup,
+                hour,
+                _date_anchor_for(changespecs[i], latest_map),
+                i,
+            )
         return (l0, i)
 
     return sorted(range(len(changespecs)), key=sort_key)

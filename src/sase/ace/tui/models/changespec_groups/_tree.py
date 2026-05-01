@@ -16,8 +16,9 @@ from ._keys import keys_for_changespec, keys_for_changespecs, walk_order
 class ChangeSpecGroupRow:
     """A banner row in the grouped CL tree.
 
-    ``level`` is 0 for project / date / status banners and 1 for
-    sibling-root or BY_DATE subgroup banners.
+    ``level`` is 0 for project / date / status banners, 1 for a
+    sibling-root or first BY_DATE subgroup, and 2 for the hourly BY_DATE
+    subgroup under Today / Yesterday.
     ``changespec_indices`` references the input ``changespecs`` list so
     callers can show counts or jump to the first member.
     """
@@ -46,8 +47,8 @@ def enumerate_changespec_group_keys(
 
     Sibling-root L1 keys are only included when their root has 2+ visible
     CLs, matching the suppression rule in :func:`build_changespec_tree`.
-    BY_DATE L1 keys are included for yesterday / this week / earlier
-    subgroups, while ``Today`` remains flat.
+    BY_DATE L1 keys are included for non-empty first-level subgroups;
+    hourly L2 keys are included under Today / Yesterday 4-hour headings.
     """
     if not changespecs:
         return []
@@ -98,6 +99,11 @@ def enumerate_changespec_group_keys(
                 if deep not in seen:
                     seen.add(deep)
                     out.append(deep)
+            if k.hour_subgroup:
+                hourly = (k.l0, k.date_subgroup, k.hour_subgroup)
+                if hourly not in seen:
+                    seen.add(hourly)
+                    out.append(hourly)
     else:
         for i in walk:
             k = keys[i]
@@ -153,6 +159,7 @@ def build_changespec_tree(
     l0_indices: dict[str, list[int]] = {}
     root_indices: dict[tuple[str, str], list[int]] = {}
     date_subgroup_indices: dict[tuple[str, str], list[int]] = {}
+    hour_subgroup_indices: dict[tuple[str, str, str], list[int]] = {}
     for i in walk:
         k = keys[i]
         l0_indices.setdefault(k.l0, []).append(i)
@@ -160,6 +167,10 @@ def build_changespec_tree(
             root_indices.setdefault((k.l0, k.sibling_root), []).append(i)
         if has_date_subgroups and k.date_subgroup:
             date_subgroup_indices.setdefault((k.l0, k.date_subgroup), []).append(i)
+        if has_date_subgroups and k.hour_subgroup:
+            hour_subgroup_indices.setdefault(
+                (k.l0, k.date_subgroup, k.hour_subgroup), []
+            ).append(i)
 
     entries: list[ChangeSpecTreeEntry] = []
     cur_l0: str | None = None
@@ -168,6 +179,8 @@ def build_changespec_tree(
     cur_root_collapsed = False
     cur_date_subgroup: str = ""
     cur_date_subgroup_collapsed = False
+    cur_hour_subgroup: str = ""
+    cur_hour_subgroup_collapsed = False
 
     for i in walk:
         k = keys[i]
@@ -190,12 +203,16 @@ def build_changespec_tree(
             cur_root_collapsed = False
             cur_date_subgroup = ""
             cur_date_subgroup_collapsed = False
+            cur_hour_subgroup = ""
+            cur_hour_subgroup_collapsed = False
         if cur_l0_collapsed:
             continue
 
         if has_date_subgroups and k.date_subgroup:
             if k.date_subgroup != cur_date_subgroup:
                 cur_date_subgroup = k.date_subgroup
+                cur_hour_subgroup = ""
+                cur_hour_subgroup_collapsed = False
                 date_subgroup_key: GroupKey = (k.l0, k.date_subgroup)
                 cur_date_subgroup_collapsed = registry.is_collapsed(date_subgroup_key)
                 entries.append(
@@ -214,8 +231,36 @@ def build_changespec_tree(
         else:
             cur_date_subgroup = ""
             cur_date_subgroup_collapsed = False
+            cur_hour_subgroup = ""
+            cur_hour_subgroup_collapsed = False
 
         if cur_date_subgroup_collapsed:
+            continue
+
+        if has_date_subgroups and k.hour_subgroup:
+            if k.hour_subgroup != cur_hour_subgroup:
+                cur_hour_subgroup = k.hour_subgroup
+                hour_index_key = (k.l0, k.date_subgroup, k.hour_subgroup)
+                hour_key: GroupKey = hour_index_key
+                cur_hour_subgroup_collapsed = registry.is_collapsed(hour_index_key)
+                entries.append(
+                    ChangeSpecTreeEntry(
+                        kind="group",
+                        group=ChangeSpecGroupRow(
+                            level=2,
+                            group_key=hour_key,
+                            changespec_indices=tuple(
+                                hour_subgroup_indices[hour_index_key]
+                            ),
+                            is_collapsed=cur_hour_subgroup_collapsed,
+                        ),
+                    )
+                )
+        else:
+            cur_hour_subgroup = ""
+            cur_hour_subgroup_collapsed = False
+
+        if cur_hour_subgroup_collapsed:
             continue
 
         if has_sibling_level and k.sibling_root:

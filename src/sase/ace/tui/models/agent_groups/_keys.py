@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..agent import Agent
-from ..date_subgroups import four_hour_window_sort_key
+from ..date_subgroups import four_hour_window_sort_key, one_hour_window_sort_key
 from ._buckets import (
     NO_HOUR_LABEL,
     NO_PROJECT,
@@ -15,6 +15,7 @@ from ._buckets import (
     hour_anchor_time,
     bucket_sort_index,
     date_bucket_for,
+    one_hour_bucket_for,
     status_bucket_for,
     time_window_bucket_for,
 )
@@ -26,6 +27,7 @@ class _GroupingKeys:
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
     hour: str = ""  # populated only under BY_DATE; "" otherwise
+    one_hour: str = ""  # populated only under real BY_DATE 4-hour windows
 
 
 def _project_name(agent: Agent) -> str:
@@ -97,6 +99,13 @@ def _hour_sort_key(hour: str) -> tuple[int, int]:
     return four_hour_window_sort_key(hour)
 
 
+def _one_hour_sort_key(one_hour: str) -> tuple[int, int]:
+    """Sort key for hourly BY_DATE subgroups — newest hour first."""
+    if one_hour == "":
+        return (0, 0)
+    return one_hour_window_sort_key(one_hour)
+
+
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
     """Compute the L0 string value for *agent* under *mode*.
 
@@ -143,6 +152,7 @@ def grouping_keys_for(
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
         hour=time_window_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
+        one_hour=one_hour_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
     )
 
 
@@ -253,6 +263,7 @@ def walk_order(
                 else (0, "")
             ),
             _hour_sort_key(keys_per_agent[i].hour),
+            _one_hour_sort_key(keys_per_agent[i].one_hour),
             _name_root_sort_key(
                 keys_per_agent[i].name_root,
                 in_group=bool(keys_per_agent[i].name_root)

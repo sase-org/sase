@@ -14,7 +14,7 @@ from sase.agent.status_buckets import (
 )
 
 from ..agent import Agent
-from ..date_subgroups import four_hour_window_label
+from ..date_subgroups import four_hour_window_label, one_hour_window_label
 
 #: Sentinel used as the project key for agents without a ``project_file``.
 NO_PROJECT = ""
@@ -40,9 +40,9 @@ class GroupingMode(Enum):
       ``status`` and retry-chain lineage.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
-    levels disappear.  ``BY_DATE`` renders date bucket → time window, while
-    ``BY_STATUS`` renders status bucket → name-root with the same
-    singleton-suppression rule as ``STANDARD`` mode.
+    levels disappear.  ``BY_DATE`` renders date bucket → 4-hour window →
+    one-hour window, while ``BY_STATUS`` renders status bucket → name-root
+    with the same singleton-suppression rule as ``STANDARD`` mode.
     """
 
     STANDARD = "standard"
@@ -113,6 +113,18 @@ def time_window_bucket_for(agent: Agent) -> str:
     if anchor is None:
         return NO_HOUR_LABEL
     return four_hour_window_label(anchor)
+
+
+def one_hour_bucket_for(agent: Agent) -> str:
+    """Map an agent's anchor time to a one-hour ``HH:00`` label.
+
+    Returns an empty string when no real anchor exists so callers can keep
+    ``(no time)`` as a terminal synthetic bucket.
+    """
+    anchor = hour_anchor_time(agent)
+    if anchor is None:
+        return ""
+    return one_hour_window_label(anchor)
 
 
 def hour_bucket_for(agent: Agent) -> str:

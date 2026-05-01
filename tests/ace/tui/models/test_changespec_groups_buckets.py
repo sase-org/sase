@@ -21,6 +21,8 @@ from sase.ace.tui.models.date_subgroups import (
     day_subgroup_sort_key,
     four_hour_window_label,
     four_hour_window_sort_key,
+    one_hour_window_label,
+    one_hour_window_sort_key,
     week_subgroup_label,
     week_subgroup_sort_key,
 )
@@ -157,6 +159,22 @@ def test_four_hour_window_sort_key_newest_first() -> None:
     ]
 
 
+def test_one_hour_window_labels_are_zero_padded() -> None:
+    assert one_hour_window_label(datetime(2026, 4, 25, 0, 30)) == "00:00"
+    assert one_hour_window_label(datetime(2026, 4, 25, 9, 30)) == "09:00"
+    assert one_hour_window_label(datetime(2026, 4, 25, 23, 30)) == "23:00"
+
+
+def test_one_hour_window_sort_key_newest_first_unknown_last() -> None:
+    labels = ["09:00", "bad", "11:00", "08:00"]
+    assert sorted(labels, key=one_hour_window_sort_key) == [
+        "11:00",
+        "09:00",
+        "08:00",
+        "bad",
+    ]
+
+
 def test_day_subgroup_label_and_sort_key() -> None:
     fri = datetime(2026, 4, 24, 10)
     wed = datetime(2026, 4, 22, 10)
@@ -180,16 +198,17 @@ def test_week_subgroup_label_cross_year_and_sort_key() -> None:
 
 
 def test_date_subgroup_for_changespec_by_bucket() -> None:
+    today = _cs("t", timestamps=[_ts("260426_100000")])
     yesterday = _cs("y", timestamps=[_ts("260425_210000")])
     this_week = _cs("w", timestamps=[_ts("260424_100000")])
     earlier = _cs("e", timestamps=[_ts("260415_100000")])
     undated = _cs("u", timestamps=None)
 
+    assert date_subgroup_for_changespec(today, "Today") == "8AM-12PM"
     assert date_subgroup_for_changespec(yesterday, "Yesterday") == "8PM-12AM"
     assert date_subgroup_for_changespec(this_week, "This Week") == "Fri Apr 24"
     assert date_subgroup_for_changespec(earlier, "Earlier") == "Apr 13-19"
     assert date_subgroup_for_changespec(undated, "Earlier") == NO_TIMESTAMP_LABEL
-    assert date_subgroup_for_changespec(yesterday, "Today") == ""
 
 
 def test_no_timestamp_subgroup_sorts_last_in_earlier() -> None:

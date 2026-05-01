@@ -38,7 +38,8 @@ original input order via a stable sort.
 Name-root banners are only emitted when the name-root group contains
 two or more entries; a singleton root renders its lone agent directly
 under the parent banner without an extra header.  In ``BY_DATE`` mode,
-visible real time-window banners are emitted even for singleton windows.
+visible real 4-hour banners are emitted even for singleton windows, and
+real anchored agents get hourly banners beneath them.
 """
 
 from ._buckets import (
@@ -51,6 +52,7 @@ from ._buckets import (
     _TERMINAL_STATUSES,
     date_bucket_for,
     hour_bucket_for,
+    one_hour_bucket_for,
     status_bucket_for,
     time_window_bucket_for,
 )
@@ -91,6 +93,7 @@ __all__ = [
     "find_visible_ancestor_banner",
     "grouping_keys_for_agents",
     "hour_bucket_for",
+    "one_hour_bucket_for",
     "panel_uses_changespec_level",
     "status_bucket_for",
     "time_window_bucket_for",
