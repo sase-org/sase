@@ -157,6 +157,7 @@ sase
 | `sase bead init`               | Initialize `.sase_beads/` in the current directory                                                             |
 | `sase bead list`               | List issues (with optional status/type filters)                                                                |
 | `sase bead onboard`            | Show quick-start guide                                                                                         |
+| `sase bead open`               | Reopen a closed issue                                                                                          |
 | `sase bead ready`              | Show issues ready to work (unblocked, open)                                                                    |
 | `sase bead rm`                 | Remove an issue and all its children                                                                           |
 | `sase bead show`               | Show issue details                                                                                             |

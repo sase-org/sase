@@ -378,7 +378,7 @@ Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes.
 | ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `STANDARD`  | Project (with optional ChangeSpec sub-level)                  | The "by project" default. Uses the 2-/3-level layout described above.                                                                       |
 | `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`               | Date bucket at L0 and 4-hour window at L1; hour-of-day (`HH:00`) L2 appears only inside 4-hour windows with 2+ agents. Sorted newest-first. |
-| `BY_STATUS` | `Needs Attention` / `Running` / `Waiting` / `Failed` / `Done` | Bucketed by status (and retry-chain lineage); name-root sub-level inside each bucket.                                                       |
+| `BY_STATUS` | `Needs Attention` / `Failed` / `Running` / `Waiting` / `Done` | Bucketed by shared status semantics; name-root sub-level inside each bucket.                                                                |
 
 In `BY_DATE` mode the L0 date bucket is sub-grouped by compact **4-hour windows** (`8AM-12PM`), then by **hour-of-day**
 (`09:00`) only when the 4-hour window contains at least two agents, so long Today/Yesterday lists are easier to scan
@@ -386,9 +386,10 @@ without adding extra headings for singleton windows. The time anchor is `stop_ti
 otherwise; both time levels sort newest-first within their date bucket. Workflow children inherit the parent's anchor so
 they stay adjacent regardless of their own start time, and agents with no usable timestamp fall into a `(no time)`
 bucket that sorts last. In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same
-singleton-suppression rule as `STANDARD`. Each mode keeps its own per-group fold registry, so collapsing buckets in
-`BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic
-glyphs (`▲`, `▶`, `⏳`, `✗`, `✓`) so the bucket title still leads visually.
+singleton-suppression rule as `STANDARD`. The bucket order is fixed: Needs Attention, Failed, Running, Waiting, Done.
+Each mode keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout
+you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`) so the bucket
+title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. Each TUI launch starts in by-project grouping; cycling only
@@ -1251,13 +1252,17 @@ when the prompt input is empty or contains only a workspace prefix.
 | `Ctrl+I` | Load prompt into the input widget for editing |
 | `Ctrl+X` | Toggle visibility of cancelled prompts        |
 | `Ctrl+Y` | Copy prompt to clipboard                      |
-| `Ctrl+D` | Delete highlighted entry from history         |
 | `Esc`    | Close modal                                   |
 
 ### Filtering
 
 Type in the search box to filter prompts by text or branch/workspace name. Press `Ctrl+X` to toggle cancelled prompts on
 or off — when enabled, cancelled prompts appear in the results with a `✗` marker.
+
+Prompt-history rows are compact single-line entries: marker, last-used timestamp (`MM-DD HH:MM` when parseable), compact
+branch/workspace context, and a first-line prompt preview. The preview panel still shows the full prompt and metadata.
+History writes use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not truncate the
+shared `~/.sase/prompt_history.json` file.
 
 ### Visual Markers
 

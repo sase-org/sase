@@ -19,6 +19,7 @@ and CLI flags.
   - [use_chezmoi](#use_chezmoi)
   - [precommit_command](#precommit_command)
   - [timezone](#timezone)
+  - [chat_install](#chat_install)
   - [sdd](#sdd)
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
@@ -562,6 +563,33 @@ timezone: "America/New_York" # default: "America/New_York"
 | Field      | Type   | Default              | Description                               |
 | ---------- | ------ | -------------------- | ----------------------------------------- |
 | `timezone` | string | `"America/New_York"` | IANA timezone name for timestamp display. |
+
+### chat_install
+
+Configuration for chat-driven install/update workflows. External chat integrations can call
+`sase.integrations.chat_install.start_chat_install_worker()` to run the configured command in a detached worker while
+briefly stopping axe, syncing the primary workspace, and restarting axe afterward.
+
+```yaml
+chat_install:
+  command: "" # default: disabled
+  sync_workspace: true
+  timeout_seconds: 900
+  restart_attempts: 3
+```
+
+| Field                           | Type   | Default | Description                                                                 |
+| ------------------------------- | ------ | ------- | --------------------------------------------------------------------------- |
+| `chat_install.command`          | string | `""`    | Shell command to run from the primary workspace. Empty string disables use. |
+| `chat_install.sync_workspace`   | bool   | `true`  | Sync the primary workspace via the selected VCS provider before install.    |
+| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the install command before returning exit code `124`.   |
+| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the install command completes/fails.   |
+
+Only one chat install worker may run at a time; a lock under `~/.sase/chat_install/install.lock` rejects concurrent
+starts. Worker output is written to timestamped logs under `~/.sase/chat_install/logs/`. See
+[`docs/integrations.md`](integrations.md#chat-install-worker) for the integration-facing Python API.
+
+Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
 ### sdd
 

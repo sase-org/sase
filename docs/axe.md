@@ -29,7 +29,8 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 ### Key Concepts
 
 - **Orchestrator**: Parent process that spawns and monitors all lumberjack processes. Detects crashes and restarts
-  failed lumberjacks automatically. Forwards SIGTERM to all children on shutdown.
+  failed lumberjacks automatically. Holds the axe lifecycle lock while running and forwards SIGTERM to all children on
+  shutdown.
 
 - **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each lumberjack has a name
   (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
@@ -233,6 +234,7 @@ older than 24 hours are cleared automatically by the next lumberjack tick.
 ```
 ~/.sase/axe/
 ├── orchestrator.pid                # Orchestrator PID
+├── orchestrator.lock               # Exclusive lifecycle lock held by the live orchestrator
 ├── maintenance.json                # Optional maintenance marker that pauses lumberjack ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
@@ -254,13 +256,16 @@ older than 24 hours are cleared automatically by the next lumberjack tick.
 
 ## Process Lifecycle
 
-1. `sase axe start` checks for an existing orchestrator via PID file. If one is running, it sends SIGTERM (waits 15
-   seconds) then SIGKILL if needed, preventing duplicate orchestrators from corrupting shared state
-2. The orchestrator spawns all configured lumberjacks as child processes
-3. Each lumberjack runs its chops on its configured interval, unless maintenance mode is active
-4. The orchestrator monitors children and restarts any that exit unexpectedly
-5. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children
-6. If children don't exit within 10 seconds, SIGKILL is sent
+1. `sase axe start` first checks for a live orchestrator PID. If one exists, start is a no-op and returns the existing
+   PID.
+2. If no live PID exists, startup acquires `~/.sase/axe/orchestrator.lock` and hands that lock to the detached
+   orchestrator process. Concurrent starts wait briefly and then return the live PID or decline to start.
+3. The orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes `orchestrator.pid`, and spawns all
+   configured lumberjacks as child processes.
+4. Each lumberjack runs its chops on its configured interval, unless maintenance mode is active.
+5. The orchestrator monitors children and restarts any that exit unexpectedly.
+6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children. If the orchestrator does not
+   exit within the stop timeout, the stopper escalates to SIGKILL and cleans up stale PID files.
 
 ## ACE Integration
 
