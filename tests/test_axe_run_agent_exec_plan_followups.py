@@ -1,155 +1,33 @@
-"""Tests for axe run_agent_exec_plan helpers."""
+"""Tests for axe run_agent_exec_plan follow-up prompt handling."""
 
 import dataclasses
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_exec import AgentExecContext, LoopState
-from sase.axe.run_agent_exec_plan import (
-    _build_epic_plan_ref,
-    _get_embedded_workflow_refs,
-    handle_plan_marker,
-    handle_questions_marker,
-)
+from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
-
-
-def test_get_embedded_workflow_refs_excludes_vcs_when_tag_set(tmp_path) -> None:
-    """VCS-tagged workflows are excluded when vcs_tag is set."""
-    meta = tmp_path / "embedded_workflows.json"
-    meta.write_text(
-        json.dumps(
-            [
-                {"name": "gh", "tags": ["vcs", "rollover"]},
-                {"name": "propose", "tags": ["rollover"]},
-            ]
-        )
-    )
-
-    result = _get_embedded_workflow_refs(str(tmp_path), "#gh:sase ")
-    assert "#gh" not in result
-    assert "#propose" in result
-
-
-def test_get_embedded_workflow_refs_includes_vcs_when_tag_none(tmp_path) -> None:
-    """VCS-tagged workflows ARE included when vcs_tag is None."""
-    meta = tmp_path / "embedded_workflows.json"
-    meta.write_text(
-        json.dumps(
-            [
-                {"name": "gh", "args": {"repo": "sase"}, "tags": ["vcs", "rollover"]},
-                {"name": "propose", "tags": ["rollover"]},
-            ]
-        )
-    )
-
-    result = _get_embedded_workflow_refs(str(tmp_path), None)
-    assert "#gh:sase" in result
-    assert "#propose" in result
-
-
-# ---------------------------------------------------------------------------
-# Fixtures for handle_plan_marker model-inheritance tests
-# ---------------------------------------------------------------------------
-
-
-def _make_ctx(tmp_path, *, agent_model: str | None = None) -> AgentExecContext:
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
-    return AgentExecContext(
-        cl_name="test",
-        project_file=str(tmp_path / "project.gp"),
-        workspace_dir=str(tmp_path),
-        output_path=str(tmp_path / "output"),
-        workspace_num=1,
-        timestamp="20260331T120000",
-        update_target="",
-        project_name="test_proj",
-        is_home_mode=False,
-        artifacts_dir=str(artifacts),
-        artifacts_timestamp="20260331_120000",
-        vcs_tag="#gh:sase ",
-        agent_name="test_agent",
-        agent_model=agent_model,
-        agent_llm_provider="anthropic",
-        agent_vcs_provider="github",
-        agent_hidden=False,
-        agent_meta={"model": agent_model or "default"},
-        local_xprompts={},
-    )
-
-
-def _make_state(tmp_path) -> LoopState:
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir(exist_ok=True)
-    # Write agent_meta.json so helpers don't crash
-    (artifacts / "agent_meta.json").write_text(json.dumps({"suffix": ".plan"}))
-    return LoopState(
-        current_prompt="original prompt",
-        current_role_suffix=".plan",
-        current_artifacts_dir=str(artifacts),
-        loop_outcome="",
-        sdd_spec_path=None,
-        original_prompt="original prompt",
-    )
-
-
-_PLAN_PATCHES = {
-    # Top-level imports in run_agent_exec_plan
-    "sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state": None,
-    "sase.axe.run_agent_exec_plan.update_meta_suffix": None,
-    "sase.axe.run_agent_exec_plan.update_meta_field": None,
-    "sase.axe.run_agent_exec_plan.reset_killed": None,
-    "sase.axe.run_agent_exec_plan.was_killed": lambda: False,
-    "sase.axe.run_agent_exec_plan._write_plan_path_artifact": None,
-    "sase.axe.run_agent_exec_plan.update_step_marker_chat_path": None,
-    "sase.axe.run_agent_exec_plan.create_followup_artifacts": lambda *a, **kw: (
-        "/tmp/followup"
-    ),
-    "sase.axe.run_agent_exec_plan.promote_to_workflow": None,
-    "sase.axe.run_agent_exec_plan._commit_sdd_files": None,
-    # Lazy imports — patch at source
-    "sase.llm_provider._plan_utils.handle_plan_approval": None,
-    "sase.history.chat.save_chat_history": lambda **kw: "/fake/chat",
-    "sase.history.chat_extras.format_extra_sections": lambda *a: "",
-    "sase.history.chat_links.format_plan_as_response": lambda *a: "plan",
-    "sase.sdd.beads.get_sdd_config": lambda: True,
-    "sase.sdd.beads.ensure_beads_initialized": None,
-    "sase.sdd.files.get_sdd_dir": lambda *a: None,
-    "sase.sdd.files.write_sdd_files": None,
-    "sase.sdd.files.expand_prompt_for_spec": lambda p: p,
-    "sase.sdd.files.commit_sdd_files": None,
-}
+from tests._axe_run_agent_exec_plan_helpers import (
+    make_ctx,
+    make_state,
+    patched_plan_deps,
+)
 
 
 @pytest.fixture
-def _patch_plan_deps(tmp_path):
-    """Patch heavy side-effects so handle_plan_marker runs fast."""
-    patchers = []
-    for target, side_effect in _PLAN_PATCHES.items():
-        p = patch(target, side_effect=side_effect) if side_effect else patch(target)
-        patchers.append(p)
-    mocks = [p.start() for p in patchers]
-    yield mocks
-    for p in patchers:
-        p.stop()
+def patch_plan_deps():
+    with patched_plan_deps() as mocks:
+        yield mocks
 
 
-# ---------------------------------------------------------------------------
-# Tests: model directive in followup prompts
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.usefixtures("_patch_plan_deps")
-class TestModelInheritance:
-    """Verify %model directive is injected into followup prompts."""
+@pytest.mark.usefixtures("patch_plan_deps")
+class TestPlanFollowupPrompts:
+    """Verify plan approval follow-up prompts and metadata."""
 
     def _run(self, tmp_path, *, action: str, agent_model: str | None):
-        ctx = _make_ctx(tmp_path, agent_model=agent_model)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path, agent_model=agent_model)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -185,8 +63,8 @@ class TestModelInheritance:
 
     def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
         """Legend approval writes to sdd/legends and launches bd/new_legend."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "scratch_plan.md")
         (tmp_path / "scratch_plan.md").write_text("# Plan")
         sdd_plan = tmp_path / "sdd" / "legends" / "202605" / "scratch_plan.md"
@@ -221,8 +99,8 @@ class TestModelInheritance:
         self, tmp_path
     ) -> None:
         """run_coder=False, commit_plan=True -> outcome 'plan_committed', SDD committed."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -249,8 +127,8 @@ class TestModelInheritance:
 
     def test_approve_no_coder_commit_false_skips_commit(self, tmp_path) -> None:
         """run_coder=False, commit_plan=False -> outcome 'plan_committed', no SDD commit."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -277,8 +155,8 @@ class TestModelInheritance:
 
     def test_coder_prompt_model_override_skips_inherited(self, tmp_path) -> None:
         """Custom prompt with %m:sonnet overrides inherited model."""
-        ctx = _make_ctx(tmp_path, agent_model="opus")
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -303,8 +181,8 @@ class TestModelInheritance:
 
     def test_coder_prompt_without_model_inherits(self, tmp_path) -> None:
         """Custom prompt without model directive still inherits planner model."""
-        ctx = _make_ctx(tmp_path, agent_model="opus")
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -329,8 +207,8 @@ class TestModelInheritance:
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
         """coder_prompt with content -> 'Additional instructions:' in prompt."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -359,7 +237,6 @@ class TestModelInheritance:
         assert "#resume:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        # Model prefix still leads the prompt.
         assert state.current_prompt.startswith("%model:opus\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
@@ -373,9 +250,9 @@ class TestModelInheritance:
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
         """Q&A round (agent_step > 2) also drops #resume by default."""
-        ctx = _make_ctx(tmp_path, agent_model="opus")
-        state = _make_state(tmp_path)
-        state.agent_step = 2  # simulate a prior Q&A round; coder runs at step 3
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
+        state.agent_step = 2
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -396,8 +273,8 @@ class TestModelInheritance:
 
     def test_coder_prompt_uses_saved_sdd_plan_ref(self, tmp_path) -> None:
         """Normal approved plans hand off the committed sdd/plans file."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "scratch_plan.md")
         (tmp_path / "scratch_plan.md").write_text("# Plan")
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
@@ -424,9 +301,9 @@ class TestModelInheritance:
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""
-        ctx = _make_ctx(tmp_path, agent_model=None)
+        ctx = make_ctx(tmp_path, agent_model=None)
         ctx = dataclasses.replace(ctx, agent_name=None)
-        state = _make_state(tmp_path)
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -446,12 +323,11 @@ class TestModelInheritance:
 
     def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
         """agent_meta.json reflects coder_model when it differs from planner model."""
-        ctx = _make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
-        # Track update_meta_field calls
         meta_updates: dict[str, str] = {}
 
         def track_meta(artifacts_dir, key, value):
@@ -486,8 +362,8 @@ class TestModelInheritance:
 
     def test_coder_meta_not_updated_when_model_same(self, tmp_path) -> None:
         """agent_meta.json not updated when coder_model matches planner model."""
-        ctx = _make_ctx(tmp_path, agent_model="opus")
-        state = _make_state(tmp_path)
+        ctx = make_ctx(tmp_path, agent_model="opus")
+        state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
@@ -523,8 +399,8 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
     tmp_path,
 ) -> None:
     """Epic approval persists the launch timestamp on the .epic follow-up."""
-    ctx = _make_ctx(tmp_path)
-    state = _make_state(tmp_path)
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
     (tmp_path / "plan.md").write_text("# Plan")
     followup = tmp_path / "followup"
@@ -564,212 +440,3 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
     meta = json.loads((followup / "agent_meta.json").read_text())
     assert isinstance(meta["epic_started_at"], str)
     assert meta["epic_started_at"].endswith("+00:00")
-
-
-# ---------------------------------------------------------------------------
-# Tests: epic SDD plan references
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.usefixtures("_patch_plan_deps")
-class TestEpicPlanRefs:
-    """Verify epic prompts reference generated SDD plan files correctly."""
-
-    def test_epic_prompt_uses_non_vc_sdd_ref_from_google_sibling_workspace(
-        self, tmp_path
-    ) -> None:
-        workspace_dir = (
-            tmp_path / "google" / "src" / "cloud" / "bbugyi" / "bug_102" / "google3"
-        )
-        sdd_dir = (
-            tmp_path
-            / "google"
-            / "src"
-            / "cloud"
-            / "bbugyi"
-            / "bug"
-            / "google3"
-            / ".sase"
-            / "sdd"
-        )
-        sdd_plan_path = sdd_dir / "epics" / "202604" / "missing_buyers_research.md"
-        workspace_dir.mkdir(parents=True)
-        sdd_plan_path.parent.mkdir(parents=True)
-        sdd_plan_path.write_text("# Plan", encoding="utf-8")
-
-        ctx = dataclasses.replace(
-            _make_ctx(tmp_path),
-            workspace_dir=str(workspace_dir),
-            workspace_num=102,
-            vcs_tag="",
-        )
-        state = _make_state(tmp_path)
-        plan_file = str(tmp_path / "missing_buyers_research.md")
-        Path(plan_file).write_text("# Plan", encoding="utf-8")
-        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
-
-        with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
-            patch("sase.sdd.beads.get_sdd_config", return_value=False),
-            patch("sase.sdd.files.get_sdd_dir", return_value=sdd_dir),
-            patch(
-                "sase.sdd.files.write_sdd_files",
-                return_value=(
-                    sdd_dir / "specs" / "202604" / "missing_buyers_research.md",
-                    sdd_plan_path,
-                ),
-            ),
-        ):
-            handle_plan_marker({"plan_file": plan_file}, ctx, state)
-
-        assert (
-            "#bd/new_epic:.sase/sdd/epics/202604/missing_buyers_research.md"
-            in state.current_prompt
-        )
-
-    def test_epic_plan_ref_uses_workspace_relative_vc_path(self, tmp_path) -> None:
-        workspace_dir = tmp_path / "repo"
-        sdd_plan_path = workspace_dir / "sdd" / "epics" / "202604" / "my_feature.md"
-        sdd_plan_path.parent.mkdir(parents=True)
-        sdd_plan_path.write_text("# Plan", encoding="utf-8")
-
-        assert (
-            _build_epic_plan_ref(
-                sdd_plan_path=sdd_plan_path,
-                sdd_dir=workspace_dir,
-                workspace_dir=str(workspace_dir),
-                sdd_plan_name="my_feature",
-                version_controlled=True,
-                fallback_plan_file="/tmp/original.md",
-            )
-            == "sdd/epics/202604/my_feature.md"
-        )
-
-    def test_epic_plan_ref_fallback_uses_canonical_epic_path(self, tmp_path) -> None:
-        workspace_dir = tmp_path / "repo"
-
-        with patch("sase.sdd.files.get_yyyymm", return_value="202604"):
-            assert (
-                _build_epic_plan_ref(
-                    sdd_plan_path=workspace_dir
-                    / "sdd"
-                    / "epics"
-                    / "202604"
-                    / "missing.md",
-                    sdd_dir=workspace_dir / "sdd",
-                    workspace_dir=str(workspace_dir),
-                    sdd_plan_name="missing",
-                    version_controlled=True,
-                    fallback_plan_file="/tmp/original.md",
-                )
-                == "sdd/epics/202604/missing.md"
-            )
-
-
-# ---------------------------------------------------------------------------
-# Tests: per-round chat agent name (no overwrite across feedback rounds)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.usefixtures("_patch_plan_deps")
-class TestFeedbackRoundChatPath:
-    """Verify each feedback round saves a chat file with a round-specific agent name."""
-
-    def _run_plan(
-        self,
-        tmp_path,
-        *,
-        role_suffix: str,
-        agent_name: str | None = "test_agent",
-    ) -> dict:
-        ctx = _make_ctx(tmp_path)
-        if agent_name != "test_agent":
-            ctx = dataclasses.replace(ctx, agent_name=agent_name)
-        state = _make_state(tmp_path)
-        state.current_role_suffix = role_suffix
-        plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
-
-        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
-        captured: dict = {}
-
-        def capture(**kw):
-            captured.update(kw)
-            return "/fake/chat"
-
-        with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
-            patch(
-                "sase.sdd.files.write_sdd_files",
-                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
-            ),
-            patch(
-                "sase.history.chat.save_chat_history",
-                side_effect=capture,
-            ),
-        ):
-            handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        return captured
-
-    def test_handle_plan_marker_round1_uses_plan_suffix_in_agent_name(
-        self, tmp_path
-    ) -> None:
-        """Round 1 (no role suffix yet) falls back to '.plan' suffix."""
-        captured = self._run_plan(tmp_path, role_suffix="")
-        assert captured["agent"] == "test_agent.plan"
-
-    def test_handle_plan_marker_round2_uses_round_suffix_in_agent_name(
-        self, tmp_path
-    ) -> None:
-        """Round 2 uses '.2' suffix instead of hardcoded '.plan' (the bug)."""
-        captured = self._run_plan(tmp_path, role_suffix=".2")
-        assert captured["agent"] == "test_agent.2"
-
-    def test_handle_plan_marker_uses_distinct_agent_per_round(self, tmp_path) -> None:
-        """Two rounds with different suffixes must produce distinct agent names."""
-        r1_dir = tmp_path / "r1"
-        r2_dir = tmp_path / "r2"
-        r1_dir.mkdir()
-        r2_dir.mkdir()
-        round1 = self._run_plan(r1_dir, role_suffix="")
-        round2 = self._run_plan(r2_dir, role_suffix=".2")
-        assert round1["agent"] != round2["agent"]
-
-    def test_handle_plan_marker_no_agent_name_preserves_none(self, tmp_path) -> None:
-        """Agent kwarg is None when ctx.agent_name is None (regression check)."""
-        captured = self._run_plan(tmp_path, role_suffix="", agent_name=None)
-        assert captured["agent"] is None
-
-    def test_handle_questions_marker_uses_suffix_in_agent_name(self, tmp_path) -> None:
-        """Questions handler uses current_role_suffix (post-`.q` accumulation)."""
-        ctx = _make_ctx(tmp_path)
-        state = _make_state(tmp_path)
-        state.current_role_suffix = ".2"  # mid-feedback round
-
-        captured: dict = {}
-
-        def capture(**kw):
-            captured.update(kw)
-            return "/fake/chat"
-
-        with (
-            patch(
-                "sase.axe.run_agent_exec_plan.handle_questions_flow",
-                return_value={"answers": [], "global_note": ""},
-            ),
-            patch(
-                "sase.history.chat.save_chat_history",
-                side_effect=capture,
-            ),
-        ):
-            handle_questions_marker({"questions": []}, ctx, state)
-
-        # current_role_suffix was ".2"; handle_questions_marker appends ".q"
-        # before save_chat_history, so the agent name must reflect ".2.q".
-        assert captured["agent"] == "test_agent.2.q"
