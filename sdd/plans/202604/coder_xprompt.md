@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-19 16:46:54
 status: done
+prompt: sdd/prompts/202604/coder_xprompt.md
 ---
 
 # Plan: Add `#coder` builtin xprompt

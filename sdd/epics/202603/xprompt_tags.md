@@ -1,6 +1,7 @@
 ---
 bead_id: sase-4
 status: done
+prompt: sdd/prompts/202603/xprompt_tags.md
 ---
 
 # Plan: XPrompt Tags

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_planning_status_after_feedback.md
+---
 After the user gives feedback on a plan, the corresponding agent should show as "RUNNING", not "PLANNING" (as shown in
 the below `sase ace` snapshot). Can you help me diagnose the root cause of this issue and fix it? Think this through
 thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 13:29:12
 status: done
+prompt: sdd/prompts/202604/mentor_review_accepted_nav.md
 ---
 
 # Plan: Add `N` / `P` Accepted-Comment Navigation to Mentor Review Modal

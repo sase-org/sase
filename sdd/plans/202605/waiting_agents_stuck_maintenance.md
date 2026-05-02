@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 13:50:35
 status: done
+prompt: sdd/prompts/202605/waiting_agents_stuck_maintenance.md
 ---
 # Plan: Fix WAITING Agents Stuck Behind Stale Axe Maintenance
 

@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-04-26 03:07:27
+prompt: sdd/prompts/202604/agent_row_compaction.md
 ---
 
 # Compact Agent-Row Rendering for the Agents Tab

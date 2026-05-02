@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 19:26:14
 status: done
+prompt: sdd/prompts/202604/highest_level_group_collapse.md
 ---
 # Plan: `H` Collapses Only One Group Heading Level
 

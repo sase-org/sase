@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 01:53:30
 status: done
+prompt: sdd/prompts/202604/kitty_tmux_icat.md
 ---
 # Plan: Make Kitty `icat` Work Reliably In `tm` Sessions
 

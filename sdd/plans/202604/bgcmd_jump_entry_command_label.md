@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 15:23:58
 status: done
+prompt: sdd/prompts/202604/bgcmd_jump_entry_command_label.md
 ---
 # Plan: Show command in bgcmd entries in the "Jump to Entry" panel
 

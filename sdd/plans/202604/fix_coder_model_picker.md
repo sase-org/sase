@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 20:17:41
 status: done
+prompt: sdd/prompts/202604/fix_coder_model_picker.md
 ---
 
 # Fix: Model picker selection ignored for coder agents

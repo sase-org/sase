@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 12:02:56
 status: done
+prompt: sdd/prompts/202604/prompt_history_project_fix.md
 ---
 
 # Fix: Prompt history saves wrong project for VCS-tagged home-mode prompts

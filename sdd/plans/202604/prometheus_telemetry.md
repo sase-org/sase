@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 22:02:29
 status: wip
+prompt: sdd/prompts/202604/prometheus_telemetry.md
 ---
 
 # Plan: Prometheus Telemetry Integration

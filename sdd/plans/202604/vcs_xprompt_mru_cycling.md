@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 18:42:27
 status: done
+prompt: sdd/prompts/202604/vcs_xprompt_mru_cycling.md
 ---
 
 # Plan: VCS Xprompt MRU Cycling in Prompt Input

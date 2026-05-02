@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 10:34:02
 status: wip
+prompt: sdd/prompts/202603/commit_meta_output_v2.md
 ---
 
 # Plan: Workflow-specific meta output variables for commit xprompts

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 17:29:01
 status: done
+prompt: sdd/prompts/202603/yyyymm_sdd_dirs.md
 ---
 
 # Plan: Organize Plans and Specs into YYYYMM Subdirectories

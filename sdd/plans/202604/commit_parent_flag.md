@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-10 22:45:59
 status: draft
+prompt: sdd/prompts/202604/commit_parent_flag.md
 ---
 
 # Plan: Fix PARENT ChangeSpec field for `sase commit -t create_pull_request`

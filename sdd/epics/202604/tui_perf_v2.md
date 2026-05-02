@@ -2,6 +2,7 @@
 create_time: 2026-04-28 18:44:34
 status: done
 bead_id: sase-12
+prompt: sdd/prompts/202604/tui_perf_v2.md
 ---
 # TUI Performance v2 — Phased Implementation Plan
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-21 17:32:51
 status: done
+prompt: sdd/prompts/202604/jetski_cli_provider.md
 ---
 
 # Add `JetskiProvider` LLM Backend (keeping Gemini CLI)

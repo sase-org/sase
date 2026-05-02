@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-10 20:58:52
 status: done
+prompt: sdd/prompts/202604/chdir_path_ordering.md
 ---
 
 # Fix `_chdir` / path resolution ordering bug

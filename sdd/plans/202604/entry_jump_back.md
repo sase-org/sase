@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-06 15:20:01
 status: done
+prompt: sdd/prompts/202604/entry_jump_back.md
 ---
 
 # Plan: Hidden Apostrophe "Jump Back" Hint for Entry Jump Mode

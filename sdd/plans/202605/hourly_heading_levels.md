@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 13:02:08
 status: done
+prompt: sdd/prompts/202605/hourly_heading_levels.md
 ---
 # Plan: Promote 4-hour BY_DATE windows to level-2 visual headings
 

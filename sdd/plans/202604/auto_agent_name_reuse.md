@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 12:14:03
 status: done
+prompt: sdd/prompts/202604/auto_agent_name_reuse.md
 ---
 # Fix Auto Agent Name Reuse
 

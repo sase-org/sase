@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 11:54:48
 status: done
+prompt: sdd/prompts/202603/commit_meta_id_and_commits_append.md
 ---
 
 # Plan: Fix commit post-step entry append + meta_commit_id emission

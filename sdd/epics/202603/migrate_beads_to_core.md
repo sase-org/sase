@@ -1,5 +1,6 @@
 ---
 bead_id: sase-cu8
+prompt: sdd/prompts/202603/migrate_beads_to_core.md
 ---
 
 # Plan: Migrate sase-beads into sase core

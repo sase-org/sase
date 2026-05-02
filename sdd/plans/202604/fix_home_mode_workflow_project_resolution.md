@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 21:07:18
 status: done
+prompt: sdd/prompts/202604/fix_home_mode_workflow_project_resolution.md
 ---
 
 # Fix home-mode workflow resolution for namespaced workflows

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 15:05:58
 status: done
+prompt: sdd/prompts/202605/fix_coder_code_timestamp.md
 ---
 # Fix Coder Suffix Timestamp Regression
 

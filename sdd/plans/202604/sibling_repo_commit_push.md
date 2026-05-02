@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 12:23:30
 status: done
+prompt: sdd/prompts/202604/sibling_repo_commit_push.md
 ---
 # Plan: Fix sibling repo commit/push guidance
 

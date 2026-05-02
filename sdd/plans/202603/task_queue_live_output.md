@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 19:26:12
 status: done
+prompt: sdd/prompts/202603/task_queue_live_output.md
 ---
 
 # Plan: Live Output for Running Tasks in Task Queue Modal

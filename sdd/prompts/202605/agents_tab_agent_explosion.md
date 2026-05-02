@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202605/agents_tab_agent_explosion.md
+---
  Something weird is happening on the "Agents" tab of the `sase ace` TUI (see the `sase ace` snapshot below). I
 am seeing WAY too many agents (I know I only should see ~30 right now). Can you help me diagnose the root cause of this
 issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

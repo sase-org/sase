@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 19:46:23
 status: done
+prompt: sdd/prompts/202604/semicolon_command_palette.md
 ---
 # Plan: Make `;` Also Open the Ace Command Palette
 

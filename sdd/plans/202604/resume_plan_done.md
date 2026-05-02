@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 14:03:52
 status: done
+prompt: sdd/prompts/202604/resume_plan_done.md
 ---
 
 # Plan: Fix resume keymap ('r') for PLAN DONE agents

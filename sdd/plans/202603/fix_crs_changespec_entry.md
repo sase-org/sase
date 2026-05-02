@@ -2,6 +2,7 @@
 status: done
 created: 2026-03-27
 create_time: 2026-03-27 15:44:57
+prompt: sdd/prompts/202603/fix_crs_changespec_entry.md
 ---
 
 # Fix CRS Agent ChangeSpec Entry Bugs

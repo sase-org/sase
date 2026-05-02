@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_spec_feedback.md
+---
 I left feedback for this agent (see the `sase ace` snapshot below), but the specs/202603/branch_naming_reform.md file
 that was committed (containing my prompt) after I approved the new plan doesn't include the "Additional Requirements"
 section. Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before

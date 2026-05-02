@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 15:42:04
 status: done
+prompt: sdd/prompts/202604/startup_stopwatch_full_startup_completion.md
 ---
 # Plan: Keep Startup Stopwatch Visible Until Full Startup Completes
 

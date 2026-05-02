@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 13:55:40
 status: done
+prompt: sdd/prompts/202603/fix_folded_count_color.md
 ---
 
 # Plan: Fix TIMESTAMPS Folded Count Color

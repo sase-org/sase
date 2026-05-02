@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 10:33:03
 status: done
+prompt: sdd/prompts/202604/agents_tab_pinned_indicator_1.md
 ---
 
 # Plan: Agents Tab Pinned (`+N`) Indicator

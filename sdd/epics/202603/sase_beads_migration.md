@@ -1,5 +1,6 @@
 ---
 bead_id: sase-5fkw
+prompt: sdd/prompts/202603/sase_beads_migration.md
 ---
 
 # Plan: sase-beads Package + Migration from steveyegge/beads

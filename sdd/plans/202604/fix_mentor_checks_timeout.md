@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 19:19:41
 status: done
+prompt: sdd/prompts/202604/fix_mentor_checks_timeout.md
 ---
 
 # Plan: Fix mentor_checks chop timeout (repeated VCS diff loading)

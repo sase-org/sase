@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/epic_work_automation.md
+---
  Can you help me add direct integration into sase for working epics (i.e. running one agent per phase bead and then running one agent to land the epic)?
 
 - We will need to add a new 'is_ready_to_work' boolean field to epic beads that should start out as `false` and be set to true only when the new `sase bead work <epic_bead_id>` command is run. We should update the prompt we use when

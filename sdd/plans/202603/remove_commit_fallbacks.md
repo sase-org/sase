@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-26 19:21:26
+prompt: sdd/prompts/202603/remove_commit_fallbacks.md
 ---
 
 # Plan: Remove Commit Fallbacks & Proper Proposal Support

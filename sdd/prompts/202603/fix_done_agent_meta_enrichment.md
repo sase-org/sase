@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_done_agent_meta_enrichment.md
+---
 We finally got an agent (see the `sase ace` snapshot below) to create a CL and ChangeSpec of the correct name (see
 recent, related git commits)! One problem: The CL URL and CL name for the newly created CL (it's fine if we just call
 this PR like the github integration) are supposed to show in the agent metadata panel on the "Agents" tab of the

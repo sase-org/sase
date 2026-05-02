@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 20:19:19
 status: done
+prompt: sdd/prompts/202604/widen_agent_list_panel.md
 ---
 # Plan: Widen the `sase ace` Agents-tab Agent List Panel
 

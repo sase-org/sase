@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 12:31:48
 status: done
+prompt: sdd/prompts/202603/gemini_pro_reply_streaming.md
 ---
 
 # Fix Gemini gemini-3.1-pro-preview Agent Reply Streaming

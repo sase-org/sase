@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:20:04
 status: planned
+prompt: sdd/prompts/202604/fix_keymaps_e2e_flake.md
 ---
 
 # SASE Plan: Stabilize `test_keymaps_e2e.py::test_default_keys_still_work` flake

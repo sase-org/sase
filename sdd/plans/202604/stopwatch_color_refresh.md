@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 15:05:44
 status: done
+prompt: sdd/prompts/202604/stopwatch_color_refresh.md
 ---
 
 # Plan: Refresh Startup Stopwatch Colors & Polish

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 22:06:02
 status: done
+prompt: sdd/prompts/202604/shell_sub_dynamic_memory.md
 ---
 
 # Plan: Use Shell Substitution for Dynamic Memory Content

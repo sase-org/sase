@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-09 19:12:32
 status: done
+prompt: sdd/prompts/202604/kill_dismiss_all.md
 ---
 
 # Plan: `,X` Kill/Dismiss All Agents Keymap

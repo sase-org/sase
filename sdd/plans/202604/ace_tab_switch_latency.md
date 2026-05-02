@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:13:20
 status: wip
+prompt: sdd/prompts/202604/ace_tab_switch_latency.md
 ---
 # Plan: Make `sase ace` Tab Switching Fast
 

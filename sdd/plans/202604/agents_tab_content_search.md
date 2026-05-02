@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 17:30:12
 status: done
+prompt: sdd/prompts/202604/agents_tab_content_search.md
 ---
 # Plan: Content-Aware `/` Search on `sase ace` Agents Tab
 

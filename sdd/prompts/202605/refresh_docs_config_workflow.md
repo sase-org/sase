@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202605/refresh_docs_config_workflow.md
+---
  There is a problem with the 'refresh_docs' chops we recently added to my chezmoi repo (see the `sase ace`
 snapshot below): The `sase/refresh_docs` xprompt is only defined in this repo. Can you help me factor out a
 `refresh_docs` chop to the sase_athena.yml file in my chezmoi repo that the `SASE/REFRESH_DOCS` chop in this repo will

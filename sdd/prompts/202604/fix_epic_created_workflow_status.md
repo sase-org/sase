@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_epic_created_workflow_status.md
+---
  I clicked the "Epic" button in Telegram, which caused the current state of this agent (see the `sase ace` snapshot below). This agent should thus be marked as "EPIC CREATED", not "PLAN APPROVED". Can you help me fix this?
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

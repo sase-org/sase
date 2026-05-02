@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 21:12:29
 status: done
+prompt: sdd/prompts/202603/bug_tag_normalize.md
 ---
 
 # Plan: VCS-Agnostic BUG Tag Normalization

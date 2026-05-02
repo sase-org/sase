@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/telegram_commit_button.md
+---
 The user sent an image via Telegram with the following caption:
 
 Can you help me add a new "Commit" button to plan approval messages sent in telegram?

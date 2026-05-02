@@ -1,6 +1,7 @@
 ---
 status: done
 bead_id: sase-owpf
+prompt: sdd/prompts/202603/sase_plan.md
 ---
 
 # Plan: `/sase_plan` and `/sase_questions` Skills

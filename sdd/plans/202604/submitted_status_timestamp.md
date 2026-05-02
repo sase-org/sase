@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 18:52:02
 status: done
+prompt: sdd/prompts/202604/submitted_status_timestamp.md
 ---
 # Submitted STATUS Timestamp Plan
 

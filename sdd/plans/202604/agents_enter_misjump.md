@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 17:30:12
 status: done
+prompt: sdd/prompts/202604/agents_enter_misjump.md
 ---
 # Diagnose and Fix Agents-tab Enter Misjump
 

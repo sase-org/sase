@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 17:16:54
 status: wip
+prompt: sdd/prompts/202603/gemini_commit_dispatch.md
 ---
 
 # Fix: Re-add commit dispatch steps to unified xprompts for Gemini agents

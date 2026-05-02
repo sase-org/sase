@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 19:22:16
 status: done
+prompt: sdd/prompts/202603/mentor_run_from_review.md
 ---
 
 # Plan: Run Mentor Profile from Mentor Review Panel

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 08:51:16
 status: draft
+prompt: sdd/prompts/202603/full_pr_description_in_changespec.md
 ---
 
 # Full PR Description in ChangeSpec DESCRIPTION Field

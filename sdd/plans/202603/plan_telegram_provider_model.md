@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 11:11:38
 status: done
+prompt: sdd/prompts/202603/plan_telegram_provider_model.md
 ---
 
 # Add LLM Provider and Model to Plan Telegram Messages

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/profile_show_all.md
+---
 This isn't what the file produced by `sase ace --profile` is supposed to look like, right? Can you help me diagnose the
 root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill
 before making any file changes.

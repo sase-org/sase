@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-23 19:13:52
 status: done
+prompt: sdd/prompts/202603/edit_project_lock.md
 ---
 
 # Plan: Project File Edit Locking

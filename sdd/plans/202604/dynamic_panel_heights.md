@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 23:54:24
 status: wip
+prompt: sdd/prompts/202604/dynamic_panel_heights.md
 ---
 # Plan: Dynamic Heights for Agents-Tab Tag Panels
 

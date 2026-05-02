@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_coder_model_picker.md
+---
 I selected gemini-3-flash-preview from the "Approve with Options" modal's new model picker (see recent, related git
 commits), but the "Model:" field (see the `sase ace` snapshot below) says gemini-3.1-pro-preview. Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

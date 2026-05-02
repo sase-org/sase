@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 18:31:05
 status: wip
+prompt: sdd/prompts/202604/xprompts_enabled_markers_stripped_in_early_phase.md
 ---
 
 # Plan: Preserve `%xprompts_enabled` markers through `preprocess_prompt_early`

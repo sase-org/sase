@@ -2,6 +2,7 @@
 create_time: 2026-04-26 01:12:12
 status: done
 bead_id: sase-t
+prompt: sdd/prompts/202604/agents_tab_grouping_modes.md
 ---
 # Agents Tab — Cyclable Grouping/Sorting Modes
 

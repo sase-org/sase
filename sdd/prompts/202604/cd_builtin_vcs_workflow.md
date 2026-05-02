@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/cd_builtin_vcs_workflow.md
+---
   Can you help me add a new #cd built-in VCS xprompt workflow?
 
 - This VCS workflow should be the simplest of them all and not use version control at all. 

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/branch_naming_reform.md
+---
 It looks like we are trying to checkout the wrong branch here! I just changed the STATUS field of this ChangeSpec (see
 the `sase ace` snapshot below) from "Draft" to "Ready", which removed the `_<N>` suffix. I'm worried we are not handling
 branch names / renames appropriately, so here are the rules:

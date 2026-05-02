@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 12:23:37
 status: done
+prompt: sdd/prompts/202604/task_queue_edit_keymap.md
 ---
 
 # Plan: Add `e` (edit) keymap to Task Queue Modal

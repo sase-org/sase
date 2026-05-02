@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/xprompt_slash_in_name.md
+---
 Can you help me fix this error I got while trying to add a new xprompt via the `<ctrl+o>` keymap from the xprompt panel
 (which itself is triggered via the `#` keymap)? Think this through thoroughly and create a plan using your `/sase_plan`
 skill before making any file changes.

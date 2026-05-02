@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 22:05:13
 status: wip
+prompt: sdd/prompts/202604/gemini_three_tiers.md
 ---
 
 # Plan: Refactor ~/.gemini/GEMINI.md into a 3-tier Architecture

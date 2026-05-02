@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 17:07:00
 status: done
+prompt: sdd/prompts/202604/fix_planning_status_after_feedback.md
 ---
 
 # Fix: Agent shows PLANNING instead of RUNNING after user gives feedback

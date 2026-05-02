@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/wire_format_instructions.md
+---
 Was there really a merge conflict (see the below output of the `#sync` xprompt workflow, which was run from the TUI
 using the `Y` keymap on another machine that uses the ../sase-google repo) or do we need to fix something? If the
 latter, please diagnose the root cause and fix the issue. Think this through thoroughly and create a plan using your

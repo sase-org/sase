@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:23:40
 status: draft
+prompt: sdd/prompts/202604/done_agents_release_auto_name.md
 ---
 
 # Plan: Done Agents Should Not Block Alphabetic Auto-Names

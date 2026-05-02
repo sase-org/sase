@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_jetski_integration.md
+---
  Can you help me figure out what is wrong with our jetski integration based on this agent, which seems to have
 had no response? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

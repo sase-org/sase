@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 20:24:36
 status: wip
+prompt: sdd/prompts/202604/commit_resume.md
 ---
 
 # Plan: Resumable `sase commit` After Agent-Resolved Merge Conflicts

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 13:24:14
 status: done
+prompt: sdd/prompts/202604/wire_format_instructions.md
 ---
 
 # Wire up `generate_format_instructions` for agent steps with output specs

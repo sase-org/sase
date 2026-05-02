@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 17:40:20
 status: done
+prompt: sdd/prompts/202604/directive_comma_args.md
 ---
 # Plan: Comma-Separated Colon Args for Directives
 

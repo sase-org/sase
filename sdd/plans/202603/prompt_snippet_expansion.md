@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 20:22:57
 status: done
+prompt: sdd/prompts/202603/prompt_snippet_expansion.md
 ---
 
 # Plan: Prompt Input Snippet Expansion

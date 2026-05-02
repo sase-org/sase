@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_normal_mode_freeze.md
+---
 Sometimes when I transfer a large prompt into the prompt input widget (e.g. using the `<ctrl+i>` keymap from the prompt
 history panel), then go into NORMAL mode and try to use a motion (e.g. `gg` to go to the top of the prompt), the entire
 TUI freezes. I need to kill the tmux pane and open a new one to restart `sase ace` in order to mitigate this when it

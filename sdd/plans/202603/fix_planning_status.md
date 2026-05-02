@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 15:07:29
 status: done
+prompt: sdd/prompts/202603/fix_planning_status.md
 ---
 
 # Plan: Fix parent workflow showing PLANNING when child step is RUNNING

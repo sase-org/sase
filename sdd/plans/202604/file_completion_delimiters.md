@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 18:34:55
 status: done
+prompt: sdd/prompts/202604/file_completion_delimiters.md
 ---
 
 # Plan: Fix file completion token extraction near special characters

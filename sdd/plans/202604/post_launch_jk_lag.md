@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 09:02:02
 status: done
+prompt: sdd/prompts/202604/post_launch_jk_lag.md
 ---
 # Plan — Eliminate the Post-Launch `j`/`k` Lag
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 18:15:04
 status: done
+prompt: sdd/prompts/202604/vcs_mru_100_entries.md
 ---
 
 # Plan: Expand VCS Xprompt MRU to 100 Entries & Fix Cycling Direction

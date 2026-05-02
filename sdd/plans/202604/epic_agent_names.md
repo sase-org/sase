@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 19:06:59
 status: done
+prompt: sdd/prompts/202604/epic_agent_names.md
 ---
 # Rename epic-launched agents to `<epic_id>.<N>` / `<epic_id>.land`
 

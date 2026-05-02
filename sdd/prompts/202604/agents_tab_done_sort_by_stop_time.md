@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/agents_tab_done_sort_by_stop_time.md
+---
  We should be sorting done agents in the agent list on the "Agents" tab of the `sase ace` TUI by their completion time (running agents should be sorted by their start time). It looks like maybe we are sorting all agents by
 their start time (see the `sase ace` snapshot below)? Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

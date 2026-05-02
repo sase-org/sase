@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/suppress_singleton_name_root_banner.md
+---
  Can you help me stop including agents in the agent name nested group (see the plans/202604/agents_tab_nested_groups.md file for context) unless there are at least two agent entries in that group (see the `sase ace` snapshot
 below for two examples of only a single agent being included in one of these groups)? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

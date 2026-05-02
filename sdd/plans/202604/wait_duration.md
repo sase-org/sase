@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-10 22:16:58
 status: done
+prompt: sdd/prompts/202604/wait_duration.md
 ---
 
 # Plan: Duration-based `%wait` support

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-03 20:11:22
 status: done
+prompt: sdd/prompts/202604/fix_hg_diff_mentor_matching.md
 ---
 
 # Fix: MENTORS not added for Mercurial ChangeSpecs

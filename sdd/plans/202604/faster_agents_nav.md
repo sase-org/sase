@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 17:09:00
 status: done
+prompt: sdd/prompts/202604/faster_agents_nav.md
 ---
 
 # Plan: Make Agents Tab j/k Navigation WAY Faster

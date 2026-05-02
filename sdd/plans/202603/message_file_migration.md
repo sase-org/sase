@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-27 16:56:59
+prompt: sdd/prompts/202603/message_file_migration.md
 ---
 
 # Plan: Migrate `--message` to `--message-file`

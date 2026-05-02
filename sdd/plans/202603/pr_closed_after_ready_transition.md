@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 18:12:34
 status: done
+prompt: sdd/prompts/202603/pr_closed_after_ready_transition.md
 ---
 
 # Plan: Diagnose and Fix PR Closing After Draft→Ready Transition

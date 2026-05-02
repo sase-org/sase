@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-10 22:47:38
 status: done
+prompt: sdd/prompts/202604/tui_wait_duration.md
 ---
 
 # Plan: TUI Duration Wait Visual Support

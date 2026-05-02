@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 21:09:07
 status: done
+prompt: sdd/prompts/202604/dynamic_memory_prompt_injection.md
 ---
 
 # Plan: Dynamic Memory via Prompt Injection

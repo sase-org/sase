@@ -2,6 +2,7 @@
 status: done
 create_time: 2026-04-27 20:09:18
 bead_id: sase-z
+prompt: sdd/prompts/202604/changespec_group_headings.md
 ---
 
 # CLs Tab — ChangeSpec Group Headings

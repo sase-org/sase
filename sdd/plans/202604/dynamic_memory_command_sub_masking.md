@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 10:23:33
 status: done
+prompt: sdd/prompts/202604/dynamic_memory_command_sub_masking.md
 ---
 # Dynamic memory matches keywords inside `$(...)` command-substitution payloads
 

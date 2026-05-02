@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-19 17:00:10
 status: done
+prompt: sdd/prompts/202604/mentor_review_copy_comment.md
 ---
 
 # Plan: Add `y` Copy-Comment Keymap to Mentor Review Modal

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 14:20:34
 status: done
+prompt: sdd/prompts/202603/fix_wait_dead_root.md
 ---
 
 # Plan: Fix `%wait` Resolution When Root Agent Is Dead Without `done.json`

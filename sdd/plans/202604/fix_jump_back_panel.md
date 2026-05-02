@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-06 16:06:36
 status: done
+prompt: sdd/prompts/202604/fix_jump_back_panel.md
 ---
 
 # Plan: Fix apostrophe jump-back across agent panels

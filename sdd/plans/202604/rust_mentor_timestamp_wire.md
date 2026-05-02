@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 12:14:06
 status: done
+prompt: sdd/prompts/202604/rust_mentor_timestamp_wire.md
 ---
 # Fix Rust Backend Query Crash On Mentor Status Lines
 

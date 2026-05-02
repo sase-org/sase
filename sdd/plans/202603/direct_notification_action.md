@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 13:40:28
 status: done
+prompt: sdd/prompts/202603/direct_notification_action.md
 ---
 
 # Plan: Direct Notification Action on `,n`

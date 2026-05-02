@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 22:22:51
 status: done
+prompt: sdd/prompts/202604/repeat_iteration_variable.md
 ---
 
 # Plan: Expose `N` Jinja variable for `%N` / `%repeat` directive

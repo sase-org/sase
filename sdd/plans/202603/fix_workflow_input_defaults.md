@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 16:42:05
 status: done
+prompt: sdd/prompts/202603/fix_workflow_input_defaults.md
 ---
 
 # Plan: Fix workflow input default type coercion

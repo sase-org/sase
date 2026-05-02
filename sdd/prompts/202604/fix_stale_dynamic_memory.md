@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_stale_dynamic_memory.md
+---
 How are these long-tui-development.md and long-xprompt-system.md dynamic memories still showing up when I've already
 deleted the corresponding long-term memory files? Can you help me diagnose the root cause of this issue and fix it?
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

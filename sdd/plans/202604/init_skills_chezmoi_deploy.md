@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 23:21:56
 status: done
+prompt: sdd/prompts/202604/init_skills_chezmoi_deploy.md
 ---
 
 # Plan: Auto-deploy chezmoi skill changes from `sase init-skills`

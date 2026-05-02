@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 22:10:17
 status: done
+prompt: sdd/prompts/202603/fix_noop_notifications.md
 ---
 
 # Fix: Suppress notifications for noop workflow runs

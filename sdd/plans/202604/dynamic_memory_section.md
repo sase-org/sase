@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 23:42:21
 status: done
+prompt: sdd/prompts/202604/dynamic_memory_section.md
 ---
 
 # Plan: Replace DYNAMIC MEMORY Line with Section of Individual File Paths

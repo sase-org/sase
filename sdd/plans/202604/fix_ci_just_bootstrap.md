@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 12:36:34
 status: done
+prompt: sdd/prompts/202604/fix_ci_just_bootstrap.md
 ---
 # Fix CI just Bootstrap Failure
 

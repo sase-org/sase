@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/agents_untagged_full_height.md
+---
  The agents tab looks very broken now! The untagged panel should take up the full height when no agents are
 tagged. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

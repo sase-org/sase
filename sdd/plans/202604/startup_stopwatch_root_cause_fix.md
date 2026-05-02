@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 15:31:36
 status: done
+prompt: sdd/prompts/202604/startup_stopwatch_root_cause_fix.md
 ---
 # Plan: Diagnose and Fix Startup Stopwatch Freezing at 0.2s
 

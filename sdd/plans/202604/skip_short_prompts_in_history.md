@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 14:59:06
 status: done
+prompt: sdd/prompts/202604/skip_short_prompts_in_history.md
 ---
 
 # Skip Short Prompts in Prompt History

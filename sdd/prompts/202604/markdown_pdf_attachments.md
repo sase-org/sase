@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/markdown_pdf_attachments.md
+---
   Can you help me add support for creating PDFs from any markdown files sase agents create or modify?
 
 - This functionality should work a lot like our new image integration. We should attach the PDF file to the agent completion notification and attach the PDF to the corresponding telegram/gchat message.

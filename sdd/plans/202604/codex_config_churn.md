@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 18:36:55
 status: done
+prompt: sdd/prompts/202604/codex_config_churn.md
 ---
 # Plan: Stop Codex from Dirtying Managed Config
 

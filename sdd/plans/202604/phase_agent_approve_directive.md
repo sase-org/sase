@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-26 01:29:27
 status: done
+prompt: sdd/prompts/202604/phase_agent_approve_directive.md
 ---
 # Plan: Auto-Approve Directive on Phase Agent Prompts
 

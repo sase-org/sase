@@ -2,6 +2,7 @@
 status: done
 create_time: 2026-04-07 22:23:20
 bead_id: sase-d
+prompt: sdd/prompts/202604/prometheus_telemetry_1.md
 ---
 
 # Prometheus Telemetry Integration

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 22:43:00
 status: ready
+prompt: sdd/prompts/202604/live_diff_cache_invalidation.md
 ---
 
 # Plan: Fix Live-Diff Regression in `sase ace` Agents-Tab File Panel

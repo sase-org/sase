@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/repeat_directive.md
+---
 Can you help me add a new! '%N' directive that takes an integer argument? When this directive is used we should run that
 prompt that number of times in sequence one after the other. Make sure you add good TUI support for this.
 

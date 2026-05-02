@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 13:21:49
 status: done
+prompt: sdd/prompts/202604/xprompt_slash_in_name.md
 ---
 
 # Fix: FileNotFoundError when xprompt name contains slashes

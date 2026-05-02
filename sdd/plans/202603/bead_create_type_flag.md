@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 17:07:24
 status: done
+prompt: sdd/prompts/202603/bead_create_type_flag.md
 ---
 
 # Plan: Migrate `sase bead create` to `--type` flag

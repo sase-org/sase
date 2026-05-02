@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 11:10:29
 status: done
+prompt: sdd/prompts/202604/agent_x_uses_rust_cleanup.md
 ---
 # Plan: Route single-agent `x` cleanup through Rust planner
 

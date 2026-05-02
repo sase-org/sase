@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 23:32:46
 status: wip
+prompt: sdd/prompts/202604/ace_profile_flag.md
 ---
 
 # Plan: Add `--profile` flag to `sase ace`

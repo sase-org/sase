@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 17:25:50
 status: done
+prompt: sdd/prompts/202603/fix_pr_diff.md
 ---
 
 # Fix `d` Keymap to Show Full PR Diff (Git/GitHub)

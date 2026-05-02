@@ -1,6 +1,7 @@
 ---
 status: done
 bead_id: sase-w0d2
+prompt: sdd/prompts/202603/epic_approval.md
 ---
 
 # Epic Plan Approval Support

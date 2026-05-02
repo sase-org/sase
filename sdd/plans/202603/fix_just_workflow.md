@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 14:33:09
 status: done
+prompt: sdd/prompts/202603/fix_just_workflow.md
 ---
 
 # Plan: Fix broken `#sase/fix_just` workflow's `fix_fmt` step

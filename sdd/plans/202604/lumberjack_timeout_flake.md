@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 16:49:42
 status: wip
+prompt: sdd/prompts/202604/lumberjack_timeout_flake.md
 ---
 # Plan: Diagnose and Fix Lumberjack Per-Chop Timeout Test Failure
 

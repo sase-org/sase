@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-23 18:43:08
 status: done
+prompt: sdd/prompts/202603/changespec_archive_file.md
 ---
 
 # Plan: Move ChangeSpecs to Archive File on Terminal Status

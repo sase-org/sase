@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 22:14:44
 status: done
+prompt: sdd/prompts/202604/model_indicator_default_state.md
 ---
 # Plan: Always-Visible TUI Model Indicator
 

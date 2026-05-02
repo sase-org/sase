@@ -2,6 +2,7 @@
 create_time: 2026-04-29 17:41:24
 status: done
 bead_id: sase-1d
+prompt: sdd/prompts/202604/tui_command_palette.md
 ---
 # Plan: Add a Context-Aware Command Palette to the Ace TUI
 

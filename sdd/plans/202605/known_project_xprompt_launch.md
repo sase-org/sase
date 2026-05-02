@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 17:48:06
 status: done
+prompt: sdd/prompts/202605/known_project_xprompt_launch.md
 ---
 # Plan: Fix known-project VCS xprompt launch resolution
 

@@ -2,6 +2,7 @@
 create_time: 2026-04-17 21:21:28
 status: done
 bead_id: sase-j
+prompt: sdd/prompts/202604/commit_resume_1.md
 ---
 
 # Plan: Resumable `sase commit` After Agent-Resolved Merge Conflicts (Phased)

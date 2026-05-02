@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 18:55:34
 status: done
+prompt: sdd/prompts/202604/fix_jk_nav_race.md
 ---
 
 # Plan: Fix race condition in TUI j/k navigation where async agent refresh restores stale selection

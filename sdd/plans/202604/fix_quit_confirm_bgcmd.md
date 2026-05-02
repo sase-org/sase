@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 12:40:39
 status: done
+prompt: sdd/prompts/202604/fix_quit_confirm_bgcmd.md
 ---
 
 # Plan: Fix TUI quit confirmation to only trigger for background tasks

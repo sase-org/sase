@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 18:57:04
 status: done
+prompt: sdd/prompts/202604/fix_jetski_integration.md
 ---
 # Plan: Fix Jetski Integration for `sase_hg_commit`
 

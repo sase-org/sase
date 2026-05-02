@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 16:50:10
 status: done
+prompt: sdd/prompts/202604/lumberjack_timeout_test_flake.md
 ---
 # Plan: Fix flaky test `test_per_chop_timeout_overrides_lumberjack_default`
 

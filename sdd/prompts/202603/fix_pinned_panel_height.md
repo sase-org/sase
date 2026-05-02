@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_pinned_panel_height.md
+---
 #resume:d.2 This didn't work (see the `sase ace` snapshot below). The panel should be able to hold at least 5 pinned
 agents before a scrollbar is needed (i.e. all 5 pinned agents should be visible). I only have 1 pinned agent in the
 `sase ace` snapshot below, but I can't even see that entry. Can you help me diagnose the root cause of this issue and

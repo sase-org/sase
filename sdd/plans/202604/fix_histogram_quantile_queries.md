@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 22:20:49
 status: done
+prompt: sdd/prompts/202604/fix_histogram_quantile_queries.md
 ---
 
 # Plan: Fix histogram_quantile PromQL Queries for Duration Charts

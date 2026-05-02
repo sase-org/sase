@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 11:49:46
 status: done
+prompt: sdd/prompts/202604/pylimit_split_validation.md
 ---
 # Plan: Fix pylimit_split Generated pysplit Validation
 

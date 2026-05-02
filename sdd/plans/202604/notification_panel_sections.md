@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 23:24:32
 status: done
+prompt: sdd/prompts/202604/notification_panel_sections.md
 ---
 # Sectioned Notification Panel
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 10:20:09
 status: done
+prompt: sdd/prompts/202604/reorder_status_groups.md
 ---
 # Plan — Reorder Status Groups in the ACE CLs Tab
 

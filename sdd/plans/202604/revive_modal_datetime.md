@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 16:40:10
 status: done
+prompt: sdd/prompts/202604/revive_modal_datetime.md
 ---
 
 # Plan: Full Date+Time in Revive Modal Sidebar + Datetime Sorting

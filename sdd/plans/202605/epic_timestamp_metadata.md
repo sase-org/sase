@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 12:19:41
 status: done
+prompt: sdd/prompts/202605/epic_timestamp_metadata.md
 ---
 # Epic timestamp metadata plan
 

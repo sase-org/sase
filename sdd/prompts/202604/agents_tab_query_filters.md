@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/agents_tab_query_filters.md
+---
  The user sent an image via Telegram with the following caption:
 
  Can you help me Implement all of these agent query filters (the ones that are circled in the image that I've attached)? This will require you to implement a new AgentQuery parser that parallels the change spec query parser.

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_prometheus_metrics.md
+---
 Something seems wrong with the way we track and/or display prometheus metrics related to agent invocations. For example,
 no data is ever displayed in the "Agent Run Duration" chart and the `sase telemetry dashboard` (see below) shows just 1
 LLM invocation in the last 7 days, which I know is wrong. Can you help me diagnose the root cause of this issue and fix

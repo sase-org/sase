@@ -2,6 +2,7 @@
 create_time: 2026-04-07 23:40:55
 status: done
 bead_id: sase-e
+prompt: sdd/prompts/202604/telemetry_cli.md
 ---
 
 # Plan: `sase telemetry` CLI Subcommand

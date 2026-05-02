@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 14:28:45
 status: done
+prompt: sdd/prompts/202603/workflow_agent_naming.md
 ---
 
 # Plan: Workflow Agent Naming (`<name>.<N>`)

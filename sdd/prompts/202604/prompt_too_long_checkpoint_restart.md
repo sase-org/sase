@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/prompt_too_long_checkpoint_restart.md
+---
 Claude code just failed with a "Prompt is too long" again (see the `sase ace` snapshot below). Can you help me diagnose
 the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill
 before making any file changes.

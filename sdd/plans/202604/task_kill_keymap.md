@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 13:19:41
 status: done
+prompt: sdd/prompts/202604/task_kill_keymap.md
 ---
 
 # Plan: Add `k` keymap to kill tasks in the Task Queue Modal

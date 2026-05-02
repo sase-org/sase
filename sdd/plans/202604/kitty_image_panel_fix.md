@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 11:08:29
 status: done
+prompt: sdd/prompts/202604/kitty_image_panel_fix.md
 ---
 # Fix Kitty Image Rendering In File And Notification Panels
 

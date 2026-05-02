@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 21:30:40
 status: done
+prompt: sdd/prompts/202603/commit_message_dedup_fix.md
 ---
 
 # Fix: Missing "Commit message:" output variable in agent metadata panel

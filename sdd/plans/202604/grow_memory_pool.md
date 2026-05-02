@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 13:08:50
 status: done
+prompt: sdd/prompts/202604/grow_memory_pool.md
 ---
 
 # Plan: Grow Dynamic Memory Pool

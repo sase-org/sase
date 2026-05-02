@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/agent_reply_stream.md
+---
 Can we start supporting a new "AGENT REPLY" section in the agent metadata panel on the "Agents" tab of the `sase ace`
 TUI which contains the live streamed output of the currently selected running agent? When an agent finishes, this
 section should be hidden (like the "AGENT XPROMPT" section is) since the agent chat file (which will be displayed in

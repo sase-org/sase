@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 12:46:36
 status: done
+prompt: sdd/prompts/202604/bead_work_detach.md
 ---
 # Plan: make `sase bead work` return after launching epic agents
 

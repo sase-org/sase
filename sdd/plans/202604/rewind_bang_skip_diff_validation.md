@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 13:50:25
 status: done
+prompt: sdd/prompts/202604/rewind_bang_skip_diff_validation.md
 ---
 
 # Plan: Skip DIFF path validation when rewind `!` suffix is used

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 21:49:01
 status: done
+prompt: sdd/prompts/202604/snooze_duration_panel.md
 ---
 # Snooze Duration Panel UX Plan
 

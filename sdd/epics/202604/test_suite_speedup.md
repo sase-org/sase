@@ -2,6 +2,7 @@
 create_time: 2026-04-23 20:32:20
 status: done
 bead_id: sase-l
+prompt: sdd/prompts/202604/test_suite_speedup.md
 ---
 # Speed up `just test` — Implementation Plan
 

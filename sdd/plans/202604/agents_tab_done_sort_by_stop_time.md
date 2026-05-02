@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 11:13:25
 status: done
+prompt: sdd/prompts/202604/agents_tab_done_sort_by_stop_time.md
 ---
 # Plan: Sort done agents by completion time in `sase ace` Agents tab
 

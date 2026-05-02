@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_duplicate_status_frontmatter.md
+---
 I keep seeing frontmatter like the followig in plan files:
 
 ```

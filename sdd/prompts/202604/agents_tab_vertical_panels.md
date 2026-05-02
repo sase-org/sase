@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/agents_tab_vertical_panels.md
+---
  Can you help me fix this weird gap between the left and right panels on the "Agents" tab of the `sase ace` TUI?
 I think this is occurring because the dynamic "agent tag" side-panels are styled so they are rendered side-by-side. This
 is NOT correct. These panels should be stacked on top of each other, with the "(untagged)" panel always at the top.

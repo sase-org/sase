@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 21:55:27
 status: done
+prompt: sdd/prompts/202604/fix_revive_index_shards.md
 ---
 # Plan: Fix Agents-tab revive visibility after dismissed bundle sharding
 

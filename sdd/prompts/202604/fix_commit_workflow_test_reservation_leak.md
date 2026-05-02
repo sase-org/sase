@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_commit_workflow_test_reservation_leak.md
+---
 Why do all of these (see the `sase ace` snapshot below) ChangeSpecs keep getting created? Can you help me diagnose the
 root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill
 before making any file changes.

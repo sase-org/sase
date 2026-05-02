@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-27 14:46:43
+prompt: sdd/prompts/202603/fix_commits_entry_human_cli.md
 ---
 
 # Plan: Fix COMMITS entry creation for human `sase commit` invocations

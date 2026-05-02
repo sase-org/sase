@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 17:13:56
 status: done
+prompt: sdd/prompts/202603/bug_tag_sync.md
 ---
 
 # Plan: Sync BUG tag to ChangeSpec BUG field

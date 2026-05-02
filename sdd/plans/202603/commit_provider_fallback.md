@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 13:56:59
 status: done
+prompt: sdd/prompts/202603/commit_provider_fallback.md
 ---
 
 # Fix `sase commit` failure when GitHub plugin is absent

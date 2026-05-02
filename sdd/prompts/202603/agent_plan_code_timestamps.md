@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/agent_plan_code_timestamps.md
+---
 Can you help me start adding two new entries to the "Timestamps:" field in the the agent metadata panel on the "Agents"
 tab of the `sase ace` TUI (see the `sase ace` snapshot below for an example of what it looks like currently) for agents
 that created plans?:

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 15:16:45
 status: done
+prompt: sdd/prompts/202604/jump_all_entries.md
 ---
 
 # Plan: Cross-Tab Jump-to-Entry Modal (backtick)

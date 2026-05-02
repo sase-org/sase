@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 13:29:30
 status: done
+prompt: sdd/prompts/202603/fix_sdd_frontmatter_and_spec.md
 ---
 
 # Plan: Fix plan frontmatter and spec file not being committed when SDD block fails

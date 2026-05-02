@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_meta_output_vars.md
+---
 The `meta_` xprompt workflow step output variables are still broken. This agent (see the `sase ace` snapshot below)
 created a CL and ChangeSpec properly, so I should see the new ChangeSpec / CL name in the the agent metadata panel on
 the "Agents" tab of the `sase ace` TUI, but I do not. Can you help me diagnose the root cause of this issue and fix it?

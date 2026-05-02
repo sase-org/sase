@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 08:58:56
 status: done
+prompt: sdd/prompts/202603/split_run_agent_exec.md
 ---
 
 # Plan: Split `run_agent_exec.py` into multiple files

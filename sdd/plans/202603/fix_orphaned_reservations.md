@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-30 18:52:52
+prompt: sdd/prompts/202603/fix_orphaned_reservations.md
 ---
 
 # Fix Orphaned "Reserved" ChangeSpec Entries

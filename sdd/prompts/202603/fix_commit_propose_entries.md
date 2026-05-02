@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_commit_propose_entries.md
+---
 It still doesn't look like the `#commit` / `#propose` xprompt workflows are returning the new commit ID / proposal ID as
 `meta_commit_id` / `meta_proposal_id` workflow step output variables. It's not working at least (ex: they don't show up
 as dynamic fields in the agent metadata panel on the "Agents" tab of the `sase ace` TUI). This is causing (I think)

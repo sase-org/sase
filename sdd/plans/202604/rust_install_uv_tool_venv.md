@@ -1,6 +1,7 @@
 ---
 status: draft
 create_time: 2026-04-29 11:42:50
+prompt: sdd/prompts/202604/rust_install_uv_tool_venv.md
 ---
 
 # Plan: Install `sase_core_rs` into the user's installed sase venv

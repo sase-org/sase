@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 12:06:04
 status: done
+prompt: sdd/prompts/202603/fix_neovim_plugin_errors.md
 ---
 
 # Plan: Fix Neovim Plugin Errors

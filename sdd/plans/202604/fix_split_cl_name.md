@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-03 11:50:07
 status: done
+prompt: sdd/prompts/202604/fix_split_cl_name.md
 ---
 
 # Plan: Fix `cl_name` undefined in `#split` xprompt workflow via `sase run`

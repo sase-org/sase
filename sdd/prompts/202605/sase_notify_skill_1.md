@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202605/sase_notify_skill_1.md
+---
  Can you help me add a new /sase_notify xprompt skill that agents can use to read sase notifications? This will be useful for prompts like "Can you help me fix the axe errors I just got a sase
 notification about?". Review the existing /sase_agents_status, /sase_changespecs, and /sase_chats xprompt skills for inspiration before deciding on your solution.
 

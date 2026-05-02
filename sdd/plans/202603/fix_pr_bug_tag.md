@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 14:50:42
 status: done
+prompt: sdd/prompts/202603/fix_pr_bug_tag.md
 ---
 
 # Fix Missing BUG=<bug_id> PR Tag in #pr Xprompt Workflow

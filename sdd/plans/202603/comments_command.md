@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-23 16:00:01
 status: done
+prompt: sdd/prompts/202603/comments_command.md
 ---
 
 # Plan: `sase comments` CLI Command

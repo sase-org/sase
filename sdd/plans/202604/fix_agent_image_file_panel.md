@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 03:54:11
 status: wip
+prompt: sdd/prompts/202604/fix_agent_image_file_panel.md
 ---
 # Fix Agent Image File Panel Cycling
 

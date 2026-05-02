@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-31 12:56:33
+prompt: sdd/prompts/202603/bare_git_create_pull_request.md
 ---
 
 # Fix: Allow `create_pull_request` with bare_git VCS provider

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 14:27:33
 status: done
+prompt: sdd/prompts/202603/prompt_wrap_cursor_restore.md
 ---
 
 # Fix prompt auto-wrap cursor drift after prettier reflow

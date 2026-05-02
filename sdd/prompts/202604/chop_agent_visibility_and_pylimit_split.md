@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/chop_agent_visibility_and_pylimit_split.md
+---
  Can you help me improve the way that chops (see those configured in the sase_athena.yml file in my chezmoi repo) run agents?
 - Namely, I want these agents to stop being hidden. Also, agents should be run in such a way that it is identical to running the agent via the `sase run -d` command.
 - For the `sase_pylimit_split` chop, in particular, each agent except the first should contain a `%wait` directive that makes it wait until the previous agent completes.

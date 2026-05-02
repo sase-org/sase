@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 16:16:08
 status: done
+prompt: sdd/prompts/202603/chezmoi_commit_skills.md
 ---
 
 # Plan: Add commit skills to Gemini/Codex and remove hg_commit from Claude

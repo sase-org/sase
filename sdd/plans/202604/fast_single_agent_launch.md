@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 18:01:12
 status: done
+prompt: sdd/prompts/202604/fast_single_agent_launch.md
 ---
 # Make Single-Agent Launch Feel Immediate
 

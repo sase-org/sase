@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 19:50:54
 status: done
+prompt: sdd/prompts/202604/status_background_task.md
 ---
 
 # Plan: Run Status Change TUI Actions as Background Tasks

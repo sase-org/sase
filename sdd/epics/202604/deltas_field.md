@@ -2,6 +2,7 @@
 create_time: 2026-04-28 20:29:35
 status: done
 bead_id: sase-13
+prompt: sdd/prompts/202604/deltas_field.md
 ---
 # Plan: DELTAS ChangeSpec Field
 

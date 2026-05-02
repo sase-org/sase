@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 21:24:19
 status: done
+prompt: sdd/prompts/202604/agents_tab_per_group_fold.md
 ---
 # Plan: Per-group expand/collapse on the Agents tab
 

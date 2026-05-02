@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 20:08:04
 status: done
+prompt: sdd/prompts/202604/fix_premature_mentors_done_notification.md
 ---
 # Fix: Premature "Mentors done" Notification on Draft→Ready Transition
 

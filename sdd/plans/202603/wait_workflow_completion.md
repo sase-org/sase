@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 15:36:19
 status: done
+prompt: sdd/prompts/202603/wait_workflow_completion.md
 ---
 
 # Plan: Make `%wait:a` Work With Multi-Agent Workflows

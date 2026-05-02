@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 20:57:19
 status: done
+prompt: sdd/prompts/202604/telegram_bead_command.md
 ---
 # Plan: `/bead` Telegram Slash Command
 

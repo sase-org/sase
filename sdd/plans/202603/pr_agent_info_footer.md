@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-26 11:09:34
+prompt: sdd/prompts/202603/pr_agent_info_footer.md
 ---
 
 # Add Agent Info Footer to PR Descriptions

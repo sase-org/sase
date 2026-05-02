@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 18:29:09
 status: wip
+prompt: sdd/prompts/202604/pylimit_split_chop_fanout.md
 ---
 # Fix `sase_pylimit_split` chop fan-out
 

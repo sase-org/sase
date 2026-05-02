@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 18:34:03
 status: done
+prompt: sdd/prompts/202604/fix_pending_checks_poll_timeout.md
 ---
 # Fix `sase axe` pending_checks_poll Timeout
 

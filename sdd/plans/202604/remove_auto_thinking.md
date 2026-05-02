@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 19:24:01
 status: done
+prompt: sdd/prompts/202604/remove_auto_thinking.md
 ---
 
 # Plan: Stop Auto-Showing Thinking Panel in File View

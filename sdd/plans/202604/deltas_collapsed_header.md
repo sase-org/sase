@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 12:32:25
 status: done
+prompt: sdd/prompts/202604/deltas_collapsed_header.md
 ---
 # Plan: Preserve the DELTAS Header When Collapsed
 

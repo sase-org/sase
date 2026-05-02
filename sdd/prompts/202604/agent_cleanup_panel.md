@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/agent_cleanup_panel.md
+---
  Can you help me replace the existing `X` and `,X` keymaps with a single `X` keymap that triggers a nice panel
 that offers single-keypress options (ex: dismiss all done, kill/dismiss all, kill all with tag @foo, etc...) as well as
 a custom selection option that gives the user more granular (but still simple with minimal keypresses) control over

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 12:14:12
 status: done
+prompt: sdd/prompts/202605/cls_by_date_subgroups.md
 ---
 # CLs BY_DATE Second-Level Grouping
 

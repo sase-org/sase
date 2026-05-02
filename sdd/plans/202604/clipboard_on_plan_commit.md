@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 18:23:43
 status: done
+prompt: sdd/prompts/202604/clipboard_on_plan_commit.md
 ---
 
 # Plan: Copy Plan File Path to Clipboard on "Plan Committed"

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 20:06:20
 status: done
+prompt: sdd/prompts/202604/chop_gate.md
 ---
 
 # Plan: Add `gate` field to chop config to prevent unnecessary agent spawns

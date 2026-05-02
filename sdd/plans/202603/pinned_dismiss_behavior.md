@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 09:38:39
 status: done
+prompt: sdd/prompts/202603/pinned_dismiss_behavior.md
 ---
 
 # Plan: Pinned Agent Dismiss Behavior

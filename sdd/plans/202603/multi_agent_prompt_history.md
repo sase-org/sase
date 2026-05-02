@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 16:55:18
 status: done
+prompt: sdd/prompts/202603/multi_agent_prompt_history.md
 ---
 
 # Plan: Save Multi-Agent Prompts to History Separately

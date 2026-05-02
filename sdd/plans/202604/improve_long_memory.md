@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 13:26:51
 status: done
+prompt: sdd/prompts/202604/improve_long_memory.md
 ---
 
 # Plan: Improve Long-Term Memory Files Based on AGENTS.md Best Practices

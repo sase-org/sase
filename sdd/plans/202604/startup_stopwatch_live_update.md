@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 14:56:18
 status: done
+prompt: sdd/prompts/202604/startup_stopwatch_live_update.md
 ---
 # Plan: Make the `sase ace` Startup Stopwatch Actually Tick
 

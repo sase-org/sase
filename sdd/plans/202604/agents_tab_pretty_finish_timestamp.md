@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 08:59:13
 status: done
+prompt: sdd/prompts/202604/agents_tab_pretty_finish_timestamp.md
 ---
 # Plan — Agents-tab finish-timestamp redesign
 

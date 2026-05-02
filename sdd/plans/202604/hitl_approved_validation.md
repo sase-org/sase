@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 20:12:49
 status: done
+prompt: sdd/prompts/202604/hitl_approved_validation.md
 ---
 
 # Fix: Validator rejects `approved` field on HITL bash/python steps

@@ -2,6 +2,7 @@
 create_time: 2026-04-24 22:41:34
 status: done
 bead_id: sase-p
+prompt: sdd/prompts/202604/sase_gchat_integration.md
 ---
 # Plan: `sase-gchat` — Google Chat integration plugin
 

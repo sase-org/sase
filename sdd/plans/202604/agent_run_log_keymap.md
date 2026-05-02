@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 13:51:14
 status: done
+prompt: sdd/prompts/202604/agent_run_log_keymap.md
 ---
 # Restore "Agent Run Log" keymap on the CLs tab
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:33:46
 status: done
+prompt: sdd/prompts/202604/fix_jk_navigation_reliability.md
 ---
 # Plan: Fix unreliable `j`/`k` navigation
 

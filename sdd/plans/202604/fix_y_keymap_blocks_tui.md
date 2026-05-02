@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 15:36:34
 status: done
+prompt: sdd/prompts/202604/fix_y_keymap_blocks_tui.md
 ---
 
 # Plan: Fix `y` keymap blocks TUI navigation during refresh

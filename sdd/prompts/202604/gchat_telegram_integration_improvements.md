@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/gchat_telegram_integration_improvements.md
+---
  Can you help me signifigantly improve the sase-gchat integration and also make some improvements to our
 sase-telegram integration using the research performed by another agent, contained in the
 @research/202604/gchat_integration_review.md file, as inspiration? This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but

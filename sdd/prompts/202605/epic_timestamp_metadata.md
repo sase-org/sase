@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202605/epic_timestamp_metadata.md
+---
  When the user launches an agent to create an epic (e.g. by using the `E` keymap from the plan approval panel), no "EPIC" entry is added to the "Timestamps:" field in the agent metadata panel on
 the "Agents" tab (see the `sase ace` snapshot below). Can you help me start doing this? See how we do this for the "PLAN" timestamp entries for context. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

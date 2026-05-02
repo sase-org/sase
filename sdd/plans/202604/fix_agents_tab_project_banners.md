@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-26 03:06:15
 status: done
+prompt: sdd/prompts/202604/fix_agents_tab_project_banners.md
 ---
 # Fix Agents Tab Project-Scoped Banner Duplication
 

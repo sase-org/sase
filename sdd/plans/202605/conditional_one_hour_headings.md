@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 13:22:31
 status: done
+prompt: sdd/prompts/202605/conditional_one_hour_headings.md
 ---
 # Conditional one-hour heading visibility
 

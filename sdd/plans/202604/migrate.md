@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 11:09:39
 status: done
+prompt: sdd/prompts/202604/migrate.md
 ---
 
 # Plan: Migrate Tier 2 Xprompts to Long-Term Memory

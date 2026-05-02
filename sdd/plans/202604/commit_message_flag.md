@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-09 15:35:50
 status: done
+prompt: sdd/prompts/202604/commit_message_flag.md
 ---
 
 # Plan: Reassign `-m` to `--message` and `-M` to `--message-file` for `sase commit`

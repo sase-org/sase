@@ -2,6 +2,7 @@
 create_time: 2026-04-30 02:35:23
 status: done
 bead_id: sase-1i
+prompt: sdd/prompts/202604/agent_image_notifications.md
 ---
 # Plan: Agent Image Attachments and Kitty TUI Previews
 

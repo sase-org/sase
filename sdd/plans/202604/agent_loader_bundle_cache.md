@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 14:36:23
 status: done
+prompt: sdd/prompts/202604/agent_loader_bundle_cache.md
 ---
 # Plan: Fix Flaky Agent Loader Bundle Test
 

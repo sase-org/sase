@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 20:10:34
 status: done
+prompt: sdd/prompts/202603/agents_enter_query_fix.md
 ---
 
 # Plan: Fix Enter key on Agents tab to change CLs query when ChangeSpec not matched

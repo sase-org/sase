@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 22:41:48
 status: done
+prompt: sdd/prompts/202604/role_based_agent_naming.md
 ---
 
 # Plan: Role-Based Agent Naming (`<name>.plan` / `<name>.code`)

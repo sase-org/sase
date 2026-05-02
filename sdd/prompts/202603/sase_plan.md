@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/sase_plan.md
+---
 Can you help me create new `/sase_plan` and `/sase_questions` Claude Code skills that will replace claude's native
 plan-mode and question-asking? The goal of this change is to eventually standardize on a single, unified plan-mode
 process for all LLM provider types, but we will start with just claude.

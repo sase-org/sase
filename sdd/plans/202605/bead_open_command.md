@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 13:00:42
 status: done
+prompt: sdd/prompts/202605/bead_open_command.md
 ---
 # Plan: Add `sase bead open <id>`
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-05 11:41:10
 status: done
+prompt: sdd/prompts/202604/unlimited_agent_revival.md
 ---
 
 # Plan: Unlimited Agent Revival

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 18:06:26
 status: done
+prompt: sdd/prompts/202604/plan_review_g_G_scroll.md
 ---
 # Plan: `g` / `G` Scroll-to-Top / Scroll-to-Bottom in the Plan Review Panel
 

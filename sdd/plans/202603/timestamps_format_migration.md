@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 14:59:20
 status: done
+prompt: sdd/prompts/202603/timestamps_format_migration.md
 ---
 
 # Migrate TIMESTAMPS Field to YYMMDD_HHMMSS Format

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 21:17:22
 status: done
+prompt: sdd/prompts/202603/fast_mentor_review_1.md
 ---
 
 # Plan: Fast Mentor Review Panel (VCS-agnostic, No Workspace Checkout)

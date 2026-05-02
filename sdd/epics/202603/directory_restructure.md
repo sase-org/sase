@@ -2,6 +2,7 @@
 create_time: 2026-03-21 00:26:43
 bead_id: sase-6
 status: done
+prompt: sdd/prompts/202603/directory_restructure.md
 ---
 
 # Plan: Directory Structure Restructure

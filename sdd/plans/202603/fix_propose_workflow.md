@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 15:26:15
 status: done
+prompt: sdd/prompts/202603/fix_propose_workflow.md
 ---
 
 # Plan: Fix fix-hook proposal creation

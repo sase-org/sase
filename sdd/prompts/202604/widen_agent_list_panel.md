@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/widen_agent_list_panel.md
+---
  All of the agent runtimes in the agent list on the "Agents" tab of the `sase ace` TUI are cut off / truncated.
 This is better than wrapping lines, but still not ideal. Can you help me. Increase the maximum allowed width of the
 agent list panel so I can see these runtimes? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

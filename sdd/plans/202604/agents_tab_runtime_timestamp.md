@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 20:23:52
 status: done
+prompt: sdd/prompts/202604/agents_tab_runtime_timestamp.md
 ---
 # Plan: Right-aligned runtime + finish-timestamp on the Agents tab
 

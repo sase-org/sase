@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 16:59:02
 status: wip
+prompt: sdd/prompts/202604/fix_revive_agent.md
 ---
 
 # Fix: Revived agents not appearing in side panel

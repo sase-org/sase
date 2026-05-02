@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 16:11:59
 status: done
+prompt: sdd/prompts/202604/add_codex_gpt_5_5_default_model.md
 ---
 # Plan: Add Codex `gpt-5.5` Support and Make It the Default
 

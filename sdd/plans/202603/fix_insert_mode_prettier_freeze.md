@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 14:52:43
 status: pending
+prompt: sdd/prompts/202603/fix_insert_mode_prettier_freeze.md
 ---
 
 # Fix: TUI freeze when typing in INSERT mode with large prompts

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/propose_stop_hook_race.md
+---
 I'm assuming this agent (see the `sase ace` snapshot below) failed for some reason related to the `#propose` workflow?
 This issue is occurring on another machine that uses the ../sase-google plugin. I've saved a `sase logs` logpack to the
 ~/tmp/260325_163948/ directory to help you figure this out. Can you help me diagnose the root cause of this issue and

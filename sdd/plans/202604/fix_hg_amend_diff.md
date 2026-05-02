@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 00:03:08
 status: done
+prompt: sdd/prompts/202604/fix_hg_amend_diff.md
 ---
 
 # Fix: hg.yml Diff Step Shows Entire CL Instead of Incremental Changes on Amend

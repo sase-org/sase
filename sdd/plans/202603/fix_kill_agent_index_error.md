@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 20:19:38
 status: done
+prompt: sdd/prompts/202603/fix_kill_agent_index_error.md
 ---
 
 # Fix IndexError in \_do_kill_agent Panel Index Refresh

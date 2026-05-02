@@ -2,6 +2,7 @@
 create_time: 2026-04-24 14:02:00
 status: done
 bead_id: sase-n
+prompt: sdd/prompts/202604/llm_provider_plugins.md
 ---
 # LLM Provider Plugin Migration (pluggy)
 

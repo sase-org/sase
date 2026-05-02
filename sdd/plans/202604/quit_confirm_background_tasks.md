@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 00:19:11
 status: done
+prompt: sdd/prompts/202604/quit_confirm_background_tasks.md
 ---
 
 # Plan: Quit Confirmation When Background Tasks Are Running

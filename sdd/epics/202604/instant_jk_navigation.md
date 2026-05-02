@@ -2,6 +2,7 @@
 create_time: 2026-04-26 03:22:52
 status: done
 bead_id: sase-u
+prompt: sdd/prompts/202604/instant_jk_navigation.md
 ---
 # Plan — Instant `j`/`k` Navigation in the TUI
 

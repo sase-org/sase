@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/dynamic_memory_command_sub_masking.md
+---
  Something seems to be wrong with dynamic memory. This agent prompt did not contain any of the keywords that we claim are matched (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and
 fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

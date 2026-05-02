@@ -2,6 +2,7 @@
 create_time: 2026-05-01 02:12:31
 bead_id: sase-1q
 status: done
+prompt: sdd/prompts/202605/pyvision_alias_pragmas.md
 ---
 # Pyvision Alias Usage and Test-Pragma Ban Plan
 

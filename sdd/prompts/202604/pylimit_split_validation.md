@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/pylimit_split_validation.md
+---
  #resume:cm.code We left a bug I think (see the `sase ace` snapshot below) when completing this epic (sase-11). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  
 ### `sase ace` snapshot

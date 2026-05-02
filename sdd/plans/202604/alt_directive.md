@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 19:55:43
 status: done
+prompt: sdd/prompts/202604/alt_directive.md
 ---
 
 # Plan: `%alt` Directive for Prompt Splitting

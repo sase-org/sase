@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 14:18:48
 status: done
+prompt: sdd/prompts/202604/wrap_qa_xprompts_disabled.md
 ---
 # Wrap Q&A Section with `%xprompts_enabled` Directive
 

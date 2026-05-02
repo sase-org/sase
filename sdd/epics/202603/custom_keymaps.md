@@ -1,6 +1,7 @@
 ---
 status: done
 bead_id: sase-gjad
+prompt: sdd/prompts/202603/custom_keymaps.md
 ---
 
 # Plan: Configurable Keymaps for sase ace TUI

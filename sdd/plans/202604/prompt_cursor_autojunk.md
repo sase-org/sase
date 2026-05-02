@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-03 14:24:48
 status: done
+prompt: sdd/prompts/202604/prompt_cursor_autojunk.md
 ---
 
 # Fix prompt input cursor misplacement after prettier auto-wrap

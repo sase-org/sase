@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 13:25:05
 status: done
+prompt: sdd/prompts/202604/exclude_pinned_from_agent_count.md
 ---
 
 # Plan: Exclude Pinned Entries from Agent Count

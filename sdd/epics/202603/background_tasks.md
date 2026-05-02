@@ -1,6 +1,7 @@
 ---
 bead_id: sase-3
 status: done
+prompt: sdd/prompts/202603/background_tasks.md
 ---
 
 # Plan: Migrate Sync, Mail, and Accept to Background Tasks

@@ -2,6 +2,7 @@
 create_time: 2026-05-01 17:48:58
 status: done
 bead_id: sase-1v
+prompt: sdd/prompts/202605/sase_notify_skill_1.md
 ---
 # Plan: `/sase_notify` Skill for Agent Notification Access
 

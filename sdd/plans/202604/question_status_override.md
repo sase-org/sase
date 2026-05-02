@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-21 16:30:38
 status: done
+prompt: sdd/prompts/202604/question_status_override.md
 ---
 
 # Fix: Agents with Unanswered Questions Incorrectly Show DONE Instead of QUESTION

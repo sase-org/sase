@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 11:31:10
 status: done
+prompt: sdd/prompts/202603/fix_commit_propose_entries.md
 ---
 
 # Plan: Fix #commit/#propose ChangeSpec COMMITS entry creation and meta ID outputs

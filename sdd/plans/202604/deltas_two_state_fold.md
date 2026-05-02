@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 12:48:37
 status: done
+prompt: sdd/prompts/202604/deltas_two_state_fold.md
 ---
 
 # Plan: Make DELTAS a Two-State Fold

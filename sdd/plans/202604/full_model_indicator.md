@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 10:55:11
 status: done
+prompt: sdd/prompts/202604/full_model_indicator.md
 ---
 # Stop Truncating the Ace Model Indicator
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 21:51:41
 status: done
+prompt: sdd/prompts/202604/fix_stale_rust_extension_setup.md
 ---
 # Fix stale `sase_core_rs` setup checks
 

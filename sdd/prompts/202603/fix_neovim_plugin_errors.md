@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_neovim_plugin_errors.md
+---
 Can you help me fix my Neovim (my neovim config lives in my chezmoi repo)? I keep getting errors when I use it: Think
 this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

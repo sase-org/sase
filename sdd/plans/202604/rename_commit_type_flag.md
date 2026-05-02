@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-09 15:22:54
 status: done
+prompt: sdd/prompts/202604/rename_commit_type_flag.md
 ---
 
 # Plan: Rename `sase commit -M|--method` to `-t|--type`

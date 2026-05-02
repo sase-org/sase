@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-09 16:00:03
 status: draft
+prompt: sdd/prompts/202604/commit_type_aliases.md
 ---
 
 # Plan: Short Aliases for `sase commit --type` Values

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 17:23:51
 status: done
+prompt: sdd/prompts/202603/fix_non_primary_sdd_path_resolution.md
 ---
 
 # Fix non-primary SDD writes for workspace-suffixed parent dirs

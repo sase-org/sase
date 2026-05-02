@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 15:27:58
 status: done
+prompt: sdd/prompts/202604/restore_edit_hooks_keymap.md
 ---
 # Restore the "edit hooks" CL-tab keymap (lost when CLs-tab grouping became always-on)
 

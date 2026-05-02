@@ -1,6 +1,7 @@
 ---
 status: pending
 bead_id: sase-8h82
+prompt: sdd/prompts/202603/llm_retry_support.md
 ---
 
 # Add Configurable LLM Provider Retry & Fallback Support

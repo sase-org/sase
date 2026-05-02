@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 23:04:20
 status: done
+prompt: sdd/prompts/202604/memory_long_keywords.md
 ---
 
 # Plan: Auto-discover memory/long/ files with `keywords` frontmatter

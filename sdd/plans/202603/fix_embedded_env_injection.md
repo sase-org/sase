@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-24 16:20:24
+prompt: sdd/prompts/202603/fix_embedded_env_injection.md
 ---
 
 # Fix missing environment injection for embedded commit/propose/pr xprompt workflows

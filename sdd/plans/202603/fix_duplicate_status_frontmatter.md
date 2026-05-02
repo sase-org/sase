@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-26 19:45:27
 status: done
+prompt: sdd/prompts/202603/fix_duplicate_status_frontmatter.md
 ---
 
 # Fix Duplicate `status` Field in Plan File Frontmatter

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 17:27:27
 status: done
+prompt: sdd/prompts/202604/fix_agent_metrics_stub_binding_1.md
 ---
 # Fix: Agent Lifecycle Metrics Never Reach Pushgateway
 

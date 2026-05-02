@@ -1,6 +1,7 @@
 ---
 bead_id: sase-2
 status: done
+prompt: sdd/prompts/202603/multi_agent_prompts.md
 ---
 
 # Multi-Agent Prompts: Implementation Plan

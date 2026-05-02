@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/agent_list_single_line.md
+---
  Why are these agents in the agent list not rendering on a single line (see the `sase ace` snapshot below)? Can you make the changes necessary to make sure this is always the case? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  
 

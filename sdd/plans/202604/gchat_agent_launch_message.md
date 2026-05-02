@@ -1,11 +1,11 @@
 ---
 name: gchat_agent_launch_message
-description:
-  Send a "🚀 Launched" message to Google Chat when sase-gchat's inbound chop spawns a new agent, mirroring
-  sase-telegram's behavior. The message is posted directly via gchat_client.send_message — it is NOT a sase
-  notification.
+description: Send a "🚀 Launched" message to Google Chat when sase-gchat's inbound
+  chop spawns a new agent, mirroring sase-telegram's behavior. The message is posted
+  directly via gchat_client.send_message — it is NOT a sase notification.
 create_time: 2026-04-25 10:50:54
 status: done
+prompt: sdd/prompts/202604/gchat_agent_launch_message.md
 ---
 
 # Google Chat — Agent Launch Message

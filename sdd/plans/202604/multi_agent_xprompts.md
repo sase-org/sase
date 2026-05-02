@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 23:12:34
 status: done
+prompt: sdd/prompts/202604/multi_agent_xprompts.md
 ---
 # Multi-Agent XPrompts: Implementation Plan
 

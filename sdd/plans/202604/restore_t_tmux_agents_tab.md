@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 19:59:40
 status: done
+prompt: sdd/prompts/202604/restore_t_tmux_agents_tab.md
 ---
 # Restore `t` tmux keymap on Agents tab; move tag/untag to `N`
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 14:21:56
 status: done
+prompt: sdd/prompts/202604/ctrl_g_open_editor.md
 ---
 
 # Plan: Add `<ctrl+g>` keymap to XPromptLocationModal to open file in editor

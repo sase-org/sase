@@ -2,6 +2,7 @@
 create_time: 2026-04-12 16:37:07
 status: done
 bead_id: sase-i
+prompt: sdd/prompts/202604/ace_testing_dsl.md
 ---
 
 # Plan: Implement `sase.ace.testing` — Playwright-Inspired TUI Testing DSL

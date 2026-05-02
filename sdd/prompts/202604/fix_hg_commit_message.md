@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_hg_commit_message.md
+---
 This agent is showing the wrong `Commit Message:` (see the `sase ace` snapshots below). Namely,
 `Commit Message: [bs_allow] Extract AdvertiserBrandBlock validation into a standalone validator class.` should be
 `Commit Message: Restore LINE_ITEM_BACKFILL validation to AdContentProtectionValidator`. This agent was run on another

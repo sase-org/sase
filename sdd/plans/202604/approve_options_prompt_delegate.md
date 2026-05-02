@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 15:07:25
 status: done
+prompt: sdd/prompts/202604/approve_options_prompt_delegate.md
 ---
 
 # Plan: Delegate ApproveOptionsModal prompt editing to PromptInputBar

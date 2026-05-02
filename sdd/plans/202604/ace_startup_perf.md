@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 09:43:27
 status: done
+prompt: sdd/prompts/202604/ace_startup_perf.md
 ---
 # Plan: Improve `sase ace` TUI Startup Performance
 

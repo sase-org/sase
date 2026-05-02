@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 14:20:27
 status: proposed
+prompt: sdd/prompts/202605/prompt_history_restore.md
 ---
 
 # Plan: Restore prompt history and verify data-loss fix

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/telegram_button_dismiss.md
+---
 The user sent an image via Telegram with the following caption:
 
 I'm pretty certain that I rejected the agent named 'g' from the TUI so the Telegram plan buttons should have been

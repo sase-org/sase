@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_rust_backend_test_suite.md
+---
  Can you help me fix our test suite? Running the `just test` command gave me the below output. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  
 ```

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 17:45:58
 status: done
+prompt: sdd/prompts/202604/axe_cwd_deleted_fix.md
 ---
 # Plan: Fix `sase axe` chop failures caused by a deleted CWD
 

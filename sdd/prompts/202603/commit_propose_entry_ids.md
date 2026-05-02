@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/commit_propose_entry_ids.md
+---
 It doesn't seem like new proposals (these are entries containing letters in a ChangeSpec COMMITS field) are getting
 created by the `#propose` workflow (see the src/sase/xprompts/propose.yml file). See the `sase ace` snapshots below for
 reference. Can you help me diagnose the root cause of this issue and fix it?

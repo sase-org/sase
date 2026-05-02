@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 14:58:48
 status: done
+prompt: sdd/prompts/202605/single_axe_instance.md
 ---
 # Make `sase axe` Effectively Single-Instance
 

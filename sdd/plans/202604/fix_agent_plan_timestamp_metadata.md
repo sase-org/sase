@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 11:35:47
 status: done
+prompt: sdd/prompts/202604/fix_agent_plan_timestamp_metadata.md
 ---
 # Plan: Preserve PLAN timestamps in Agents metadata
 

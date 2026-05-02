@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 13:14:13
 status: wip
+prompt: sdd/prompts/202603/tg_button_autodismiss.md
 ---
 
 # Plan: Auto-dismiss Telegram Buttons on TUI Response

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 21:08:46
 status: done
+prompt: sdd/prompts/202603/hg_changespec_metadata.md
 ---
 
 # Plan: Fix missing ChangeSpec metadata for hg provider in Agents panel

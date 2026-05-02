@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-04-04 18:24:48
+prompt: sdd/prompts/202604/fix_codex_stop_hook_name.md
 ---
 
 # Fix: Codex stop hook not surfacing name instruction to agent

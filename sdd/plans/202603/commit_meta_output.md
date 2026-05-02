@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 09:55:49
 status: wip
+prompt: sdd/prompts/202603/commit_meta_output.md
 ---
 
 # Plan: Propagate meta\_\* output variables from unified CommitWorkflow to TUI

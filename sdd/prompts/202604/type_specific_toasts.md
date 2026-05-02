@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/type_specific_toasts.md
+---
  Can you help me start showing a better toast that "1 new notification" (see the `sase ace` snapshot below) when a new notification comes in to the TUI? Make the toast specific to the type of notification that was received.
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

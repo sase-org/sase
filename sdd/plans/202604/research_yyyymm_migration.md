@@ -1,10 +1,10 @@
 ---
 name: research_yyyymm_migration
-description:
-  Migrate flat research/ markdown files into research/YYYYMM/ date-stamped subdirs, mirroring the structure of specs/
-  and plans/.
+description: Migrate flat research/ markdown files into research/YYYYMM/ date-stamped
+  subdirs, mirroring the structure of specs/ and plans/.
 create_time: 2026-04-28 12:50:33
 status: done
+prompt: sdd/prompts/202604/research_yyyymm_migration.md
 ---
 
 # Migrate `research/` to date-stamped `research/YYYYMM/` subdirs

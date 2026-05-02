@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 20:39:14
 status: done
+prompt: sdd/prompts/202604/dynamic_memory_3.md
 ---
 
 # Plan: Dynamic Memory Generation with TUI Visibility

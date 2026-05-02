@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-21 00:48:36
 status: wip
+prompt: sdd/prompts/202603/workflows_consolidation.md
 ---
 
 # Plan: sase-6.3 — Consolidate workflows under workflows/

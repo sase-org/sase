@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/makefile_to_justfile_1.md
+---
 Can you help me migrate my chezmoi repo from the Makefile it uses now to a Justfile like this repo uses? The numbered
 answers below corresponding to the numbered design questions in the ~/.sase/chats/sase-org-ace_run-260329_095335.md
 agent chat file:

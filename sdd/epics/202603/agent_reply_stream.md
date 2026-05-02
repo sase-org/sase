@@ -1,6 +1,7 @@
 ---
 status: done
 bead_id: sase-0oou
+prompt: sdd/prompts/202603/agent_reply_stream.md
 ---
 
 # Plan: Live AGENT REPLY Section in Agents Tab

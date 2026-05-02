@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-17 22:27:29
 status: done
+prompt: sdd/prompts/202604/fix_bd_new_epic_skill.md
 ---
 
 # Plan: Fix Stale `bd:new_epic` Slash-Command Skill That Confuses Agents

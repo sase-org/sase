@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 13:12:40
 status: done
+prompt: sdd/prompts/202603/fix_plan_file_commit.md
 ---
 
 # Plan: Fix plan file not being committed to PR branch after approval

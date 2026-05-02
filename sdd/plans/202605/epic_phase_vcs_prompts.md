@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 12:56:06
 status: done
+prompt: sdd/prompts/202605/epic_phase_vcs_prompts.md
 ---
 # Plan: Preserve VCS Workspace For Epic Phase Agents
 

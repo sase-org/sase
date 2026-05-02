@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 18:18:18
 status: done
+prompt: sdd/prompts/202604/faster_tab_switching.md
 ---
 
 # Plan: Faster TUI Tab Switching

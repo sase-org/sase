@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-22 14:40:03
 status: done
+prompt: sdd/prompts/202604/jetski_prompt_delivery_fix.md
 ---
 
 # Fix Jetski Prompt Delivery: Positional Argument, Not Stdin

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 22:48:36
 status: done
+prompt: sdd/prompts/202604/fix_debounced_detail_shutdown_race.md
 ---
 # Fix `test_query_edit_modal_invalid_query` Shutdown Race (Deferred Timer Path)
 

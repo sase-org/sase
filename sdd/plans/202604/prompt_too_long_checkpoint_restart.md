@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-21 19:09:06
 status: done
+prompt: sdd/prompts/202604/prompt_too_long_checkpoint_restart.md
 ---
 
 # Plan: Auto-Recover Coder Agents from "Prompt is too long" via Checkpoint-Restart

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 15:40:06
 status: done
+prompt: sdd/prompts/202604/agents_tab_single_level_capital_hl.md
 ---
 # Single-level `H` / `L` on the Agents tab
 

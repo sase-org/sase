@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 13:40:57
 status: done
+prompt: sdd/prompts/202604/tui_backend_indicator.md
 ---
 # TUI Backend Indicator Plan
 

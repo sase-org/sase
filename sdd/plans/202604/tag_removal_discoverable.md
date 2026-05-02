@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 18:11:35
 status: done
+prompt: sdd/prompts/202604/tag_removal_discoverable.md
 ---
 # Plan: Make agent-tag removal discoverable in `sase ace`
 

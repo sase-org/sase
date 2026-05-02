@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 20:12:16
 status: done
+prompt: sdd/prompts/202603/commit_propose_entry_ids.md
 ---
 
 # Plan: Fix #propose/#commit COMMITS entry creation and Proposal Id display

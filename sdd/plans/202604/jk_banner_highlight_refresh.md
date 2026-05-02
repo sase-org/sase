@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 08:50:16
 status: done
+prompt: sdd/prompts/202604/jk_banner_highlight_refresh.md
 ---
 # Plan: Refresh Agent-List Highlight on j/k Navigation Across Folded-Group Banners
 

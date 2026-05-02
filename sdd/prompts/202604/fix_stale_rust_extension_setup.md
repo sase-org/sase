@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_stale_rust_extension_setup.md
+---
  I think we maybe broke our test suite when working the sase-1f epic (run the `sase bead show sase-1f` command). Running the `just test` command produced the below output. Can you help me diagnose
 the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

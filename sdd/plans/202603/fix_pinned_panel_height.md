@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 09:31:54
 status: done
+prompt: sdd/prompts/202603/fix_pinned_panel_height.md
 ---
 
 # Plan: Fix Pinned Panel Height — Content Not Visible

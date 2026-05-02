@@ -2,6 +2,7 @@
 create_time: 2026-04-27 14:26:50
 status: done
 bead_id: sase-y
+prompt: sdd/prompts/202604/changespec_skill_1.md
 ---
 # Plan: ChangeSpec Agent Skill
 

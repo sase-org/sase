@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 00:09:28
 status: done
+prompt: sdd/prompts/202604/fix_hg_commit_message.md
 ---
 
 # Fix wrong Commit Message in agent details panel for hg-based agents

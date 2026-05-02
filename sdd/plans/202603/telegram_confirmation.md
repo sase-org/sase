@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 15:53:45
 status: wip
+prompt: sdd/prompts/202603/telegram_confirmation.md
 ---
 
 # Plan: Telegram Confirmation Messages for Feedback & Custom Answers

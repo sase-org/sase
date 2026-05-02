@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_hg_amend_diff.md
+---
 When sase agents on another machine finish commiting to an existing PR, the diff that is shown in the file panel on the
 "Agents" tab of the `sase ace` TUI shows the diff of the entire PR, instead of just that single commit like it should.
 This machine uses the sase-google repo. Can you help me diagnose the root cause of this issue and fix it? Think this

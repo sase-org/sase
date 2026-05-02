@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 02:53:05
 status: done
+prompt: sdd/prompts/202604/repeat_directive.md
 ---
 
 # Plan: `%repeat` Directive (alias `%N`)

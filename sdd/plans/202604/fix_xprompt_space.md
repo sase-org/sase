@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 10:55:29
 status: done
+prompt: sdd/prompts/202604/fix_xprompt_space.md
 ---
 
 # Fix: Missing space before xprompt insertion via #@ trigger

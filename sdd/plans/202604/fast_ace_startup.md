@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 15:13:34
 status: done
+prompt: sdd/prompts/202604/fast_ace_startup.md
 ---
 
 # Fast `sase ace` TUI Startup

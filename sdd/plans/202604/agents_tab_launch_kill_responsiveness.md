@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 16:06:11
 status: proposed
+prompt: sdd/prompts/202604/agents_tab_launch_kill_responsiveness.md
 ---
 
 # Plan: Make Agents Tab Respond Immediately After Launch/Kill

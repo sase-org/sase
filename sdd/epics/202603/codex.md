@@ -1,6 +1,7 @@
 ---
 status: done
 bead_id: sase-511j
+prompt: sdd/prompts/202603/codex.md
 ---
 
 # Plan: Add Codex (OpenAI CLI Agent) Provider to sase

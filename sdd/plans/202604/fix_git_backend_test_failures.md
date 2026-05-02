@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 19:21:46
 status: done
+prompt: sdd/prompts/202604/fix_git_backend_test_failures.md
 ---
 # Fix Git VCS Integration Test Backend Failures
 

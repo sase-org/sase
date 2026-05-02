@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 13:45:59
 status: done
+prompt: sdd/prompts/202605/prompt_history_loss.md
 ---
 # Plan: Fix prompt history data loss
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 00:00:00
 status: draft
+prompt: sdd/prompts/202603/mentor_file_snapshots.md
 ---
 
 # Plan: Snapshot File Contents at Mentor Save Time for Instant Review

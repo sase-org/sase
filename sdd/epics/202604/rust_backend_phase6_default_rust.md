@@ -2,6 +2,7 @@
 create_time: 2026-04-29 16:02:50
 status: done
 bead_id: sase-1b
+prompt: sdd/prompts/202604/rust_backend_phase6_default_rust.md
 ---
 # Rust Backend Phase 6: Default Rust Backend Rollout
 

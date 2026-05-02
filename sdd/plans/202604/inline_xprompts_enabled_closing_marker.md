@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-03 11:45:38
 status: done
+prompt: sdd/prompts/202604/inline_xprompts_enabled_closing_marker.md
 ---
 
 # Fix: `@` file ref validation fails on content inside disabled regions with inline closing marker

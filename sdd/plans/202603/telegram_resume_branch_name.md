@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 09:58:37
 status: done
+prompt: sdd/prompts/202603/telegram_resume_branch_name.md
 ---
 
 # Plan: Fix Telegram Resume Button to Use Branch Name Instead of Project Name

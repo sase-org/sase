@@ -2,6 +2,7 @@
 create_time: 2026-04-24 10:30:17
 status: done
 bead_id: sase-m
+prompt: sdd/prompts/202604/speed_up_slow_tests.md
 ---
 # Plan: Speed Up the 20 Slowest Tests
 

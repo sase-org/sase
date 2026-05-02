@@ -2,6 +2,7 @@
 create_time: 2026-05-01 16:17:09
 bead_id: sase-1u
 status: done
+prompt: sdd/prompts/202605/bead_rust_backend_migration.md
 ---
 # Plan: Make `sase bead` Fast With `sase-core`
 

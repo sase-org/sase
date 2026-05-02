@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 17:04:13
 status: done
+prompt: sdd/prompts/202604/fix_agents_revive_suffix_alias.md
 ---
 
 # Fix Agents Tab Revive Not Reappearing In Panel

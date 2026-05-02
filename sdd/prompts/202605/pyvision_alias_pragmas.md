@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202605/pyvision_alias_pragmas.md
+---
  There are a lot of pyvision pragmas throughout this codebase that exist only because pyvision doesn't detect symbol usage in outside files when they use imports like `from foo import bar as b`
 and then reference the symbol like `b.some_symbol`. Run the `rg "# pyvision: tests/"` command for context. Can you help me fix pyvision (in my chezmoi repo and then vendor back into this repo) and, while
 we are improving pyvision, also disallow pragmas to reference test files in the future.

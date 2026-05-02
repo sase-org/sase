@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:15:56
 status: done
+prompt: sdd/prompts/202604/ace_config_cache.md
 ---
 # Cache merged-config / mentor-profile loads to speed up `sase ace` TUI tab switching
 

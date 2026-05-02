@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 18:41:40
 status: done
+prompt: sdd/prompts/202604/lumberjack_chop_reliability.md
 ---
 
 # Plan: Lumberjack Chop Execution Reliability

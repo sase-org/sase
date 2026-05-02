@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/auto_name_release.md
+---
  Look at how many non-dismissed `a.*` agents we have (see the `sase ace` snapshot below). This is clearly a bug. We should only release an auto-assignable name when that agent has been killed or dismissed. Can you help me fix
 this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

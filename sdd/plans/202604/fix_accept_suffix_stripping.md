@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 21:30:21
 status: done
+prompt: sdd/prompts/202604/fix_accept_suffix_stripping.md
 ---
 
 # Fix: Strip NEW/BROKEN PROPOSAL suffix when accepting proposals

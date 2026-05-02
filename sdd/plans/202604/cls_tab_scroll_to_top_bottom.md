@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 12:35:04
 status: done
+prompt: sdd/prompts/202604/cls_tab_scroll_to_top_bottom.md
 ---
 
 # Plan: Add `g`/`G` scroll-to-top/bottom on CLs tab

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-06 20:31:27
 status: done
+prompt: sdd/prompts/202604/fix_revive_bundle_collision.md
 ---
 
 # Fix: Dismissed Agent Bundle Filename Collision Breaks Revive

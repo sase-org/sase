@@ -2,6 +2,7 @@
 create_time: 2026-03-25 19:08:39
 status: wip
 bead_id: sase-c
+prompt: sdd/prompts/202603/vcs_abandon_change.md
 ---
 
 # Plan: VCS-agnostic `abandon_change` hook for closing remote changes during revert

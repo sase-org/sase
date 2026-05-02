@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 21:10:01
 status: done
+prompt: sdd/prompts/202604/agents_tab_group_separators.md
 ---
 # Agents Tab — Group Separator Redesign
 

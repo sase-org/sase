@@ -1,3 +1,6 @@
+---
+prompt: sdd/prompts/202603/expanded_spec_prompt.md
+---
 # Plan: Store Expanded Xprompt in Spec Files
 
 ## Problem

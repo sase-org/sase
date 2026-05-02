@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 14:19:19
 status: done
+prompt: sdd/prompts/202603/resolve_agent_ref_display.md
 ---
 
 # Plan: Fix ChangeSpec display for `#gh:@d` agent references

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/pr_silent_failure.md
+---
 The user sent an image via Telegram with the following caption:
 
 This agent had the 'pr' xprompt workflow embedded in its prompt, but for some reason didn't create a PR. Can you help me

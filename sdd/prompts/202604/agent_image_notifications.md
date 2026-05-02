@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/agent_image_notifications.md
+---
   Can you help me make it so anytime an agent modifies or adds a new image file (ex: PNG or JPEG), we attach that image file to the agent completion notification message? 
 
 - we should update the sase-telegram repo to attach that image file to the agent completion message. 

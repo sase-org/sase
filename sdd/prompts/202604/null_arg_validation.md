@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/null_arg_validation.md
+---
 When we pass `null` to another xprompt within an xprompt workflow, that should indicate that we want to use the default
 value for that argument. Instead, it looks like we currently fail validation (see the command output below). Can you
 help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 17:22:52
 status: done
+prompt: sdd/prompts/202604/mentors_complete_notification.md
 ---
 # Plan: Notification When All Mentors Finish For A ChangeSpec COMMITS Entry
 

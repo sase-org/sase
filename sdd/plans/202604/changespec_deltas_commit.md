@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 11:21:59
 status: done
+prompt: sdd/prompts/202604/changespec_deltas_commit.md
 ---
 # Plan: Populate DELTAS for ChangeSpecs Created by `sase commit`
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 15:55:30
 status: wip
+prompt: sdd/prompts/202604/fix_jetski_timeout.md
 ---
 # Plan: Fix Jetski Agent Timeouts in `sase ace`
 

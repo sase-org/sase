@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 16:43:12
 status: done
+prompt: sdd/prompts/202603/pr_name_env_var.md
 ---
 
 # Plan: Add `SASE_NAME` env var to `pr.yml` and enforce CL naming in stop hook

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 10:27:36
 status: wip
+prompt: sdd/prompts/202604/speed_up_slowest_tests_phased.md
 ---
 # Speed Up Slowest Tests (Phased Multi-Agent Plan)
 

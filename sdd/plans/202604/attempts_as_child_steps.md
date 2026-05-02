@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 15:44:38
 status: done
+prompt: sdd/prompts/202604/attempts_as_child_steps.md
 ---
 
 # Plan: Retry Attempts as Child Entries in the `sase ace` Agents Tab

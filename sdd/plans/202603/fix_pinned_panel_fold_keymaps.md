@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 09:20:18
 status: done
+prompt: sdd/prompts/202603/fix_pinned_panel_fold_keymaps.md
 ---
 
 # Fix Pinned Panel Fold Keymaps (`l`, `L`, `h`, `H`)

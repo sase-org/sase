@@ -2,6 +2,7 @@
 name: pylimit_split_agent_names
 status: done
 create_time: 2026-04-28 11:31:04
+prompt: sdd/prompts/202604/pylimit_split_agent_names.md
 ---
 
 # Name `pylimit_split` chop agents `pysplit.<basename>`

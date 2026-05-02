@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-08 21:22:45
 status: wip
+prompt: sdd/prompts/202604/fix_prometheus.md
 ---
 
 # Plan: Diagnose and Fix Prometheus

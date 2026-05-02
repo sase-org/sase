@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/search_md_improvements.md
+---
 Can you help me implement the improvements recommended by the previous agent? See the
 @~/.sase/chats/sase-org-ace_run-260401_153725.md file for context. Think this through thoroughly and create a plan using
 your `/sase_plan` skill before making any file changes.

@@ -2,6 +2,7 @@
 create_time: 2026-04-11 20:48:28
 status: done
 bead_id: sase-h
+prompt: sdd/prompts/202604/init_skills_1.md
 ---
 
 # Plan: `sase init-skills` Command

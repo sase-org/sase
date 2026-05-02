@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 12:03:27
 status: done
+prompt: sdd/prompts/202604/validator_fstring_placeholder.md
 ---
 
 # Plan: Teach the workflow validator to recognize Python f-string `{path}` placeholders

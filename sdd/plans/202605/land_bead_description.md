@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 17:04:53
 status: done
+prompt: sdd/prompts/202605/land_bead_description.md
 ---
 # Plan: Land Agent Bead Description
 

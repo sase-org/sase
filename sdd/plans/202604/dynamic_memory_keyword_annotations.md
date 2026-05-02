@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 16:10:49
 status: wip
+prompt: sdd/prompts/202604/dynamic_memory_keyword_annotations.md
 ---
 
 # Plan: Add Matched-Keyword Annotations to DYNAMIC MEMORY Section

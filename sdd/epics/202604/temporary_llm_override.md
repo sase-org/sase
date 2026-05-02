@@ -2,6 +2,7 @@
 create_time: 2026-04-29 17:30:09
 status: done
 bead_id: sase-1c
+prompt: sdd/prompts/202604/temporary_llm_override.md
 ---
 # Plan: Temporary Default LLM Provider/Model Override
 

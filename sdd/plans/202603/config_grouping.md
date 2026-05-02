@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-21 01:17:04
 status: done
+prompt: sdd/prompts/202603/config_grouping.md
 ---
 
 # Plan: sase-6.5 — Config grouping + final loose file cleanup

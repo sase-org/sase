@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/uppercase_jump_hints.md
+---
  See how, in the `sase ace` snapshot below, some of the "Jump to Entry" panel entries do not have hints assigned? Can you help me start using letters A-Z after a-z for the hints used by the backtick ("`") keymap? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ### `sase ace` snapshot

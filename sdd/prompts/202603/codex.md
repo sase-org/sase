@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/codex.md
+---
 Can you help me add codex support to sase? Make sure that Codex supports every single functionality supported (within
 sase) by Gemini CLI and Cloud Code.
 

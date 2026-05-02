@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-22 16:57:35
 status: done
+prompt: sdd/prompts/202604/agents_tab_file_selection_refresh.md
 ---
 
 # Plan: Preserve agent file-panel selection across auto-refresh

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 17:08:56
 status: done
+prompt: sdd/prompts/202603/reply_timestamps.md
 ---
 
 # Plan: Reply Timestamps in Agent Metadata Panel

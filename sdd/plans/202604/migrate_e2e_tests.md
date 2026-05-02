@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 17:54:52
 status: done
+prompt: sdd/prompts/202604/migrate_e2e_tests.md
 ---
 
 # Plan: Migrate E2E Tests to AcePage Testing DSL

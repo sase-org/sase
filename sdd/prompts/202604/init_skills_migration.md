@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/init_skills_migration.md
+---
 Can you run the `sase bead ready` command to see which beads are ready to be worked, claim the next ready bead by
 marking it as in-progress, complete the work associated with it, and then close the bead (do NOT close the parent epic
 bead)? Make sure to mark the bead as in-progress before you start working. If there are no non-epic beads ready to work,

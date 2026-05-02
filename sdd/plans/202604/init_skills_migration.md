@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 21:20:44
 status: done
+prompt: sdd/prompts/202604/init_skills_migration.md
 ---
 
 # Plan: Bead sase-h.3 — Migration & Cleanup

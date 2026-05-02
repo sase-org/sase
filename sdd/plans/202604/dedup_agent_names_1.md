@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 15:29:42
 status: done
+prompt: sdd/prompts/202604/dedup_agent_names_1.md
 ---
 
 # Plan: Dedup agent names on revive and on explicit `%name:` claim

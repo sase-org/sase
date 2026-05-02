@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 18:22:25
 status: done
+prompt: sdd/prompts/202604/agents_tree_dedupe_and_sort.md
 ---
 # Plan: Stop splitting `(untagged)` (and other groups) on the Agents tab + sort groups deterministically
 

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_default_branch_detection.md
+---
 The user sent an image via Telegram with the following caption:
 
 This agent failed for some reason. I'm assuming it has something to do with the fact that we're waiting for another

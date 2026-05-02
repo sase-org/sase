@@ -2,6 +2,7 @@
 create_time: 2026-04-30 11:58:25
 status: done
 bead_id: sase-1k
+prompt: sdd/prompts/202604/changes_commands.md
 ---
 # ChangeSpec Copy Commands Plan
 

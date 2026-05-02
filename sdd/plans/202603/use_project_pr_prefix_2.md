@@ -1,6 +1,7 @@
 ---
 status: wip
 create_time: 2026-03-29 10:54:46
+prompt: sdd/prompts/202603/use_project_pr_prefix_2.md
 ---
 
 # Plan: `use_project_pr_prefix` Config Field

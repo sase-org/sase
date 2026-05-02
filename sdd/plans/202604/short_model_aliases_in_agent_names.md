@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 16:15:41
 status: done
+prompt: sdd/prompts/202604/short_model_aliases_in_agent_names.md
 ---
 # Plan: Short model aliases in multi-model agent name suffixes
 

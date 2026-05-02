@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/changespec_archive_file.md
+---
 Can you help me start moving ChangeSpec to from the `~/.sase/projects/<project>/<project>.gp` file to the
 `~/.sase/projects/<project>/<project>-archive.gp file when the status is changed to any one of the following?:
 Submitted, Archived, Reverted?

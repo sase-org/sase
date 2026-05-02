@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 11:39:07
 status: done
+prompt: sdd/prompts/202604/agent_list_single_line.md
 ---
 # Agent List Single-Line Rendering Plan
 

@@ -2,6 +2,7 @@
 create_time: 2026-04-29 00:52:11
 status: done
 bead_id: sase-16
+prompt: sdd/prompts/202604/rust_backend_phase1.md
 ---
 # Rust Backend Migration Phase 1 Plan
 

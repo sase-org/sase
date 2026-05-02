@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 14:47:39
 status: done
+prompt: sdd/prompts/202604/changespec_current.md
 ---
 # Plan: `sase changespec current` and `/sase_changespecs` guidance
 

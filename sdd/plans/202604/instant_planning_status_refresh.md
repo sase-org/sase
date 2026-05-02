@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 14:14:48
 status: done
+prompt: sdd/prompts/202604/instant_planning_status_refresh.md
 ---
 
 # Instant `PLANNING` status refresh after `sase plan`

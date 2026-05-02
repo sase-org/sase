@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-21 18:36:14
 status: wip
+prompt: sdd/prompts/202604/fast_dismiss.md
 ---
 
 # Plan: Make `sase ace` Agent Dismissal WAY Faster

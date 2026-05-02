@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 20:41:13
 status: done
+prompt: sdd/prompts/202604/repeat_vars.md
 ---
 
 # Plan: Split repeat directive Jinja2 variables into `n` (iteration) and `N` (total)

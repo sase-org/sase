@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-10 16:51:54
 status: done
+prompt: sdd/prompts/202604/retry_timestamps.md
 ---
 
 # Plan: Add RETRY Timestamps to Agents Tab Metadata Panel

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 09:10:26
 status: done
+prompt: sdd/prompts/202604/tui_activity_tmp_race.md
 ---
 # Plan: Fix cross-process race in `tui_activity` atomic writes + isolate TUI tests from `~/.sase/`
 

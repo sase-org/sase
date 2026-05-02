@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 15:16:46
 status: done
+prompt: sdd/prompts/202603/axe_error_notification_action.md
 ---
 
 # Plan: Axe Error Digest Notification Action

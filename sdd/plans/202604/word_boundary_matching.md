@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 13:07:37
 status: done
+prompt: sdd/prompts/202604/word_boundary_matching.md
 ---
 
 # Plan: Word-boundary matching for dynamic memory keywords

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 23:52:21
 status: done
+prompt: sdd/prompts/202603/fix_enter_keymap_approve_options.md
 ---
 
 # Fix broken `<enter>` keymap in ApproveOptionsModal

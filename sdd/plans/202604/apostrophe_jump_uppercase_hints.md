@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 13:22:53
 status: done
+prompt: sdd/prompts/202604/apostrophe_jump_uppercase_hints.md
 ---
 # Support A-Z Hints for Apostrophe Jump Mode
 

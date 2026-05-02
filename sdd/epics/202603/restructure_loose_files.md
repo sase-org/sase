@@ -2,6 +2,7 @@
 create_time: 2026-03-22 22:50:38
 status: done
 bead_id: sase-8
+prompt: sdd/prompts/202603/restructure_loose_files.md
 ---
 
 # Plan: Restructure Loose Files in `src/sase/` (Option A)

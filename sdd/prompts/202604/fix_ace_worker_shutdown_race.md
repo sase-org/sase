@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_ace_worker_shutdown_race.md
+---
  Can you help me fix the below `just test` failure? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ```

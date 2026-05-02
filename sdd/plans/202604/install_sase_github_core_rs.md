@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 18:35:39
 status: done
+prompt: sdd/prompts/202604/install_sase_github_core_rs.md
 ---
 # Fix `install_sase_github` Resolution Of Local `sase-core-rs`
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 12:25:24
 status: done
+prompt: sdd/prompts/202604/sync_hg_conflict_detection.md
 ---
 
 # Plan: Fix #sync xprompt merge conflict detection for hg VCS provider

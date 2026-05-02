@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 15:34:55
 status: done
+prompt: sdd/prompts/202604/bulk_wait_marked_agents.md
 ---
 # Bulk-wait support for `W` on the Agents tab
 

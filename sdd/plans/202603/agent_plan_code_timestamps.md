@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 02:08:34
 status: done
+prompt: sdd/prompts/202603/agent_plan_code_timestamps.md
 ---
 
 # Plan: Add PLAN and CODE Timestamps to Agent Metadata Panel

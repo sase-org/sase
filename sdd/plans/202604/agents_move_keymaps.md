@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 23:03:10
 status: done
+prompt: sdd/prompts/202604/agents_move_keymaps.md
 ---
 
 # Plan: `J`/`K` Move Agent Entries on the Agents Tab

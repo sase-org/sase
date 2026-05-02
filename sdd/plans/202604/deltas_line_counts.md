@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 10:23:52
 status: done
+prompt: sdd/prompts/202604/deltas_line_counts.md
 ---
 # Plan: DELTAS Line Counts
 

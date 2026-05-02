@@ -2,6 +2,7 @@
 create_time: 2026-04-30 22:44:03
 bead_id: sase-1o
 status: done
+prompt: sdd/prompts/202604/query_batch_persistent_corpus.md
 ---
 # Query Batch Persistent Corpus Migration Plan
 

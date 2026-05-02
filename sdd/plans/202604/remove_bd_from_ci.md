@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 09:14:06
 status: done
+prompt: sdd/prompts/202604/remove_bd_from_ci.md
 ---
 # Remove steveyegge/beads (`bd`) install from GitHub Actions CI
 

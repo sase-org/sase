@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 16:15:58
 status: done
+prompt: sdd/prompts/202604/shorter_provider_suffixes.md
 ---
 # Shorter LLM Provider Suffixes in Agent Names
 

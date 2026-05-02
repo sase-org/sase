@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/init_skills_1.md
+---
 Can you help me add support for managing all agent skills related to sase using a new `sase init-skills` command?
 
 - We should add support for a new `skill: true` xprompt field that marks an xprompt as one that should be converted into

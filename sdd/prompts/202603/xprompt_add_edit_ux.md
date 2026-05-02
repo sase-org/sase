@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/xprompt_add_edit_ux.md
+---
 #gh:sase Can you help me make the experience of adding/editing xprompts from the `sase ace` TUI WAY better?
 
 - We will improve the `<c-o>` xprompt widget keymap (see the `sase ace` snapshot below) so it asks the user to select

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 22:22:51
 status: done
+prompt: sdd/prompts/202605/ci_workflow_failure_fix.md
 ---
 # CI Workflow Failure Fix Plan
 

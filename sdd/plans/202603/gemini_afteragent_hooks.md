@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 21:37:12
 status: wip
+prompt: sdd/prompts/202603/gemini_afteragent_hooks.md
 ---
 
 # Implement Gemini CLI AfterAgent Stop Hooks

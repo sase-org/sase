@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 09:44:53
 status: draft
+prompt: sdd/prompts/202604/skip_absolute_paths_in_file_history.md
 ---
 
 # Plan: Skip Recording `/`-Prefixed Paths in the Ctrl+T File-History Store

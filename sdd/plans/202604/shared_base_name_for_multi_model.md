@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 15:45:39
 status: done
+prompt: sdd/prompts/202604/shared_base_name_for_multi_model.md
 ---
 # Plan: Shared base name + `<base>.<llm>` suffix for multi-model agent spawns
 

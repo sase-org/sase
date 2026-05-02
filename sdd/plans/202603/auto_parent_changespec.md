@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 11:05:45
 status: done
+prompt: sdd/prompts/202603/auto_parent_changespec.md
 ---
 
 # Plan: Auto-set PARENT on new ChangeSpec during `sase commit`

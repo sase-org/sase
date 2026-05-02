@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-14 17:28:42
 status: done
+prompt: sdd/prompts/202604/rewind_background_task.md
 ---
 
 # Plan: Run Rewind as a Background Task

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-09 15:28:57
 status: done
+prompt: sdd/prompts/202604/fix_default_branch_detection.md
 ---
 
 # Plan: Fix default branch detection fallback

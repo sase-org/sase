@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/plan_approved_counts_as_running.md
+---
  I'm not sure why we are showing "1 awaiting" for the "PLAN APPROVED" agent (see the `sase ace` snapshot below). This agent should have been counted as a running agent (the same as agent's with a "RUNNING" status). Can you
 help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

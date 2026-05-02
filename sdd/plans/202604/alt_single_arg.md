@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 20:17:41
 status: done
+prompt: sdd/prompts/202604/alt_single_arg.md
 ---
 
 # Plan: `%alt` single-arg as implicit split with empty variant

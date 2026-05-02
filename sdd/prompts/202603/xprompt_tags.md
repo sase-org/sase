@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/xprompt_tags.md
+---
 #gh:sase Can you help me add support for "xprompt tags" that mark certain xprompts as special?
 
 - These tags will be supported via a new `tags: <tags>` xprompt field (in YAML or frontmatter), where `<tags>` is a

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/fix_duplicate_planner_round_chats.md
+---
 It looks like we are showing the exact same agent reply for the "PLANNER" and "PLANNER (round 2)" sections (see the
 `sase ace` snapshot below). We should show the agent reply corresponding with that PLANNER agent in each corresponding
 PLANNER section. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and

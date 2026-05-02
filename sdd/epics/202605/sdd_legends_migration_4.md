@@ -2,6 +2,7 @@
 create_time: 2026-05-01 20:17:10
 bead_id: sase-1x
 status: done
+prompt: sdd/prompts/202605/sdd_legends_migration_4.md
 ---
 # SDD Directory Migration and Legend Support Plan
 

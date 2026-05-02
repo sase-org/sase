@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-27 13:48:35
+prompt: sdd/prompts/202603/unify_commits_entry.md
 ---
 
 # Plan: Unify COMMITS entry creation in CommitWorkflow

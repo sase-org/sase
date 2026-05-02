@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 19:20:33
 status: done
+prompt: sdd/prompts/202604/axe_rerun_done_bgcmd.md
 ---
 # Plan: `r` Re-run Keymap for Done Commands on AXE Tab
 

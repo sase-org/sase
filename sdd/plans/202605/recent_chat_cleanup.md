@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 11:12:32
 status: done
+prompt: sdd/prompts/202605/recent_chat_cleanup.md
 ---
 # Recent SASE Chat Cleanup Plan
 

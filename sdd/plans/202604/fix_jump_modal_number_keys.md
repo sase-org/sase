@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 15:55:40
 status: done
+prompt: sdd/prompts/202604/fix_jump_modal_number_keys.md
 ---
 
 # Fix: Jump-to-entry modal numeric hints intercepted by saved query bindings

@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/grafana_monitoring_stack.md
+---
 #resume:j Ok. Can you help me implement the "Prometheus Alerting Rules + Grafana Dashboard Provisioning" recommendation
 and set up a working Grafana dashboard using a Docker Compose approach?
 

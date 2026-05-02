@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/commit_diff_drawer.md
+---
 It doesn't look like the `#commit` workflow is properly adding the DIFF drawer under the commit it creates (see the
 `sase ace` snapshots below). Can you help me diagnose the root cause of this issue and fix it? Think this through
 thoroughly and create a plan using your `/sase_plan` skill.

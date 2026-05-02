@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202605/bead_work_naming_timeout.md
+---
  Can you help me figure out why `sase bead work` is timing out / failing sometimes (see below)? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ```

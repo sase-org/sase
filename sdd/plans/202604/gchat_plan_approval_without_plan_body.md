@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 12:34:49
 status: done
+prompt: sdd/prompts/202604/gchat_plan_approval_without_plan_body.md
 ---
 # Plan: Stop Inlining Google Chat Plan Bodies
 

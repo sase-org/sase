@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 18:22:12
 status: done
+prompt: sdd/prompts/202603/remove_agents_m_keymap.md
 ---
 
 # Plan: Remove `m` (message) keymap from Agents tab

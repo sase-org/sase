@@ -1,6 +1,7 @@
 ---
 bead_id: sase-our6
 status: done
+prompt: sdd/prompts/202603/unified_agent_entries.md
 ---
 
 # Plan: Unified Agent Entries for Axe-Spawned Agents

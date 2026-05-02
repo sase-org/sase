@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/always_show_by_date_hour_headers.md
+---
  We should ALWAYS show the hour header (see the `sase ace` snapshot below) when grouping agents "by date" if there is an agent that started/stopped in that hour (even if there is only one). Can
 you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

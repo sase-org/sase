@@ -2,6 +2,7 @@
 create_time: 2026-04-08 01:05:07
 status: done
 bead_id: sase-f
+prompt: sdd/prompts/202604/grafana_monitoring_stack.md
 ---
 
 # Plan: Prometheus Alerting Rules + Grafana Dashboard Provisioning

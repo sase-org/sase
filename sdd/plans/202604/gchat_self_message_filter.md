@@ -1,12 +1,13 @@
 ---
 name: gchat_self_message_filter
-description:
-  Stop sase-gchat from launching agents in response to its own outbound messages. The current ``sender.type == "BOT"``
-  filter never matches because the gchat CLI authenticates as the user, so sase's own posts appear as inbound user
-  prompts and self-feed an infinite agent-launch loop. Replace the broken sender-based filter with a sent-message-id
-  allowlist recorded centrally inside ``gchat_client``.
+description: Stop sase-gchat from launching agents in response to its own outbound
+  messages. The current ``sender.type == "BOT"`` filter never matches because the
+  gchat CLI authenticates as the user, so sase's own posts appear as inbound user
+  prompts and self-feed an infinite agent-launch loop. Replace the broken sender-based
+  filter with a sent-message-id allowlist recorded centrally inside ``gchat_client``.
 create_time: 2026-04-25 11:00:50
 status: done
+prompt: sdd/prompts/202604/gchat_self_message_filter.md
 ---
 
 # sase-gchat — Stop Self-Triggering Agent Launches

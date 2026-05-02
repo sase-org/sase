@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-28 17:21:04
 status: done
+prompt: sdd/prompts/202603/resume_coder_vcs_tag.md
 ---
 
 # Plan: Fix resume VCS tag for coder agents

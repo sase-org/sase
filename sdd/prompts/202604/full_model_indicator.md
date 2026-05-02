@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/full_model_indicator.md
+---
  It looks like we are truncating the model name in the new model indicator in the TUI (see the `sase ace` snapshot below). Can you help me stop doing this? Also, we should stop including the "Model " prefix in this indicator. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/suppress_hidden_agent_notifications.md
+---
 Can you help me stop sending sase notifications when hidden agents like those that use the `#fix_hook`, `#mentors`, or
 `#summarize` xprompts complete? They are causing way too many notifications (see the `sase ace` snapshot below). Think
 this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 17:40:52
 status: done
+prompt: sdd/prompts/202604/agent_name_in_completion_toast.md
 ---
 # Plan: Include the agent's name in agent completion toasts
 

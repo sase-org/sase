@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 17:36:58
 status: done
+prompt: sdd/prompts/202603/commit_message_in_pdf.md
 ---
 
 # Plan: Include Commit Message in Telegram PDF

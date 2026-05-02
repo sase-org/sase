@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202605/sdd_legends_migration_4.md
+---
   Can you help me migrate sase's SDD files to a new sdd/ directory and add support for "legends" to sase? We explored this a little bit in a research markdown file so find that and review it before deciding on your solution. 
 Epics that are linked to legends should be created using the `--type epic(<legend_bead_id>)` option.
 

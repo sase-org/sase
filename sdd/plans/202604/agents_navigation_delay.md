@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 09:56:13
 status: done
+prompt: sdd/prompts/202604/agents_navigation_delay.md
 ---
 # Plan: Fix Agents Tab Navigation Delay After Killing Agents
 

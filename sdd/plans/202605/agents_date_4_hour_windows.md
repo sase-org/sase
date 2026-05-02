@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 12:04:35
 status: done
+prompt: sdd/prompts/202605/agents_date_4_hour_windows.md
 ---
 # Plan: Agents by-date 4-hour windows
 

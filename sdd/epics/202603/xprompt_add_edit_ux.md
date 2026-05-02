@@ -1,6 +1,7 @@
 ---
 bead_id: sase-5
 status: done
+prompt: sdd/prompts/202603/xprompt_add_edit_ux.md
 ---
 
 # Plan: Improve XPrompt Add/Edit UX in `sase ace` TUI

@@ -1,6 +1,7 @@
 ---
 status: done
 create_time: 2026-03-29 10:38:27
+prompt: sdd/prompts/202603/fix_hg_newline_in_note.md
 ---
 
 # Fix: hg amend newline failure in sase-google vcs_create_commit

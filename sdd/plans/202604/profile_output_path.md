@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 16:42:30
 status: done
+prompt: sdd/prompts/202604/profile_output_path.md
 ---
 
 # Plan: Accept optional file path for `sase ace --profile`

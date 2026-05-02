@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 18:46:30
 status: done
+prompt: sdd/prompts/202603/plan_committed_persistence.md
 ---
 
 # Plan: Persist "PLAN COMMITTED" (and "EPIC CREATED") agent status across TUI restarts

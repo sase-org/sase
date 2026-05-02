@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 22:56:27
 status: done
+prompt: sdd/prompts/202604/wait_checks_latency.md
 ---
 
 # Plan: Fix wait_checks latency by moving it to a dedicated lumberjack

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 17:04:52
 status: wip
+prompt: sdd/prompts/202604/prettier_debounce.md
 ---
 
 # Plan: Fix Prompt Input Prettier Integration (Performance + Reliability)

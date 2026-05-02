@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 18:04:35
 status: done
+prompt: sdd/prompts/202604/drop_hash_model_suffixes.md
 ---
 # Drop `#` From Model Shorthand Agent Suffixes
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-13 23:57:37
 status: done
+prompt: sdd/prompts/202604/axe_memory.md
 ---
 
 # Plan: Improve Axe Agent Runner Long-Term Memory

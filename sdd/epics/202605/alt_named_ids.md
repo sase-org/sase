@@ -2,6 +2,7 @@
 create_time: 2026-05-01 17:51:30
 status: done
 bead_id: sase-1w
+prompt: sdd/prompts/202605/alt_named_ids.md
 ---
 # Plan: Generalize Alternation Agent Naming IDs
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 02:17:41
 status: done
+prompt: sdd/prompts/202603/sase_9_3.md
 ---
 
 # Plan: sase-9.3 — `sase commit` rewrite + new hookspecs + remove `sase amend`

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202605/fix_coder_code_timestamp.md
+---
  Why are we using ".coder" instead of ".code" (see the `sase ace` snapshot in the ~/tmp/scratch/snapshot.txt
 file)? Also, the "CODE" timestamp entry in the agent metadata panel on the "Agents" tab of the `sase ace` TUI is
 missing. I think we may have missed something when reverting the "Independent Plan-Chain Agents" feature (see related

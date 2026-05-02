@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/changespec_mercurial_fix.md
+---
 This agent (see the `sase ace` snapshot below) created a CL with the right name (`eval_foobar`), but a ChangeSpec
 associated with the CL was never created. Also, a `_<N>` suffix should have been added to the CL name (so the name
 wasn't completely right) since the ChangeSpec have a STATUS field of "Draft" by default. Can you help me diagnose the

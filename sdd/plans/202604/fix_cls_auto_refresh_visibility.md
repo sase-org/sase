@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 13:08:12
 status: done
+prompt: sdd/prompts/202604/fix_cls_auto_refresh_visibility.md
 ---
 # Plan: Restore CLs Tab Auto-Refresh Visibility
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 10:10:03
 status: done
+prompt: sdd/prompts/202604/ctrl_np_approve_options.md
 ---
 
 # Plan: Add ctrl+n / ctrl+p Navigation to ApproveOptionsModal

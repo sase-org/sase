@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 19:20:45
 status: done
+prompt: sdd/prompts/202603/fix_pr_diff_expansion.md
 ---
 
 # Fix `#pr_diff` xprompt not expanding in agent prompts

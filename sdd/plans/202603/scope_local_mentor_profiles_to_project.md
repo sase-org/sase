@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 09:50:33
 status: done
+prompt: sdd/prompts/202603/scope_local_mentor_profiles_to_project.md
 ---
 
 # Plan: Scope Local Mentor Profiles to Their Project

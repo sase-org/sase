@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 20:21:25
 status: done
+prompt: sdd/prompts/202604/apostrophe_jump_fallback.md
 ---
 # Apostrophe Jump Fallback Plan
 

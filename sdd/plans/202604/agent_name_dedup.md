@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-28 15:16:08
 status: wip
+prompt: sdd/prompts/202604/agent_name_dedup.md
 ---
 # Agent Name De-duplication Plan
 

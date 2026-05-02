@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/revive_modal_datetime.md
+---
 Can you help me start adding the full date and time in the sidebar shown in the prompt history panel? Also, we should
 continue to sort by project/ChangeSpec if possible, but we should also sort (at a lower priority) by the datetime the
 agent was run. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file

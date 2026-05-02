@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-29 12:52:51
 status: done
+prompt: sdd/prompts/202603/tg_agent_descriptions.md
 ---
 
 # Plan: Add Agent Descriptions to Telegram /kill and /resume Buttons

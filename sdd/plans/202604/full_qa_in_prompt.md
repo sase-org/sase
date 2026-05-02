@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 09:47:48
 status: done
+prompt: sdd/prompts/202604/full_qa_in_prompt.md
 ---
 # Plan: Include Full Question Data in Q&A Prompt Section
 

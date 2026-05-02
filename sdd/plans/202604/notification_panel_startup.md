@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 12:57:47
 status: done
+prompt: sdd/prompts/202604/notification_panel_startup.md
 ---
 # Plan: Stop Notification Panel From Opening On Startup
 

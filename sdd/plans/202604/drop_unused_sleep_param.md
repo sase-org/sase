@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 12:35:22
 status: done
+prompt: sdd/prompts/202604/drop_unused_sleep_param.md
 ---
 # Plan: Drop Unused `sleep` Parameter From `_BatchTimestampAllocator`
 

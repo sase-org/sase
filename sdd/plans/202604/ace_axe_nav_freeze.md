@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-02 11:37:47
 status: done
+prompt: sdd/prompts/202604/ace_axe_nav_freeze.md
 ---
 
 # Fix: sase ace TUI freeze when pressing `k` on AXE tab

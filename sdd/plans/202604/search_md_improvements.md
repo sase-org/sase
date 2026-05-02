@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 15:51:56
 status: active
+prompt: sdd/prompts/202604/search_md_improvements.md
 ---
 
 # Plan: Integrate rejected PR improvements into `sase search --format markdown`

@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/unified_vcs_commit.md
+---
 I'm thinking about getting rid of all commit/propose/cl (for example, see the `#commit` / `#propose` / `#cl` workflows
 in the ../sase-google repo or the `#pr` workflow in the ../sase-github repo--which corresponds with the `#cl` workflow,
 but for GitHub) in favor of using 3 built-in xprompts (`#commit`, `#propose`, and `#pr`---`#pr` will be used instead of

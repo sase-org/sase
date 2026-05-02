@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-22 14:37:23
 status: wip
+prompt: sdd/prompts/202604/mark_agents.md
 ---
 
 # Mark Agents on the `sase ace` "Agents" Tab

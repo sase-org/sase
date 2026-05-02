@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-27 15:00:32
 status: done
+prompt: sdd/prompts/202603/unify_agent_display.md
 ---
 
 # Plan: Unify Agent Display Across Run Modes

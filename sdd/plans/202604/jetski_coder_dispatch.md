@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 11:44:38
 status: done
+prompt: sdd/prompts/202604/jetski_coder_dispatch.md
 ---
 
 # Fix: Jetski coder invocation incorrectly dispatches to the Gemini provider

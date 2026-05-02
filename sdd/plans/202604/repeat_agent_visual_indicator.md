@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-20 19:10:00
 status: new
+prompt: sdd/prompts/202604/repeat_agent_visual_indicator.md
 ---
 
 # Plan: Visual Indicator for Repeat Agents in the Agents Tab

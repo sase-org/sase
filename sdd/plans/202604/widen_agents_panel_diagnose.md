@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-25 17:58:15
 status: done
+prompt: sdd/prompts/202604/widen_agents_panel_diagnose.md
 ---
 # Plan: Make the Agents-tab side panel actually render wider
 

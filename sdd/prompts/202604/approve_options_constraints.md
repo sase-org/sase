@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/approve_options_constraints.md
+---
 Can you help me improve the new "Approve with Options" modal by making invalid option combinations impossible?
 
 - When the option to commit the plan has been disabled, the user should NOT be able to disable to the option to run a

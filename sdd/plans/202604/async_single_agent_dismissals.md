@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 16:49:36
 status: done
+prompt: sdd/prompts/202604/async_single_agent_dismissals.md
 ---
 # Make Single-Agent Dismissals Asynchronous
 

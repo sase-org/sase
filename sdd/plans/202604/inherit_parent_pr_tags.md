@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 12:29:34
 status: done
+prompt: sdd/prompts/202604/inherit_parent_pr_tags.md
 ---
 
 # Plan: Inherit PR Tags from Parent PR

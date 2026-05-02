@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-04 11:33:35
 status: done
+prompt: sdd/prompts/202604/fix_ci_tools.md
 ---
 
 # Plan: Fix chezmoi CI workflow missing tool installations

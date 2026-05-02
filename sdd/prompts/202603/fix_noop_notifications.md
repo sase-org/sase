@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/fix_noop_notifications.md
+---
 I'm still receiving these notifications from the `#sase/fix_just` xprompt workflow (see recent, related git commits)
 even though only hidden steps ran (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this
 issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill.

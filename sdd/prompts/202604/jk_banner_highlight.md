@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/jk_banner_highlight.md
+---
  Pressing `j` right now (see the `sase ace` snapshot below) results in us navigating to the next ChangeSpec instead of the below level 3 agent group header. Can you help me diagnose the root cause of this issue and fix it?
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/resume_planner_for_coder.md
+---
 Can you help me start prepending `#resume:<planner_name> ` to the coder agent's prompt, where `<planner_agent>` is the
 name of the planner agent that created the plan this coder agent is implementing? For example, in the below `sase ace`
 snapshot, the coder agent should have `#resume:h.1 ` inserted into its prompt? This way the coder agent has the context

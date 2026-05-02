@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202603/plan_telegram_agent_name_and_pdf.md
+---
 The user sent an image via Telegram with the following caption:
 
 Can we start including the agent name in the plan telegram messages that get sent? Also, why wasn't a planned PDF

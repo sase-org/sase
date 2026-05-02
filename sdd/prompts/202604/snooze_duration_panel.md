@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/snooze_duration_panel.md
+---
  Can you help me make the snooze panel (shown when the `s` keymap is used from the notification panel) WAY more
 appealing from a UX perspective?
 

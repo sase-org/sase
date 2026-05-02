@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/agent_name_in_completion_toast.md
+---
  Can you help me start including the agent's name in agent completion toasts, like the "CLAUDE(opus) completed: ace(run)-260425_161716" shown in the `sase ace` snapshot below? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
 ### `sase ace` snapshot

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-24 17:57:44
 status: done
+prompt: sdd/prompts/202604/fix_hg_proposal_empty_file_panel.md
 ---
 # Fix empty file panel in `sase ace` after Mercurial proposal
 

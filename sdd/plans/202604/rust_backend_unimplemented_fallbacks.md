@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-29 11:58:25
 status: done
+prompt: sdd/prompts/202604/rust_backend_unimplemented_fallbacks.md
 ---
 # Plan: make unported Rust backend facade methods fall back to Python
 

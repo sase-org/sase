@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-30 14:51:01
 status: done
+prompt: sdd/prompts/202603/rewind_timestamps.md
 ---
 
 # Plan: Track Rewinds in TIMESTAMPS Field

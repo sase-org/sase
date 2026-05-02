@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/startup_stopwatch.md
+---
  When the `sase ace` TUI is first starting up, I often see the AXE status (on the bottom right) shows "STOPPED"
 until startup is complete. Can you help me instead show a live (updates every tenth of a second) stopwatch in the
 bottom-right corner (instead of the AXE status) that counts upwards (ex: "2.4s") until startup is complete? Make sure

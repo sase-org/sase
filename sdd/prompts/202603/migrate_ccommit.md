@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202603/migrate_ccommit.md
+---
 Can you help me integrate all functionality from the `/commit` skill and ccommit scripts into our new unified
 commit/propose/pr workflows?
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 10:30:55
 status: done
+prompt: sdd/prompts/202604/fix_keymaps_cache_mutation.md
 ---
 # Plan: Fix `load_builtin_app_defaults` cache-mutation flake
 

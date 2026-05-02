@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-23 14:50:14
 status: done
+prompt: sdd/prompts/202604/tui_keystroke_loss_on_agent_launch.md
 ---
 
 # TUI Keystroke Loss on Agent Launch

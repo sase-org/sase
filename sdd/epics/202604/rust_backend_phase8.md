@@ -2,6 +2,7 @@
 create_time: 2026-04-29 19:14:21
 status: done
 bead_id: sase-1f
+prompt: sdd/prompts/202604/rust_backend_phase8.md
 ---
 # Rust Backend Migration Phase 8: Remove Backend Selection And Python Fallbacks
 

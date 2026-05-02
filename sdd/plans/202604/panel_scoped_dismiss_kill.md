@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 09:30:38
 status: done
+prompt: sdd/prompts/202604/panel_scoped_dismiss_kill.md
 ---
 # Plan: Scope `X` and `,X` to the focused agent panel
 

@@ -1,6 +1,7 @@
 ---
 status: draft
 create_time: 2026-04-29 01:07:46
+prompt: sdd/prompts/202604/telegram_bead_project_context.md
 ---
 
 # Plan: Fix `/bead` Telegram Project Context

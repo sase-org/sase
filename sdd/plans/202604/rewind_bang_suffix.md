@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-15 13:17:08
 status: done
+prompt: sdd/prompts/202604/rewind_bang_suffix.md
 ---
 
 # Plan: Support `!` suffix for rewind (`R`) keymap on CLs tab

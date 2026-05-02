@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-23 22:25:50
 status: done
+prompt: sdd/prompts/202603/vcs_aware_tag_disambiguation.md
 ---
 
 # Plan: VCS-Aware Tag Disambiguation for `diff_file`

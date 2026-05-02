@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-27 09:53:47
 status: done
+prompt: sdd/prompts/202604/rename_default_grouping_to_by_project.md
 ---
 # Rename `default` grouping label to `by project` and give it a unique badge color
 

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-03 14:24:05
 status: done
+prompt: sdd/prompts/202604/bug_id_cli_option.md
 ---
 
 # Plan: Add `-B|--bug-id` CLI Option to `sase commit`

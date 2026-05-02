@@ -1,6 +1,7 @@
 ---
 bead_id: sase-1
 status: done
+prompt: sdd/prompts/202603/prompt_widget_improvements.md
 ---
 
 # Plan: Prompt Widget Improvements (TextArea)

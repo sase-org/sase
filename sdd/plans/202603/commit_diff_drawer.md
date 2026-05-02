@@ -1,6 +1,7 @@
 ---
 status: wip
 create_time: 2026-03-26 19:18:31
+prompt: sdd/prompts/202603/commit_diff_drawer.md
 ---
 
 # Plan: Fix missing DIFF drawer for commits created via `#commit` workflow

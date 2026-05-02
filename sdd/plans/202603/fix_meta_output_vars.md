@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 19:52:32
 status: done
+prompt: sdd/prompts/202603/fix_meta_output_vars.md
 ---
 
 # Fix: `meta_` xprompt output variables broken in `pr.yml` and `commit.yml`

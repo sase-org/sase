@@ -1,3 +1,6 @@
+---
+plan: sdd/epics/202604/epic_changespec_beads.md
+---
  Can you help me add support for attatching a ChangeSpec name to a sase epic bead?
 
 - When this is done, our epic integration should have special behavior: We should start the first phase bead using the

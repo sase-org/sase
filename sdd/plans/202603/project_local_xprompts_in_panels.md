@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 20:55:53
 status: done
+prompt: sdd/prompts/202603/project_local_xprompts_in_panels.md
 ---
 
 # Plan: Show Project-Local sase.yml XPrompts in TUI Panels

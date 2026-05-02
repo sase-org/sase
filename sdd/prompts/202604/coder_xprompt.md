@@ -1,3 +1,6 @@
+---
+plan: sdd/plans/202604/coder_xprompt.md
+---
 Can you help me create a new `#coder` builtin xprompt? Think this through thoroughly and create a plan using your
 `/sase_plan` skill before making any file changes.
 

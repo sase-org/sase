@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-01 10:34:39
 status: done
+prompt: sdd/prompts/202604/coder_model_directive_override.md
 ---
 
 # Plan: Allow `%m:` in Coder Custom Prompt Without Conflicting with Inherited Model

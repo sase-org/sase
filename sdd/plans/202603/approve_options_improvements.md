@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 23:10:38
 status: done
+prompt: sdd/prompts/202603/approve_options_improvements.md
 ---
 
 # Plan: Integrate PR #69 Improvements into PR #70

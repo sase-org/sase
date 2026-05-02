@@ -1,8 +1,10 @@
 ---
 name: Reverse-cycle grouping keymap (`O`)
-description: Add a shift+O keymap that cycles the Agents/CLs grouping strategy in reverse (mirror of existing `o`).
+description: Add a shift+O keymap that cycles the Agents/CLs grouping strategy in
+  reverse (mirror of existing `o`).
 create_time: 2026-04-28 19:21:55
 status: done
+prompt: sdd/prompts/202604/reverse_grouping_keymap.md
 ---
 
 # Reverse-cycle grouping keymap (`O`)

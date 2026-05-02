@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-25 15:25:39
 status: done
+prompt: sdd/prompts/202603/telegram_commit_button.md
 ---
 
 # Plan: Add Commit Button to Telegram Plan Approval Messages

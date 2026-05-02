@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-31 18:29:36
 status: done
+prompt: sdd/prompts/202603/prompt_focus_guard.md
 ---
 
 # Fix: Prompt Input Widget Focus Guard

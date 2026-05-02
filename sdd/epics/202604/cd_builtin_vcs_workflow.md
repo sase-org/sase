@@ -2,6 +2,7 @@
 create_time: 2026-04-30 18:17:40
 status: done
 bead_id: sase-1m
+prompt: sdd/prompts/202604/cd_builtin_vcs_workflow.md
 ---
 
 # Plan: Built-In `#cd` XPrompt Workflow and Home-Mode Migration

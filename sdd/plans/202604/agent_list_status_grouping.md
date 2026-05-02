@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-30 22:56:46
 status: done
+prompt: sdd/prompts/202604/agent_list_status_grouping.md
 ---
 # Agent List Status Grouping Plan
 

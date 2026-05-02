@@ -1,10 +1,10 @@
 ---
 name: Agents tab — "Waiting" status bucket + grouping-strategy indicator
-description:
-  Add a dedicated "Waiting" bucket to BY_STATUS grouping on the ACE TUI Agents tab, and surface the active grouping
-  strategy in the AgentInfoPanel header.
+description: Add a dedicated "Waiting" bucket to BY_STATUS grouping on the ACE TUI
+  Agents tab, and surface the active grouping strategy in the AgentInfoPanel header.
 create_time: 2026-04-26 03:45:01
 status: done
+prompt: sdd/prompts/202604/agents_tab_waiting_group_and_strategy_indicator.md
 ---
 
 # Agents tab — "Waiting" status bucket + grouping-strategy indicator

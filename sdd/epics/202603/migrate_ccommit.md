@@ -2,6 +2,7 @@
 status: done
 create_time: 2026-03-24 12:30:08
 bead_id: sase-b
+prompt: sdd/prompts/202603/migrate_ccommit.md
 ---
 
 # Plan: Integrate ccommit into Unified Commit Workflows

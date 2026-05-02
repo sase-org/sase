@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 17:15:28
 status: done
+prompt: sdd/prompts/202604/fix_chat_filename_prefix.md
 ---
 
 # Plan: Fix chat filename using wrong prefix (branch name instead of CL name)
