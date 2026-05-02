@@ -11,6 +11,39 @@ _logger = logging.getLogger(__name__)
 _SDD_PLAN_KINDS = {"tales", "epics", "legends"}
 _SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
+_SDD_CANONICAL_DIRS = {"prompts", "tales", "epics", "legends", "beads"}
+
+SDD_README_CONTENT = """# Structured Development Docs
+
+The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
+roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
+
+## Directory Layout
+
+- `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.
+- `tales/` stores task-level implementation plans and follow-up plans.
+- `epics/` stores larger work plans that may be split into phase beads.
+- `legends/` stores broad roadmap or strategy artifacts that can spawn epics.
+- `beads/` stores bead issue data for SDD-backed work tracking.
+
+Prompt, tale, epic, and legend files are normally organized under a `YYYYMM/` month directory, for example
+`sdd/prompts/202605/example.md` and `sdd/tales/202605/example.md`. Prompt files should link to their generated plan-like
+artifact with frontmatter such as `plan: sdd/tales/202605/example.md`; the plan-like artifact should link back with
+`prompt: sdd/prompts/202605/example.md`.
+
+## Commands
+
+- `sase sdd list` lists SDD markdown artifacts.
+- `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
+- `sase sdd repair-links` infers and repairs missing bidirectional links.
+- `sase bead` manages SDD bead issues and epic work.
+
+## Compatibility
+
+The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, and `beads/`. Older trees may still contain
+`specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited compatibility for those legacy
+names, but new artifacts should use `prompts/` and `tales/`.
+"""
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -62,6 +95,44 @@ def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
         if matches:
             return matches[0]
     return None
+
+
+def resolve_sdd_readme_path(
+    path: str | None = None, *, cwd: Path | None = None
+) -> Path:
+    """Resolve the generated SDD README target.
+
+    ``path`` may point at either a project root or an SDD root. Existing SDD
+    roots and paths named ``sdd`` are treated as SDD roots; other paths are
+    treated as project roots so init can create a missing ``sdd/`` directory.
+    """
+    base = Path.cwd() if cwd is None else cwd
+    if path is None:
+        return (base / "sdd" / "README.md").resolve()
+
+    target = Path(path).expanduser()
+    if not target.is_absolute():
+        target = base / target
+
+    if _looks_like_sdd_root(target):
+        return (target / "README.md").resolve()
+    return (target / "sdd" / "README.md").resolve()
+
+
+def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
+    """Create or refresh the canonical SDD README and return its path."""
+    readme_path = resolve_sdd_readme_path(path, cwd=cwd)
+    readme_path.parent.mkdir(parents=True, exist_ok=True)
+    readme_path.write_text(SDD_README_CONTENT, encoding="utf-8")
+    return readme_path
+
+
+def _looks_like_sdd_root(path: Path) -> bool:
+    if path.name == "sdd":
+        return True
+    if not path.is_dir():
+        return False
+    return any((path / dirname).is_dir() for dirname in _SDD_CANONICAL_DIRS)
 
 
 def get_sdd_dir(

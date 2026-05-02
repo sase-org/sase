@@ -9,9 +9,15 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'sdd' command parser."""
     sdd_parser = subparsers.add_parser(
         "sdd",
-        help="Validate, list, and repair SDD prompt/plan metadata",
+        help="Initialize, validate, list, and repair SDD prompt/plan metadata",
     )
     sdd_sub = sdd_parser.add_subparsers(dest="sdd_subcommand", help="SDD subcommands")
+
+    init_parser = sdd_sub.add_parser(
+        "init",
+        help="Create or refresh sdd/README.md",
+    )
+    _add_path_arg(init_parser)
 
     validate_parser = sdd_sub.add_parser(
         "validate",

@@ -10,7 +10,9 @@ from typing import Any
 
 def handle_sdd_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "sdd_subcommand", None)
-    if subcommand == "validate":
+    if subcommand == "init":
+        _handle_init(args)
+    elif subcommand == "validate":
         _handle_validate(args)
     elif subcommand == "links":
         _handle_links(args)
@@ -19,8 +21,16 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
     elif subcommand == "repair-links":
         _handle_repair_links(args)
     else:
-        print("Usage: sase sdd {validate,links,list,repair-links}")
+        print("Usage: sase sdd {init,validate,links,list,repair-links}")
         sys.exit(1)
+
+
+def _handle_init(args: argparse.Namespace) -> None:
+    from sase.sdd.files import write_sdd_readme
+
+    readme_path = write_sdd_readme(getattr(args, "path", None))
+    print(readme_path)
+    sys.exit(0)
 
 
 def _handle_validate(args: argparse.Namespace) -> None:

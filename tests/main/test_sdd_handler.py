@@ -43,6 +43,11 @@ def _write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
 def test_parser_registers_sdd_subcommands() -> None:
     parser = create_parser()
 
+    args = parser.parse_args(["sdd", "init", "-p", "sdd"])
+    assert args.command == "sdd"
+    assert args.sdd_subcommand == "init"
+    assert args.path == "sdd"
+
     args = parser.parse_args(["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict"])
     assert args.command == "sdd"
     assert args.sdd_subcommand == "validate"
@@ -60,6 +65,41 @@ def test_parser_registers_sdd_subcommands() -> None:
 
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
+
+
+def test_init_creates_readme_for_project_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
+
+    assert excinfo.value.code == 0
+    readme = tmp_path / "sdd" / "README.md"
+    assert readme.exists()
+    assert str(readme) in capsys.readouterr().out
+    text = readme.read_text(encoding="utf-8")
+    assert "# Structured Development Docs" in text
+    assert "`prompts/`" in text
+    assert "`tales/`" in text
+    assert "`sase sdd validate`" in text
+
+
+def test_init_overwrites_stale_readme_idempotently(tmp_path: Path) -> None:
+    readme = tmp_path / "sdd" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("stale\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as first:
+        handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
+    first_content = readme.read_text(encoding="utf-8")
+
+    with pytest.raises(SystemExit) as second:
+        handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
+
+    assert first.value.code == 0
+    assert second.value.code == 0
+    assert first_content != "stale\n"
+    assert readme.read_text(encoding="utf-8") == first_content
 
 
 def test_validate_allows_default_unpaired_warnings(

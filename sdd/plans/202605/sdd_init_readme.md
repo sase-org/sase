@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 23:45:33
-status: wip
+status: done
+prompt: sdd/specs/202605/sdd_init_readme.md
 ---
 # Plan: Add `sase sdd init`
 
