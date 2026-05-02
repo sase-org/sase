@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 00:34:15
-status: draft
+status: done
 bead_id: sase-1z
 tier: epic
 ---
