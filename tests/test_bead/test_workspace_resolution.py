@@ -33,6 +33,40 @@ def test_enumerate_workspace_beads_dirs_vc_includes_workspaces(tmp_path: Path) -
     assert result == [primary / "sdd/beads", workspace_2 / "sdd/beads"]
 
 
+def test_enumerate_workspace_beads_dirs_vc_includes_legacy_stores(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    workspace_3 = tmp_path / "project_3"
+    (primary / "sdd/beads").mkdir(parents=True)
+    (workspace_2 / ".sase_beads").mkdir(parents=True)
+    (workspace_3 / "sdd/beads").mkdir(parents=True)
+    (workspace_3 / ".sase_beads").mkdir(parents=True)
+
+    result = _enumerate_workspace_beads_dirs(primary)
+
+    assert result == [
+        primary / "sdd/beads",
+        workspace_3 / "sdd/beads",
+        workspace_2 / ".sase_beads",
+        workspace_3 / ".sase_beads",
+    ]
+
+
+def test_enumerate_workspace_beads_dirs_non_vc_ignores_legacy_siblings(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (workspace_2 / ".sase_beads").mkdir(parents=True)
+
+    result = _enumerate_workspace_beads_dirs(primary)
+
+    assert result == [primary / ".sase" / "sdd" / "beads"]
+
+
 # --- cwd_matches_workspace_variant tests ---
 
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 18:59:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_telegram_metadata.md
 ---
 # Fix Telegram Bead Commands and Bead Metadata Display

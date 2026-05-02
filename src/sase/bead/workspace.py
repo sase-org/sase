@@ -14,9 +14,11 @@ from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 
+LEGACY_BEADS_DIRNAME = ".sase_beads"
+
 
 def get_project_beads_dirs() -> list[Path] | None:
-    """Find all sdd/beads/ directories across all workspaces of the current project.
+    """Find all bead store directories across all workspaces of the current project.
 
     Returns None if not in a recognized sase project (caller should fall back
     to the old walk-up-from-cwd behavior).
@@ -124,33 +126,49 @@ def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     Non-VC mode is primary-only: if ``primary/.sase/sdd/beads`` exists,
     return only that directory.
 
-    VC mode checks ``sdd/beads/`` in the primary workspace and sibling
-    workspace directories matching ``<primary_basename>_<N>``.
+    VC/read mode checks ``sdd/beads/`` and legacy ``.sase_beads/`` in the
+    primary workspace and sibling workspace directories matching
+    ``<primary_basename>_<N>``.
     """
     primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
     if primary_non_vc.is_dir():
         return [primary_non_vc]
 
+    workspace_dirs = _enumerate_project_workspace_dirs(primary_workspace)
+    current_dirs = [workspace / BEADS_DIRNAME for workspace in workspace_dirs]
+    legacy_dirs = [workspace / LEGACY_BEADS_DIRNAME for workspace in workspace_dirs]
+
+    return _dedupe_existing_dirs([*current_dirs, *legacy_dirs])
+
+
+def _enumerate_project_workspace_dirs(primary_workspace: Path) -> list[Path]:
+    """Enumerate the primary workspace and numbered sibling workspaces."""
     parent = primary_workspace.parent
     basename = primary_workspace.name
     pattern = re.compile(rf"^{re.escape(basename)}_\d+$")
 
-    beads_dirs: list[Path] = []
-
-    # Primary workspace
-    primary_beads = primary_workspace / BEADS_DIRNAME
-    if primary_beads.is_dir():
-        beads_dirs.append(primary_beads)
-
-    # Workspace shares (VC mode only)
+    workspaces = [primary_workspace]
     if parent.is_dir():
         for entry in sorted(parent.iterdir()):
             if entry.is_dir() and pattern.match(entry.name):
-                beads = entry / BEADS_DIRNAME
-                if beads.is_dir():
-                    beads_dirs.append(beads)
+                workspaces.append(entry)
 
-    return beads_dirs
+    return workspaces
+
+
+def _dedupe_existing_dirs(paths: list[Path]) -> list[Path]:
+    """Return existing directories once, preserving input order."""
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for path in paths:
+        if not path.is_dir():
+            continue
+        key = path.resolve()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(path)
+    return result
 
 
 class MergedBeadView:

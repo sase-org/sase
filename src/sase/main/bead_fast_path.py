@@ -9,6 +9,7 @@ from typing import Any
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
+_LEGACY_BEADS_DIRNAME = ".sase_beads"
 _FAST_WRITE_COMMANDS = {"open", "update", "close", "dep"}
 
 
@@ -77,7 +78,7 @@ def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
     if resolved is None:
         return None
     read_beads_dirs, write_beads_dir, beads_dirname = resolved
-    if subcommand in _FAST_WRITE_COMMANDS and beads_dirname != _BEADS_DIRNAME:
+    if subcommand in _FAST_WRITE_COMMANDS and beads_dirname == _BEADS_DIRNAME_NON_VC:
         return None
 
     return _FastPathContext(
@@ -97,10 +98,9 @@ def _resolve_lightweight_beads_context(
             return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
 
         read_dirs = _enumerate_workspace_beads_dirs(primary)
-        local = cwd / _BEADS_DIRNAME
-        write_dir = local if local.is_dir() else primary / _BEADS_DIRNAME
-        if write_dir.is_dir():
-            return read_dirs or [write_dir], write_dir, _BEADS_DIRNAME
+        write_dir, beads_dirname = _select_write_beads_dir(cwd, primary)
+        if write_dir is not None:
+            return read_dirs or [write_dir], write_dir, beads_dirname
 
     for parent in [cwd, *cwd.parents]:
         vc = parent / _BEADS_DIRNAME
@@ -109,6 +109,9 @@ def _resolve_lightweight_beads_context(
         non_vc = parent / ".sase" / "sdd" / _BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
             return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
+        legacy = parent / _LEGACY_BEADS_DIRNAME
+        if legacy.is_dir():
+            return [legacy], legacy, _LEGACY_BEADS_DIRNAME
 
     return None
 
@@ -167,11 +170,14 @@ def _is_workspace_variant(component: str, project_name: str) -> bool:
 
 
 def _enumerate_workspace_beads_dirs(primary: Path) -> list[Path]:
-    read_dirs: list[Path] = []
-    primary_beads = primary / _BEADS_DIRNAME
-    if primary_beads.is_dir():
-        read_dirs.append(primary_beads)
+    workspaces = _enumerate_project_workspace_dirs(primary)
+    current_dirs = [workspace / _BEADS_DIRNAME for workspace in workspaces]
+    legacy_dirs = [workspace / _LEGACY_BEADS_DIRNAME for workspace in workspaces]
+    return _dedupe_existing_dirs([*current_dirs, *legacy_dirs])
 
+
+def _enumerate_project_workspace_dirs(primary: Path) -> list[Path]:
+    workspaces = [primary]
     parent = primary.parent
     prefix = f"{primary.name}_"
     if parent.is_dir():
@@ -181,10 +187,42 @@ def _enumerate_workspace_beads_dirs(primary: Path) -> list[Path]:
             suffix = entry.name.removeprefix(prefix)
             if not suffix.isdigit():
                 continue
-            beads = entry / _BEADS_DIRNAME
-            if beads.is_dir():
-                read_dirs.append(beads)
-    return read_dirs
+            workspaces.append(entry)
+    return workspaces
+
+
+def _dedupe_existing_dirs(paths: list[Path]) -> list[Path]:
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for path in paths:
+        if not path.is_dir():
+            continue
+        key = path.resolve()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(path)
+    return result
+
+
+def _select_write_beads_dir(cwd: Path, primary: Path) -> tuple[Path | None, str]:
+    local_current = cwd / _BEADS_DIRNAME
+    if local_current.is_dir():
+        return local_current, _BEADS_DIRNAME
+
+    primary_current = primary / _BEADS_DIRNAME
+    if primary_current.is_dir():
+        return primary_current, _BEADS_DIRNAME
+
+    local_legacy = cwd / _LEGACY_BEADS_DIRNAME
+    if local_legacy.is_dir():
+        return local_legacy, _LEGACY_BEADS_DIRNAME
+
+    primary_legacy = primary / _LEGACY_BEADS_DIRNAME
+    if primary_legacy.is_dir():
+        return primary_legacy, _LEGACY_BEADS_DIRNAME
+
+    return None, _BEADS_DIRNAME
 
 
 def _apply_mutation_side_effects(
