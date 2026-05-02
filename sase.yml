@@ -28,20 +28,6 @@ xprompts:
     of the failure, and fix it?
   remember: |
     Can you update / create the appropriate AGENTS.md file so you never forget about this again?
-  research/more: |
-    Can you help me improve this research markdown file by doing your own research and filling in any gaps missed by the
-    previous agent?
-  research/prompt:
-    input:
-      prompt: text
-    content: |
-      Can you help me do some research on the below prompt? Investigate prior art, propose a few alternative solutions,
-      and end your analysis with a recommended solution. #sase/research
-
-      ## THE PROMPT
-      {{ prompt }}
-  research: |
-    Store your research in a new markdown file in the research/ directory.
   # keep-sorted end
 
 mentor_profiles:

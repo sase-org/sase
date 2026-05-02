@@ -4,13 +4,13 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-
 from sase.xprompt.loader import (
     _load_xprompt_from_file,
+    get_all_prompts,
     get_all_xprompts,
 )
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
-from sase.xprompt.models import XPrompt
+from sase.xprompt.models import InputType, XPrompt
 
 # Tests for _load_xprompt_from_file
 
@@ -155,6 +155,39 @@ def test_get_all_xprompts_includes_md_files() -> None:
 
         assert "hello" in result
         assert result["hello"].content == "Hello from md"
+
+
+def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
+    """Research xprompts are built-ins and compose via the built-in name."""
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core._get_local_config_path", return_value=None),
+        patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
+        patch("sase.xprompt.loader.detect_project", return_value=None),
+        patch("sase.xprompt.loader.get_xprompt_search_paths", return_value=[]),
+        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.workflow_loader.get_all_workflows", return_value={}),
+    ):
+        prompts = get_all_prompts(project=None)
+
+    assert "research" in prompts
+    assert "research/more" in prompts
+    assert "research/prompt" in prompts
+    assert prompts["research"].source_path == "default_config"
+    assert prompts["research/more"].source_path == "default_config"
+    assert prompts["research/prompt"].source_path == "default_config"
+
+    research_prompt = prompts["research/prompt"]
+    assert len(research_prompt.inputs) == 1
+    prompt_input = research_prompt.inputs[0]
+    assert prompt_input.name == "prompt"
+    assert prompt_input.type is InputType.TEXT
+
+    body = research_prompt.steps[0].prompt_part or ""
+    assert "#research" in body
+    assert "#sase/research" not in body
 
 
 # Tests for _load_xprompts_from_project

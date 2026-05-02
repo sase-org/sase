@@ -396,6 +396,20 @@ xprompts:
 
       ### THE PROMPT
       {{ prompt }}
+  research/more: |
+    Can you help me improve this research markdown file by doing your own research and filling in any gaps missed by the
+    previous agent?
+  research/prompt:
+    input:
+      prompt: text
+    content: |
+      Can you help me do some research on the below prompt? Investigate prior art, propose a few alternative solutions,
+      and end your analysis with a recommended solution. #research
+
+      ## THE PROMPT
+      {{ prompt }}
+  research: |
+    Store your research in a new markdown file in the research/ directory.
   review: |
     Can you help me fix any bugs that were introduced by this implementation? Also, look for any ways you can improve
     the implementation, but make sure any improvements you make are clear wins (not subjective).
