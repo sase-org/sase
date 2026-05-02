@@ -39,3 +39,5 @@ unambiguous.
 - Labels intentionally stay short and cover the documented flow: reference inputs, protected/disabled-region masking,
   parsing, aliases, discovery priority, typed input validation, Jinja2/directive rendering, dynamic memory, standalone
   workflow launch, workflow graph inspection, and one-level multi-agent fan-out.
+- Phase 7 QA polished the final overlay to remove clipped section/output labels while preserving the original diagram
+  structure.

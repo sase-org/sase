@@ -35,4 +35,5 @@ symbolism, one-hue purple/blue gradient theme.
 ## Post-Processing Notes
 
 The generated image was used as the no-text architecture background. Final labels were added deterministically with
-ImageMagick so the committed PNG uses exact doc terminology and avoids generated-text misspellings.
+ImageMagick so the committed PNG uses exact doc terminology and avoids generated-text misspellings. Phase 7 QA adjusted
+overlapping layer, ownership, and contract-loop labels for GitHub Markdown readability.
