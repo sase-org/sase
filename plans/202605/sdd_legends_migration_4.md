@@ -1,5 +1,6 @@
 ---
 create_time: 2026-05-01 20:17:10
+bead_id: sase-1x
 status: wip
 ---
 # SDD Directory Migration and Legend Support Plan
