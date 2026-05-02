@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 21:09:21
-status: wip
+status: done
 ---
 # Land epic agents named by epic bead ID
 

@@ -191,7 +191,7 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     for pid in phase_ids:
         assert f"#git:sase\n%name:{pid}" in out
         assert f"#bd/work_phase_bead:{pid}" in out
-    assert f"#git:sase\n%name:{epic_id}.land" in out
+    assert f"#git:sase\n%name:{epic_id}" in out
     assert f"#bd/land_epic:{epic_id}" in out
 
     with BeadProject(project_dir) as proj:
@@ -238,7 +238,7 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     out = capsys.readouterr().out
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert f"#git:feature_epic\n%name:{phase_ids[1]}" in out
-    assert f"#git:feature_epic\n%name:{epic_id}.land" in out
+    assert f"#git:feature_epic\n%name:{epic_id}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
 
@@ -497,6 +497,30 @@ def test_work_retry_refuses_live_same_name_attempt(
 
 
 def test_work_refuses_when_land_name_collision(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _ = _seed_diamond(project_dir)
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    _write_orphan_meta(fake_home, f"{epic_id}")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: FakeLaunchResult(),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+    assert f"{epic_id}" in capsys.readouterr().err
+
+
+def test_work_refuses_when_legacy_land_name_collision(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

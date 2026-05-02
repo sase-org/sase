@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from sase.bead.model import BeadTier, IssueType
+
 from .agent import Agent
 
 if TYPE_CHECKING:
@@ -12,6 +14,7 @@ if TYPE_CHECKING:
 
 _DISMISSED_AGENT_PREFIX_RE = re.compile(r"^\d{6}\.")
 _PHASE_BEAD_AGENT_NAME_RE = re.compile(r"^.+\.\d+$")
+_TOP_LEVEL_BEAD_AGENT_NAME_RE = re.compile(r"^[^\s.]+-[0-9a-z]+$")
 
 
 def _normalized_agent_name(agent: Agent) -> str | None:
@@ -32,6 +35,12 @@ def _is_land_agent_name(normalized_agent_name: str | None) -> bool:
     )
 
 
+def _is_top_level_bead_agent_name(normalized_agent_name: str | None) -> bool:
+    if not normalized_agent_name:
+        return False
+    return bool(_TOP_LEVEL_BEAD_AGENT_NAME_RE.match(normalized_agent_name))
+
+
 def derive_agent_bead_id(agent: Agent) -> str | None:
     """Infer a bead id from an agent name written by ``sase bead work``."""
     normalized = _normalized_agent_name(agent)
@@ -43,6 +52,9 @@ def derive_agent_bead_id(agent: Agent) -> str | None:
         return epic_id or None
 
     if _PHASE_BEAD_AGENT_NAME_RE.match(normalized):
+        return normalized
+
+    if _is_top_level_bead_agent_name(normalized):
         return normalized
 
     return None
@@ -82,9 +94,21 @@ def format_agent_bead_display(
         description = _normalize_bead_text(getattr(issue, "description", None))
         if description:
             return f"{bead_id} - {description}"
-        if issue is not None and _is_land_agent_name(_normalized_agent_name(agent)):
+        if issue is not None and _is_epic_land_issue(agent, issue):
             title = _normalize_bead_text(getattr(issue, "title", None))
             if title:
                 return f"{bead_id} - Land epic: {title}"
 
     return bead_id
+
+
+def _is_epic_land_issue(agent: Agent, issue: Issue) -> bool:
+    normalized = _normalized_agent_name(agent)
+    if _is_land_agent_name(normalized):
+        return True
+
+    return (
+        _is_top_level_bead_agent_name(normalized)
+        and getattr(issue, "issue_type", None) == IssueType.PLAN
+        and getattr(issue, "tier", None) == BeadTier.EPIC
+    )

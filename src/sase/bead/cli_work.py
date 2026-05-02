@@ -82,7 +82,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         collisions = find_live_name_collisions(plan)
         if collisions and not dry_run:
             print(
-                "Error: refusing to launch; these phase agent names are still live:",
+                "Error: refusing to launch; these agent names are still live:",
                 file=sys.stderr,
             )
             for name, path in sorted(collisions.items()):
@@ -248,11 +248,21 @@ def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
     return names
 
 
+def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
+    name = f"{plan.epic_id}.land"
+    if name == plan.land_agent_name:
+        return None
+    return name
+
+
 def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     """Return ``{agent_name: artifact_dir}`` for plan names owned by live agents."""
     from sase.agent.names import get_live_agent_name_map
 
     expected = expected_agent_names(plan)
+    legacy_land_name = _legacy_land_agent_name(plan)
+    if legacy_land_name:
+        expected.add(legacy_land_name)
     live = get_live_agent_name_map()
     return {name: live[name] for name in expected if name in live}
 

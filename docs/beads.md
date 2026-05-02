@@ -216,16 +216,17 @@ Run an entire epic plan end-to-end by launching one agent per phase plus a final
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan`. If the plan is already marked `is_ready_to_work`, the
    command treats the run as a retry and schedules any remaining non-closed phases.
-2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase) or
-   `<epic_id>.land`, and refuses to launch when a collision exists, listing the offending artifact directories so the
-   user can revive, dismiss, or rename the orphan first. (`--dry-run` downgrades this to a warning and continues.)
+2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase), `<epic_id>`
+   (for the land agent), or the legacy `<epic_id>.land` land-agent name, and refuses to launch when a collision exists,
+   listing the offending artifact directories so the user can revive, dismiss, or rename the orphan first. (`--dry-run`
+   downgrades this to a warning and continues.)
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already ready.
 4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
-   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w`
-   waits on blocker phase-agent names, and the land agent waits on the leaf phase agents.
+   `<epic_id>` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w` waits on
+   blocker phase-agent names, and the land agent waits on the leaf phase agents.
 
 | Flag            | Description                                                                       |
 | --------------- | --------------------------------------------------------------------------------- |

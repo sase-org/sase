@@ -98,7 +98,7 @@ class TestLinearChain:
         assert plan.waves[2][0].waits_on == ("p2",)
         # Land waits on the leaf (P3).
         assert plan.land_waits_on == ("p3",)
-        assert plan.land_agent_name == "e1.land"
+        assert plan.land_agent_name == "e1"
 
 
 class TestDiamond:
@@ -161,7 +161,7 @@ class TestDiamond:
             "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
-            "%name:e1.land\n"
+            "%name:e1\n"
             "%approve\n"
             "%w:p4\n"
             "#bd/land_epic:e1"
@@ -399,7 +399,7 @@ class TestRenderEdgeCases:
         )
         plan = build_epic_work_plan(conn, "sase-r")
         assert plan.waves[0][0].agent_name == "sase-r.1"
-        assert plan.land_agent_name == "sase-r.land"
+        assert plan.land_agent_name == "sase-r"
 
 
 class TestChangeSpecRendering:
@@ -425,7 +425,7 @@ class TestChangeSpecRendering:
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
-            "%name:e1.land\n"
+            "%name:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
@@ -470,7 +470,7 @@ class TestChangeSpecRendering:
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:e1.land\n"
+            "%name:e1\n"
             "%approve\n"
             "%w:p3\n"
             "#custom/land:e1"
@@ -497,7 +497,7 @@ class TestChangeSpecRendering:
         assert rendered.count("#pr:feature_epic") == 1
         assert "#git:sase #pr:feature_epic\n%name:p1" in rendered
         assert "#git:feature_epic\n%name:p2" in rendered
-        assert "#git:feature_epic\n%name:e1.land" in rendered
+        assert "#git:feature_epic\n%name:e1" in rendered
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         _seed(conn, [_epic("e1"), _phase("p1")])

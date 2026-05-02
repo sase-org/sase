@@ -9,7 +9,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
-from sase.bead.model import Issue
+from sase.bead.model import BeadTier, Issue, IssueType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
@@ -87,6 +87,14 @@ class TestAgentBeadMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Name: @sase-x.land\nBead: sase-x\n" in header.plain
+
+    def test_exact_epic_agent_name_renders_epic_bead(self) -> None:
+        agent = _make_agent(agent_name="sase-x")
+
+        assert derive_agent_bead_id(agent) == "sase-x"
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @sase-x\nBead: sase-x\n" in header.plain
 
     def test_dismissed_phase_agent_name_uses_underlying_bead(self) -> None:
         agent = _make_agent(agent_name="260428.sase-x.3")
@@ -195,6 +203,29 @@ class TestAgentBeadMetadata:
             "Bead: sase-x - Land epic: Make `sase bead` Fast With `sase-core`\n"
         ) in header.plain
 
+    def test_full_exact_land_header_uses_epic_title_when_description_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(agent_name="sase-x")
+
+        monkeypatch.setattr(
+            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            lambda bead_id: Issue(
+                id=bead_id,
+                title=" Make `sase bead` Fast With `sase-core` ",
+                issue_type=IssueType.PLAN,
+                tier=BeadTier.EPIC,
+                description=" \n\t ",
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert (
+            "Name: @sase-x\n"
+            "Bead: sase-x - Land epic: Make `sase bead` Fast With `sase-core`\n"
+        ) in header.plain
+
     def test_full_land_header_prefers_explicit_plan_description(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -233,6 +264,13 @@ class TestAgentListBeadBadge:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert " ◆ sase-x @sase-x.land" in left.plain
+
+    def test_exact_land_agent_row_renders_epic_bead_badge(self) -> None:
+        agent = _make_agent(agent_name="sase-x")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert " ◆ sase-x @sase-x" in left.plain
 
     def test_dismissed_phase_agent_row_renders_underlying_bead_badge(self) -> None:
         agent = _make_agent(agent_name="260428.sase-x.3")

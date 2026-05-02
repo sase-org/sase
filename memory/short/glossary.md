@@ -18,9 +18,9 @@
   schedule from the epic's open phase children, pre-claims each phase bead (`status=in_progress`,
   `assignee=<phase_bead_id>` — i.e. `<epic_id>.<N>`), and hands a single `---`-separated multi-prompt to
   `launch_agent_from_cwd()`. The per-phase agents reference `bd/work_phase_bead` and a final land agent (named
-  `<epic_id>.land`) references `bd/land_epic` (both resolved by `XPromptTag` so users can override). `--dry-run` prints
-  the plan without mutating; `--yes` skips the confirm prompt; on launch failure the handler rolls back pre-claims and
-  the ready flag best-effort. See `src/sase/bead/work.py` and `handle_bead_work` in `src/sase/bead/cli.py`.
+  `<epic_id>`) references `bd/land_epic` (both resolved by `XPromptTag` so users can override). `--dry-run` prints the
+  plan without mutating; `--yes` skips the confirm prompt; on launch failure the handler rolls back pre-claims and the
+  ready flag best-effort. See `src/sase/bead/work.py` and `handle_bead_work` in `src/sase/bead/cli.py`.
 - **Retry chain (spawn-on-retry)**: When `ProviderRetryConfig.spawn_new_agent=True`, a retryable error spawns a fresh
   detached child agent (as if `sase run -d` had been invoked) instead of in-process retry. The failing parent transfers
   its workspace claim to the child via `transfer_workspace_claim()` and exits with `FAILED (RETRIED)`. Linkage fields
