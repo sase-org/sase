@@ -138,6 +138,18 @@ def test_resolve_sdd_readme_path_detects_myths_only_sdd_root(
     )
 
 
+def test_resolve_sdd_readme_path_detects_research_only_sdd_root(
+    tmp_path: Path,
+) -> None:
+    sdd_root = tmp_path / "custom-sdd"
+    (sdd_root / "research").mkdir(parents=True)
+
+    assert (
+        resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
+        == sdd_root / "README.md"
+    )
+
+
 def test_resolve_sdd_asset_path_follows_readme_root(tmp_path: Path) -> None:
     assert (
         resolve_sdd_asset_path(str(tmp_path), cwd=Path("/tmp"))

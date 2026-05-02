@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 18:49:44
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_research_readme.md
 ---
 # Initialize SDD Research README

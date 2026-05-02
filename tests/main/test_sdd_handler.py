@@ -40,10 +40,10 @@ def _write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
     return prompt, plan
 
 
-def _tier_readmes(root: Path) -> dict[str, Path]:
+def _directory_readmes(root: Path) -> dict[str, Path]:
     return {
         kind: root / kind / "README.md"
-        for kind in ("tales", "epics", "legends", "myths")
+        for kind in ("tales", "epics", "legends", "myths", "research")
     }
 
 
@@ -85,8 +85,8 @@ def test_init_creates_readme_for_project_root(
     asset = tmp_path / "sdd" / "assets" / "sdd-directory-map.png"
     assert readme.exists()
     assert asset.exists()
-    tier_readmes = _tier_readmes(tmp_path / "sdd")
-    assert all(path.exists() for path in tier_readmes.values())
+    directory_readmes = _directory_readmes(tmp_path / "sdd")
+    assert all(path.exists() for path in directory_readmes.values())
     assert str(readme) in capsys.readouterr().out
     text = readme.read_text(encoding="utf-8")
     assert "# Structured Development Docs" in text
@@ -94,16 +94,22 @@ def test_init_creates_readme_for_project_root(
     assert "`prompts/`" in text
     assert "`tales/`" in text
     assert "`myths/`" in text
+    assert "`research/`" in text
     assert "`sase sdd validate`" in text
-    assert "# Tales" in tier_readmes["tales"].read_text(encoding="utf-8")
-    assert "task-level implementation plans" in tier_readmes["tales"].read_text(
+    assert "# Tales" in directory_readmes["tales"].read_text(encoding="utf-8")
+    assert "task-level implementation plans" in directory_readmes["tales"].read_text(
         encoding="utf-8"
     )
-    assert "larger work plans" in tier_readmes["epics"].read_text(encoding="utf-8")
-    assert "broad roadmap or strategy" in tier_readmes["legends"].read_text(
+    assert "larger work plans" in directory_readmes["epics"].read_text(encoding="utf-8")
+    assert "broad roadmap or strategy" in directory_readmes["legends"].read_text(
         encoding="utf-8"
     )
-    assert "long-horizon narrative" in tier_readmes["myths"].read_text(encoding="utf-8")
+    assert "long-horizon narrative" in directory_readmes["myths"].read_text(
+        encoding="utf-8"
+    )
+    assert "exploratory findings" in directory_readmes["research"].read_text(
+        encoding="utf-8"
+    )
 
 
 def test_init_overwrites_stale_readme_and_asset_idempotently(tmp_path: Path) -> None:
@@ -113,17 +119,18 @@ def test_init_overwrites_stale_readme_and_asset_idempotently(tmp_path: Path) -> 
     readme.write_text("stale\n", encoding="utf-8")
     asset.parent.mkdir(parents=True)
     asset.write_bytes(b"stale\n")
-    tier_readmes = _tier_readmes(tmp_path / "sdd")
-    for tier_readme in tier_readmes.values():
-        tier_readme.parent.mkdir(parents=True, exist_ok=True)
-        tier_readme.write_text("stale\n", encoding="utf-8")
+    directory_readmes = _directory_readmes(tmp_path / "sdd")
+    for directory_readme in directory_readmes.values():
+        directory_readme.parent.mkdir(parents=True, exist_ok=True)
+        directory_readme.write_text("stale\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as first:
         handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
     first_content = readme.read_text(encoding="utf-8")
     first_asset_content = asset.read_bytes()
-    first_tier_contents = {
-        kind: path.read_text(encoding="utf-8") for kind, path in tier_readmes.items()
+    first_directory_contents = {
+        kind: path.read_text(encoding="utf-8")
+        for kind, path in directory_readmes.items()
     }
 
     with pytest.raises(SystemExit) as second:
@@ -133,12 +140,13 @@ def test_init_overwrites_stale_readme_and_asset_idempotently(tmp_path: Path) -> 
     assert second.value.code == 0
     assert first_content != "stale\n"
     assert first_asset_content != b"stale\n"
-    assert all(content != "stale\n" for content in first_tier_contents.values())
+    assert all(content != "stale\n" for content in first_directory_contents.values())
     assert readme.read_text(encoding="utf-8") == first_content
     assert asset.read_bytes() == first_asset_content
     assert {
-        kind: path.read_text(encoding="utf-8") for kind, path in tier_readmes.items()
-    } == first_tier_contents
+        kind: path.read_text(encoding="utf-8")
+        for kind, path in directory_readmes.items()
+    } == first_directory_contents
 
 
 def test_validate_allows_default_unpaired_warnings(
