@@ -1,6 +1,8 @@
 ---
 create_time: 2026-05-02 00:34:15
 status: draft
+bead_id: sase-1z
+tier: epic
 ---
 
 # Plan: GPT Image Infographics for High-Complexity Docs
