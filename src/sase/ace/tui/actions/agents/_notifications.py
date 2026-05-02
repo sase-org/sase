@@ -224,6 +224,12 @@ class AgentNotificationMixin:
                 if action == "approve":
                     self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
                     persist_plan_approved(agent)
+                elif action == "epic":
+                    self._agent_status_overrides[agent.identity] = "EPIC APPROVED"
+                    persist_plan_approved(agent, action="epic")
+                elif action == "legend":
+                    self._agent_status_overrides[agent.identity] = "LEGEND APPROVED"
+                    persist_plan_approved(agent, action="legend")
                 else:
                     # Reject with feedback: agent is resuming, mark as RUNNING
                     self._agent_status_overrides[agent.identity] = "RUNNING"

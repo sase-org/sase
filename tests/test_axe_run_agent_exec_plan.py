@@ -183,6 +183,40 @@ class TestModelInheritance:
         state = self._run(tmp_path, action="epic", agent_model=None)
         assert not state.current_prompt.startswith("%model:")
 
+    def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
+        """Legend approval writes to sdd/legends and launches bd/new_legend."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "scratch_plan.md")
+        (tmp_path / "scratch_plan.md").write_text("# Plan")
+        sdd_plan = tmp_path / "sdd" / "legends" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Legend")
+
+        approval = PlanApprovalResult(action="legend", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "specs" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ) as write_sdd_files,
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert state.current_role_suffix == ".legend"
+        assert (
+            "#bd/new_legend:sdd/legends/202605/scratch_plan.md" in state.current_prompt
+        )
+        assert write_sdd_files.call_args.kwargs["plan_kind"] == "legends"
+        assert mock_commit.call_args.kwargs["plan_kind"] == "legends"
+
     def test_approve_no_coder_commit_true_returns_plan_committed(
         self, tmp_path
     ) -> None:

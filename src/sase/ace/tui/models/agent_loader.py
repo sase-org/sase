@@ -315,6 +315,8 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                 if agent.status not in completed_statuses:
                     if agent.role_suffix == ".epic":
                         followup_override[agent.parent_timestamp] = "EPIC APPROVED"
+                    elif agent.role_suffix == ".legend":
+                        followup_override[agent.parent_timestamp] = "LEGEND APPROVED"
                     elif agent.role_suffix == ".commit":
                         followup_override[agent.parent_timestamp] = "PLAN COMMITTED"
                     else:

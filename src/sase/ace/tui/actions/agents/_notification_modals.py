@@ -366,7 +366,17 @@ def _build_plan_approval_response(result: PlanApprovalResult) -> dict[str, objec
     return response_data
 
 
-def _archive_plan_for_approval(notification: Notification) -> str | None:
+def _plan_kind_for_action(action: str) -> str:
+    if action == "epic":
+        return "epics"
+    if action == "legend":
+        return "legends"
+    return "plans"
+
+
+def _archive_plan_for_approval(
+    notification: Notification, action: str = "approve"
+) -> str | None:
     """Best-effort copy of an approved plan into the workspace plan archive."""
     import os
 
@@ -382,7 +392,13 @@ def _archive_plan_for_approval(notification: Notification) -> str | None:
 
         project_basename = os.path.basename(str(project_dir))
         workspace_dir = get_workspace_directory(project_basename, 1)
-        plans_dir = Path(workspace_dir) / ".sase" / "plans" / get_yyyymm()
+        plans_dir = (
+            Path(workspace_dir)
+            / ".sase"
+            / "sdd"
+            / _plan_kind_for_action(action)
+            / get_yyyymm()
+        )
         plans_dir.mkdir(parents=True, exist_ok=True)
         src_plan = Path(notification.files[0])
         dest_plan = plans_dir / src_plan.name
@@ -403,6 +419,8 @@ def _plan_approval_status(result: PlanApprovalResult) -> str | None:
         return "PLAN APPROVED"
     if result.action == "epic":
         return "EPIC APPROVED"
+    if result.action == "legend":
+        return "LEGEND APPROVED"
     if result.feedback is not None:
         return "RUNNING"
     return None
@@ -416,6 +434,8 @@ def _plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
         return "approve"
     if result.action == "epic":
         return "epic"
+    if result.action == "legend":
+        return "legend"
     return None
 
 
@@ -461,8 +481,8 @@ def _start_plan_approval_background_worker(
             except Exception:
                 log.warning("Failed to persist plan approval marker", exc_info=True)
 
-        if result.action in ("approve", "epic"):
-            saved_plan_path = _archive_plan_for_approval(notification)
+        if result.action in ("approve", "epic", "legend"):
+            saved_plan_path = _archive_plan_for_approval(notification, result.action)
             if saved_plan_path is not None:
                 _add_saved_plan_to_response(plan_response_path, saved_plan_path)
 
@@ -586,7 +606,7 @@ def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
 
     Args:
         agent: The agent whose plan was approved.
-        action: The plan action taken — "approve", "commit", or "epic".
+        action: The plan action taken — "approve", "commit", "epic", or "legend".
     """
     import json
     from pathlib import Path

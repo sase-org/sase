@@ -205,6 +205,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
                 agent.status = "PLAN COMMITTED"
             elif plan_action == "epic":
                 agent.status = "EPIC APPROVED"
+            elif plan_action == "legend":
+                agent.status = "LEGEND APPROVED"
             else:
                 agent.status = "PLAN APPROVED"
         else:
@@ -344,6 +346,8 @@ def enrich_agent_from_meta_wire(
                 agent.status = "PLAN COMMITTED"
             elif meta.plan_action == "epic":
                 agent.status = "EPIC APPROVED"
+            elif meta.plan_action == "legend":
+                agent.status = "LEGEND APPROVED"
             else:
                 agent.status = "PLAN APPROVED"
         else:

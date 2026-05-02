@@ -290,14 +290,22 @@ xprompts:
     tags: create_epic_bead
     input:
       plan_file_path: path
+      legend_bead_id: { type: word, default: null }
       changespec: { type: word, default: null }
       bug_id: { type: int, default: null }
     content: |
       Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
 
       These beads should all be children of a new plan bead that you should also create. The plan bead should be linked to the
-      plan file using the `sase bead create` command's `--type plan(<plan_file>)` option. Also, add the bead ID of the plan
-      to a new frontmatter field called `bead_id` in the plan file.
+      plan file using the `sase bead create` command's `--type plan(<plan_file>)` option and `--tier epic`. If
+      `legend_bead_id` was provided as an xprompt argument, or if the plan file frontmatter contains `legend_bead_id`,
+      create a linked epic using `--type plan(<plan_file>,<legend_bead_id>)` instead. Also, add the bead ID of the plan
+      to a frontmatter field called `bead_id`, add `tier: epic`, and preserve or add `legend_bead_id` when the epic is
+      linked to a legend.
+
+      {% if legend_bead_id %}
+      Use `{{ legend_bead_id }}` as the linked legend bead ID.
+      {% endif %}
 
       {% if bug_id and not changespec %}
       IMPORTANT: This invocation is invalid because `bug_id` was provided without `changespec`. Do not create or update any
@@ -316,6 +324,17 @@ xprompts:
 
       After committing the bead-creation work, run `sase bead work <epic_id> --yes` (using the new plan bead's ID) to
       mark the epic as ready to work and skip the launch confirmation prompt for this automated kickoff.
+  bd/new_legend:
+    input:
+      plan_file_path: path
+    content: |
+      Can you help me create a legend bead for the {{ plan_file_path }} plan file?
+
+      Create exactly one plan bead linked to the plan file using the `sase bead create` command's `--type plan(<plan_file>)`
+      option and `--tier legend`. Do not create phase beads. Do not run `sase bead work`.
+
+      Add the new bead ID to the plan file frontmatter as `legend_bead_id`, add `tier: legend`, then commit the bead and
+      plan-file metadata.
   bd/next:
     input:
       prompt: { type: text, default: "" }

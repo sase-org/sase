@@ -364,16 +364,24 @@ class ArtifactRestorationMixin:
             "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",
+            "LEGEND APPROVED",
             "QUESTION",
         }
         if agent.role_suffix == ".plan" or is_plan_like_status:
             data["plan"] = True
-        if agent.status in {"PLAN APPROVED", "PLAN COMMITTED", "EPIC APPROVED"}:
+        if agent.status in {
+            "PLAN APPROVED",
+            "PLAN COMMITTED",
+            "EPIC APPROVED",
+            "LEGEND APPROVED",
+        }:
             data["plan_approved"] = True
             if agent.status == "PLAN COMMITTED":
                 data["plan_action"] = "commit"
             elif agent.status == "EPIC APPROVED":
                 data["plan_action"] = "epic"
+            elif agent.status == "LEGEND APPROVED":
+                data["plan_action"] = "legend"
 
         if data:
             meta_path.write_text(json.dumps(data))

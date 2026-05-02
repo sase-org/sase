@@ -60,7 +60,7 @@ def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", "epic", "feedback_requested", or "approve_prompt_edit"
+    action: str  # "approve", "reject", "epic", "legend", "feedback_requested", or "approve_prompt_edit"
     feedback: str | None = None
     commit_plan: bool = True
     run_coder: bool = True
@@ -92,6 +92,7 @@ class PlanApprovalModal(
         ("f", "feedback", "Feedback"),
         ("e", "edit", "Edit"),
         ("E", "epic", "Epic"),
+        ("L", "legend", "Legend"),
         ("y", "copy_plan", "Copy"),
         ("Y", "copy_plan_path", "Copy path"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -142,6 +143,7 @@ class PlanApprovalModal(
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
+            "[magenta]L[/magenta]=Legend  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
@@ -280,6 +282,10 @@ class PlanApprovalModal(
     def action_epic(self) -> None:
         """Create an epic from the plan."""
         self.dismiss(PlanApprovalResult(action="epic"))
+
+    def action_legend(self) -> None:
+        """Create a legend from the plan."""
+        self.dismiss(PlanApprovalResult(action="legend"))
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

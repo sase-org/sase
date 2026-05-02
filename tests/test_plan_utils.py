@@ -190,3 +190,41 @@ def test_handle_plan_approval_approve_with_options(
     assert result.commit_plan is False
     assert result.run_coder is True
     assert result.coder_prompt == "#review+"  # whitespace trimmed
+
+
+def test_handle_plan_approval_accepts_legend_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legend approval is returned as a first-class plan action."""
+    import json
+
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan")
+    session_id = "test-legend-session"
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+
+    def _fake_notify(**kwargs: object) -> None:
+        response_dir = Path(str(kwargs["response_dir"]))
+        (response_dir / "plan_response.json").write_text(
+            json.dumps({"action": "legend"})
+        )
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.is_auto_approve_active",
+            return_value=False,
+        ),
+        patch(
+            "sase.notifications.senders.notify_plan_approval",
+            side_effect=_fake_notify,
+        ),
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch(
+            "sase.main.plan_approve_handler.get_tmux_prefix",
+            return_value="",
+        ),
+    ):
+        result = handle_plan_approval(plan_file, session_id)
+
+    assert result == PlanApprovalResult(action="legend", plan_file=plan_file)

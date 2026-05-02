@@ -183,10 +183,11 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
 
     plan_response_path = response_dir / "plan_response.json"
 
-    def archive_side_effect(notification: object) -> None:
+    def archive_side_effect(notification: object, action: str = "approve") -> None:
         assert plan_response_path.exists()
         data = json.loads(plan_response_path.read_text())
         assert data["action"] == "approve"
+        assert action == "approve"
         assert app._agent_status_overrides[mock_agent.identity] == "PLAN APPROVED"
 
     from sase.ace.tui.actions.agents._notification_modals import (
@@ -210,6 +211,46 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
         on_dismiss(PlanApprovalResult(action="approve"))
 
     archive_plan.assert_called_once()
+
+
+def test_legend_writes_response_and_sets_status(tmp_path: Path) -> None:
+    """Legend approval writes the action, persists metadata, and sets LEGEND APPROVED."""
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    app.run_worker.side_effect = lambda work, thread=True: work()
+    app.call_from_thread.side_effect = lambda callback: callback()
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with patch(
+        "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
+        return_value=mock_agent,
+    ):
+        handle_plan_approval(app, notification)
+
+        on_dismiss = app.push_screen.call_args[0][1]
+
+        with (
+            patch("sase.notifications.mark_dismissed"),
+            patch(
+                "sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"
+            ) as persist_plan_approved,
+            patch(
+                "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+                return_value=None,
+            ) as archive_plan,
+        ):
+            on_dismiss(PlanApprovalResult(action="legend"))
+
+    data = json.loads((response_dir / "plan_response.json").read_text())
+    assert data["action"] == "legend"
+    assert app._agent_status_overrides[mock_agent.identity] == "LEGEND APPROVED"
+    persist_plan_approved.assert_called_once_with(mock_agent, action="legend")
+    archive_plan.assert_called_once()
+    assert archive_plan.call_args.args[1] == "legend"
 
 
 def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:

@@ -168,7 +168,7 @@ def _update_coder_model_meta(
         )
 
 
-def _build_epic_plan_ref(
+def _build_sdd_plan_ref(
     *,
     sdd_plan_path: Path | None,
     sdd_dir: Path,
@@ -176,8 +176,9 @@ def _build_epic_plan_ref(
     sdd_plan_name: str | None,
     version_controlled: bool,
     fallback_plan_file: str,
+    plan_kind: str,
 ) -> str:
-    """Build the plan reference passed to the epic-creation xprompt."""
+    """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
         if version_controlled:
             try:
@@ -198,10 +199,39 @@ def _build_epic_plan_ref(
 
     yyyymm = get_yyyymm()
     if sdd_plan_name and not version_controlled:
-        return f".sase/sdd/epics/{yyyymm}/{sdd_plan_name}.md"
+        return f".sase/sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
     if sdd_plan_name:
-        return f"sdd/epics/{yyyymm}/{sdd_plan_name}.md"
+        return f"sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
     return fallback_plan_file
+
+
+def _build_epic_plan_ref(
+    *,
+    sdd_plan_path: Path | None,
+    sdd_dir: Path,
+    workspace_dir: str,
+    sdd_plan_name: str | None,
+    version_controlled: bool,
+    fallback_plan_file: str,
+) -> str:
+    """Build the plan reference passed to the epic-creation xprompt."""
+    return _build_sdd_plan_ref(
+        sdd_plan_path=sdd_plan_path,
+        sdd_dir=sdd_dir,
+        workspace_dir=workspace_dir,
+        sdd_plan_name=sdd_plan_name,
+        version_controlled=version_controlled,
+        fallback_plan_file=fallback_plan_file,
+        plan_kind="epics",
+    )
+
+
+def _plan_kind_for_action(action: str) -> str:
+    if action == "epic":
+        return "epics"
+    if action == "legend":
+        return "legends"
+    return "plans"
 
 
 def _build_saved_plan_ref(
@@ -360,7 +390,7 @@ def handle_plan_marker(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.current_prompt
-        plan_kind = "epics" if plan_result.action == "epic" else "plans"
+        plan_kind = _plan_kind_for_action(plan_result.action)
         sdd_spec_path_obj, sdd_plan_path = write_sdd_files(
             sdd_dir,
             sdd_plan_name,
@@ -376,15 +406,19 @@ def handle_plan_marker(
 
     # Unified SDD commit: epics always need committed files (the #gh
     # pre-step wipes uncommitted files); other actions respect commit_plan.
-    should_commit = plan_result.commit_plan if plan_result.action != "epic" else True
+    should_commit = (
+        plan_result.commit_plan
+        if plan_result.action not in ("epic", "legend")
+        else True
+    )
     if should_commit and sdd_plan_name:
         if version_controlled:
-            plan_kind = "epics" if plan_result.action == "epic" else "plans"
+            plan_kind = _plan_kind_for_action(plan_result.action)
             _commit_sdd_files(ctx.workspace_dir, sdd_plan_name, plan_kind=plan_kind)
         else:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
 
-    if not plan_result.run_coder and plan_result.action != "epic":
+    if not plan_result.run_coder and plan_result.action not in ("epic", "legend"):
         return "plan_committed"
 
     # VCS workflow tag prefix for follow-up agents
@@ -404,14 +438,16 @@ def handle_plan_marker(
     else:
         model_prefix = ""
 
-    if plan_result.action == "epic":
+    if plan_result.action in ("epic", "legend"):
         # Ensure beads are initialized before spawning epic agent
         from sase.sdd.beads import ensure_beads_initialized
 
         ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
 
-        # Epic: spawn epic agent to create beads
-        state.current_role_suffix = ".epic"
+        # Epic/legend: spawn a follow-up agent to create the container bead.
+        state.current_role_suffix = (
+            ".epic" if plan_result.action == "epic" else ".legend"
+        )
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
             promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
@@ -428,20 +464,33 @@ def handle_plan_marker(
         )
         update_meta_field(
             state.current_artifacts_dir,
-            "epic_started_at",
+            "epic_started_at" if plan_result.action == "epic" else "legend_started_at",
             datetime.now(UTC).isoformat(),
         )
         _update_coder_model_meta(plan_result, ctx, state)
-        plan_ref = _build_epic_plan_ref(
-            sdd_plan_path=sdd_plan_path,
-            sdd_dir=sdd_dir,
-            workspace_dir=ctx.workspace_dir,
-            sdd_plan_name=sdd_plan_name,
-            version_controlled=version_controlled,
-            fallback_plan_file=plan_data["plan_file"],
-        )
+        if plan_result.action == "epic":
+            plan_ref = _build_epic_plan_ref(
+                sdd_plan_path=sdd_plan_path,
+                sdd_dir=sdd_dir,
+                workspace_dir=ctx.workspace_dir,
+                sdd_plan_name=sdd_plan_name,
+                version_controlled=version_controlled,
+                fallback_plan_file=plan_data["plan_file"],
+            )
+            xprompt_name = "bd/new_epic"
+        else:
+            plan_ref = _build_sdd_plan_ref(
+                sdd_plan_path=sdd_plan_path,
+                sdd_dir=sdd_dir,
+                workspace_dir=ctx.workspace_dir,
+                sdd_plan_name=sdd_plan_name,
+                version_controlled=version_controlled,
+                fallback_plan_file=plan_data["plan_file"],
+                plan_kind="legends",
+            )
+            xprompt_name = "bd/new_legend"
         state.current_prompt = (
-            f"{model_prefix}{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
+            f"{model_prefix}{vcs_prefix}#{xprompt_name}:{plan_ref}\n{embedded_refs}"
         )
     else:
         # Approve: spawn coder with plan as prompt

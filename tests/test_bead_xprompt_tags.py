@@ -48,9 +48,10 @@ def test_builtin_land_epic_resolves() -> None:
 
 
 def test_builtin_xprompts_loaded_from_config() -> None:
-    """Confirm the three built-ins are present in the loader registry."""
+    """Confirm the bead automation built-ins are present in the loader registry."""
     prompts = get_all_prompts()
     assert "bd/new_epic" in prompts
+    assert "bd/new_legend" in prompts
     assert "bd/land_epic" in prompts
     assert "bd/work_phase_bead" in prompts
     assert XPromptTag.create_epic_bead in prompts["bd/new_epic"].tags
@@ -59,13 +60,21 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert (
         "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
     )
+    assert "--tier legend" in prompts["bd/new_legend"].steps[0].prompt_part
+    assert (
+        "Do not run `sase bead work`" in prompts["bd/new_legend"].steps[0].prompt_part
+    )
 
 
 def test_new_epic_accepts_changespec_inputs() -> None:
     prompt = get_all_prompts()["bd/new_epic"]
+    legend_bead_id = prompt.get_input_by_name("legend_bead_id")
     changespec = prompt.get_input_by_name("changespec")
     bug_id = prompt.get_input_by_name("bug_id")
 
+    assert legend_bead_id is not None
+    assert legend_bead_id.type is InputType.WORD
+    assert legend_bead_id.default is None
     assert changespec is not None
     assert changespec.type is InputType.WORD
     assert changespec.default is None
@@ -81,6 +90,8 @@ def test_new_epic_changespec_guidance() -> None:
     assert "-b/--bug-id" in body
     assert "bug_id` requires `changespec" in body
     assert "No ChangeSpec metadata was provided" in body
+    assert "--tier epic" in body
+    assert "--type plan(<plan_file>,<legend_bead_id>)" in body
 
 
 # ── User overrides win via precedence chain ────────────────────────────
