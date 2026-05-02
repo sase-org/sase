@@ -19,6 +19,11 @@ def test_approve_options_modal_has_on_key() -> None:
     assert hasattr(ApproveOptionsModal, "on_key")
 
 
+def test_enter_binding_shows_tale_for_internal_approve_action() -> None:
+    assert ("enter", "approve", "Tale") in ApproveOptionsModal.BINDINGS
+    assert ("enter", "approve", "Approve") not in ApproveOptionsModal.BINDINGS
+
+
 def test_on_key_calls_approve_on_enter() -> None:
     """on_key with enter should call action_approve."""
     approved = False
@@ -673,6 +678,24 @@ async def test_default_model_shows_same_as_planner() -> None:
         model_display = modal.query_one("#coder-model-display", Static)
         display_text = str(model_display.render())
         assert "Same as planner" in display_text
+
+
+async def test_title_and_footer_use_tale_label() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        title = modal.query_one("#approve-options-title", Static)
+        footer = modal.query_one("#approve-options-footer", Static)
+
+        title_text = str(title.render())
+        footer_text = str(footer.render())
+
+        assert "Tale Options" in title_text
+        assert "Tale" in footer_text
+        assert "Approve with Options" not in title_text
+        assert "Approve" not in footer_text
 
 
 async def test_approve_with_no_model_returns_none() -> None:

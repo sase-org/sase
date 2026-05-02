@@ -49,7 +49,7 @@ class ApproveOptionsModal(
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
-        ("enter", "approve", "Approve"),
+        ("enter", "approve", "Tale"),
         ("p", "edit_prompt", "Edit prompt"),
         ("m", "select_model", "Model"),
         ("q", "cancel", "Quit"),
@@ -71,7 +71,7 @@ class ApproveOptionsModal(
     def compose(self) -> ComposeResult:
         with Container(id="approve-options-container"):
             yield Static(
-                "[bold cyan]Approve with Options[/bold cyan]",
+                "[bold cyan]Tale Options[/bold cyan]",
                 id="approve-options-title",
             )
 
@@ -104,7 +104,7 @@ class ApproveOptionsModal(
             yield Static(display, id="coder-prompt-display")
 
             yield Static(
-                "[green]enter[/green]=Approve  "
+                "[green]enter[/green]=Tale  "
                 "[blue]space[/blue]=Toggle  "
                 "[magenta]m[/magenta]=Model  "
                 "[magenta]p[/magenta]=Edit prompt  "

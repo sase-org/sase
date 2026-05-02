@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 23:54:47
-status: wip
+status: done
 ---
 # Plan: Rename Normal Approval CTA to Tale
 

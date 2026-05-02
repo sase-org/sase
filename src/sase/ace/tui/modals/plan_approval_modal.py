@@ -86,7 +86,7 @@ class PlanApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
-        ("a", "approve", "Approve"),
+        ("a", "approve", "Tale"),
         ("A", "approve_options", "Options"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Feedback"),
@@ -139,7 +139,7 @@ class PlanApprovalModal(
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         hints = (
-            "[green]a[/green]=Approve  [green]A[/green]=Options  [red]r[/red]=Reject  "
+            "[green]a[/green]=Tale  [green]A[/green]=Options  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "

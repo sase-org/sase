@@ -991,34 +991,34 @@ omitted when provider/model metadata is absent, leaving the legacy title shape u
 
 ### Plan Approval Keybindings
 
-| Key          | Action                                                           |
-| ------------ | ---------------------------------------------------------------- |
-| `a`          | Approve the plan                                                 |
-| `A`          | Approve with options (opens [Approve Options](#approve-options)) |
-| `r`          | Reject the plan                                                  |
-| `f`          | Request feedback (send follow-up questions to the agent)         |
-| `e`          | Edit the plan file in `$EDITOR`                                  |
-| `E`          | Mark the plan as an epic (creates bead)                          |
-| `y`          | Copy plan content to clipboard                                   |
-| `Y`          | Copy plan file path to clipboard                                 |
-| `Ctrl+D`/`U` | Scroll plan content down / up                                    |
-| `g` / `G`    | Scroll to top / bottom                                           |
-| `q` / `Esc`  | Cancel                                                           |
+| Key          | Action                                                   |
+| ------------ | -------------------------------------------------------- |
+| `a`          | Save as tale and continue                                |
+| `A`          | Tale with options (opens [Tale Options](#tale-options))  |
+| `r`          | Reject the plan                                          |
+| `f`          | Request feedback (send follow-up questions to the agent) |
+| `e`          | Edit the plan file in `$EDITOR`                          |
+| `E`          | Mark the plan as an epic (creates bead)                  |
+| `y`          | Copy plan content to clipboard                           |
+| `Y`          | Copy plan file path to clipboard                         |
+| `Ctrl+D`/`U` | Scroll plan content down / up                            |
+| `g` / `G`    | Scroll to top / bottom                                   |
+| `q` / `Esc`  | Cancel                                                   |
 
 The question modal also supports `y` to copy questions and selected answers.
 
-### Approve Options
+### Tale Options
 
 Pressing `A` in the plan approval modal opens an options dialog with fine-grained control over what happens after
 approval:
 
-| Key         | Action                  |
-| ----------- | ----------------------- |
-| `Enter`     | Approve with selections |
-| `Space`     | Toggle focused switch   |
-| `Ctrl+N`    | Next field              |
-| `Ctrl+P`    | Previous field          |
-| `q` / `Esc` | Cancel                  |
+| Key         | Action                |
+| ----------- | --------------------- |
+| `Enter`     | Tale with selections  |
+| `Space`     | Toggle focused switch |
+| `Ctrl+N`    | Next field            |
+| `Ctrl+P`    | Previous field        |
+| `q` / `Esc` | Cancel                |
 
 The dialog presents toggle switches, an optional text input, and a model picker:
 

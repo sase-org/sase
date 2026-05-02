@@ -2,6 +2,7 @@
 
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
+    PlanApprovalResult,
     _provider_badge_markup,
 )
 
@@ -92,3 +93,22 @@ def test_bindings_include_capital_g_scroll_to_bottom() -> None:
 
 def test_bindings_include_legend_action() -> None:
     assert ("L", "legend", "Legend") in PlanApprovalModal.BINDINGS
+
+
+def test_bindings_show_tale_for_approve_action() -> None:
+    assert ("a", "approve", "Tale") in PlanApprovalModal.BINDINGS
+    assert ("a", "approve", "Approve") not in PlanApprovalModal.BINDINGS
+
+
+def test_action_approve_still_returns_internal_approve_action() -> None:
+    modal = PlanApprovalModal.__new__(PlanApprovalModal)
+    result: PlanApprovalResult | None = None
+
+    def fake_dismiss(value: PlanApprovalResult) -> None:
+        nonlocal result
+        result = value
+
+    modal.dismiss = fake_dismiss  # type: ignore[assignment]
+    modal.action_approve()
+
+    assert result == PlanApprovalResult(action="approve")
