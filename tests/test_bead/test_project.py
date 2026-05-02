@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.config import load_config, save_config
-from sase.bead.model import IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 
@@ -45,8 +45,19 @@ def test_create_epic(project):
     issue = project.create("My Epic", IssueType.PLAN)
     assert issue.title == "My Epic"
     assert issue.issue_type == IssueType.PLAN
+    assert issue.tier == BeadTier.EPIC
     assert issue.status == Status.OPEN
     assert issue.id  # has an ID
+
+
+def test_create_legend_and_filter_by_tier(project):
+    legend = project.create("Legend", IssueType.PLAN, tier=BeadTier.LEGEND)
+    epic = project.create("Epic", IssueType.PLAN)
+
+    legends = project.list_issues(tiers=[BeadTier.LEGEND])
+
+    assert [issue.id for issue in legends] == [legend.id]
+    assert project.show(epic.id).tier == BeadTier.EPIC
 
 
 def test_create_epic_with_changespec_metadata(project):

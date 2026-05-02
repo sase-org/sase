@@ -12,7 +12,7 @@ from sase.bead import db as db_mod
 from sase.bead.config import get_default_config, load_config, save_config
 from sase.bead.ids import IdGenerator, max_child_counter, max_top_level_counter
 from sase.bead.jsonl import export_to_jsonl
-from sase.bead.model import Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.sync import git_sync, rebuild_from_jsonl
 from sase.telemetry.metrics import (
     BEAD_ACTIVE,
@@ -97,6 +97,7 @@ class BeadProject:
         notes: str = "",
         design: str = "",
         assignee: str = "",
+        tier: BeadTier | str | None = None,
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
     ) -> Issue:
@@ -112,6 +113,7 @@ class BeadProject:
             self.beads_dir,
             title=title,
             issue_type=issue_type,
+            tier=tier,
             parent_id=parent_id,
             description=description,
             notes=notes,
@@ -136,12 +138,16 @@ class BeadProject:
         self,
         statuses: list[Status] | None = None,
         issue_types: list[IssueType] | None = None,
+        tiers: list[BeadTier] | None = None,
     ) -> list[Issue]:
         """List issues with optional filters."""
         from sase.core import bead_read_facade as rust_beads
 
         issues = rust_beads.list_issues(
-            self.beads_dir, statuses=statuses, issue_types=issue_types
+            self.beads_dir,
+            statuses=statuses,
+            issue_types=issue_types,
+            tiers=tiers,
         )
         if statuses is None:
             self._update_active_gauge(issues)

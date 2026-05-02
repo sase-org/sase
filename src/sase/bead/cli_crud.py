@@ -13,7 +13,7 @@ from sase.bead.cli_common import (
     init_beads,
     normalize_workspace_path,
 )
-from sase.bead.model import IssueType
+from sase.bead.model import BeadTier, IssueType
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
@@ -79,6 +79,10 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     if changespec_bug_id and not changespec_name:
         print("Error: --bug-id requires --changespec", file=sys.stderr)
         sys.exit(1)
+    tier = BeadTier(args.tier) if getattr(args, "tier", None) else None
+    if issue_type != IssueType.PLAN and tier is not None:
+        print("Error: --tier can only be set on plan beads", file=sys.stderr)
+        sys.exit(1)
 
     design = ""
     if plan_path:
@@ -103,6 +107,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             description=args.description or "",
             assignee=args.assignee or "",
             design=design,
+            tier=tier,
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
         )
@@ -124,6 +129,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["design"] = args.design
         if args.assignee is not None:
             fields["assignee"] = args.assignee
+        if getattr(args, "tier", None) is not None:
+            fields["tier"] = args.tier
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

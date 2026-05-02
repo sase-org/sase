@@ -10,7 +10,7 @@ import os
 import re
 from pathlib import Path
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 
@@ -179,12 +179,16 @@ class MergedBeadView:
         self,
         statuses: list[Status] | None = None,
         issue_types: list[IssueType] | None = None,
+        tiers: list[BeadTier] | None = None,
     ) -> list[Issue]:
         """List issues with optional filters."""
         from sase.core import bead_read_facade as rust_beads
 
         return rust_beads.merged_list_issues(
-            self._beads_dirs, statuses=statuses, issue_types=issue_types
+            self._beads_dirs,
+            statuses=statuses,
+            issue_types=issue_types,
+            tiers=tiers,
         )
 
     def ready(self) -> list[Issue]:

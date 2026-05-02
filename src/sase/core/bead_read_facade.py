@@ -5,12 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.core.bead_wire import (
     issue_from_dict,
     issue_type_values,
     issues_from_list,
     status_values,
+    tier_values,
 )
 from sase.core.rust import require_rust_binding
 
@@ -29,12 +30,14 @@ def list_issues(
     beads_dir: Path | str,
     statuses: list[Status] | tuple[Status, ...] | None = None,
     issue_types: list[IssueType] | tuple[IssueType, ...] | None = None,
+    tiers: list[BeadTier] | tuple[BeadTier, ...] | None = None,
 ) -> list[Issue]:
     binding = require_rust_binding("bead_list")
     payload: list[dict[str, Any]] = binding(
         str(beads_dir),
         status_values(statuses),
         issue_type_values(issue_types),
+        tier_values(tiers),
     )
     return issues_from_list(payload)
 
@@ -82,12 +85,14 @@ def merged_list_issues(
     beads_dirs: list[Path] | list[str],
     statuses: list[Status] | tuple[Status, ...] | None = None,
     issue_types: list[IssueType] | tuple[IssueType, ...] | None = None,
+    tiers: list[BeadTier] | tuple[BeadTier, ...] | None = None,
 ) -> list[Issue]:
     binding = require_rust_binding("bead_merged_list")
     payload: list[dict[str, Any]] = binding(
         _path_strings(beads_dirs),
         status_values(statuses),
         issue_type_values(issue_types),
+        tier_values(tiers),
     )
     return issues_from_list(payload)
 

@@ -5,9 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import Dependency, Issue, IssueType
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.project import AlreadyReadyError, NotAPlanError
-from sase.core.bead_wire import issue_from_dict, issue_type_value, issues_from_list
+from sase.core.bead_wire import (
+    issue_from_dict,
+    issue_type_value,
+    issues_from_list,
+    tier_value,
+)
 from sase.core.rust import require_rust_binding
 
 
@@ -27,6 +32,7 @@ def create(
     *,
     title: str,
     issue_type: IssueType,
+    tier: BeadTier | str | None = None,
     parent_id: str | None = None,
     description: str = "",
     notes: str = "",
@@ -44,6 +50,7 @@ def create(
         {
             "title": title,
             "issue_type": issue_type_value(issue_type),
+            "tier": None if tier is None else tier_value(tier),
             "parent_id": parent_id,
             "description": description,
             "notes": notes,

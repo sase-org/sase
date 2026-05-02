@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.bead.cli_common import get_project
-from sase.bead.model import IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
@@ -49,6 +49,14 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             print(
                 f"Error: is_ready_to_work only applies to plan beads "
                 f"(got {issue.issue_type.value} for {args.id})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if issue.tier != BeadTier.EPIC:
+            tier = issue.tier.value if issue.tier else "missing tier"
+            print(
+                "Error: sase bead work only applies to epic plan beads "
+                f"(got {tier} for {args.id})",
                 file=sys.stderr,
             )
             sys.exit(1)

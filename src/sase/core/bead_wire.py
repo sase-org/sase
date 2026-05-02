@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.bead.model import Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 
 
 def status_values(
@@ -26,8 +26,20 @@ def issue_type_values(
     return [issue_type_value(issue_type) for issue_type in issue_types]
 
 
+def tier_values(
+    tiers: list[BeadTier] | tuple[BeadTier, ...] | None,
+) -> list[str] | None:
+    if tiers is None:
+        return None
+    return [tier_value(tier) for tier in tiers]
+
+
 def issue_type_value(issue_type: IssueType | str) -> str:
     return issue_type.value if isinstance(issue_type, IssueType) else str(issue_type)
+
+
+def tier_value(tier: BeadTier | str) -> str:
+    return tier.value if isinstance(tier, BeadTier) else str(tier)
 
 
 def issue_from_dict(data: dict[str, Any]) -> Issue:
@@ -36,6 +48,7 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         title=str(data["title"]),
         status=Status(str(data.get("status", "open"))),
         issue_type=IssueType(str(data.get("issue_type", "phase"))),
+        tier=BeadTier(str(data["tier"])) if data.get("tier") else None,
         parent_id=None if data.get("parent_id") is None else str(data["parent_id"]),
         owner="" if data.get("owner") is None else str(data.get("owner", "")),
         assignee="" if data.get("assignee") is None else str(data.get("assignee", "")),
@@ -94,4 +107,6 @@ __all__ = [
     "issue_type_values",
     "issues_from_list",
     "status_values",
+    "tier_value",
+    "tier_values",
 ]

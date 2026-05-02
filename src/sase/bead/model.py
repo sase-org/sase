@@ -17,6 +17,12 @@ class IssueType(Enum):
     PHASE = "phase"
 
 
+class BeadTier(Enum):
+    PLAN = "plan"
+    EPIC = "epic"
+    LEGEND = "legend"
+
+
 @dataclass
 class Dependency:
     issue_id: str
@@ -31,6 +37,7 @@ class Issue:
     title: str
     status: Status = Status.OPEN
     issue_type: IssueType = IssueType.PHASE
+    tier: BeadTier | None = None
     parent_id: str | None = None
     owner: str = ""
     assignee: str = ""
@@ -56,6 +63,8 @@ class Issue:
         """
         if self.issue_type == IssueType.PHASE and self.parent_id is None:
             raise ValueError("Phase issues must have a parent_id")
+        if self.issue_type == IssueType.PHASE and self.tier is not None:
+            raise ValueError("Phase issues cannot carry plan tier metadata")
         if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
         if self.issue_type == IssueType.PHASE and (

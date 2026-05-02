@@ -2,7 +2,7 @@
 
 import pytest
 
-from sase.bead.model import Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 
 
 class TestIssueValidation:
@@ -74,6 +74,17 @@ class TestIssueValidation:
             is_ready_to_work=True,
         )
         issue.validate()  # Should not raise
+
+    def test_phase_with_tier_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A phase",
+            issue_type=IssueType.PHASE,
+            tier=BeadTier.EPIC,
+            parent_id="test-0",
+        )
+        with pytest.raises(ValueError, match="Phase issues cannot carry"):
+            issue.validate()
 
     def test_plan_with_changespec_name_is_valid(self) -> None:
         issue = Issue(

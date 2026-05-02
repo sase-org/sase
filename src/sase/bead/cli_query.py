@@ -7,7 +7,7 @@ import os
 import sys
 
 from sase.bead.cli_common import get_read_view, status_icon
-from sase.bead.model import IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 
 
 def handle_bead_list(args: argparse.Namespace) -> None:
@@ -18,7 +18,10 @@ def handle_bead_list(args: argparse.Namespace) -> None:
             else [Status.OPEN, Status.IN_PROGRESS]
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
-        issues = view.list_issues(statuses=statuses, issue_types=issue_types)
+        tiers = [BeadTier(t) for t in args.tier] if args.tier else None
+        issues = view.list_issues(
+            statuses=statuses, issue_types=issue_types, tiers=tiers
+        )
         if not issues:
             print("No issues found.")
             return
@@ -38,7 +41,10 @@ def handle_bead_show(args: argparse.Namespace) -> None:
 
         icon = status_icon(issue.status)
         print(f"{icon} {issue.id} · {issue.title}   [{issue.status.value.upper()}]")
-        print(f"Type: {issue.issue_type.value} · Owner: {issue.owner or '(none)'}")
+        tier = f" · Tier: {issue.tier.value}" if issue.tier else ""
+        print(
+            f"Type: {issue.issue_type.value}{tier} · Owner: {issue.owner or '(none)'}"
+        )
         if issue.assignee:
             print(f"Assignee: {issue.assignee}")
         if issue.parent_id:

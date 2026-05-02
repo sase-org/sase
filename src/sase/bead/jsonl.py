@@ -11,7 +11,7 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead import db as db_mod
-from sase.bead.model import Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 
 
 def _optional_str(value: object) -> str:
@@ -24,6 +24,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "title": issue.title,
         "status": issue.status.value,
         "issue_type": issue.issue_type.value,
+        **({"tier": issue.tier.value} if issue.tier else {}),
         "parent_id": issue.parent_id,
         "owner": issue.owner,
         "assignee": issue.assignee,
@@ -67,6 +68,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         title=str(data["title"]),
         status=Status(str(data["status"])),
         issue_type=IssueType(str(data["issue_type"])),
+        tier=BeadTier(str(data["tier"])) if data.get("tier") else None,
         parent_id=str(data["parent_id"]) if data.get("parent_id") else None,
         owner=_optional_str(data.get("owner", "")),
         assignee=_optional_str(data.get("assignee", "")),
@@ -120,6 +122,8 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
         except (json.JSONDecodeError, KeyError, ValueError):
             continue
 
+    _apply_missing_tiers(issues)
+
     # Sort: plans first, then phases (so parent FK is satisfied)
     issues.sort(key=lambda i: (0 if i.issue_type == IssueType.PLAN else 1, i.id))
 
@@ -141,6 +145,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                 description=issue.description,
                 notes=issue.notes,
                 design=issue.design,
+                tier=issue.tier.value if issue.tier else None,
                 is_ready_to_work=int(issue.is_ready_to_work),
                 changespec_name=issue.changespec_name,
                 changespec_bug_id=issue.changespec_bug_id,
@@ -160,3 +165,16 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                 pass  # Already exists or FK violation
 
     return issues
+
+
+def _apply_missing_tiers(issues: list[Issue]) -> None:
+    phase_parent_ids = {
+        issue.parent_id
+        for issue in issues
+        if issue.issue_type == IssueType.PHASE and issue.parent_id
+    }
+    for issue in issues:
+        if issue.issue_type == IssueType.PLAN and issue.tier is None:
+            issue.tier = (
+                BeadTier.EPIC if issue.id in phase_parent_ids else BeadTier.PLAN
+            )

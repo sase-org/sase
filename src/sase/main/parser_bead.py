@@ -35,6 +35,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_create_parser.add_argument("-d", "--description", help="Issue description")
     bead_create_parser.add_argument("-a", "--assignee", help="Assignee")
     bead_create_parser.add_argument(
+        "--tier",
+        choices=["plan", "epic", "legend"],
+        help="Plan-bead tier (plan, epic, or legend)",
+    )
+    bead_create_parser.add_argument(
         "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
     )
     bead_create_parser.add_argument(
@@ -71,6 +76,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=["plan", "phase"],
         action="append",
         help="Filter by type (repeatable)",
+    )
+    bead_list_parser.add_argument(
+        "--tier",
+        choices=["plan", "epic", "legend"],
+        action="append",
+        help="Filter by plan-bead tier (repeatable)",
     )
 
     # sase bead onboard
@@ -132,3 +143,4 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_update_parser.add_argument("-n", "--notes")
     bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
+    bead_update_parser.add_argument("--tier", choices=["plan", "epic", "legend"])

@@ -147,6 +147,7 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "title": issue.title,
         "status": issue.status.value,
         "issue_type": issue.issue_type.value,
+        "tier": issue.tier.value if issue.tier else None,
         "parent_id": issue.parent_id,
         "owner": issue.owner,
         "assignee": issue.assignee,

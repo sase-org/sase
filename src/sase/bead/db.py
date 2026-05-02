@@ -8,7 +8,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from sase.bead.model import Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 
 _SCHEMA = """\
 CREATE TABLE IF NOT EXISTS issues (
@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS issues (
                   CHECK(status IN ('open', 'in_progress', 'closed')),
     issue_type  TEXT NOT NULL DEFAULT 'phase'
                   CHECK(issue_type IN ('plan', 'phase')),
+    tier        TEXT
+                  CHECK(tier IN ('plan', 'epic', 'legend')),
     parent_id   TEXT
                   REFERENCES issues(id) ON DELETE CASCADE,
     owner       TEXT,
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS issues (
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan')
     ),
+    CHECK(issue_type = 'plan' OR tier IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
     CHECK(
         issue_type = 'plan' OR
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS dependencies (
 
 CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
 CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
+CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
@@ -101,6 +105,28 @@ def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_add_tier(conn: sqlite3.Connection) -> None:
+    """Add plan-tier metadata to a pre-existing issues table."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "tier" in columns:
+        return
+    conn.execute(
+        "ALTER TABLE issues ADD COLUMN tier TEXT "
+        "CHECK(tier IN ('plan','epic','legend'))"
+    )
+    conn.execute(
+        "UPDATE issues SET tier = 'epic' "
+        "WHERE issue_type = 'plan' "
+        "AND id IN (SELECT DISTINCT parent_id FROM issues WHERE issue_type = 'phase')"
+    )
+    conn.execute(
+        "UPDATE issues SET tier = 'plan' WHERE issue_type = 'plan' AND tier IS NULL"
+    )
+    conn.commit()
+
+
 def _migrate_issue_types(conn: sqlite3.Connection) -> None:
     """Migrate from epic/child to plan/phase schema if needed."""
     row = conn.execute(
@@ -117,12 +143,14 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
         "    CHECK(status IN ('open','in_progress','closed')),"
         "  issue_type TEXT NOT NULL DEFAULT 'phase'"
         "    CHECK(issue_type IN ('plan','phase')),"
+        "  tier TEXT CHECK(tier IN ('plan','epic','legend')),"
         "  parent_id TEXT, owner TEXT, assignee TEXT,"
         "  created_at TEXT NOT NULL, created_by TEXT,"
         "  updated_at TEXT NOT NULL, closed_at TEXT,"
         "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
         "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
-        "    OR (issue_type='plan'))"
+        "    OR (issue_type='plan')),"
+        "  CHECK(issue_type='plan' OR tier IS NULL)"
         ")"
     )
     conn.execute(
@@ -131,6 +159,10 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
         "  CASE issue_type"
         "    WHEN 'epic' THEN 'plan' WHEN 'child' THEN 'phase'"
         "    ELSE issue_type END,"
+        "  CASE issue_type"
+        "    WHEN 'epic' THEN 'epic'"
+        "    WHEN 'plan' THEN 'epic'"
+        "    ELSE NULL END,"
         "  parent_id, owner, assignee, created_at, created_by,"
         "  updated_at, closed_at, close_reason, description, notes, design "
         "FROM issues"
@@ -139,6 +171,7 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE _issues_new RENAME TO issues")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id)")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
@@ -150,6 +183,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_issue_types(conn)
     _migrate_add_is_ready_to_work(conn)
     _migrate_add_changespec_metadata(conn)
+    _migrate_add_tier(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -169,6 +203,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         title=row["title"],
         status=Status(row["status"]),
         issue_type=IssueType(row["issue_type"]),
+        tier=BeadTier(row["tier"]) if row["tier"] else None,
         parent_id=row["parent_id"],
         owner=row["owner"] or "",
         assignee=row["assignee"] or "",
@@ -205,14 +240,16 @@ def _load_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependen
 
 def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
     """Insert a new issue into the database."""
+    if issue.issue_type == IssueType.PLAN and issue.tier is None:
+        issue.tier = BeadTier.EPIC
     issue.validate()
     conn.execute(
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
-        "created_at, created_by, updated_at, closed_at, close_reason, "
+        "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "description, notes, design, is_ready_to_work, changespec_name, "
         "changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -221,6 +258,7 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.parent_id,
             issue.owner,
             issue.assignee,
+            issue.tier.value if issue.tier else None,
             issue.created_at,
             issue.created_by,
             issue.updated_at,
@@ -252,8 +290,9 @@ def list_issues(
     conn: sqlite3.Connection,
     statuses: list[Status] | None = None,
     issue_types: list[IssueType] | None = None,
+    tiers: list[BeadTier] | None = None,
 ) -> list[Issue]:
-    """List issues with optional status/type filters."""
+    """List issues with optional status/type/tier filters."""
     query = "SELECT * FROM issues WHERE 1=1"
     params: list[str] = []
     if statuses is not None:
@@ -264,6 +303,10 @@ def list_issues(
         placeholders = ",".join("?" for _ in issue_types)
         query += f" AND issue_type IN ({placeholders})"
         params.extend(t.value for t in issue_types)
+    if tiers is not None:
+        placeholders = ",".join("?" for _ in tiers)
+        query += f" AND tier IN ({placeholders})"
+        params.extend(t.value for t in tiers)
     query += " ORDER BY created_at ASC"
     rows = conn.execute(query, params).fetchall()
     issues = []
@@ -288,6 +331,7 @@ def update_issue(
         "description",
         "notes",
         "design",
+        "tier",
         "is_ready_to_work",
         "changespec_name",
         "changespec_bug_id",
@@ -315,7 +359,7 @@ def mark_issue_ready_to_work(
     """Set is_ready_to_work=1 on a plan issue."""
     conn.execute(
         "UPDATE issues SET is_ready_to_work = 1, updated_at = ? "
-        "WHERE id = ? AND issue_type = 'plan'",
+        "WHERE id = ? AND issue_type = 'plan' AND tier = 'epic'",
         (updated_at, issue_id),
     )
     conn.commit()
@@ -343,6 +387,7 @@ def ready_issues(conn: sqlite3.Connection) -> list[Issue]:
     rows = conn.execute(
         "SELECT i.* FROM issues i "
         "WHERE i.status = 'open' "
+        "  AND (i.issue_type = 'phase' OR i.tier = 'epic') "
         "  AND i.id NOT IN ("
         "    SELECT d.issue_id FROM dependencies d "
         "    JOIN issues blocker ON d.depends_on_id = blocker.id "
