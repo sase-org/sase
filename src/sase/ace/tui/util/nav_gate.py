@@ -1,6 +1,6 @@
 """User-is-navigating gate for deferring background work during j/k bursts.
 
-Phase 5 of sdd/plans/202604/instant_jk_navigation.md (bead sase-u.5). The
+Phase 5 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.5). The
 :class:`NavigationGate` records the wall-clock of each j/k action; background
 reconcilers consult :meth:`is_navigating` to decide whether to fire now or
 defer until the user quiesces. The default 250 ms window matches the plan

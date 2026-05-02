@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/retry_timestamps.md
+plan: sdd/tales/202604/retry_timestamps.md
 ---
 Can you help me add start logging a "RETRY" timestamp using the "Timestamps:" field in the agent metadata panel on the
 "Agents" tab of the `sase ace` TUI that shows the time that the agent was retried? We should always add a new "RETRY"

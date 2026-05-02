@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dashboard_charts.md
+plan: sdd/tales/202604/dashboard_charts.md
 ---
 I want to improve the new Prometheus integration by making the 'sase telemetry dashboard' command WAY better. For one,
 we should support charts that show historical data, like how long it took agents to run, how many agents I had running

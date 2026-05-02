@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/faster_tab_switching.md
+plan: sdd/tales/202604/faster_tab_switching.md
 ---
 I just used `sase ace --profile` to profile the TUI. The profiling artifact that was produced can be found in the
 ~/tmp/ace_profile_20260415_181131.txt file. I just navigated to the "Agents" tab, to the "AXE" tab, and then back to the

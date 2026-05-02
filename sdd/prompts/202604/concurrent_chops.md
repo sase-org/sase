@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/concurrent_chops.md
+plan: sdd/tales/202604/concurrent_chops.md
 ---
 I'm pretty sure that right now if the cumulative runtime of every chop script is greater than the interval configured
 for the lumberjack, then we wind up skipping some chop scripts at the end (we fixed a bug recently by moving a chop

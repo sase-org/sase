@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/ace_axe_nav_freeze.md
+plan: sdd/tales/202604/ace_axe_nav_freeze.md
 ---
 `sase ace` just froze up with I hit `k` to attempt to navigate to the 'xpad' entry on the AXE tab (see the `sase ace`
 snapshot below). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and

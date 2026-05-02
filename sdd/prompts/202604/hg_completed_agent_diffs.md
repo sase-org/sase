@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/hg_completed_agent_diffs.md
+plan: sdd/tales/202604/hg_completed_agent_diffs.md
 ---
 We don't seem to currently show the diff of the file changes made by an agent's commit / PR for completed agents on my
 work machine, which uses the ../sase-google plugin (the live diff of running agents works fine on that machine and all

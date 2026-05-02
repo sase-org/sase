@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/bead_work_orphan_name_collision.md
+plan: sdd/tales/202604/bead_work_orphan_name_collision.md
 ---
 The user sent an image via Telegram with the following caption:
 

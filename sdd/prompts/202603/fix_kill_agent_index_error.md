@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_kill_agent_index_error.md
+plan: sdd/tales/202603/fix_kill_agent_index_error.md
 ---
 Can you help me fix this error? Think this through thoroughly and create a plan using your `/sase_plan` skill before
 making any file changes.

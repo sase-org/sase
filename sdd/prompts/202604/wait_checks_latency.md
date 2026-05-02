@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/wait_checks_latency.md
+plan: sdd/tales/202604/wait_checks_latency.md
 ---
 This agent should have been run by `sase axe` now (since the `sase-d.1` agent that it was waiting for finished ~1 minute
 ago). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan

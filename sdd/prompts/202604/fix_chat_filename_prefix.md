@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_chat_filename_prefix.md
+plan: sdd/tales/202604/fix_chat_filename_prefix.md
 ---
 The ~/.sase/chats/bs_allow_schema-ace_run-260411_163347.md file doesn't exist on the machine where the below `sase ace`
 snapshot was taken. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and
@@ -39,7 +39,7 @@ create a plan using your `/sase_plan` skill before making any file changes.
 │                                                    ││  │    (2) Fix syntax and build errors in protection proto adapters.  [+3 lines]                                                                                                         │    │
 │                                                    ││  │        | CHAT: ~/.sase/chats/bs_allow_schema-ace_run-260411_163347.md (17m39s)                                                                                                       │    │
 │                                                    ││  │        | DIFF: ~/.sase/projects/bs_allow/artifacts/ace-run/20260411164048/commit_diff.diff                                                                                           │    │
-│                                                    ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/plans/202604/fix_syntax_error.md                                                                                  │    │
+│                                                    ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/tales/202604/fix_syntax_error.md                                                                                  │    │
 │                                                    ││  │  HOOKS:                                                                                                                                                                              │    │
 │                                                    ││  │    !$sase_google_presubmit  [folded: FAILED: 1]                                                                                                                                      │    │
 │                                                    ││  │        | (2) [260411_165139] RUNNING - ($: 3105613)                                                                                                                                  │    │

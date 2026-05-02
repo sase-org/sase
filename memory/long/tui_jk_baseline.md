@@ -1,6 +1,6 @@
 # Baseline — j/k key-to-paint latency (Phase 1, bead sase-u.1)
 
-Plan: `sdd/plans/202604/instant_jk_navigation.md`. Phase-1 deliverable is the instrumentation + harness; the numbers
+Plan: `sdd/tales/202604/instant_jk_navigation.md`. Phase-1 deliverable is the instrumentation + harness; the numbers
 below are the reference point that phases 2-5 must beat (target: p95 < 16 ms on every tab in every scenario).
 
 ## How to reproduce

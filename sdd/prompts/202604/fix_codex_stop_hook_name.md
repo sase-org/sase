@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_codex_stop_hook_name.md
+plan: sdd/tales/202604/fix_codex_stop_hook_name.md
 ---
 Why did codex use `sase_agent_tags_ui_research_1` for the `--name` option when running `sase commit`? The name should
 have been of the form `sase_agent_tags_<N>`. Can you help me diagnose the root cause of this issue and fix it? Think

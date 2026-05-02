@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_mentor_profiles_loading.md
+plan: sdd/tales/202604/fix_mentor_profiles_loading.md
 ---
 The MENTORS ChangeSpec field is not being added to the below ChangeSpec by `sase axe` (running on another machine). Can
 you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your
@@ -23,7 +23,7 @@ COMMITS:
   (1) [run] Initial Commit
       | CHAT: ~/.sase/chats/yserve-ace_run-260404_122046.md (31m9s)
       | DIFF: ~/.sase/diffs/yserve_null-260404_125153.diff
-      | PLAN: /google/src/cloud/bbugyi/yserve/google3/.sase/sdd/plans/202604/yserve_converters.md
+      | PLAN: /google/src/cloud/bbugyi/yserve/google3/.sase/sdd/tales/202604/yserve_converters.md
 HOOKS:
   !$sase_google_presubmit
       | (1) [260404_150308] FAILED (5m15s) - (!: Presubmit failed with 1 target failure in xfp_api.exchange.)

@@ -15,7 +15,7 @@ altitude containers as plan-like beads rather than introducing a separate low-le
 This plan intentionally diverges from that research in three places because of the current request:
 
 - Do not migrate `research/`; it remains a top-level directory.
-- Add `sdd/epics/` and move existing epic plan files there instead of leaving them in `sdd/plans/`.
+- Add `sdd/epics/` and move existing epic plan files there instead of leaving them in `sdd/tales/`.
 - Use `--type plan(<plan_file>,<legend_bead_id>)` for epic beads linked to legends. Do not add or document
   `--type epic(...)`.
 
@@ -71,7 +71,7 @@ Scope:
 - `git mv specs sdd/specs`.
 - Split current `plans/`:
   - Move existing epic plan files to `sdd/epics/`.
-  - Move existing non-epic plan files to `sdd/plans/`.
+  - Move existing non-epic plan files to `sdd/tales/`.
   - Classify epic plan files as the union of files with `bead_id` frontmatter and version-controlled bead `design` paths
     that point at plan beads. Keep a migration manifest or script output in the phase notes so the classification is
     auditable.
@@ -81,7 +81,7 @@ Scope:
 Important implementation details:
 
 - `_build_epic_plan_ref()` must return `sdd/epics/{YYYYMM}/{name}.md` in version-controlled mode for epic actions.
-- Normal coder handoff should use `sdd/plans/...` for approved non-epic plans.
+- Normal coder handoff should use `sdd/tales/...` for approved non-epic plans.
 - Legacy path resolution is a compatibility feature only; new writes must not create root `plans/` or `specs/`.
 
 Validation:
@@ -131,7 +131,7 @@ Scope:
 - Update notification modal response writing so `legend` is persisted to `plan_response.json`.
 - Update `handle_plan_approval()` and `handle_plan_marker()` to understand `legend`.
 - Save plans based on action:
-  - `approve`/run: `sdd/plans/{YYYYMM}/...`
+  - `approve`/run: `sdd/tales/{YYYYMM}/...`
   - `epic`: `sdd/epics/{YYYYMM}/...`
   - `legend`: `sdd/legends/{YYYYMM}/...`
 - Add a built-in `bd/new_legend` xprompt that creates a plan-type bead with `tier=legend`, links it to the legend file,
@@ -179,7 +179,7 @@ Owner: one agent in `sase_100`, with read-only scans of plugin/chezmoi repos unl
 Scope:
 
 - Update `docs/sdd.md`, `docs/beads.md`, README, `docs/xprompt.md`, and any current workflow docs to explain:
-  - `sdd/specs`, `sdd/plans`, `sdd/epics`, and `sdd/legends`;
+  - `sdd/specs`, `sdd/tales`, `sdd/epics`, and `sdd/legends`;
   - research remains top-level;
   - plan-like bead tiers;
   - linked epic command form using `--type plan(<plan_file>,<legend_bead_id>)`;
@@ -205,7 +205,7 @@ Scope:
 
 - Rebase or merge outputs from the prior phases and resolve any path/tier mismatches.
 - Run end-to-end local flows:
-  - normal approve writes `sdd/plans/...`;
+  - normal approve writes `sdd/tales/...`;
   - epic approve writes `sdd/epics/...`, creates `tier=epic`, and launches/prints `sase bead work`;
   - legend approve writes `sdd/legends/...`, creates `tier=legend`, and does not launch phase agents;
   - an epic plan with `legend_bead_id` creates its epic bead using `--type plan(<plan_file>,<legend_bead_id>)`;
@@ -219,7 +219,7 @@ Scope:
 Exit criteria:
 
 - New SDD writes use only `sdd/` or `.sase/sdd/`.
-- Existing epic plan files are in `sdd/epics/`; normal plans are in `sdd/plans/`; specs are in `sdd/specs/`.
+- Existing epic plan files are in `sdd/epics/`; normal plans are in `sdd/tales/`; specs are in `sdd/specs/`.
 - Plan approval has a working Legend action in the TUI, Telegram, and Google Chat.
 - Linked epic creation uses the requested `--type plan(<plan_file>,<legend_bead_id>)` syntax.
 - `sase bead work` remains epic-only and does not try to orchestrate legends.

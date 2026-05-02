@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agent_status_state_fix.md
+plan: sdd/tales/202604/agent_status_state_fix.md
 ---
  The agent statuses for this agent (see the `sase ace` snapshot below) are all messed up. "QUESTION" should be "PLAN APPROVED" since I already approved the plan (after answering a question) and the `1/1.plan` agent that shows
 as "PLANNING" should show as "DONE". Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

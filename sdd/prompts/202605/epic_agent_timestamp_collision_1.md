@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/epic_agent_timestamp_collision_1.md
+plan: sdd/tales/202605/epic_agent_timestamp_collision_1.md
 ---
  Our epic integration didn't start agents for phase beads sase-1u.7 and sase-1u.8 for some reason (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix
 it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_default_branch_detection.md
+plan: sdd/tales/202604/fix_default_branch_detection.md
 ---
 The user sent an image via Telegram with the following caption:
 

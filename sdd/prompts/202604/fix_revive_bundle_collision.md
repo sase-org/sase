@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_revive_bundle_collision.md
+plan: sdd/tales/202604/fix_revive_bundle_collision.md
 ---
 Why do I keep getting this "No dismissed agents in this scope" message when i use the `R` (revive) option on the
 "Agents" tab of the `sase ace` TUI? I should have plenty of dismissed agents to choose from. Can you help me diagnose

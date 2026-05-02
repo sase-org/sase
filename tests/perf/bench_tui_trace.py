@@ -1,6 +1,6 @@
 """Phase 1 synthetic-data benchmark harness for the ace TUI.
 
-Bead sase-w.1 / sdd/plans/202604/tui_perf_overhaul_1.md.
+Bead sase-w.1 / sdd/tales/202604/tui_perf_overhaul_1.md.
 
 Drives the ace TUI through ``Pilot`` with ``SASE_TUI_TRACE=1`` (and the
 existing ``SASE_TUI_PERF=1`` for j/k key-to-paint samples) enabled, against

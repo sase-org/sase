@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/kill_dismiss_all.md
+plan: sdd/tales/202604/kill_dismiss_all.md
 ---
 Can you help me add a new `,X` (kill/dismiss all) keymap on the "Agents" tab of the `sase ace` TUI?
 

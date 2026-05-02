@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/chop_gate.md
+plan: sdd/tales/202604/chop_gate.md
 ---
 Why did this agent (see the `sase ace` snapshot below) run? The agent in the xprompts/pylimit_split.yml xprompt workflow
 should only run when the `pylimit_files` script outputs file paths. Can you help me diagnose the root cause of this

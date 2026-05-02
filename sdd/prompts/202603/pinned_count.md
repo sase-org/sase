@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/pinned_count.md
+plan: sdd/tales/202603/pinned_count.md
 ---
 Only main agent/workflow entries in the "Pinned" panel should be included in the count in the title. Workflow steps
 should NOT be counted (see the `sase ace` snapshot below). Can you help me fix this? Also, fix this same issue for the

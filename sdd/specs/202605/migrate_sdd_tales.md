@@ -1,1 +1,1 @@
-  #resume:vx I love it. Can you migrate sdd/plans/ to sdd/tales/? Make sure you update all references. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+  #resume:vx I love it. Can you migrate sdd/tales/ to sdd/tales/? Make sure you update all references. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

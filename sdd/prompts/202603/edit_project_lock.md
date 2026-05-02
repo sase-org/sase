@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/edit_project_lock.md
+plan: sdd/tales/202603/edit_project_lock.md
 ---
 Can you help me start "locking" (you figure out how to do this. Just make sure that this doesn't block all projects,
 only the one corresponding with the file that I have opened) the project spec file when I open it up using the 'e'

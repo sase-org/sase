@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_pr_diff.md
+plan: sdd/tales/202603/fix_pr_diff.md
 ---
 The `d` keymap on the "Cls" tab of the `sase ace` TUI is only showing the diff of the last commit when it should be
 showing the diff of the entire PR. I'm pretty sure this is only happening for the Git and GitHub VCS providers. Can you

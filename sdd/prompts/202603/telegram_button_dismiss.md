@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/telegram_button_dismiss.md
+plan: sdd/tales/202603/telegram_button_dismiss.md
 ---
 The user sent an image via Telegram with the following caption:
 

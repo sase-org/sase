@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/exclude_pinned_from_agent_count.md
+plan: sdd/tales/202604/exclude_pinned_from_agent_count.md
 ---
 Can you help me stop including the pinned agent/workflow entries in the count of agents in the main side-panel on the
 "Agents" tab of the `sase ace` TUI? For example, in the below `sase ace` snapshot, `Agents: 1/2` should be

@@ -139,6 +139,18 @@ def test_find_sdd_file_legacy_yyyymm() -> None:
         assert result == base / "plans" / "202603" / "my_plan.md"
 
 
+def test_find_sdd_file_plans_alias_finds_canonical_tales() -> None:
+    """Legacy ``plans`` kind resolves the canonical ``sdd/tales`` location."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "sdd" / "tales" / "202603").mkdir(parents=True)
+        canonical = base / "sdd" / "tales" / "202603" / "my_plan.md"
+        canonical.write_text("plan", encoding="utf-8")
+
+        result = find_sdd_file(base, "plans", "my_plan.md")
+        assert result == canonical
+
+
 def test_find_sdd_file_prefers_flat() -> None:
     """find_sdd_file prefers flat path over YYYYMM when both exist."""
     with tempfile.TemporaryDirectory() as tmpdir:

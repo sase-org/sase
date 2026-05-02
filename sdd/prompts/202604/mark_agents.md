@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/mark_agents.md
+plan: sdd/tales/202604/mark_agents.md
 ---
 Can you help me add support for marking agent/workflow entries from the "Agents" tab of the `sase ace` TUI using a new
 `m` (mark) keymap? If the user then uses the `x` (kill/dismiss) keymap, all marked entries should be killed/dismissed.

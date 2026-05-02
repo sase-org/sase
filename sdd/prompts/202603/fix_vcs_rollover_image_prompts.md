@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_vcs_rollover_image_prompts.md
+plan: sdd/tales/202603/fix_vcs_rollover_image_prompts.md
 ---
 The user sent an image via Telegram with the following caption:
 

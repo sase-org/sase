@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_strip_pr_tags_blank_lines.md
+plan: sdd/tales/202603/fix_strip_pr_tags_blank_lines.md
 ---
 Why is BUG attached to this new ChangeSpec that I created on another machine? No PR tags should be included in the
 DESCRIPTION field value for ChangeSpecs. Can you help me diagnose the root cause of this issue and fix it? Think this

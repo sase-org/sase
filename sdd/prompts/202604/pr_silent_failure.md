@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/pr_silent_failure.md
+plan: sdd/tales/202604/pr_silent_failure.md
 ---
 The user sent an image via Telegram with the following caption:
 

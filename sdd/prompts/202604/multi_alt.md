@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/multi_alt.md
+plan: sdd/tales/202604/multi_alt.md
 ---
 I just tried to use multiple `%(...)` alternation directives in the same prompt and got the error shown in the
 ~/tmp/mult_alt_error.txt file. Can you help me add support for multiple `alt` directives in the same prompt, which

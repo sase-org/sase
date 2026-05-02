@@ -33,7 +33,7 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     )
     posted.clear()
 
-    # Phase 2 of sdd/plans/202604/tui_selection_drift.md: the programmatic
+    # Phase 2 of sdd/tales/202604/tui_selection_drift.md: the programmatic
     # flag now clears synchronously inside ``update_highlight`` so the
     # window between highlight-set and flag-clear is closed before
     # Textual's message pump can fire a phantom OptionHighlighted.

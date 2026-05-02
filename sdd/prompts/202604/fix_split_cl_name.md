@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_split_cl_name.md
+plan: sdd/tales/202604/fix_split_cl_name.md
 ---
 Can you help me fix the `#split` xprompt workflow (defined in the ../sase-google repo)? See the command output below for
 reference. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

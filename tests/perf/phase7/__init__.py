@@ -1,9 +1,9 @@
 """Phase 7 measurement helpers (sase-1e.1).
 
 Common metadata, artifact-naming, and ratio helpers shared by every
-Phase 7 measurement (`sdd/plans/202604/rust_backend_phase7.md`). Phase 7B/7C
+Phase 7 measurement (`sdd/tales/202604/rust_backend_phase7.md`). Phase 7B/7C
 agents call into this package so every artifact under
-`sdd/plans/202604/perf_artifacts/` carries the same envelope and Phase 7D/7E
+`sdd/tales/202604/perf_artifacts/` carries the same envelope and Phase 7D/7E
 can compare them apples-to-apples.
 
 Public API

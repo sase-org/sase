@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/changespec_suffix_match.md
+plan: sdd/tales/202604/changespec_suffix_match.md
 ---
 The `<enter>` keymap is not working to jump to the `tcpm_launch_tests` ChangeSpec (see the `sase ace` snapshot below). I
 think this is happening because the ChangeSpec that this CL created was actually named `tcpm_launch_tests_1`, but was

@@ -17,8 +17,8 @@ Two jobs failed:
 - `bead-backend`: `just rust-check` failed in the checked-out `sase-core` repo because clippy denied a redundant closure
   in `crates/sase_core/src/bead/read.rs`.
 
-The launch baseline exists under `sdd/plans/202605/perf_artifacts/agent_launch_phase1_baseline.json`, and the workflow
-already uploads the report from `sdd/plans/202605/perf_artifacts/agent_launch_regression_check.json`. The checker still
+The launch baseline exists under `sdd/tales/202605/perf_artifacts/agent_launch_phase1_baseline.json`, and the workflow
+already uploads the report from `sdd/tales/202605/perf_artifacts/agent_launch_regression_check.json`. The checker still
 uses the pre-SDD-migration root `plans/` path.
 
 ## Plan
@@ -26,7 +26,7 @@ uses the pre-SDD-migration root `plans/` path.
 1. Fix the launch regression checker paths in this repo:
    - Update `tests/perf/check_agent_launch_regression.py` defaults from `REPO_ROOT / "plans" / ...` to
      `REPO_ROOT / "sdd" / "plans" / ...`.
-   - Add or update a focused unit test proving the committed default baseline/report paths live under `sdd/plans`.
+   - Add or update a focused unit test proving the committed default baseline/report paths live under `sdd/tales`.
 
 2. Fix the Rust core clippy failure in the sibling repo:
    - Update `../sase-core/crates/sase_core/src/bead/read.rs` to pass the predicate function directly to `.filter()`
@@ -35,7 +35,7 @@ uses the pre-SDD-migration root `plans/` path.
 
 3. Verify locally:
    - Run the focused Python regression-check tests.
-   - Run `just launch-perf-check` to confirm the baseline file is found and the report is written under `sdd/plans`.
+   - Run `just launch-perf-check` to confirm the baseline file is found and the report is written under `sdd/tales`.
    - Run the focused Rust clippy/check command in `../sase-core` if practical, then run `just check` in this repo as
      required after edits.
 

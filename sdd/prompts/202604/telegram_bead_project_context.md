@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/telegram_bead_project_context.md
+plan: sdd/tales/202604/telegram_bead_project_context.md
 ---
  The user sent an image via Telegram with the following caption:
 

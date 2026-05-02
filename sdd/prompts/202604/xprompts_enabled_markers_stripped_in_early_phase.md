@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/xprompts_enabled_markers_stripped_in_early_phase.md
+plan: sdd/tales/202604/xprompts_enabled_markers_stripped_in_early_phase.md
 ---
 We should not run validation on `@` prefixed file references (e.g. checking that the file exists) when those references
 are wrapped using the `%xprompts_enabled` directive (see the `sase ace` snapshot below). Can you help me diagnose the

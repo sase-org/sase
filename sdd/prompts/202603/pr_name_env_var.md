@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/pr_name_env_var.md
+plan: sdd/tales/202603/pr_name_env_var.md
 ---
 This agent (see the `sase ace` snapshot below) decided to use its own CL name despite the fact that we gave "foobar" as
 the name argument for the embedded `#pr` xprompt workflow. Can you help me fix this using a new `$SASE_NAME` environment

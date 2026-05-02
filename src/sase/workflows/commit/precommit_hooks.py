@@ -151,7 +151,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         from sase.sdd.files import get_yyyymm
 
         yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
-        dest = os.path.join(cwd, "sdd", "plans", yyyymm, os.path.basename(plan_path))
+        dest = os.path.join(cwd, "sdd", "tales", yyyymm, os.path.basename(plan_path))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for

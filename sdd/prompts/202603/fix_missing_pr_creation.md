@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_missing_pr_creation.md
+plan: sdd/tales/202603/fix_missing_pr_creation.md
 ---
 Can you help me fix this (see the `sase ace` snapshot below for context)? Think this through thoroughly and create a
 plan using your `/sase_plan` skill before making any file changes.

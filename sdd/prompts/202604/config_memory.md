@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/config_memory.md
+plan: sdd/tales/202604/config_memory.md
 ---
 Can you help me create a new memory/long/config.md long-term memory file that describes sase's configuration system?
 Make sure to do some research on best practices regarding AGENTS.md contents before deciding on your solution (see the

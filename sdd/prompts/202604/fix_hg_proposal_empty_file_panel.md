@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_hg_proposal_empty_file_panel.md
+plan: sdd/tales/202604/fix_hg_proposal_empty_file_panel.md
 ---
  This agent (see the `sase ace` snapshot below) created a proposal properly, but I don't see the diff in the file panel. This agent was run on another machine that uses the ../sase-google repo. Can you help me diagnose the
 root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

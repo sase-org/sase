@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/epic_phase_vcs_prompts.md
+plan: sdd/tales/202605/epic_phase_vcs_prompts.md
 ---
  It looks like phase agents (started by our epic integration) are being started from the home directory (see the `sase ace` snapshot below). Can you help me fix this by always embedding the proper
 `#<vcs>:<project>` VCS xprompt workflow at the start of each phase/land bead's prompt? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

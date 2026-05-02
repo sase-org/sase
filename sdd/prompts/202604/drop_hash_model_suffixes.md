@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/drop_hash_model_suffixes.md
+plan: sdd/tales/202604/drop_hash_model_suffixes.md
 ---
  #resume:dh.code Can we lose the "#" prefix from the short provider names (see the `sase ace` snapshot below)? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

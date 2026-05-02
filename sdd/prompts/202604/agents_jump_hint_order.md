@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agents_jump_hint_order.md
+plan: sdd/tales/202604/agents_jump_hint_order.md
 ---
  The hints shown when I use the "`" keymap on the "Agents" tab of the `sase ace`TUI should be sorted, but they are not (see the`sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

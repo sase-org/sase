@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/unify_agent_display.md
+plan: sdd/tales/202603/unify_agent_display.md
 ---
 This agent entry (see the `sase ace` snapshot below) is from a `sase run` instance. Can you help me start showing the
 same information for agent entries regardless of whether they were run from within the TUI, by `sase run`, or by

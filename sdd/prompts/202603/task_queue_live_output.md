@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/task_queue_live_output.md
+plan: sdd/tales/202603/task_queue_live_output.md
 ---
 Why am I not seeing the live output from the selected background command on the new background command panel (see
 recent, related git commits)? Can you help me diagnose the root cause of this issue and fix it? Think this through

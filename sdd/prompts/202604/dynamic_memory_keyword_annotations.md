@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_keyword_annotations.md
+plan: sdd/tales/202604/dynamic_memory_keyword_annotations.md
 ---
 Can you help me add some indication to what keyword caused each DYNAMIC MEMORY file (see the `sase ace` snapshot below,
 for example) to be injected into the prompt? I want you to lead the design on this one. Make sure you design this

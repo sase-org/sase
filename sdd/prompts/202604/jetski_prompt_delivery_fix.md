@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/jetski_prompt_delivery_fix.md
+plan: sdd/tales/202604/jetski_prompt_delivery_fix.md
 ---
 It doesn't look like the jetski integration is working properly (see the `sase ace` snapshot below). Can you help me
 diagnose the root cause of this issue and fix it? This issue is occurring on another machine that uses the

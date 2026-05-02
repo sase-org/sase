@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/project_local_xprompts_in_panels.md
+plan: sdd/tales/202603/project_local_xprompts_in_panels.md
 ---
 When I type the following in the prompt input widget, the xprompt selection panel showed, but none of the xprompts in
 the sase repo's local sase.yml file (ex: `#sase/docs`) showed in the panel: `gh:sase #@` We should make sure that, if a

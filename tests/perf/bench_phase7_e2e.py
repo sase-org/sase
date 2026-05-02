@@ -1,6 +1,6 @@
 """Phase 7C end-to-end TUI/CLI startup measurements.
 
-Bead ``sase-1e.3`` / ``sdd/plans/202604/rust_backend_phase7.md``. Captures
+Bead ``sase-1e.3`` / ``sdd/tales/202604/rust_backend_phase7.md``. Captures
 user-facing surfaces (``sase ace`` cold-open, ``sase agents status -j``
 listing, ``sase run`` startup up to the provider boundary) under both
 backends so Phase 7D can describe what users actually pay before any LLM
@@ -56,7 +56,7 @@ from tests.perf.phase7 import BackendChoice, artifact_path, build_metadata
 
 
 # Surface identifiers — must match the labels locked in
-# ``sdd/plans/202604/perf_artifacts/README.md``.
+# ``sdd/tales/202604/perf_artifacts/README.md``.
 SURFACE_ACE = "sase_ace_cold_open"
 SURFACE_AGENTS = "sase_agents_status_listing"
 SURFACE_RUN = "sase_run_startup"
@@ -507,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Override output path. Defaults to "
-            "sdd/plans/202604/perf_artifacts/"
+            "sdd/tales/202604/perf_artifacts/"
             "rust_backend_phase7_<surface>_<backend>.json."
         ),
     )

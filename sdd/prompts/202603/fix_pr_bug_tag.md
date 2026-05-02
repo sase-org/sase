@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_pr_bug_tag.md
+plan: sdd/tales/202603/fix_pr_bug_tag.md
 ---
 Can you help me figure out when we stopped adding the `BUG=<bug_id>` PR tag to PR descriptions when creating them with
 the `#pr` xprompt workflow and fix this? This PR tag should be added with the `#pr` xprompt's `bug_id` input is set. I

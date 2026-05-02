@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/gemini_commit_dispatch.md
+plan: sdd/tales/202603/gemini_commit_dispatch.md
 ---
 This agent failed to create a new CL, despite the fact that it's prompt contained the `#pr` xprompt. This issue is
 occurring on another machine that uses the ../sase-google plugin. I've saved a `sase logs` logpack to the

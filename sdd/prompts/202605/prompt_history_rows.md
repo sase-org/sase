@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/prompt_history_rows.md
+plan: sdd/tales/202605/prompt_history_rows.md
 ---
  Can you help me make the entries in the prompt history panel MUCH easier to reason about by fitting them all on one line and adding some more (compact) data to that line (ex: the datetime that
 prompt was run)? I've pasted a snapshot of what the prompt history panel looks like currently below for reference. I want you to lead the design on this one. Just make sure it looks beautiful! Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_orphaned_reservations.md
+plan: sdd/tales/202603/fix_orphaned_reservations.md
 ---
 This agent (see the `sase ace` snapshot below) didn't create a PR and only created a ChangeSpec with a "Reserved"
 STATUS. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a

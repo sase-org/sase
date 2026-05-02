@@ -25,7 +25,7 @@ beads can represent ordinary plans, executable epics, or non-executable legends 
 
 ```bash
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(sdd/plans/202605/feature.md)" --tier plan
+sase bead create -t "New feature" --type "plan(sdd/tales/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(sdd/epics/202605/epic.md)" --tier epic
 sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend
 sase bead create -t "Linked epic" --type "plan(sdd/epics/202605/epic.md,<legend-id>)" --tier epic
@@ -61,7 +61,7 @@ Plan beads carry a tier:
 
 | Tier     | SDD Path                    | Behavior                                                           |
 | -------- | --------------------------- | ------------------------------------------------------------------ |
-| `plan`   | `sdd/plans/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                |
+| `plan`   | `sdd/tales/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                |
 | `epic`   | `sdd/epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`           |
 | `legend` | `sdd/legends/{YYYYMM}/*.md` | Higher-level coordination plan; does not run phase agents directly |
 
@@ -320,6 +320,6 @@ plan.
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval, **E** (Epic), and **L** (Legend) actions. Normal approval saves
-to `sdd/plans/`, Epic saves to `sdd/epics/` and launches the epic follow-up that creates an `epic`-tier plan bead plus
+to `sdd/tales/`, Epic saves to `sdd/epics/` and launches the epic follow-up that creates an `epic`-tier plan bead plus
 phase beads, and Legend saves to `sdd/legends/` and launches a legend follow-up that creates a `legend`-tier plan bead
 without phase agents.

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_cls_auto_refresh_visibility.md
+plan: sdd/tales/202604/fix_cls_auto_refresh_visibility.md
 ---
  I can't see the "auto-refresh" line in the TUI on the CLs tab anymore (see the `sase ace` snapshot below). Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  
@@ -37,7 +37,7 @@ plan: sdd/plans/202604/fix_cls_auto_refresh_visibility.md
 │                                                              ││  │    (2) Update Roblox buyer allowlist SQL script with missing 3P buyers  [+4 lines]                                                                                         │    │
 │                                                              ││  │        | CHAT: ~/.sase/chats/202604/bug_roblox_buyer_block_4-ace_run-260428_160154.md (32m31s)                                                                             │    │
 │                                                              ││  │        | DIFF: ~/.sase/projects/bug/artifacts/ace-run/20260428161830/commit_diff.diff                                                                                      │    │
-│                                                              ││  │        | PLAN: /google/src/cloud/bbugyi/bug/google3/.sase/sdd/plans/202604/roblox_buyer_allowlist.md                                                                       │    │
+│                                                              ││  │        | PLAN: /google/src/cloud/bbugyi/bug/google3/.sase/sdd/tales/202604/roblox_buyer_allowlist.md                                                                       │    │
 │                                                              ││  │  HOOKS:                                                                                                                                                                    │    │
 │                                                              ││  │    !$sase_google_presubmit  [folded: PASSED: 1 2]                                                                                                                          │    │
 │                                                              ││  │    $sase_google_lint  [folded: PASSED: 1 2]                                                                                                                                │    │

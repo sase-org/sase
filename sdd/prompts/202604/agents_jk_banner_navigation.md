@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agents_jk_banner_navigation.md
+plan: sdd/tales/202604/agents_jk_banner_navigation.md
 ---
  It doesn't seem like navigation between different nested agent groups (see plans/202604/agents_tab_nested_groups.md for context) using the `j`/`k` keymaps is working (see the `sase ace` snapshot below). Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

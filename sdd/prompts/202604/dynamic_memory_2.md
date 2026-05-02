@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_2.md
+plan: sdd/tales/202604/dynamic_memory_2.md
 ---
 Can you help me implement a solution for memory/dynamic.md (see the @research/202604/dynamic_memory_implementation.md file for
 relevant research--let's go with something like the recommended solution)? git should ignore this file. It should be

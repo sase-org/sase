@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/axe_memory.md
+plan: sdd/tales/202604/axe_memory.md
 ---
 Can you help me drastically improve the axe long-term memory file by reviewing related code and related chat transcripts
 in the ~/.sase/chats/ directory? Your goal is to add any important but non-obvious domain knowledge and also any gotchas

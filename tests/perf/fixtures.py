@@ -1,6 +1,6 @@
 """Synthetic-data fixture builders for the TUI performance harness.
 
-Phase 1 of sdd/plans/202604/tui_perf_overhaul_1.md (bead sase-w.1). Generates
+Phase 1 of sdd/tales/202604/tui_perf_overhaul_1.md (bead sase-w.1). Generates
 in-memory ``ChangeSpec`` and ``Agent`` lists at the sizes the perf runbook
 expects (100 / 500 / 2,000 ChangeSpecs, 50 / 200 / 1,000 agents) plus
 helpers for synthetic large-reply payloads (1 MB / 5 MB / 20 MB). Kept

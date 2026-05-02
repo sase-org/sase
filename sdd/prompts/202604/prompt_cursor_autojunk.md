@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/prompt_cursor_autojunk.md
+plan: sdd/tales/202604/prompt_cursor_autojunk.md
 ---
 Something is wrong with the prompt input widget's auto-wrap / prettier functionality again. Sometimes we split the
 current line while I'm typing and the next few letters I type end up in the wrong place. See the `sase ace` snapshot

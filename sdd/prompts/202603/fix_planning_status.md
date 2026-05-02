@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_planning_status.md
+plan: sdd/tales/202603/fix_planning_status.md
 ---
 Why does this agent (see the `sase ace` snapshot below) show as "PLANNING" when an agent step (that is expected to
 produce a plan) is still RUNNING? Can you help me fix this? The parent agent should always show as RUNNING too! Think

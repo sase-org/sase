@@ -11,9 +11,10 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.sdd.frontmatter import set_frontmatter_fields
 
-PLAN_KINDS = ("plans", "epics", "legends")
+PLAN_KINDS = ("tales", "epics", "legends")
+LEGACY_PLAN_KINDS = ("plans",)
 PROMPT_KINDS = ("prompts", "specs")
-LIST_KINDS = ("prompts", "plans", "epics", "legends")
+LIST_KINDS = ("prompts", "tales", "epics", "legends")
 Severity = Literal["error", "warning"]
 
 
@@ -226,10 +227,18 @@ def validate_sdd_tree(
 
 def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
     """Return known SDD markdown files under ``root``."""
+    if kind == "plans":
+        kind = "tales"
     kinds = LIST_KINDS if kind == "all" else (kind,)
     files: list[_SddFile] = []
     for item_kind in kinds:
-        scan_kinds = PROMPT_KINDS if item_kind == "prompts" else (item_kind,)
+        scan_kinds: tuple[str, ...]
+        if item_kind == "prompts":
+            scan_kinds = PROMPT_KINDS
+        elif item_kind == "tales":
+            scan_kinds = ("tales", *LEGACY_PLAN_KINDS)
+        else:
+            scan_kinds = (item_kind,)
         for physical_kind in scan_kinds:
             kind_root = root / physical_kind
             if not kind_root.is_dir():
@@ -391,6 +400,20 @@ def _resolve_link_path(root: Path, link: str) -> Path:
     for candidate in candidates:
         if candidate.exists():
             return candidate
+    for prefix in ("sdd/plans/", ".sase/sdd/plans/", "plans/"):
+        if link.startswith(prefix):
+            alias_path = Path(
+                link.replace(prefix, prefix.replace("plans/", "tales/"), 1)
+            )
+            alias_candidates = [
+                root / alias_path,
+                root.parent / alias_path,
+                root.parent.parent / alias_path,
+                Path.cwd() / alias_path,
+            ]
+            for candidate in alias_candidates:
+                if candidate.exists():
+                    return candidate
     if link.startswith("sdd/") or link.startswith(".sase/sdd/"):
         return root.parent / link_path
     return root / link_path
@@ -501,5 +524,5 @@ def _strict_severity(strict: bool) -> Severity:
 
 def _looks_like_project_root(path: Path) -> bool:
     return (path / "sdd").is_dir() and not any(
-        (path / kind).is_dir() for kind in LIST_KINDS
+        (path / kind).is_dir() for kind in (*LIST_KINDS, *LEGACY_PLAN_KINDS)
     )

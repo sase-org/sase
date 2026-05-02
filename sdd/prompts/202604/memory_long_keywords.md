@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/memory_long_keywords.md
+plan: sdd/tales/202604/memory_long_keywords.md
 ---
 Can you help me add support for the `keywords` field in the frontmatter of memory/long/ files, which might live in the
 top-level directory of a project directory or in a global or project-local .claude/, .gemini/, or .codex/ directory?

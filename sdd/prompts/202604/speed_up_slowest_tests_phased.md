@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/speed_up_slowest_tests_phased.md
+plan: sdd/tales/202604/speed_up_slowest_tests_phased.md
 ---
  I've listed all of the slowest tests in our test suite below. Can you help me make these faster? This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
 keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `gemini` /

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/rename_timestamps.md
+plan: sdd/tales/202604/rename_timestamps.md
 ---
 Can you help me start adding "RENAME" lines / entries to the TIMESTAMPS ChangeSpec field when renaming a ChangeSpec
 using the `n` keymap on the "CLs" tab of the `sase ace` TUI? I want you to lead the design on this one. Just make sure

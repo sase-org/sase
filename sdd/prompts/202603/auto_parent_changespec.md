@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/auto_parent_changespec.md
+plan: sdd/tales/202603/auto_parent_changespec.md
 ---
 This ChangeSpec (see the `sase ace` snapshot below) was created by running `sase commit` from a branch that is
 associated with a ChangeSpec. This should ALWAYS result in the created ChangeSpec being associated with the the other
@@ -22,7 +22,7 @@ currently. Can you help me fix this? Think this through thoroughly and create a 
 │                                                                  ││  │  DESCRIPTION:                                                                                                                                                          │    │
 │                                                                  ││  │    [pat] Fix flaky Scuba chart test by disabling animations and exposing an animate input.                                                                             │    │
 │                                                                  ││  │                                                                                                                                                                        │    │
-│                                                                  ││  │    PLAN=.sase/sdd/plans/fix_flaky_scuba_test.md                                                                                                                        │    │
+│                                                                  ││  │    PLAN=.sase/sdd/tales/fix_flaky_scuba_test.md                                                                                                                        │    │
 │                                                                  ││  │  CL: http://cl/890253068                                                                                                                                               │    │
 │                                                                  ││  │  STATUS: Draft                                                                                                                                                         │    │
 │                                                                  ││  │  COMMITS:                                                                                                                                                              │    │

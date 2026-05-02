@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/multi_model_directive.md
+plan: sdd/tales/202604/multi_model_directive.md
 ---
 Can you help me start supporting multiple 'model' directives in the same prompt? Currently, we validate that this can
 never be the case, but I want to start allowing this and treating it as if a single model directive was used that

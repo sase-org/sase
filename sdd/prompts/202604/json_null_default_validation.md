@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/json_null_default_validation.md
+plan: sdd/tales/202604/json_null_default_validation.md
 ---
 Can you help me fix this error I'm seeing when using the `#split` xprompt workflow (defined in the ../sase-google repo)
 on another machine? It should be fine that the `#split_spec_generator` agent produced `parent: None` or `parent: null`

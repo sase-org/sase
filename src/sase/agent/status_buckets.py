@@ -45,7 +45,7 @@ _TERMINAL_STATUSES: frozenset[str] = frozenset(
 )
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from
-# sdd/plans/202604/agents_tab_query_filters.md — covers the statuses where the
+# sdd/tales/202604/agents_tab_query_filters.md — covers the statuses where the
 # agent is paused awaiting user input rather than running or terminal.
 _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
     {"QUESTION", "WAITING INPUT", "PLAN APPROVED"}

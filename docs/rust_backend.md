@@ -287,7 +287,7 @@ sibling checkout are never blocked.
 
 Phase 7 captured a deliberate measurement pass after the Rust default flip; Phase 8 then deleted the Python halves of
 the ported operations, so the historical Python comparisons are frozen evidence rather than live measurements. The raw
-JSON artifacts live under `sdd/plans/202604/perf_artifacts/`; the tables below summarize the medians a reader should
+JSON artifacts live under `sdd/tales/202604/perf_artifacts/`; the tables below summarize the medians a reader should
 expect when running the same harnesses against the same Rust extension.
 
 ### Workstation profile
@@ -307,7 +307,7 @@ Rust. `speedup` reads `python_median / rust_median` against those frozen Python 
 ### Core operations (Phase 7B microbenchmarks)
 
 Driver: `tests/perf/phase7/run_phase7b.py`. One `*_summary.json` artifact per shipped operation under
-`sdd/plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`; each artifact embeds the Phase 7A
+`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`; each artifact embeds the Phase 7A
 `Phase7Metadata` envelope, the relevant scenario summaries, and pre-computed `(workload, scenario)` comparison rows.
 
 | Operation                    | Workload                 | Scenario                   | py median (Phase 7B) | rust median |   speedup |
@@ -338,8 +338,8 @@ The full per-percentile data (min / median / p95 / max) is in each artifact's `w
 ### End-to-end TUI / CLI surfaces (Phase 7C)
 
 Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)` invocation under
-`sdd/plans/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents status` rows
-sit in the gitignored `sdd/plans/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific
+`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agents status` rows
+sit in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific
 tree.
 
 | Surface                      | Workload                          | runs |     rust | python (Phase 7B) |   speedup |
@@ -359,7 +359,7 @@ push the boundary further toward provider resolution without invalidating the co
 Driver: `tests/perf/bench_agent_launch.py`; regression check: `tests/perf/check_agent_launch_regression.py`. The harness
 uses temp ProjectSpec files and fake subprocess writes so it never starts an LLM CLI, but it now runs launch preparation
 through the production Rust binding. The committed Phase 1 baseline is
-`sdd/plans/202605/perf_artifacts/agent_launch_phase1_baseline.json`.
+`sdd/tales/202605/perf_artifacts/agent_launch_phase1_baseline.json`.
 
 The Phase 1 baseline intentionally includes parent-side fan-out sleeps: three-way `%model` and `%r` launches each spent
 about 2,001 ms in the parent before the migration. `just launch-perf-check` runs the current harness without those
@@ -405,7 +405,7 @@ route keep `must_beat_python: true` because both comparable rows are still produ
 `phase7-perf-floor` GitHub Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and
 uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 
-`sdd/plans/202605/perf_artifacts/agent_launch_phase1_baseline.json` pins the launch migration baseline. The
+`sdd/tales/202605/perf_artifacts/agent_launch_phase1_baseline.json` pins the launch migration baseline. The
 `launch-perf-floor` GitHub Actions job runs `just launch-perf-check` on every PR and uploads
 `agent_launch_regression_check.json` so a fan-out latency regression has a comparable report.
 

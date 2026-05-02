@@ -1,6 +1,6 @@
 ---
-create_time: 2026-05-01 23:34:34
-status: wip
+create_time: 2026-05-01 23:42:50
+status: done
 ---
 # Plan: Migrate SDD Plans To Tales
 

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_section_headers.md
+plan: sdd/tales/202604/dynamic_memory_section_headers.md
 ---
 Can you help me make sure that the dynamic memory files that sase generates (see recent, related git commits) properly
 separate and organize the contents from different memory xprompts? Think this through thoroughly and create a plan using

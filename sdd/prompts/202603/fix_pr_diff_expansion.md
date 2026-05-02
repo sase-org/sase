@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_pr_diff_expansion.md
+plan: sdd/tales/202603/fix_pr_diff_expansion.md
 ---
 It doesn't look like the `#pr_diff` xprompt (defined in the ../sase-github repo) is expanding here. Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

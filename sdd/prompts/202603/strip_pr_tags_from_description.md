@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/strip_pr_tags_from_description.md
+plan: sdd/tales/202603/strip_pr_tags_from_description.md
 ---
 We should NOT show include PR tags in a ChangeSpec DESCRIPTION field's value (see the `sase ace` snapshot below). Can
 you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

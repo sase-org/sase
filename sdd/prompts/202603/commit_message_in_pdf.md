@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/commit_message_in_pdf.md
+plan: sdd/tales/202603/commit_message_in_pdf.md
 ---
 we already include a diff of the changes an agent made if any in the PDF we create and send with the telegram agent
 completion message. Can you help me also start including in a section above that the full commit message that was made

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/status_background_task.md
+plan: sdd/tales/202604/status_background_task.md
 ---
 When we change the status of a ChangeSpec using the `s` keymap on the "CLs" tab of the `sase ace` TUI and that status
 transitino required checking out the corresponding PR (e.g. to rename it), sometimes it blocks the TUI for a while. Can

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_3.md
+plan: sdd/tales/202604/dynamic_memory_3.md
 ---
 #resume:j Great! Can you help me implement a solution now? Make sure you add excellent TUI support so it is clear what
 dynamic memory was constructed for each agent. I want you to lead the design on this one. Make sure you design this

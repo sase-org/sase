@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/prompt_history_project_fix.md
+plan: sdd/tales/202604/prompt_history_project_fix.md
 ---
 Why was this prompt (see the `sase ace` snapshot below) associated with the `yserve` project? It should have been
 associated with the `pat` project since the prompt contains `#hg:pat`. Can you help me diagnose the root cause of this

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/file_completion_delimiters.md
+plan: sdd/tales/202604/file_completion_delimiters.md
 ---
 When I use the `<ctrl+t>` keymap to trigger file completion from the prompt input widget, it doesn't work when my cursor
 is directly to the left of a "?" character (other characters probably have this problem too). Can you help me diagnose

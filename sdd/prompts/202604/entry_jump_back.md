@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/entry_jump_back.md
+plan: sdd/tales/202604/entry_jump_back.md
 ---
 Can you help me add a new hidden apostraphe (`'`) hint to the hints that are shown when using the `'` keymap (which
 shows hints next to the side-bar entries--works on all tabs)? If the user hits the `''` key twice, the idea is that they

@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def _commit_sdd_files(
-    workspace_dir: str, plan_name: str, *, plan_kind: str = "plans"
+    workspace_dir: str, plan_name: str, *, plan_kind: str = "tales"
 ) -> None:
     """Commit SDD prompt and plan files via ``sase commit`` before launching the epic agent.
 
@@ -231,7 +231,7 @@ def _plan_kind_for_action(action: str) -> str:
         return "epics"
     if action == "legend":
         return "legends"
-    return "plans"
+    return "tales"
 
 
 def _build_saved_plan_ref(

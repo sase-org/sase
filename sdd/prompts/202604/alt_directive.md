@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/alt_directive.md
+plan: sdd/tales/202604/alt_directive.md
 ---
 Can you help me add support for a new `%alt(<text1>,<text2>,<...>)` directive for sase prompts? When the syntax is used
 we should run multiple agents one for each text variation that was provided. We should migrate the behavior when `%m` is

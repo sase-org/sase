@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/repeat_fanout_name_collision_from_telegram.md
+plan: sdd/tales/202604/repeat_fanout_name_collision_from_telegram.md
 ---
  The user sent an image via Telegram with the following caption:
 

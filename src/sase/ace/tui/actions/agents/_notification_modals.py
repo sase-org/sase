@@ -371,7 +371,7 @@ def _plan_kind_for_action(action: str) -> str:
         return "epics"
     if action == "legend":
         return "legends"
-    return "plans"
+    return "tales"
 
 
 def _archive_plan_for_approval(

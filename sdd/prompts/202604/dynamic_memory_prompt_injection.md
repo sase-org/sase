@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_prompt_injection.md
+plan: sdd/tales/202604/dynamic_memory_prompt_injection.md
 ---
 #resume:q Actually, I just decided that it would be better if we just construct the dynamic memory and put it in a temp
 file (I think we have an environment variable that we use to decide what the temp directory should be) that gets

@@ -348,7 +348,7 @@ class PanelsMixin:
             pass
 
     # ---------------------------------------------------------------------
-    # Incremental row removal (Phase 4 of sdd/plans/202604/tui_perf_v2.md)
+    # Incremental row removal (Phase 4 of sdd/tales/202604/tui_perf_v2.md)
     # ---------------------------------------------------------------------
 
     def _try_remove_agent_rows(
@@ -435,7 +435,7 @@ class PanelsMixin:
         - the AgentList widget rejects the patch (alignment width grew,
           row index drifted, etc.).
 
-        Phase 3 of sdd/plans/202604/instant_jk_navigation.md: replaces
+        Phase 3 of sdd/tales/202604/instant_jk_navigation.md: replaces
         ``_refresh_agents_display(list_changed=True)`` for true
         single-row mutations (approve toggle, mark/unmark, single-tag
         edits) so the OptionList isn't rebuilt for an unchanged shape.

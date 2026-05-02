@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_hg_newline_in_note.md
+plan: sdd/tales/202603/fix_hg_newline_in_note.md
 ---
 Can you help me figure out what "newline" issue this agent (see the `sase ace` snapshot below) is experiencing, diagnose
 the root cause, and fix it? This issue is occurring on another machine that uses the ../sase-google plugin. I've saved a

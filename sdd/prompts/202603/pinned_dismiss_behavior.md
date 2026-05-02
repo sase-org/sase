@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/pinned_dismiss_behavior.md
+plan: sdd/tales/202603/pinned_dismiss_behavior.md
 ---
 Can you help me remove the "X" icon for agent/workflow entries on the "Agents" tab of the `sase ace` TUI that are in the
 "Pinned" panel? Also, when a pinned agent/workflow is selected, the `x` (dismiss) keymap should unpin the agent/workflow

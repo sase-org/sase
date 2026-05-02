@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/done_agents_release_auto_name.md
+plan: sdd/tales/202604/done_agents_release_auto_name.md
 ---
  I just launched a new agent (two new agents technically, using multiple `%m` directive arguments) that was given the name "bb" (see the `sase ace` snapshot below). These agents should have been given the name "a" since there
 is no agent on the Agents tab with the name "a" and that is the lowest, auto-assigned name we use. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

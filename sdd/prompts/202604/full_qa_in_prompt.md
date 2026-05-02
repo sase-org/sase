@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/full_qa_in_prompt.md
+plan: sdd/tales/202604/full_qa_in_prompt.md
 ---
  It doesn't look like we include the full question data (e.g. all pre-filled answer options should be shown, not just the accepted answer) in the new prompt after the user answers a question (see the `sase ace` snapshot
 below). Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

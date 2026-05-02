@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/jetski_coder_dispatch.md
+plan: sdd/tales/202604/jetski_coder_dispatch.md
 ---
 It looks like our new jetski LLM provider doesn't work when launched as a coder that implements a plan (see the
 `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix it? Think this through

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/hide_agent_attempt_rows.md
+plan: sdd/tales/202604/hide_agent_attempt_rows.md
 ---
  Can you help me stop showing the attempt lines in the agent list on the "Agents" tab of the `sase ace` TUI (see
 the `sase ace` snapshot below)? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

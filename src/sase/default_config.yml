@@ -351,7 +351,7 @@ xprompts:
     input:
       file_base: word
     content: |
-      Can you review the requirements in the @sdd/prompts/**/{{ file_base }}.md file against the plan in the @sdd/plans/**/{{ file_base }}.md
+      Can you review the requirements in the @sdd/prompts/**/{{ file_base }}.md file against the plan in the @sdd/tales/**/{{ file_base }}.md
       file and ensure that the following qualities are met?:
 
         1. ALL requirements in the prompt file have been satisified.

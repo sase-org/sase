@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/gemini_afteragent_stop_hooks.md
+plan: sdd/tales/202603/gemini_afteragent_stop_hooks.md
 ---
 Can you help me figure out why the `sase_commit_stop_hook` doesn't seem to have triggered this Gemini agent (see the
 `sase ace` snapshot below) to create a commit using its `/sase_hg_commit` skill? It looks like the

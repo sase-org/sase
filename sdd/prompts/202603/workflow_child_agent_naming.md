@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/workflow_child_agent_naming.md
+plan: sdd/tales/202603/workflow_child_agent_naming.md
 ---
 We start multiple agents under the same workflow when agents create plans or ask questions or when the user gives
 feedback on a plan. This works well mostly, but there is a problem with agent names.

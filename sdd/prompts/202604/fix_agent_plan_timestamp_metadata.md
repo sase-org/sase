@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_agent_plan_timestamp_metadata.md
+plan: sdd/tales/202604/fix_agent_plan_timestamp_metadata.md
 ---
  We don't seem to be saving a PLAN "Timestamps:" entry in the agent metadata panel on the "Agents" tab of the `sase ace` TUI (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix
 it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/inherit_parent_pr_tags.md
+plan: sdd/tales/202604/inherit_parent_pr_tags.md
 ---
 Can you help me make it so that when `sase commit` creates a new PR, we re-use all of the PR tags found in the parent PR
 (if there is a parent PR) description? For example, if a PR has a `FOO=bar` tag in its description and we use the

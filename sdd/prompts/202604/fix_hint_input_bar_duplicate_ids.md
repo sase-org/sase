@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_hint_input_bar_duplicate_ids.md
+plan: sdd/tales/202604/fix_hint_input_bar_duplicate_ids.md
 ---
 Can you help me fix the below TUI crash? Think this through thoroughly and create a plan using your `/sase_plan` skill
 before making any file changes.
@@ -57,7 +57,7 @@ before making any file changes.
 │ │                      │   │   │   note='Fix Deal Check Line Chart UI Size Issue',                                                                                                                                                               │ │
 │ │                      │   │   │   chat='~/.sase/chats/pat_style_line_chart-ace_run-260409_195959.md (29m45s)',                                                                                                                                  │ │
 │ │                      │   │   │   diff='/usr/local/google/home/bbugyi/.sase/projects/pat/artifacts/ace-run/2026040920131'+18,                                                                                                                   │ │
-│ │                      │   │   │   plan='/google/src/cloud/bbugyi/pat/google3/.sase/sdd/plans/202604/fix_line_chart_size.'+2,                                                                                                                    │ │
+│ │                      │   │   │   plan='/google/src/cloud/bbugyi/pat/google3/.sase/sdd/tales/202604/fix_line_chart_size.'+2,                                                                                                                    │ │
 │ │                      │   │   │   proposal_letter=None,                                                                                                                                                                                         │ │
 │ │                      │   │   │   suffix=None,                                                                                                                                                                                                  │ │
 │ │                      │   │   │   suffix_type=None,                                                                                                                                                                                             │ │

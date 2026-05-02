@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_coder_prompt_too_long_retry.md
+plan: sdd/tales/202604/fix_coder_prompt_too_long_retry.md
 ---
 I just had another claude agent fail with the "Prompt too long" error (see the `sase ace` snapshot below). I thought we
 set up retries for this. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly

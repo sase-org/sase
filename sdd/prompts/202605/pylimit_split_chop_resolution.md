@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/pylimit_split_chop_resolution.md
+plan: sdd/tales/202605/pylimit_split_chop_resolution.md
 ---
  Something is wrong with the pylimit_split chop we have configured in my chezmoi repo (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

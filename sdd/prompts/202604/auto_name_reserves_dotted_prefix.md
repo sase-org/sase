@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/auto_name_reserves_dotted_prefix.md
+plan: sdd/tales/202604/auto_name_reserves_dotted_prefix.md
 ---
  It looks like the auto-assigned agent names, which use the smallest sequence of available letters possible, does not treat `<name>` as reserved when names of the form `<name>.<llm>` are used (see the `sase ace` snapshot below).
 Can you help me fix this so we only use the auto-assigned `<name>` for a new agent if no agent currently exists on the Agents tab with a name of the form `<name>.*`? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

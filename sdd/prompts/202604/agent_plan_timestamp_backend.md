@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agent_plan_timestamp_backend.md
+plan: sdd/tales/202604/agent_plan_timestamp_backend.md
 ---
  We still don't seem to be adding the "PLAN" "Timestamps:" field entry to the agent metadata panel on the "Agents" tab of the `sase ace` TUI (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this
 issue and fix it? I think this might only be affecting Codex, but you should verify this. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

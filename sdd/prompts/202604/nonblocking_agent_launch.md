@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/nonblocking_agent_launch.md
+plan: sdd/tales/202604/nonblocking_agent_launch.md
 ---
 When I pass multiple models to the `%model` directive, we run one agent per model argument. This works well, but it
 takes a few seconds after the user hits `<enter>` from the prompt input widget before the user's thread is unblocked

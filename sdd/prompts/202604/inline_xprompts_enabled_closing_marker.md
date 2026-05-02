@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/inline_xprompts_enabled_closing_marker.md
+plan: sdd/tales/202604/inline_xprompts_enabled_closing_marker.md
 ---
 We should NOT perform any `@` file reference validation on a part of the prompt that is wrapped using the
 `%xprompts_enabled` directive (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue

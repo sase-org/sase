@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/vcs_aware_tag_disambiguation.md
+plan: sdd/tales/202603/vcs_aware_tag_disambiguation.md
 ---
 Can you help me add a `#pr_diff` xprompt to the default_config.yml file in the ../sase-github repo (create this file if
 it doesn't already exist) that has the "diff_file" xprompt tag? We'll need to start allowing this tag to be on multiple

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/submitted_status_timestamp.md
+plan: sdd/tales/202604/submitted_status_timestamp.md
 ---
  It doesn't look like we add a new TIMESTAMPS ChangeSpec entry when the STATUS field value is changed to "Submitted" (see the `sase ace` snapshot below). Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  
@@ -33,7 +33,7 @@ plan: sdd/plans/202604/submitted_status_timestamp.md
 │  [S] bug_new_ab_craver (http://cl/854884994)                ││  │    (2) Update Roblox buyer allowlist SQL script with missing 3P buyers  [+4 lines]                                                                                          │    │
 │  [S] bug_new_rapidata_ab (http://cl/855390096)              ││  │        | CHAT: ~/.sase/chats/202604/bug_roblox_buyer_block_4-ace_run-260428_160154.md (32m31s)                                                                              │    │
 │  [S] bug_new_yahoo_japan_ab (http://cl/855395729)           ││  │        | DIFF: ~/.sase/projects/bug/artifacts/ace-run/20260428161830/commit_diff.diff                                                                                       │    │
-│  [S] bug_fix_pubmatic_sdk (http://cl/855928684)             ││  │        | PLAN: /google/src/cloud/bbugyi/bug/google3/.sase/sdd/plans/202604/roblox_buyer_allowlist.md                                                                        │    │
+│  [S] bug_fix_pubmatic_sdk (http://cl/855928684)             ││  │        | PLAN: /google/src/cloud/bbugyi/bug/google3/.sase/sdd/tales/202604/roblox_buyer_allowlist.md                                                                        │    │
 │  [S] bug_blockable_buyers (http://cl/867580044)             ││  │  HOOKS:                                                                                                                                                                     │    │
 │  [S] bug_upr_sort (http://cl/875176729)                     ││  │    !$sase_google_presubmit  [folded: PASSED: 1 2]                                                                                                                           │    │
 │                                                             ││  │    $sase_google_lint  [folded: PASSED: 1 2]                                                                                                                                 │    │

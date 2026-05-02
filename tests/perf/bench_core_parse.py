@@ -1,6 +1,6 @@
 """Benchmark sase.core.parse_project_bytes paths.
 
-Phase 1E (sase-16.5) of `sdd/plans/202604/rust_backend_phase1.md`. Times the
+Phase 1E (sase-16.5) of `sdd/tales/202604/rust_backend_phase1.md`. Times the
 end-to-end cost of parsing project bytes through every code path that
 production callers might touch:
 

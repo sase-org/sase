@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_commits_entry_human_cli.md
+plan: sdd/tales/202603/fix_commits_entry_human_cli.md
 ---
 I just ran the below `sase commit` command, but no COMMITS entry was created. Review related git commits (we've been
 struggling to get this right for a while) and then read the chat transcripts (in the ~/.sase/chats/ directory)

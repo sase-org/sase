@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/jump_hints_for_folded_banners.md
+plan: sdd/tales/202604/jump_hints_for_folded_banners.md
 ---
  Can you help me make it so when the "'" keymap is used on the "Agents" tab of the `sase ace` TUI (see the `sase ace` snapshot below), that any folded headings have hints rendered next to them so we can jump to (i.e.
 select) those headings? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

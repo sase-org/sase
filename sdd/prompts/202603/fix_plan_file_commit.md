@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_plan_file_commit.md
+plan: sdd/tales/202603/fix_plan_file_commit.md
 ---
 Where was the plan file stored for this PR (see the `sase ace` snapshot below)? I don't see it when I look at the PR. It
 should have been committed to the branch after I approved the plan. Can you help me diagnose the root cause of this

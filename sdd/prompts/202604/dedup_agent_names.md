@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dedup_agent_names.md
+plan: sdd/tales/202604/dedup_agent_names.md
 ---
  When we use the `R` keymap on the "Agents" tab of the `sase ace` TUI to revive an agent, the "YYmmdd." suffix is removed from that agent's name. I'm concerned that this might sometimes break the invariant that every agent
 name is distinct. Can you help me make sure we de-dup (add a number or something) the revived agent's name if there is another agent on the Agents tab with the same name? While on this topic, can you also change it so, when an agent

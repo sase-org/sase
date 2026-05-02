@@ -1,6 +1,6 @@
 """Per-process cache for the agent loader's repeated disk reads.
 
-Phase 5 of sdd/plans/202604/tui_perf_overhaul_1.md (bead sase-w.5). The agent
+Phase 5 of sdd/tales/202604/tui_perf_overhaul_1.md (bead sase-w.5). The agent
 loader is called on every auto-refresh; most of its disk work is for files
 that have not changed (attempt_meta.json under ``attempts/<N>/``,
 ``retry_state.json``, dismissed bundle JSON files). This module memoizes

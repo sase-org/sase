@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/kitty_tmux_preview_probe_fix.md
+plan: sdd/tales/202604/kitty_tmux_preview_probe_fix.md
 ---
  Our recent attempt to add TUI support for viewing images with Kitty (run the `sase bead show sase-1i` command for context) seems to have failed (see the `sase ace` snapshot below). The
 `kitten icat --passthrough tmux --transfer-mode stream /home/bryan/projects/github/sase-org/sase_100/docs/images/sase_tui_tabs_infographic.png` command correctly displays an image in my terminal in this

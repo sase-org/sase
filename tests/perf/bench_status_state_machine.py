@@ -1,7 +1,7 @@
 """Benchmark the status state machine ahead of a possible Rust port.
 
 Phase 4A (sase-19.1) of
-``sdd/plans/202604/rust_backend_phase4_status_machine.md``. The intent is to
+``sdd/tales/202604/rust_backend_phase4_status_machine.md``. The intent is to
 make the cost of the status state machine visible separately from the
 artifact-scan and TUI refresh costs measured by Phase 3, so the Phase 4
 go/no-go decision is grounded in numbers.

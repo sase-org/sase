@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/prettier_underscore_emphasis.md
+plan: sdd/tales/202604/prettier_underscore_emphasis.md
 ---
 Prettier keeps breaking file paths by converting `_` characters into `*` characters (see the
 `.sase/home/tmp/sase/sase*dynamic_memory_ghsbpnu*.md` file path in the below `sase ace` snapshot, for example). Can you

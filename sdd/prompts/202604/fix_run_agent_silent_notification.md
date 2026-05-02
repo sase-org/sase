@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_run_agent_silent_notification.md
+plan: sdd/tales/202604/fix_run_agent_silent_notification.md
 ---
 The user sent an image via Telegram with the following caption:
 

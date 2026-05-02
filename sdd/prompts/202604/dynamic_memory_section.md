@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/dynamic_memory_section.md
+plan: sdd/tales/202604/dynamic_memory_section.md
 ---
 Can you help me replace the "DYNAMIC MEMORY" line with a "### DYNAMIC MEMORY" section that contains a list of
 .sase/memory/ markdown file paths, each associated with a single memory xprompt? Make sure these files are named such

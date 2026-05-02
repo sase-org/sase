@@ -11,7 +11,7 @@ Creating an epic from the plan approval panel with `E` can fail on Google/Hg wor
 in a numbered sibling workspace, for example:
 
 ```text
-ValueError: '/google/src/cloud/bbugyi/bug/google3/.sase/sdd/plans/202604/missing_buyers_research.md' is not in the subpath of '/google/src/cloud/bbugyi/bug_102/google3'
+ValueError: '/google/src/cloud/bbugyi/bug/google3/.sase/sdd/tales/202604/missing_buyers_research.md' is not in the subpath of '/google/src/cloud/bbugyi/bug_102/google3'
 ```
 
 The crash happens in `sase.axe.run_agent_exec_plan.handle_plan_marker()` while building the follow-up `.epic` prompt. In
@@ -33,9 +33,9 @@ The epic prompt construction conflates two different path cases:
 
 1. Version-controlled SDD files live in the current workspace and can be referenced relative to `ctx.workspace_dir`.
 2. Non-version-controlled SDD files live in the primary workspace's `.sase/sdd/` area and should be referenced as
-   `.sase/sdd/plans/<YYYYMM>/<name>.md`, regardless of which numbered sibling workspace created the epic.
+   `.sase/sdd/tales/<YYYYMM>/<name>.md`, regardless of which numbered sibling workspace created the epic.
 
-The fallback branch already intends to use `.sase/sdd/plans/<name>.md` for non-VC mode, but it is bypassed whenever
+The fallback branch already intends to use `.sase/sdd/tales/<name>.md` for non-VC mode, but it is bypassed whenever
 `sdd_plan_path.exists()` is true. In the failing case the path exists in the primary workspace, so the code reaches
 `relative_to()` and crashes before it can fall back.
 
@@ -57,8 +57,8 @@ The fallback branch already intends to use `.sase/sdd/plans/<name>.md` for non-V
 3. Add regression coverage in `tests/test_axe_run_agent_exec_plan.py` for the exact Google/Hg shape:
    - current workspace: `/.../bug_102/google3`
    - non-VC SDD root: `/.../bug/google3/.sase/sdd`
-   - generated plan: `/.../bug/google3/.sase/sdd/plans/202604/missing_buyers_research.md`
-   - expected `.epic` prompt includes `#bd/new_epic:.sase/sdd/plans/202604/missing_buyers_research.md`
+   - generated plan: `/.../bug/google3/.sase/sdd/tales/202604/missing_buyers_research.md`
+   - expected `.epic` prompt includes `#bd/new_epic:.sase/sdd/tales/202604/missing_buyers_research.md`
    - no exception is raised.
 
 4. Add or adjust focused tests for version-controlled behavior so existing Git/SASE prompts still use workspace-relative

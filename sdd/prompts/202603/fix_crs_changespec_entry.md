@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_crs_changespec_entry.md
+plan: sdd/tales/202603/fix_crs_changespec_entry.md
 ---
 A
 'crs'`agent recently ran on this ChangeSpec. It worked (as far as the code changes and commit go), but the ChangeSpec does not look right (see the`sase

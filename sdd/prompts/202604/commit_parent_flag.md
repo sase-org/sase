@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/commit_parent_flag.md
+plan: sdd/tales/202604/commit_parent_flag.md
 ---
 When `sase commit` is used with `-t create_pull_request` from a branch other than master/main, we should assume that the
 PR associated with the current branch will be the parent of the new PR we create. We should therefore set the PARENT

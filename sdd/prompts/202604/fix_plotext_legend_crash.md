@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_plotext_legend_crash.md
+plan: sdd/tales/202604/fix_plotext_legend_crash.md
 ---
 Can you help me fix the below error? Think this through thoroughly and create a plan using your `/sase_plan` skill
 before making any file changes.

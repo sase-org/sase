@@ -272,12 +272,12 @@ class TestPlanFollowupPrompts:
         assert "@plan.md" in state.current_prompt
 
     def test_coder_prompt_uses_saved_sdd_plan_ref(self, tmp_path) -> None:
-        """Normal approved plans hand off the committed sdd/plans file."""
+        """Normal approved plans hand off the committed sdd/tales file."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "scratch_plan.md")
         (tmp_path / "scratch_plan.md").write_text("# Plan")
-        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
@@ -297,7 +297,7 @@ class TestPlanFollowupPrompts:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert "@sdd/plans/202605/scratch_plan.md" in state.current_prompt
+        assert "@sdd/tales/202605/scratch_plan.md" in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""

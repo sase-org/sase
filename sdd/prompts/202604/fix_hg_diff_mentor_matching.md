@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_hg_diff_mentor_matching.md
+plan: sdd/tales/202604/fix_hg_diff_mentor_matching.md
 ---
 No MENTORS line has been added to this ChangeSpec (see the `sase ace` snapshot below). This is occurring on another
 machine. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a
@@ -34,7 +34,7 @@ plan using your `/sase_plan` skill before making any file changes.
 │                                                          ││  │    (1) [run] Initial Commit                                                                                                                                                    │    │
 │                                                          ││  │        | CHAT: ~/.sase/chats/pat-ace_run-260403_191957.md (9m6s)                                                                                                               │    │
 │                                                          ││  │        | DIFF: ~/.sase/diffs/pat_fix_pg_view_details-260403_192901.diff                                                                                                        │    │
-│                                                          ││  │        | PLAN: /google/src/cloud/bbugyi/pat/google3/.sase/sdd/plans/202604/fix_slidealog_data.md                                                                               │    │
+│                                                          ││  │        | PLAN: /google/src/cloud/bbugyi/pat/google3/.sase/sdd/tales/202604/fix_slidealog_data.md                                                                               │    │
 │                                                          ││  │  HOOKS:                                                                                                                                                                        │    │
 │                                                          ││  │    !$sase_google_presubmit                                                                                                                                                     │    │
 │                                                          ││  │        | (1) [260403_193725] RUNNING - ($: 2790249)                                                                                                                            │    │

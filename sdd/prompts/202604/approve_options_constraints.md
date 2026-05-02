@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/approve_options_constraints.md
+plan: sdd/tales/202604/approve_options_constraints.md
 ---
 Can you help me improve the new "Approve with Options" modal by making invalid option combinations impossible?
 

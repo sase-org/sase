@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_run_agent_steps.md
+plan: sdd/tales/202603/fix_run_agent_steps.md
 ---
 Why are none of the workflow steps shown on this agent (run using `sase run`)? Can you help me diagnose the root cause
 of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making

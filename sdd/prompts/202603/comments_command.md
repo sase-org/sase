@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/comments_command.md
+plan: sdd/tales/202603/comments_command.md
 ---
 Can you help me write a new 'sase comments' command that takes the same schema that is used by the 'comments' JSON field
 output by mentors? This command should generate output that is easy to read and verify by an agent that mirrors code

@@ -318,7 +318,7 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
     ):
         saved = _archive_plan_for_approval(notification, "approve")
 
-    assert saved == str(workspace / ".sase" / "sdd" / "plans" / "202605" / "plan.md")
+    assert saved == str(workspace / ".sase" / "sdd" / "tales" / "202605" / "plan.md")
     assert Path(saved).exists()
 
 

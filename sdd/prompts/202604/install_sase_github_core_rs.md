@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/install_sase_github_core_rs.md
+plan: sdd/tales/202604/install_sase_github_core_rs.md
 ---
  I just got the following error when running the `install_sase_github` script (defined in my chezmoi repo). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

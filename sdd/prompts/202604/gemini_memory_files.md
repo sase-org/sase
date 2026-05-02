@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/gemini_memory_files.md
+plan: sdd/tales/202604/gemini_memory_files.md
 ---
 Can you help me create new long-term memory files in the ~/tmp/gemini/memory/ directory that correspond with the below
 mentors defined in the sase-google repo? Make sure to also update the ~/tmp/gemini/GEMINI.md file accordingly. These

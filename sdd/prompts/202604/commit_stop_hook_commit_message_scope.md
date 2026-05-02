@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/commit_stop_hook_commit_message_scope.md
+plan: sdd/tales/202604/commit_stop_hook_commit_message_scope.md
 ---
 Can you help me change the sase*commit_stop_hook script so that, when the commit type is anything but
 "create_pull_request", we instruct the agent to construct a commit message (when using their

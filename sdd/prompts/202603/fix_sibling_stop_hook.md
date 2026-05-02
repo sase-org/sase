@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_sibling_stop_hook.md
+plan: sdd/tales/202603/fix_sibling_stop_hook.md
 ---
 I don't think the `sase_sibling_*` hook is working. Can you test it by making some random changes in plug-in repos and
 making sure that it fails and, if not, diagnose the root cause of the issue and fix it? This hook should fail if any

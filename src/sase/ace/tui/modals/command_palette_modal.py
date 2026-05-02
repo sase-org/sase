@@ -1,7 +1,7 @@
 """Context-aware command palette modal for the ace TUI.
 
 Phase 2 of the command palette plan (see
-``sdd/plans/202604/tui_command_palette.md``). Renders a filterable list of
+``sdd/tales/202604/tui_command_palette.md``). Renders a filterable list of
 applicable :class:`CommandSpec` entries supplied by the caller, and
 returns a :class:`CommandPaletteResult` carrying the chosen command id
 (or ``None`` when the user cancels).

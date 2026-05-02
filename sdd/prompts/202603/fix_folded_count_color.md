@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_folded_count_color.md
+plan: sdd/tales/202603/fix_folded_count_color.md
 ---
 #resume:g.2 Looks good, but the `[folded: 2]` text next to TIMESTAMPS (see the `sase ace` snapshot below) should NOT be
 highlighted purple. Only the timestamps (and the surrounding `[]` characters) should be highlighted. Can you help me fix
@@ -38,7 +38,7 @@ this? Think this through thoroughly and create a plan using your `/sase_plan` sk
 │                                                                  ││  │    (8) Remove "Bids" / "Bid Requests" toggle from Deal Check line chart.  [+6 lines]                                                                                   │    │
 │                                                                  ││  │        | CHAT: ~/.sase/chats/pat_line_chart_component-ace_run-260330_121246.md (31m32s)                                                                                │    │
 │                                                                  ││  │        | DIFF: ~/.sase/projects/pat/artifacts/ace-run/20260330123459/commit_diff.diff                                                                                  │    │
-│                                                                  ││  │        | PLAN: /google/src/cloud/bbugyi/pat/google3/.sase/sdd/plans/202603/remove_bids_toggle.md                                                                       │    │
+│                                                                  ││  │        | PLAN: /google/src/cloud/bbugyi/pat/google3/.sase/sdd/tales/202603/remove_bids_toggle.md                                                                       │    │
 │                                                                  ││  │  HOOKS:                                                                                                                                                                │    │
 │                                                                  ││  │    !$sase_hg_presubmit  [folded: FAILED: 1 2 3 4 5 6 7]                                                                                                                │    │
 │                                                                  ││  │        | (8) [260330_133651] RUNNING - ($: 3640396)                                                                                                                    │    │

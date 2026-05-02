@@ -23,10 +23,10 @@ hand-authored metadata.
 - `plans/` contains nineteen markdown plans:
   - Four May 2026 plans matching the remaining root specs above.
   - Thirteen dated `sase_plan_*` files under `plans/202603/` and `plans/202604/`.
-  - Two flat root `sase_plan_*` files that already have canonical `sdd/plans/202604/*` counterparts.
+  - Two flat root `sase_plan_*` files that already have canonical `sdd/tales/202604/*` counterparts.
 - Canonical SDD layout already exists:
   - prompts: `sdd/prompts/{YYYYMM}/*.md`
-  - plans: `sdd/plans/{YYYYMM}/*.md`
+  - plans: `sdd/tales/{YYYYMM}/*.md`
   - epics: `sdd/epics/{YYYYMM}/*.md`
   - legends: `sdd/legends/{YYYYMM}/*.md`
 - `src/sase/sdd/links.py` can repair unambiguous prompt-plan links by matching `{kind}/{YYYYMM}/{name}.md`.
@@ -38,7 +38,7 @@ hand-authored metadata.
 Use a manifest-driven migration rather than a blind `mv`.
 
 1. Root prompt snapshots move from `specs/{YYYYMM}/{name}.md` to `sdd/prompts/{YYYYMM}/{name}.md`.
-2. Root May plans move from `plans/{YYYYMM}/{name}.md` to `sdd/plans/{YYYYMM}/{name}.md`.
+2. Root May plans move from `plans/{YYYYMM}/{name}.md` to `sdd/tales/{YYYYMM}/{name}.md`.
 3. Root `sase_plan_*` plans should be compared against canonical SDD names with the `sase_plan_` prefix stripped,
    matching `save_plan_to_sase()` behavior.
 4. If a canonical SDD counterpart already exists and its body is equivalent aside from frontmatter and leading
@@ -46,13 +46,13 @@ Use a manifest-driven migration rather than a blind `mv`.
 5. If a canonical SDD counterpart exists but has substantively different body content, do not overwrite it. Preserve the
    root file under a non-colliding SDD filename, preferably the original basename, and record it as an unpaired
    historical plan unless a prompt counterpart can be inferred.
-6. If no SDD counterpart exists, move the root file into `sdd/plans/{YYYYMM}/` with the `sase_plan_` prefix stripped
+6. If no SDD counterpart exists, move the root file into `sdd/tales/{YYYYMM}/` with the `sase_plan_` prefix stripped
    when that target name is free. For root files without a dated directory, infer the month only when there is an
    existing SDD counterpart; otherwise stop and inspect rather than guessing.
 
 Expected duplicate handling from the read-only survey:
 
-- Already represented in `sdd/plans` and removable after body-equivalence check:
+- Already represented in `sdd/tales` and removable after body-equivalence check:
   - `plans/202603/sase_plan_axe_error_notification_action.md`
   - `plans/202603/sase_plan_commits_multiline_notes.md`
   - `plans/202603/sase_plan_fix_crs_changespec_entry.md`
@@ -65,10 +65,10 @@ Expected duplicate handling from the read-only survey:
   - `plans/202604/sase_plan_status_background_task.md`
   - `plans/sase_plan_agent_name_in_completion_toast.md`
   - `plans/sase_plan_changespec_suffix_match.md`
-- Root-only plan content expected to be moved into `sdd/plans/202604/`:
-  - `plans/202604/sase_plan_dynamic_memory.md` -> `sdd/plans/202604/dynamic_memory.md`
-  - `plans/202604/sase_plan_fix_mentor_checks_timeout_v2.md` -> `sdd/plans/202604/fix_mentor_checks_timeout_v2.md`
-  - `plans/202604/sase_plan_lower_claude_effort_level.md` -> `sdd/plans/202604/lower_claude_effort_level.md`
+- Root-only plan content expected to be moved into `sdd/tales/202604/`:
+  - `plans/202604/sase_plan_dynamic_memory.md` -> `sdd/tales/202604/dynamic_memory.md`
+  - `plans/202604/sase_plan_fix_mentor_checks_timeout_v2.md` -> `sdd/tales/202604/fix_mentor_checks_timeout_v2.md`
+  - `plans/202604/sase_plan_lower_claude_effort_level.md` -> `sdd/tales/202604/lower_claude_effort_level.md`
 - Root-only May prompt/plan pairs expected to move as linked SDD pairs:
   - `markdown_pdf_attachment_limit`
   - `move_sase_beads_to_sdd_beads`
@@ -80,11 +80,11 @@ Expected duplicate handling from the read-only survey:
 1. Reconfirm the manifest immediately before editing:
    - `git status --short`
    - `find specs plans -type f | sort`
-   - destination existence checks under `sdd/prompts` and `sdd/plans`
+   - destination existence checks under `sdd/prompts` and `sdd/tales`
    - body-equivalence checks for files with existing canonical counterparts
-2. Create any missing destination directories under `sdd/prompts/202605`, `sdd/plans/202604`, and `sdd/plans/202605`.
-3. Move the four May prompt snapshots and four May plans into `sdd/prompts/202605` and `sdd/plans/202605`.
-4. Move the three root-only April plans into `sdd/plans/202604` using the normalized names above.
+2. Create any missing destination directories under `sdd/prompts/202605`, `sdd/tales/202604`, and `sdd/tales/202605`.
+3. Move the four May prompt snapshots and four May plans into `sdd/prompts/202605` and `sdd/tales/202605`.
+4. Move the three root-only April plans into `sdd/tales/202604` using the normalized names above.
 5. Remove only the root duplicate plan files whose canonical SDD counterpart has already been confirmed equivalent.
 6. Remove empty legacy directories under `specs/` and `plans/`.
 7. Run `just install` so the workspace CLI includes the current `sase sdd` command.
@@ -109,7 +109,7 @@ Expected duplicate handling from the read-only survey:
 
 ## Risks And Guardrails
 
-- Do not overwrite existing `sdd/plans` files with root `plans` files unless the destination is missing.
+- Do not overwrite existing `sdd/tales` files with root `plans` files unless the destination is missing.
 - Do not delete root files until their SDD destination is either created or confirmed equivalent.
 - `sase sdd repair-links --write` repairs only unambiguous name/month pairs. That is the desired behavior; historical
   unpaired plans should remain unlinked instead of inventing prompt references.

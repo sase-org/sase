@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_critique_comments_stderr_merge.md
+plan: sdd/tales/202604/fix_critique_comments_stderr_merge.md
 ---
 The ChangeSpec in the below `sase ace` snapshot should have a COMMENTS field added to it by `sase axe`. This ChangeSpec
 exists on another machine that uses the ../sase-google repo. Can you help me diagnose the root cause of this issue and
@@ -34,7 +34,7 @@ HINT: The `critique_comments bs_allow_model` command fails and outputs the follo
 │                                                      ││  │    (1) [run] Initial Commit                                                                                                                                                        │    │
 │                                                      ││  │        | CHAT: ~/.sase/chats/bs_allow_service-ace_run-260411_230924.md (14m21s)                                                                                                    │    │
 │                                                      ││  │        | DIFF: ~/.sase/diffs/bs_allow_model-260411_232343.diff                                                                                                                     │    │
-│                                                      ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/plans/202604/mcr_advertiser_targeting_3.md                                                                      │    │
+│                                                      ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/tales/202604/mcr_advertiser_targeting_3.md                                                                      │    │
 │                                                      ││  │  HOOKS:                                                                                                                                                                            │    │
 │                                                      ││  │    !$sase_google_presubmit  [folded: PASSED: 1]                                                                                                                                    │    │
 │                                                      ││  │    $sase_google_lint  [folded: PASSED: 1]                                                                                                                                          │    │

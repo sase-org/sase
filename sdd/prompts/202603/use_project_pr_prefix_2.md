@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/use_project_pr_prefix_2.md
+plan: sdd/tales/202603/use_project_pr_prefix_2.md
 ---
 Can you help me add support for a new `use_project_pr_prefix` sase config field that accept a boolean? When true, we
 should always make sure to prepend `[<project>] ` to the PR message, where `<project>` is the project name corresponding

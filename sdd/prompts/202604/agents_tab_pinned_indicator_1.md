@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agents_tab_pinned_indicator_1.md
+plan: sdd/tales/202604/agents_tab_pinned_indicator_1.md
 ---
 Can you help me start using the `+` indicator in the "Agents" tab title to indicate the number of pinned agent/workflow
 enries instead of using `x` (which indicates the number of dismissable agent/workflow entries)? For example, in the

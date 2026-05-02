@@ -53,7 +53,7 @@ def test_g_and_o_default_bindings_do_not_collide() -> None:
 
     Re-introducing the old ``cycle_grouping_mode: g`` binding would steal the
     universal scroll-to-top mnemonic on the Agents tab — see
-    sdd/plans/202604/g_keymap_restore.md.
+    sdd/tales/202604/g_keymap_restore.md.
     """
     reg = load_keymap_registry({})
     assert reg.app.scroll_to_top == "g"

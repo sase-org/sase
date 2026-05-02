@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_reply_timestamps.md
+plan: sdd/tales/202603/fix_reply_timestamps.md
 ---
 Can you help me make sure that our AGENT REPLY timestamps (per chunk of agent reply text) is working for all models and
 fix it if not? I'm skeptical that all of these chunks arived at the same exact time (see the `sase ace` snapshot below).

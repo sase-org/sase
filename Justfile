@@ -328,12 +328,12 @@ launch-perf-check *args: _setup
 # thresholds.
 bead-perf-smoke *args: _setup
     @printf "\n---------- Bead backend performance smoke (sase-1u) ----------\n"
-    mkdir -p sdd/plans/202605/perf_artifacts
+    mkdir -p sdd/tales/202605/perf_artifacts
     {{ venv_bin }}/python tests/perf/bench_bead.py \
         --runs 1 \
         --issues 50 \
         --dependencies 25 \
-        --output sdd/plans/202605/perf_artifacts/bead_perf_smoke.json \
+        --output sdd/tales/202605/perf_artifacts/bead_perf_smoke.json \
         {{ args }}
 
 # Run the Python status state machine benchmark. Times the pure
@@ -355,7 +355,7 @@ bench-git-query-ops *args: _setup
 # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
 # Phase 7B core-operation benchmarks against the recorded ceiling and
 # fails on regression. The JSON report lands at
-# `sdd/plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json`
+# `sdd/tales/202604/perf_artifacts/rust_backend_phase7_floor_check.json`
 # so CI can upload it on failure.
 phase7-perf-check *args: _setup
     @printf "\n---------- Phase 7E regression floor (sase-1e.5) ----------\n"

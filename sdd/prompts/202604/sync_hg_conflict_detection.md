@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/sync_hg_conflict_detection.md
+plan: sdd/tales/202604/sync_hg_conflict_detection.md
 ---
 The `#sync` xprompt workflow (see the src/sase/xprompts/sync.yml file) does not seem to be detecting merge conflicts
 from the hg VCS provider (defined in the ../sase-google repo) correctly (see the `sase ace` snapshot below). Can you

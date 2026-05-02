@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/lumberjack_chop_reliability.md
+plan: sdd/tales/202604/lumberjack_chop_reliability.md
 ---
 I'm pretty sure that right now if the cumulative runtime of every chop script is greater than the interval configured
 for the lumberjack, then we wind up skipping some chop scripts at the end. Can you help me fix this so we always

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/grouping_strategy_persistence.md
+plan: sdd/tales/202604/grouping_strategy_persistence.md
 ---
  Can you help me start saving the new grouping strategy to disk every time the `o`/`O` keymaps are used?
 

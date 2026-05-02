@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/epic_agent_names.md
+plan: sdd/tales/202604/epic_agent_names.md
 ---
   Can you help me change the names of the agents that are launched by our new epic integration? See the `sase ace` snapshot below for what it looks like now. We should use names of the form `<epid_bead_id>.<N>` for each phase
 agent (where `<N>` is the phase number) and use `<epic_bead_id>.land` for the agent that lands the epic. So, for the `sase ace` snapshot below, for example, we should have used `sase-s.1`, `sase-s.2`, `sase-s.3`, and `sase-s.land` for

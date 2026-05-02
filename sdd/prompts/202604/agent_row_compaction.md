@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agent_row_compaction.md
+plan: sdd/tales/202604/agent_row_compaction.md
 ---
  Can you help me do a much better job of minimizing the number of characters in these agent/workflow entries on the "Agents" tab of the `sase ace` TUI so they each fit on one line? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_hg_commit_message.md
+plan: sdd/tales/202604/fix_hg_commit_message.md
 ---
 This agent is showing the wrong `Commit Message:` (see the `sase ace` snapshots below). Namely,
 `Commit Message: [bs_allow] Extract AdvertiserBrandBlock validation into a standalone validator class.` should be
@@ -60,7 +60,7 @@ through thoroughly and create a plan using your `/sase_plan` skill before making
 │                                                        ││  │        MCR will no longer check for the LINE_ITEM_BACKFILL feature requirement.                                                                                                  │    │
 │                                                        ││  │        | CHAT: ~/.sase/chats/bs_allow_manager-ace_run-260411_230135.md (10m52s)                                                                                                  │    │
 │                                                        ││  │        | DIFF: ~/.sase/projects/bs_allow/artifacts/ace-run/20260411230314/commit_diff.diff                                                                                       │    │
-│                                                        ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/plans/202604/line_item_backfill.md                                                                            │    │
+│                                                        ││  │        | PLAN: /google/src/cloud/bbugyi/bs_allow/google3/.sase/sdd/tales/202604/line_item_backfill.md                                                                            │    │
 │                                                        ││  │    (4) Restore LINE_ITEM_BACKFILL validation to AdContentProtectionValidator.                                                                                                    │    │
 │                                                        ││  │        Move the LINE_ITEM_BACKFILL feature check back to AdContentProtectionValidator to ensure it is only enforced for AdContent protections and not for Manual Creative        │    │
 │                                                        ││  │  Review protections.                                                                                                                                                             │    │

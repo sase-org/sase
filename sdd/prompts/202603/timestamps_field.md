@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/timestamps_field.md
+plan: sdd/tales/202603/timestamps_field.md
 ---
 Can you help me add a new TIMESTAMPS ChangeSpec field that tracks timestamps of the form `YYYY-MM-DD HH:MM:SS` for the
 following events in a ChangeSpec's life?: Each COMMITS entry's creation, successful syncs (e.g. using the `Y` keymap),

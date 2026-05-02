@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/ctrlt_file_history_completion.md
+plan: sdd/tales/202604/ctrlt_file_history_completion.md
 ---
 Can you help me make the `<ctrl+t>` keymap in the prompt input widget, which currently handles xprompt / file completion
 depending on the context, have a unique file completion behavior when there is no text before the cursor (e.g. at the

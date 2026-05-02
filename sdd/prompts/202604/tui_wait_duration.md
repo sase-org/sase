@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/tui_wait_duration.md
+plan: sdd/tales/202604/tui_wait_duration.md
 ---
 #resume:d.2 Can you help me add better visual support for this feature on the "Agents" tab of the `sase ace` TUI? For
 example, a live countdown should be shown somewhere, the agent should be marked with the "WAITING" status, and a "WAIT"

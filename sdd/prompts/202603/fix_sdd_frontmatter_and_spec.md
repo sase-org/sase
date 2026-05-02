@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_sdd_frontmatter_and_spec.md
+plan: sdd/tales/202603/fix_sdd_frontmatter_and_spec.md
 ---
 #resume:a.2 It looks like the plan does now get committed to the PR branch. There are some problems though: The plan/
 file that is created doesn't have the necessary frontmatter (create_time and status) and the specs/ file (containing the

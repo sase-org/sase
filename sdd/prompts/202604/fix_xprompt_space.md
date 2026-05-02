@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_xprompt_space.md
+plan: sdd/tales/202604/fix_xprompt_space.md
 ---
 When I was in neovim typing out a prompt, I had the following text typed out (`<cursor>` represents by cursor position):
 

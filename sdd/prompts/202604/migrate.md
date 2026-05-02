@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/migrate.md
+plan: sdd/tales/202604/migrate.md
 ---
 #resume:d Can you help me migrate all of the tier 2 xprompts we added to the ~/xprompts/ directory to
 ~/.gemini/memory/long/ files that are referenced (and briefly described) in the ~/.gemini/GEMINI.md file? See git commit

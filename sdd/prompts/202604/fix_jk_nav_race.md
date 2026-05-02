@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_jk_nav_race.md
+plan: sdd/tales/202604/fix_jk_nav_race.md
 ---
 Ever since we made entry navigation (using `j` and `k`) faster, I've noticed that sometimes the wrong entry is randomly
 selected (ex: we will jump to one of the top entries or to the entry above the current one, like I hit `k` but I

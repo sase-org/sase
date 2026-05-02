@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/telegram_commit_button.md
+plan: sdd/tales/202603/telegram_commit_button.md
 ---
 The user sent an image via Telegram with the following caption:
 

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/ctrlt_history_whitespace_trigger.md
+plan: sdd/tales/202604/ctrlt_history_whitespace_trigger.md
 ---
 Can you help me fix the `<ctrl+t>` saved file reference completion (see the
 plans/202604/ctrlt_file_history_completion.md file for context)? It seems to work fine when the cursor is at the

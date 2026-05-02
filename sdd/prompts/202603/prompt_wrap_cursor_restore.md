@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/prompt_wrap_cursor_restore.md
+plan: sdd/tales/202603/prompt_wrap_cursor_restore.md
 ---
 Something is wrong with the auto-wrap functionality in the prompt input widget (see the `sase ace` snapshot below--I was
 typing out `MUST` when this happened). Sometimes, the word/letter that was before my cursor winds up after the cursor

@@ -44,7 +44,7 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
   sase bead create -t "Fix bug" --type phase(<plan-id>)
-  sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
+  sase bead create -t "New feature" --type plan(sdd/tales/202605/feature.md) --tier plan
   sase bead create -t "Epic" --type plan(sdd/epics/202605/epic.md) --tier epic
   sase bead create -t "Legend" --type plan(sdd/legends/202605/roadmap.md) --tier legend
   sase bead create -t "Linked epic" --type plan(sdd/epics/202605/epic.md,<legend-id>) --tier epic

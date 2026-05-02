@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_refresh_docs_marker.md
+plan: sdd/tales/202603/fix_refresh_docs_marker.md
 ---
 Can you make sure that it has indeed been 28 commits since the last `sase/refresh_docs` run (see the `sase ace` snapshot
 below)? If not, can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and

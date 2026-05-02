@@ -2,7 +2,7 @@
 
 Each test constructs a focused :class:`CommandContext` and asserts a
 single representative command is correctly visible / hidden. Coverage
-mirrors the acceptance list in ``sdd/plans/202604/tui_command_palette.md``:
+mirrors the acceptance list in ``sdd/tales/202604/tui_command_palette.md``:
 
 - CL: no CL selected, submitted/reverted CL, CL without ``cl`` number.
 - Agents: group banner focus, done/failed/running/waiting-input agent.

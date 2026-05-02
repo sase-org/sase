@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_prometheus.md
+plan: sdd/tales/202604/fix_prometheus.md
 ---
 I am unable to use the `sase telemetry dashboard` command's `-c` option on this machine (see below). Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

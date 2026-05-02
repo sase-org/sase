@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/commit_meta_output.md
+plan: sdd/tales/202603/commit_meta_output.md
 ---
 Can you help me review the new unified VCS commit logic (added within the last 12 hours) and check to make sure that the
 'meta\_\*' xprompt workflow output variables used to show the CL/PR URL and/or commit message in the agent metadata

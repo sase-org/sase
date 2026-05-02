@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/commit_meta_id_and_commits_append.md
+plan: sdd/tales/202603/commit_meta_id_and_commits_append.md
 ---
 We are STILL not appending the commit ID properly. This agent (see the `sase ace` snapshot below) made the appropriate
 commit, but the `meta_commit_id` does not appear to have been output properly and the new COMMITS entry was not added

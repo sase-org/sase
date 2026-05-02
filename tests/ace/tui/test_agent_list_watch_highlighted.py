@@ -1,6 +1,6 @@
 """Regression test for AgentList programmatic-update message suppression.
 
-Reproduces the §3.2 drift mode of sdd/plans/202604/tui_selection_drift.md:
+Reproduces the §3.2 drift mode of sdd/tales/202604/tui_selection_drift.md:
 without a ``watch_highlighted`` override on ``AgentList``, Textual's
 parent ``OptionList.watch_highlighted`` posts an ``OptionHighlighted``
 message every time ``self.highlighted`` is reassigned during a

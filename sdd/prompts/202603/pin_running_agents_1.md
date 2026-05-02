@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/pin_running_agents_1.md
+plan: sdd/tales/202603/pin_running_agents_1.md
 ---
 Can you help me start allowing the `P` (pin/unpin) keymap on the "Agents" tab of the `sase ace` TUI to be used on
 RUNNING agents/workflows to mark them as pinned (we should use the pin icon for this--we already use this for in the

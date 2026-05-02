@@ -26,11 +26,11 @@ def _args(**overrides: object) -> argparse.Namespace:
 
 def _write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
     prompt = root / "prompts" / "202605" / f"{name}.md"
-    plan = root / "plans" / "202605" / f"{name}.md"
+    plan = root / "tales" / "202605" / f"{name}.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
     prompt.write_text(
-        f"---\nplan: sdd/plans/202605/{name}.md\n---\n# Prompt\n",
+        f"---\nplan: sdd/tales/202605/{name}.md\n---\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
@@ -55,6 +55,9 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.sdd_subcommand == "list"
     assert args.kind == "prompts"
 
+    args = parser.parse_args(["sdd", "list", "-p", "sdd", "-k", "tales"])
+    assert args.kind == "tales"
+
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
 
@@ -64,7 +67,7 @@ def test_validate_allows_default_unpaired_warnings(
 ) -> None:
     root = tmp_path / "sdd"
     _write_pair(root)
-    unpaired = root / "plans" / "202605" / "legacy.md"
+    unpaired = root / "tales" / "202605" / "legacy.md"
     unpaired.parent.mkdir(parents=True, exist_ok=True)
     unpaired.write_text("# Legacy plan\n", encoding="utf-8")
 
@@ -164,10 +167,33 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert excinfo.value.code == 0
     rows = json.loads(capsys.readouterr().out)
     assert {row["path"] for row in rows} == {
-        "plans/202605/linked.md",
+        "tales/202605/linked.md",
         "prompts/202605/linked.md",
     }
     assert all(row["bidirectional"] for row in rows)
+
+
+def test_validate_resolves_legacy_plans_link_to_canonical_tales(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sdd"
+    prompt = root / "prompts" / "202605" / "linked.md"
+    plan = root / "tales" / "202605" / "linked.md"
+    prompt.parent.mkdir(parents=True)
+    plan.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: sdd/plans/202605/linked.md\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: sdd/prompts/202605/linked.md\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(path=str(root), quiet=True))
+
+    assert excinfo.value.code == 0
 
 
 def test_list_invalid_path_exits_nonzero(

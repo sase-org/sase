@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_jump_modal_number_keys.md
+plan: sdd/tales/202604/fix_jump_modal_number_keys.md
 ---
 The keypress in the new "Jump to entry" panel (see recent, related git commits) doesn't work for numeric hints since it
 looks like the numbers are still bound to saved search queries (see the `sase ace` snapshot below). Can you help me fix

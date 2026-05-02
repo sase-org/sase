@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/drop_coder_resume_prefix.md
+plan: sdd/tales/202604/drop_coder_resume_prefix.md
 ---
 I keep getting this "Prompt is too long" message (see the `sase ace` snapshot below) from claude anymore. Can you help
 me figure out why this is happening and fix the issue? Think this through thoroughly and create a plan using your

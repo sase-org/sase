@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/known_project_xprompt_launch.md
+plan: sdd/tales/202605/known_project_xprompt_launch.md
 ---
  It looks like local xprompt workflow resolution (from the VCS xprompt workflow---`#gh:sase` in the `sase ace` snapshot below) is broken again. Can you help me diagnose the root cause of this
 issue and (finally) fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

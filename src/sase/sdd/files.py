@@ -8,7 +8,8 @@ from typing import Any
 
 _logger = logging.getLogger(__name__)
 
-_SDD_PLAN_KINDS = {"plans", "epics", "legends"}
+_SDD_PLAN_KINDS = {"tales", "epics", "legends"}
+_SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
 
 
@@ -26,7 +27,13 @@ def get_yyyymm(dt: datetime | None = None) -> str:
 
 def _sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
     """Return lookup roots for an SDD kind, including legacy prompt aliases."""
-    aliases = ("prompts", "specs") if kind in _SDD_PROMPT_KINDS else (kind,)
+    aliases: tuple[str, ...]
+    if kind in _SDD_PROMPT_KINDS:
+        aliases = ("prompts", "specs")
+    elif kind in ("tales", "plans"):
+        aliases = ("tales", "plans")
+    else:
+        aliases = (kind,)
     roots: list[Path] = []
     seen: set[Path] = set()
     for alias in aliases:
@@ -162,12 +169,13 @@ def write_sdd_files(
     prompt_content: str,
     plan_file: str,
     *,
-    plan_kind: str = "plans",
+    plan_kind: str = "tales",
 ) -> tuple[Path, Path]:
     """Write prompts/<YYYYMM>/<name>.md and <plan_kind>/<YYYYMM>/<name>.md.
 
     Returns (prompt_path, plan_path).
     """
+    plan_kind = _SDD_PLAN_KIND_ALIASES.get(plan_kind, plan_kind)
     if plan_kind not in _SDD_PLAN_KINDS:
         raise ValueError(
             f"invalid SDD plan kind {plan_kind!r}; expected one of "

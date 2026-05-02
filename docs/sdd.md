@@ -32,7 +32,7 @@ Files are stored in a standalone git repo inside the primary workspace:
   prompts/
     {YYYYMM}/
       {plan_name}.md        # Expanded prompt (xprompts resolved, directives stripped)
-  plans/
+  tales/
     {YYYYMM}/
       {plan_name}.md        # Normal non-epic implementation plans
   epics/
@@ -60,7 +60,7 @@ Files are stored at the project root and tracked in the project's own git repo:
     prompts/
       {YYYYMM}/
         {plan_name}.md
-    plans/
+    tales/
       {YYYYMM}/
         {plan_name}.md
     epics/
@@ -98,13 +98,13 @@ The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
 2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date:
-   - normal approval: `sdd/plans/{YYYYMM}/{plan_name}.md`
+   - normal approval: `sdd/tales/{YYYYMM}/{plan_name}.md`
    - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
    - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
 
 Prompt snapshots and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This
 keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM` layouts are
-supported for backwards compatibility — SDD also searches legacy `specs` paths when resolving prompt files.
+supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving files.
 
 Plan files may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to the bead
 issue tracker.

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agents_tab_pretty_finish_timestamp.md
+plan: sdd/tales/202604/agents_tab_pretty_finish_timestamp.md
 ---
  Can you help me make the datetimes that are shown in the side-panels of the "Agents" tab of the `sase ace` TUI
 look much better without making them take up more space on the line? The `sase ace` snapshot below shows what they look

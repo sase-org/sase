@@ -275,12 +275,12 @@ shoehorning it in implies it is.
 
 **Options:**
 
-- **(A) Big-bang move.** One commit: `git mv specs sdd/specs && git mv plans sdd/plans && git mv research sdd/research`.
+- **(A) Big-bang move.** One commit: `git mv specs sdd/specs && git mv plans sdd/tales && git mv research sdd/research`.
   Update `find_sdd_file` to keep accepting both `{root}/specs/` and `{root}/sdd/specs/` so any archived ChangeSpec or
   external link still resolves.
 - **(B) Incremental.** Only new files land under `sdd/`. `find_sdd_file` already does flat-vs-YYYYMM; extend it to also
   fall back to `{root}/{kind}` (legacy) when `{root}/sdd/{kind}` doesn't have the file.
-- **(C) Symlink at root.** `specs -> sdd/specs`, `plans -> sdd/plans`, `research -> sdd/research`. Zero-cost backwards
+- **(C) Symlink at root.** `specs -> sdd/specs`, `plans -> sdd/tales`, `research -> sdd/research`. Zero-cost backwards
   compat for tooling that hard-codes the old paths, but symlinks in git are flaky on Windows and confuse some editors.
 
 **Default:** (A) + the legacy fallback in (B) as a safety net for any uncommitted external references (other clones,
@@ -299,8 +299,8 @@ Concrete grep hits that must change in lockstep with the directory move:
 - `docs/beads.md:5,48` — references to "Plan (epic)" tier need to gain "Legend" and "Myth" rows.
 
 The xprompt globs are the most fragile because they're fuzzy-matched. After the move, `@plans/**/foo.md` won't match
-`sdd/plans/202604/foo.md` unless the agent's `@`-resolver supports walking up. Two fixes: (i) change the xprompts to
-`@sdd/plans/**`, (ii) keep the legacy `plans/` symlink during a deprecation window.
+`sdd/tales/202604/foo.md` unless the agent's `@`-resolver supports walking up. Two fixes: (i) change the xprompts to
+`@sdd/tales/**`, (ii) keep the legacy `plans/` symlink during a deprecation window.
 
 ### D9. Auto-orchestration for legends
 
@@ -353,7 +353,7 @@ The new layout creates references that can drift: child bead IDs, plan file path
 
 **Default if undecided:** add `sase sdd doctor` or extend `sase bead doctor` with SDD checks:
 
-- every `sdd/plans/**.md` with `bead_id` points to an existing bead;
+- every `sdd/tales/**.md` with `bead_id` points to an existing bead;
 - every legend/myth `children` entry exists and has the expected tier;
 - every bead `design` path exists after path normalization;
 - no new files are written to legacy root `plans/`, `specs/`, or `research/`;
@@ -385,8 +385,8 @@ The migration affects three reference surfaces, not just filesystem paths:
 - xprompt `@file` globs;
 - bead `design` fields and ChangeSpec `PLAN:` drawers.
 
-**Default if undecided:** choose one canonical project-relative display path in VC mode (`sdd/plans/YYYYMM/foo.md`) and
-one primary-workspace-relative path in local mode (`.sase/sdd/plans/YYYYMM/foo.md`). Store those exact strings in new
+**Default if undecided:** choose one canonical project-relative display path in VC mode (`sdd/tales/YYYYMM/foo.md`) and
+one primary-workspace-relative path in local mode (`.sase/sdd/tales/YYYYMM/foo.md`). Store those exact strings in new
 bead `design` fields after the migration. For old beads, support legacy lookup but do not rewrite historical JSONL unless
 you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run.
 
@@ -410,7 +410,7 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
 6. **`.sase_plan_*.md` at project root.** These are pre-persistence WIP files written by the `sase_plan` skill. They
    should _not_ move; they're orthogonal to SDD storage. Just confirm no proposed change touches them.
 7. **Plan-ref builder and tests.** `_build_epic_plan_ref` currently returns `plans/YYYYMM/foo.md` in VC mode and
-   `.sase/sdd/plans/YYYYMM/foo.md` in local mode. Updating `get_sdd_dir()` is not enough; the plan-ref builder and
+   `.sase/sdd/tales/YYYYMM/foo.md` in local mode. Updating `get_sdd_dir()` is not enough; the plan-ref builder and
    tests in `tests/test_axe_run_agent_exec_plan.py` need to move in lockstep or new epic agents will still receive
    legacy paths.
 8. **Existing parented-plan behavior.** `sase bead create --type plan(<file>,<parent>)` is already accepted even though
@@ -435,14 +435,14 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
 **Phase 1 — Directory consolidation (mechanical, ~half-day).**
 
 1. Create `sdd/` at project root in version-controlled mode (or under `.sase/sdd/` in local mode — already correct).
-2. `git mv specs sdd/specs && git mv plans sdd/plans && git mv research sdd/research`. One commit.
+2. `git mv specs sdd/specs && git mv plans sdd/tales && git mv research sdd/research`. One commit.
 3. Update `src/sase/sdd/files.py` to write under `sdd_dir / "sdd"` segment when `version_controlled=True` (no change
    for local mode — `sdd_dir` already points at `.sase/sdd/`, so the new tiers are simply created beneath it).
    Concretely: have `get_sdd_dir()` return `Path(workspace_dir) / "sdd"` in VC mode.
 4. Extend `find_sdd_file` to search both canonical and legacy roots: `base/sdd/{kind}/{name}`,
    `base/sdd/{kind}/*/{name}`, `base/{kind}/{name}`, and `base/{kind}/*/{name}`. Keep legacy lookup for one release
    cycle.
-5. Update `default_config.yml` xprompts: `@plans/**` → `@sdd/plans/**`, same for specs.
+5. Update `default_config.yml` xprompts: `@plans/**` → `@sdd/tales/**`, same for specs.
 6. Update `.gitignore` perf-artifacts paths.
 7. Update `docs/sdd.md` layout section.
 

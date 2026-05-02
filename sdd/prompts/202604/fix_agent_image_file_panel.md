@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_agent_image_file_panel.md
+plan: sdd/tales/202604/fix_agent_image_file_panel.md
 ---
  I can see that this agent (which I just revived) added an image file, but I cannot use the `<ctrl+n>` keymap to view it in the file panel as I should be able to. Can you help me diagnose the root
 cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

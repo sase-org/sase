@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/bare_git_create_pull_request.md
+plan: sdd/tales/202603/bare_git_create_pull_request.md
 ---
 It looks like `sase commit` is trying to use the GitHub VCS provider for a `#git` project (see the `sase ace` snapshot
 below). Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a

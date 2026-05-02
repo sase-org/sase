@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/tui_simple_xprompt_colon_args.md
+plan: sdd/tales/202604/tui_simple_xprompt_colon_args.md
 ---
  Can you help me figure out why this agent (see the `sase ace` snapshot below) failed to launch on another machine and fix the issue? I tried to launch from the TUI using the following prompt, which works when passed to
 `sase run`: `#hg:ilar #launch/free:445408805,SS_ILAR_TOGGLE`. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.

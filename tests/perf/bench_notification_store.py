@@ -1,6 +1,6 @@
 """Benchmark notification-store regression surfaces for the Rust migration.
 
-Phase 1 of ``sdd/plans/202604/notification_rust_migration.md`` used these
+Phase 1 of ``sdd/tales/202604/notification_rust_migration.md`` used these
 workloads to capture the Python baseline. Phase 7 reuses the same harness as
 the Rust-backed regression-floor source:
 

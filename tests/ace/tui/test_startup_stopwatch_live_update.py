@@ -1,7 +1,7 @@
 """Tests for the async startup wiring that keeps the stopwatch ticking.
 
 These tests lock in the contract used by
-``sdd/plans/202604/startup_stopwatch_live_update.md``: ``AceApp.on_mount`` is
+``sdd/tales/202604/startup_stopwatch_live_update.md``: ``AceApp.on_mount`` is
 a coroutine (so awaits between disk reads yield to the event loop and
 ``KeybindingFooter._on_stopwatch_tick`` fires), and the new split
 helpers are pure disk reads with no Textual widget access.

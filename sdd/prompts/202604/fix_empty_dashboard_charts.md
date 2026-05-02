@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/fix_empty_dashboard_charts.md
+plan: sdd/tales/202604/fix_empty_dashboard_charts.md
 ---
 Why are most of the charts rendered by the `sase telemetry dashboard -c` command (see below) empty. Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/hg_changespec_metadata.md
+plan: sdd/tales/202603/hg_changespec_metadata.md
 ---
 The "ChangeSpec:" field in the agent metadata panel on the "Agents" tab of the `sase ace` TUI is not being populated
 still for the hg VCS provider (see the ../sase-google repo), although most of the other fields I want look good and the

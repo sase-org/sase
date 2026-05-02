@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/jump_back_backtick.md
+plan: sdd/tales/202604/jump_back_backtick.md
 ---
 Can you help me impove the new "Jump to Entry" panel by adding a hidden backtick
 ("`") hint that maps to the last known entry (from any tab)? The idea is that this would allow be to use, for example "`f"

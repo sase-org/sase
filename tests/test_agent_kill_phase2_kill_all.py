@@ -5,7 +5,7 @@ path (``_do_bulk_kill_agents``) instead of looping over each killable
 agent and calling ``_do_kill_agent`` per row, so kill-all becomes one
 optimistic UI transaction with one persistence worker.
 
-See ``sdd/plans/202604/tui_perf_v2.md`` (Phase 2).
+See ``sdd/tales/202604/tui_perf_v2.md`` (Phase 2).
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/wait_absolute_time.md
+plan: sdd/tales/202604/wait_absolute_time.md
 ---
 Can you help me add support for new HHMM and yymmdd/HHMM time and datetime formats, respectively, to the `%w` directive?
 This is meant to compliment the recently added duration format. When this format is used, we should wait until that time

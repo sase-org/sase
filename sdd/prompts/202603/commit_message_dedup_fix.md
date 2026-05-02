@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/commit_message_dedup_fix.md
+plan: sdd/tales/202603/commit_message_dedup_fix.md
 ---
 I can'tfigure out why this agent (see the `sase ace` snapshot below) isn't showing a "Commit message:" xprompt workflow
 output variable in the agent metadata panel on the "Agents" tab of the `sase ace` TUI. This issue is occurring on

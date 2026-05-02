@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/revive_modal_datetime.md
+plan: sdd/tales/202604/revive_modal_datetime.md
 ---
 Can you help me start adding the full date and time in the sidebar shown in the prompt history panel? Also, we should
 continue to sort by project/ChangeSpec if possible, but we should also sort (at a lower priority) by the datetime the

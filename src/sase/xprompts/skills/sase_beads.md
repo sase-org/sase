@@ -18,7 +18,7 @@ Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase be
 - `phase` — child of a plan (created with `--type phase(...)`)
 
 Plan beads can carry `--tier plan`, `--tier epic`, or `--tier legend`. Normal approved plans live under
-`sdd/plans/{YYYYMM}/`, executable epics under `sdd/epics/{YYYYMM}/`, and legends under `sdd/legends/{YYYYMM}/`.
+`sdd/tales/{YYYYMM}/`, executable epics under `sdd/epics/{YYYYMM}/`, and legends under `sdd/legends/{YYYYMM}/`.
 `sase bead work` only runs `epic`-tier plan beads.
 
 ## Commands
@@ -27,7 +27,7 @@ Plan beads can carry `--tier plan`, `--tier epic`, or `--tier legend`. Normal ap
 
 ```bash
 # Create a plan bead (top-level, linked to a plan file)
-sase bead create --title "Add auth system" --type plan(sdd/plans/202605/auth.md) --tier plan
+sase bead create --title "Add auth system" --type plan(sdd/tales/202605/auth.md) --tier plan
 
 # Create an executable epic bead
 sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md) --tier epic
@@ -42,7 +42,7 @@ sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md,<legen
 sase bead create --title "Implement login endpoint" --type phase(<plan-bead-id>)
 
 # Create a nested plan (plan with parent)
-sase bead create --title "Sub-plan" --type plan(sdd/plans/202605/sub.md,<parent-bead-id>)
+sase bead create --title "Sub-plan" --type plan(sdd/tales/202605/sub.md,<parent-bead-id>)
 
 # With optional fields
 sase bead create --title "..." --type phase(<id>) --description "Details here" --assignee alice
@@ -63,7 +63,7 @@ sase bead update <id> --title "New title"
 sase bead update <id> --description "Updated description"
 sase bead update <id> --notes "Implementation notes"
 sase bead update <id> --assignee bob
-sase bead update <id> --design sdd/plans/202605/revised.md
+sase bead update <id> --design sdd/tales/202605/revised.md
 
 # Combine multiple updates
 sase bead update <id> --status in_progress --assignee alice

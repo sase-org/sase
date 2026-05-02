@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/fix_vcs_project_workflows.md
+plan: sdd/tales/202605/fix_vcs_project_workflows.md
 ---
  This `fix_just` chop just ran with `#cd:~` in its prompt for some reason causing it to not find
 `#!sase/fix_just` (see the `sase ace` snapshot below). Can you help me diagnose the root cause of this issue and fix it?

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_resume_self_resolution.md
+plan: sdd/tales/202603/fix_resume_self_resolution.md
 ---
 The user sent an image via Telegram with the following caption:
 

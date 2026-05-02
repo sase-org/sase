@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_refresh_docs_999.md
+plan: sdd/tales/202603/fix_refresh_docs_999.md
 ---
 Why is this workflow showing 999 for its commit count? That can't be right. Can you help me diagnose the root cause of
 this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/cd_chat_filename.md
+plan: sdd/tales/202605/cd_chat_filename.md
 ---
  The user sent an image via Telegram with the following caption:
 

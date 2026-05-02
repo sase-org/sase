@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/unlimited_agent_revival.md
+plan: sdd/tales/202604/unlimited_agent_revival.md
 ---
 #resume:f Can we start saving ALL agent chats and allows revival of any agent ever run? You'll need to make sure this
 doesn't negatively affect performance (preferably, find a way to improve performance for reading through dismissed

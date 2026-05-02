@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/question_status_override.md
+plan: sdd/tales/202604/question_status_override.md
 ---
 The selected agent (see the `sase ace` snapshot below) has asked a question, so it should not be shown as "DONE" (I
 think we use "QUESTION" for this). Can you help me diagnose the root cause of this issue and fix it? Think this through

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202603/fix_embedded_env_injection.md
+plan: sdd/tales/202603/fix_embedded_env_injection.md
 ---
 I don't think the new unified `#commit`, `#propose`, and `#pr` xprompt workflows are working right. Can you help me
 diagnose the root cause of this issue and fix it by first running an E2E test with the sonnet model (use the

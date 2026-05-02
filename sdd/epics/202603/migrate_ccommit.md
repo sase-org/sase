@@ -90,7 +90,7 @@ Python commit workflow and git VCS provider.
    - If no `bead_id` but `sdd/beads/` or `.beads/` directory exists, still run `sase bead sync` and stage
 3. **SASE_PLAN handling** (before VCS dispatch):
    - If `SASE_PLAN` env var is set and points to an existing file:
-     - Compute relative path (repo-root-relative if inside repo, otherwise `.sase/sdd/plans/<basename>`)
+     - Compute relative path (repo-root-relative if inside repo, otherwise `.sase/sdd/tales/<basename>`)
      - Append `\n\nPLAN=<relative_path>` to the commit message
      - Run `sed -i 's/^status: wip$/status: done/' <plan_file>` to mark done
      - Stage the plan file

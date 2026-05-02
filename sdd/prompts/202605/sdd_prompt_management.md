@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202605/sdd_prompt_management.md
+plan: sdd/tales/202605/sdd_prompt_management.md
 ---
    Can you help me improve the way we manage SDD prompt files?
 

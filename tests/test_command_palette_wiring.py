@@ -1,7 +1,7 @@
 """Phase 3 integration tests for the command palette wiring in AceApp.
 
 Covers the acceptance items from
-``sdd/plans/202604/tui_command_palette.md`` Phase 3:
+``sdd/tales/202604/tui_command_palette.md`` Phase 3:
 
 - Pressing ``:`` opens the palette modal.
 - The palette shows commands applicable to the current tab + selection.

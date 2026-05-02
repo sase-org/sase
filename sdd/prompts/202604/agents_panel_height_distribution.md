@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/agents_panel_height_distribution.md
+plan: sdd/tales/202604/agents_panel_height_distribution.md
 ---
  Why is the "(untagged)" panel so much smaller than the "@mute" panel here (see the `sase ace` snapshot below). Can you help me fix this? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
  

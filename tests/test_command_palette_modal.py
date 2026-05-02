@@ -1,7 +1,7 @@
 """Tests for the command palette modal (Phase 2).
 
 Covers the modal-level UX requirements from
-``sdd/plans/202604/tui_command_palette.md`` Phase 2 acceptance:
+``sdd/tales/202604/tui_command_palette.md`` Phase 2 acceptance:
 
 - The modal renders with a non-empty applicable command list.
 - Filtering narrows the list deterministically; ranking prefers

@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/prompt_scroll_fix.md
+plan: sdd/tales/202604/prompt_scroll_fix.md
 ---
 The prompt input widget doesn't seem to scroll down with the cursor (see the `sase ace` snapshot below). Can you help me
 diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your

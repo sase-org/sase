@@ -16,7 +16,7 @@ repair them the same way it already owns `create_time` and `status` in plan fron
 ## Current State
 
 - Prompt snapshots are stored under `sdd/specs/{YYYYMM}/`.
-- Generated plans are stored under `sdd/plans/{YYYYMM}/`, `sdd/epics/{YYYYMM}/`, and `sdd/legends/{YYYYMM}/`.
+- Generated plans are stored under `sdd/tales/{YYYYMM}/`, `sdd/epics/{YYYYMM}/`, and `sdd/legends/{YYYYMM}/`.
 - `src/sase/sdd/files.py` owns SDD path resolution and `write_sdd_files()`.
 - `src/sase/axe/run_agent_exec_plan.py` expands the planner prompt and calls `write_sdd_files()`.
 - Built-in xprompts in `src/sase/default_config.yml` still refer to `sdd/specs`.
@@ -46,8 +46,8 @@ For generated pairs:
   - `prompt: sdd/prompts/{YYYYMM}/{name}.md` in version-controlled mode.
   - `prompt: .sase/sdd/prompts/{YYYYMM}/{name}.md` in local SDD mode.
 - Prompt files get YAML frontmatter:
-  - `plan: sdd/{plans|epics|legends}/{YYYYMM}/{name}.md` in version-controlled mode.
-  - `plan: .sase/sdd/{plans|epics|legends}/{YYYYMM}/{name}.md` in local SDD mode.
+  - `plan: sdd/{tales|epics|legends}/{YYYYMM}/{name}.md` in version-controlled mode.
+  - `plan: .sase/sdd/{tales|epics|legends}/{YYYYMM}/{name}.md` in local SDD mode.
 - Paths should be relative, stable, slash-separated strings. Do not write absolute paths into tracked files.
 - When a plan has no prompt counterpart or a prompt has no plan counterpart because it is historical, validation may
   warn but should not fail CI. When a counterpart exists, missing or incorrect link frontmatter is an error.
@@ -97,7 +97,7 @@ Scope:
   `create_time`/`status`.
 - Keep `update_spec_with_qa()` or its renamed equivalent from breaking prompt frontmatter when appending Q&A.
 - Update commit-hook fallback in `src/sase/workflows/commit/precommit_hooks.py`:
-  - Copy archived plans into `sdd/plans/{YYYYMM}/`, not root `plans/{YYYYMM}/`.
+  - Copy archived plans into `sdd/tales/{YYYYMM}/`, not root `plans/{YYYYMM}/`.
   - Preserve or add `prompt` frontmatter when SASE can infer a matching prompt.
   - Update tests that currently expect root `plans/`.
 - Add focused unit tests for:
@@ -125,7 +125,7 @@ Scope:
 - Add useful subcommands:
   - `sase sdd validate [-p/--path PATH] [-j/--json] [-q/--quiet] [--strict]`
   - `sase sdd links [-p/--path PATH] [-j/--json]`
-  - `sase sdd list [-k/--kind prompts|plans|epics|legends|all] [-j/--json]`
+  - `sase sdd list [-k/--kind prompts|tales|epics|legends|all] [-j/--json]`
   - `sase sdd repair-links [-p/--path PATH] [-w/--write]`
 - Validation rules:
   - YAML frontmatter must parse when present.
@@ -159,7 +159,7 @@ sase sdd repair-links --write
 ```
 
 - Review the report and commit only deterministic changes:
-  - unambiguous `sdd/prompts/{YYYYMM}/{name}.md` to `sdd/{plans|epics|legends}/{YYYYMM}/{name}.md` pairs get
+  - unambiguous `sdd/prompts/{YYYYMM}/{name}.md` to `sdd/{tales|epics|legends}/{YYYYMM}/{name}.md` pairs get
     bidirectional frontmatter.
   - unpaired historical files remain unlinked and are recorded as warnings.
 - If duplicate candidates appear, improve the repair logic rather than resolving them manually in markdown.

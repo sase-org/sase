@@ -194,13 +194,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bead-perf-smoke
-          path: sdd/plans/202605/perf_artifacts/bead_perf_smoke.json
+          path: sdd/tales/202605/perf_artifacts/bead_perf_smoke.json
 
   # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
   # Phase 7B core-operation benchmarks against the recorded
   # tests/perf/baselines/phase7_regression_floor.json and fails on a
   # regression. Slow/manual end-to-end TUI/home-tree measurements stay
-  # outside this gate (see sdd/plans/202604/rust_backend_phase7_phase7e_handoff.md).
+  # outside this gate (see sdd/tales/202604/rust_backend_phase7_phase7e_handoff.md).
   phase7-perf-floor:
     runs-on: ubuntu-latest
     steps:
@@ -234,7 +234,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: phase7-perf-floor-report
-          path: sdd/plans/202604/perf_artifacts/rust_backend_phase7_floor_check.json
+          path: sdd/tales/202604/perf_artifacts/rust_backend_phase7_floor_check.json
 
   # Phase 9 launch regression floor (sase-1r.9). Keeps the Rust-backed
   # launch path from drifting back toward the Phase 1 parent-side sleep
@@ -272,7 +272,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: launch-perf-floor-report
-          path: sdd/plans/202605/perf_artifacts/agent_launch_regression_check.json
+          path: sdd/tales/202605/perf_artifacts/agent_launch_regression_check.json
 
   # Install smoke verifies that a fresh `sase` install resolves the
   # required `sase-core-rs` runtime dependency and that representative parser

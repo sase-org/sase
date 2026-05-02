@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/split_workspace_fix.md
+plan: sdd/tales/202604/split_workspace_fix.md
 ---
 Can you help me fix this `#split` xprompt workflow (defined in the ../sase-google repo) shown below (see recent, related
 git commits)? I think maybe we are not claiming a workspace properly and `cd`ing into that workspace directory before

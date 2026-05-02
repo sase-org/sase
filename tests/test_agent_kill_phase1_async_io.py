@@ -5,7 +5,7 @@ notification or dismissed-set disk I/O on the immediate (UI-thread) stage,
 and that the per-kill persistence worker performs the I/O off the main
 thread and refreshes the notification indicator asynchronously.
 
-See ``sdd/plans/202604/tui_perf_v2.md`` (Phase 1).
+See ``sdd/tales/202604/tui_perf_v2.md`` (Phase 1).
 """
 
 from __future__ import annotations

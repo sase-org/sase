@@ -1,5 +1,5 @@
 ---
-plan: sdd/plans/202604/parent_p4head_leak.md
+plan: sdd/tales/202604/parent_p4head_leak.md
 ---
 The `sase commit` command just created a ChangeSpec with a PARENT field value of "p4head". This is a sentinel value used
 by the hg VCS (see the ../sase-google repo) that represents the main branch of the repo (this should be "main" or
