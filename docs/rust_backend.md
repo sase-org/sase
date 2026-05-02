@@ -128,7 +128,7 @@ The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo wo
 
 ## Bead Backend
 
-The `sase bead` migration is tracked by `plans/202605/bead_rust_backend_migration.md`. The shipped path is now
+The `sase bead` migration is tracked by `sdd/epics/202605/bead_rust_backend_migration.md`. The shipped path is now
 Rust-owned for data operations: JSONL/config parsing, SQLite rebuild/query, mutations, workspace merge, deterministic
 epic work planning, and common CLI output planning all live in `sase-core` and are exposed through `sase_core_rs`.
 Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts, launch/rollback,
@@ -494,5 +494,5 @@ deleted; do not reach for them when triaging post-Phase-8 issues.
 The migration ran across nine phases. Phases 0–7 added the Rust backend behind a default-Python escape hatch and the
 parity gate; Phase 8 deleted the dispatcher, the dual-run plumbing, and the Python halves of every ported operation that
 did not need them as host logic. The full per-phase narrative lives in `research/202604/rust_backend_migration.md` and
-`plans/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside their plan
-files (`plans/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).
+`sdd/epics/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside their
+plan files (`sdd/epics/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).

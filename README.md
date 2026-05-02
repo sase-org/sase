@@ -163,8 +163,8 @@ sase
 | `sase bead show`               | Show issue details                                                                                             |
 | `sase bead stats`              | Show project statistics                                                                                        |
 | `sase bead sync`               | Sync bead database with git                                                                                    |
-| `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
-| `sase bead work`               | Launch phase + land agents for an epic plan (pre-claims phases, builds Kahn-wave multi-prompt)                 |
+| `sase bead update`             | Update an issue (title, description, status, assignee, tier, etc.)                                             |
+| `sase bead work`               | Launch phase + land agents for an epic-tier plan (pre-claims phases, builds Kahn-wave multi-prompt)            |
 | `sase changespec current`      | Render the ChangeSpec for the current workspace (markdown / plain / JSON)                                      |
 | `sase changespec sync-deltas`  | Recompute the DELTAS field for a ChangeSpec from the live VCS state                                            |
 | `sase chats list`              | List recent agent chat transcripts (pretty table or JSON)                                                      |
@@ -446,12 +446,12 @@ the state of five concurrent workstreams — sase replaces that manual overhead 
 - **XPrompts instead of ad-hoc prompts** — Reusable, composable prompt templates with YAML front matter replace the
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** — Plan mode produces ephemeral plans that vanish when the session ends. sase
-  persists plans and specs to disk as first-class artifacts. For larger efforts, plan files carry a bead ID in their
-  frontmatter that links them to an epic in the bead tracker, and each phase of the epic gets its own bead whose ID
-  appears in the corresponding commit messages — creating a traceable chain from epic to phase to commit. For smaller
-  plans, commit messages include a `PLAN=<path>` tag pointing back to the plan file. The result is spec-driven
-  development where the full history of intent, decomposition, and execution is preserved and queryable, not trapped in
-  a single agent session's context window.
+  persists specs plus normal plans, executable epics, and higher-level legends under `sdd/`. The `research/` directory
+  remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that links them to an epic-tier
+  bead, and each phase of the epic gets its own bead whose ID appears in the corresponding commit messages — creating a
+  traceable chain from epic to phase to commit. For smaller plans, commit messages include a `PLAN=<path>` tag pointing
+  back to the plan file. The result is spec-driven development where the full history of intent, decomposition, and
+  execution is preserved and queryable, not trapped in a single agent session's context window.
 - **ACE instead of tmux** — A single TUI provides unified navigation, filtering, and management across all active
   workstreams, replacing the manual tab-switching workflow.
 - **AXE instead of manual supervision** — A background daemon handles scheduling, monitoring, and lifecycle management
@@ -477,9 +477,9 @@ drastically simplifying the surface area:
 - **SQLite + JSONL instead of Dolt** — sase stores issues in SQLite for fast local queries and exports to a sorted JSONL
   file for git portability. Fresh clones rebuild the database automatically from JSONL, giving version-controlled
   persistence without an external database engine.
-- **Two-tier hierarchy instead of arbitrary nesting** — sase uses a flat plans-and-phases model (plans are epics, phases
-  are their children) rather than deeply nested dotted-ID trees. This maps cleanly to how agents actually break down
-  work: a plan file with numbered phases.
+- **Plan tiers instead of arbitrary nesting** — sase uses plan-like beads with explicit `plan`, `epic`, and `legend`
+  tiers plus executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
+  `--type plan(<plan_file>,<legend_bead_id>) --tier epic`, and `sase bead work` intentionally runs epic-tier beads only.
 - **Multi-workspace aggregation** — Because sase already manages multiple parallel workspaces, `sase bead` can read
   issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
   project state without Dolt's sync machinery.

@@ -272,7 +272,7 @@ COMMITS:
   (1) First commit note
       | CHAT: ~/.sase/chats/mybranch-commit-260328_143052.md (2m15s)
       | DIFF: ~/.sase/diffs/mybranch-260328_143052.diff
-      | PLAN: plans/my_plan.md
+      | PLAN: sdd/plans/202603/my_plan.md
   (2) Second commit note
       Multi-line body continues here with 6-space indent.
       Blank body lines use a dot (.) placeholder.

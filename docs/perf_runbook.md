@@ -1,6 +1,6 @@
 # `sase ace` Performance Runbook
 
-Phase 1 deliverable for the TUI performance overhaul (bead `sase-w.1`, `plans/202604/tui_perf_overhaul_1.md`). Each
+Phase 1 deliverable for the TUI performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`). Each
 later phase relies on the tracing + benchmark harness described here.
 
 ## Trace recorder

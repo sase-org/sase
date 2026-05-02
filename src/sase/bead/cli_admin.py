@@ -44,10 +44,13 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
 Quick Start:
   sase bead init                                 Create .sase_beads/ in current directory
   sase bead create -t "Fix bug" --type phase(<plan-id>)
-  sase bead create -t "New feature" --type plan(plan.md)
-  sase bead create -t "Sub-plan" --type plan(plan.md,<plan-id>)
+  sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
+  sase bead create -t "Epic" --type plan(sdd/epics/202605/epic.md) --tier epic
+  sase bead create -t "Legend" --type plan(sdd/legends/202605/roadmap.md) --tier legend
+  sase bead create -t "Linked epic" --type plan(sdd/epics/202605/epic.md,<legend-id>) --tier epic
   sase bead list                                 List all issues
   sase bead list --status=open                   List open issues
+  sase bead list --tier=epic                     List epic plan beads
   sase bead ready                                Show issues ready to work
   sase bead show <id>                            View issue details
   sase bead update <id> --status=in_progress     Claim an issue
@@ -59,4 +62,4 @@ Quick Start:
   sase bead sync                                 Commit JSONL to git
   sase bead stats                                Project statistics
   sase bead doctor                               Health check
-  sase bead work <epic>                          Mark an epic plan ready to work""")
+  sase bead work <epic>                          Mark an epic-tier plan ready to work""")

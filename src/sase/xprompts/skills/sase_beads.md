@@ -14,8 +14,12 @@ Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase be
 
 ## Types
 
-- `plan` — top-level work item (created with `--type plan(...)`)
+- `plan` — plan-like work item (created with `--type plan(...)`)
 - `phase` — child of a plan (created with `--type phase(...)`)
+
+Plan beads can carry `--tier plan`, `--tier epic`, or `--tier legend`. Normal approved plans live under
+`sdd/plans/{YYYYMM}/`, executable epics under `sdd/epics/{YYYYMM}/`, and legends under `sdd/legends/{YYYYMM}/`.
+`sase bead work` only runs `epic`-tier plan beads.
 
 ## Commands
 
@@ -23,7 +27,16 @@ Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase be
 
 ```bash
 # Create a plan bead (top-level, linked to a plan file)
-sase bead create --title "Add auth system" --type plan(sdd/plans/202605/auth.md)
+sase bead create --title "Add auth system" --type plan(sdd/plans/202605/auth.md) --tier plan
+
+# Create an executable epic bead
+sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md) --tier epic
+
+# Create a legend bead
+sase bead create --title "Auth roadmap" --type plan(sdd/legends/202605/auth.md) --tier legend
+
+# Create an epic linked under a legend
+sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md,<legend-bead-id>) --tier epic
 
 # Create a phase bead (child of a plan)
 sase bead create --title "Implement login endpoint" --type phase(<plan-bead-id>)
@@ -70,6 +83,10 @@ sase bead list --status=closed
 # Filter by type
 sase bead list --type=plan
 sase bead list --type=phase
+
+# Filter by plan-bead tier
+sase bead list --tier=epic
+sase bead list --tier=legend
 ```
 
 Output format: `[icon] [id] · [title][ ← parent_id]` where icons are `○` open, `◐` in_progress, `✓` closed.
@@ -89,8 +106,8 @@ No arguments. Lists all beads that are open and have no unresolved dependencies 
 sase bead show <id>
 ```
 
-Displays full details: status, type, owner, assignee, parent, children, dependencies, blocks, description, notes, and
-linked design file.
+Displays full details: status, type, tier, owner, assignee, parent, children, dependencies, blocks, description, notes,
+and linked design file.
 
 ### dep add
 
@@ -101,7 +118,7 @@ sase bead dep add <issue> <depends_on>
 
 ## Typical Workflow
 
-1. `sase bead create --title "..." --type plan(plan.md)` — create a plan bead
+1. `sase bead create --title "..." --type plan(sdd/epics/202605/plan.md) --tier epic` — create an epic plan bead
 2. `sase bead create --title "Phase 1" --type phase(<plan-id>)` — add phases
 3. `sase bead dep add <phase-2-id> <phase-1-id>` — set ordering
 4. `sase bead ready` — find unblocked work

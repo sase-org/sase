@@ -175,6 +175,30 @@ def test_write_sdd_files_epic_kind() -> None:
         assert plan_path.exists()
 
 
+def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir) / "sdd"
+        plan_file = Path(tmpdir) / "source_plan.md"
+        plan_file.write_text("# Plan\n", encoding="utf-8")
+
+        with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
+            for plan_kind in ("plans", "epics", "legends"):
+                write_sdd_files(
+                    sdd_dir,
+                    f"my_{plan_kind}",
+                    "spec",
+                    str(plan_file),
+                    plan_kind=plan_kind,
+                )
+
+        assert (sdd_dir / "specs" / "202603").is_dir()
+        assert (sdd_dir / "plans" / "202603" / "my_plans.md").exists()
+        assert (sdd_dir / "epics" / "202603" / "my_epics.md").exists()
+        assert (sdd_dir / "legends" / "202603" / "my_legends.md").exists()
+        assert not (Path(tmpdir) / "plans").exists()
+        assert not (Path(tmpdir) / "specs").exists()
+
+
 def test_write_sdd_files_rejects_unknown_plan_kind() -> None:
     with pytest.raises(ValueError, match="invalid SDD plan kind"):
         write_sdd_files(Path("/tmp/sdd"), "bad", "spec", "/tmp/plan.md", plan_kind="x")

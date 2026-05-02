@@ -11,9 +11,12 @@ SDD fixes this by writing specs and plans to disk as first-class artifacts:
 
 - **Specs** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
 - **Plans** record the structured plan the agent produced, so decomposition decisions are queryable after the fact.
-- **Beads** provide structured issue tracking that links plans to execution via epic and phase IDs in commit messages.
+- **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
+- **Legends** record higher-level coordination plans that can own linked epics.
+- **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
+  IDs in commit messages.
 
-Together, these create an audit trail: spec --> plan --> bead epic --> phase beads --> commits.
+Together, these create an audit trail: spec --> plan, epic, or legend --> bead hierarchy --> phase beads --> commits.
 
 ## Storage Modes
 
@@ -32,7 +35,7 @@ Files are stored in a standalone git repo inside the primary workspace:
       {plan_name}.md        # Expanded prompt (xprompts resolved, directives stripped)
   plans/
     {YYYYMM}/
-      {plan_name}.md        # Formatted plan with create_time frontmatter
+      {plan_name}.md        # Normal non-epic implementation plans
   epics/
     {YYYYMM}/
       {plan_name}.md        # Executable multi-phase epic plans
@@ -73,7 +76,10 @@ Files are stored at the project root and tracked in the project's own git repo:
     config.json
 ```
 
-In this mode, specs and plans are committed alongside code changes via `sase commit`.
+In this mode, SDD artifacts are committed alongside code changes via `sase commit`.
+
+The `research/` directory remains top-level. It is not migrated under `sdd/` because research notes are exploratory
+inputs, not generated SDD artifacts.
 
 ## How SDD Works
 
@@ -92,7 +98,10 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Written to `sdd/plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}` is derived from the current date
+2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date:
+   - normal approval: `sdd/plans/{YYYYMM}/{plan_name}.md`
+   - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
+   - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
 
 Specs and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This keeps the
 directories manageable as the number of specs and plans grows over time. Both flat and `YYYYMM` layouts are supported
@@ -118,9 +127,24 @@ SDD initializes the [bead issue tracker](beads.md) automatically when an epic ag
   initialized through SASE's built-in bead project bootstrap
 - **VC mode**: Beads are stored in `.sase_beads/` at the project root
 
-For larger efforts, plan files carry a `bead_id` in their frontmatter that links to an epic in the bead tracker. Each
-phase of the epic gets its own bead whose ID appears in commit messages, creating a traceable chain from epic to phase
-to commit. For smaller plans, commit messages include a `PLAN=<path>` tag pointing back to the plan file.
+Plan-like beads carry a `tier` value:
+
+- `plan` for ordinary non-epic implementation plans.
+- `epic` for executable multi-phase plans.
+- `legend` for higher-level coordination plans.
+
+For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
+own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. Legend files
+carry `legend_bead_id` and `tier: legend`; linked epics also include `legend_bead_id`. For smaller plans, commit
+messages include a `PLAN=<path>` tag pointing back to the plan file.
+
+Linked epics are created as ordinary plan beads with a legend parent:
+
+```bash
+sase bead create --title "<title>" --type plan(sdd/epics/202605/example.md,<legend_bead_id>) --tier epic
+```
+
+Legend beads are non-executable containers for now. `sase bead work <id>` accepts epic-tier plan beads, not legends.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
 workspaces can resolve. In version-controlled mode this is the project-relative `sdd/epics/{YYYYMM}/{name}.md` path. In

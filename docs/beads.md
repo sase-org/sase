@@ -2,8 +2,8 @@
 
 Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed SQLite/query/mutation logic
 through the required `sase_core_rs` extension, with JSONL export for git portability (inspired by
-[Fossil](https://fossil-scm.org/)). Issues are organized into a two-tier hierarchy: **Plans** (epics) group related
-work, and **Phases** (child tasks) break plans into actionable steps.
+[Fossil](https://fossil-scm.org/)). Issues are organized into plan-like containers and executable child phases. Plan
+beads can represent ordinary plans, executable epics, or non-executable legends through their `tier` metadata.
 
 ## Table of Contents
 
@@ -25,7 +25,10 @@ work, and **Phases** (child tasks) break plans into actionable steps.
 
 ```bash
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(plan.md)"   # Create a plan linked to a plan file
+sase bead create -t "New feature" --type "plan(sdd/plans/202605/feature.md)" --tier plan
+sase bead create -t "Epic" --type "plan(sdd/epics/202605/epic.md)" --tier epic
+sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend
+sase bead create -t "Linked epic" --type "plan(sdd/epics/202605/epic.md,<legend-id>)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List all issues
 sase bead list --status=open                            # List open issues
@@ -39,20 +42,34 @@ sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Commit JSONL to git
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
-sase bead work beads-001                                # Launch phase + land agents for an epic
+sase bead work beads-001                                # Launch phase + land agents for an epic-tier plan
 ```
 
 ## Data Model
 
 ### Issue Types
 
-| Type      | Description                          | ID Format            |
-| --------- | ------------------------------------ | -------------------- |
-| **Plan**  | Top-level work unit (epic)           | `{prefix}-{counter}` |
-| **Phase** | Task within a plan (requires parent) | `{parent_id}.{N}`    |
+| Type      | Description                              | ID Format            |
+| --------- | ---------------------------------------- | -------------------- |
+| **Plan**  | Plan-like container with a tier          | `{prefix}-{counter}` |
+| **Phase** | Executable task within an epic/plan bead | `{parent_id}.{N}`    |
 
-Plans are top-level groupings that can optionally link to a plan/spec file via the `design` field. Phases always belong
-to a parent plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
+Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
+plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
+
+Plan beads carry a tier:
+
+| Tier     | SDD Path                    | Behavior                                                           |
+| -------- | --------------------------- | ------------------------------------------------------------------ |
+| `plan`   | `sdd/plans/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                |
+| `epic`   | `sdd/epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`           |
+| `legend` | `sdd/legends/{YYYYMM}/*.md` | Higher-level coordination plan; does not run phase agents directly |
+
+Linked epics use the existing parented plan syntax:
+
+```bash
+sase bead create --title "Epic" --type plan(sdd/epics/202605/epic.md,<legend_bead_id>) --tier epic
+```
 
 ### Status Lifecycle
 
@@ -122,6 +139,7 @@ Create a new issue.
 | `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
 | `-d, --description` | no       | Issue description                                                           |
 | `-a, --assignee`    | no       | Assignee name                                                               |
+| `--tier`            | no       | Plan-bead tier: `plan`, `epic`, or `legend`                                 |
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                     |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
 
@@ -136,11 +154,12 @@ List issues with optional filtering. Closed beads are excluded from the default 
 | -------------- | ------------------------------- | ----------------------------- |
 | `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable) |
 | `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)   |
+| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier      |
 
 ### `sase bead show <id>`
 
-Display complete details for an issue including status, type, parent/children, dependencies, blockers, description,
-notes, and linked plan path.
+Display complete details for an issue including status, type, tier, parent/children, dependencies, blockers,
+description, notes, and linked plan path.
 
 ### `sase bead ready`
 
@@ -162,6 +181,7 @@ Update one or more fields on an issue.
 | `-n, --notes`       | Change notes       |
 | `-D, --design`      | Change plan path   |
 | `-a, --assignee`    | Change assignee    |
+| `--tier`            | Change plan tier   |
 
 ### `sase bead close <id> [<id2> ...]`
 
@@ -212,10 +232,12 @@ Display a quick-start guide with common command examples.
 
 ### `sase bead work <epic_id>`
 
-Run an entire epic plan end-to-end by launching one agent per phase plus a final land agent. Concretely, the command:
+Run an entire epic-tier plan end-to-end by launching one agent per phase plus a final land agent. Legend-tier plan beads
+are coordination containers and are rejected by `sase bead work` until legend orchestration exists. Concretely, the
+command:
 
-1. Validates that `<epic_id>` resolves to an issue of type `plan`. If the plan is already marked `is_ready_to_work`, the
-   command treats the run as a retry and schedules any remaining non-closed phases.
+1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
+   `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
 2. Scans the live agent registry for any visible agent already named `<epic_id>.<N>` (for any open phase), `<epic_id>`
    (for the land agent), or the legacy `<epic_id>.land` land-agent name, and refuses to launch when a collision exists,
    listing the offending artifact directories so the user can revive, dismiss, or rename the orphan first. (`--dry-run`
@@ -288,15 +310,16 @@ unified view of all work.
 ### Plan File Linking
 
 When creating a plan bead with `--type plan(PATH)`, the file path is stored in the `design` field. The ACE TUI can
-navigate from a bead to its linked plan file.
+navigate from a bead to its linked SDD file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
 `sdd/epics/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. Both
 references are relative to the primary workspace so phase agents launched from sibling workspaces can still locate the
 plan.
 
-### Epic Approval Flow
+### Plan Approval Flow
 
-The plan approval popup in ACE shows an **E** (Epic) option. Pressing E persists the spec and plan through SDD,
-initializes bead storage if needed, launches an `.epic` follow-up agent, and asks that agent to create the plan bead and
-phase beads for the plan.
+The plan approval popup in ACE includes normal approval, **E** (Epic), and **L** (Legend) actions. Normal approval saves
+to `sdd/plans/`, Epic saves to `sdd/epics/` and launches the epic follow-up that creates an `epic`-tier plan bead plus
+phase beads, and Legend saves to `sdd/legends/` and launches a legend follow-up that creates a `legend`-tier plan bead
+without phase agents.

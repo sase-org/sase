@@ -475,6 +475,7 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
 | `diff_file`           | Injects the CL diff into the mentor prompt                                                                                    |
 | `create_epic_bead`    | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
+| `create_legend_bead`  | Plan-approval Legend flow — creates a non-executable legend-tier plan bead                                                    |
 | `work_phase_bead`     | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
 | `land_epic`           | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                           |
 
@@ -659,6 +660,7 @@ xprompt with the same name overrides them.
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
+| `#bd/new_legend`      | Legend kickoff that creates a `legend`-tier plan bead without running `sase bead work`            |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
 | `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                  |
 | `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
@@ -673,6 +675,10 @@ xprompt with the same name overrides them.
 
 When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding
 `sase bead create -c/--changespec` and `-b/--bug-id` metadata.
+
+`#bd/new_epic` also accepts an optional `legend_bead_id`. When supplied, or when the epic plan file frontmatter contains
+`legend_bead_id`, the epic is linked under that legend with `--type plan(<plan_file>,<legend_bead_id>) --tier epic`.
+`#bd/new_legend` creates a `--tier legend` plan bead for `sdd/legends/{YYYYMM}/...` and does not run `sase bead work`.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
