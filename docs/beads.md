@@ -5,6 +5,8 @@ through the required `sase_core_rs` extension, with JSONL export for git portabi
 [Fossil](https://fossil-scm.org/)). Issues are organized into plan-like containers and executable child phases. Plan
 beads can represent ordinary plans, executable epics, or non-executable legends through their `tier` metadata.
 
+![Bead issue model, storage sync, and epic wave execution](images/bead-epic-work-infographic.png)
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
