@@ -29,6 +29,7 @@ from sase.main.parser_init import (
     register_init_git_parser,
     register_init_skills_parser,
 )
+from sase.main.parser_sdd import register_sdd_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_xprompt import register_xprompt_parser
 
@@ -69,6 +70,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_restore_parser(top_level_subparsers)
     register_revert_parser(top_level_subparsers)
     register_run_parser(top_level_subparsers)
+    register_sdd_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)
 

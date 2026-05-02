@@ -230,6 +230,12 @@ def main() -> NoReturn:
 
         handle_revert_command(args)
 
+    # --- sdd ---
+    if args.command == "sdd":
+        from .sdd_handler import handle_sdd_command
+
+        handle_sdd_command(args)
+
     # --- telemetry ---
     if args.command == "telemetry":
         from .telemetry_handler import handle_telemetry_command
