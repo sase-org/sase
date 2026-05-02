@@ -1,19 +1,29 @@
-"""Plan, questions, and artifact helpers for the agent execution loop."""
+"""Plan and question handlers for the agent execution loop."""
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 import subprocess
-import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.axe.run_agent_exec_plan_artifacts import (
+    get_embedded_workflow_refs,
+    write_plan_path_artifact,
+)
+from sase.axe.run_agent_exec_plan_sdd import (
+    build_epic_plan_ref,
+    build_saved_plan_ref,
+    build_sdd_plan_ref,
+    commit_sdd_files_for_exec_plan,
+    infer_epic_legend_bead_id,
+    plan_kind_for_action,
+)
 from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     format_qa_for_prompt,
@@ -38,116 +48,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_build_epic_plan_ref = build_epic_plan_ref
+_build_saved_plan_ref = build_saved_plan_ref
+_build_sdd_plan_ref = build_sdd_plan_ref
+_get_embedded_workflow_refs = get_embedded_workflow_refs
+_infer_epic_legend_bead_id = infer_epic_legend_bead_id
+_plan_kind_for_action = plan_kind_for_action
+_write_plan_path_artifact = write_plan_path_artifact
+
 
 def _commit_sdd_files(
     workspace_dir: str, plan_name: str, *, plan_kind: str = "tales"
 ) -> None:
-    """Commit SDD prompt and plan files via ``sase commit`` before launching the epic agent.
-
-    The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
-    wipes uncommitted files.  Committing (and pushing) the SDD files first
-    ensures the epic agent can still read them.
-    """
-    from sase.sdd.files import find_sdd_file
-
-    base = Path(workspace_dir)
-    fname = f"{plan_name}.md"
-    prompt_found = find_sdd_file(base, "prompts", fname)
-    plan_found = find_sdd_file(base, plan_kind, fname)
-    files = [str(f) for f in (prompt_found, plan_found) if f is not None]
-    if not files:
-        return
-    message = f"chore: Add SDD prompt and plan for {plan_name}"
-    # -M / --message-file expects a file path, not a raw string.
-    # handle_commit_command deletes the file after reading it.
-    msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
-    try:
-        os.write(msg_fd, message.encode())
-    finally:
-        os.close(msg_fd)
-    cmd = ["sase", "commit", "-M", msg_path]
-    for f in files:
-        cmd.extend(["-f", f])
-    result = subprocess.run(
-        cmd,
-        cwd=workspace_dir,
-        capture_output=True,
-        text=True,
-        check=False,
+    commit_sdd_files_for_exec_plan(
+        workspace_dir,
+        plan_name,
+        plan_kind=plan_kind,
+        logger=logger,
+        subprocess_run=subprocess.run,
     )
-    if result.returncode != 0:
-        logger.warning(
-            "sase commit for SDD files failed (exit %d): %s",
-            result.returncode,
-            result.stderr,
-        )
-
-
-def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
-    """Write plan_path.json to the artifacts directory.
-
-    This allows the TUI workflow loader to find the plan file and display
-    it in the file panel for the .plan agent entry.
-    """
-    plan_path_file = Path(artifacts_dir) / "plan_path.json"
-    try:
-        with open(plan_path_file, "w", encoding="utf-8") as f:
-            json.dump({"plan_path": plan_path}, f)
-    except OSError:
-        pass
-
-
-def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
-    """Reconstruct non-VCS embedded workflow refs from artifacts metadata.
-
-    Reads embedded_workflows.json (written during workflow expansion before
-    the agent is killed) and returns a string of workflow references
-    (e.g., ``"#propose "``) to append to follow-up agent prompts so their
-    post-steps run after the follow-up agent completes.
-    """
-    metadata_path = os.path.join(artifacts_dir, "embedded_workflows.json")
-    try:
-        with open(metadata_path, encoding="utf-8") as f:
-            workflows = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return ""
-
-    # Extract VCS workflow name from tag (e.g., "#hg:sase " -> "hg")
-    vcs_name: str | None = None
-    if vcs_tag:
-        m = re.match(r"#(\w+)", vcs_tag)
-        if m:
-            vcs_name = m.group(1)
-
-    # Only roll over workflows tagged with "rollover".
-    # Backward compat: if no entry has a "tags" key at all, roll over
-    # all non-VCS workflows (legacy behavior).
-    has_any_tags = any("tags" in w for w in workflows)
-
-    refs: list[str] = []
-    for wf in workflows:
-        name = wf["name"]
-        wf_tags = wf.get("tags", [])
-        if name == vcs_name or (vcs_tag and "vcs" in wf_tags):
-            continue
-        if has_any_tags and "rollover" not in wf_tags:
-            continue
-        args = wf.get("args", {})
-        if not args:
-            refs.append(f"#{name}")
-        elif len(args) == 1:
-            value = next(iter(args.values()))
-            refs.append(f"#{name}:{value}")
-        else:
-            arg_parts = [f"{k}={v}" for k, v in args.items()]
-            refs.append(f"#{name}({', '.join(arg_parts)})")
-
-    if not refs:
-        return ""
-    return " ".join(refs) + " "
-
-
-_get_embedded_workflow_refs = get_embedded_workflow_refs
 
 
 def _update_coder_model_meta(
@@ -166,213 +85,6 @@ def _update_coder_model_meta(
         update_meta_field(
             state.current_artifacts_dir, "llm_provider", resolved_provider
         )
-
-
-def _build_sdd_plan_ref(
-    *,
-    sdd_plan_path: Path | None,
-    sdd_dir: Path,
-    workspace_dir: str,
-    sdd_plan_name: str | None,
-    version_controlled: bool,
-    fallback_plan_file: str,
-    plan_kind: str,
-) -> str:
-    """Build the plan reference passed to a plan-container creation xprompt."""
-    if sdd_plan_path and sdd_plan_path.exists():
-        if version_controlled:
-            try:
-                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
-            except ValueError:
-                return sdd_plan_path.as_posix()
-
-        try:
-            sdd_relative = sdd_plan_path.relative_to(sdd_dir)
-            return (Path(".sase") / "sdd" / sdd_relative).as_posix()
-        except ValueError:
-            try:
-                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
-            except ValueError:
-                return sdd_plan_path.as_posix()
-
-    from sase.sdd.files import get_yyyymm
-
-    yyyymm = get_yyyymm()
-    if sdd_plan_name and not version_controlled:
-        return f".sase/sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
-    if sdd_plan_name:
-        return f"sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
-    return fallback_plan_file
-
-
-def _build_epic_plan_ref(
-    *,
-    sdd_plan_path: Path | None,
-    sdd_dir: Path,
-    workspace_dir: str,
-    sdd_plan_name: str | None,
-    version_controlled: bool,
-    fallback_plan_file: str,
-) -> str:
-    """Build the plan reference passed to the epic-creation xprompt."""
-    return _build_sdd_plan_ref(
-        sdd_plan_path=sdd_plan_path,
-        sdd_dir=sdd_dir,
-        workspace_dir=workspace_dir,
-        sdd_plan_name=sdd_plan_name,
-        version_controlled=version_controlled,
-        fallback_plan_file=fallback_plan_file,
-        plan_kind="epics",
-    )
-
-
-_SDD_LEGEND_REF_RE = re.compile(
-    r"(?P<path>(?:\.sase/)?sdd/legends/[A-Za-z0-9_./~+-]+\.md)"
-)
-
-
-def _read_markdown_frontmatter(path: Path) -> tuple[dict[str, Any], str] | None:
-    try:
-        content = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-    from sase.sdd.frontmatter import parse_frontmatter
-
-    frontmatter, body, _ = parse_frontmatter(content)
-    return frontmatter, body
-
-
-def _frontmatter_legend_bead_id(frontmatter: dict[str, Any]) -> str | None:
-    value = frontmatter.get("legend_bead_id")
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _resolve_sdd_reference_path(
-    ref: str,
-    *,
-    workspace_dir: str,
-    sdd_dir: Path | None,
-) -> Path | None:
-    ref_path = Path(ref).expanduser()
-    if ref_path.is_absolute():
-        return ref_path if ref_path.exists() else None
-
-    candidates: list[Path] = [Path(workspace_dir) / ref_path]
-    if sdd_dir is not None:
-        for prefix in (Path(".sase") / "sdd", Path("sdd")):
-            try:
-                candidates.append(sdd_dir / ref_path.relative_to(prefix))
-            except ValueError:
-                pass
-        candidates.append(sdd_dir / ref_path)
-
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _iter_sdd_legend_refs(*texts: str) -> list[str]:
-    refs: list[str] = []
-    seen: set[str] = set()
-    for text in texts:
-        for match in _SDD_LEGEND_REF_RE.finditer(text):
-            ref = match.group("path")
-            if ref not in seen:
-                refs.append(ref)
-                seen.add(ref)
-    return refs
-
-
-def _infer_epic_legend_bead_id(
-    *,
-    sdd_plan_path: Path | None,
-    workspace_dir: str,
-    sdd_dir: Path | None,
-) -> str | None:
-    """Infer an epic's parent legend bead ID from SDD metadata when safe."""
-    if sdd_plan_path is None:
-        return None
-
-    parsed_plan = _read_markdown_frontmatter(sdd_plan_path)
-    if parsed_plan is None:
-        return None
-
-    plan_frontmatter, plan_body = parsed_plan
-    direct_id = _frontmatter_legend_bead_id(plan_frontmatter)
-    if direct_id:
-        return direct_id
-
-    reference_texts = [plan_body]
-    prompt_ref = plan_frontmatter.get("prompt")
-    if prompt_ref:
-        prompt_path = _resolve_sdd_reference_path(
-            str(prompt_ref),
-            workspace_dir=workspace_dir,
-            sdd_dir=sdd_dir,
-        )
-        if prompt_path is not None:
-            try:
-                reference_texts.append(prompt_path.read_text(encoding="utf-8"))
-            except OSError:
-                pass
-
-    legend_ids: set[str] = set()
-    for legend_ref in _iter_sdd_legend_refs(*reference_texts):
-        legend_path = _resolve_sdd_reference_path(
-            legend_ref,
-            workspace_dir=workspace_dir,
-            sdd_dir=sdd_dir,
-        )
-        if legend_path is None:
-            continue
-        parsed_legend = _read_markdown_frontmatter(legend_path)
-        if parsed_legend is None:
-            continue
-        legend_id = _frontmatter_legend_bead_id(parsed_legend[0])
-        if legend_id:
-            legend_ids.add(legend_id)
-
-    if len(legend_ids) == 1:
-        return next(iter(legend_ids))
-    return None
-
-
-def _plan_kind_for_action(action: str) -> str:
-    if action == "epic":
-        return "epics"
-    if action == "legend":
-        return "legends"
-    return "tales"
-
-
-def _build_saved_plan_ref(
-    *,
-    sdd_plan_path: Path | None,
-    sdd_dir: Path,
-    workspace_dir: str,
-    version_controlled: bool,
-    fallback_plan_file: str,
-) -> str:
-    """Build the plan reference passed to a normal coder follow-up."""
-    if sdd_plan_path and sdd_plan_path.exists():
-        if version_controlled:
-            try:
-                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
-            except ValueError:
-                return sdd_plan_path.as_posix()
-
-        try:
-            sdd_relative = sdd_plan_path.relative_to(sdd_dir)
-            return (Path(".sase") / "sdd" / sdd_relative).as_posix()
-        except ValueError:
-            return sdd_plan_path.as_posix()
-
-    return fallback_plan_file
 
 
 def handle_plan_marker(
