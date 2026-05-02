@@ -39,6 +39,8 @@ jobs:
         run: uv python install 3.12
       - name: Install dependencies
         run: just install
+      - name: Validate SDD links
+        run: just sdd-validate
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'

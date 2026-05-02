@@ -162,6 +162,10 @@ check: _setup
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
     @tools/run_silent "test"               just test
 
+# Validate SDD prompt/plan frontmatter links.
+sdd-validate: _setup
+    {{ venv_bin }}/sase sdd validate
+
 # Fix code, run linters, and run tests.
 all: fix lint pylimit test
 
