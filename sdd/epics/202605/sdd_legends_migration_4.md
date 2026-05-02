@@ -219,7 +219,7 @@ Scope:
 Exit criteria:
 
 - New SDD writes use only `sdd/` or `.sase/sdd/`.
-- Existing epic plan files are in `sdd/epics/`; normal plans are in `sdd/tales/`; specs are in `sdd/specs/`.
+- Existing epic plan files are in `sdd/epics/`; normal plans are in `sdd/tales/`; prompts are in `sdd/prompts/`.
 - Plan approval has a working Legend action in the TUI, Telegram, and Google Chat.
 - Linked epic creation uses the requested `--type plan(<plan_file>,<legend_bead_id>)` syntax.
 - `sase bead work` remains epic-only and does not try to orchestrate legends.

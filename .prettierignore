@@ -1,10 +1,7 @@
 # Planning artifacts — owned by planner/coder agents, not the project's prose style
-plans/
-specs/
 sdd/epics/
 sdd/legends/
 sdd/tales/
 sdd/prompts/
-sdd/specs/
 research/
 sase_plan_*.md

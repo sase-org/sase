@@ -1,7 +1,7 @@
 ---
 create_time: 2026-05-02 00:58:36
 status: done
-prompt: sdd/specs/202605/rename_run_to_quest.md
+prompt: sdd/prompts/202605/rename_run_to_quest.md
 ---
 # Rename Plan Approval Run Option To Quest
 

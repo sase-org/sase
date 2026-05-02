@@ -3,7 +3,7 @@ create_time: 2026-05-02 00:34:15
 status: done
 bead_id: sase-1z
 tier: epic
-prompt: sdd/specs/202605/docs_gpt_image_infographics.md
+prompt: sdd/prompts/202605/docs_gpt_image_infographics.md
 ---
 
 # Plan: GPT Image Infographics for High-Complexity Docs

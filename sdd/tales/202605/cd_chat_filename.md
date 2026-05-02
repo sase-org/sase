@@ -1,7 +1,7 @@
 ---
 create_time: 2026-05-01 22:56:28
 status: done
-prompt: sdd/specs/202605/cd_chat_filename.md
+prompt: sdd/prompts/202605/cd_chat_filename.md
 ---
 # Plan: Fix `#cd` Chat Filename Paths
 
