@@ -3,6 +3,8 @@
 The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
 roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
 
+![SDD directory map](assets/sdd-directory-map.png)
+
 ## Directory Layout
 
 - `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.

@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 23:55:12
-status: wip
+status: done
+prompt: sdd/specs/202605/sdd_mythic_directory_image.md
 ---
 # Plan: Add Mythic SDD Directory Image
 

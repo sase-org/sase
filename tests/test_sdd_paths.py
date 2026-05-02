@@ -1,5 +1,6 @@
 """Tests for SDD path and date lookup helpers."""
 
+from importlib import resources
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -7,10 +8,12 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from sase.sdd.files import (
+    SDD_DIRECTORY_MAP_FILENAME,
     find_sdd_file,
     get_primary_workspace_dir,
     get_sdd_dir,
     get_yyyymm,
+    resolve_sdd_asset_path,
     resolve_sdd_readme_path,
 )
 
@@ -121,6 +124,21 @@ def test_resolve_sdd_readme_path_sdd_root(tmp_path: Path) -> None:
         resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
         == sdd_root / "README.md"
     )
+
+
+def test_resolve_sdd_asset_path_follows_readme_root(tmp_path: Path) -> None:
+    assert (
+        resolve_sdd_asset_path(str(tmp_path), cwd=Path("/tmp"))
+        == tmp_path / "sdd" / "assets" / SDD_DIRECTORY_MAP_FILENAME
+    )
+
+
+def test_sdd_directory_map_package_resource_exists() -> None:
+    resource = resources.files("sase.sdd").joinpath(
+        "assets", SDD_DIRECTORY_MAP_FILENAME
+    )
+    assert resource.is_file()
+    assert resource.name == SDD_DIRECTORY_MAP_FILENAME
 
 
 # ---------------------------------------------------------------------------

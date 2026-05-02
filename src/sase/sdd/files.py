@@ -1,8 +1,10 @@
 """SDD file writing, committing, and directory resolution."""
 
 import logging
+import shutil
 import subprocess
 from datetime import datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -12,11 +14,15 @@ _SDD_PLAN_KINDS = {"tales", "epics", "legends"}
 _SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
 _SDD_CANONICAL_DIRS = {"prompts", "tales", "epics", "legends", "beads"}
+SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
+SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
 
 SDD_README_CONTENT = """# Structured Development Docs
 
 The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
 roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
+
+![SDD directory map](assets/sdd-directory-map.png)
 
 ## Directory Layout
 
@@ -119,12 +125,28 @@ def resolve_sdd_readme_path(
     return (target / "sdd" / "README.md").resolve()
 
 
+def resolve_sdd_asset_path(path: str | None = None, *, cwd: Path | None = None) -> Path:
+    """Resolve the generated SDD directory map target."""
+    return (
+        resolve_sdd_readme_path(path, cwd=cwd).parent / SDD_DIRECTORY_MAP_RELATIVE_PATH
+    )
+
+
 def write_sdd_readme(path: str | None = None, *, cwd: Path | None = None) -> Path:
     """Create or refresh the canonical SDD README and return its path."""
     readme_path = resolve_sdd_readme_path(path, cwd=cwd)
     readme_path.parent.mkdir(parents=True, exist_ok=True)
     readme_path.write_text(SDD_README_CONTENT, encoding="utf-8")
+    _copy_sdd_directory_map(resolve_sdd_asset_path(path, cwd=cwd))
     return readme_path
+
+
+def _copy_sdd_directory_map(asset_path: Path) -> None:
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
+    with resources.as_file(source) as source_path:
+        if source_path.resolve() != asset_path.resolve():
+            shutil.copyfile(source_path, asset_path)
 
 
 def _looks_like_sdd_root(path: Path) -> bool:

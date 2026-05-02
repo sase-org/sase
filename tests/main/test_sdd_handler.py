@@ -75,23 +75,30 @@ def test_init_creates_readme_for_project_root(
 
     assert excinfo.value.code == 0
     readme = tmp_path / "sdd" / "README.md"
+    asset = tmp_path / "sdd" / "assets" / "sdd-directory-map.png"
     assert readme.exists()
+    assert asset.exists()
     assert str(readme) in capsys.readouterr().out
     text = readme.read_text(encoding="utf-8")
     assert "# Structured Development Docs" in text
+    assert "![SDD directory map](assets/sdd-directory-map.png)" in text
     assert "`prompts/`" in text
     assert "`tales/`" in text
     assert "`sase sdd validate`" in text
 
 
-def test_init_overwrites_stale_readme_idempotently(tmp_path: Path) -> None:
+def test_init_overwrites_stale_readme_and_asset_idempotently(tmp_path: Path) -> None:
     readme = tmp_path / "sdd" / "README.md"
+    asset = tmp_path / "sdd" / "assets" / "sdd-directory-map.png"
     readme.parent.mkdir(parents=True)
     readme.write_text("stale\n", encoding="utf-8")
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b"stale\n")
 
     with pytest.raises(SystemExit) as first:
         handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
     first_content = readme.read_text(encoding="utf-8")
+    first_asset_content = asset.read_bytes()
 
     with pytest.raises(SystemExit) as second:
         handle_sdd_command(_args(sdd_subcommand="init", path=str(tmp_path)))
@@ -99,7 +106,9 @@ def test_init_overwrites_stale_readme_idempotently(tmp_path: Path) -> None:
     assert first.value.code == 0
     assert second.value.code == 0
     assert first_content != "stale\n"
+    assert first_asset_content != b"stale\n"
     assert readme.read_text(encoding="utf-8") == first_content
+    assert asset.read_bytes() == first_asset_content
 
 
 def test_validate_allows_default_unpaired_warnings(
