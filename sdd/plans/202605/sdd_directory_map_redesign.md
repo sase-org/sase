@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 00:13:44
-status: wip
+status: done
 ---
 # Plan: Replace SDD Directory Map With a Practical Diagram
 
