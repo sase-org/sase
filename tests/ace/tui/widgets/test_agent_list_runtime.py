@@ -203,3 +203,4 @@ def test_update_list_right_aligns_suffixes_across_batch() -> None:
     assert rows[1].rstrip().endswith("20:17:03 · 6h17m")
     # Both rows render at the same total cell width (right-aligned column).
     assert len(rows[0]) == len(rows[1])
+    assert widget._requested_width == widget._target_width + 8

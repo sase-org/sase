@@ -116,6 +116,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # at full-rebuild time.
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
         self._target_width: int = 0
+        self._requested_width: int = 0
         # Per-agent tier-guide gutter styles, captured during ``update_list``
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.

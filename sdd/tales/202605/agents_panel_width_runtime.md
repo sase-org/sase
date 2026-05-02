@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 12:56:53
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_panel_width_runtime.md
 ---
 # Plan: Keep Agents Left Panel Wide Enough for Runtime Suffixes

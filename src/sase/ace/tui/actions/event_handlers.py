@@ -495,11 +495,20 @@ class EventHandlersMixin:
 
         from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 
-        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, event.width))
         try:
             agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
         except NoMatches:
             return
+        agent_lists = self.query("#agent-list-container AgentList").results(  # type: ignore[attr-defined]
+            AgentList
+        )
+        requested_widths = [
+            width
+            for widget in agent_lists
+            if (width := getattr(widget, "_requested_width", 0)) > 0
+        ]
+        desired_width = max([event.width, *requested_widths])
+        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, desired_width))
         agent_list_container.styles.width = width
 
     def on_resize(self, _event: events.Resize) -> None:
