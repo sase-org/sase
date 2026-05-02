@@ -101,35 +101,35 @@ def test_epic_prompt_with_vcs_tag() -> None:
     """Epic prompt should include VCS tag prefix and bd/new_epic xprompt."""
     vcs_tag = "#git:sase "
     sdd_plan_name = "epic_approval"
-    expected = "#git:sase #bd/new_epic:plans/epic_approval.md"
-    assert f"{vcs_tag}#bd/new_epic:plans/{sdd_plan_name}.md" == expected
+    expected = "#git:sase #bd/new_epic:sdd/epics/202605/epic_approval.md"
+    assert f"{vcs_tag}#bd/new_epic:sdd/epics/202605/{sdd_plan_name}.md" == expected
 
 
 def test_epic_prompt_without_vcs_tag() -> None:
     """Epic prompt without VCS tag should just have the xprompt."""
     vcs_tag = ""
     sdd_plan_name = "my_feature"
-    expected = "#bd/new_epic:plans/my_feature.md"
-    assert f"{vcs_tag}#bd/new_epic:plans/{sdd_plan_name}.md" == expected
+    expected = "#bd/new_epic:sdd/epics/202605/my_feature.md"
+    assert f"{vcs_tag}#bd/new_epic:sdd/epics/202605/{sdd_plan_name}.md" == expected
 
 
 def test_epic_prompt_non_vc_repo() -> None:
-    """Epic prompt for non-VC repo should use .sase/sdd/plans/ prefix."""
+    """Epic prompt for non-VC repo should use .sase/sdd/epics/ prefix."""
     vcs_tag = ""
     sdd_plan_name = "my_feature"
     version_controlled = False
     plan_ref = (
-        f".sase/sdd/plans/{sdd_plan_name}.md"
+        f".sase/sdd/epics/202605/{sdd_plan_name}.md"
         if sdd_plan_name and not version_controlled
-        else f"plans/{sdd_plan_name}.md"
+        else f"sdd/epics/202605/{sdd_plan_name}.md"
         if sdd_plan_name
         else "fallback"
     )
-    expected = ".sase/sdd/plans/my_feature.md"
+    expected = ".sase/sdd/epics/202605/my_feature.md"
     assert plan_ref == expected
     assert (
         f"{vcs_tag}#bd/new_epic:{plan_ref}"
-        == "#bd/new_epic:.sase/sdd/plans/my_feature.md"
+        == "#bd/new_epic:.sase/sdd/epics/202605/my_feature.md"
     )
 
 

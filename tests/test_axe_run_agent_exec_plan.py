@@ -323,7 +323,7 @@ class TestModelInheritance:
         """Coder prompt does NOT prepend #resume:<planner_name> by default."""
         state = self._run(tmp_path, action="approve", agent_model="opus")
         assert "#resume:" not in state.current_prompt
-        plan_ref = f"@{tmp_path / 'plan.md'}"
+        plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
         # Model prefix still leads the prompt.
         assert state.current_prompt.startswith("%model:opus\n")
@@ -358,7 +358,35 @@ class TestModelInheritance:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "#resume:" not in state.current_prompt
-        assert f"@{plan_file}" in state.current_prompt
+        assert "@plan.md" in state.current_prompt
+
+    def test_coder_prompt_uses_saved_sdd_plan_ref(self, tmp_path) -> None:
+        """Normal approved plans hand off the committed sdd/plans file."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "scratch_plan.md")
+        (tmp_path / "scratch_plan.md").write_text("# Plan")
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "specs" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert "@sdd/plans/202605/scratch_plan.md" in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""
@@ -530,7 +558,7 @@ class TestEpicPlanRefs:
             / ".sase"
             / "sdd"
         )
-        sdd_plan_path = sdd_dir / "plans" / "202604" / "missing_buyers_research.md"
+        sdd_plan_path = sdd_dir / "epics" / "202604" / "missing_buyers_research.md"
         workspace_dir.mkdir(parents=True)
         sdd_plan_path.parent.mkdir(parents=True)
         sdd_plan_path.write_text("# Plan", encoding="utf-8")
@@ -564,13 +592,13 @@ class TestEpicPlanRefs:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         assert (
-            "#bd/new_epic:.sase/sdd/plans/202604/missing_buyers_research.md"
+            "#bd/new_epic:.sase/sdd/epics/202604/missing_buyers_research.md"
             in state.current_prompt
         )
 
     def test_epic_plan_ref_uses_workspace_relative_vc_path(self, tmp_path) -> None:
         workspace_dir = tmp_path / "repo"
-        sdd_plan_path = workspace_dir / "plans" / "202604" / "my_feature.md"
+        sdd_plan_path = workspace_dir / "sdd" / "epics" / "202604" / "my_feature.md"
         sdd_plan_path.parent.mkdir(parents=True)
         sdd_plan_path.write_text("# Plan", encoding="utf-8")
 
@@ -583,8 +611,28 @@ class TestEpicPlanRefs:
                 version_controlled=True,
                 fallback_plan_file="/tmp/original.md",
             )
-            == "plans/202604/my_feature.md"
+            == "sdd/epics/202604/my_feature.md"
         )
+
+    def test_epic_plan_ref_fallback_uses_canonical_epic_path(self, tmp_path) -> None:
+        workspace_dir = tmp_path / "repo"
+
+        with patch("sase.sdd.files.get_yyyymm", return_value="202604"):
+            assert (
+                _build_epic_plan_ref(
+                    sdd_plan_path=workspace_dir
+                    / "sdd"
+                    / "epics"
+                    / "202604"
+                    / "missing.md",
+                    sdd_dir=workspace_dir / "sdd",
+                    workspace_dir=str(workspace_dir),
+                    sdd_plan_name="missing",
+                    version_controlled=True,
+                    fallback_plan_file="/tmp/original.md",
+                )
+                == "sdd/epics/202604/missing.md"
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,12 @@ Files are stored in a standalone git repo inside the primary workspace:
   plans/
     {YYYYMM}/
       {plan_name}.md        # Formatted plan with create_time frontmatter
+  epics/
+    {YYYYMM}/
+      {plan_name}.md        # Executable multi-phase epic plans
+  legends/
+    {YYYYMM}/
+      {plan_name}.md        # Higher-level coordination plans
   beads/                    # Bead database (SQLite + JSONL)
     beads.db
     issues.jsonl
@@ -48,16 +54,23 @@ Files are stored at the project root and tracked in the project's own git repo:
 
 ```
 {project_root}/
+  sdd/
+    specs/
+      {YYYYMM}/
+        {plan_name}.md
+    plans/
+      {YYYYMM}/
+        {plan_name}.md
+    epics/
+      {YYYYMM}/
+        {plan_name}.md
+    legends/
+      {YYYYMM}/
+        {plan_name}.md
   .sase_beads/              # Bead database (git-tracked)
     beads.db
     issues.jsonl
     config.json
-  specs/
-    {YYYYMM}/
-      {plan_name}.md
-  plans/
-    {YYYYMM}/
-      {plan_name}.md
 ```
 
 In this mode, specs and plans are committed alongside code changes via `sase commit`.
@@ -79,7 +92,7 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Written to `plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}` is derived from the current date
+2. Written to `sdd/plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}` is derived from the current date
 
 Specs and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This keeps the
 directories manageable as the number of specs and plans grows over time. Both flat and `YYYYMM` layouts are supported
@@ -110,9 +123,9 @@ phase of the epic gets its own bead whose ID appears in commit messages, creatin
 to commit. For smaller plans, commit messages include a `PLAN=<path>` tag pointing back to the plan file.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
-workspaces can resolve. In version-controlled mode this is the project-relative `plans/{YYYYMM}/{name}.md` path. In
-local mode it is the primary-workspace-relative `.sase/sdd/plans/{YYYYMM}/{name}.md` path. If an older flat plan layout
-is encountered, the resolver still checks both flat and `YYYYMM` locations for backwards compatibility.
+workspaces can resolve. In version-controlled mode this is the project-relative `sdd/epics/{YYYYMM}/{name}.md` path. In
+local mode it is the primary-workspace-relative `.sase/sdd/epics/{YYYYMM}/{name}.md` path. If an older flat plan layout
+is encountered, the resolver still checks both canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
 
 ## Configuration
 

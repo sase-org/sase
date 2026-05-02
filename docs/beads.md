@@ -290,7 +290,7 @@ When creating a plan bead with `--type plan(PATH)`, the file path is stored in t
 navigate from a bead to its linked plan file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
-`plans/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/plans/YYYYMM/*.md` in local SDD mode. Both
+`sdd/epics/YYYYMM/*.md` when `sdd.version_controlled: true`, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. Both
 references are relative to the primary workspace so phase agents launched from sibling workspaces can still locate the
 plan.
 

@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.axe.run_agent_exec_plan import _commit_sdd_files
 from sase.sdd.beads import init_beads
 from sase.sdd.files import (
@@ -83,7 +85,7 @@ def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
 
 def test_get_sdd_dir_version_controlled() -> None:
     result = get_sdd_dir("/home/user/project", 1, version_controlled=True)
-    assert result == Path("/home/user/project")
+    assert result == Path("/home/user/project/sdd")
 
 
 def test_get_sdd_dir_not_version_controlled() -> None:
@@ -151,6 +153,31 @@ def test_write_sdd_files_creates_dirs() -> None:
             write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
         assert (sdd_dir / "specs" / "202603").is_dir()
         assert (sdd_dir / "plans" / "202603").is_dir()
+
+
+def test_write_sdd_files_epic_kind() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir)
+        plan_file = sdd_dir / "source_plan.md"
+        plan_file.write_text("# Plan\n", encoding="utf-8")
+
+        with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
+            spec_path, plan_path = write_sdd_files(
+                sdd_dir,
+                "my_epic",
+                "spec",
+                str(plan_file),
+                plan_kind="epics",
+            )
+
+        assert spec_path == sdd_dir / "specs" / "202603" / "my_epic.md"
+        assert plan_path == sdd_dir / "epics" / "202603" / "my_epic.md"
+        assert plan_path.exists()
+
+
+def test_write_sdd_files_rejects_unknown_plan_kind() -> None:
+    with pytest.raises(ValueError, match="invalid SDD plan kind"):
+        write_sdd_files(Path("/tmp/sdd"), "bad", "spec", "/tmp/plan.md", plan_kind="x")
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +379,37 @@ def test_commit_sdd_files_passes_f_flags() -> None:
         assert str(plan_file) in f_values
 
 
+def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
+    """_commit_sdd_files prefers version-controlled sdd/ paths."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = tmpdir
+        specs = Path(ws) / "sdd" / "specs" / "202603"
+        epics = Path(ws) / "sdd" / "epics" / "202603"
+        specs.mkdir(parents=True)
+        epics.mkdir(parents=True)
+        spec_file = specs / "my_epic.md"
+        plan_file = epics / "my_epic.md"
+        spec_file.write_text("spec", encoding="utf-8")
+        plan_file.write_text("plan", encoding="utf-8")
+
+        captured_cmd: list[list[str]] = []
+
+        def fake_run(
+            cmd: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cmd.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+            _commit_sdd_files(ws, "my_epic", plan_kind="epics")
+
+        f_values = [
+            captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"
+        ]
+        assert str(spec_file) in f_values
+        assert str(plan_file) in f_values
+
+
 def test_commit_sdd_files_spec_only() -> None:
     """Only spec file exists — should still invoke sase commit with one -f."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -440,8 +498,8 @@ def test_get_yyyymm_january() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_find_sdd_file_flat() -> None:
-    """find_sdd_file returns flat path when it exists."""
+def test_find_sdd_file_legacy_flat() -> None:
+    """find_sdd_file returns legacy flat path when canonical is absent."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
         (base / "specs").mkdir()
@@ -450,8 +508,8 @@ def test_find_sdd_file_flat() -> None:
         assert result == base / "specs" / "my_plan.md"
 
 
-def test_find_sdd_file_yyyymm() -> None:
-    """find_sdd_file finds file in YYYYMM subdirectory."""
+def test_find_sdd_file_legacy_yyyymm() -> None:
+    """find_sdd_file finds legacy file in YYYYMM subdirectory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
         (base / "plans" / "202603").mkdir(parents=True)
@@ -472,6 +530,36 @@ def test_find_sdd_file_prefers_flat() -> None:
         )
         result = find_sdd_file(base, "specs", "my_plan.md")
         assert result == base / "specs" / "my_plan.md"
+
+
+def test_find_sdd_file_prefers_canonical_sdd_over_legacy() -> None:
+    """Canonical sdd/<kind> wins over legacy root <kind>."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "sdd" / "specs" / "202603").mkdir(parents=True)
+        (base / "specs" / "202603").mkdir(parents=True)
+        canonical = base / "sdd" / "specs" / "202603" / "my_plan.md"
+        legacy = base / "specs" / "202603" / "my_plan.md"
+        canonical.write_text("canonical", encoding="utf-8")
+        legacy.write_text("legacy", encoding="utf-8")
+
+        result = find_sdd_file(base, "specs", "my_plan.md")
+        assert result == canonical
+
+
+def test_find_sdd_file_supports_epics_and_legends() -> None:
+    """Resolution covers all SDD plan-like kinds."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "sdd" / "epics" / "202603").mkdir(parents=True)
+        (base / "sdd" / "legends" / "202603").mkdir(parents=True)
+        epic = base / "sdd" / "epics" / "202603" / "roadmap.md"
+        legend = base / "sdd" / "legends" / "202603" / "roadmap.md"
+        epic.write_text("epic", encoding="utf-8")
+        legend.write_text("legend", encoding="utf-8")
+
+        assert find_sdd_file(base, "epics", "roadmap.md") == epic
+        assert find_sdd_file(base, "legends", "roadmap.md") == legend
 
 
 def test_find_sdd_file_missing() -> None:

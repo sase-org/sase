@@ -39,7 +39,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
+def _commit_sdd_files(
+    workspace_dir: str, plan_name: str, *, plan_kind: str = "plans"
+) -> None:
     """Commit SDD spec and plan files via ``sase commit`` before launching the epic agent.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
@@ -51,7 +53,7 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     base = Path(workspace_dir)
     fname = f"{plan_name}.md"
     spec_found = find_sdd_file(base, "specs", fname)
-    plan_found = find_sdd_file(base, "plans", fname)
+    plan_found = find_sdd_file(base, plan_kind, fname)
     files = [str(f) for f in (spec_found, plan_found) if f is not None]
     if not files:
         return
@@ -192,10 +194,38 @@ def _build_epic_plan_ref(
             except ValueError:
                 return sdd_plan_path.as_posix()
 
+    from sase.sdd.files import get_yyyymm
+
+    yyyymm = get_yyyymm()
     if sdd_plan_name and not version_controlled:
-        return f".sase/sdd/plans/{sdd_plan_name}.md"
+        return f".sase/sdd/epics/{yyyymm}/{sdd_plan_name}.md"
     if sdd_plan_name:
-        return f"plans/{sdd_plan_name}.md"
+        return f"sdd/epics/{yyyymm}/{sdd_plan_name}.md"
+    return fallback_plan_file
+
+
+def _build_saved_plan_ref(
+    *,
+    sdd_plan_path: Path | None,
+    sdd_dir: Path,
+    workspace_dir: str,
+    version_controlled: bool,
+    fallback_plan_file: str,
+) -> str:
+    """Build the plan reference passed to a normal coder follow-up."""
+    if sdd_plan_path and sdd_plan_path.exists():
+        if version_controlled:
+            try:
+                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
+            except ValueError:
+                return sdd_plan_path.as_posix()
+
+        try:
+            sdd_relative = sdd_plan_path.relative_to(sdd_dir)
+            return (Path(".sase") / "sdd" / sdd_relative).as_posix()
+        except ValueError:
+            return sdd_plan_path.as_posix()
+
     return fallback_plan_file
 
 
@@ -330,8 +360,13 @@ def handle_plan_marker(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.current_prompt
+        plan_kind = "epics" if plan_result.action == "epic" else "plans"
         sdd_spec_path_obj, sdd_plan_path = write_sdd_files(
-            sdd_dir, sdd_plan_name, expanded, plan_result.plan_file
+            sdd_dir,
+            sdd_plan_name,
+            expanded,
+            plan_result.plan_file,
+            plan_kind=plan_kind,
         )
         state.sdd_spec_path = str(sdd_spec_path_obj)
         if not version_controlled:
@@ -344,7 +379,8 @@ def handle_plan_marker(
     should_commit = plan_result.commit_plan if plan_result.action != "epic" else True
     if should_commit and sdd_plan_name:
         if version_controlled:
-            _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+            plan_kind = "epics" if plan_result.action == "epic" else "plans"
+            _commit_sdd_files(ctx.workspace_dir, sdd_plan_name, plan_kind=plan_kind)
         else:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
 
@@ -458,9 +494,17 @@ def handle_plan_marker(
                 planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
             resume_prefix = f"#resume:{planner_name} "
 
+        coder_plan_ref = _build_saved_plan_ref(
+            sdd_plan_path=sdd_plan_path,
+            sdd_dir=sdd_dir,
+            workspace_dir=ctx.workspace_dir,
+            version_controlled=version_controlled,
+            fallback_plan_file=plan_data["plan_file"],
+        )
+
         state.current_prompt = (
             f"{model_prefix}{resume_prefix}{vcs_prefix}"
-            f"@{plan_data['plan_file']}\n\n"
+            f"@{coder_plan_ref}\n\n"
             "The above plan has been reviewed and approved. "
             f"Implement it now.{coder_extra}\n{embedded_refs}"
         )

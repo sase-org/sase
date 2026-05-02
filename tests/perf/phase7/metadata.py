@@ -1,6 +1,6 @@
 """Phase 7 measurement metadata envelope and artifact-name helpers.
 
-Every Phase 7 artifact under ``plans/202604/perf_artifacts/`` has to be
+Every Phase 7 artifact under ``sdd/plans/202604/perf_artifacts/`` has to be
 comparable across runs and across surfaces, so every benchmark — whether
 it is a core-operation microbenchmark from Phase 7B or an end-to-end
 measurement from Phase 7C — wraps its scenario data in the same
@@ -30,7 +30,7 @@ from typing import Any, Literal
 PHASE7_PHASE_TAG: Literal["7"] = "7"
 """Phase identifier embedded in every Phase 7 artifact (``"phase": "7"``)."""
 
-PHASE7_ARTIFACT_DIR: Path = Path("plans/202604/perf_artifacts")
+PHASE7_ARTIFACT_DIR: Path = Path("sdd/plans/202604/perf_artifacts")
 """Repo-relative directory every Phase 7 JSON artifact lives under."""
 
 _ARTIFACT_PREFIX = "rust_backend_phase7"
@@ -41,7 +41,7 @@ class BackendChoice(StrEnum):
 
     Post-Phase-8 the facades always run direct-Rust, but the historical
     Phase 7 artifact filenames still use these tags so the existing
-    captures under ``plans/202604/perf_artifacts/`` remain referenceable
+    captures under ``sdd/plans/202604/perf_artifacts/`` remain referenceable
     by name from the Phase 7 driver.
     """
 

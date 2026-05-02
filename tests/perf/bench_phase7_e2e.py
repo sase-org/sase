@@ -56,7 +56,7 @@ from tests.perf.phase7 import BackendChoice, artifact_path, build_metadata
 
 
 # Surface identifiers — must match the labels locked in
-# ``plans/202604/perf_artifacts/README.md``.
+# ``sdd/plans/202604/perf_artifacts/README.md``.
 SURFACE_ACE = "sase_ace_cold_open"
 SURFACE_AGENTS = "sase_agents_status_listing"
 SURFACE_RUN = "sase_run_startup"
@@ -507,7 +507,8 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Override output path. Defaults to "
-            "plans/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json."
+            "sdd/plans/202604/perf_artifacts/"
+            "rust_backend_phase7_<surface>_<backend>.json."
         ),
     )
     args = parser.parse_args(argv)

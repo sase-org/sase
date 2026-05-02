@@ -23,13 +23,13 @@ Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase be
 
 ```bash
 # Create a plan bead (top-level, linked to a plan file)
-sase bead create --title "Add auth system" --type plan(plans/auth.md)
+sase bead create --title "Add auth system" --type plan(sdd/plans/202605/auth.md)
 
 # Create a phase bead (child of a plan)
 sase bead create --title "Implement login endpoint" --type phase(<plan-bead-id>)
 
 # Create a nested plan (plan with parent)
-sase bead create --title "Sub-plan" --type plan(plans/sub.md,<parent-bead-id>)
+sase bead create --title "Sub-plan" --type plan(sdd/plans/202605/sub.md,<parent-bead-id>)
 
 # With optional fields
 sase bead create --title "..." --type phase(<id>) --description "Details here" --assignee alice
@@ -50,7 +50,7 @@ sase bead update <id> --title "New title"
 sase bead update <id> --description "Updated description"
 sase bead update <id> --notes "Implementation notes"
 sase bead update <id> --assignee bob
-sase bead update <id> --design plans/revised.md
+sase bead update <id> --design sdd/plans/202605/revised.md
 
 # Combine multiple updates
 sase bead update <id> --status in_progress --assignee alice

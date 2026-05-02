@@ -3,7 +3,7 @@
 Phase 7B (sase-1e.2) of `plans/202604/rust_backend_phase7.md`. Runs each
 existing core-operation benchmark in-process, then writes one
 ``rust_backend_phase7_<surface>_summary.json`` artifact per shipped Rust
-core operation under ``plans/202604/perf_artifacts/``. Each summary
+core operation under ``sdd/plans/202604/perf_artifacts/``. Each summary
 embeds the Phase 7A metadata envelope (see :mod:`tests.perf.phase7`),
 the relevant scenario summaries from the harness it was derived from,
 and the per-(workload, scenario) ``ScenarioComparison`` rows produced by

@@ -8,6 +8,8 @@ from typing import Any
 
 _logger = logging.getLogger(__name__)
 
+_SDD_PLAN_KINDS = {"plans", "epics", "legends"}
+
 
 def get_yyyymm(dt: datetime | None = None) -> str:
     """Return a YYYYMM string for SDD subdirectory organization.
@@ -22,18 +24,23 @@ def get_yyyymm(dt: datetime | None = None) -> str:
 
 
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
-    """Search for an SDD file, supporting both flat and YYYYMM layouts.
+    """Search for an SDD file, supporting canonical and legacy layouts.
 
-    Checks ``base_dir/{kind}/{name}`` first (flat), then
-    ``base_dir/{kind}/*/{name}`` (YYYYMM subdirs).
+    Canonical version-controlled paths live under ``sdd/{kind}``. Legacy
+    version-controlled paths live at the project root under ``{kind}``. Local
+    SDD mode passes ``.sase/sdd`` as ``base_dir``, where ``{kind}`` remains the
+    canonical local location.
 
     Returns the first match, or ``None`` if not found.
     """
-    flat = base_dir / kind / name
-    if flat.exists():
-        return flat
-    matches = sorted((base_dir / kind).glob(f"*/{name}"))
-    return matches[0] if matches else None
+    for root in (base_dir / "sdd" / kind, base_dir / kind):
+        flat = root / name
+        if flat.exists():
+            return flat
+        matches = sorted(root.glob(f"*/{name}"))
+        if matches:
+            return matches[0]
+    return None
 
 
 def get_sdd_dir(
@@ -41,11 +48,11 @@ def get_sdd_dir(
 ) -> Path:
     """Return the target directory for SDD files.
 
-    If version_controlled: return Path(workspace_dir) (specs/ and plans/ at project root)
+    If version_controlled: return Path(workspace_dir) / "sdd"
     If not: return primary_workspace / ".sase" / "sdd"
     """
     if version_controlled:
-        return Path(workspace_dir)
+        return Path(workspace_dir) / "sdd"
     return (
         Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
     )
@@ -130,14 +137,22 @@ def write_sdd_files(
     plan_name: str,
     spec_content: str,
     plan_file: str,
+    *,
+    plan_kind: str = "plans",
 ) -> tuple[Path, Path]:
-    """Write specs/<YYYYMM>/<name>.md and plans/<YYYYMM>/<name>.md to sdd_dir.
+    """Write specs/<YYYYMM>/<name>.md and <plan_kind>/<YYYYMM>/<name>.md.
 
     Returns (spec_path, plan_path).
     """
+    if plan_kind not in _SDD_PLAN_KINDS:
+        raise ValueError(
+            f"invalid SDD plan kind {plan_kind!r}; expected one of "
+            f"{sorted(_SDD_PLAN_KINDS)}"
+        )
+
     yyyymm = get_yyyymm()
     specs_dir = sdd_dir / "specs" / yyyymm
-    plans_dir = sdd_dir / "plans" / yyyymm
+    plans_dir = sdd_dir / plan_kind / yyyymm
     specs_dir.mkdir(parents=True, exist_ok=True)
     plans_dir.mkdir(parents=True, exist_ok=True)
 

@@ -668,7 +668,7 @@ xprompt with the same name overrides them.
 `#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
 
 ```text
-#git:sase #bd/new_epic(plan_file_path=plans/202604/example.md, changespec=sase_feature, bug_id=12345)
+#git:sase #bd/new_epic(plan_file_path=sdd/epics/202604/example.md, changespec=sase_feature, bug_id=12345)
 ```
 
 When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding

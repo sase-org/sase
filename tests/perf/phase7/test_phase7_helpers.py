@@ -26,7 +26,8 @@ from tests.perf.phase7.metadata import PHASE7_PHASE_TAG
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXISTING_ARTIFACT = (
-    REPO_ROOT / "plans/202604/perf_artifacts/bench_status_state_machine_phase4a.json"
+    REPO_ROOT
+    / "sdd/plans/202604/perf_artifacts/bench_status_state_machine_phase4a.json"
 )
 
 
