@@ -17,6 +17,9 @@ PROMPT_KINDS = ("prompts", "specs")
 LIST_KINDS = ("prompts", "tales", "epics", "legends")
 Severity = Literal["error", "warning"]
 
+# Closed quarantine for historical invalid SDD files only; do not add new files.
+LEGACY_INVALID_SDD_ERROR_ALLOWLIST: frozenset[str] = frozenset()
+
 
 @dataclass(frozen=True)
 class _SddIssue:
@@ -222,7 +225,9 @@ def validate_sdd_tree(
                 )
             )
 
-    return _SddValidation(root=root, files=files, issues=issues)
+    return _SddValidation(
+        root=root, files=files, issues=_apply_legacy_error_allowlist(issues)
+    )
 
 
 def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
@@ -520,6 +525,23 @@ def _relpath(root: Path, path: Path) -> str:
 
 def _strict_severity(strict: bool) -> Severity:
     return "error" if strict else "warning"
+
+
+def _apply_legacy_error_allowlist(issues: list[_SddIssue]) -> list[_SddIssue]:
+    if not LEGACY_INVALID_SDD_ERROR_ALLOWLIST:
+        return issues
+    return [
+        _SddIssue(
+            severity="warning",
+            code=f"{issue.code}-legacy-allowed",
+            path=issue.path,
+            message=f"{issue.message}; legacy SDD validation error allowlisted",
+        )
+        if issue.severity == "error"
+        and issue.path in LEGACY_INVALID_SDD_ERROR_ALLOWLIST
+        else issue
+        for issue in issues
+    ]
 
 
 def _looks_like_project_root(path: Path) -> bool:

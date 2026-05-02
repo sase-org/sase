@@ -177,6 +177,71 @@ def test_validate_reports_invalid_yaml_frontmatter(
     assert payload["errors"][0]["code"] == "frontmatter-parse"
 
 
+def test_validate_downgrades_allowlisted_legacy_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.sdd.links as links
+
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / "legacy.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\nplan: sdd/tales/202605/missing.md\n---\n# Legacy prompt\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        links,
+        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
+        frozenset({"prompts/202605/legacy.md"}),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["errors"] == []
+    assert payload["warnings"] == [
+        {
+            "severity": "warning",
+            "code": "link-missing-target-legacy-allowed",
+            "path": "prompts/202605/legacy.md",
+            "message": "'plan' target does not exist: "
+            "sdd/tales/202605/missing.md; "
+            "legacy SDD validation error allowlisted",
+        }
+    ]
+
+
+def test_validate_does_not_allowlist_other_paths(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.sdd.links as links
+
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / "new.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\nplan: sdd/tales/202605/missing.md\n---\n# New prompt\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        links,
+        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
+        frozenset({"prompts/202605/legacy.md"}),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "link-missing-target"
+    assert payload["warnings"] == []
+
+
 def test_repair_links_write_backfills_unambiguous_pair(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

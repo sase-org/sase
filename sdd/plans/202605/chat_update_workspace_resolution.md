@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-02 00:08:01
 status: proposed
+prompt: sdd/specs/202605/chat_update_workspace_resolution.md
 ---
 
 # Fix Chat Update Workspace Resolution

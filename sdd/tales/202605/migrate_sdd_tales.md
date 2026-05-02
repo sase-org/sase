@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 23:34:34
 status: wip
+prompt: sdd/specs/202605/migrate_sdd_tales.md
 ---
 # Plan: Migrate SDD Plans To Tales
 

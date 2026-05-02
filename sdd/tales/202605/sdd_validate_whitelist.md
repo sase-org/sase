@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 13:10:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_validate_whitelist.md
 ---
 # Plan: SDD Validate Legacy Error Whitelist

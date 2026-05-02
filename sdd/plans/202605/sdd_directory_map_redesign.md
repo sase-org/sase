@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-02 00:13:44
 status: done
+prompt: sdd/specs/202605/sdd_directory_map_redesign.md
 ---
 # Plan: Replace SDD Directory Map With a Practical Diagram
 
