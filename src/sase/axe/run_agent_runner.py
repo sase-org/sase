@@ -110,6 +110,7 @@ def main() -> None:
     saved_path: str | None = None
     diff_path: str | None = None
     markdown_pdf_paths: list[str] = []
+    markdown_source_count = 0
     image_paths: list[str] = []
     step_output: dict[str, Any] | None = None
     exec_outcome = ""
@@ -310,6 +311,7 @@ def main() -> None:
             saved_path = exec_result.saved_path
             diff_path = exec_result.diff_path
             markdown_pdf_paths = exec_result.markdown_pdf_paths
+            markdown_source_count = exec_result.markdown_source_count
             image_paths = exec_result.image_paths
             current_artifacts_dir = exec_result.current_artifacts_dir
             step_output = exec_result.step_output
@@ -443,6 +445,7 @@ def main() -> None:
                 saved_path=saved_path,
                 diff_path=diff_path,
                 markdown_pdf_paths=markdown_pdf_paths,
+                markdown_source_count=markdown_source_count,
                 image_paths=image_paths,
                 output_path=output_path,
                 step_output=step_output,

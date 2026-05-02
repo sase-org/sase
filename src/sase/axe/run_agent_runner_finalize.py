@@ -137,12 +137,14 @@ def send_completion_notification(
     saved_path: str | None,
     diff_path: str | None,
     markdown_pdf_paths: list[str] | None = None,
+    markdown_source_count: int | None = None,
     image_paths: list[str] | None = None,
     output_path: str,
     step_output: dict[str, Any] | None,
     prompt: str,
     outcome: str | None = None,
 ) -> None:
+    from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
     from sase.llm_provider.registry import format_provider_model_label
     from sase.notifications.senders import notify_workflow_complete
 
@@ -169,6 +171,14 @@ def send_completion_notification(
     ]
     if not success and error_summary:
         notes.append(error_summary)
+    if (
+        markdown_source_count is not None
+        and markdown_source_count > MAX_MARKDOWN_PDF_ATTACHMENTS
+    ):
+        notes.append(
+            f"Edited {markdown_source_count} Markdown files; skipped PDF attachments "
+            f"because the limit is {MAX_MARKDOWN_PDF_ATTACHMENTS}."
+        )
 
     # For failures with an error report, use ViewErrorReport action
     # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.run_agent_runner_finalize import (
@@ -35,6 +36,7 @@ def base_kwargs(tmp_path):
         "saved_path": None,
         "diff_path": None,
         "markdown_pdf_paths": [],
+        "markdown_source_count": None,
         "image_paths": [],
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
@@ -142,6 +144,29 @@ def test_completion_notification_dedupes_markdown_pdfs(base_kwargs, tmp_path):
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["extra_files"] == [str(pdf)]
+
+
+def test_completion_notification_notes_markdown_pdf_limit_exceeded(base_kwargs):
+    base_kwargs["markdown_source_count"] = MAX_MARKDOWN_PDF_ATTACHMENTS + 1
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["notes"][-1] == (
+        f"Edited {MAX_MARKDOWN_PDF_ATTACHMENTS + 1} Markdown files; skipped PDF "
+        f"attachments because the limit is {MAX_MARKDOWN_PDF_ATTACHMENTS}."
+    )
+
+
+def test_completion_notification_has_no_markdown_limit_note_at_threshold(base_kwargs):
+    base_kwargs["markdown_source_count"] = MAX_MARKDOWN_PDF_ATTACHMENTS
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    assert len(notes) == 1
+    assert "skipped PDF attachments" not in notes[0]
 
 
 def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):

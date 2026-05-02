@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
 from sase.axe.run_agent_exec import (
     AgentExecContext,
     _AgentExecResult,
@@ -250,6 +251,98 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         *expected_pdfs,
         str(image.resolve()),
     ]
+
+
+def test_finalize_loop_renders_markdown_pdfs_at_attachment_limit(
+    tmp_path: Path,
+) -> None:
+    ctx = _make_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt="create markdown",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="create markdown",
+    )
+    chat = tmp_path / "chat.md"
+    sources = _write_markdown_sources(tmp_path, MAX_MARKDOWN_PDF_ATTACHMENTS)
+
+    def fake_render_markdown_pdf(src: Path, dest: Path) -> Path:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(f"%PDF {src.name}".encode())
+        return dest
+
+    with (
+        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=sources,
+        ),
+        patch(
+            "sase.attachments.markdown_pdf.render_markdown_pdf",
+            side_effect=fake_render_markdown_pdf,
+        ) as render,
+    ):
+        result = _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert render.call_count == MAX_MARKDOWN_PDF_ATTACHMENTS
+    assert len(result.markdown_pdf_paths) == MAX_MARKDOWN_PDF_ATTACHMENTS
+    assert result.markdown_source_count == MAX_MARKDOWN_PDF_ATTACHMENTS
+
+
+def test_finalize_loop_skips_markdown_pdfs_above_attachment_limit(
+    tmp_path: Path,
+) -> None:
+    ctx = _make_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt="create many markdown files",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="create many markdown files",
+    )
+    chat = tmp_path / "chat.md"
+    sources = _write_markdown_sources(tmp_path, MAX_MARKDOWN_PDF_ATTACHMENTS + 1)
+
+    with (
+        patch("sase.axe.run_agent_exec.save_chat_history", return_value=str(chat)),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=sources,
+        ),
+        patch("sase.attachments.markdown_pdf.render_markdown_pdf") as render,
+    ):
+        result = _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    render.assert_not_called()
+    assert result.markdown_pdf_paths == []
+    assert result.markdown_source_count == MAX_MARKDOWN_PDF_ATTACHMENTS + 1
+
+    done = json.loads((Path(ctx.artifacts_dir) / "done.json").read_text())
+    assert done["markdown_pdf_paths"] == []
+
+
+def _write_markdown_sources(tmp_path: Path, count: int) -> list[str]:
+    docs = tmp_path / "docs"
+    docs.mkdir(exist_ok=True)
+    sources = []
+    for index in range(count):
+        path = docs / f"note_{index:02d}.md"
+        path.write_text(f"# Note {index}\n")
+        sources.append(str(path))
+    return sources
 
 
 def _run(cwd: Path, *args: str) -> None:

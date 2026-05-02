@@ -69,6 +69,7 @@ class _AgentExecResult:
     saved_path: str | None = None
     diff_path: str | None = None
     markdown_pdf_paths: list[str] = field(default_factory=list)
+    markdown_source_count: int = 0
     image_paths: list[str] = field(default_factory=list)
     current_artifacts_dir: str = ""
     step_output: dict[str, Any] | None = None
@@ -142,6 +143,7 @@ def _finalize_loop(
     saved_path: str | None = None
     diff_path: str | None = None
     markdown_pdf_paths: list[str] = []
+    markdown_source_count = 0
     image_paths: list[str] = []
     step_output: dict[str, Any] | None = None
 
@@ -194,7 +196,10 @@ def _finalize_loop(
         step_output, diff_path = extract_step_output_and_diff_path(
             state.current_artifacts_dir
         )
-        from sase.attachments.markdown_pdf import render_markdown_pdf_attachments
+        from sase.attachments.markdown_pdf import (
+            MAX_MARKDOWN_PDF_ATTACHMENTS,
+            render_markdown_pdf_attachments,
+        )
         from sase.axe.image_attachments import (
             collect_agent_image_paths,
             collect_agent_markdown_paths,
@@ -219,11 +224,13 @@ def _finalize_loop(
             existing_files=base_files,
             artifacts_dir=state.current_artifacts_dir,
         )
-        markdown_pdf_paths = render_markdown_pdf_attachments(
-            markdown_paths,
-            workspace_dir=workspace_dir,
-            artifacts_dir=state.current_artifacts_dir,
-        )
+        markdown_source_count = len(markdown_paths)
+        if markdown_source_count <= MAX_MARKDOWN_PDF_ATTACHMENTS:
+            markdown_pdf_paths = render_markdown_pdf_attachments(
+                markdown_paths,
+                workspace_dir=workspace_dir,
+                artifacts_dir=state.current_artifacts_dir,
+            )
         image_paths = collect_agent_image_paths(
             workspace_dir,
             diff_path=diff_path,
@@ -326,6 +333,7 @@ def _finalize_loop(
         saved_path=saved_path,
         diff_path=diff_path,
         markdown_pdf_paths=markdown_pdf_paths,
+        markdown_source_count=markdown_source_count,
         image_paths=image_paths,
         current_artifacts_dir=state.current_artifacts_dir,
         step_output=step_output,

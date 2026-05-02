@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 22:06:28
-status: wip
+status: done
 ---
 # Plan: Limit Markdown PDF Attachments for Large Agent Edits
 

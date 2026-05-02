@@ -15,6 +15,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
+MAX_MARKDOWN_PDF_ATTACHMENTS = 10
 PDF_ENGINES = ("wkhtmltopdf", "xelatex", "pdflatex")
 DEFAULT_PANDOC_TIMEOUT_SECONDS = 120
 
