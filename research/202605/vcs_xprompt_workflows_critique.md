@@ -9,17 +9,38 @@ improvement.
 
 ## Current Shape
 
-SASE has two different things that both look like "VCS xprompt workflows":
+SASE's VCS xprompts split into five categories, not the two the original framing suggests:
 
-1. **Workspace wrappers**: `#git`, `#cd`, and plugin equivalents like `#gh` and `#hg`.
-   These are YAML workflows with setup steps, an empty `prompt_part`, and cleanup/diff post-steps. They are tagged
-   `vcs`, so the embedded-workflow executor runs them before other embedded workflows and tears them down last.
+1. **Workspace wrappers** (`vcs` tag, `rollover`): `#git`, `#gh`, `#hg`.
+   YAML workflows with `setup`/`prepare`/`checkout` pre-steps, an empty `prompt_part`, and `release`/`diff` post-steps
+   in a `finally` block. The `vcs` tag is load-bearing: the embedded-workflow executor runs vcs pre-steps first and vcs
+   post-steps last (`workflow_executor_steps_embedded_expand.py:165-172, 293-320`), and validates that at most one
+   `vcs`-tagged workflow appears per prompt (`workflow_executor_steps_embedded_expand.py:157-163`). Both `#gh` and
+   `#hg` set `wraps_all: true`, which is what gives them outermost-bracket semantics.
 
-2. **Commit intent markers**: `#commit`, `#propose`, and `#pr`.
-   These are YAML workflows with a small injected prompt, `environment:` values like `SASE_COMMIT_METHOD`, and hidden
-   post-steps that read `commit_result.json`. The actual mutation path is not in the xprompt. It flows through
-   `sase_commit_stop_hook`, `/sase_git_commit` or `/sase_hg_commit`, `sase commit`, `CommitWorkflow`, and VCS provider
-   hooks.
+2. **Workspace selector** (`vcs` tag only, no `rollover`): `#cd`.
+   Resolves a workspace via `workspace_provider`, emits a `_chdir` output, and skips checkout/diff. It deliberately
+   does not propagate to follow-up agents because it is a one-shot directory selection, not an enduring VCS context.
+
+3. **Commit intent markers** (`rollover`, no `vcs` tag): `#commit`, `#propose`, `#pr`.
+   YAML workflows with a small injected prompt, `environment:` values like `SASE_COMMIT_METHOD`, and post-steps that
+   read `commit_result.json` from `SASE_ARTIFACTS_DIR`. The actual mutation path is not in the xprompt. It flows
+   through `sase_commit_stop_hook`, `/sase_git_commit` or `/sase_hg_commit`, `sase commit`, `CommitWorkflow`, and VCS
+   provider hooks. `#pr` additionally sets `SASE_PR_NAME`, `SASE_BUG_ID`, `SASE_PR_STATUS` from inputs.
+
+4. **Tag-driven context appenders**: `#prdd` (`append_to_commit_and_propose`), `#pr_diff` (`diff_file`).
+   These are not user-typed. They are discovered by tag during embedded expansion when a commit-intent workflow runs
+   and conditionally append PR/branch context to the agent prompt. `#prdd` is the canonical consumer of
+   `append_to_commit_and_propose`: when the current branch is not `main`/`master`, it injects diff and description
+   references for the open PR.
+
+5. **Sync and composite VCS workflows** (untagged or domain-tagged): `#sync`, `#new_pr_desc`, `#pr_diff`,
+   `#refresh_cl_desc`, `#split`, `#crs`, `#prdd`.
+   These are first-class user-invocable xprompts that operate on VCS state but are not commit-intent and not workspace
+   wrappers. `#sync` is a HITL conflict-resolution loop (up to 20 iterations) that handles git or hg pulls.
+   `#new_pr_desc` and `#refresh_cl_desc` regenerate descriptions from ChangeSpec metadata. `#split` orchestrates
+   parent-child CL splitting on Mercurial. `#crs` reads unresolved critique comments and ends with `#propose`. These
+   are the genuine "agent does multi-step VCS work" cases — and they are well served by being xprompt workflows.
 
 Relevant implementation points:
 
@@ -31,11 +52,16 @@ Relevant implementation points:
   `../sase-github/src/sase_github/xprompts/prdd.yml`,
   `../sase-google/src/sase_google/default_config.yml`.
 - Embedded workflow environment injection and commit-specific append logic:
-  `src/sase/xprompt/workflow_executor_steps_embedded_expand.py`.
+  `src/sase/xprompt/workflow_executor_steps_embedded_expand.py:157-269`.
+- XPromptTag enum and tag lookup: `src/sase/xprompt/tags.py:12-147`.
 - Stop hook: `src/sase/scripts/sase_commit_stop_hook.py`.
 - Commit CLI and orchestration: `src/sase/main/cl_handler.py`, `src/sase/workflows/commit/workflow.py`.
 - Provider dispatch: `src/sase/vcs_provider/plugins/_git_commit_dispatch.py`,
   `../sase-github/src/sase_github/plugin.py`, `../sase-google/src/sase_google/plugin.py`.
+- Other commit-intent injection sites (not just xprompts): `src/sase/axe/fix_hook_runner.py` sets
+  `SASE_COMMIT_METHOD=create_proposal`; mentor and CRS workflows set it via `workflows/crs.py`. Direct
+  `sase commit --type ...` invocation also bypasses xprompt entirely and is the path the docs recommend for scripted
+  use.
 - Design docs: `docs/xprompt.md`, `docs/workflow_spec.md`, `docs/commit_workflows.md`, `docs/vcs.md`.
 
 ## Should These Be XPrompts?
@@ -95,20 +121,29 @@ It is also hard to reason about:
 
 - The state is global to the process once injected.
 - There is no single structured record saying "this run selected commit intent X with args Y".
-- Conflicting `#commit #pr` style prompts are not rejected by a first-class uniqueness rule.
+- Conflicting `#commit #pr` style prompts are not rejected by a first-class uniqueness rule. Today, both workflows
+  expand and `SASE_COMMIT_METHOD` is set by whichever runs second (last-write-wins on env injection); no error is
+  surfaced and the resulting behavior depends on embedded-workflow ordering. Contrast with the `vcs` tag, which
+  *is* validated to at most one per prompt.
 - Generic xprompt expansion code knows about commit method names so it can append plugin-specific context.
 
-The CLI has a useful guard that rejects conflicting `--type` vs `SASE_COMMIT_METHOD`, but the upstream selection remains
-hidden mutable state.
+The CLI has a useful guard that rejects conflicting `--type` vs `SASE_COMMIT_METHOD` (`main/cl_handler.py`), but the
+upstream selection remains hidden mutable state — and the env var is also written from non-xprompt sites
+(`axe/fix_hook_runner.py`, `workflows/crs.py`), so there is no single chokepoint to reason about either.
 
 ### 2. The xprompt executor contains commit-specific routing
 
-`workflow_executor_steps_embedded_expand.py` maps `create_commit` and `create_proposal` to
+`workflow_executor_steps_embedded_expand.py:245-269` maps `create_commit` and `create_proposal` to
 `append_to_commit_and_propose`, and `create_pull_request` to `append_to_pr`. That puts VCS commit semantics inside the
 generic xprompt expansion engine.
 
-The tag lookup itself is a good mechanism. The problem is that the mapping is hard-coded in the executor instead of
-being declared by the intent workflow or a dedicated intent registry.
+The tag lookup itself is a good mechanism — and notably, it is dynamic: any plugin can ship a workflow tagged
+`append_to_pr` or `append_to_commit_and_propose` and it will be discovered automatically by `get_by_tag()`
+(`tags.py:74-119`). The only hard-coded part is the two-line `method → tag` switch. The fix is small: have the intent
+workflow declare its own append-tag (see Recommendation), so the executor stays method-agnostic.
+
+`get_by_tag()` already supports a `vcs_hint` for plugin disambiguation, which is the right primitive to build the
+typed intent layer on top of.
 
 ### 3. The three intent xprompts duplicate plumbing
 
@@ -128,7 +163,33 @@ That makes debugging harder in edge cases: disabled hooks, unsupported runtimes,
 agent-side commit skill can leave the xprompt metadata path looking like a no-op rather than an explicit workflow
 failure.
 
-### 5. Commit method names are implementation-oriented
+### 5. Test coverage is uneven across the routing layer
+
+There are tests for rollover-tag filtering (`tests/test_xprompt_tags_rollover.py`), per-step embedded loading
+(`tests/test_embedded_workflows_per_step.py`), post-step collection ordering, and embedded env injection. There are
+no tests covering:
+
+- The `method → append-tag` switch in `workflow_executor_steps_embedded_expand.py:245-269`, including the case where
+  no plugin provides a matching tagged workflow.
+- The behavior when both `#commit` and `#pr` (or `#commit` and `#propose`) appear in one prompt — currently undefined
+  by design.
+- The fail-fast contract for missing `commit_result.json` (see #4).
+
+Adding the typed intent layer below would make all three of these directly testable, since intent selection becomes
+a discrete step rather than emergent env-var behavior.
+
+### 6. `#sync` and `#cd` blur the "VCS xprompt" boundary
+
+`#sync` is a HITL conflict-resolution loop that is structurally a VCS workflow but carries no `vcs` tag and no
+`rollover` tag. It does not fit either the workspace-wrapper or commit-intent shape. It is in fact the strongest
+example of a workflow that genuinely belongs in xprompt YAML — it has agent steps, repeated turns, and per-VCS
+branching that would be awkward to express in `sase commit` or a provider hook.
+
+`#cd` has the `vcs` tag (so it competes with `#git`/`#gh`/`#hg` for the at-most-one-vcs slot) but no `rollover` tag
+(so it does not propagate). This is intentional but undocumented. Worth surfacing in `docs/vcs.md` so users can reason
+about why `#cd #commit fix bug` works but `#cd` does not carry through to a follow-up agent.
+
+### 7. Commit method names are implementation-oriented
 
 `create_commit`, `create_proposal`, and `create_pull_request` are provider dispatch methods. They are not the best
 surface vocabulary:
@@ -185,7 +246,8 @@ environment:
 Then teach embedded expansion to:
 
 1. Collect workflows tagged `vcs_intent`.
-2. Reject more than one intent in a prompt.
+2. Reject more than one intent in a prompt — symmetric with the existing at-most-one-`vcs` validation, which closes
+   the current `#commit #pr` ambiguity.
 3. Render the prompt text as it does today.
 4. Append provider-specific context from `vcs_intent.append_context_tag`, rather than hard-coding method names.
 5. Write a durable artifact such as `$SASE_ARTIFACTS_DIR/vcs_intent.json`:
@@ -229,10 +291,19 @@ data instead of reconstructing meaning from environment variables.
 
 ## Final Position
 
-The VCS workspace wrappers should remain xprompt workflows. They are genuinely prompt-composition-time execution
-wrappers.
+The VCS workspace wrappers (`#git`, `#gh`, `#hg`, `#cd`) should remain xprompt workflows. They are genuinely
+prompt-composition-time execution wrappers and the `vcs` tag plus `wraps_all: true` already give them correct
+ordering semantics.
 
-The commit/propose/new-change operations should remain invokable through xprompt syntax, but only as thin, typed intent
-markers. The current implementation has the right architectural instinct by moving real VCS mutation into `sase commit`;
-the improvement is to make that intent explicit and structured instead of encoding it as environment variables plus
-commit-specific logic inside the generic xprompt executor.
+The composite VCS workflows (`#sync`, `#new_pr_desc`, `#refresh_cl_desc`, `#split`, `#crs`) should also remain
+xprompt workflows. They are the exact case xprompts were designed for: multi-step agent work over VCS state with
+HITL turns. No changes needed here beyond a `vcs_workflow` tag for discovery and documentation.
+
+The commit/propose/new-change operations should remain invokable through xprompt syntax, but only as thin, typed
+intent markers backed by a `vcs_intent` tag and a `vcs_intent.json` artifact. The current implementation has the
+right architectural instinct by moving real VCS mutation into `sase commit`; the improvement is to make that intent
+explicit and structured instead of encoding it as environment variables plus commit-specific logic inside the generic
+xprompt executor.
+
+The `append_to_*` mechanism is already a solid dynamic-tag system — the only fix it needs is for the intent workflow
+to declare its own append-tag rather than the executor hard-coding a `method → tag` switch.
