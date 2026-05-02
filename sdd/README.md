@@ -11,6 +11,7 @@ roadmap material, and bead state in predictable paths so humans and agents can r
 - `tales/` stores task-level implementation plans and follow-up plans.
 - `epics/` stores larger work plans that may be split into phase beads.
 - `legends/` stores broad roadmap or strategy artifacts that can spawn epics.
+- `myths/` stores long-horizon narrative, strategy, and context artifacts that are broader than active roadmap plans.
 - `beads/` stores bead issue data for SDD-backed work tracking.
 
 Prompt, tale, epic, and legend files are normally organized under a `YYYYMM/` month directory, for example
@@ -27,6 +28,6 @@ artifact with frontmatter such as `plan: sdd/tales/202605/example.md`; the plan-
 
 ## Compatibility
 
-The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, and `beads/`. Older trees may still contain
-`specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited compatibility for those legacy
-names, but new artifacts should use `prompts/` and `tales/`.
+The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, `myths/`, and `beads/`. Older trees may still
+contain `specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited compatibility for those
+legacy names, but new artifacts should use `prompts/` and `tales/`.

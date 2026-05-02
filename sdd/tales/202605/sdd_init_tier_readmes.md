@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 18:37:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_init_tier_readmes.md
 ---
 # Plan: Seed SDD Tier READMEs from `sase sdd init`
