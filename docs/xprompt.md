@@ -914,12 +914,12 @@ APPROVED once the user approves it:
 Refactor the authentication module to use the new middleware.
 ```
 
-Once the plan is approved, sase launches a follow-up **coder** agent whose prompt is built from the `#coder` built-in
-xprompt (see [sase/xprompts/coder.md](../src/sase/xprompts/coder.md)). `#coder` takes the approved plan file as its
-`plan_file` input, injects it with `@`, and instructs the agent to implement the plan. By default the coder does _not_
-inherit the planner's chat transcript — the plan file is the hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1`
-to restore the old behavior, in which case a `#resume:<planner_name>` reference is prepended to the coder prompt so it
-resumes the planner's session.
+Once the plan is approved, sase launches a follow-up **coder** agent using the same handoff body as the `#coder`
+built-in xprompt (see [sase/xprompts/coder.md](../src/sase/xprompts/coder.md)). `#coder` takes the approved plan file as
+its `plan_file` input, injects it with `@`, and instructs the agent to implement the plan. By default the coder does
+_not_ inherit the planner's chat transcript — the plan file is the hand-off artifact. Set
+`SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a `#resume:<planner_name>` reference is
+prepended to the coder prompt so it resumes the planner's session.
 
 ### Repeat Directive
 

@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -298,6 +299,46 @@ class TestPlanFollowupPrompts:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         assert "@sdd/tales/202605/scratch_plan.md" in state.current_prompt
+
+    def test_coder_prompt_no_commit_uses_archived_plan_ref(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """No-commit approvals hand off the archived plan, not local SDD."""
+        monkeypatch.delenv("SASE_PLAN", raising=False)
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        archived_plan = tmp_path / "archive" / "scratch_plan.md"
+        archived_plan.parent.mkdir()
+        archived_plan.write_text("# Archived Plan")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=str(archived_plan),
+            commit_plan=False,
+            run_coder=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    sdd_plan,
+                ),
+            ),
+        ):
+            handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
+
+        assert state.current_prompt.startswith("#gh:sase ")
+        assert f"@{archived_plan}" in state.current_prompt
+        assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
+        assert os.environ["SASE_PLAN"] == str(archived_plan)
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #resume prefix when ctx.agent_name is not set."""

@@ -496,12 +496,13 @@ def handle_plan_marker(
         # Approve: spawn coder with plan as prompt
         state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
 
-        # Point SASE_PLAN at the committed in-repo plan file so
-        # the commit workflow can update its frontmatter without copying.
-        if sdd_plan_path and sdd_plan_path.exists():
+        # Point SASE_PLAN at the committed in-repo plan file only when the
+        # approval committed that file. No-commit approvals must hand off the
+        # archived plan because VCS workflow pre-steps may stash local SDD files.
+        if plan_result.commit_plan and sdd_plan_path and sdd_plan_path.exists():
             os.environ["SASE_PLAN"] = str(sdd_plan_path)
         else:
-            os.environ["SASE_PLAN"] = plan_data["plan_file"]
+            os.environ["SASE_PLAN"] = plan_result.plan_file
 
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
@@ -543,13 +544,16 @@ def handle_plan_marker(
                 planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
             resume_prefix = f"#resume:{planner_name} "
 
-        coder_plan_ref = _build_saved_plan_ref(
-            sdd_plan_path=sdd_plan_path,
-            sdd_dir=sdd_dir,
-            workspace_dir=ctx.workspace_dir,
-            version_controlled=version_controlled,
-            fallback_plan_file=plan_data["plan_file"],
-        )
+        if plan_result.commit_plan:
+            coder_plan_ref = _build_saved_plan_ref(
+                sdd_plan_path=sdd_plan_path,
+                sdd_dir=sdd_dir,
+                workspace_dir=ctx.workspace_dir,
+                version_controlled=version_controlled,
+                fallback_plan_file=plan_result.plan_file,
+            )
+        else:
+            coder_plan_ref = plan_result.plan_file
 
         state.current_prompt = (
             f"{model_prefix}{resume_prefix}{vcs_prefix}"
