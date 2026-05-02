@@ -12,8 +12,9 @@ from sase.bead.xprompts import (
     resolve_land_epic_xprompt,
     resolve_work_phase_xprompt,
 )
-from sase.xprompt.loader import get_all_prompts
+from sase.xprompt.loader import get_all_prompts, get_all_xprompts
 from sase.xprompt.models import InputType
+from sase.xprompt.processor import process_xprompt_references
 from sase.xprompt.tags import XPromptTag, parse_tags
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -95,6 +96,22 @@ def test_new_epic_changespec_guidance() -> None:
     assert "bug_id` requires `changespec" in body
     assert "No ChangeSpec metadata was provided" in body
     assert "--tier epic" in body
+    assert "--type plan(<plan_file>,<legend_bead_id>)" in body
+
+
+def test_new_epic_colon_args_render_linked_legend_guidance() -> None:
+    xprompt = get_all_xprompts()["bd/new_epic"]
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts",
+        return_value={"bd/new_epic": xprompt},
+    ):
+        body = process_xprompt_references(
+            "#bd/new_epic:sdd/epics/202605/my_feature.md,zorg-1"
+        )
+
+    assert "sdd/epics/202605/my_feature.md" in body
+    assert "Use `zorg-1` as the linked legend bead ID." in body
     assert "--type plan(<plan_file>,<legend_bead_id>)" in body
 
 

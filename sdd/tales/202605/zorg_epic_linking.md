@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 15:29:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/zorg_epic_linking.md
 ---
 # Fix Epic Bead Legend Linking
