@@ -6,10 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from pytest import MonkeyPatch
+
 from sase.integrations import chat_install
 from sase.integrations.chat_install import (
     ChatInstallConfig,
     load_chat_install_config,
+    resolve_primary_workspace_for_chat_install,
     run_worker,
     start_chat_install_worker,
 )
@@ -78,6 +81,69 @@ def test_start_worker_reports_workspace_resolution_failed(tmp_path: Path) -> Non
         result.message
         == "Could not resolve the primary SASE workspace; update was not started."
     )
+
+
+def test_resolves_registered_sase_workspace_outside_workspace(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    _write_project_file(tmp_path, "sase", workspace)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+
+    with (
+        patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch("sase.bead.workspace.resolve_primary_workspace") as fallback,
+    ):
+        result = resolve_primary_workspace_for_chat_install()
+
+    assert result == workspace
+    fallback.assert_not_called()
+
+
+def test_resolves_registered_sase_workspace_over_cwd_project(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    sase_workspace = tmp_path / "sase"
+    plugin_workspace = tmp_path / "sase-telegram"
+    sase_workspace.mkdir()
+    plugin_workspace.mkdir()
+    _write_project_file(tmp_path, "sase", sase_workspace)
+    monkeypatch.chdir(plugin_workspace)
+
+    with (
+        patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch(
+            "sase.bead.workspace.resolve_primary_workspace",
+            return_value=plugin_workspace,
+        ) as fallback,
+    ):
+        result = resolve_primary_workspace_for_chat_install()
+
+    assert result == sase_workspace
+    fallback.assert_not_called()
+
+
+def test_resolves_registered_sase_workspace_falls_back_when_unavailable(
+    tmp_path: Path,
+) -> None:
+    fallback_workspace = tmp_path / "current-project"
+    fallback_workspace.mkdir()
+    _write_project_file(tmp_path, "sase", tmp_path / "deleted")
+
+    with (
+        patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch(
+            "sase.bead.workspace.resolve_primary_workspace",
+            return_value=fallback_workspace,
+        ) as fallback,
+    ):
+        result = resolve_primary_workspace_for_chat_install()
+
+    assert result == fallback_workspace
+    fallback.assert_called_once_with()
 
 
 def test_start_worker_reports_existing_lock(tmp_path: Path) -> None:
@@ -188,3 +254,11 @@ def test_run_worker_restarts_axe_when_command_fails(tmp_path: Path) -> None:
         assert run_worker(tmp_path) == 17
 
     assert start.call_count == 2
+
+
+def _write_project_file(home: Path, project_name: str, workspace: Path) -> Path:
+    project_dir = home / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / f"{project_name}.gp"
+    project_file.write_text(f"WORKSPACE_DIR: {workspace}\nNAME: example\n")
+    return project_file

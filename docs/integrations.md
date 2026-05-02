@@ -86,7 +86,7 @@ if result.log_path:
 The worker sequence is:
 
 1. Acquire `~/.sase/chat_install/install.lock`; if another worker owns it, return `already_running`.
-2. Resolve the primary SASE workspace.
+2. Resolve the registered primary workspace for the `sase` project.
 3. Stop axe.
 4. Optionally sync the workspace through the selected VCS provider.
 5. Run `chat_install.command` from that workspace with `chat_install.timeout_seconds`.

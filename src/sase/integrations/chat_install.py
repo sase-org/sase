@@ -68,12 +68,31 @@ def load_chat_install_config() -> ChatInstallConfig:
     )
 
 
-# pyvision: public_api_methods.txt
 def resolve_primary_workspace_for_chat_install() -> Path | None:
-    """Resolve the primary workspace used as install/sync cwd."""
+    """Resolve the registered SASE project workspace used as install/sync cwd."""
+    registered_workspace = _resolve_registered_sase_workspace()
+    if registered_workspace is not None:
+        return registered_workspace
+
     from sase.bead.workspace import resolve_primary_workspace
 
     return resolve_primary_workspace()
+
+
+def _resolve_registered_sase_workspace() -> Path | None:
+    """Resolve ``~/.sase/projects/sase/sase.gp`` without consulting CWD."""
+    project_file = Path.home() / ".sase" / "projects" / "sase" / "sase.gp"
+
+    from sase.workspace_provider.utils import parse_workspace_dir
+
+    workspace_dir = parse_workspace_dir(str(project_file))
+    if not workspace_dir:
+        return None
+
+    workspace = Path(workspace_dir).expanduser()
+    if not workspace.is_dir():
+        return None
+    return workspace
 
 
 def start_chat_install_worker() -> ChatInstallLaunchResult:

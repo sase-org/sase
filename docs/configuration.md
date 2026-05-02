@@ -568,7 +568,7 @@ timezone: "America/New_York" # default: "America/New_York"
 
 Configuration for chat-driven update workflows. External chat integrations can call
 `sase.integrations.chat_install.start_chat_install_worker()` to run the configured command in a detached worker while
-briefly stopping axe, syncing the primary workspace, and restarting axe afterward.
+briefly stopping axe, syncing the registered primary workspace for the `sase` project, and restarting axe afterward.
 
 ```yaml
 chat_install:
@@ -578,12 +578,12 @@ chat_install:
   restart_attempts: 3
 ```
 
-| Field                           | Type   | Default | Description                                                                 |
-| ------------------------------- | ------ | ------- | --------------------------------------------------------------------------- |
-| `chat_install.command`          | string | `""`    | Shell command to run from the primary workspace. Empty string disables use. |
-| `chat_install.sync_workspace`   | bool   | `true`  | Sync the primary workspace via the selected VCS provider before updating.   |
-| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the update command before returning exit code `124`.    |
-| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the update command completes/fails.    |
+| Field                           | Type   | Default | Description                                                                                   |
+| ------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------- |
+| `chat_install.command`          | string | `""`    | Shell command to run from the registered `sase` primary workspace. Empty string disables use. |
+| `chat_install.sync_workspace`   | bool   | `true`  | Sync the registered `sase` primary workspace via the selected VCS provider before updating.   |
+| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the update command before returning exit code `124`.                      |
+| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the update command completes/fails.                      |
 
 Only one chat update worker may run at a time; a lock under `~/.sase/chat_install/install.lock` rejects concurrent
 starts. Worker output is written to timestamped logs under `~/.sase/chat_install/logs/`. The configuration key and state
