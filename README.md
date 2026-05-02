@@ -83,8 +83,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   and apply workflow
 - **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
-- **Agent Artifacts** — Completion notifications can include chat, diff, error logs, and generated image files touched
-  by agents so downstream notification plugins can deliver the full result
+- **Agent Artifacts** — Completion notifications can include chat, diff, error logs, generated Markdown PDFs, and
+  generated image files touched by agents so downstream notification plugins can deliver the full result
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini bundled; Jetski via sase-google plugin) with
   pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
@@ -182,6 +182,8 @@ sase
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
+| `sase notify list`             | List recent notifications (pretty table or stable JSON)                                                        |
+| `sase notify show`             | Show one notification by id (markdown or JSON)                                                                 |
 | `sase path`                    | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
 | `sase plan`                    | Submit a plan for approval (used by `/sase_plan` skill)                                                        |
 | `sase questions`               | Ask the user questions (used by `/sase_questions` skill)                                                       |
@@ -401,7 +403,8 @@ Start with the user-facing guides for the surface you are operating, then drop i
 extension APIs:
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
-- [`docs/agent_images.md`](docs/agent_images.md) — Generated image attachments and ACE terminal graphics preview notes
+- [`docs/agent_images.md`](docs/agent_images.md) — Generated Markdown PDF and image attachments plus ACE terminal
+  graphics preview notes
 - [`docs/beads.md`](docs/beads.md) — Bead issue tracking system
 - [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference

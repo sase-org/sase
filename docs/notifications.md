@@ -80,15 +80,16 @@ The following events generate notifications:
 ### Agent Completion Attachments
 
 Agent completion notifications attach the standard chat transcript and diff first. On failures they also include the
-error report and output log when those files exist. When a successful agent added or modified Markdown files, SASE
-renders best-effort PDF artifacts and appends those PDFs after the standard artifacts. When the run added or modified
-image files, SASE appends those generated images after any Markdown PDFs. Supported Markdown extensions are `.md` and
-`.markdown`; supported image extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`.
+error report and output log when those files exist. When a successful agent added or modified 10 or fewer Markdown
+files, SASE renders best-effort PDF artifacts and appends those PDFs after the standard artifacts. When the run added or
+modified image files, SASE appends those generated images after any Markdown PDFs. Supported Markdown extensions are
+`.md` and `.markdown`; supported image extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`.
 
 Attachment paths are discovered from local git changes, untracked files, saved proposal/commit diffs, and the latest
-commit when the agent committed or opened a PR. Missing, deleted, unsupported, and duplicate paths are ignored. The
-final PDF and image lists are also written to `done.json` as `markdown_pdf_paths` and `image_paths` for agent metadata
-consumers.
+commit when the agent committed or opened a PR. Missing, deleted, unsupported, and duplicate paths are ignored. If more
+than 10 Markdown sources remain after filtering, SASE skips Markdown PDF rendering for that completion and includes a
+note explaining the limit. The final PDF and image lists are also written to `done.json` as `markdown_pdf_paths` and
+`image_paths` for agent metadata consumers.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and the ACE terminal graphics preview notes.
 

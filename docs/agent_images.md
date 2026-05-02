@@ -4,9 +4,9 @@
 
 SASE treats files produced by agents as first-class completion artifacts. When a successful agent adds or modifies a
 supported image file, the completion path records the image in `done.json` and appends it to the notification file list
-after the standard chat and diff artifacts. When a successful agent adds or modifies Markdown, core SASE renders a PDF
-artifact and attaches that PDF to the same completion notification. Notification plugins can then deliver those files
-without re-scanning the workspace.
+after the standard chat and diff artifacts. When a successful agent adds or modifies up to 10 Markdown files, core SASE
+renders PDF artifacts and attaches those PDFs to the same completion notification. Notification plugins can then deliver
+those files without re-scanning the workspace.
 
 Supported image extensions are:
 
@@ -38,7 +38,8 @@ Source: `src/sase/axe/image_attachments.py`
 
 Markdown discovery runs on successful agent finalization with the same candidate ordering as image discovery. Supported
 source extensions are `.md` and `.markdown`. Sources are resolved to existing workspace files, generated run artifacts
-are excluded, and duplicates are removed before rendering.
+are excluded, and duplicates are removed before rendering. If more than 10 Markdown sources remain after filtering, SASE
+skips PDF rendering for that run and adds a completion-notification note instead of rendering a large attachment set.
 
 Core SASE renders discovered Markdown sources into the current agent artifacts directory:
 
@@ -49,7 +50,9 @@ Core SASE renders discovered Markdown sources into the current agent artifacts d
 
 Rendering is best-effort. Missing Pandoc/PDF-engine tools or conversion errors do not fail the agent run; failed sources
 are omitted. Successful PDF paths are persisted as `markdown_pdf_paths` in `done.json`, and `index.json` records
-`source_path` to `pdf_path` mappings for diagnostics.
+`source_path` to `pdf_path` mappings for diagnostics. When the 10-source limit is exceeded,
+`done.json.markdown_pdf_paths` is empty and the source count is carried through completion handling for the user-facing
+skip note.
 
 Completion notifications attach generated Markdown PDFs after the saved chat and diff files, before image attachments.
 The Agents tab file panel also loads `markdown_pdf_paths` alongside plan and image files for completed agents.
