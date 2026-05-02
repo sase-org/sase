@@ -244,13 +244,18 @@ def _acquire_lock() -> int | None:
 
 
 def _adopt_lock_fd() -> int | None:
-    raw = os.environ.get(_LOCK_FD_ENV)
+    raw = os.environ.pop(_LOCK_FD_ENV, None)
     if raw is None:
         return None
     try:
-        return int(raw)
-    except ValueError:
+        fd = int(raw)
+        fd_stat = os.fstat(fd)
+        lock_stat = _LOCK_PATH.stat()
+    except (OSError, ValueError):
         return None
+    if (fd_stat.st_dev, fd_stat.st_ino) != (lock_stat.st_dev, lock_stat.st_ino):
+        return None
+    return fd
 
 
 def _new_log_path() -> Path:

@@ -229,6 +229,39 @@ def test_run_worker_skips_install_when_sync_fails(tmp_path: Path) -> None:
     run.assert_not_called()
 
 
+def test_run_worker_ignores_unrelated_inherited_lock_fd(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    provider = MagicMock()
+    provider.sync_workspace.return_value = (False, "conflict")
+    lock_path = tmp_path / "install.lock"
+    unrelated_fd = os.open(tmp_path / "unrelated.fd", os.O_RDWR | os.O_CREAT, 0o600)
+    monkeypatch.setenv(chat_install._LOCK_FD_ENV, str(unrelated_fd))
+
+    try:
+        with (
+            patch.object(chat_install, "_LOCK_PATH", lock_path),
+            patch(
+                "sase.integrations.chat_install.load_chat_install_config",
+                return_value=ChatInstallConfig(command="install", restart_attempts=1),
+            ),
+            patch("sase.integrations.chat_install.stop_axe_daemon", return_value=True),
+            patch(
+                "sase.integrations.chat_install.get_vcs_provider", return_value=provider
+            ),
+            patch("sase.integrations.chat_install.subprocess.run") as run,
+            patch("sase.integrations.chat_install.start_axe_daemon", return_value=999),
+            patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        ):
+            assert run_worker(tmp_path) == 4
+
+        os.fstat(unrelated_fd)
+        assert chat_install._LOCK_FD_ENV not in os.environ
+        run.assert_not_called()
+    finally:
+        os.close(unrelated_fd)
+
+
 def test_run_worker_restarts_axe_when_command_fails(tmp_path: Path) -> None:
     provider = MagicMock()
     provider.sync_workspace.return_value = (True, None)
