@@ -10,6 +10,10 @@ Use xprompts when you want to:
 - Parameterize prompts with typed, validated arguments.
 - Compose prompts from smaller building blocks using `#name(args)` syntax.
 
+The resolution path is easiest to read as a pipeline from prompt references to final prompt text or workflow launches:
+
+![Diagram showing user prompt references flowing through xprompt resolution stages into inline prompt text, standalone workflows, workflow graphs, or multi-agent fan-out.](images/xprompt-resolution-infographic.png)
+
 ## Table of Contents
 
 - [CLI Subcommands](#cli-subcommands)
