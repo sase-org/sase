@@ -61,7 +61,7 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
 def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     """Ensure beads are initialized, calling ``init_beads`` if necessary.
 
-    For VC repos: initializes ``.sase_beads/`` in the primary workspace root.
+    For VC repos: initializes ``sdd/beads/`` in the primary workspace root.
     For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = get_primary_workspace_dir(workspace_dir, workspace_num)

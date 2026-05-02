@@ -70,7 +70,7 @@ Files are stored at the project root and tracked in the project's own git repo:
     legends/
       {YYYYMM}/
         {plan_name}.md
-  .sase_beads/              # Bead database (git-tracked)
+  sdd/beads/              # Bead database (git-tracked)
     beads.db
     issues.jsonl
     config.json
@@ -125,7 +125,7 @@ SDD initializes the [bead issue tracker](beads.md) automatically when an epic ag
 
 - **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo and bead storage is
   initialized through SASE's built-in bead project bootstrap
-- **VC mode**: Beads are stored in `.sase_beads/` at the project root
+- **VC mode**: Beads are stored in `sdd/beads/` at the project root
 
 Plan-like beads carry a `tier` value:
 
@@ -158,9 +158,9 @@ sdd:
   version_controlled: false # default
 ```
 
-| Option                   | Type | Default | Description                                                                       |
-| ------------------------ | ---- | ------- | --------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store beads in `.sase_beads/` (git-tracked) instead of `.sase/sdd/beads/` (local) |
+| Option                   | Type | Default | Description                                                                     |
+| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | Store beads in `sdd/beads/` (git-tracked) instead of `.sase/sdd/beads/` (local) |
 
 See [`configuration.md`](configuration.md) for the full configuration reference.
 

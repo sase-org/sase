@@ -54,14 +54,14 @@ def _project_root(tmp_path: Path, name: str) -> Path:
 
 
 def _copy_current_store(root: Path) -> None:
-    shutil.copytree(GOLDEN / "stores" / "current", root / ".sase_beads")
+    shutil.copytree(GOLDEN / "stores" / "current", root / "sdd/beads")
 
 
 def _init_empty_store(root: Path, *, prefix: str = "case") -> None:
     with BeadProject.init(root):
         pass
     save_config(
-        root / ".sase_beads",
+        root / "sdd/beads",
         {"issue_prefix": prefix, "next_counter": 1, "owner": ""},
     )
 
@@ -81,7 +81,7 @@ def _init_git_repo(root: Path) -> None:
         capture_output=True,
     )
     subprocess.run(
-        ["git", "add", ".sase_beads/issues.jsonl"],
+        ["git", "add", "sdd/beads/issues.jsonl"],
         cwd=root,
         check=True,
         capture_output=True,

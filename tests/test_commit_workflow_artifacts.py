@@ -334,7 +334,7 @@ class TestHandleBeads:
         assert payload["message"] == "Fix bug (B-123)"
 
     def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
-        (tmp_path / ".sase_beads").mkdir()
+        (tmp_path / "sdd/beads").mkdir(parents=True)
         payload = {"message": "Fix bug"}
         with patch(
             "sase.workflows.commit.precommit_hooks.subprocess.run",

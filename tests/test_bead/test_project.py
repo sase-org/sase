@@ -22,10 +22,10 @@ def project(tmp_path):
 
 def test_init_creates_beads_dir(tmp_path):
     with BeadProject.init(tmp_path):
-        assert (tmp_path / ".sase_beads").is_dir()
-        assert (tmp_path / ".sase_beads" / "config.json").exists()
-        assert (tmp_path / ".sase_beads" / "beads.db").exists()
-        assert (tmp_path / ".sase_beads" / "issues.jsonl").exists()
+        assert (tmp_path / "sdd/beads").is_dir()
+        assert (tmp_path / "sdd/beads" / "config.json").exists()
+        assert (tmp_path / "sdd/beads" / "beads.db").exists()
+        assert (tmp_path / "sdd/beads" / "issues.jsonl").exists()
 
 
 def test_init_already_exists(tmp_path):
@@ -420,7 +420,7 @@ def test_create_uses_workspace_counter_when_local_config_stale(
         assert project_a.create("A", IssueType.PLAN).id == "sase-1"
 
     monkeypatch.chdir(workspace_b)
-    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    beads_dirs = [workspace_a / "sdd/beads", workspace_b / "sdd/beads"]
     with (
         patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
         BeadProject(workspace_b) as project_b,
@@ -428,7 +428,7 @@ def test_create_uses_workspace_counter_when_local_config_stale(
         issue = project_b.create("B", IssueType.PLAN)
 
     assert issue.id == "sase-2"
-    assert load_config(workspace_b / ".sase_beads")["next_counter"] == 3
+    assert load_config(workspace_b / "sdd/beads")["next_counter"] == 3
 
 
 def test_create_keeps_local_counter_when_config_is_ahead(
@@ -443,7 +443,7 @@ def test_create_keeps_local_counter_when_config_is_ahead(
         assert project_a.create("A", IssueType.PLAN).id == "sase-1"
 
     monkeypatch.chdir(workspace_b)
-    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    beads_dirs = [workspace_a / "sdd/beads", workspace_b / "sdd/beads"]
     with (
         patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
         BeadProject(workspace_b) as project_b,
@@ -451,7 +451,7 @@ def test_create_keeps_local_counter_when_config_is_ahead(
         issue = project_b.create("B", IssueType.PLAN)
 
     assert issue.id == "sase-a"
-    assert load_config(workspace_b / ".sase_beads")["next_counter"] == 11
+    assert load_config(workspace_b / "sdd/beads")["next_counter"] == 11
 
 
 def test_create_child_uses_workspace_child_counter(tmp_path: Path, monkeypatch) -> None:
@@ -472,7 +472,7 @@ def test_create_child_uses_workspace_child_counter(tmp_path: Path, monkeypatch) 
         assert parent_b.id == "sase-1"
 
     monkeypatch.chdir(workspace_b)
-    beads_dirs = [workspace_a / ".sase_beads", workspace_b / ".sase_beads"]
+    beads_dirs = [workspace_a / "sdd/beads", workspace_b / "sdd/beads"]
     with (
         patch("sase.bead.workspace.get_project_beads_dirs", return_value=beads_dirs),
         BeadProject(workspace_b) as project_b,
@@ -486,6 +486,6 @@ def _init_project_with_config(root: Path, *, next_counter: int) -> None:
     with BeadProject.init(root):
         pass
     save_config(
-        root / ".sase_beads",
+        root / "sdd/beads",
         {"issue_prefix": "sase", "next_counter": next_counter, "owner": ""},
     )

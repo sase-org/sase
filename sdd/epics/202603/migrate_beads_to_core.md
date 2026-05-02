@@ -12,10 +12,10 @@ Migrate the standalone `sase-beads` package into `sase` core as `src/sase/bead/`
 ## Key Design Decisions
 
 - **Module location**: `src/sase/bead/` (matching the new `sase bead` command name)
-- **Storage when `sdd.version_controlled` is set**: `.sase_beads/` at project root (git-tracked)
+- **Storage when `sdd.version_controlled` is set**: `sdd/beads/` at project root (git-tracked)
 - **Storage when `sdd.version_controlled` is NOT set**: `.sase/sdd/beads/` (auto-initialized on first use, no
   `sase init-beads` command needed)
-- **The internal directory name changes from `.sbd/` to `beads/`** within both paths (i.e., `.sase_beads/` or
+- **The internal directory name changes from `.sbd/` to `beads/`** within both paths (i.e., `sdd/beads/` or
   `.sase/sdd/beads/`)
 - **CLI**: `sase bead <subcommand>` replaces `sbd <subcommand>` and `tools/sase_sbd <subcommand>`
 - **Auto-init**: When `sdd.version_controlled` is NOT set, the `.sase/sdd/beads/` directory is auto-initialized on first
@@ -67,7 +67,7 @@ The CLI must handle **auto-initialization**: when `sdd.version_controlled` is NO
 `.sase/sdd/beads/` (with git init inside `.sase/sdd/` if needed) before running the subcommand. This replaces the old
 `sase init-sbd` / `sbd init` flow.
 
-When `sdd.version_controlled` IS set, `sase bead` operates on `.sase_beads/` at the project root.
+When `sdd.version_controlled` IS set, `sase bead` operates on `sdd/beads/` at the project root.
 
 **Auto-commit behavior** (previously in `tools/sase_sbd`): After write operations (`create`, `update`, `close`, `dep`,
 `init`) when operating in the non-VC `.sase/sdd/` path, auto-commit to the `.sase/sdd/` git repo.
@@ -79,7 +79,7 @@ Update all sase-internal code that references `sbd`, `.sbd/`, `sase_beads`, or `
 **Files to modify:**
 
 - `src/sase/sdd.py` — Update `init_sbd()` → use `sase.bead.project.BeadProject`, change `.sbd/` → `beads/`, update
-  `check_sbd_available()` to check new paths (`.sase_beads/` for VC, `.sase/sdd/beads/` for non-VC)
+  `check_sbd_available()` to check new paths (`sdd/beads/` for VC, `.sase/sdd/beads/` for non-VC)
 - `src/sase/axe_run_agent_exec.py` — Update references from `sbd` to `bead`, update xprompt references
 - `src/sase/ace/tui/modals/plan_approval_modal.py` — Rename `sbd_available` → `bead_available` (or keep, less critical)
 - `src/sase/llm_provider/_plan_utils.py` — Same rename
@@ -106,8 +106,8 @@ Update all chezmoi-managed files that reference `sbd`, `tools/sase_sbd`, or `.sb
 1. **`home/bin/executable_ccommit`** (critical):
    - Update `resolve_sbd_command()` → use `.venv/bin/sase bead` instead of `sbd`
    - Update `do_sbd_close()` → call `.venv/bin/sase bead close` instead of `sbd close`
-   - Update `do_sbd_sync()` → check for `.sase_beads/` dir instead of `.sbd/`, call `.venv/bin/sase bead sync`
-   - Add auto-commit for `.sase_beads/` directory changes (stage + commit any modified files in `.sase_beads/` after
+   - Update `do_sbd_sync()` → check for `sdd/beads/` dir instead of `.sbd/`, call `.venv/bin/sase bead sync`
+   - Add auto-commit for `sdd/beads/` directory changes (stage + commit any modified files in `sdd/beads/` after
      push)
 
 2. **`home/bin/executable_next_bead`**:

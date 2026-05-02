@@ -196,8 +196,8 @@ def check_backend_health() -> BackendHealthReport:
             try:
                 with tempfile.TemporaryDirectory(prefix="sase_core_health_bead_") as td:
                     root = Path(td)
-                    beads_dir = root / ".sase_beads"
-                    beads_dir.mkdir()
+                    beads_dir = root / "sdd" / "beads"
+                    beads_dir.mkdir(parents=True)
                     (beads_dir / "config.json").write_text(
                         '{"issue_prefix":"health","next_counter":2,"owner":""}\n',
                         encoding="utf-8",

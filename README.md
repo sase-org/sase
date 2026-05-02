@@ -154,7 +154,7 @@ sase
 | `sase bead create`             | Create a new issue (plan or phase)                                                                             |
 | `sase bead dep add`            | Add a dependency between issues                                                                                |
 | `sase bead doctor`             | Run health checks on the bead database                                                                         |
-| `sase bead init`               | Initialize `.sase_beads/` in the current directory                                                             |
+| `sase bead init`               | Initialize `sdd/beads/` in the current directory                                                               |
 | `sase bead list`               | List issues (with optional status/type filters)                                                                |
 | `sase bead onboard`            | Show quick-start guide                                                                                         |
 | `sase bead open`               | Reopen a closed issue                                                                                          |

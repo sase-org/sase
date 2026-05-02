@@ -15,7 +15,7 @@ forward.
   plans/{YYYYMM}/*.md      # 570 files in 202604 — formatted plans (some with `bead_id`, `status: done`)
   research/{YYYYMM}/*.md   #  30 files in 202604 — hand-authored or research-agent investigations
   sase_plan_*.md           # ~140 loose work-in-progress plans at root, pre-`sase plan` persistence
-  .sase_beads/             # Bead DB (when version_controlled: true)
+  sdd/beads/             # Bead DB (when version_controlled: true)
   .sase/sdd/               # Local-mode SDD storage (when version_controlled: false)
 ```
 

@@ -325,7 +325,7 @@ def vcs_finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None
 ```
 
 `_push_with_retry` and `_post_commit_bead_amend` are already idempotent (push is a no-op if up-to-date; amend skips when
-there are no `.sase_beads/` changes).
+there are no `sdd/beads/` changes).
 
 #### Telemetry
 

@@ -476,7 +476,7 @@ def vcs_finalize_commit(
     return self._push_with_retry(cwd)
 ```
 
-Both inner helpers are already idempotent: `_post_commit_bead_amend` checks for `.sase_beads/` changes before amending,
+Both inner helpers are already idempotent: `_post_commit_bead_amend` checks for `sdd/beads/` changes before amending,
 and `_push_with_retry` does a `git push` (a no-op exit 0 when HEAD matches `origin/<branch>`).
 
 Add telemetry mirroring the existing pattern at `_git_commit_dispatch.py:188–191`:

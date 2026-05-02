@@ -104,7 +104,7 @@ Expect conflicts around:
 - `tests/test_agent_loader.py`
 - `tests/test_core_agent_compose.py`
 - `tests/perf/bench_agent_compose.py`
-- `.sase_beads/issues.jsonl`
+- `sdd/beads/issues.jsonl`
 - `docs/rust_backend.md`
 - `../sase-core/crates/sase_core/src/lib.rs`
 - `../sase-core/crates/sase_core/src/agent_compose/`

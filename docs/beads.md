@@ -96,7 +96,7 @@ Dependencies are one-way relationships: issue A **depends on** issue B. An issue
 When version-controlled mode is enabled (`sdd.version_controlled` config):
 
 ```
-.sase_beads/
+sdd/beads/
   beads.db              # SQLite database (gitignored)
   issues.jsonl          # Git-tracked JSONL export
   config.json           # Configuration (issue prefix, counter, owner)

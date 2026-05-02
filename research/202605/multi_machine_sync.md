@@ -26,7 +26,7 @@ fits all of it.
 | Notifications / Hooks | `notifications/`, `comments/`, `hooks/`                                                               | Event streams                             | Low if file-per-event        | Yes                |
 | Saved queries / state | `saved_queries.json`, `agent_tags.json`, `dismissed_agents.json`                                      | Occasional rewrites                       | Medium                       | Yes                |
 | Workspace clones      | `../sase_<N>/` (next to repo, **not** in `~/.sase`)                                                   | Per-machine, ephemeral                    | N/A                          | Never              |
-| Project-local Sase    | `.sase/memory/`, `.sase/sdd/`, `.sase_beads/`                                                         | Project-scoped docs/state                 | Medium                       | Via project VCS    |
+| Project-local Sase    | `.sase/memory/`, `.sase/sdd/`, `sdd/beads/`                                                         | Project-scoped docs/state                 | Medium                       | Via project VCS    |
 
 The volume problem is real. On 2026-05-01, one live `~/.sase/` sample had ~22k chat files, ~8k workflow files,
 ~7.5k dismissed-bundle files, and ~1.2k plan files. That same sample had a 64 GiB `axe/logs/` tree dominated by one
@@ -56,7 +56,7 @@ The earlier recommendation is directionally right, but it under-specifies severa
   only", "append-only JSONL plus compaction", or "Atuin-style encrypted row sync".
 - **Runtime logs can dwarf everything else.** The live `axe/logs/` sample was ~64 GiB. These logs should be explicitly
   excluded from normal sync and handled by `sase logs pack` / support bundles when needed.
-- **Project-local state is separate from `~/.sase/`.** `.sase/memory/`, `.sase/sdd/`, and `.sase_beads/` should travel
+- **Project-local state is separate from `~/.sase/`.** `.sase/memory/`, `.sase/sdd/`, and `sdd/beads/` should travel
   with the project repository or a project-local state repo. A global home-directory sync should not be responsible for
   project VCS semantics.
 
@@ -161,7 +161,7 @@ Pick the right tool per bucket using the table at the top:
   Postgres advisory-lock service, a Redis with leases, or piggy-back on the centralized server in Alt 4
   if/when it exists. Until it exists, document "one machine drives at a time" and have `sase` refuse to
   spawn agents on Machine B while Machine A holds an active lease file in the synced directory.
-- **Project-local `.sase/` and `.sase_beads/`** → sync through the project repo or the per-project state repo,
+- **Project-local `.sase/` and `sdd/beads/`** → sync through the project repo or the per-project state repo,
   not the global home-directory sync.
 
 - **Pros:** Each bucket gets a sync model that fits. Most of it is composed from boring infrastructure

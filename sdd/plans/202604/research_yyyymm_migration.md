@@ -73,14 +73,14 @@ their target month).
 ### Cross-reference updates
 
 `grep -rE 'research/[a-zA-Z0-9_/]+\.md'` finds **64 references** across **46 tracked files** (mostly under `plans/`,
-`specs/`, `docs/`, plus a handful inside `research/` itself, plus `.sase_beads/issues.jsonl`).
+`specs/`, `docs/`, plus a handful inside `research/` itself, plus `sdd/beads/issues.jsonl`).
 
 For each moved file, rewrite occurrences of its old path (e.g. `research/202604/sase_perf_research.md`,
 `research/202603/telegram_improvements.md`) to its new path (`research/202604/sase_perf_research.md`,
 `research/202603/telegram_improvements.md`) in:
 
 - All tracked `*.md` under `plans/`, `specs/`, `research/`, `docs/`.
-- `.sase_beads/issues.jsonl` (one match — keep the data accurate).
+- `sdd/beads/issues.jsonl` (one match — keep the data accurate).
 
 Skip:
 
@@ -98,7 +98,7 @@ directories first (`mkdir -p research/202602 research/202603 research/202604`).
    a plain text manifest in the workspace (not committed). Sanity-check the totals match (4 / 21 / 22).
 2. **Create destination dirs** with `mkdir -p`.
 3. **Move files** via `git mv` per the manifest. Remove the now-empty `plugins/`, `telegram/`, `texts/` directories.
-4. **Rewrite cross-references** in tracked Markdown + `.sase_beads/issues.jsonl`. A simple `sed` pass keyed off the
+4. **Rewrite cross-references** in tracked Markdown + `sdd/beads/issues.jsonl`. A simple `sed` pass keyed off the
    manifest works because each old path is unique. After the pass, re-run the grep and confirm zero `research/<flat>.md`
    matches remain (every hit should now include a `YYYYMM/` segment).
 5. **Verification.**
@@ -123,5 +123,5 @@ directories first (`mkdir -p research/202602 research/202603 research/202604`).
 
 - 47 file moves under `research/`.
 - ~46 tracked Markdown files updated (cross-reference rewrites).
-- 1 line update in `.sase_beads/issues.jsonl`.
+- 1 line update in `sdd/beads/issues.jsonl`.
 - 0 source code changes.

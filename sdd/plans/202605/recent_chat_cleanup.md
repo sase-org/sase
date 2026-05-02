@@ -13,7 +13,7 @@ source changes. The postmortem chats identify two cleanup concerns after the Rus
 - `research/202604/rust_core_next_candidates.md` still recommends the same agent-loader orchestration migration that was
   attempted under `sase-1p` and then reverted.
 - `sase bead show sase-1p` still resolves a closed bead through merged multi-workspace bead discovery because
-  `/home/bryan/projects/github/sase-org/sase_100/.sase_beads/issues.jsonl` still contains the stale reverted bead rows.
+  `/home/bryan/projects/github/sase-org/sase_100/sdd/beads/issues.jsonl` still contains the stale reverted bead rows.
 
 Current source evidence confirms the product rollback is otherwise clean: only rollback documentation, a refresh-docs
 screenshot spec, and the stale research recommendation mention `sase-1p` / `agent_compose`.
@@ -38,7 +38,7 @@ screenshot spec, and the stale research recommendation mention `sase-1p` / `agen
      do not delete the Python path until live-ish end-to-end evidence passes.
    - Update ranking/sequence language so candidate #3 is not treated as a straightforward next migration.
 
-2. Clean stale bead metadata in `/home/bryan/projects/github/sase-org/sase_100/.sase_beads/issues.jsonl`:
+2. Clean stale bead metadata in `/home/bryan/projects/github/sase-org/sase_100/sdd/beads/issues.jsonl`:
    - Remove only rows with IDs `sase-1p` and `sase-1p.1` through `sase-1p.8`.
    - Preserve all unrelated bead rows.
    - Leave the old workspace checkout itself untouched.

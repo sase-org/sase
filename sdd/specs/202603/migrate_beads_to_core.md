@@ -2,11 +2,11 @@
 to it?
 
 - The new command that will replace `sbd` is `sase bead`.
-- When `sdd.version_controlled` is set, we should store these beads in a top-level .sase_beads/ directory. Otherwise, we
+- When `sdd.version_controlled` is set, we should store these beads in a top-level sdd/beads/ directory. Otherwise, we
   use the .sase/sdd/beads/ directory.
 - We should remove the `sase init-beads` command and start auto-initializing the .sase/sdd/beads/ directory when
   `sdd.version_controlled` is not set.
-- We should update `ccommit` in the chezmoi repo so it automatically commits any changes to files in the .sase_beads/
+- We should update `ccommit` in the chezmoi repo so it automatically commits any changes to files in the sdd/beads/
   directory.
 - We shouldn't need the `tools/sase_sbd` script anymore, so we can remove that.
 - Make sure you update all references in the chezmoi repo appropriately.

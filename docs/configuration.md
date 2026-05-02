@@ -601,11 +601,11 @@ sdd:
   version_controlled: false # default: false
 ```
 
-| Field                    | Type | Default | Description                                                                        |
-| ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store beads in `.sase_beads/` (git-tracked) instead of `.sase/sdd/beads/` (local). |
+| Field                    | Type | Default | Description                                                                      |
+| ------------------------ | ---- | ------- | -------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | Store beads in `sdd/beads/` (git-tracked) instead of `.sase/sdd/beads/` (local). |
 
-When enabled, the bead database directory (`.sase_beads/`) is placed in the project root so that `issues.jsonl` and
+When enabled, the bead database directory (`sdd/beads/`) is placed in the project root so that `issues.jsonl` and
 `config.json` are tracked in git. See [`docs/beads.md`](beads.md) for the full bead system reference.
 
 Source: `src/sase/default_config.yml`

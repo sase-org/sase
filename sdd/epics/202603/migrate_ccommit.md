@@ -84,9 +84,9 @@ Python commit workflow and git VCS provider.
    - If `payload` contains a `bead_id` field:
      - Run `sase bead close <bead_id>` via subprocess
      - Run `sase bead sync` via subprocess (best effort)
-     - Stage `.sase_beads/` if it has changes (git-specific: only if not hg)
+     - Stage `sdd/beads/` if it has changes (git-specific: only if not hg)
      - Inject bead ID into commit message headline if not already present: `"<message>" → "<message> (<bead_id>)"`
-   - If no `bead_id` but `.sase_beads/` or `.beads/` directory exists, still run `sase bead sync` and stage
+   - If no `bead_id` but `sdd/beads/` or `.beads/` directory exists, still run `sase bead sync` and stage
 3. **SASE_PLAN handling** (before VCS dispatch):
    - If `SASE_PLAN` env var is set and points to an existing file:
      - Compute relative path (repo-root-relative if inside repo, otherwise `.sase/sdd/plans/<basename>`)
@@ -96,17 +96,17 @@ Python commit workflow and git VCS provider.
 4. **Post-commit bead note** (after successful VCS dispatch):
    - If `bead_id` was provided and commit succeeded:
      - Run `sase bead update <bead_id> --notes "COMMIT: <commit_hash>"`
-     - Stage `.sase_beads/` and amend the commit (only for create_commit, not for create_proposal/create_pull_request)
+     - Stage `sdd/beads/` and amend the commit (only for create_commit, not for create_proposal/create_pull_request)
 5. **Result marker** — Already exists, just ensure `bead_id` is included in the marker JSON.
 
 **`src/sase/vcs_provider/plugins/_git_common.py`** — Enhance the three commit dispatch methods:
 
 - `vcs_create_commit()`:
-  - After staging files, re-stage `.sase_beads/` if it has changes (to capture bead sync from workflow)
+  - After staging files, re-stage `sdd/beads/` if it has changes (to capture bead sync from workflow)
   - After staging: validate staged changes exist (`git diff --cached --quiet` → fail if empty)
   - Before commit: merge with origin/master (replicate ccommit's `merge_with_master` logic — fetch, stash staged
     changes, merge, restore stash; skip if on default branch and just pull instead)
-  - After merge: re-stage `.sase_beads/` again (merge may modify tracked files)
+  - After merge: re-stage `sdd/beads/` again (merge may modify tracked files)
   - Push with retry: if push fails, `git pull --no-edit`, then retry push once
 - `vcs_create_proposal()` — Currently just calls `vcs_create_commit`. Keep this delegation but it inherits the
   improvements.

@@ -8,6 +8,7 @@ shared across all git-based VCS plugins.
 import os
 from typing import TYPE_CHECKING
 
+from sase.bead.project import BEADS_DIRNAME
 from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
@@ -25,12 +26,13 @@ class GitCommitDispatchMixin(CommandRunner):
     # --- Helpers ---
 
     def _stage_bead_dirs(self, cwd: str) -> None:
-        """Stage ``.sase_beads/`` if the directory has uncommitted changes."""
-        bead_dir = os.path.join(cwd, ".sase_beads")
+        """Stage the version-controlled bead store if it has changes."""
+        bead_dir = os.path.join(cwd, BEADS_DIRNAME)
+        bead_pathspec = f"{BEADS_DIRNAME}/"
         if os.path.isdir(bead_dir):
-            status = self._run(["git", "status", "--porcelain", ".sase_beads/"], cwd)
+            status = self._run(["git", "status", "--porcelain", bead_pathspec], cwd)
             if status.stdout.strip():
-                self._run(["git", "add", ".sase_beads/"], cwd)
+                self._run(["git", "add", bead_pathspec], cwd)
 
     def _stage_extra_paths(self, payload: dict, cwd: str) -> None:
         """Stage extra paths recorded in the payload (e.g. plan file)."""
@@ -118,7 +120,7 @@ class GitCommitDispatchMixin(CommandRunner):
         return (True, None)
 
     def _post_commit_bead_amend(self, payload: dict, cwd: str) -> None:
-        """Add a COMMIT note to the bead and amend ``.sase_beads/`` into the commit."""
+        """Add a COMMIT note to the bead and amend bead changes into the commit."""
         bead_id = payload.get("bead_id")
         if not bead_id:
             return
@@ -132,11 +134,12 @@ class GitCommitDispatchMixin(CommandRunner):
         )
 
         # Fold bead tracking changes into the commit via amend
-        bead_dir = os.path.join(cwd, ".sase_beads")
+        bead_dir = os.path.join(cwd, BEADS_DIRNAME)
+        bead_pathspec = f"{BEADS_DIRNAME}/"
         if os.path.isdir(bead_dir):
-            status = self._run(["git", "status", "--porcelain", ".sase_beads/"], cwd)
+            status = self._run(["git", "status", "--porcelain", bead_pathspec], cwd)
             if status.stdout.strip():
-                self._run(["git", "add", ".sase_beads/"], cwd)
+                self._run(["git", "add", bead_pathspec], cwd)
                 self._run(["git", "commit", "--amend", "--no-edit", "--quiet"], cwd)
 
     # --- Dispatch ---
@@ -154,7 +157,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if not out.success:
             return self._to_result(out, "git add")
 
-        # Stage .sase_beads/ and extra paths (plan file)
+        # Stage bead state and extra paths (plan file)
         self._stage_bead_dirs(cwd)
         self._stage_extra_paths(payload, cwd)
 
@@ -168,7 +171,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if not ok:
             return (False, err)
 
-        # Re-stage .sase_beads/ after merge (merge may modify tracked files)
+        # Re-stage bead state after merge (merge may modify tracked files)
         self._stage_bead_dirs(cwd)
 
         out = self._run(["git", "commit", "-m", message], cwd)
@@ -223,7 +226,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if not out.success:
             return self._to_result(out, "git add")
 
-        # Stage .sase_beads/ and extra paths
+        # Stage bead state and extra paths
         self._stage_bead_dirs(cwd)
         self._stage_extra_paths(payload, cwd)
 

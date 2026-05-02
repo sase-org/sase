@@ -22,11 +22,11 @@ def _ids(issues: list[Issue]) -> list[str]:
 
 @pytest.fixture
 def bead_store(tmp_path: Path) -> tuple[BeadProject, Path, dict[str, Issue]]:
-    shutil.copytree(GOLDEN / "stores" / "current", tmp_path / ".sase_beads")
+    shutil.copytree(GOLDEN / "stores" / "current", tmp_path / "sdd/beads")
     project = BeadProject(tmp_path)
     return (
         project,
-        tmp_path / ".sase_beads",
+        tmp_path / "sdd/beads",
         {
             "epic": project.show("beads-1"),
             "first": project.show("beads-1.1"),
@@ -73,7 +73,7 @@ def test_read_facade_missing_issue_raises_key_error(
 
 
 def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:
-    beads_dir = tmp_path / ".sase_beads"
+    beads_dir = tmp_path / "sdd/beads"
     with BeadProject.init(tmp_path) as project:
         project.create("Epic", IssueType.PLAN)
     (beads_dir / "beads.db").unlink()
@@ -83,8 +83,8 @@ def test_doctor_reads_jsonl_without_requiring_sqlite(tmp_path: Path) -> None:
 
 
 def test_merged_workspace_facade_matches_python_view(tmp_path: Path) -> None:
-    primary = tmp_path / "project" / ".sase_beads"
-    secondary = tmp_path / "project_2" / ".sase_beads"
+    primary = tmp_path / "project" / "sdd/beads"
+    secondary = tmp_path / "project_2" / "sdd/beads"
     primary.mkdir(parents=True)
     secondary.mkdir(parents=True)
 

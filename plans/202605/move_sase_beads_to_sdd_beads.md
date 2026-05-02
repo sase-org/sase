@@ -1,18 +1,18 @@
 ---
 title: Move version-controlled bead storage to sdd/beads
 create_time: 2026-05-01 22:10:51
-status: wip
+status: done
 ---
 
 # Goal
 
-Move the repository's version-controlled bead database from the root-level `.sase_beads/` directory to `sdd/beads/`, and
+Move the repository's version-controlled bead database from the legacy root-level bead directory to `sdd/beads/`, and
 update references so the runtime, commit workflow, docs, and tests consistently treat `sdd/beads/` as the VC bead
 storage location.
 
 # Current Shape
 
-- Runtime VC bead storage is centralized mostly through `sase.bead.project.BEADS_DIRNAME`, currently `.sase_beads`.
+- Runtime VC bead storage is centralized mostly through `sase.bead.project.BEADS_DIRNAME`.
 - Several paths are still hardcoded outside that constant:
   - fast path bead resolution in `src/sase/main/bead_fast_path.py`
   - git commit staging/amend behavior in `src/sase/vcs_provider/plugins/_git_commit_dispatch.py`
@@ -21,27 +21,26 @@ storage location.
   - CLI help/onboarding strings and docs/tests.
 - Non-version-controlled bead storage remains `.sase/sdd/beads/`; this is a different mode and should not be collapsed
   into the new `sdd/beads/` VC path.
-- Rust core production APIs receive explicit bead directory paths from Python; the sibling Rust repo has `.sase_beads`
+- Rust core production APIs receive explicit bead directory paths from Python; the sibling Rust repo has bead path
   references in docs/tests, not in production directory resolution.
 - The current tracked bead state consists of:
-  - `.sase_beads/config.json`
-  - `.sase_beads/issues.jsonl`
-  - `.sase_beads/metadata.json`
-  - `.sase_beads/beads.db` is present locally but ignored.
+  - `sdd/beads/config.json`
+  - `sdd/beads/issues.jsonl`
+  - `sdd/beads/metadata.json`
+  - `sdd/beads/beads.db` is present locally but ignored.
 
 # Plan
 
 1. Move tracked project state.
-   - Create `sdd/beads/` and move the tracked JSON state files from `.sase_beads/`.
+   - Create `sdd/beads/` and move the tracked JSON state files from the legacy root-level bead directory.
    - Keep `beads.db` untracked and ignored under the new location.
-   - Remove the old `.sase_beads/` directory if it becomes empty after the move.
+   - Remove the old root-level bead directory if it becomes empty after the move.
 
 2. Update runtime path constants and discovery.
-   - Change the VC bead directory constant from `.sase_beads` to `sdd/beads`.
+   - Change the VC bead directory constant to `sdd/beads`.
    - Update fast-path lightweight resolution to use the new VC path while preserving `.sase/sdd/beads/` as the non-VC
      path.
-   - Review workspace enumeration and CLI location resolution so sibling workspaces look for `sdd/beads/` rather than
-     `.sase_beads/`.
+   - Review workspace enumeration and CLI location resolution so sibling workspaces look for `sdd/beads/`.
    - Keep existing APIs that accept a `beads_dirname` string working by allowing the string to contain a slash.
 
 3. Update commit and precommit integration.
@@ -52,20 +51,20 @@ storage location.
 
 4. Update human-facing references.
    - Update README/docs/help/xprompt text that describes VC bead storage.
-   - Update `.gitignore` from `.sase_beads/beads.db*` to `sdd/beads/beads.db*`.
+   - Update `.gitignore` to ignore `sdd/beads/beads.db*`.
    - Treat historical SDD plans/specs/research as references too where they describe current paths or contain literal
      examples of the bead directory, because the request is to update all references to this directory.
 
 5. Update tests and fixtures.
-   - Replace test setup paths and assertions that create or expect `.sase_beads/` with `sdd/beads/`.
+   - Replace test setup paths and assertions with `sdd/beads/`.
    - Update golden output and git command assertions that mention the old path.
    - Update sibling Rust test/doc references if needed so cross-boundary parity remains aligned with the Python caller.
 
 6. Verify.
    - Run targeted bead and commit workflow tests first.
    - Run `just install` if needed for the workspace, then `just check` as required by repo instructions after edits.
-   - Run a final `rg` for `.sase_beads` to catch any missed references. Any remaining matches must be intentionally
-     legacy-only and called out.
+   - Run a final search for legacy bead directory references. Any remaining matches must be intentionally legacy-only
+     and called out.
 
 # Risks And Constraints
 

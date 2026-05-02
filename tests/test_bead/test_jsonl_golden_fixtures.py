@@ -79,8 +79,8 @@ def test_empty_and_missing_jsonl_fixtures_import_as_empty(tmp_path: Path) -> Non
 
 
 def test_current_config_fixture_loads(tmp_path: Path) -> None:
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     (beads_dir / "config.json").write_text(
         (GOLDEN / "config" / "current.json").read_text(encoding="utf-8"),
         encoding="utf-8",

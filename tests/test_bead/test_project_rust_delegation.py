@@ -52,7 +52,7 @@ def test_bead_project_create_delegates_to_rust_mutation(
 def test_merged_bead_view_delegates_to_rust_merged_read(
     tmp_path: Path, monkeypatch
 ) -> None:
-    beads_dirs = [tmp_path / "one" / ".sase_beads", tmp_path / "two" / ".sase_beads"]
+    beads_dirs = [tmp_path / "one" / "sdd/beads", tmp_path / "two" / "sdd/beads"]
     expected = [Issue(id="ready-1", title="Ready", status=Status.OPEN)]
     calls: list[list[Path]] = []
 

@@ -136,7 +136,7 @@ Creates an actual git commit on the current branch and pushes it.
 **Git operations:**
 
 1. Stage files (`git add -A` or specific files)
-2. Stage `.sase_beads/` directory and plan file
+2. Stage `sdd/beads/` directory and plan file
 3. Validate staged changes exist
 4. Merge with `origin/master` to keep branch current
 5. `git commit -m <message>`

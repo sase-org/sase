@@ -50,8 +50,8 @@ should be backed out unless they are still needed by retained baseline behavior.
    - Delete `plans/202605/independent_plan_chain_agents.md`.
    - Delete `plans/202605/independent_plan_chain_agents_1.md`.
    - Delete `specs/202605/independent_plan_chain_agents.md`.
-   - Remove the `sase-1s`, `sase-1s.*`, `sase-1t`, and `sase-1t.*` records from `.sase_beads/issues.jsonl`.
-   - Restore `.sase_beads/config.json` only if those bead allocations changed counters or metadata solely for these
+   - Remove the `sase-1s`, `sase-1s.*`, `sase-1t`, and `sase-1t.*` records from `sdd/beads/issues.jsonl`.
+   - Restore `sdd/beads/config.json` only if those bead allocations changed counters or metadata solely for these
      deleted beads.
 
 3. Revert the code surface introduced by the independent plan-chain work.
@@ -97,5 +97,5 @@ should be backed out unless they are still needed by retained baseline behavior.
   accidentally remove unrelated TUI grouping/launch work.
 - The term "plan-chain" is not wholly owned by these beads; older plan-chain handoff support remains valid and should
   survive.
-- `.sase_beads/issues.jsonl` is append-style project state, but the request asks for all traces, so direct removal of
+- `sdd/beads/issues.jsonl` is append-style project state, but the request asks for all traces, so direct removal of
   the affected JSONL records is appropriate after confirming no other beads depend on them.

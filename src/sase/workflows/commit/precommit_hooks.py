@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 
+from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
 from sase.output import print_status
 
@@ -56,7 +57,7 @@ def run_precommit(cwd: str) -> bool:
 def handle_beads(payload: dict, cwd: str) -> None:
     """Close and sync beads, inject bead ID into commit message."""
     bead_id = payload.get("bead_id")
-    has_bead_dir = os.path.isdir(os.path.join(cwd, ".sase_beads")) or os.path.isdir(
+    has_bead_dir = os.path.isdir(os.path.join(cwd, BEADS_DIRNAME)) or os.path.isdir(
         os.path.join(cwd, ".beads")
     )
 

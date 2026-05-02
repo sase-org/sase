@@ -14,7 +14,7 @@ dispatch.
 
 ## Root Cause Hypothesis
 
-`CommitWorkflow.run()` calls `handle_beads(...)` for non-proposal flows. In repositories that contain `.sase_beads` or
+`CommitWorkflow.run()` calls `handle_beads(...)` for non-proposal flows. In repositories that contain `sdd/beads` or
 `.beads`, `handle_beads` always executes:
 
 - `sase bead sync` (best-effort)

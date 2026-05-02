@@ -16,7 +16,7 @@ from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_fo
 
 
 def get_project_beads_dirs() -> list[Path] | None:
-    """Find all .sase_beads/ directories across all workspaces of the current project.
+    """Find all sdd/beads/ directories across all workspaces of the current project.
 
     Returns None if not in a recognized sase project (caller should fall back
     to the old walk-up-from-cwd behavior).
@@ -124,7 +124,7 @@ def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     Non-VC mode is primary-only: if ``primary/.sase/sdd/beads`` exists,
     return only that directory.
 
-    VC mode checks ``.sase_beads/`` in the primary workspace and sibling
+    VC mode checks ``sdd/beads/`` in the primary workspace and sibling
     workspace directories matching ``<primary_basename>_<N>``.
     """
     primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC

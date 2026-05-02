@@ -26,7 +26,7 @@ agent per phase plus a final land-epic agent.
 - **Bead model** (`src/sase/bead/model.py`): `Issue` is a dataclass with `IssueType` ∈ {`plan`, `phase`}. Phase issues
   require `parent_id`. Dependencies are a separate table; resolved per-issue into
   `issue.dependencies: list[Dependency]`.
-- **DB schema** (`src/sase/bead/db.py`): SQLite + JSONL mirror in `.sase_beads/` (VC mode) or `.sase/sdd/beads/`
+- **DB schema** (`src/sase/bead/db.py`): SQLite + JSONL mirror in `sdd/beads/` (VC mode) or `.sase/sdd/beads/`
   (non-VC). A `_migrate_issue_types` function already shows the migration pattern.
 - **`sase bead` CLI** (`src/sase/main/parser_bead.py` + `src/sase/bead/cli.py`): 13 subcommands; `update`
   - `close` mutate state, `ready` lists open beads with no active blockers.

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-_BEADS_DIRNAME = ".sase_beads"
+_BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
 _FAST_WRITE_COMMANDS = {"open", "update", "close", "dep"}
 

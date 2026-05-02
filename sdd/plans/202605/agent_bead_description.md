@@ -26,7 +26,7 @@ Desired behavior:
 
 - `AgentPromptPanel.update_header_only()` is used during rapid j/k navigation and calls
   `build_header_text(..., cheap=True)`.
-- The cheap path is intentionally disk-free and guarded by tests. Bead lookup reads `.sase_beads/issues.jsonl` or bead
+- The cheap path is intentionally disk-free and guarded by tests. Bead lookup reads `sdd/beads/issues.jsonl` or bead
   DB state, so it must not run when `cheap=True`.
 - The full debounced detail render already performs disk-backed enrichments such as embedded workflow metadata. Bead
   description lookup belongs there.

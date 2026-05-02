@@ -62,8 +62,8 @@ repository-visible traces of the reverted duplicate epics.
 
 5. Remove reverted epic bead records.
    - Delete only JSONL records whose ids are `sase-1s`, `sase-1s.*`, `sase-1t`, or `sase-1t.*` from
-     `.sase_beads/issues.jsonl`.
-   - Leave `.sase_beads/config.json` alone unless inspection shows the later close commits changed allocation metadata;
+     `sdd/beads/issues.jsonl`.
+   - Leave `sdd/beads/config.json` alone unless inspection shows the later close commits changed allocation metadata;
      it is currently already back at `next_counter: 64`.
 
 6. Verification.

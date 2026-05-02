@@ -40,7 +40,7 @@ The Rust backend is already a hard runtime dependency:
 - `../sase-core` already has a pure crate plus PyO3 crate.
 - `docs/rust_backend.md` says there is no Python fallback for ported operations.
 
-Local baseline on this workspace, with `.sase_beads/issues.jsonl` at 399 lines / 288K:
+Local baseline on this workspace, with `sdd/beads/issues.jsonl` at 399 lines / 288K:
 
 - `sase bead list`: about 0.32s
 - `sase bead ready`: about 0.34s

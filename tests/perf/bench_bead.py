@@ -80,7 +80,7 @@ def _sase_command(sase_bin: str | None) -> list[str]:
 
 
 def _write_project(root: Path, *, issue_count: int, dependency_count: int) -> None:
-    beads_dir = root / ".sase_beads"
+    beads_dir = root / "sdd/beads"
     beads_dir.mkdir(parents=True, exist_ok=True)
     save_config(
         beads_dir,
@@ -128,7 +128,7 @@ def _write_project(root: Path, *, issue_count: int, dependency_count: int) -> No
 
 
 def _write_work_plan_project(root: Path, *, phase_count: int) -> None:
-    beads_dir = root / ".sase_beads"
+    beads_dir = root / "sdd/beads"
     beads_dir.mkdir(parents=True, exist_ok=True)
     save_config(
         beads_dir,
@@ -224,7 +224,7 @@ def _with_project(root: Path, fn: Callable[[BeadProject], object]) -> object:
 
 
 def _bench_merged(primary: Path, *, runs: int) -> dict[str, dict[str, float]]:
-    beads_dirs = sorted(primary.parent.glob("workspace*/.sase_beads"))
+    beads_dirs = sorted(primary.parent.glob("workspace*/sdd/beads"))
     scenarios: dict[str, Callable[[MergedBeadView], object]] = {
         "list_issues": lambda view: view.list_issues(),
         "ready": lambda view: view.ready(),
@@ -244,7 +244,7 @@ def _bench_work_plan(root: Path, *, runs: int) -> dict[str, dict[str, float]]:
     timings = [
         _time_call(
             lambda: build_epic_work_plan_from_beads_dir(
-                root / ".sase_beads",
+                root / "sdd/beads",
                 "work-1",
             )
         )

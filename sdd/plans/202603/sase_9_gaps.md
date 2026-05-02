@@ -9,7 +9,7 @@ status: wip
 
 After reviewing the sase-9 spec (`specs/unified_vcs_commit.md`), plan (`plans/unified_vcs_commit.md`), and all 9 commits
 against the actual code, I found several gaps between what was planned and what was implemented. All 5 phases are marked
-done in `.sase_beads/issues.jsonl` but the epic is still open.
+done in `sdd/beads/issues.jsonl` but the epic is still open.
 
 ## Gap Summary
 

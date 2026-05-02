@@ -66,8 +66,8 @@ class TestIdGenerator:
 
 class TestWorkspaceCounters:
     def test_max_top_level_counter_scans_valid_ids_only(self, tmp_path: Path) -> None:
-        beads_a = tmp_path / "workspace-a" / ".sase_beads"
-        beads_b = tmp_path / "workspace-b" / ".sase_beads"
+        beads_a = tmp_path / "workspace-a" / "sdd/beads"
+        beads_b = tmp_path / "workspace-b" / "sdd/beads"
         _write_issue_ids(
             beads_a,
             [
@@ -85,7 +85,7 @@ class TestWorkspaceCounters:
         assert max_top_level_counter("sase", [beads_a, beads_b]) == 36
 
     def test_max_child_counter_scans_direct_children_only(self, tmp_path: Path) -> None:
-        beads_dir = tmp_path / ".sase_beads"
+        beads_dir = tmp_path / "sdd/beads"
         _write_issue_ids(
             beads_dir,
             [

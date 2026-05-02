@@ -6,7 +6,7 @@ status: done
 
 ## Problem
 
-Top-level bead IDs are currently allocated from the local workspace's `.sase_beads/config.json` `next_counter`. That is
+Top-level bead IDs are currently allocated from the local workspace's `sdd/beads/config.json` `next_counter`. That is
 not enough for version-controlled SASE workspaces because each agent may be running in a separate sibling clone such as
 `sase`, `sase_101`, or `sase_102`. If two agents create a new epic from different workspace directories, both can read
 the same local counter and emit the same top-level ID, for example `sase-1q`.

@@ -32,15 +32,15 @@ def _init_git_repo(path):
 
 
 def test_sync_status_clean_when_no_jsonl(tmp_path):
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     assert sync_status(beads_dir) is True
 
 
 def test_sync_status_clean_when_committed(tmp_path):
     _init_git_repo(tmp_path)
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text("")
     subprocess.run(["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True)
@@ -52,8 +52,8 @@ def test_sync_status_clean_when_committed(tmp_path):
 
 def test_sync_status_dirty_when_modified(tmp_path):
     _init_git_repo(tmp_path)
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text("")
     subprocess.run(["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True)
@@ -66,8 +66,8 @@ def test_sync_status_dirty_when_modified(tmp_path):
 
 def test_git_sync_stages_jsonl(tmp_path):
     _init_git_repo(tmp_path)
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text('{"id":"test"}\n')
 
@@ -85,8 +85,8 @@ def test_git_sync_stages_jsonl(tmp_path):
 
 def test_git_sync_noop_when_clean(tmp_path):
     _init_git_repo(tmp_path)
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text("")
     subprocess.run(["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True)
@@ -110,8 +110,8 @@ def test_rebuild_from_jsonl_creates_db(tmp_path):
     from sase.bead.jsonl import export_to_jsonl
     from sase.bead.model import Issue, IssueType
 
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     db_path = beads_dir / "beads.db"
     jsonl_path = beads_dir / "issues.jsonl"
 
@@ -150,8 +150,8 @@ def test_rebuild_from_jsonl_creates_db(tmp_path):
 def test_rebuild_from_jsonl_noop_when_db_newer(tmp_path):
     import time
 
-    beads_dir = tmp_path / ".sase_beads"
-    beads_dir.mkdir()
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
     jsonl_path = beads_dir / "issues.jsonl"
     db_path = beads_dir / "beads.db"
 

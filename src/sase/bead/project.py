@@ -29,7 +29,7 @@ class NotAPlanError(Exception):
     """Raised when mark_ready_to_work is called on a non-plan issue."""
 
 
-BEADS_DIRNAME = ".sase_beads"
+BEADS_DIRNAME = "sdd/beads"
 """Default beads subdirectory name (used in version-controlled mode)."""
 
 BEADS_DIRNAME_NON_VC = "beads"
