@@ -32,6 +32,7 @@ def test_parse_tags_all_values() -> None:
             "append_to_commit_and_propose",
             "memory",
             "create_epic_bead",
+            "create_legend_bead",
             "work_phase_bead",
             "land_epic",
         ]

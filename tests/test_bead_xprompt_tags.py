@@ -23,6 +23,9 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 def test_new_tags_parse_from_string() -> None:
     assert parse_tags("create_epic_bead") == frozenset({XPromptTag.create_epic_bead})
+    assert parse_tags("create_legend_bead") == frozenset(
+        {XPromptTag.create_legend_bead}
+    )
     assert parse_tags("work_phase_bead") == frozenset({XPromptTag.work_phase_bead})
     assert parse_tags("land_epic") == frozenset({XPromptTag.land_epic})
 
@@ -55,6 +58,7 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert "bd/land_epic" in prompts
     assert "bd/work_phase_bead" in prompts
     assert XPromptTag.create_epic_bead in prompts["bd/new_epic"].tags
+    assert XPromptTag.create_legend_bead in prompts["bd/new_legend"].tags
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
     assert (

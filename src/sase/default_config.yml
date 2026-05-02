@@ -325,6 +325,7 @@ xprompts:
       After committing the bead-creation work, run `sase bead work <epic_id> --yes` (using the new plan bead's ID) to
       mark the epic as ready to work and skip the launch confirmation prompt for this automated kickoff.
   bd/new_legend:
+    tags: create_legend_bead
     input:
       plan_file_path: path
     content: |

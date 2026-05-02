@@ -253,6 +253,75 @@ def test_legend_writes_response_and_sets_status(tmp_path: Path) -> None:
     assert archive_plan.call_args.args[1] == "legend"
 
 
+def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
+    tmp_path: Path,
+) -> None:
+    """Version-controlled approval archiving writes under sdd/<kind>/YYYYMM."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    notification = Notification(
+        id="test-notif",
+        timestamp="2026-05-01T12:00:00-04:00",
+        sender="test",
+        action="PlanApproval",
+        action_data={"project_dir": str(workspace)},
+        files=[str(plan_file)],
+    )
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        _archive_plan_for_approval,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch("sase.sdd.files.get_yyyymm", return_value="202605"),
+    ):
+        saved = _archive_plan_for_approval(notification, "legend")
+
+    assert saved == str(workspace / "sdd" / "legends" / "202605" / "plan.md")
+    assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
+    assert not (workspace / ".sase" / "sdd" / "legends").exists()
+
+
+def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
+    """Local SDD approval archiving keeps using .sase/sdd/<kind>/YYYYMM."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    notification = Notification(
+        id="test-notif",
+        timestamp="2026-05-01T12:00:00-04:00",
+        sender="test",
+        action="PlanApproval",
+        action_data={"project_dir": str(workspace)},
+        files=[str(plan_file)],
+    )
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        _archive_plan_for_approval,
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch("sase.sdd.beads.get_sdd_config", return_value=False),
+        patch("sase.sdd.files.get_yyyymm", return_value="202605"),
+    ):
+        saved = _archive_plan_for_approval(notification, "approve")
+
+    assert saved == str(workspace / ".sase" / "sdd" / "plans" / "202605" / "plan.md")
+    assert Path(saved).exists()
+
+
 def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:
     """Fast-path status refresh should avoid a synchronous full agent load."""
     app, notification, _response_dir, mock_agent = _make_approval_app_and_notification(

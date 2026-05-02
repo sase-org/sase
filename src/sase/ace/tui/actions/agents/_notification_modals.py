@@ -388,17 +388,13 @@ def _archive_plan_for_approval(
         from sase.gemini_wrapper.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.running_field import get_workspace_directory
-        from sase.sdd.files import get_yyyymm
+        from sase.sdd.beads import get_sdd_config
+        from sase.sdd.files import get_sdd_dir, get_yyyymm
 
         project_basename = os.path.basename(str(project_dir))
         workspace_dir = get_workspace_directory(project_basename, 1)
-        plans_dir = (
-            Path(workspace_dir)
-            / ".sase"
-            / "sdd"
-            / _plan_kind_for_action(action)
-            / get_yyyymm()
-        )
+        sdd_dir = get_sdd_dir(workspace_dir, 1, get_sdd_config())
+        plans_dir = sdd_dir / _plan_kind_for_action(action) / get_yyyymm()
         plans_dir.mkdir(parents=True, exist_ok=True)
         src_plan = Path(notification.files[0])
         dest_plan = plans_dir / src_plan.name
