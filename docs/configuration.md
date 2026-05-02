@@ -594,19 +594,22 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
 ### sdd
 
-Configuration for spec-driven development features, including the bead issue tracker.
+Configuration for spec-driven development features, including prompt/tale/epic/legend storage and the bead issue
+tracker.
 
 ```yaml
 sdd:
   version_controlled: false # default: false
 ```
 
-| Field                    | Type | Default | Description                                                                      |
-| ------------------------ | ---- | ------- | -------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store beads in `sdd/beads/` (git-tracked) instead of `.sase/sdd/beads/` (local). |
+| Field                    | Type | Default | Description                                                                                                      |
+| ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | Store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace. |
 
-When enabled, the bead database directory (`sdd/beads/`) is placed in the project root so that `issues.jsonl` and
-`config.json` are tracked in git. See [`docs/beads.md`](beads.md) for the full bead system reference.
+When enabled, prompt snapshots, tales, epics, legends, and the bead database directory are placed in the project root so
+they can be committed with the code. When disabled, SDD writes to a standalone `.sase/sdd/` git repo in the primary
+workspace. See [`docs/sdd.md`](sdd.md) for storage behavior and [`docs/beads.md`](beads.md) for the bead system
+reference.
 
 Source: `src/sase/default_config.yml`
 
@@ -856,19 +859,23 @@ that insert references should prefer `kind`/`insertion` metadata when present so
 
 #### `sase bead create`
 
-| Flag                | Values | Default    | Description                                                                 |
-| ------------------- | ------ | ---------- | --------------------------------------------------------------------------- |
-| `-t, --title`       | string | (required) | Issue title                                                                 |
-| `-T, --type`        | string | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
-| `-d, --description` | string | -          | Issue description                                                           |
-| `-a, --assignee`    | string | -          | Assignee name                                                               |
+| Flag                | Values                   | Default    | Description                                                                 |
+| ------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | string                   | (required) | Issue title                                                                 |
+| `-T, --type`        | string                   | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | string                   | -          | Issue description                                                           |
+| `-a, --assignee`    | string                   | -          | Assignee name                                                               |
+| `--tier`            | `plan`, `epic`, `legend` | -          | Plan-bead tier                                                              |
+| `-c, --changespec`  | ChangeSpec name          | -          | Attach ChangeSpec metadata to a plan bead                                   |
+| `-b, --bug-id`      | string                   | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
 
 #### `sase bead list`
 
-| Flag           | Values                          | Default | Description                   |
-| -------------- | ------------------------------- | ------- | ----------------------------- |
-| `-s, --status` | `open`, `in_progress`, `closed` | -       | Filter by status (repeatable) |
-| `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)   |
+| Flag           | Values                          | Default | Description                           |
+| -------------- | ------------------------------- | ------- | ------------------------------------- |
+| `-s, --status` | `open`, `in_progress`, `closed` | -       | Filter by status (repeatable)         |
+| `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)           |
+| `--tier`       | `plan`, `epic`, `legend`        | -       | Filter by plan-bead tier (repeatable) |
 
 #### `sase bead show`
 
@@ -878,15 +885,16 @@ that insert references should prefer `kind`/`insertion` metadata when present so
 
 #### `sase bead update`
 
-| Flag                | Values                          | Default    | Description        |
-| ------------------- | ------------------------------- | ---------- | ------------------ |
-| `id`                | string                          | (required) | Issue ID to update |
-| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status      |
-| `-t, --title`       | string                          | -          | Change title       |
-| `-d, --description` | string                          | -          | Change description |
-| `-n, --notes`       | string                          | -          | Change notes       |
-| `-D, --design`      | path                            | -          | Change plan path   |
-| `-a, --assignee`    | string                          | -          | Change assignee    |
+| Flag                | Values                          | Default    | Description           |
+| ------------------- | ------------------------------- | ---------- | --------------------- |
+| `id`                | string                          | (required) | Issue ID to update    |
+| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status         |
+| `-t, --title`       | string                          | -          | Change title          |
+| `-d, --description` | string                          | -          | Change description    |
+| `-n, --notes`       | string                          | -          | Change notes          |
+| `-D, --design`      | path                            | -          | Change plan path      |
+| `-a, --assignee`    | string                          | -          | Change assignee       |
+| `--tier`            | `plan`, `epic`, `legend`        | -          | Change plan-bead tier |
 
 #### `sase bead close`
 
@@ -913,6 +921,19 @@ that insert references should prefer `kind`/`insertion` metadata when present so
 | Flag           | Values | Default | Description                          |
 | -------------- | ------ | ------- | ------------------------------------ |
 | `-s, --status` | flag   | -       | Check sync status without committing |
+
+### `sase sdd`
+
+`sase sdd` manages SDD prompt/artifact documentation and frontmatter links. Every subcommand accepts `-p/--path`, which
+may point at an SDD root or at a project root containing `sdd/`.
+
+| Subcommand     | Flags                                              | Description                                                                             |
+| -------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `init`         | `-p/--path`                                        | Create or refresh `sdd/README.md` and the directory map asset                           |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`              | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`       |
+| `links`        | `-p/--path`, `-j/--json`                           | List prompt/artifact frontmatter links and bidirectional status                         |
+| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors |
+| `repair-links` | `-p/--path`, `-w/--write`                          | Infer unambiguous prompt/artifact pairs and optionally write link fixes                 |
 
 ### `sase telemetry`
 

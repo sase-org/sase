@@ -77,6 +77,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   expansion, listing, workflow visualization, and DAG graphing
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
+- **SDD** — Spec-driven development artifacts that persist expanded prompts plus approved tales, executable epics, and
+  higher-level legends under `sdd/` or `.sase/sdd/`
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
 - **Beads** — Git-native issue tracking for SDD epics, phase dependencies, and multi-agent execution plans
 - **Mentors** — Automated AI code review agents with configurable profiles, structured JSON output, and TUI-based review
@@ -191,6 +193,11 @@ sase
 | `sase revert`                  | Revert a ChangeSpec by pruning its CL and archiving its diff                                                   |
 | `sase run`                     | Run a workflow, execute a query, resume a conversation, or list chat history                                   |
 | `sase changespec search`       | Search and filter ChangeSpecs with query expressions                                                           |
+| `sase sdd init`                | Create or refresh `sdd/README.md` and its directory map asset                                                  |
+| `sase sdd links`               | List SDD prompt/artifact frontmatter links                                                                     |
+| `sase sdd list`                | List SDD markdown artifacts by kind (`prompts`, `tales`, `epics`, `legends`, or `all`)                         |
+| `sase sdd repair-links`        | Infer and optionally write missing bidirectional SDD frontmatter links                                         |
+| `sase sdd validate`            | Validate SDD frontmatter links, with JSON/quiet/strict modes                                                   |
 | `sase telemetry status`        | Show telemetry configuration and service reachability                                                          |
 | `sase telemetry list`          | Display the metric catalog (filterable by subsystem and type)                                                  |
 | `sase telemetry snapshot`      | Fetch and display current metric values (rich, JSON, or Prometheus format)                                     |
@@ -225,6 +232,14 @@ with semantic role tags (`vcs`, `crs`, `fix_hook`, `rollover`) for lookup-by-rol
 expansion and the prompt steps within workflows. The `sase xprompt` CLI provides subcommands for expanding prompts
 (`expand --trace`), listing all available xprompts (`list`), visualizing workflow execution plans (`explain`), and
 generating workflow DAGs (`graph`).
+
+### Spec-Driven Development
+
+SDD keeps durable planning context close to the code. Prompt snapshots live under `prompts/`, ordinary approved plans
+are saved as `tales/`, executable multi-phase plans live under `epics/`, and broad roadmap artifacts live under
+`legends/`. Each prompt/artifact pair is linked through frontmatter so validation and repair commands can keep the
+history navigable. See [`docs/sdd.md`](docs/sdd.md) for storage modes and [`docs/beads.md`](docs/beads.md) for the issue
+tracker that executes epic phases.
 
 ## Project Structure
 
@@ -309,7 +324,7 @@ src/sase/
 │   └── prompt.py          # Prompt history persistence and querying
 ├── integrations/          # Public helpers consumed by external plugins/editors
 ├── sdd/                   # Spec-driven development utilities
-│   ├── files.py           # SDD file management (prompts, plans)
+│   ├── files.py           # SDD file management (prompts, tales, epics, legends)
 │   └── beads.py           # SDD bead integration
 ├── workflows/             # All change-lifecycle workflows
 │   ├── accept/            # Change acceptance workflows
@@ -449,12 +464,13 @@ the state of five concurrent workstreams — sase replaces that manual overhead 
 - **XPrompts instead of ad-hoc prompts** — Reusable, composable prompt templates with YAML front matter replace the
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** — Plan mode produces ephemeral plans that vanish when the session ends. sase
-  persists prompt snapshots plus normal plans, executable epics, and higher-level legends under `sdd/`. The `research/`
-  directory remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that links them to an
-  epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the corresponding commit messages —
-  creating a traceable chain from epic to phase to commit. For smaller plans, commit messages include a `PLAN=<path>`
-  tag pointing back to the plan file. The result is spec-driven development where the full history of intent,
-  decomposition, and execution is preserved and queryable, not trapped in a single agent session's context window.
+  persists prompt snapshots plus ordinary tales, executable epics, and higher-level legends under `sdd/`. The
+  `research/` directory remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that
+  links them to an epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the corresponding
+  commit messages — creating a traceable chain from epic to phase to commit. For smaller tales, commit messages include
+  a `PLAN=<path>` tag pointing back to the plan file. The result is spec-driven development where the full history of
+  intent, decomposition, and execution is preserved and queryable, not trapped in a single agent session's context
+  window.
 - **ACE instead of tmux** — A single TUI provides unified navigation, filtering, and management across all active
   workstreams, replacing the manual tab-switching workflow.
 - **AXE instead of manual supervision** — A background daemon handles scheduling, monitoring, and lifecycle management

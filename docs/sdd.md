@@ -1,7 +1,7 @@
 # Spec-Driven Development (SDD)
 
 SDD is sase's system for persisting the intent behind agent work. When an agent produces a plan, SDD captures both the
-fully-expanded prompt snapshot and the structured plan itself, creating a traceable chain from intent to execution.
+fully-expanded prompt snapshot and the approved planning artifact, creating a traceable chain from intent to execution.
 
 ## Why SDD Exists
 
@@ -9,13 +9,13 @@ Agent plans are ephemeral by default -- they live in a single session's context 
 SDD fixes this by writing prompt snapshots and plans to disk as first-class artifacts:
 
 - **Prompts** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
-- **Plans** record the structured plan the agent produced, so decomposition decisions are queryable after the fact.
+- **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Legends** record higher-level coordination plans that can own linked epics.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
   IDs in commit messages.
 
-Together, these create an audit trail: prompt --> plan, epic, or legend --> bead hierarchy --> phase beads --> commits.
+Together, these create an audit trail: prompt --> tale, epic, or legend --> bead hierarchy --> phase beads --> commits.
 
 ## Storage Modes
 
@@ -47,8 +47,8 @@ Files are stored in a standalone git repo inside the primary workspace:
     config.json
 ```
 
-SDD auto-commits prompt and plan files to this local repo after each planning phase. The standalone repo keeps SDD
-history separate from the project's own git history.
+SDD auto-commits prompt and planning-artifact files to this local repo after each planning phase. The standalone repo
+keeps SDD history separate from the project's own git history.
 
 ### Version-Controlled Mode (`sdd.version_controlled: true`)
 
@@ -92,7 +92,7 @@ When an agent completes its planning phase, SDD generates a prompt snapshot by:
 
 The result is a clean, self-contained document showing exactly what the agent was asked to do.
 
-### Plan Persistence
+### Artifact Persistence
 
 The plan file produced by the agent is:
 
@@ -106,8 +106,9 @@ Prompt snapshots and plans are organized into `YYYYMM` subdirectories (e.g., `20
 keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM` layouts are
 supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving files.
 
-Plan files may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to the bead
-issue tracker.
+Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
+the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead; epics linked under a legend
+also preserve that `legend_bead_id`.
 
 After writing the plan, `sase plan` touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the
 `PLANNING` status immediately rather than waiting for the next auto-refresh tick. The pulse file is consumed by the
@@ -117,6 +118,25 @@ inotify-based artifact watcher and is harmless when no TUI is open.
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
 to the prompt snapshot. This preserves the full context of planning decisions.
+
+## CLI
+
+The `sase sdd` command group manages generated SDD documentation and frontmatter links:
+
+| Command                 | Purpose                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `sase sdd init`         | Create or refresh `sdd/README.md` and `sdd/assets/sdd-directory-map.png`                  |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `legends` |
+| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact        |
+| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, and `--strict` tune output         |
+| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                 |
+
+Each subcommand accepts `-p/--path`, which may point at an SDD root or a project root. Validation treats unpaired or
+ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
+targets, wrong link kinds, and broken reverse links are errors unless explicitly allowlisted for legacy migration.
+
+The `sase sdd init` output is intentionally a short, project-local README. Keep conceptual details here in
+`docs/sdd.md`; use `sase sdd init` to refresh the generated project guide and directory map asset.
 
 ## Bead Integration
 
@@ -157,9 +177,9 @@ sdd:
   version_controlled: false # default
 ```
 
-| Option                   | Type | Default | Description                                                                     |
-| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | Store beads in `sdd/beads/` (git-tracked) instead of `.sase/sdd/beads/` (local) |
+| Option                   | Type | Default | Description                                                                                                     |
+| ------------------------ | ---- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | Store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace |
 
 See [`configuration.md`](configuration.md) for the full configuration reference.
 

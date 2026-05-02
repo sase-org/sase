@@ -999,6 +999,7 @@ omitted when provider/model metadata is absent, leaving the legacy title shape u
 | `f`          | Request feedback (send follow-up questions to the agent) |
 | `e`          | Edit the plan file in `$EDITOR`                          |
 | `E`          | Mark the plan as an epic (creates bead)                  |
+| `L`          | Mark the plan as a legend (creates legend-tier bead)     |
 | `y`          | Copy plan content to clipboard                           |
 | `Y`          | Copy plan file path to clipboard                         |
 | `Ctrl+D`/`U` | Scroll plan content down / up                            |

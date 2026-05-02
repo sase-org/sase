@@ -67,15 +67,15 @@ Silent notifications never contribute to the indicator (see [Silent Notification
 
 The following events generate notifications:
 
-| Sender             | Event                                                         |
-| ------------------ | ------------------------------------------------------------- |
-| `plan`             | A plan file is ready for user review and approval             |
-| `question`         | An agent is asking the user a question (via Claude Code hook) |
-| `hitl`             | A workflow HITL step is waiting for user input                |
-| `sync`             | A sync operation completed for a ChangeSpec                   |
-| `axe`              | Hourly error digest summarizing recent axe errors             |
-| `mentors_complete` | All mentors finished for a ChangeSpec entry (or none matched) |
-| (workflow)         | Workflow completion (success or failure)                      |
+| Sender             | Event                                                          |
+| ------------------ | -------------------------------------------------------------- |
+| `plan`             | A plan file is ready for user review and approval              |
+| `question`         | An agent is asking the user a question (via `/sase_questions`) |
+| `hitl`             | A workflow HITL step is waiting for user input                 |
+| `sync`             | A sync operation completed for a ChangeSpec                    |
+| `axe`              | Hourly error digest summarizing recent axe errors              |
+| `mentors_complete` | All mentors finished for a ChangeSpec entry (or none matched)  |
+| (workflow)         | Workflow completion (success or failure)                       |
 
 ### Agent Completion Attachments
 

@@ -646,6 +646,7 @@ them as `/sase_<name>`:
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
 | `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
 | `sase_hg_commit`     | Mercurial counterpart of `sase_git_commit` (deployed only for Gemini)                                         |
+| `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
 | `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |
 | `sase_questions`     | Ask the user structured questions (used in lieu of disabled `AskUserQuestion`)                                |
 
@@ -659,9 +660,13 @@ xprompt with the same name overrides them.
 | --------------------- | ------------------------------------------------------------------------------------------------- |
 | `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
 | `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
+| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics     |
 | `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
 | `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
+| `#research`           | Tells the agent to store research in a new top-level `research/` markdown file                    |
+| `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps               |
+| `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution           |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
 | `#bd/new_legend`      | Legend kickoff that creates a `legend`-tier plan bead without running `sase bead work`            |
