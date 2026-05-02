@@ -71,6 +71,8 @@ large search results, axe lumberjack scans), so it was the first operation route
 
 ## Architecture
 
+![Layered diagram showing Python host responsibilities, the `sase.core` facade and wire records, the required `sase_core_rs` PyO3 extension, Rust-owned backend operations in `../sase-core`, and the health/test contract loop.](images/rust-backend-boundary-infographic.png)
+
 ```
                 ┌─────────────────────────────────────────────┐
                 │              sase Python code               │
