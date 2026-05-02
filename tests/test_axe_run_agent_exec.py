@@ -132,10 +132,10 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     _run(workspace, "git", "add", ".")
     _run(workspace, "git", "commit", "-m", "base")
 
-    research = workspace / "research" / "example.md"
+    research = workspace / "sdd" / "research" / "example.md"
     notes = workspace / "docs" / "notes.md"
     image = workspace / "assets" / "diagram.png"
-    research.parent.mkdir()
+    research.parent.mkdir(parents=True)
     notes.parent.mkdir()
     image.parent.mkdir()
     research.write_text("# Research\n")
@@ -207,7 +207,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     pdf_dir = artifacts / "markdown_pdfs"
     expected_pdfs = [
         str(pdf_dir / "docs__notes.md.pdf"),
-        str(pdf_dir / "research__example.md.pdf"),
+        str(pdf_dir / "sdd__research__example.md.pdf"),
     ]
     assert result.markdown_pdf_paths == expected_pdfs
     assert result.image_paths == [str(image.resolve())]
@@ -217,7 +217,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     assert done["image_paths"] == [str(image.resolve())]
     assert sorted(path.name for path in pdf_dir.glob("*.pdf")) == [
         "docs__notes.md.pdf",
-        "research__example.md.pdf",
+        "sdd__research__example.md.pdf",
     ]
     assert json.loads((pdf_dir / "index.json").read_text()) == [
         {"source_path": str(notes.resolve()), "pdf_path": expected_pdfs[0]},

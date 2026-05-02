@@ -47,7 +47,7 @@ Create stable, repeatable measurement artifacts so subsequent phases can prove n
 
 ### Deliverables
 
-- A checked-in perf notes artifact under `research/` documenting:
+- A checked-in perf notes artifact under `sdd/research/` documenting:
   - command(s) used,
   - baseline timings,
   - variance caveats,
@@ -190,7 +190,7 @@ Validate aggregate gains, harden against regressions, and provide final quantita
 
 ### Exit Criteria
 
-- Final report committed to `research/` with:
+- Final report committed to `sdd/research/` with:
   - baseline vs final durations,
   - per-phase impact summary,
   - remaining hotspots and next candidates.

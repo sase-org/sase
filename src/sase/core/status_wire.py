@@ -3,7 +3,7 @@
 Companion to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`, and
 :mod:`sase.core.agent_scan_wire`. Defines the **stable** boundary between
 Python and a future Rust implementation of the status decision engine
-(Phase 4 of ``research/202604/rust_backend_migration.md`` and
+(Phase 4 of ``sdd/research/202604/rust_backend_migration.md`` and
 ``sdd/tales/202604/rust_backend_phase4_status_machine.md``).
 
 Scope of the contract

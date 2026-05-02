@@ -9,7 +9,7 @@ prompt: sdd/prompts/202604/rust_backend_phase7.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` says Phases 0-6 are complete. Rust is now the default backend for every
+`sdd/research/202604/rust_backend_migration.md` says Phases 0-6 are complete. Rust is now the default backend for every
 shipped `sase.core` operation, `sase-core-rs` is a runtime dependency, CI exercises default Rust plus explicit Python,
 and `SASE_CORE_BACKEND=python` remains the temporary rollback path through Phase 7.
 
@@ -60,7 +60,7 @@ User-visible surfaces that need end-to-end coverage:
 ## Phase Split For Distinct Agent Instances
 
 Each subphase below is intended for a separate agent instance. Every agent should read this plan,
-`research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and the previous Phase 7 handoff before editing.
+`sdd/research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and the previous Phase 7 handoff before editing.
 Each agent must stay inside its write scope and leave later phases alone except for appending a handoff.
 
 ### Phase 7A: Measurement Contract And Artifact Schema
@@ -170,7 +170,7 @@ Purpose: make the measured result understandable to users and future maintainers
 Write scope:
 
 - `docs/rust_backend.md`.
-- `research/202604/rust_backend_migration.md` or a new `research/202604/rust_backend_phase7_performance.md`.
+- `sdd/research/202604/rust_backend_migration.md` or a new `sdd/research/202604/rust_backend_phase7_performance.md`.
 - `plans/202604/rust_backend_phase7_phase7d_handoff.md`.
 
 Work:
@@ -247,7 +247,7 @@ Work:
   - `just rust-check` when `../sase-core` is present
 - Re-run `sase core health --json` and `SASE_CORE_BACKEND=python sase core health --json`.
 - Confirm all Phase 7 artifacts are committed and docs link to the actual file names.
-- Update `research/202604/rust_backend_migration.md` to mark Phase 7 complete if Phase 7D did not already do so.
+- Update `sdd/research/202604/rust_backend_migration.md` to mark Phase 7 complete if Phase 7D did not already do so.
 - Write the Phase 7F handoff with:
   - final artifact list;
   - verification commands and results;

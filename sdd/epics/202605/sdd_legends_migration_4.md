@@ -8,13 +8,13 @@ prompt: sdd/prompts/202605/sdd_legends_migration_4.md
 
 ## Context
 
-The prior research note is `research/202604/sdd_directory_consolidation.md`. Its key recommendations still hold:
+The prior research note is `sdd/research/202604/sdd_directory_consolidation.md`. Its key recommendations still hold:
 namespace SDD artifacts under a single `sdd/` directory, keep legacy lookup during the migration, and model higher
 altitude containers as plan-like beads rather than introducing a separate low-level issue type immediately.
 
 This plan intentionally diverges from that research in three places because of the current request:
 
-- Do not migrate `research/`; it remains a top-level directory.
+- Do not migrate `sdd/research/`; it remains a top-level directory.
 - Add `sdd/epics/` and move existing epic plan files there instead of leaving them in `sdd/tales/`.
 - Use `--type plan(<plan_file>,<legend_bead_id>)` for epic beads linked to legends. Do not add or document
   `--type epic(...)`.
@@ -75,7 +75,7 @@ Scope:
   - Classify epic plan files as the union of files with `bead_id` frontmatter and version-controlled bead `design` paths
     that point at plan beads. Keep a migration manifest or script output in the phase notes so the classification is
     auditable.
-- Do not move `research/`.
+- Do not move `sdd/research/`.
 - Update `.gitignore`, built-in xprompts, docs, tests, and live examples that should use canonical paths.
 
 Important implementation details:
@@ -210,7 +210,7 @@ Scope:
   - legend approve writes `sdd/legends/...`, creates `tier=legend`, and does not launch phase agents;
   - an epic plan with `legend_bead_id` creates its epic bead using `--type plan(<plan_file>,<legend_bead_id>)`;
   - legacy `plans/...` and `specs/...` lookups still resolve existing historical references.
-- Verify no `research/` files moved and no new code assumes research lives under `sdd/`.
+- Verify no `sdd/research/` files moved and no new code assumes research lives under `sdd/`.
 - Run final cross-repo checks:
   - `cargo test --workspace` in `../sase-core`;
   - `just install && just check` in `sase_100`;

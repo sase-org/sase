@@ -173,7 +173,7 @@ zero.
   the dual-run parity counts, the rollout decision, and the rollback
   path. The operations preamble already listed the five Git query
   parsers from earlier subphases — no change needed there.
-- `research/202604/rust_backend_migration.md` — updated the
+- `sdd/research/202604/rust_backend_migration.md` — updated the
   "2026-04-29 update" header from "Phases 0–4 of this plan have shipped"
   to "Phases 0–5 of this plan have shipped", expanded the operations
   list to include the five Git query parsers, added a bullet covering
@@ -200,7 +200,7 @@ suite at the same time as the parser/query/agent-scan helpers.
 ## Files changed in `sase_100`
 
 - `docs/rust_backend.md` — Phase 5E and Phase 5F roadmap entries.
-- `research/202604/rust_backend_migration.md` — Phase 0–5 update
+- `sdd/research/202604/rust_backend_migration.md` — Phase 0–5 update
   header, expanded operations list, `GitQueryOpsMixin` rewire bullet,
   Phase 5 section rewrite, Phase 8 cleanup-ordering update.
 - `plans/202604/rust_backend_phase5_git_query_ops_phase5f_handoff.md`

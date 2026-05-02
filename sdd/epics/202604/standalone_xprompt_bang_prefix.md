@@ -247,7 +247,7 @@ Owner focus: repo-wide docs/examples/config references.
 Primary files:
 
 - `docs/xprompt.md`
-- `research/` notes only if they are used as live references
+- `sdd/research/` notes only if they are used as live references
 - tests and examples found by `rg`
 - optionally chezmoi config files if they contain live standalone workflow references
 

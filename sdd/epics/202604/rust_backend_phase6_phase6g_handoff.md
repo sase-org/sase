@@ -188,7 +188,7 @@ CI itself is the source of truth for the full matrix on push.
 - **Phase 6H** — Documentation close-out and rollback playbook. The
   Phase 6G CI changes are referenced from the new
   `parity-gate` job and from `Justfile`; the wider rewrite of
-  `docs/rust_backend.md` and `research/202604/rust_backend_migration.md`
+  `docs/rust_backend.md` and `sdd/research/202604/rust_backend_migration.md`
   to reflect the production-default state, plus the formal rollback
   procedure, is Phase 6H's job.
 - **Phase 7** — Backend matrix narrowing. Phase 6G keeps both backends

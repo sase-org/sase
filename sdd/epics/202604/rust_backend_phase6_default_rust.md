@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase6_default_rust.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` says Phases 0-5 are complete:
+`sdd/research/202604/rust_backend_migration.md` says Phases 0-5 are complete:
 
 - `src/sase/core/` is the Python facade with backend dispatch and dual-run parity logging.
 - `../sase-core/` exposes the optional `sase_core_rs` PyO3 extension.
@@ -72,7 +72,7 @@ one release cycle:
 ## Phase Split For Distinct Agent Instances
 
 Each subphase below is intended for a different agent instance. Each agent should read this plan,
-`research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and the previous subphase handoff before editing.
+`sdd/research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and the previous subphase handoff before editing.
 Agents should keep to their write scope and leave later phases alone.
 
 ### Phase 6A: Rust Wheel Packaging And Release Matrix
@@ -339,7 +339,7 @@ Purpose: close Phase 6 with an evidence-backed rollout record and handoff to Pha
 Write scope:
 
 - `docs/rust_backend.md`.
-- `research/202604/rust_backend_migration.md`.
+- `sdd/research/202604/rust_backend_migration.md`.
 - `plans/202604/rust_backend_phase6_phase6h_handoff.md`.
 - Optional small release notes file if the repo has one by then.
 
@@ -372,7 +372,7 @@ Work:
 
 Exit criteria:
 
-- `research/202604/rust_backend_migration.md` says Phase 6 is complete and Phase 7 can begin.
+- `sdd/research/202604/rust_backend_migration.md` says Phase 6 is complete and Phase 7 can begin.
 - `docs/rust_backend.md` matches actual runtime behavior.
 - The handoff tells a future agent exactly how to roll back during the Phase 6/7 release cycle.
 

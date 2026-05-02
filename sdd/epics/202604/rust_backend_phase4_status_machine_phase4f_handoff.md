@@ -230,7 +230,7 @@ satisfied for the Phase 4 rollout decision.
   the verification pass, the bench re-run summary, the rollout
   decision, and the circular-import fix. Phase 4D/4E entries
   unchanged.
-- `research/202604/rust_backend_migration.md` — updated the
+- `sdd/research/202604/rust_backend_migration.md` — updated the
   "2026-04-29 update" header to "Phases 0–4 of this plan have shipped",
   expanded the operations list to include the status helpers and the
   planner, rewrote the "Phase 4 — Status state machine" section from
@@ -249,7 +249,7 @@ satisfied for the Phase 4 rollout decision.
   function-scoped `plan_status_transition` import). Breaks the
   Phase 4E circular import.
 - `docs/rust_backend.md` — Phase 4F roadmap entry.
-- `research/202604/rust_backend_migration.md` — Phase 0–4 update
+- `sdd/research/202604/rust_backend_migration.md` — Phase 0–4 update
   header, Phase 4 section rewrite, next-actions reorder.
 - `plans/202604/perf_artifacts/bench_status_state_machine_phase4f.json`
   — bench artifact for the verification re-run.

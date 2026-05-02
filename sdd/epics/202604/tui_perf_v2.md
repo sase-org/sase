@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/tui_perf_v2.md
 
 ## Background
 
-Inspired by `research/202604/sase_perf_v2_research.md`. The architecture for async dismiss / launch / agent-reload is
+Inspired by `sdd/research/202604/sase_perf_v2_research.md`. The architecture for async dismiss / launch / agent-reload is
 mostly in place, but a few main-thread hot spots and overly-broad refreshes still cause perceptible hitches in the
 Agents tab — especially under large agent lists, kill-all bursts, and rapid `j/k` navigation right after a launch.
 

@@ -4,7 +4,7 @@ plan: sdd/epics/202604/commit_resume_1.md
 Currently, when merge conflicts are hit while an agent uses one of its `/sase_*_commit` skills, the agent does a good
 job of fixing the merge conflict on its own (see the `sase ace` snapshot below); however, any operation performed by
 `sase commit` after the failure occurred (ex: uploading the changes, adding the COMMITS entry to the ChangeSpec, etc...)
-is not run. Can you help me fix this? See solution A from the research/202604/commit_conflict_resume.md file for inspiration.
+is not run. Can you help me fix this? See solution A from the sdd/research/202604/commit_conflict_resume.md file for inspiration.
 
 This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep
 in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `gemini` / `codex`

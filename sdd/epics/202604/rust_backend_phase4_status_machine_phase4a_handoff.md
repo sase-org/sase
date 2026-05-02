@@ -275,4 +275,4 @@ Phase 4B (`sase-19.2`) — define the Python wire records
 golden parity tests, without routing any production call through
 Rust yet. The agent for 4B should read this handoff,
 `plans/202604/rust_backend_phase4_status_machine.md`, and
-`research/202604/rust_backend_migration.md` before editing.
+`sdd/research/202604/rust_backend_migration.md` before editing.

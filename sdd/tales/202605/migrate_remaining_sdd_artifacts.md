@@ -64,4 +64,4 @@ Then update live references so current code, validation, frontmatter, and reposi
 - Remove legacy alias support from SDD code.
 - Rename `~/.sase/plans`, `SASE_PLAN`, plan approval terminology, bead `plan` tiers, or generic conceptual uses of
   "plans".
-- Rewrite old research/history prose unless it is a live path reference that would mislead current users or tooling.
+- Rewrite old sdd/research/history prose unless it is a live path reference that would mislead current users or tooling.

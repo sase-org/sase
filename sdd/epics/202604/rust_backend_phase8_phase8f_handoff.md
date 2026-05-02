@@ -226,7 +226,7 @@ responsibility per the overall plan.
 - ``docs/rust_backend.md`` still describes the Phase 6/7 architecture
   (Python escape hatch, ``SASE_CORE_BACKEND``, dual-run JSONL). Phase
   8G owns the rewrite to the post-Phase-8 steady state.
-- ``research/202604/rust_backend_migration.md`` should be flipped to
+- ``sdd/research/202604/rust_backend_migration.md`` should be flipped to
   Phase 8 complete and record the operation-disposition table from
   Phase 8A as the final state.
 - Phase 8G should also collapse the Phase 8 doc references inside the

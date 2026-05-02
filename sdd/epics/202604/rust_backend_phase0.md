@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase0.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` defines Phase 0 as the Python-only seam for a later Rust backend. The repo
+`sdd/research/202604/rust_backend_migration.md` defines Phase 0 as the Python-only seam for a later Rust backend. The repo
 already has important Phase 0-style optimizations:
 
 - `ChangeSpecSnapshotCache` in `src/sase/ace/changespec/cache.py`.

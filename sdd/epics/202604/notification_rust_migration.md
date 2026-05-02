@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/notification_rust_migration.md
 
 ## Background
 
-The notification store is the top Rust migration candidate from `research/202604/rust_core_next_candidates.md`. Today
+The notification store is the top Rust migration candidate from `sdd/research/202604/rust_core_next_candidates.md`. Today
 `src/sase/notifications/store.py` owns a JSONL file at `~/.sase/notifications/notifications.jsonl`. Every state mutation
 (`mark_read`, `mark_dismissed`, `mark_muted`, `mark_snoozed`, `mark_all_read`, `expire_due_snoozes`, and bulk
 agent-notification dismissal) loads the whole file, mutates Python dataclasses, and rewrites every row.
@@ -87,7 +87,7 @@ without depending on the user's real `~/.sase` tree.
   - `notification_store_5k_mark_dismissed_burst`
   - `notification_store_5k_mark_all_read`
   - `notification_store_append_plus_rewrite_concurrency`
-- Document the current Python baseline numbers in the benchmark output or a small markdown note under `research/202604/`
+- Document the current Python baseline numbers in the benchmark output or a small markdown note under `sdd/research/202604/`
   or `plans/202604/`.
 
 ### Deliverables
@@ -409,7 +409,7 @@ Tasks:
 - Remove dead Python parser/rewrite helpers and any opt-in/shadow code.
 - Update comments/docstrings to state that `sase_core_rs` is the production store backend.
 - Confirm all notification writes use the Rust lock-file/tempfile-rename path.
-- Update research/plans handoff notes with measured before/after results.
+- Update sdd/research/plans handoff notes with measured before/after results.
 
 Acceptance gates:
 

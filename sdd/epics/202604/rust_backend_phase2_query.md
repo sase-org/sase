@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase2_query.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` defines Phase 2 as the Rust port of the query tokenizer and evaluator. Phase
+`sdd/research/202604/rust_backend_migration.md` defines Phase 2 as the Rust port of the query tokenizer and evaluator. Phase
 0 and Phase 1 have already established the relevant boundaries:
 
 - `sase_101/src/sase/core/query_facade.py` routes query parsing, context construction, and per-row evaluation through

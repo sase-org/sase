@@ -54,7 +54,7 @@ Single-line functional change in `Justfile`; the rest is aligning stale docs/com
 - **No change to `test-cov` itself.** Recipe body (flags, gate, reports) is unchanged.
 - **No change to `pyproject.toml` `addopts` / coverage config** — `test-cov` already carries the `--cov*` flags, so
   `just test` is correctly coverage-free today.
-- **No historical plan/research docs rewritten** (`plans/`, `research/`, `sdd/beads/issues.jsonl`). Those are dated
+- **No historical plan/research docs rewritten** (`plans/`, `sdd/research/`, `sdd/beads/issues.jsonl`). Those are dated
   records of past decisions — mutating them would be dishonest about history. The speedup plan in
   `plans/202604/test_suite_speedup.md` explicitly chose the old wiring; that's fine, this plan supersedes it.
 

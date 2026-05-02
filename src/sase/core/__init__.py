@@ -1,7 +1,7 @@
 """Core utilities — split from the former sase_utils.py module.
 
 This package also hosts the Rust-bindable facade layer (see
-``research/202604/rust_backend_migration.md``):
+``sdd/research/202604/rust_backend_migration.md``):
 
 - :mod:`sase.core.rust` — strict ``sase_core_rs`` loader for ported facades.
 - :mod:`sase.core.wire` — stable wire records the Rust impl produces/consumes.

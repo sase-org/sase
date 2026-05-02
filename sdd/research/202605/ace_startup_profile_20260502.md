@@ -71,7 +71,7 @@ import AceApp 0.568s
 ```
 
 So the full user-visible command path can plausibly pay another ~0.7s before this profile even
-starts. The sibling research note `research/202605/startup_time.md` already covers parser/import
+starts. The sibling research note `sdd/research/202605/startup_time.md` already covers parser/import
 startup in more detail; this file should be read as "inside the TUI handler after `AceApp` is
 imported", not total shell-to-useful-state startup.
 

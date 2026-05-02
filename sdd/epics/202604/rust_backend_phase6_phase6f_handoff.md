@@ -195,7 +195,7 @@ locally. CI will exercise the matrix in Phase 6G.
   Phase 6F doc edits cover the immediate "Rust is default" pivot; the
   broader rewrite of `docs/rust_backend.md` from "optional Rust
   backend" framing to "Rust is the production default" framing, plus
-  the formal rollback procedure and `research/202604/rust_backend_migration.md`
+  the formal rollback procedure and `sdd/research/202604/rust_backend_migration.md`
   status update, is Phase 6H's job.
 - **Phase 7** — Backend matrix narrowing, Python-implementation removal
   preparation, and the eventual default removal of

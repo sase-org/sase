@@ -59,7 +59,7 @@ compatibility requirement appears during implementation.
    - Update `README.md` command table from `sase search` to `sase changespec search`.
    - Update `docs/configuration.md` CLI reference heading/examples.
    - Update `docs/xprompt.md` skill summary.
-   - Leave historical plans/research/specs alone unless they are user-facing current docs; they document past work.
+   - Leave historical plans/sdd/research/specs alone unless they are user-facing current docs; they document past work.
 
 4. Update xprompt skill sources and generated skills.
    - Replace all `sase search ...` examples in `src/sase/xprompts/skills/sase_changespecs.md` with

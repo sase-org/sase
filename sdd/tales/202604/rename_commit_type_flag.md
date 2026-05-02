@@ -53,7 +53,7 @@ All four skill files reference `--method` in their "Do NOT pass `--method` unles
 - **`src/sase/main/cl_handler.py`** — No changes needed; `args.method` is preserved via `dest="method"`.
 - **`src/sase/scripts/sase_commit_stop_hook.py:132`** — The string "commit method type" describes the concept, not the
   CLI flag. Left as-is.
-- **Plan/spec/research files** (`plans/`, `specs/`, `research/`) — Historical documents; not updated.
+- **Plan/spec/research files** (`plans/`, `specs/`, `sdd/research/`) — Historical documents; not updated.
 - **`$SASE_COMMIT_METHOD` env var** — Not part of this rename.
 
 ### Verification

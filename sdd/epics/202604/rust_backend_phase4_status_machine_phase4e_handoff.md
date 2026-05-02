@@ -252,7 +252,7 @@ The Phase 4F agent should:
    expected answer is still "no global default flip"; only recommend a
    per-operation default if shipped, packaged, parity-clean, and
    user-visible).
-4. Update `research/202604/rust_backend_migration.md` Phase 4 status
+4. Update `sdd/research/202604/rust_backend_migration.md` Phase 4 status
    and `docs/rust_backend.md` roadmap with the final benchmark numbers
    and rollout decision.
 5. Close out Phase 4 with the final handoff doc.

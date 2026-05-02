@@ -69,6 +69,9 @@ Files are stored at the project root and tracked in the project's own git repo:
     legends/
       {YYYYMM}/
         {plan_name}.md
+    research/
+      {YYYYMM}/
+        {note_name}.md
   sdd/beads/              # Bead database (git-tracked)
     beads.db
     issues.jsonl
@@ -77,8 +80,7 @@ Files are stored at the project root and tracked in the project's own git repo:
 
 In this mode, SDD artifacts are committed alongside code changes via `sase commit`.
 
-The `research/` directory remains top-level. It is not migrated under `sdd/` because research notes are exploratory
-inputs, not generated SDD artifacts.
+Research notes live under `sdd/research/` alongside the rest of the repository-local SDD corpus.
 
 ## How SDD Works
 

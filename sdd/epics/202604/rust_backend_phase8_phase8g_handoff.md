@@ -10,7 +10,7 @@ bead_id: sase-1f.7
 Phase 8G is the documentation pass that closes out Phase 8. After Phase
 8F deleted the dispatcher, dual-run plumbing, and CI parity matrix, the
 ``docs/rust_backend.md`` user-facing page and the
-``research/202604/rust_backend_migration.md`` plan document still
+``sdd/research/202604/rust_backend_migration.md`` plan document still
 described the Phase 6/7 dual-backend architecture (env-var selection,
 dual-run JSONL, ``parity-gate`` job, post-Phase-8 path framed as a
 future). Several facade and module docstrings carried per-subphase
@@ -18,7 +18,7 @@ narrative ("Phase 8D rewired…", "After Phase 8E…") that belonged in
 handoffs, not in source.
 
 This subphase rewrites ``docs/rust_backend.md`` to the steady-state
-voice, flips ``research/202604/rust_backend_migration.md`` to mark
+voice, flips ``sdd/research/202604/rust_backend_migration.md`` to mark
 Phase 8 complete, collapses the Phase 8X language inside facade
 docstrings into single-paragraph descriptions of current behavior, and
 records the final verification.
@@ -63,10 +63,10 @@ Full rewrite to the post-Phase-8 steady state:
   removed; the post-Phase-8 support workflow is the only path
   documented.
 - ``Roadmap`` section deleted; replaced with a one-paragraph
-  ``Migration History`` pointer to ``research/202604/rust_backend_migration.md``
+  ``Migration History`` pointer to ``sdd/research/202604/rust_backend_migration.md``
   and the per-phase plans/handoffs.
 
-### `research/202604/rust_backend_migration.md`
+### `sdd/research/202604/rust_backend_migration.md`
 
 - ``2026-04-29 update`` block flipped to Phases 0–8 complete. Body
   bullets updated:
@@ -227,7 +227,7 @@ golden-contract references (not backend fallbacks):
 
 ```
 docs/rust_backend.md
-research/202604/rust_backend_migration.md
+sdd/research/202604/rust_backend_migration.md
 src/sase/agent/names/_lookup.py
 src/sase/core/agent_scan_facade.py
 src/sase/core/git_query_facade.py

@@ -4,7 +4,7 @@ Companion to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`,
 :mod:`sase.core.agent_scan_wire`, and :mod:`sase.core.status_wire`. Defines
 the **stable** boundary between Python and a future Rust implementation of
 the deterministic Git query parsers (Phase 5 of
-``research/202604/rust_backend_migration.md`` and
+``sdd/research/202604/rust_backend_migration.md`` and
 ``sdd/tales/202604/rust_backend_phase5_git_query_ops.md``).
 
 Scope of the contract

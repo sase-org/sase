@@ -74,7 +74,7 @@ Unported facade operations that should fall back to Python under `SASE_CORE_BACK
      intentionally unported facade APIs. Keep the warning that shipped Rust operations require `sase_core_rs`.
    - `src/sase/core/__init__.py`: remove stale Phase 0 wording that says `SASE_CORE_BACKEND=rust` intentionally raises
      for Python-only operations.
-   - `research/202604/rust_backend_migration.md`: update Phase 6 and Phase 8 if necessary. Phase 6 should no longer
+   - `sdd/research/202604/rust_backend_migration.md`: update Phase 6 and Phase 8 if necessary. Phase 6 should no longer
      require an unsupported-operation test bucket for unported facades; instead, it should require this explicit
      per-operation fallback policy before any default flip. Phase 8 can keep the steady-state note that unported facades
      call Python directly.

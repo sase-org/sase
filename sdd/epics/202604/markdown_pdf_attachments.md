@@ -16,7 +16,7 @@ the new image attachment integration:
 - core SASE renders those Markdown files to PDF artifacts
 - the generated PDFs are attached to the agent completion notification
 - Telegram and Google Chat attach those PDFs to the corresponding completion message/thread
-- Telegram no longer has special `research/*.md` diff parsing and PDF generation
+- Telegram no longer has special `sdd/research/*.md` diff parsing and PDF generation
 
 This plan is split so each phase can be handled by a distinct agent instance. Each phase should land with tests and
 should keep contracts narrow enough for the next phase to build on.
@@ -40,7 +40,7 @@ Relevant plugin files:
 
 - `../sase-telegram/src/sase_telegram/scripts/sase_tg_outbound.py` already converts ordinary Markdown attachments to PDF
   before sending, sends images via `send_photo()`, and has the existing special case that parses diffs for newly added
-  `research/*.md` files.
+  `sdd/research/*.md` files.
 - `../sase-telegram/src/sase_telegram/pdf_convert.py` contains a Pandoc-based Markdown-to-PDF helper.
 - `../sase-gchat/src/sase_gchat/scripts/sase_gc_outbound.py` already converts non-image Markdown attachments to PDF
   before `gchat_client.upload_file()`.
@@ -167,7 +167,7 @@ Exit criteria:
 Repo: `sase-telegram`
 
 Objective: make Telegram treat core-generated Markdown PDFs as normal completion attachments and remove the obsolete
-`research/*.md` diff parser.
+`sdd/research/*.md` diff parser.
 
 Scope:
 
@@ -195,7 +195,7 @@ Scope:
 Exit criteria:
 
 - Telegram relies on `Notification.files` for Markdown-derived PDFs.
-- No outbound code path parses diffs looking specifically for `research/*.md`.
+- No outbound code path parses diffs looking specifically for `sdd/research/*.md`.
 - Run `just install` if needed, then `just check` in `sase-telegram`.
 
 ## Phase 5: Google Chat Delivery Hardening
@@ -256,7 +256,7 @@ Objective: prove the full cross-repo behavior after the implementation phases la
 Scope:
 
 - In a disposable git workspace, run or simulate an agent completion that creates:
-  - `research/example.md`
+  - `sdd/research/example.md`
   - `docs/notes.md`
   - an image file, to verify image behavior was not regressed
 - Confirm the completed run writes:
@@ -278,7 +278,7 @@ Exit criteria:
 
 - PDF generation depends on host tools. Treat missing tools as a non-fatal omission and make this visible through logs.
 - Converting every touched Markdown file could be noisy for large documentation changes. If this becomes a problem, add
-  a later config knob or size limit; do not start with path-specific exceptions such as `research/`.
+  a later config knob or size limit; do not start with path-specific exceptions such as `sdd/research/`.
 - Generated PDF filenames must avoid collisions for files with the same basename in different directories.
 - The core collector should not include generated PDFs or temporary response Markdown files as source Markdown.
 - Existing chat plugins still convert response/plan Markdown to PDF. That is intentional: the new feature targets

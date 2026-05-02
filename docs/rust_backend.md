@@ -495,6 +495,6 @@ deleted; do not reach for them when triaging post-Phase-8 issues.
 
 The migration ran across nine phases. Phases 0–7 added the Rust backend behind a default-Python escape hatch and the
 parity gate; Phase 8 deleted the dispatcher, the dual-run plumbing, and the Python halves of every ported operation that
-did not need them as host logic. The full per-phase narrative lives in `research/202604/rust_backend_migration.md` and
-`sdd/epics/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside their
-plan files (`sdd/epics/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).
+did not need them as host logic. The full per-phase narrative lives in `sdd/research/202604/rust_backend_migration.md`
+and `sdd/epics/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside
+their plan files (`sdd/epics/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).

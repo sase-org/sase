@@ -288,7 +288,7 @@ from a uniform helper that finds relevant nested project instructions before lau
 ### 4.14. Per-provider rate-limit tracker / shared credential pool — **LOW leverage today**
 
 `nous_rate_guard.py` + `credential_pool.py` are good ideas in a multi-provider world. SASE relies on the host CLI's
-quota for now, so this is only relevant if SASE starts making direct API calls in core or in a future research/eval
+quota for now, so this is only relevant if SASE starts making direct API calls in core or in a future sdd/research/eval
 pipeline.
 
 ### 4.15. Voice-memo / mobile prompt entry — **LOW leverage**

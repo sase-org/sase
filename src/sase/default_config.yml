@@ -409,7 +409,7 @@ xprompts:
       ## THE PROMPT
       {{ prompt }}
   research: |
-    Store your research in a new markdown file in the research/ directory.
+    Store your research in a new markdown file in the sdd/research/ directory.
   review: |
     Can you help me fix any bugs that were introduced by this implementation? Also, look for any ways you can improve
     the implementation, but make sure any improvements you make are clear wins (not subjective).

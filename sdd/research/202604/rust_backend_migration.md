@@ -116,7 +116,7 @@ removal are all in place:
   startup under both backends. The user-facing tables, methodology, and
   support-note live in `docs/rust_backend.md` under `Performance`; the
   research-side gate-vs-realised analysis lives in
-  `research/202604/rust_backend_phase7_performance.md`. Headline outcomes:
+  `sdd/research/202604/rust_backend_phase7_performance.md`. Headline outcomes:
   `sase agents status -j` is **2.59× / 2.03×** faster on synthetic 8×25 /
   home tree as a cold subprocess; `parse_project_bytes` is 2.4× / 1.4× on
   golden / synthetic_200; `parse_query` direct parse is 2.1×;
@@ -396,7 +396,7 @@ Watch out for two things:
 `evaluate_query_many` shape rather than per-row dispatch. Wire contract +
 golden corpus in `src/sase/core/query_wire*.py` and `tests/`. See
 `plans/202604/rust_backend_phase2_query.md` and
-`research/202604/rust_backend_phase2_query_handoff.md`.
+`sdd/research/202604/rust_backend_phase2_query_handoff.md`.
 
 ### Phase 3 — Agent / artifact filesystem scan ✅ complete
 
@@ -676,7 +676,7 @@ microtimings are evidence, not the headline.
    per scenario, sample size, the workstation profile they were taken on,
    and a link to the raw `bench_*.json` artifacts. Include both the
    synthetic and home-tree workloads.
-2. **A short before/after entry in `research/202604/`** (or update this
+2. **A short before/after entry in `sdd/research/202604/`** (or update this
    file) capturing the actual realized speedup, broken down per operation
    and per workload size. This is what future readers will cite to decide
    whether the migration was worth it.
@@ -1022,11 +1022,11 @@ and it's the same discipline that should gate any post-Phase-8 work.
 
 ## References
 
-- `research/202604/sase_perf_research.md` — TUI hot-path analysis, refresh
+- `sdd/research/202604/sase_perf_research.md` — TUI hot-path analysis, refresh
   paths, j/k navigation cost.
-- `research/202604/sase_perf_v2_research.md` — kill/dismiss/launch I/O
+- `sdd/research/202604/sase_perf_v2_research.md` — kill/dismiss/launch I/O
   audit; identifies remaining synchronous notification I/O.
-- `research/202604/tui_profiling_strategies.md` — proposed
+- `sdd/research/202604/tui_profiling_strategies.md` — proposed
   `SASE_TUI_TRACE=1` instrumentation; reuse for before/after measurement.
 - PyO3: <https://pyo3.rs>
 - PyO3 free-threaded Python guide: <https://pyo3.rs/main/free-threading.html>

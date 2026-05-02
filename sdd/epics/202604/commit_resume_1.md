@@ -23,14 +23,14 @@ hook (`vcs_create_commit` / `vcs_create_proposal` / `vcs_create_pull_request`), 
 If anything inside dispatch raises a merge conflict (git `_merge_with_master` aborting, hg `evolve` mid-commit), the
 dispatch returns `(False, err)` and `CommitWorkflow.run()` returns `False` at `workflow.py:154`. All post-dispatch
 tracking steps are then silently skipped. The agent (which is good at resolving conflicts — see the `sase ace` snapshot
-attached to the user's request and referenced in `research/202604/commit_conflict_resume.md`) resolves the conflict and ends up
+attached to the user's request and referenced in `sdd/research/202604/commit_conflict_resume.md`) resolves the conflict and ends up
 with a clean local commit, but no ChangeSpec row, no COMMITS entry, no push, and no `commit_result.json` for the xprompt
 post-steps.
 
 The agent has no affordance today for finishing the bookkeeping, so the user-visible "I committed your changes" message
 is a false positive from sase's perspective.
 
-This plan implements **Solution A** from `research/202604/commit_conflict_resume.md`: a resumable `CommitWorkflow` with a JSON
+This plan implements **Solution A** from `sdd/research/202604/commit_conflict_resume.md`: a resumable `CommitWorkflow` with a JSON
 checkpoint file, surfaced via `sase commit --resume` and explicit per-VCS skill instructions modeled on
 `src/sase/xprompts/sync.yml`.
 
@@ -103,7 +103,7 @@ tri-state return value. No user-visible behavior changes. All existing tests sti
 
 ### Context a fresh agent needs
 
-- The user's request and the `sase ace` snapshot that motivated the work are in `research/202604/commit_conflict_resume.md`.
+- The user's request and the `sase ace` snapshot that motivated the work are in `sdd/research/202604/commit_conflict_resume.md`.
 - Per `memory/short/workspaces.md`, run `just install` first — the workspace may be stale.
 
 ### Changes

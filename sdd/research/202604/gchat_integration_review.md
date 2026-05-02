@@ -5,7 +5,7 @@
 - `~/projects/github/sase-org/sase-gchat` (HEAD: `cc0eba3` — Phase 4 entry-point scripts + integration tests + docs)
 - `~/projects/github/sase-org/sase-telegram` (HEAD: `927a16f` — Retry button on agent launch keyboard)
 
-**Prior research:** `research/202602/telegram_integration.md`, `research/202603/telegram_improvements.md`, `research/202603/slash_command_migration.md`. None for gchat yet.
+**Prior research:** `sdd/research/202602/telegram_integration.md`, `sdd/research/202603/telegram_improvements.md`, `sdd/research/202603/slash_command_migration.md`. None for gchat yet.
 
 ## 1. Architecture Overview
 
@@ -164,7 +164,7 @@ Following the pattern of capturing future work; both `plans/` directories are es
 
 ### Lower priority / parking lot
 - Surface `gchat_client.create_reaction` somewhere — emoji reactions on plan-approval messages would be a unique gchat affordance that telegram can't match.
-- Investigate whether gchat CLI exposes anything like a streaming/draft-message API (the equivalent of `sendMessageDraft` discussed in `research/202603/telegram_improvements.md`). If not, document the absence so it stops coming up.
+- Investigate whether gchat CLI exposes anything like a streaming/draft-message API (the equivalent of `sendMessageDraft` discussed in `sdd/research/202603/telegram_improvements.md`). If not, document the absence so it stops coming up.
 - Consider whether the `option_codes.py` module is worth keeping if R2 is the only consumer — a single use site might fold inline.
 
 ## Appendix — File reference map

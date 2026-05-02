@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase5_git_query_ops.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` defines Phase 5 as the Git query-ops port and recommends option A: keep
+`sdd/research/202604/rust_backend_migration.md` defines Phase 5 as the Git query-ops port and recommends option A: keep
 shelling out to `git`, but parse command output in Rust unless profiling proves subprocess fork overhead is the real
 bottleneck. Phases 0-4 are already complete:
 
@@ -76,7 +76,7 @@ the shared-core boundary and exercising the same parity pattern.
 ## Phase Split for Distinct Agent Instances
 
 Each subphase below is designed for a separate agent instance. Later agents should read this plan, the current
-`research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, the prior subphase handoff, and only the files in
+`sdd/research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, the prior subphase handoff, and only the files in
 their write scope before editing.
 
 ### Phase 5A: Audit, Profiling, and Scope Lock
@@ -250,7 +250,7 @@ Purpose: finish Phase 5 with a clear evidence-backed handoff for Phase 6.
 
 Write scope:
 
-- `research/202604/rust_backend_migration.md`.
+- `sdd/research/202604/rust_backend_migration.md`.
 - `docs/rust_backend.md`.
 - `plans/202604/rust_backend_phase5_git_query_ops_phase5f_handoff.md`.
 - CI or Justfile updates only if Phase 5 added durable commands that should stay.

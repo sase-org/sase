@@ -11,7 +11,7 @@ prompt: sdd/prompts/202604/tui_perf_overhaul_1.md
 Significantly improve the perceived and measured performance of the `sase ace` TUI — j/k navigation latency,
 startup/reload time, agent list responsiveness on large data sets, and idle CPU during auto-refresh.
 
-This plan operationalizes `research/202604/sase_perf_research.md`. The research is the source of truth for _what_ to do; this
+This plan operationalizes `sdd/research/202604/sase_perf_research.md`. The research is the source of truth for _what_ to do; this
 plan decides _how_ to slice the work into agent-sized phases and clarifies repo-specific paths (the research references
 upstream paths; this repo has reorganized `actions/changespec_display.py` → `actions/changespec/_display.py` and
 `actions/agents_display.py` → `actions/agents/_display.py`).
@@ -28,7 +28,7 @@ context. Phases must therefore be:
   session.
 - **Ordered by dependency** — earlier phases set up the measurement / primitives later phases rely on.
 
-Phases 2–7 each begin with the same setup ritual: read `research/202604/sase_perf_research.md` (the corresponding P-section),
+Phases 2–7 each begin with the same setup ritual: read `sdd/research/202604/sase_perf_research.md` (the corresponding P-section),
 verify the P0 trace spans from Phase 1 fire on the targeted code path, write the phase, then re-run trace + targeted
 benchmarks to confirm regression-free wins.
 
@@ -283,7 +283,7 @@ invalidation, plus a sweep of cheap fixes. Research §P6 + §P7 (#15–#20).
 
 ## Cross-cutting conventions for every phase agent
 
-- **Read first**: `research/202604/sase_perf_research.md` (whole file is short enough), the relevant phase section above, and
+- **Read first**: `sdd/research/202604/sase_perf_research.md` (whole file is short enough), the relevant phase section above, and
   `memory/short/build_and_run.md` (workspace + `just install` requirement before `just check`).
 - **No new comments / docstrings unless WHY is non-obvious** — this repo's AGENTS.md is firm on that.
 - **No backwards-compat shims** for removed code; delete cleanly.

@@ -6,7 +6,7 @@ point.
 
 ## What landed
 
-- `research/202604/rust_backend_migration.md` — replaced the `Phase 7 measurement landed for 7A–7D` bullet and the
+- `sdd/research/202604/rust_backend_migration.md` — replaced the `Phase 7 measurement landed for 7A–7D` bullet and the
   `Status (2026-04-29)` paragraph in the Phase 7 section with a `Phase 7 complete` framing that names the Phase 7E
   artifacts (`tests/perf/baselines/phase7_regression_floor.json`, `tests/perf/phase7_check_regression.py`,
   `just phase7-perf-check`, the `phase7-perf-floor` Actions job) and links the Phase 7F close-out record (this file).
@@ -35,7 +35,7 @@ All artifacts below are committed (`floor_check.json` is the one runtime-generat
 - `plans/202604/rust_backend_phase7_phase7e_handoff.md` — CI regression floor.
 - `plans/202604/rust_backend_phase7_phase7f_handoff.md` — this file.
 - `docs/rust_backend.md > Performance` — user-facing tables, methodology, and the Phase 7 support note.
-- `research/202604/rust_backend_phase7_performance.md` — gate-vs-realised analysis.
+- `sdd/research/202604/rust_backend_phase7_performance.md` — gate-vs-realised analysis.
 
 ### Phase 7B core-operation summaries (12 files, all committed)
 
@@ -157,7 +157,7 @@ Phase 8 (Python implementation removal) can begin once these gates are in place.
 - [x] **Performance regression floor wired.** Phase 7E baseline + checker + Actions job; floor-check JSON uploaded on
       every run.
 - [x] **User-facing performance documentation.** `docs/rust_backend.md > Performance` carries the medians, sample
-      counts, and the Phase 7 support note; `research/202604/rust_backend_phase7_performance.md` is the research
+      counts, and the Phase 7 support note; `sdd/research/202604/rust_backend_phase7_performance.md` is the research
       companion.
 - [x] **Phase 8 sequencing constraints documented.** `evaluate_query_many` regression and the small-µs normalizer
       dispatch tax are explicitly called out above and in the Phase 7D/7E handoffs.

@@ -1,6 +1,6 @@
 # SDD Directory Consolidation + Legends & Myths
 
-**Goal.** Consolidate `specs/`, `plans/`, `research/` under a single `sdd/` parent, and introduce two new
+**Goal.** Consolidate `specs/`, `plans/`, `sdd/research/` under a single `sdd/` parent, and introduce two new
 higher-altitude artifact types: `sdd/legends/` (epics-of-epics) and `sdd/myths/` (epics-of-legends). This document
 surveys prior art, surfaces the design decisions that block a clean implementation, and ends with a recommended path
 forward.
@@ -13,7 +13,7 @@ forward.
 {project_root}/
   specs/{YYYYMM}/*.md      # 489 files in 202604 alone — agent-expanded prompts
   plans/{YYYYMM}/*.md      # 570 files in 202604 — formatted plans (some with `bead_id`, `status: done`)
-  research/{YYYYMM}/*.md   #  30 files in 202604 — hand-authored or research-agent investigations
+  sdd/research/{YYYYMM}/*.md   #  30 files in 202604 — hand-authored or research-agent investigations
   sase_plan_*.md           # ~140 loose work-in-progress plans at root, pre-`sase plan` persistence
   sdd/beads/             # Bead DB (when version_controlled: true)
   .sase/sdd/               # Local-mode SDD storage (when version_controlled: false)
@@ -57,7 +57,7 @@ Notable observations:
 | **ADRs**          | `docs/adr/`            | flat, numeric, immutable                                                | The decisions, not the work. Often co-exists with the above.                                                                                         |
 
 **Pattern that wins.** Every mature system namespaces its artifacts under a single hidden- or named-parent directory
-(`.kiro/`, `.agent-os/`, `openspec/`, `bmad/`). sase is currently the outlier — `specs/`, `plans/`, `research/` collide
+(`.kiro/`, `.agent-os/`, `openspec/`, `bmad/`). sase is currently the outlier — `specs/`, `plans/`, `sdd/research/` collide
 with normal source-tree names (`specs/` clashes with pytest's spec-style tests in some projects; `plans/` is generic
 enough to collide with anything). **Moving to `sdd/` is a defensible alignment with prior art.**
 
@@ -111,7 +111,7 @@ The first pass got the broad pattern right, but missed four details that matter 
 
 **Implication:** `sdd/` should probably have two semantics, not one:
 
-- **Trace artifacts:** immutable-ish run artifacts produced by SDD (`specs/`, `plans/`, maybe `research/`).
+- **Trace artifacts:** immutable-ish run artifacts produced by SDD (`specs/`, `plans/`, maybe `sdd/research/`).
 - **Coordination artifacts:** living strategic containers (`legends/`, `myths/`) that roll up child bead IDs and
   decisions.
 
@@ -231,12 +231,12 @@ sdd/
   legends/{YYYYMM}/*.md   # uncommon, ~10-50/year
   plans/{YYYYMM}/*.md     # current "plans" (570/month at peak)
   specs/{YYYYMM}/*.md     # current "specs"
-  research/{YYYYMM}/*.md  # current "research"
+  sdd/research/{YYYYMM}/*.md  # current "research"
 ```
 
 **Open question.** Should myths and legends use `YYYYMM` partitioning at all? There will only ever be a handful. A flat
 `sdd/myths/*.md` is more discoverable. **Default:** flat for `myths/` and `legends/`, `YYYYMM` retained for
-`plans/specs/research/`. `find_sdd_file`'s flat-vs-YYYYMM fallback already handles both.
+`plans/specs/sdd/research/`. `find_sdd_file`'s flat-vs-YYYYMM fallback already handles both.
 
 ### D5. Where does `sdd/` live in version-controlled vs local mode?
 
@@ -248,7 +248,7 @@ This is mostly mechanical, but it does require one mode-specific change: in VC m
 the project root, and should return `{project_root}/sdd` after the move. In local mode it already returns
 `{primary_workspace}/.sase/sdd`, which is already the desired parent.
 
-### D6. Is `research/` agent-generated or human-authored?
+### D6. Is `sdd/research/` agent-generated or human-authored?
 
 Today it's mixed. The current files are mostly hand-authored research (you producing investigations) plus a few
 research-agent outputs. Folding it under `sdd/research/` is fine, but **it is not a spec-driven artifact** and
@@ -356,7 +356,7 @@ The new layout creates references that can drift: child bead IDs, plan file path
 - every `sdd/tales/**.md` with `bead_id` points to an existing bead;
 - every legend/myth `children` entry exists and has the expected tier;
 - every bead `design` path exists after path normalization;
-- no new files are written to legacy root `plans/`, `specs/`, or `research/`;
+- no new files are written to legacy root `plans/`, `specs/`, or `sdd/research/`;
 - xprompts in merged config do not reference legacy `@plans/**` or `@specs/**`.
 
 This should run as part of the migration PR and become a cheap preflight after the move.
@@ -421,11 +421,11 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
    they gain tier/type filtering.
 10. **Second-pass external scan.** Known sibling repos mostly do not hard-code SDD paths. Hits found on 2026-04-30:
     `sase-telegram/tests/test_bead_format.py` expects `../sase/plans/202604/...`, and
-    `sase-telegram/src/sase_telegram/formatting.py` documents `research/*.md`. No hits were found in `sase-github`,
+    `sase-telegram/src/sase_telegram/formatting.py` documents `sdd/research/*.md`. No hits were found in `sase-github`,
     `sase-google`, `sase-nvim`, `~/.local/share/chezmoi/home/dot_config/sase`, or `~/.config/sase` for the scanned
     path patterns. Still rerun the scan in the final migration CL because these repos move independently.
 11. **Docs outside SDD docs.** `README.md`, `docs/configuration.md`, `docs/beads.md`, `docs/xprompt.md`,
-    `docs/change_spec.md`, and `docs/rust_backend.md` all contain user-facing `plans/`/`specs/`/`research/` examples.
+    `docs/change_spec.md`, and `docs/rust_backend.md` all contain user-facing `plans/`/`specs/`/`sdd/research/` examples.
     Some are historical references and should remain; others are live guidance and must move.
 
 ---
@@ -472,7 +472,7 @@ you also have a `sase sdd migrate --rewrite-bead-designs` command with a dry run
 **Phase 5 — Cleanup (deprecation cycle, ~3 months later).**
 
 15. Add or run `sase sdd doctor` to prove no live config/xprompts/bead design fields still point at legacy paths.
-16. Drop the legacy `find_sdd_file` fallbacks. Remove the legacy `plans/`, `specs/`, `research/` symlinks if you went
+16. Drop the legacy `find_sdd_file` fallbacks. Remove the legacy `plans/`, `specs/`, `sdd/research/` symlinks if you went
     with D7-C.
 
 **What I'd skip.** Don't touch:

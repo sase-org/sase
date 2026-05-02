@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase4_status_machine.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` originally described Phase 4 as the Rust port of the ChangeSpec status state
+`sdd/research/202604/rust_backend_migration.md` originally described Phase 4 as the Rust port of the ChangeSpec status state
 machine. Phases 0-3 are complete:
 
 - `sase.core` is the Python facade with `SASE_CORE_BACKEND` dispatch and `SASE_CORE_DUAL_RUN` parity logging.
@@ -56,7 +56,7 @@ behavior:
 ## Proposed Phase Split
 
 Each subphase below is designed to be handled by a distinct agent instance. Later agents should read this plan, the
-previous subphase handoff, `research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and any files listed in
+previous subphase handoff, `sdd/research/202604/rust_backend_migration.md`, `docs/rust_backend.md`, and any files listed in
 their phase scope before editing.
 
 ### Phase 4A: Profiling and Scope Decision
@@ -264,7 +264,7 @@ Work:
 - Decide whether any status operation should default to Rust. The expected answer is still "no global default flip";
   only recommend a per-operation default if the operation is shipped, packaged, parity-clean, and user-visible.
 - Update:
-  - `research/202604/rust_backend_migration.md` Phase 4 status;
+  - `sdd/research/202604/rust_backend_migration.md` Phase 4 status;
   - `docs/rust_backend.md` roadmap and operation list;
   - any benchmark docs/runbook entries touched by Phase 4A.
 - Write a final handoff with commands, results, known limits, and follow-up recommendations.

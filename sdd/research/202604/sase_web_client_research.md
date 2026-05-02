@@ -5,7 +5,7 @@ Date: 2026-04-30
 ## Question
 
 How should SASE build a first web client after the Rust backend migration,
-using the Phase 9 direction from `research/202604/rust_backend_migration.md`
+using the Phase 9 direction from `sdd/research/202604/rust_backend_migration.md`
 and the current codebase/commit state?
 
 This note reviews the Rust migration state, recent commits, backend/API
@@ -48,7 +48,7 @@ validation in addition to the local session token.
 
 ### Rust migration state
 
-`research/202604/rust_backend_migration.md` now records Phases 0-8 as shipped.
+`sdd/research/202604/rust_backend_migration.md` now records Phases 0-8 as shipped.
 The important current-state facts:
 
 - Rust is the only implementation for the shipped core operations. There is no
@@ -88,7 +88,7 @@ a server crate needs.
 
 The `../sase-core/README.md` is stale in places: it still describes early
 opt-in Rust phases and says Python remains the default. Treat
-`docs/rust_backend.md` and `research/202604/rust_backend_migration.md` in this
+`docs/rust_backend.md` and `sdd/research/202604/rust_backend_migration.md` in this
 repo as the fresher source of truth.
 
 ### Recent commits that matter
@@ -916,7 +916,7 @@ HTTP boundary is harder than debugging in-process Python.
   surface it in error responses for client-side bug reports.
 - For metrics, expose an opt-in `/api/metrics` Prometheus endpoint behind
   the same token. Reuse decisions from
-  `research/202604/prometheus_telemetry.md` rather than inventing a new
+  `sdd/research/202604/prometheus_telemetry.md` rather than inventing a new
   metrics surface.
 - Track command outcomes (count, duration, exit code) and SSE subscriber
   counts. These are the two surfaces most likely to misbehave.
@@ -1059,7 +1059,7 @@ Exit criterion: the web UI can perform the most common safe operational actions.
 
 - Add log/artifact browser.
 - Render Markdown, diffs, images, and PDFs in web-native components.
-- Reuse findings from `research/202604/tui_image_pdf_support.md` where relevant,
+- Reuse findings from `sdd/research/202604/tui_image_pdf_support.md` where relevant,
   but prefer normal browser rendering over terminal graphics protocols.
 
 Exit criterion: web is materially better than the TUI for rich artifacts.
@@ -1100,10 +1100,10 @@ rewrite host logic just because a new UI exists.
 
 Local sources:
 
-- `research/202604/rust_backend_migration.md`
-- `research/202604/prometheus_telemetry.md`
-- `research/202604/notification_panel_improvements.md`
-- `research/202604/tui_image_pdf_support.md`
+- `sdd/research/202604/rust_backend_migration.md`
+- `sdd/research/202604/prometheus_telemetry.md`
+- `sdd/research/202604/notification_panel_improvements.md`
+- `sdd/research/202604/tui_image_pdf_support.md`
 - `docs/rust_backend.md`
 - `plans/202604/rust_backend_phase8_phase8g_handoff.md`
 - `memory/short/glossary.md` (Retry chain, ChangeSpec, xprompt definitions)

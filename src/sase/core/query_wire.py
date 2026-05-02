@@ -2,7 +2,7 @@
 
 Companion to :mod:`sase.core.wire`. Defines the **stable** boundary between
 Python and a future Rust implementation of the query tokenizer/parser/evaluator
-(Phase 2 of `research/202604/rust_backend_migration.md`).
+(Phase 2 of `sdd/research/202604/rust_backend_migration.md`).
 
 The wire records intentionally do not subclass or share code with the Python
 AST dataclasses in :mod:`sase.ace.query.types` — Python may keep evolving the

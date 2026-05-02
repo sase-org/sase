@@ -12,7 +12,7 @@ exists — `src/sase/agent/running.py::list_running_agents()` walks `~/.sase/pro
 liveness, dedupes parent/child and hidden workflow agents, and returns a clean dataclass — but it is **not wired to the
 CLI**. The only surface is the TUI (`sase ace`), which is not machine-readable and not scriptable.
 
-`research/202604/agent_status_report.md` lays this out explicitly (Idea A, "HIGH ROI, LOW EFFORT"). This plan ships that idea
+`sdd/research/202604/agent_status_report.md` lays this out explicitly (Idea A, "HIGH ROI, LOW EFFORT"). This plan ships that idea
 plus two small companion ops that fall out naturally from the same module.
 
 ## Design Principles
@@ -54,7 +54,7 @@ an open question below — cheap to add but may clutter the top-level namespace.
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-Column rules (from `research/202604/agent_status_report.md` Idea H):
+Column rules (from `sdd/research/202604/agent_status_report.md` Idea H):
 
 - Single line per agent, fixed column order.
 - `NAME` first (agents tend to summarize by name).

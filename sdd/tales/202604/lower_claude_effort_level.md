@@ -6,7 +6,7 @@ Since upgrading to Claude Opus 4.7, Claude Code sessions terminate with `Prompt 
 previously fit on Opus 4.6. The user wants a **durable, settings-level fix** in their chezmoi repo — not behavioral
 workarounds like "remember to `/compact` more often."
 
-Detailed root-cause analysis lives at `research/202604/opus_4_7_prompt_too_long.md`. Summary for this plan: Opus 4.7's new
+Detailed root-cause analysis lives at `sdd/research/202604/opus_4_7_prompt_too_long.md`. Summary for this plan: Opus 4.7's new
 tokenizer inflates token counts by 1.0x–1.47x for the same text (CLAUDE.md 1.45x, technical docs 1.47x), so the 1M-token
 window holds materially less content. Anthropic's own mitigation is to give compaction triggers more headroom.
 

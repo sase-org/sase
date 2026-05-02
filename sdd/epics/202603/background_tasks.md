@@ -9,7 +9,7 @@ prompt: sdd/prompts/202603/background_tasks.md
 ## Overview
 
 Migrate `action_sync` (Y), `action_mail` (M), and `action_accept_proposal` (a) from blocking `self.suspend()` calls to
-background execution using Textual's `run_worker()` API (Option C from research/202603/send_cmds_to_axe.md).
+background execution using Textual's `run_worker()` API (Option C from sdd/research/202603/send_cmds_to_axe.md).
 
 ## Key Design Decisions
 

@@ -357,16 +357,16 @@ The Phase 0–8 discipline still applies. Rephrased for these candidates:
 
 ## References
 
-- `research/202604/rust_backend_migration.md` — Phases 0–8 history and
+- `sdd/research/202604/rust_backend_migration.md` — Phases 0–8 history and
   forward plan.
-- `research/202604/rust_backend_phase7_performance.md` — realised Phase 7
+- `sdd/research/202604/rust_backend_phase7_performance.md` — realised Phase 7
   numbers and gate-vs-realised verdicts.
-- `research/202604/rust_backend_phase2_query_handoff.md` — wire-record
+- `sdd/research/202604/rust_backend_phase2_query_handoff.md` — wire-record
   contract for the query path; reused by candidate #2.
-- `research/202604/sase_perf_research.md` — original TUI hot-path memo;
+- `sdd/research/202604/sase_perf_research.md` — original TUI hot-path memo;
   candidates #4 and #5 still address items P2.7 and P4.10, while the old #3
   P2.5 direction now requires the postmortem constraints above.
-- `research/202604/sase_perf_v2_research.md` — second-pass audit;
+- `sdd/research/202604/sase_perf_v2_research.md` — second-pass audit;
   candidate #1 closes out the remaining notification-store I/O finding
   after the kill immediate-stage fix.
 - `plans/202604/rust_backend_phase8_phase8a_handoff.md` — Phase 8A

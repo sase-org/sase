@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase8.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` says Phases 0-7 are complete. Rust is the default backend for shipped
+`sdd/research/202604/rust_backend_migration.md` says Phases 0-7 are complete. Rust is the default backend for shipped
 `sase.core` operations, `sase-core-rs>=0.1.0,<0.2.0` is already a runtime dependency, the Phase 6/7 rollback path still
 exists through `SASE_CORE_BACKEND=python`, and Phase 7 installed the performance floor.
 
@@ -81,7 +81,7 @@ The intentionally Python-owned surfaces entering Phase 8 are:
 ## Phase Split For Distinct Agent Instances
 
 Each subphase below is intended for a distinct agent instance. Every agent should read this plan,
-`research/202604/rust_backend_migration.md`, `docs/rust_backend.md`,
+`sdd/research/202604/rust_backend_migration.md`, `docs/rust_backend.md`,
 `plans/202604/rust_backend_phase7_phase7f_handoff.md`, and the previous Phase 8 handoff before editing. Agents should
 stay inside their write scope, append a handoff, and not start later phases.
 
@@ -331,7 +331,7 @@ Purpose: make the post-Phase 8 state understandable and record what was deleted.
 Write scope:
 
 - `docs/rust_backend.md`
-- `research/202604/rust_backend_migration.md`
+- `sdd/research/202604/rust_backend_migration.md`
 - golden-contract tests and fixtures under `tests/core_golden/`, `tests/agent_scan_golden/`, and `tests/test_core_*`.
 - `tests/perf/baselines/phase7_regression_floor.json` if Phase 8 changed benchmark anchors.
 - `plans/202604/rust_backend_phase8_phase8g_handoff.md`.
@@ -343,7 +343,7 @@ Work:
   - no backend env vars;
   - `sase core health` checks the installed Rust extension;
   - rollback is a `sase-core-rs` wheel/package fix or reverting Phase 8 PRs, not a per-user env var.
-- Update `research/202604/rust_backend_migration.md` with Phase 8 complete status, operation disposition, and any
+- Update `sdd/research/202604/rust_backend_migration.md` with Phase 8 complete status, operation disposition, and any
   retained Python-owned exceptions.
 - Replace live Python/Rust parity language with golden-contract language. The golden corpus is the compatibility seam
   for parser/query/status/git/agent-scan output after Phase 8.

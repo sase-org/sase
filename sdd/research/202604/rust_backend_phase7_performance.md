@@ -28,7 +28,7 @@ re-capture on a different workstation can be compared apples-to-apples without r
 
 ## Realised vs. Phase 0 research gates
 
-Section 6 of `research/202604/rust_backend_migration.md` set go-gates for each candidate ("at least 2× faster end to
+Section 6 of `sdd/research/202604/rust_backend_migration.md` set go-gates for each candidate ("at least 2× faster end to
 end or at least 100 ms saved on a real large repo", "at least 2× faster for large lists after FFI", "first usable batch
 < 100 ms or total scan at least 2× faster"). Phase 6 ports were chosen against those gates; Phase 7 measures whether
 they held up after the default flip.
@@ -120,4 +120,4 @@ Phase 8 (Python implementation removal) should be sequenced against these readin
 - Per-subphase handoffs: `plans/202604/rust_backend_phase7_phase7{a,b,c,d}_handoff.md`.
 - Forward plan and remaining phases: `plans/202604/rust_backend_phase7.md`, `plans/202604/rust_backend_phase8.md`
   (when written), and the Phase 7 / Phase 8 sections in
-  `research/202604/rust_backend_migration.md`.
+  `sdd/research/202604/rust_backend_migration.md`.

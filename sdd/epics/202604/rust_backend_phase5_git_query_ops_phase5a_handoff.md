@@ -294,5 +294,5 @@ Phase 5B (`sase-1a.2`) — implement the Python facade
 contract for all five helpers. Do not import `sase_core_rs` yet. The
 agent for 5B should read this handoff,
 `plans/202604/rust_backend_phase5_git_query_ops.md`,
-`research/202604/rust_backend_migration.md`, and
+`sdd/research/202604/rust_backend_migration.md`, and
 `docs/rust_backend.md` before editing.

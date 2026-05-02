@@ -165,7 +165,7 @@ that for any of the routed operations:
 
 ## What Phase 4 should pick up (or look at instead)
 
-The original migration plan in `research/202604/rust_backend_migration.md`
+The original migration plan in `sdd/research/202604/rust_backend_migration.md`
 identified Phase 4 as the agent status state machine. Whether to
 proceed next depends on where the next user-visible cost lives:
 

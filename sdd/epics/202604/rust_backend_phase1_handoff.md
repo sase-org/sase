@@ -145,7 +145,7 @@ and `just install` are unaffected — `sase_core_rs` is opt-in.
 ## Phase 2 handoff
 
 Phase 2 is "query evaluation and graph index" per
-`research/202604/rust_backend_migration.md`. Recommendation:
+`sdd/research/202604/rust_backend_migration.md`. Recommendation:
 
 - **Phase 2 may proceed without paying parser-span debt first.** The
   `end_line` normalization at the parity boundary is the agreed steady

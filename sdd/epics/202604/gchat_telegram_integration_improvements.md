@@ -13,7 +13,7 @@ The implementation work spans external plugin repos adjacent to this repo:
 - `../sase-gchat`
 - `../sase-telegram`
 
-The main source of product/technical inspiration is `research/202604/gchat_integration_review.md`. Current spot-checks against
+The main source of product/technical inspiration is `sdd/research/202604/gchat_integration_review.md`. Current spot-checks against
 the repos show that most of the review is still accurate, with two important updates:
 
 - `sase-telegram` already advances outbound notification high-water marks per delivered notification in
@@ -23,7 +23,7 @@ the repos show that most of the review is still accurate, with two important upd
   the Telegram behavior.
 
 Every phase below is intended to be executed by a distinct agent instance. Each phase should start by reading this plan,
-`research/202604/gchat_integration_review.md`, and the relevant repo files before editing. If a phase modifies a plugin repo,
+`sdd/research/202604/gchat_integration_review.md`, and the relevant repo files before editing. If a phase modifies a plugin repo,
 it must run `just install` if needed and then `just check` in that plugin repo before reporting completion.
 
 ## Guiding Goals

@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/ace_profile_flag.md
 
 ## Context
 
-The research document `research/202604/tui_profiling_strategies.md` recommends a layered profiling strategy for the ace TUI.
+The research document `sdd/research/202604/tui_profiling_strategies.md` recommends a layered profiling strategy for the ace TUI.
 Layer 2 ("Broad Discovery with pyinstrument") specifically calls for:
 
 > Add a `--profile` flag to `sase ace` that starts/stops pyinstrument around the app run

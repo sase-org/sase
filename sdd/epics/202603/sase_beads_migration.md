@@ -11,7 +11,7 @@ Build the `sase-beads` Python package in the `../sase-beads` repo (currently emp
 `bd` Go binary to `sbd`. The package provides simple epic/child issue tracking backed by SQLite + JSONL, with zero
 external dependencies beyond Python stdlib.
 
-**Reference**: `research/202603/sase_beads.md` contains the full design (schema, JSONL format, field definitions, etc.).
+**Reference**: `sdd/research/202603/sase_beads.md` contains the full design (schema, JSONL format, field definitions, etc.).
 
 ---
 

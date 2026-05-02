@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase1.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` defines Phase 1 as the first real Rust backend target: a ChangeSpec parser
+`sdd/research/202604/rust_backend_migration.md` defines Phase 1 as the first real Rust backend target: a ChangeSpec parser
 that can parse a full project/archive `.gp` file from bytes into the stable `ChangeSpecWire` contract.
 
 Phase 0 is already complete in this checkout:
@@ -238,7 +238,7 @@ Goal: finish Phase 1 with a reliable adoption gate and clear next-step evidence.
 Write scope:
 
 - `sase_100/tests/`
-- `sase_100/research/` or `sase_100/plans/202604/` for result notes
+- `sase_100/sdd/research/` or `sase_100/plans/202604/` for result notes
 - `../sase-core/` docs if needed
 
 Work:

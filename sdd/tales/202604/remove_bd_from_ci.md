@@ -46,7 +46,7 @@ In `.github/workflows/ci.yml`:
 
 - `src/sase/sdd/beads.py`: the docstring at line 22 ("Runs `bd init --skip-hooks`") is stale wording — the function
   actually calls `BeadProject.init(...)`. Leaving this for a separate docs pass; not part of fixing CI.
-- `docs/sdd.md`, `docs/beads.md`, `research/*`, `plans/*`, `specs/*`: historical references to `bd`. Not touched — these
+- `docs/sdd.md`, `docs/beads.md`, `sdd/research/*`, `plans/*`, `specs/*`: historical references to `bd`. Not touched — these
   documents record past state and aren't consulted at runtime.
 - `publish.yml`: does not install `bd`, no change needed.
 

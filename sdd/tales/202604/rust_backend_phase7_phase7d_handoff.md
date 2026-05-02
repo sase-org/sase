@@ -22,11 +22,11 @@ implementation removal) has documented sequencing constraints.
     Phase 7-only escape hatch.
 - `docs/rust_backend.md` — updated the Roadmap entry for Phase 7 from `(open)` to `(in progress)` with a per-subphase
   status line so future readers see which subphases are still in flight.
-- `research/202604/rust_backend_phase7_performance.md` — new research record. Captures the gate-vs-realised table for
+- `sdd/research/202604/rust_backend_phase7_performance.md` — new research record. Captures the gate-vs-realised table for
   every Phase 0 measurement candidate, calls out the `evaluate_query_many` regression as a Phase 8 sequencing
   constraint, records the workload-size sensitivity for `parse_project_bytes`, and documents the implications for
   Phase 7E's anchor set.
-- `research/202604/rust_backend_migration.md` — added a measurement-update bullet in the 2026-04-29 status block
+- `sdd/research/202604/rust_backend_migration.md` — added a measurement-update bullet in the 2026-04-29 status block
   (linking the new performance research file and the headline outcomes) and a `Status (2026-04-29)` paragraph at the
   top of the Phase 7 section so the existing forward plan is read as "measurements taken" for 7A–7D and "still open"
   for 7E/7F.
@@ -45,7 +45,7 @@ Out of scope for Phase 7D and explicitly not done:
 
 `docs/rust_backend.md > Performance` is the user-facing answer to "what does default-Rust actually buy me, and what
 should I expect when I run the same harnesses?" The tables there carry medians, sample counts, and a verdict for each
-row. `research/202604/rust_backend_phase7_performance.md` is the research-side companion — same numbers, but framed
+row. `sdd/research/202604/rust_backend_phase7_performance.md` is the research-side companion — same numbers, but framed
 against the Phase 0 go-gates and with the per-operation Phase 8 sequencing implications spelled out. The migration doc
 keeps its forward plan and now points at both.
 
@@ -96,7 +96,7 @@ Phase 7D added zero code under `tests/`. Phase 7F should rerun the helper smoke 
 ## Open questions / nudges for later phases
 
 - **Phase 7E (regression floor).** The recommended anchor set is restated in
-  `research/202604/rust_backend_phase7_performance.md` under "Implications for Phase 7E and Phase 8":
+  `sdd/research/202604/rust_backend_phase7_performance.md` under "Implications for Phase 7E and Phase 8":
   `parse_project_bytes.golden_myproj.facade`, `parse_project_bytes.synthetic_200_specs.facade`,
   `parse_query.parse_only.direct`, `scan_agent_artifacts.synthetic_6p_200pp.scan_facade`, and
   `sase_agents_status_listing.synthetic_8_projects_25_agents` for the hard PR floor;
@@ -107,7 +107,7 @@ Phase 7D added zero code under `tests/`. Phase 7F should rerun the helper smoke 
 - **Phase 7F (close-out).** When 7F validates "all Phase 7 artifacts are committed and docs link to the actual file
   names", the new docs surface to walk is: `docs/rust_backend.md > Performance` → links into
   `plans/202604/perf_artifacts/rust_backend_phase7_*.json`; the new research record →
-  `research/202604/rust_backend_phase7_performance.md`; and the migration doc's 2026-04-29 update bullet now references
+  `sdd/research/202604/rust_backend_phase7_performance.md`; and the migration doc's 2026-04-29 update bullet now references
   the performance research file. 7F should also re-run the home-tree `local_only/` artifacts on the maintainer's box
   and compare against the medians in the Phase 7C handoff rather than re-recording into CI.
 - **Phase 8 (Python implementation removal).** The new research file is explicit on sequencing:

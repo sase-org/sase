@@ -21,7 +21,7 @@ status: complete
   diagnostic only and is not a regression-floor anchor.
 - Updated the Phase 7 regression adaptor so the persistent query-keystroke anchor still compares against the reference
   Python batch baseline.
-- Updated `docs/rust_backend.md` and `research/202604/rust_core_next_candidates.md` to reflect that query batch
+- Updated `docs/rust_backend.md` and `sdd/research/202604/rust_core_next_candidates.md` to reflect that query batch
   evaluation has moved to persistent Rust corpora.
 
 ## Compatibility Decision

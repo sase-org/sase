@@ -108,7 +108,7 @@ Per-machine ignore patterns via `.gitignore`. Reuse the chezmoi infra already do
 memory.
 
 - **Pros:** Free history, free `git blame` on ChangeSpecs, code-review-able. Integrates with the existing
-  pattern from `research/202604/git_versioned_agent_memory.md`. Works offline, push when online.
+  pattern from `sdd/research/202604/git_versioned_agent_memory.md`. Works offline, push when online.
 - **Cons:** ~22k chat files in the current sample makes the repo huge — needs LFS, git-annex, or shallow strategies. Bare repos under
   `repos/*.git` cannot live inside another git repo cleanly. Concurrent edits → text merge conflicts on
   `.gp` files (often resolvable, sometimes not). JSON history files merge poorly. Manual sync cadence
@@ -134,7 +134,7 @@ artifacts as blobs, `agent_name_allocation` and workspace claims as DB rows with
 server; local cache is a read-through.
 
 - **Pros:** Conflicts and coordination disappear. Same backend powers the web client research already on
-  file (`research/202604/sase_web_client_research.md`). Multi-machine becomes a first-class feature, not
+  file (`sdd/research/202604/sase_web_client_research.md`). Multi-machine becomes a first-class feature, not
   a hack.
 - **Cons:** Largest project on this list. Sase becomes online-or-degraded by default; offline support
   needs a real local cache layer. Operational burden — auth, backups, migrations, hosting. Probably a
@@ -221,7 +221,7 @@ the vast majority of what users want. It intentionally excludes runtime logs and
 
 ### Phase 2 — Promote ChangeSpecs to per-project Git remotes (2–4 weeks)
 
-This piggy-backs on the design already worked out in `research/202604/git_versioned_agent_memory.md`:
+This piggy-backs on the design already worked out in `sdd/research/202604/git_versioned_agent_memory.md`:
 
 - `~/.sase/projects/<proj>/` becomes a git working tree with `.gp` / `<proj>-archive.gp` / `memory/` in
   it.

@@ -32,7 +32,7 @@ Relevant local findings:
 - The TUI static file preview path is centralized enough for initial wiring:
   - notifications modal: `src/sase/ace/tui/modals/notification_modal.py::_display_file()`
   - agent file panel: `src/sase/ace/tui/widgets/file_panel/_display.py::display_static_file()`
-- Recent research in `research/202604/tui_image_pdf_support.md` recommends Kitty Graphics Protocol with Unicode
+- Recent research in `sdd/research/202604/tui_image_pdf_support.md` recommends Kitty Graphics Protocol with Unicode
   placeholders, probed before `App.run()`, and warns not to rely on direct cursor placement in Textual.
 - Recent chat `sase-ace_run-260429_215624` produced the image/PDF research. Recent chat
   `sase-ace_run-it.plan-260430_014836` and the resulting `plans/202604/kitty_tmux_icat.md` cover Kitty/tmux launch
@@ -163,7 +163,7 @@ Scope:
 
 - Add a focused TUI graphics package, for example `src/sase/ace/tui/graphics/`.
 - Implement capability detection that runs before `AceApp.run()`, likely from `src/sase/main/ace_handler.py`, following
-  `research/202604/tui_image_pdf_support.md`.
+  `sdd/research/202604/tui_image_pdf_support.md`.
 - Implement a conservative Kitty TGP renderer:
   - PNG byte transmission with direct/stream transport
   - chunking

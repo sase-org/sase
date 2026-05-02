@@ -23,7 +23,7 @@ but for GitHub) in favor of using 3 built-in xprompts (`#commit`, `#propose`, an
 ### Design Decisions / Q&A
 
 I asked another agent to critique this prompt and flesh out the design decisions that I need to make. My answers are
-below. The numbers correspond to the section numbers in the research/202603/unified_vcs_commit_prompt_questions.md file, which
+below. The numbers correspond to the section numbers in the sdd/research/202603/unified_vcs_commit_prompt_questions.md file, which
 contains the agent's reply:
 
 1. We should move the quality checks to a new `sase_core_stop_hook` stop hook that is configured ONLY for this repo (I

@@ -6,7 +6,7 @@ prompt: sdd/prompts/202604/jetski_cli_provider.md
 
 # Add `JetskiProvider` LLM Backend (keeping Gemini CLI)
 
-_Implements Alt 4 from `research/202604/jetski_cli_provider.md`._
+_Implements Alt 4 from `sdd/research/202604/jetski_cli_provider.md`._
 
 ## Problem
 
@@ -249,4 +249,4 @@ This PR shipped with two mis-readings of the Jetski CLI contract that together s
 Net effect: the real prompt was discarded, jetski-cli parsed stray `--model jetski-default` tokens as the prompt, and
 the model responded with a generic self-identification one-liner. Fixed in
 [`jetski_prompt_delivery_fix`](../../.sase/home/.sase/plans/jetski_prompt_delivery_fix.md). Open question 2 in
-`research/202604/jetski_cli_provider.md` is now resolved.
+`sdd/research/202604/jetski_cli_provider.md` is now resolved.

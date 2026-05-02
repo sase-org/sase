@@ -7,7 +7,7 @@ prompt: sdd/prompts/202605/fast_startup_phases.md
 
 ## Context
 
-Recent startup research is consolidated in `research/202605/startup_time.md`, with the source chats:
+Recent startup research is consolidated in `sdd/research/202605/startup_time.md`, with the source chats:
 
 - `sase-ace_run-260501_180846` / `~/.sase/chats/202605/sase-ace_run-260501_180846.md`
 - `sase-ace_run-260501_181431` / `~/.sase/chats/202605/sase-ace_run-260501_181431.md`
@@ -67,7 +67,7 @@ Implementation direction:
   - importing `sase.telemetry.metrics` must not import `urllib.request`
 - Keep perf thresholds non-gating initially unless there is already an established local performance-gate pattern. The
   import-contract tests should be gating.
-- Document how to run the harness in `research/202605/startup_time.md` or a short adjacent note.
+- Document how to run the harness in `sdd/research/202605/startup_time.md` or a short adjacent note.
 
 Acceptance:
 

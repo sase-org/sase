@@ -20,7 +20,7 @@ production-default voice:
    `SASE_CORE_DUAL_RUN` row in the env-var table is reframed as a
    parity/safety rail (CI gate + ad-hoc verification) rather than a
    normal production mode.
-2. **`research/202604/rust_backend_migration.md` updated to Phase 6
+2. **`sdd/research/202604/rust_backend_migration.md` updated to Phase 6
    complete.** The "2026-04-29 update" header is rewritten to reflect that
    Phases 0–6 have shipped, with explicit subsections for the default
    flip, packaging decision, `is_workflow_complete` resolution, CI matrix
@@ -76,7 +76,7 @@ and the CI guarantees from Phase 6G are unchanged.
   phases" entry that previously trailed Phase 6F is preserved verbatim
   beneath the new entries.
 
-### `research/202604/rust_backend_migration.md`
+### `sdd/research/202604/rust_backend_migration.md`
 
 - **Header status update** ("2026-04-29 update") rewritten from "Phases
   0–5 of this plan have shipped" to "Phases 0–6 of this plan have
@@ -222,7 +222,7 @@ non-divergent shipped operations, documented divergence allow-listed for
 
 ## Exit criteria
 
-- [x] `research/202604/rust_backend_migration.md` says Phase 6 is
+- [x] `sdd/research/202604/rust_backend_migration.md` says Phase 6 is
       complete and Phase 7 can begin (header status block + Phase 6
       "Migration order" entry + rewritten "Recommended next concrete
       actions" section).

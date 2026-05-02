@@ -79,13 +79,13 @@ provider contract.
 
 ### Existing research on long-running tasks
 
-`research/202603/send_cmds_to_axe.md` recommends an internal task queue for long-running TUI work because it provides structured
+`sdd/research/202603/send_cmds_to_axe.md` recommends an internal task queue for long-running TUI work because it provides structured
 status, output capture, cancellation, and better UI integration than arbitrary shell slots. That applies directly to
 Deep Research, but it is a later phase. The first useful version can piggyback on workflow subprocesses and
 `workflow_state.json`; the durable task queue can come after users prove the feature is worth making non-blocking and
 resumable.
 
-`research/202603/xprompt_workflow_best_practices.md` recommends keeping YAML orchestration thin and moving long Python logic
+`sdd/research/202603/xprompt_workflow_best_practices.md` recommends keeping YAML orchestration thin and moving long Python logic
 into modules. That is exactly the right shape here: the workflow should call `sase.research.openai`, not inline the
 Responses API polling loop.
 
@@ -266,7 +266,7 @@ sase research attach <job_id>
 sase research cancel <job_id>
 ```
 
-The command writes to `~/.sase/projects/<project>/artifacts/research/<timestamp>/` and can be invoked by `#research`.
+The command writes to `~/.sase/projects/<project>/artifacts/sdd/research/<timestamp>/` and can be invoked by `#research`.
 
 Pros:
 
@@ -418,7 +418,7 @@ mixing orchestration concerns into `LLMProvider.invoke()`.
 
 - Should `mode=deep` default to `o4-mini-deep-research` for cost/latency, or should the name imply the stronger
   `o3-deep-research`?
-- Should research reports be written only to workflow artifacts, or also copied into repo-local `research/` when the
+- Should research reports be written only to workflow artifacts, or also copied into repo-local `sdd/research/` when the
   user asks for a project research note?
 - Should `#research` be available inside normal agent prompts as an embedded workflow, or only as a standalone workflow
   launched from the prompt bar?

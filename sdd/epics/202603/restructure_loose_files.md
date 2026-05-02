@@ -10,7 +10,7 @@ prompt: sdd/prompts/202603/restructure_loose_files.md
 ## Goal
 
 Move all 8 loose files out of the `src/sase/` package root into descriptively-named subpackages, following Option A from
-`research/202603/loose_files_in_src_sase.md`.
+`sdd/research/202603/loose_files_in_src_sase.md`.
 
 ## Target Structure
 

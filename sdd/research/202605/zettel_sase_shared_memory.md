@@ -333,7 +333,7 @@ TRIGGERS:
 - memory/long
 
 PROVENANCE:
-- research/202604/dynamic_memory_critique.md
+- sdd/research/202604/dynamic_memory_critique.md
 - agent/session id or human note
 ```
 
@@ -346,7 +346,7 @@ Zorg syntax can evolve, but SASE should normalize the parsed shape into a simple
   "links": ["#sase", "#memory"],
   "applies_to": ["src/sase/memory/dynamic.py"],
   "triggers": ["dynamic memory", "keywords"],
-  "provenance": ["research/202604/dynamic_memory_critique.md"],
+  "provenance": ["sdd/research/202604/dynamic_memory_critique.md"],
   "body": "..."
 }
 ```
@@ -575,11 +575,11 @@ Local:
 - `~/org/lit/system_for_writing.zo`
 - `~/org/lit/zettel_method.zo`
 - `~/org/lit/understand_folgezettel.zo`
-- `research/202604/dynamic_memory_implementation.md`
-- `research/202604/dynamic_memory_critique.md`
-- `research/202604/git_versioned_agent_memory.md`
-- `research/202604/codified_context_paper_insights.md`
-- `research/202605/multi_machine_sync.md`
+- `sdd/research/202604/dynamic_memory_implementation.md`
+- `sdd/research/202604/dynamic_memory_critique.md`
+- `sdd/research/202604/git_versioned_agent_memory.md`
+- `sdd/research/202604/codified_context_paper_insights.md`
+- `sdd/research/202605/multi_machine_sync.md`
 
 External:
 

@@ -110,7 +110,7 @@ Update the "Tier 2 (dynamic) Memory" section to:
 This entire test file tests the Prettier protection for `DYNAMIC MEMORY:` lines, which is being removed. Delete the
 file.
 
-### 7. `research/202604/dynamic_memory_critique.md` - Update or note resolved items
+### 7. `sdd/research/202604/dynamic_memory_critique.md` - Update or note resolved items
 
 Items #5 (temp file accumulation), #6 (injection placement), and #7 (preprocessing fragility) are addressed by this
 change. Add a brief note.

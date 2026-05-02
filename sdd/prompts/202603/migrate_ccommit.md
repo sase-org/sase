@@ -12,4 +12,4 @@ changes when they finish validating their work.
 ### DESIGN DECISIONS
 
 I asked another agent to flesh out any design decisions that I needed to make. The agent's response can be found in the
-research/202603/migrate_ccommit_prompt_critique.md file, which also contains my decisions (in "DECISIONS" sections).
+sdd/research/202603/migrate_ccommit_prompt_critique.md file, which also contains my decisions (in "DECISIONS" sections).

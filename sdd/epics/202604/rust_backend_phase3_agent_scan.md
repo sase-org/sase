@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/rust_backend_phase3_agent_scan.md
 
 ## Context
 
-`research/202604/rust_backend_migration.md` defines Phase 3 as the Rust port of the agent/artifact filesystem scan. This
+`sdd/research/202604/rust_backend_migration.md` defines Phase 3 as the Rust port of the agent/artifact filesystem scan. This
 phase should target work users can feel: listing, resolving, and refreshing agents currently walks
 `~/.sase/projects/*/artifacts/...` and parses many small JSON files from Python.
 
@@ -375,7 +375,7 @@ Goal: close Phase 3 with a defensible default-backend decision and clear next st
 
 Write scope:
 
-- `sase_100/research/202604/rust_backend_phase3_agent_scan_handoff.md` or a plan/status document.
+- `sase_100/sdd/research/202604/rust_backend_phase3_agent_scan_handoff.md` or a plan/status document.
 - `sase_100/docs/rust_backend.md`.
 - `sase_100/tests/perf/bench_agent_scan.py`.
 - `../sase-core/README.md` if user-facing Rust backend commands changed.

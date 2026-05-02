@@ -62,7 +62,7 @@ Add tests that verify false positives are eliminated:
 
 Existing tests all use whole-word occurrences in their prompts, so none should break.
 
-### 3. `research/202604/dynamic_memory_critique.md`
+### 3. `sdd/research/202604/dynamic_memory_critique.md`
 
 Update the priority table to mark item #1 as **Resolved**, matching the pattern used for items #5, #6, #7. Add a brief
 note in the Resolved Items section.

@@ -465,12 +465,12 @@ the state of five concurrent workstreams — sase replaces that manual overhead 
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** — Plan mode produces ephemeral plans that vanish when the session ends. sase
   persists prompt snapshots plus ordinary tales, executable epics, and higher-level legends under `sdd/`. The
-  `research/` directory remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that
-  links them to an epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the corresponding
-  commit messages — creating a traceable chain from epic to phase to commit. For smaller tales, commit messages include
-  a `PLAN=<path>` tag pointing back to the plan file. The result is spec-driven development where the full history of
-  intent, decomposition, and execution is preserved and queryable, not trapped in a single agent session's context
-  window.
+  `sdd/research/` corpus keeps exploratory notes with that same repository-local history. For larger efforts, epic files
+  carry a bead ID in their frontmatter that links them to an epic-tier bead, and each phase of the epic gets its own
+  bead whose ID appears in the corresponding commit messages — creating a traceable chain from epic to phase to commit.
+  For smaller tales, commit messages include a `PLAN=<path>` tag pointing back to the plan file. The result is
+  spec-driven development where the full history of intent, decomposition, and execution is preserved and queryable, not
+  trapped in a single agent session's context window.
 - **ACE instead of tmux** — A single TUI provides unified navigation, filtering, and management across all active
   workstreams, replacing the manual tab-switching workflow.
 - **AXE instead of manual supervision** — A background daemon handles scheduling, monitoring, and lifecycle management

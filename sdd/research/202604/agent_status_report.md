@@ -67,7 +67,7 @@ Prereq: Idea A.
 
 ## Idea C — Dynamic memory entry (keyword-triggered) (MEDIUM ROI)
 
-Sase already has tier-2 dynamic memory (see `research/202604/dynamic_memory_implementation.md`). Add a memory file (e.g.
+Sase already has tier-2 dynamic memory (see `sdd/research/202604/dynamic_memory_implementation.md`). Add a memory file (e.g.
 `memory/long-agent-status-report.md`) keyed on `running agents`, `agent status`, `sase ps`. Its content is one
 paragraph: "To report on running agents, run `sase agents status -j` — each row is an agent with fields …".
 

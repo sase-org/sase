@@ -42,15 +42,15 @@ def test_collect_agent_markdown_paths_keeps_untracked_after_tracked(
 def test_collect_agent_markdown_paths_from_diff_file_when_tree_clean(
     tmp_path: Path,
 ) -> None:
-    source = tmp_path / "research" / "result.md"
-    source.parent.mkdir()
+    source = tmp_path / "sdd" / "research" / "result.md"
+    source.parent.mkdir(parents=True)
     source.write_text("# Result\n")
     diff_path = tmp_path / "commit.diff"
     diff_path.write_text(
-        "diff --git a/research/result.md b/research/result.md\n"
+        "diff --git a/sdd/research/result.md b/sdd/research/result.md\n"
         "new file mode 100644\n"
         "--- /dev/null\n"
-        "+++ b/research/result.md\n"
+        "+++ b/sdd/research/result.md\n"
     )
 
     assert collect_agent_markdown_paths(str(tmp_path), diff_path=str(diff_path)) == [

@@ -114,7 +114,7 @@ When Phase 7C/7D produce a stable end-to-end anchor set, a follow-up PR can eith
 
 Phase 7E ships option (1)'s plumbing (the checker is already a one-process driver that takes anchors from the baseline
 file), but does not commit any Phase 7C end-to-end anchors. Phase 7D's
-`research/202604/rust_backend_phase7_performance.md` recommends adding
+`sdd/research/202604/rust_backend_phase7_performance.md` recommends adding
 `sase_agents_status_listing.synthetic_8_projects_25_agents` as the strongest end-to-end candidate, plus
 `sase_run_startup.import_run_query_cold` as a non-gating sentinel; Phase 7B explicitly told 7E not to anchor on the
 small Git/status normalizers or `sase_ace_cold_open` because their workstation-to-runner variance exceeds 25 %. Wiring

@@ -11,7 +11,7 @@ Recent chats from 2026-05-01 cluster around `fix_just`, `pylimit_split`, `refres
 the `sase-1p` agent-loader Rust migration. The `fix_just` and `pylimit_split` chats report green checks and no required
 source changes. The postmortem chats identify two cleanup concerns after the Rust migration revert:
 
-- `research/202604/rust_core_next_candidates.md` still recommends the same agent-loader orchestration migration that was
+- `sdd/research/202604/rust_core_next_candidates.md` still recommends the same agent-loader orchestration migration that was
   attempted under `sase-1p` and then reverted.
 - `sase bead show sase-1p` still resolves a closed bead through merged multi-workspace bead discovery because
   `/home/bryan/projects/github/sase-org/sase_100/sdd/beads/issues.jsonl` still contains the stale reverted bead rows.
@@ -30,7 +30,7 @@ screenshot spec, and the stale research recommendation mention `sase-1p` / `agen
 
 ## Implementation Plan
 
-1. Update `research/202604/rust_core_next_candidates.md`:
+1. Update `sdd/research/202604/rust_core_next_candidates.md`:
    - Add a prominent 2026-05-01 status note near the top explaining that the agent-loader orchestration recommendation
      was attempted as `sase-1p` and reverted.
    - Mark the candidate as "do not retry as written" in the table and section heading.

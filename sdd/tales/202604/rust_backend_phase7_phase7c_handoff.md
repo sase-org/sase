@@ -21,7 +21,7 @@ work" and Phase 7E knows which workloads are stable enough for a CI floor.
 
 Out of scope for Phase 7C and explicitly not done:
 
-- No documentation changes under `docs/rust_backend.md` or `research/202604/`. Phase 7D owns the user-facing narrative
+- No documentation changes under `docs/rust_backend.md` or `sdd/research/202604/`. Phase 7D owns the user-facing narrative
   and tables.
 - No CI integration. Phase 7E owns the regression floor.
 - No live LLM provider invocation. The `sase run` measurement deliberately stops at the documented provider boundary

@@ -15,4 +15,4 @@ keep in mind that each phase will be completed by a distinct agent instance (i.e
 - We should move existing epic plan files to sdd/epics/. We should also add a new "Legend" option to the plan approval panel, telegram plan approval messages, and Google chat plan approval messages.
 - We should store normal (i.e. non-epic) plan files in the sdd/tales/ directory.
 - Actually, let's just use `--type plan(<plan_file>,<legend_bead_id>)` to create epic beads that have a legend bead as a parent. No need for `--type epic`.
-- We should NOT migrate the research/ directory.
+- We should NOT migrate the sdd/research/ directory.

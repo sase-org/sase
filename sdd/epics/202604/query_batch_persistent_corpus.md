@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/query_batch_persistent_corpus.md
 
 ## Context
 
-`research/202604/rust_core_next_candidates.md` recommends re-porting ChangeSpec query batch evaluation to Rust only if
+`sdd/research/202604/rust_core_next_candidates.md` recommends re-porting ChangeSpec query batch evaluation to Rust only if
 the FFI shape changes from "deserialize every `ChangeSpecWire` dict on every filter keystroke" to "compile the corpus
 once, then evaluate many queries against the persistent corpus." Phase 8B already proved the old routed Rust
 `evaluate_query_many(query, spec_dicts)` path was a regression, so this migration must keep the Python batch path until
@@ -240,7 +240,7 @@ Owner scope:
 - `tests/test_core_facade/test_query.py`
 - `tests/perf/bench_core_query.py`
 - `docs/rust_backend.md`
-- `research/202604/rust_core_next_candidates.md` only if the recommendation status is updated
+- `sdd/research/202604/rust_core_next_candidates.md` only if the recommendation status is updated
 - Handoff: `plans/202604/query_corpus_phase7_cleanup_handoff.md`
 
 Work:

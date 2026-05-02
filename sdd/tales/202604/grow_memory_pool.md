@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/grow_memory_pool.md
 
 ## Context
 
-The dynamic memory critique (`research/202604/dynamic_memory_critique.md`) identifies "Grow the memory pool" as the #1
+The dynamic memory critique (`sdd/research/202604/dynamic_memory_critique.md`) identifies "Grow the memory pool" as the #1
 priority. Currently only 2 long-term memory files exist (`external_repos.md`, `generated_skills.md`) totaling ~60 lines
 and ~16 keywords. The system is architecturally validated but empirically under-exercised.
 

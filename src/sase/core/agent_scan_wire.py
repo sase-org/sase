@@ -3,7 +3,7 @@
 Companion to :mod:`sase.core.wire` and :mod:`sase.core.query_wire`. Defines
 the **stable** boundary between Python and a future Rust implementation of
 the agent-artifact snapshot scan (Phase 3 of
-``research/202604/rust_backend_migration.md`` and
+``sdd/research/202604/rust_backend_migration.md`` and
 ``../sase_100/plans/202604/rust_backend_phase3_agent_scan.md``).
 
 The wire records intentionally do not subclass or share code with the

@@ -10,7 +10,7 @@ STATUS: proposed
 
 ## Context
 
-Research in `research/202604/short_term_vs_long_term_memory.md` recommends Approach A (Annotated Index) for splitting memory
+Research in `sdd/research/202604/short_term_vs_long_term_memory.md` recommends Approach A (Annotated Index) for splitting memory
 files into always-loaded vs on-demand tiers. Since that research was written, commit 4b607fe2 already deleted
 `memory/e2e_testing.md` and trimmed several files. The current AGENTS.md has 6 `@`-imported files — all always-loaded.
 
