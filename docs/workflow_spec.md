@@ -3,6 +3,8 @@
 This document describes the YAML workflow format for sase xprompt workflows. Workflows enable multi-step agent pipelines
 with control flow, parallel execution, and human-in-the-loop approval.
 
+![Workflow execution model showing inputs, environment, ordered steps, prompt injection, control flow wrappers, artifacts, parallel branches, join modes, and HITL gates](images/workflow-execution-infographic.png)
+
 ## Table of Contents
 
 - [Top-Level Structure](#top-level-structure)
