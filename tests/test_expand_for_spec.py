@@ -1,4 +1,4 @@
-"""Tests for expand_prompt_for_spec() and dry_expand_embedded_workflows()."""
+"""Tests for prompt snapshot expansion helpers."""
 
 from dataclasses import dataclass, field
 from unittest.mock import patch
@@ -222,7 +222,7 @@ def test_dry_expand_no_pre_post_steps_executed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# expand_prompt_for_spec (integration of preprocessing + dry expansion)
+# expand_prompt_for_spec (compatibility wrapper for prompt snapshot expansion)
 # ---------------------------------------------------------------------------
 
 

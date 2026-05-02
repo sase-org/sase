@@ -14,6 +14,7 @@ from sase.sdd.files import (
     commit_sdd_files,
     expand_prompt_for_spec,
     get_sdd_dir,
+    update_prompt_with_qa,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "expand_prompt_for_spec",
     "get_sdd_config",
     "get_sdd_dir",
+    "update_prompt_with_qa",
     "update_spec_with_qa",
     "write_sdd_files",
 ]

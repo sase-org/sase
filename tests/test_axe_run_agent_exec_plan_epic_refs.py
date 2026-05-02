@@ -68,7 +68,7 @@ class TestEpicPlanRefs:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    sdd_dir / "specs" / "202604" / "missing_buyers_research.md",
+                    sdd_dir / "prompts" / "202604" / "missing_buyers_research.md",
                     sdd_plan_path,
                 ),
             ),

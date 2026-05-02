@@ -523,9 +523,9 @@ def test_precommit_runs_during_sdd_commit(
     monkeypatch.chdir(tmp_path)
 
     payload = {
-        "message": "chore: Add SDD spec and plan for my_plan",
+        "message": "chore: Add SDD prompt and plan for my_plan",
         "files": [
-            str(tmp_path / "specs" / "my_plan.md"),
+            str(tmp_path / "prompts" / "my_plan.md"),
             str(tmp_path / "plans" / "my_plan.md"),
         ],
     }

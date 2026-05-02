@@ -80,7 +80,7 @@ class TestPlanFollowupPrompts:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "specs" / "202605" / "scratch_plan.md",
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
                     sdd_plan,
                 ),
             ) as write_sdd_files,
@@ -290,7 +290,7 @@ class TestPlanFollowupPrompts:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "specs" / "202605" / "scratch_plan.md",
+                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
                     sdd_plan,
                 ),
             ),

@@ -1,22 +1,21 @@
 # Spec-Driven Development (SDD)
 
 SDD is sase's system for persisting the intent behind agent work. When an agent produces a plan, SDD captures both the
-fully-expanded prompt (the **spec**) and the structured plan itself, creating a traceable chain from intent to
-execution.
+fully-expanded prompt snapshot and the structured plan itself, creating a traceable chain from intent to execution.
 
 ## Why SDD Exists
 
 Agent plans are ephemeral by default -- they live in a single session's context window and vanish when the session ends.
-SDD fixes this by writing specs and plans to disk as first-class artifacts:
+SDD fixes this by writing prompt snapshots and plans to disk as first-class artifacts:
 
-- **Specs** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
+- **Prompts** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
 - **Plans** record the structured plan the agent produced, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Legends** record higher-level coordination plans that can own linked epics.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
   IDs in commit messages.
 
-Together, these create an audit trail: spec --> plan, epic, or legend --> bead hierarchy --> phase beads --> commits.
+Together, these create an audit trail: prompt --> plan, epic, or legend --> bead hierarchy --> phase beads --> commits.
 
 ## Storage Modes
 
@@ -30,7 +29,7 @@ Files are stored in a standalone git repo inside the primary workspace:
 {primary_workspace}/.sase/sdd/
   .git/                     # Standalone git repo for SDD tracking
   .gitignore                # Ignores beads.db
-  specs/
+  prompts/
     {YYYYMM}/
       {plan_name}.md        # Expanded prompt (xprompts resolved, directives stripped)
   plans/
@@ -48,8 +47,8 @@ Files are stored in a standalone git repo inside the primary workspace:
     config.json
 ```
 
-SDD auto-commits spec and plan files to this local repo after each planning phase. The standalone repo keeps SDD history
-separate from the project's own git history.
+SDD auto-commits prompt and plan files to this local repo after each planning phase. The standalone repo keeps SDD
+history separate from the project's own git history.
 
 ### Version-Controlled Mode (`sdd.version_controlled: true`)
 
@@ -58,7 +57,7 @@ Files are stored at the project root and tracked in the project's own git repo:
 ```
 {project_root}/
   sdd/
-    specs/
+    prompts/
       {YYYYMM}/
         {plan_name}.md
     plans/
@@ -83,9 +82,9 @@ inputs, not generated SDD artifacts.
 
 ## How SDD Works
 
-### Spec Generation
+### Prompt Generation
 
-When an agent completes its planning phase, SDD generates a spec file by:
+When an agent completes its planning phase, SDD generates a prompt snapshot by:
 
 1. Expanding all `#xprompt` references in the original prompt
 2. Stripping `%directives` (`%model`, `%name`, `%wait`, etc.)
@@ -103,9 +102,9 @@ The plan file produced by the agent is:
    - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
    - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
 
-Specs and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This keeps the
-directories manageable as the number of specs and plans grows over time. Both flat and `YYYYMM` layouts are supported
-for backwards compatibility — SDD searches both when resolving files.
+Prompt snapshots and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This
+keeps the directories manageable as the number of prompts and plans grows over time. Both flat and `YYYYMM` layouts are
+supported for backwards compatibility — SDD also searches legacy `specs` paths when resolving prompt files.
 
 Plan files may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to the bead
 issue tracker.
@@ -117,7 +116,7 @@ inotify-based artifact watcher and is harmless when no TUI is open.
 ### Q&A Sections
 
 If the agent asks clarifying questions during planning (via the `/sase_questions` skill), the Q&A exchange is appended
-to the spec file. This preserves the full context of planning decisions.
+to the prompt snapshot. This preserves the full context of planning decisions.
 
 ## Bead Integration
 
@@ -167,5 +166,5 @@ See [`configuration.md`](configuration.md) for the full configuration reference.
 ## Multi-Workspace Behavior
 
 SDD always writes to the **primary workspace** (workspace 1). When running in workspace `sase_3`, SDD resolves the
-primary workspace directory by stripping the `_3` suffix. This ensures all workspaces share a single set of specs,
+primary workspace directory by stripping the `_3` suffix. This ensures all workspaces share a single set of prompts,
 plans, and beads.

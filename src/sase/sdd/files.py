@@ -9,6 +9,7 @@ from typing import Any
 _logger = logging.getLogger(__name__)
 
 _SDD_PLAN_KINDS = {"plans", "epics", "legends"}
+_SDD_PROMPT_KINDS = {"prompts", "specs"}
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -23,6 +24,19 @@ def get_yyyymm(dt: datetime | None = None) -> str:
     return dt.strftime("%Y%m")
 
 
+def _sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
+    """Return lookup roots for an SDD kind, including legacy prompt aliases."""
+    aliases = ("prompts", "specs") if kind in _SDD_PROMPT_KINDS else (kind,)
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for alias in aliases:
+        for root in (base_dir / "sdd" / alias, base_dir / alias):
+            if root not in seen:
+                roots.append(root)
+                seen.add(root)
+    return roots
+
+
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
     """Search for an SDD file, supporting canonical and legacy layouts.
 
@@ -33,7 +47,7 @@ def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
 
     Returns the first match, or ``None`` if not found.
     """
-    for root in (base_dir / "sdd" / kind, base_dir / kind):
+    for root in _sdd_kind_roots(base_dir, kind):
         flat = root / name
         if flat.exists():
             return flat
@@ -135,14 +149,14 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
 def write_sdd_files(
     sdd_dir: Path,
     plan_name: str,
-    spec_content: str,
+    prompt_content: str,
     plan_file: str,
     *,
     plan_kind: str = "plans",
 ) -> tuple[Path, Path]:
-    """Write specs/<YYYYMM>/<name>.md and <plan_kind>/<YYYYMM>/<name>.md.
+    """Write prompts/<YYYYMM>/<name>.md and <plan_kind>/<YYYYMM>/<name>.md.
 
-    Returns (spec_path, plan_path).
+    Returns (prompt_path, plan_path).
     """
     if plan_kind not in _SDD_PLAN_KINDS:
         raise ValueError(
@@ -151,13 +165,13 @@ def write_sdd_files(
         )
 
     yyyymm = get_yyyymm()
-    specs_dir = sdd_dir / "specs" / yyyymm
+    prompts_dir = sdd_dir / "prompts" / yyyymm
     plans_dir = sdd_dir / plan_kind / yyyymm
-    specs_dir.mkdir(parents=True, exist_ok=True)
+    prompts_dir.mkdir(parents=True, exist_ok=True)
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    spec_path = specs_dir / f"{plan_name}.md"
-    spec_path.write_text(spec_content, encoding="utf-8")
+    prompt_path = prompts_dir / f"{plan_name}.md"
+    prompt_path.write_text(prompt_content, encoding="utf-8")
 
     plan_path = plans_dir / f"{plan_name}.md"
     plan_source = Path(plan_file)
@@ -169,21 +183,29 @@ def write_sdd_files(
         content = format_with_prettier(content)
         plan_path.write_text(add_create_time_frontmatter(content), encoding="utf-8")
 
-    return spec_path, plan_path
+    return prompt_path, plan_path
 
 
-def update_spec_with_qa(spec_path: Path, qa_markdown: str) -> None:
-    """Append Q&A section to an existing spec file."""
-    if not spec_path.exists():
+def update_prompt_with_qa(prompt_path: Path, qa_markdown: str) -> None:
+    """Append Q&A section to an existing prompt snapshot."""
+    if not prompt_path.exists():
         return
-    existing = spec_path.read_text(encoding="utf-8")
-    spec_path.write_text(
+    existing = prompt_path.read_text(encoding="utf-8")
+    prompt_path.write_text(
         existing.rstrip("\n") + "\n\n" + qa_markdown + "\n", encoding="utf-8"
     )
 
 
+def update_spec_with_qa(spec_path: Path, qa_markdown: str) -> None:
+    """Append Q&A to an SDD prompt snapshot.
+
+    Compatibility wrapper for callers still using the old ``spec`` terminology.
+    """
+    update_prompt_with_qa(spec_path, qa_markdown)
+
+
 def expand_prompt_for_spec(prompt: str) -> str:
-    """Expand xprompt references and strip directives for spec storage.
+    """Expand xprompt references and strip directives for prompt storage.
 
     Performs a "dry" expansion: xprompts are resolved, directives are stripped,
     and embedded workflow ``prompt_part`` content is inlined — but no pre/post
@@ -193,7 +215,7 @@ def expand_prompt_for_spec(prompt: str) -> str:
         prompt: The raw prompt text (may contain ``#refs``, ``%directives``, etc.).
 
     Returns:
-        The fully expanded prompt suitable for writing to a spec file.
+        The fully expanded prompt suitable for writing to a prompt snapshot.
     """
     from sase.llm_provider.preprocessing import preprocess_prompt_early
 
@@ -215,8 +237,8 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
 
     Explicit standalone workflow references (``#!name`` for workflows without a
     ``prompt_part`` step) are preserved as compact markers for spec storage.
-    Legacy inline standalone references (``#name``) are rejected so specs do not
-    capture ambiguous syntax.
+    Legacy inline standalone references (``#name``) are rejected so prompt
+    snapshots do not capture ambiguous syntax.
 
     Args:
         prompt: Prompt text (already xprompt-expanded and directive-stripped).

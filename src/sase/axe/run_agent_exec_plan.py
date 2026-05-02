@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 def _commit_sdd_files(
     workspace_dir: str, plan_name: str, *, plan_kind: str = "plans"
 ) -> None:
-    """Commit SDD spec and plan files via ``sase commit`` before launching the epic agent.
+    """Commit SDD prompt and plan files via ``sase commit`` before launching the epic agent.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
@@ -52,12 +52,12 @@ def _commit_sdd_files(
 
     base = Path(workspace_dir)
     fname = f"{plan_name}.md"
-    spec_found = find_sdd_file(base, "specs", fname)
+    prompt_found = find_sdd_file(base, "prompts", fname)
     plan_found = find_sdd_file(base, plan_kind, fname)
-    files = [str(f) for f in (spec_found, plan_found) if f is not None]
+    files = [str(f) for f in (prompt_found, plan_found) if f is not None]
     if not files:
         return
-    message = f"chore: Add SDD spec and plan for {plan_name}"
+    message = f"chore: Add SDD prompt and plan for {plan_name}"
     # -M / --message-file expects a file path, not a raw string.
     # handle_commit_command deletes the file after reading it.
     msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
@@ -391,14 +391,14 @@ def handle_plan_marker(
             )
             expanded = state.current_prompt
         plan_kind = _plan_kind_for_action(plan_result.action)
-        sdd_spec_path_obj, sdd_plan_path = write_sdd_files(
+        sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
             sdd_dir,
             sdd_plan_name,
             expanded,
             plan_result.plan_file,
             plan_kind=plan_kind,
         )
-        state.sdd_spec_path = str(sdd_spec_path_obj)
+        state.sdd_spec_path = str(sdd_prompt_path_obj)
         if not version_controlled:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
     except Exception:
@@ -643,7 +643,7 @@ def handle_questions_marker(
     state.qa_sections.append(qa_text)
     state.current_prompt = state.current_prompt + "\n\n" + qa_text
 
-    # Update SDD spec file with Q&A answers
+    # Update SDD prompt snapshot with Q&A answers
     if state.sdd_spec_path is not None:
         try:
             from sase.sdd.files import update_spec_with_qa

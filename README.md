@@ -309,7 +309,7 @@ src/sase/
 │   └── prompt.py          # Prompt history persistence and querying
 ├── integrations/          # Public helpers consumed by external plugins/editors
 ├── sdd/                   # Spec-driven development utilities
-│   ├── files.py           # SDD file management (specs, plans)
+│   ├── files.py           # SDD file management (prompts, plans)
 │   └── beads.py           # SDD bead integration
 ├── workflows/             # All change-lifecycle workflows
 │   ├── accept/            # Change acceptance workflows
@@ -449,12 +449,12 @@ the state of five concurrent workstreams — sase replaces that manual overhead 
 - **XPrompts instead of ad-hoc prompts** — Reusable, composable prompt templates with YAML front matter replace the
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** — Plan mode produces ephemeral plans that vanish when the session ends. sase
-  persists specs plus normal plans, executable epics, and higher-level legends under `sdd/`. The `research/` directory
-  remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that links them to an epic-tier
-  bead, and each phase of the epic gets its own bead whose ID appears in the corresponding commit messages — creating a
-  traceable chain from epic to phase to commit. For smaller plans, commit messages include a `PLAN=<path>` tag pointing
-  back to the plan file. The result is spec-driven development where the full history of intent, decomposition, and
-  execution is preserved and queryable, not trapped in a single agent session's context window.
+  persists prompt snapshots plus normal plans, executable epics, and higher-level legends under `sdd/`. The `research/`
+  directory remains top-level. For larger efforts, epic files carry a bead ID in their frontmatter that links them to an
+  epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the corresponding commit messages —
+  creating a traceable chain from epic to phase to commit. For smaller plans, commit messages include a `PLAN=<path>`
+  tag pointing back to the plan file. The result is spec-driven development where the full history of intent,
+  decomposition, and execution is preserved and queryable, not trapped in a single agent session's context window.
 - **ACE instead of tmux** — A single TUI provides unified navigation, filtering, and management across all active
   workstreams, replacing the manual tab-switching workflow.
 - **AXE instead of manual supervision** — A background daemon handles scheduling, monitoring, and lifecycle management

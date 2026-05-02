@@ -16,6 +16,7 @@ from sase.sdd.files import (
     get_yyyymm,
     commit_sdd_files,
     get_sdd_dir,
+    update_prompt_with_qa,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -117,15 +118,15 @@ def test_write_sdd_files() -> None:
         plan_file.write_text("steps:\n  - do stuff\n", encoding="utf-8")
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
-            spec_path, plan_path = write_sdd_files(
+            prompt_path, plan_path = write_sdd_files(
                 sdd_dir, "my_plan", "# My Spec\nDetails here", str(plan_file)
             )
 
-        assert spec_path.exists()
+        assert prompt_path.exists()
         assert plan_path.exists()
-        assert spec_path.parent.name == "202603"
+        assert prompt_path.parent.name == "202603"
         assert plan_path.parent.name == "202603"
-        assert spec_path.read_text(encoding="utf-8") == "# My Spec\nDetails here"
+        assert prompt_path.read_text(encoding="utf-8") == "# My Spec\nDetails here"
         plan_text = plan_path.read_text(encoding="utf-8")
         assert plan_text.startswith("---\ncreate_time:")
         assert "steps:" in plan_text
@@ -136,10 +137,10 @@ def test_write_sdd_files_missing_plan() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
-            spec_path, plan_path = write_sdd_files(
+            prompt_path, plan_path = write_sdd_files(
                 sdd_dir, "my_plan", "spec content", "/nonexistent/plan.yaml"
             )
-        assert spec_path.exists()
+        assert prompt_path.exists()
         assert not plan_path.exists()
 
 
@@ -151,7 +152,7 @@ def test_write_sdd_files_creates_dirs() -> None:
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
             write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
-        assert (sdd_dir / "specs" / "202603").is_dir()
+        assert (sdd_dir / "prompts" / "202603").is_dir()
         assert (sdd_dir / "plans" / "202603").is_dir()
 
 
@@ -162,7 +163,7 @@ def test_write_sdd_files_epic_kind() -> None:
         plan_file.write_text("# Plan\n", encoding="utf-8")
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
-            spec_path, plan_path = write_sdd_files(
+            prompt_path, plan_path = write_sdd_files(
                 sdd_dir,
                 "my_epic",
                 "spec",
@@ -170,7 +171,7 @@ def test_write_sdd_files_epic_kind() -> None:
                 plan_kind="epics",
             )
 
-        assert spec_path == sdd_dir / "specs" / "202603" / "my_epic.md"
+        assert prompt_path == sdd_dir / "prompts" / "202603" / "my_epic.md"
         assert plan_path == sdd_dir / "epics" / "202603" / "my_epic.md"
         assert plan_path.exists()
 
@@ -191,11 +192,12 @@ def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
                     plan_kind=plan_kind,
                 )
 
-        assert (sdd_dir / "specs" / "202603").is_dir()
+        assert (sdd_dir / "prompts" / "202603").is_dir()
         assert (sdd_dir / "plans" / "202603" / "my_plans.md").exists()
         assert (sdd_dir / "epics" / "202603" / "my_epics.md").exists()
         assert (sdd_dir / "legends" / "202603" / "my_legends.md").exists()
         assert not (Path(tmpdir) / "plans").exists()
+        assert not (Path(tmpdir) / "prompts").exists()
         assert not (Path(tmpdir) / "specs").exists()
 
 
@@ -205,27 +207,37 @@ def test_write_sdd_files_rejects_unknown_plan_kind() -> None:
 
 
 # ---------------------------------------------------------------------------
-# update_spec_with_qa
+# update_prompt_with_qa
 # ---------------------------------------------------------------------------
 
 
-def test_update_spec_with_qa() -> None:
+def test_update_prompt_with_qa() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        spec_path = Path(tmpdir) / "spec.md"
-        spec_path.write_text("# Spec\nOriginal content", encoding="utf-8")
+        prompt_path = Path(tmpdir) / "prompt.md"
+        prompt_path.write_text("# Prompt\nOriginal content", encoding="utf-8")
 
-        update_spec_with_qa(spec_path, "## Q&A\nQ: Why?\nA: Because.")
+        update_prompt_with_qa(prompt_path, "## Q&A\nQ: Why?\nA: Because.")
 
-        content = spec_path.read_text(encoding="utf-8")
+        content = prompt_path.read_text(encoding="utf-8")
         assert "Original content" in content
         assert "## Q&A" in content
         assert "Q: Why?" in content
 
 
-def test_update_spec_with_qa_missing_file() -> None:
-    """No-op if spec file doesn't exist."""
-    update_spec_with_qa(Path("/nonexistent/spec.md"), "qa content")
+def test_update_prompt_with_qa_missing_file() -> None:
+    """No-op if prompt file doesn't exist."""
+    update_prompt_with_qa(Path("/nonexistent/prompt.md"), "qa content")
     # Should not raise
+
+
+def test_update_spec_with_qa_legacy_wrapper() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        prompt_path = Path(tmpdir) / "prompt.md"
+        prompt_path.write_text("# Prompt\nOriginal content", encoding="utf-8")
+
+        update_spec_with_qa(prompt_path, "## Q&A\nQ: Why?\nA: Because.")
+
+        assert "## Q&A" in prompt_path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -343,11 +355,11 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
     """_commit_sdd_files writes the message to a temp file and passes its path to -M."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs" / "202603"
+        prompts = Path(ws) / "prompts" / "202603"
         plans = Path(ws) / "plans" / "202603"
-        specs.mkdir(parents=True)
+        prompts.mkdir(parents=True)
         plans.mkdir(parents=True)
-        (specs / "my_plan.md").write_text("spec", encoding="utf-8")
+        (prompts / "my_plan.md").write_text("prompt", encoding="utf-8")
         (plans / "my_plan.md").write_text("plan", encoding="utf-8")
 
         captured_msg_content: list[str] = []
@@ -369,20 +381,20 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             _commit_sdd_files(ws, "my_plan")
 
         assert len(captured_msg_content) == 1
-        assert captured_msg_content[0] == "chore: Add SDD spec and plan for my_plan"
+        assert captured_msg_content[0] == "chore: Add SDD prompt and plan for my_plan"
 
 
 def test_commit_sdd_files_passes_f_flags() -> None:
-    """_commit_sdd_files passes -f for each existing spec/plan file."""
+    """_commit_sdd_files passes -f for each existing prompt/plan file."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs" / "202603"
+        prompts = Path(ws) / "prompts" / "202603"
         plans = Path(ws) / "plans" / "202603"
-        specs.mkdir(parents=True)
+        prompts.mkdir(parents=True)
         plans.mkdir(parents=True)
-        spec_file = specs / "my_plan.md"
+        prompt_file = prompts / "my_plan.md"
         plan_file = plans / "my_plan.md"
-        spec_file.write_text("spec", encoding="utf-8")
+        prompt_file.write_text("prompt", encoding="utf-8")
         plan_file.write_text("plan", encoding="utf-8")
 
         captured_cmd: list[list[str]] = []
@@ -399,7 +411,7 @@ def test_commit_sdd_files_passes_f_flags() -> None:
         cmd = captured_cmd[0]
         # Collect all -f values
         f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
-        assert str(spec_file) in f_values
+        assert str(prompt_file) in f_values
         assert str(plan_file) in f_values
 
 
@@ -407,13 +419,13 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
     """_commit_sdd_files prefers version-controlled sdd/ paths."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "sdd" / "specs" / "202603"
+        prompts = Path(ws) / "sdd" / "prompts" / "202603"
         epics = Path(ws) / "sdd" / "epics" / "202603"
-        specs.mkdir(parents=True)
+        prompts.mkdir(parents=True)
         epics.mkdir(parents=True)
-        spec_file = specs / "my_epic.md"
+        prompt_file = prompts / "my_epic.md"
         plan_file = epics / "my_epic.md"
-        spec_file.write_text("spec", encoding="utf-8")
+        prompt_file.write_text("prompt", encoding="utf-8")
         plan_file.write_text("plan", encoding="utf-8")
 
         captured_cmd: list[list[str]] = []
@@ -430,17 +442,17 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
         f_values = [
             captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"
         ]
-        assert str(spec_file) in f_values
+        assert str(prompt_file) in f_values
         assert str(plan_file) in f_values
 
 
-def test_commit_sdd_files_spec_only() -> None:
-    """Only spec file exists — should still invoke sase commit with one -f."""
+def test_commit_sdd_files_prompt_only() -> None:
+    """Only prompt file exists — should still invoke sase commit with one -f."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs" / "202603"
-        specs.mkdir(parents=True)
-        (specs / "only_spec.md").write_text("spec", encoding="utf-8")
+        prompts = Path(ws) / "prompts" / "202603"
+        prompts.mkdir(parents=True)
+        (prompts / "only_prompt.md").write_text("prompt", encoding="utf-8")
 
         captured_cmd: list[list[str]] = []
 
@@ -451,7 +463,7 @@ def test_commit_sdd_files_spec_only() -> None:
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
-            _commit_sdd_files(ws, "only_spec")
+            _commit_sdd_files(ws, "only_prompt")
 
         assert len(captured_cmd) == 1
         cmd = captured_cmd[0]
@@ -472,9 +484,9 @@ def test_commit_sdd_files_logs_failure() -> None:
     """Non-zero exit code from sase commit is logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs" / "202603"
-        specs.mkdir(parents=True)
-        (specs / "fail.md").write_text("spec", encoding="utf-8")
+        prompts = Path(ws) / "prompts" / "202603"
+        prompts.mkdir(parents=True)
+        (prompts / "fail.md").write_text("prompt", encoding="utf-8")
 
         def fake_run(
             cmd: list[str], **kwargs: object
@@ -522,14 +534,14 @@ def test_get_yyyymm_january() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_find_sdd_file_legacy_flat() -> None:
-    """find_sdd_file returns legacy flat path when canonical is absent."""
+def test_find_sdd_file_prompts_flat() -> None:
+    """find_sdd_file returns canonical prompt flat path."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "specs").mkdir()
-        (base / "specs" / "my_plan.md").write_text("spec", encoding="utf-8")
-        result = find_sdd_file(base, "specs", "my_plan.md")
-        assert result == base / "specs" / "my_plan.md"
+        (base / "prompts").mkdir()
+        (base / "prompts" / "my_plan.md").write_text("prompt", encoding="utf-8")
+        result = find_sdd_file(base, "prompts", "my_plan.md")
+        assert result == base / "prompts" / "my_plan.md"
 
 
 def test_find_sdd_file_legacy_yyyymm() -> None:
@@ -546,29 +558,41 @@ def test_find_sdd_file_prefers_flat() -> None:
     """find_sdd_file prefers flat path over YYYYMM when both exist."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "specs").mkdir()
-        (base / "specs" / "my_plan.md").write_text("flat", encoding="utf-8")
-        (base / "specs" / "202603").mkdir()
-        (base / "specs" / "202603" / "my_plan.md").write_text(
+        (base / "prompts").mkdir()
+        (base / "prompts" / "my_plan.md").write_text("flat", encoding="utf-8")
+        (base / "prompts" / "202603").mkdir()
+        (base / "prompts" / "202603" / "my_plan.md").write_text(
             "yyyymm", encoding="utf-8"
         )
-        result = find_sdd_file(base, "specs", "my_plan.md")
-        assert result == base / "specs" / "my_plan.md"
+        result = find_sdd_file(base, "prompts", "my_plan.md")
+        assert result == base / "prompts" / "my_plan.md"
 
 
 def test_find_sdd_file_prefers_canonical_sdd_over_legacy() -> None:
     """Canonical sdd/<kind> wins over legacy root <kind>."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "sdd" / "specs" / "202603").mkdir(parents=True)
+        (base / "sdd" / "prompts" / "202603").mkdir(parents=True)
         (base / "specs" / "202603").mkdir(parents=True)
-        canonical = base / "sdd" / "specs" / "202603" / "my_plan.md"
+        canonical = base / "sdd" / "prompts" / "202603" / "my_plan.md"
         legacy = base / "specs" / "202603" / "my_plan.md"
         canonical.write_text("canonical", encoding="utf-8")
         legacy.write_text("legacy", encoding="utf-8")
 
         result = find_sdd_file(base, "specs", "my_plan.md")
         assert result == canonical
+
+
+def test_find_sdd_file_legacy_specs_alias() -> None:
+    """Legacy specs paths remain visible through prompt lookup."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "sdd" / "specs" / "202603").mkdir(parents=True)
+        legacy = base / "sdd" / "specs" / "202603" / "my_plan.md"
+        legacy.write_text("legacy", encoding="utf-8")
+
+        assert find_sdd_file(base, "prompts", "my_plan.md") == legacy
+        assert find_sdd_file(base, "specs", "my_plan.md") == legacy
 
 
 def test_find_sdd_file_supports_epics_and_legends() -> None:
@@ -590,6 +614,6 @@ def test_find_sdd_file_missing() -> None:
     """find_sdd_file returns None when file doesn't exist anywhere."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "specs").mkdir()
-        result = find_sdd_file(base, "specs", "nonexistent.md")
+        (base / "prompts").mkdir()
+        result = find_sdd_file(base, "prompts", "nonexistent.md")
         assert result is None

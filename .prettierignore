@@ -4,6 +4,7 @@ specs/
 sdd/epics/
 sdd/legends/
 sdd/plans/
+sdd/prompts/
 sdd/specs/
 research/
 sase_plan_*.md
