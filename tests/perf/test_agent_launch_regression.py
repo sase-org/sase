@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from tests.perf.check_agent_launch_regression import ScenarioGate, check_scenarios
+from tests.perf.check_agent_launch_regression import (
+    DEFAULT_BASELINE_PATH,
+    DEFAULT_REPORT_PATH,
+    REPO_ROOT,
+    ScenarioGate,
+    check_scenarios,
+)
 
 
 def _payload(**medians: float) -> dict[str, object]:
     return {
         "scenarios": {name: {"median_ms": median} for name, median in medians.items()}
     }
+
+
+def test_default_artifact_paths_live_under_sdd_plans() -> None:
+    expected_dir = REPO_ROOT / "sdd" / "plans" / "202605" / "perf_artifacts"
+
+    assert DEFAULT_BASELINE_PATH == expected_dir / "agent_launch_phase1_baseline.json"
+    assert DEFAULT_REPORT_PATH == expected_dir / "agent_launch_regression_check.json"
 
 
 def test_check_scenarios_passes_under_absolute_and_ratio_thresholds() -> None:

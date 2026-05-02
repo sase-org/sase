@@ -27,6 +27,7 @@ from tests.perf.bench_agent_launch import run_benchmark  # noqa: E402
 
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT
+    / "sdd"
     / "plans"
     / "202605"
     / "perf_artifacts"
@@ -34,6 +35,7 @@ DEFAULT_BASELINE_PATH = (
 )
 DEFAULT_REPORT_PATH = (
     REPO_ROOT
+    / "sdd"
     / "plans"
     / "202605"
     / "perf_artifacts"
