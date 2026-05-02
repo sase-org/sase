@@ -43,6 +43,7 @@ from sase.agent.names._lookup import (
     get_most_recent_agent_name,
     is_workflow_complete,
 )
+from sase.agent.names._retry import allocate_retry_name
 from sase.agent.names._resume import (
     agent_name_allocation_lock,
     allocate_resume_name,
@@ -144,6 +145,7 @@ __all__ = [
     "allocate_auto_names",
     "agent_name_allocation_lock",
     "allocate_dismissed_name",
+    "allocate_retry_name",
     "allocate_resume_name",
     "allocate_resume_names",
     "allocate_revived_name",
