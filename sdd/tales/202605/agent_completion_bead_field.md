@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-02 16:18:24
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_completion_bead_field.md
 ---
 # Plan: Add `Bead:` to Telegram and Google Chat agent completion messages

@@ -145,6 +145,7 @@ def send_completion_notification(
     outcome: str | None = None,
 ) -> None:
     from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
+    from sase.agent.bead_display import format_agent_bead_display_for_name
     from sase.llm_provider.registry import format_provider_model_label
     from sase.notifications.senders import notify_workflow_complete
 
@@ -184,6 +185,9 @@ def send_completion_notification(
     # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
     commit_message = (step_output or {}).get("meta_commit_message")
     pr_url = (step_output or {}).get("meta_pr_url")
+    bead_display = format_agent_bead_display_for_name(
+        agent_name, include_description=True
+    )
 
     action: str
     action_data: dict[str, str]
@@ -194,6 +198,7 @@ def send_completion_notification(
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
             **({"agent_name": agent_name} if agent_name else {}),
+            **({"bead_display": bead_display} if bead_display else {}),
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
         }
@@ -203,6 +208,7 @@ def send_completion_notification(
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
             **({"agent_name": agent_name} if agent_name else {}),
+            **({"bead_display": bead_display} if bead_display else {}),
             **({"model": agent_model} if agent_model else {}),
             **({"llm_provider": agent_llm_provider} if agent_llm_provider else {}),
             "prompt": prompt,

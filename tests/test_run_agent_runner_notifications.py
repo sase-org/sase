@@ -92,6 +92,47 @@ def test_real_failure_stays_runner_failure():
     assert classify_exec_success(success=False, outcome="killed") is False
 
 
+def test_completion_notification_adds_bead_display_for_bead_agent(
+    base_kwargs, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lambda _: None)
+    base_kwargs["agent_name"] = "sase-x.3"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["bead_display"] == "sase-x.3"
+
+
+def test_completion_notification_omits_bead_display_for_ordinary_agent(base_kwargs):
+    base_kwargs["agent_name"] = "reviewer"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert "bead_display" not in action_data
+
+
+def test_failure_error_report_notification_adds_bead_display(
+    base_kwargs, tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lambda _: None)
+    error_report = tmp_path / "error.md"
+    error_report.write_text("boom\n")
+    base_kwargs["success"] = False
+    base_kwargs["agent_name"] = "sase-x.3"
+    base_kwargs["error_report_path"] = str(error_report)
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["bead_display"] == "sase-x.3"
+
+
 def test_completion_notification_appends_image_paths_after_standard_files(
     base_kwargs, tmp_path
 ):

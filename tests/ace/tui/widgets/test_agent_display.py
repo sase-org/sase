@@ -119,7 +119,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: Issue(
                 id=bead_id,
                 title="Phase title",
@@ -139,7 +139,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: Issue(
                 id=bead_id,
                 title="Phase title",
@@ -157,7 +157,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: None,
         )
 
@@ -174,7 +174,7 @@ class TestAgentBeadMetadata:
             raise AssertionError("cheap header must not touch bead storage")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             fail_lookup,
         )
 
@@ -188,7 +188,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.land")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: Issue(
                 id=bead_id,
                 title=" Make `sase bead` Fast With `sase-core` ",
@@ -209,7 +209,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: Issue(
                 id=bead_id,
                 title=" Make `sase bead` Fast With `sase-core` ",
@@ -232,7 +232,7 @@ class TestAgentBeadMetadata:
         agent = _make_agent(agent_name="sase-x.land")
 
         monkeypatch.setattr(
-            "sase.ace.tui.models.agent_bead._lookup_bead_issue",
+            "sase.agent.bead_display._lookup_bead_issue",
             lambda bead_id: Issue(
                 id=bead_id,
                 title="Plan title",
