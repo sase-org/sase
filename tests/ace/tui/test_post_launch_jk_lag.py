@@ -1,6 +1,6 @@
 """Post-launch j/k lag regression tests.
 
-Phase 3 of plans/202604/post_launch_jk_lag.md. Without these guards, any
+Phase 3 of sdd/plans/202604/post_launch_jk_lag.md. Without these guards, any
 new code path that re-introduces a UI-thread refresh during a j/k burst
 will silently regress the "navigation feels instant after launch"
 property that the plan exists to defend.

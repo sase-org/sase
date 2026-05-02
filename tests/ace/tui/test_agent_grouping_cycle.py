@@ -1,7 +1,7 @@
 """Tests for the Agents-tab grouping-mode cycle action.
 
 Covers Phase 3 of the cyclable grouping/sorting modes feature
-(``plans/202604/agents_tab_grouping_modes.md``):
+(``sdd/plans/202604/agents_tab_grouping_modes.md``):
 
 * Cycle order ``STANDARD → BY_DATE → BY_STATUS → STANDARD``.
 * Per-mode fold-state preservation across mode cycles.

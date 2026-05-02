@@ -1,6 +1,6 @@
 """Command catalog and palette subsystem for the ace TUI.
 
-Phase 1 deliverables (see ``plans/202604/tui_command_palette.md``):
+Phase 1 deliverables (see ``sdd/plans/202604/tui_command_palette.md``):
 build a single source-of-truth command catalog for every configurable
 keymap (app actions, saved-query digits, built-in mode subcommands, and
 custom mode commands) along with pure applicability predicates over a

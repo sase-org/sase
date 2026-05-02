@@ -1,7 +1,7 @@
 """Phase 4 guard regression tests for the ace TUI command catalog.
 
 These tests lock in the cross-surface invariants laid out in
-``plans/202604/tui_command_palette.md`` Phase 4:
+``sdd/plans/202604/tui_command_palette.md`` Phase 4:
 
 - Adding a new ``AppKeymaps`` field without adding a corresponding
   ``CommandSpec`` is rejected (the catalog raises at import; this

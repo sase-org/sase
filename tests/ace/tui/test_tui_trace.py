@@ -1,6 +1,6 @@
 """Unit tests for the SASE_TUI_TRACE span recorder.
 
-Bead sase-w.1 / plans/202604/tui_perf_overhaul_1.md.
+Bead sase-w.1 / sdd/plans/202604/tui_perf_overhaul_1.md.
 """
 
 from __future__ import annotations

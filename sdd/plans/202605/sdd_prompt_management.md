@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 22:13:41
 status: wip
+prompt: sdd/prompts/202605/sdd_prompt_management.md
 ---
 # Plan: SDD Prompt File Management
 

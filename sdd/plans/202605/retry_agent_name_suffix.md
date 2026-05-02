@@ -1,6 +1,7 @@
 ---
 create_time: 2026-05-01 22:06:21
 status: done
+prompt: sdd/prompts/202605/retry_agent_name_suffix.md
 ---
 # Plan: Retry Agent Names
 

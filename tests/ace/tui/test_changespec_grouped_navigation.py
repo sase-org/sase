@@ -1,7 +1,7 @@
 """Tests for fold-aware CLs-tab navigation, folding, and jump hints.
 
 Phase 4 of the CLs-tab ChangeSpec grouping feature
-(``plans/202604/changespec_group_headings.md``):
+(``sdd/plans/202604/changespec_group_headings.md``):
 
 * ``j`` / ``k`` walks visible CL rows plus collapsed banner rows in
   render order.

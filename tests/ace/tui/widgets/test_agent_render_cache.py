@@ -1,6 +1,6 @@
 """Tests for the per-row render cache and selective patch path.
 
-Phase 3 of plans/202604/instant_jk_navigation.md (bead sase-u.3).
+Phase 3 of sdd/plans/202604/instant_jk_navigation.md (bead sase-u.3).
 """
 
 from __future__ import annotations

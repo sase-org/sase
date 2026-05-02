@@ -1,7 +1,7 @@
 """Benchmark Git query-op parsers ahead of a possible Rust port.
 
 Phase 5A (sase-1a.1) of
-``plans/202604/rust_backend_phase5_git_query_ops.md``. Phase 5 considers
+``sdd/plans/202604/rust_backend_phase5_git_query_ops.md``. Phase 5 considers
 moving the deterministic parsing/normalization helpers used by
 ``GitQueryOpsMixin`` behind the Rust-backed ``sase.core`` facade. Before
 landing any seam, this benchmark separates parse cost from subprocess

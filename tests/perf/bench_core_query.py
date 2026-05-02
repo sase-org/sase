@@ -1,8 +1,8 @@
 """Benchmark sase query parse/evaluate paths across available backends.
 
-Phase 2A (sase-17.1) of `plans/202604/rust_backend_phase2_query.md` captured
+Phase 2A (sase-17.1) of `sdd/plans/202604/rust_backend_phase2_query.md` captured
 the optimized Python baseline before any Rust query backend landed. Phase 4 of
-`plans/202604/query_batch_persistent_corpus.md` extended the same harness with
+`sdd/plans/202604/query_batch_persistent_corpus.md` extended the same harness with
 persistent-corpus rows so product routing could be gated against a Python batch
 reference without confusing it with the known-regressed direct one-shot binding.
 

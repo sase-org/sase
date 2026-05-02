@@ -1,6 +1,6 @@
 """End-to-end-ish integration coverage for the CLs-tab grouping feature.
 
-Phase 5 of ``plans/202604/changespec_group_headings.md``.  These tests
+Phase 5 of ``sdd/plans/202604/changespec_group_headings.md``.  These tests
 intentionally combine three previously-isolated layers — the
 :class:`AgentGroupingMixin` cycle action, the
 :class:`ChangeSpecGroupingNavMixin` fold/navigation helpers, and the

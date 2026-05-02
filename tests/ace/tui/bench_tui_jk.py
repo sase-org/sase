@@ -1,6 +1,6 @@
 """Phase-1 baseline harness for j/k key-to-paint latency.
 
-Bead sase-u.1 / plans/202604/instant_jk_navigation.md.
+Bead sase-u.1 / sdd/plans/202604/instant_jk_navigation.md.
 
 Drives the ace TUI through ``Pilot`` with ``SASE_TUI_PERF=1`` enabled,
 captures key-to-paint samples to a JSONL file, and prints a p50/p95/max

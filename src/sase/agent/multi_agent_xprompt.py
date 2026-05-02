@@ -6,7 +6,7 @@ the call-site's arguments) and then split the substituted body on ``---``,
 replacing the original segment with N sub-segments — one per body segment.
 
 Each spawned agent therefore receives the same input arguments, substituted
-into its own segment.  See ``plans/202604/multi_agent_xprompts.md``.
+into its own segment.  See ``sdd/plans/202604/multi_agent_xprompts.md``.
 """
 
 from __future__ import annotations

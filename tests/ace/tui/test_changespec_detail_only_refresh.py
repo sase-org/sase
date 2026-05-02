@@ -1,6 +1,6 @@
 """Tests for the Phase 2 ChangeSpec j/k hot path: detail-only refresh and
 single-row patching. Acceptance criteria from
-``plans/202604/tui_perf_overhaul_1.md`` Phase 2.
+``sdd/plans/202604/tui_perf_overhaul_1.md`` Phase 2.
 """
 
 from __future__ import annotations

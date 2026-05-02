@@ -1,6 +1,6 @@
 """Scoped span tracer for the ace TUI hot paths.
 
-Phase 1 of plans/202604/tui_perf_overhaul_1.md (bead sase-w.1). Provides a
+Phase 1 of sdd/plans/202604/tui_perf_overhaul_1.md (bead sase-w.1). Provides a
 ``tui_trace(name, **counters)`` context manager that emits one JSONL line
 per span to ``~/.sase/perf/tui_trace.jsonl`` (override with
 ``SASE_TUI_TRACE_PATH``), gated by ``SASE_TUI_TRACE=1``. When the env flag

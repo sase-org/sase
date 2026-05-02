@@ -1,7 +1,7 @@
 """Tests for the CLs-tab grouping-mode cycle action.
 
 Covers Phase 3 of the CLs-tab ChangeSpec grouping feature
-(``plans/202604/changespec_group_headings.md``):
+(``sdd/plans/202604/changespec_group_headings.md``):
 
 * Cycle order ``BY_PROJECT → BY_DATE → BY_STATUS → BY_PROJECT``.
 * Per-mode fold-state preservation across cycles, with no leakage from

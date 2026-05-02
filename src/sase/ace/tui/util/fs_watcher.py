@@ -1,6 +1,6 @@
 """Event-driven artifact-directory watcher for the ace TUI.
 
-Phase 5 of plans/202604/instant_jk_navigation.md (bead sase-u.5). The TUI
+Phase 5 of sdd/plans/202604/instant_jk_navigation.md (bead sase-u.5). The TUI
 historically polled disk every 10 s to discover new agents, status flips,
 done.json markers, etc.  This module wakes the UI on actual file-system
 events instead, so external changes surface within ~50 ms while the auto-

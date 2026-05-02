@@ -1,6 +1,6 @@
 """Phase 7B driver: produce per-surface summary artifacts for shipped Rust ops.
 
-Phase 7B (sase-1e.2) of `plans/202604/rust_backend_phase7.md`. Runs each
+Phase 7B (sase-1e.2) of `sdd/plans/202604/rust_backend_phase7.md`. Runs each
 existing core-operation benchmark in-process, then writes one
 ``rust_backend_phase7_<surface>_summary.json`` artifact per shipped Rust
 core operation under ``sdd/plans/202604/perf_artifacts/``. Each summary

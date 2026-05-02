@@ -1,6 +1,6 @@
 """Tab-agnostic debouncer for j/k detail-panel updates.
 
-Phase 4 of plans/202604/instant_jk_navigation.md (bead sase-u.4). The cheap
+Phase 4 of sdd/plans/202604/instant_jk_navigation.md (bead sase-u.4). The cheap
 navigation path (cursor highlight, position counter) runs inline on every
 keypress; the expensive follow-up (detail rendering, syntax highlighting,
 footer/ancestors panel updates) is funneled through a single shared

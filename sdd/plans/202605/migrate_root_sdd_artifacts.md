@@ -1,6 +1,7 @@
 ---
-status: wip
+status: done
 create_time: 2026-05-01 23:21:01
+prompt: sdd/specs/202605/migrate_root_sdd_artifacts.md
 ---
 
 # Plan: Migrate Remaining Root Specs And Plans Into SDD

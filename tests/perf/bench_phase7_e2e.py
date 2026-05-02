@@ -1,6 +1,6 @@
 """Phase 7C end-to-end TUI/CLI startup measurements.
 
-Bead ``sase-1e.3`` / ``plans/202604/rust_backend_phase7.md``. Captures
+Bead ``sase-1e.3`` / ``sdd/plans/202604/rust_backend_phase7.md``. Captures
 user-facing surfaces (``sase ace`` cold-open, ``sase agents status -j``
 listing, ``sase run`` startup up to the provider boundary) under both
 backends so Phase 7D can describe what users actually pay before any LLM

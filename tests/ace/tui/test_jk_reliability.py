@@ -1,7 +1,7 @@
 """Reliability + perf regression tests for j/k navigation on the Agents tab.
 
 Covers the three bugs identified in
-``plans/202604/jk_navigation_reliability.md``:
+``sdd/plans/202604/jk_navigation_reliability.md``:
 
 * **Bug 1** — silent teleport to ``stops[0]`` / ``stops[-1]`` when the
   cursor's anchor is no longer in the freshly-rebuilt stops list.  After

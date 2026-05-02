@@ -108,7 +108,7 @@ class AgentList(OptionList, inherit_bindings=False):
         self._grouping_mode: GroupingMode = GroupingMode.STANDARD
         # Per-widget render cache: reuses Option/Text triples across
         # refreshes when nothing in the agent's visible state changed.
-        # Phase 3 of plans/202604/instant_jk_navigation.md.
+        # Phase 3 of sdd/plans/202604/instant_jk_navigation.md.
         self._agent_render_cache: AgentRenderCache = AgentRenderCache()
         # Per-row render context, populated by ``update_list`` and read by
         # ``patch_agent_row`` so a single-row update can re-emit an Option
@@ -120,7 +120,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.
         self._row_tier_styles: dict[int, tuple[str, ...]] = {}
-        # O(1) row lookups (Phase 4 of plans/202604/tui_perf_overhaul_1.md):
+        # O(1) row lookups (Phase 4 of sdd/plans/202604/tui_perf_overhaul_1.md):
         # populated alongside ``_row_entries`` during ``update_list`` so
         # ``update_highlight`` / ``_row_index_for_agent`` / ``patch_agent_row``
         # never linearly scan ``_row_entries`` to find a target row.
