@@ -12,6 +12,8 @@ abstraction, but differ in what they produce and how they track the result.
 | **Propose** | `#propose` | `create_proposal`     | Saved diff file              | COMMITS entry |
 | **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
 
+![Shared commit workflow showing xprompt inputs flowing through the stop hook, commit skill, CommitWorkflow stages, VCS dispatch outputs, and conflict resume checkpoint](images/commit-workflow-infographic.png)
+
 ## How It Works
 
 ### 1. Agent makes code changes
