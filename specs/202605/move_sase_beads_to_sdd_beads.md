@@ -1,0 +1,1 @@
+  Can you help me move the .sase_beads/ directory to sdd/beads/? Make sure you update all references to this directory. Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
