@@ -200,7 +200,7 @@ class TestHandleSasePlan:
     """Verify handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
 
     def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
-        """version_controlled=True: plan is copied into plans/<YYYYMM>/, _plan_path set."""
+        """version_controlled=True: plan is copied into sdd/plans/<YYYYMM>/."""
         plan_file = tmp_path / "my_plan.md"
         plan_file.write_text("# Plan\nstatus: wip\n")
 
@@ -218,9 +218,9 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
-        dest = repo_dir / "plans" / "202603" / "my_plan.md"
+        dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         assert dest.exists()
-        assert "PLAN=plans/202603/my_plan.md" in payload["message"]
+        assert "PLAN=sdd/plans/202603/my_plan.md" in payload["message"]
 
     def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
         """version_controlled=False: plan NOT copied, no _plan_path, no PLAN= tag."""
@@ -268,7 +268,7 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
-        assert (repo_dir / "plans" / "202603" / "my_plan.md").exists()
+        assert (repo_dir / "sdd" / "plans" / "202603" / "my_plan.md").exists()
 
     def test_archive_fallback_vc_false_no_copy(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=False: does NOT copy into repo."""
@@ -314,8 +314,34 @@ class TestHandleSasePlan:
         ):
             handle_sase_plan(payload, str(repo_dir))
 
-        dest = repo_dir / "plans" / "202511" / "my_plan.md"
+        dest = repo_dir / "sdd" / "plans" / "202511" / "my_plan.md"
         assert dest.exists()
+
+    def test_vc_true_adds_prompt_frontmatter_when_prompt_exists(
+        self, tmp_path: Path
+    ) -> None:
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text("# Plan\n", encoding="utf-8")
+
+        repo_dir = tmp_path / "repo"
+        prompt_file = repo_dir / "sdd" / "prompts" / "202603" / "my_plan.md"
+        prompt_file.parent.mkdir(parents=True)
+        prompt_file.write_text("# Prompt\n", encoding="utf-8")
+
+        payload: dict = {"message": "fix: bug"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_SDD_CONFIG_TARGET, return_value=True),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
+        text = dest.read_text(encoding="utf-8")
+        assert "prompt: sdd/prompts/202603/my_plan.md" in text
+        assert payload["_plan_path"] == str(dest)
 
 
 class TestHandleBeads:

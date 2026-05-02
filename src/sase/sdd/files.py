@@ -146,6 +146,16 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
         )
 
 
+def _sdd_link_path(sdd_dir: Path, path: Path) -> str:
+    """Return the stable relative path to write into SDD frontmatter."""
+    relative = path.relative_to(sdd_dir).as_posix()
+    if sdd_dir.name == "sdd" and sdd_dir.parent.name == ".sase":
+        return f".sase/sdd/{relative}"
+    if sdd_dir.name == "sdd":
+        return f"sdd/{relative}"
+    return relative
+
+
 def write_sdd_files(
     sdd_dir: Path,
     plan_name: str,
@@ -171,9 +181,17 @@ def write_sdd_files(
     plans_dir.mkdir(parents=True, exist_ok=True)
 
     prompt_path = prompts_dir / f"{plan_name}.md"
-    prompt_path.write_text(prompt_content, encoding="utf-8")
-
     plan_path = plans_dir / f"{plan_name}.md"
+    prompt_link = _sdd_link_path(sdd_dir, prompt_path)
+    plan_link = _sdd_link_path(sdd_dir, plan_path)
+
+    from sase.sdd.frontmatter import set_frontmatter_fields
+
+    prompt_path.write_text(
+        set_frontmatter_fields(prompt_content, {"plan": plan_link}),
+        encoding="utf-8",
+    )
+
     plan_source = Path(plan_file)
     if plan_source.exists():
         from sase.gemini_wrapper.file_references import format_with_prettier
@@ -181,7 +199,9 @@ def write_sdd_files(
 
         content = plan_source.read_text(encoding="utf-8")
         content = format_with_prettier(content)
-        plan_path.write_text(add_create_time_frontmatter(content), encoding="utf-8")
+        content = add_create_time_frontmatter(content)
+        content = set_frontmatter_fields(content, {"prompt": prompt_link})
+        plan_path.write_text(content, encoding="utf-8")
 
     return prompt_path, plan_path
 

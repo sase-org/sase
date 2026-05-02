@@ -106,6 +106,21 @@ def _get_repo_root(cwd: str) -> str:
     return ""
 
 
+def _infer_prompt_link(repo_root: str, plan_path: str) -> str | None:
+    """Infer a repo-relative SDD prompt link for a plan path, if one exists."""
+    from pathlib import Path
+
+    from sase.sdd.files import find_sdd_file
+
+    prompt = find_sdd_file(Path(repo_root), "prompts", os.path.basename(plan_path))
+    if prompt is None:
+        return None
+    try:
+        return prompt.relative_to(Path(repo_root)).as_posix()
+    except ValueError:
+        return os.path.relpath(prompt, repo_root).replace(os.sep, "/")
+
+
 def handle_sase_plan(payload: dict, cwd: str) -> None:
     """Append PLAN= to commit message and mark plan as done."""
     plan_path = os.environ.get("SASE_PLAN", "")
@@ -136,7 +151,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         from sase.sdd.files import get_yyyymm
 
         yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
-        dest = os.path.join(cwd, "plans", yyyymm, os.path.basename(plan_path))
+        dest = os.path.join(cwd, "sdd", "plans", yyyymm, os.path.basename(plan_path))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for
@@ -156,8 +171,19 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         if not plan_content.startswith("---\n"):
             from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
-            with open(plan_path, "w", encoding="utf-8") as f:
-                f.write(add_create_time_frontmatter(plan_content))
+            plan_content = add_create_time_frontmatter(plan_content)
+
+        if repo_root:
+            from sase.sdd.frontmatter import set_frontmatter_fields
+
+            prompt_link = _infer_prompt_link(repo_root, plan_path)
+            if prompt_link:
+                plan_content = set_frontmatter_fields(
+                    plan_content, {"prompt": prompt_link}
+                )
+
+        with open(plan_path, "w", encoding="utf-8") as f:
+            f.write(plan_content)
 
     # Compute repo-root-relative path
     if repo_root and plan_path.startswith(repo_root + "/"):
