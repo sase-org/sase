@@ -53,9 +53,9 @@ def testgenerate_chat_filename_with_agent() -> None:
         ),
         patch("sase.history.chat.generate_timestamp", return_value="251128_120000"),
     ):
-        # Workflow dashes are normalized to underscores in filename
+        # User/workflow-derived filename components are sanitized.
         result = generate_chat_filename("crs", agent="planner")
-        assert result == "my-branch-crs-planner-251128_120000"
+        assert result == "my_branch-crs-planner-251128_120000"
 
 
 def testgenerate_chat_filename_with_explicit_values() -> None:
@@ -65,7 +65,30 @@ def testgenerate_chat_filename_with_explicit_values() -> None:
         branch_or_workspace="feature-branch",
         timestamp="251128130000",
     )
-    assert result == "feature-branch-rerun-251128130000"
+    assert result == "feature_branch-rerun-251128130000"
+
+
+def testgenerate_chat_filename_sanitizes_path_like_branch() -> None:
+    """Path-like branch/workspace labels are kept inside one basename."""
+    result = generate_chat_filename(
+        "ace-run",
+        branch_or_workspace="~/org",
+        timestamp="260501_225009",
+    )
+
+    assert result == "__org-ace_run-260501_225009"
+    assert "/" not in result
+
+
+def testgenerate_chat_filename_preserves_simple_shape() -> None:
+    """Simple safe names keep the established branch-workflow-timestamp shape."""
+    result = generate_chat_filename(
+        "ace-run",
+        branch_or_workspace="feature_branch",
+        timestamp="260501_225009",
+    )
+
+    assert result == "feature_branch-ace_run-260501_225009"
 
 
 def testget_chat_file_path_with_extension(
@@ -106,6 +129,28 @@ def test_save_chat_history_basic(
     assert "Hello, how are you?" in content
     assert "I am fine, thank you!" in content
     assert "# Chat History - run" in content
+
+
+def test_save_chat_history_with_path_like_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """save_chat_history can write chats for directory-style workspace labels."""
+    redirect_sase_home(monkeypatch, tmp_path)
+
+    result = save_chat_history(
+        prompt="Run from org",
+        response="Done",
+        workflow="ace-run",
+        branch_or_workspace="~/org",
+        timestamp="260501_225009",
+    )
+
+    actual_path = Path(os.path.expanduser(result))
+    assert actual_path == (
+        tmp_path / "chats" / "202605" / "__org-ace_run-260501_225009.md"
+    )
+    assert actual_path.is_file()
+    assert "/" not in actual_path.name
 
 
 def test_save_chat_history_with_previous_history(

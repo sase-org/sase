@@ -14,6 +14,7 @@ from sase.core.changespec import strip_reverted_suffix
 from sase.core.paths import (
     find_sharded_file,
     iter_sharded_files,
+    make_safe_filename,
     sharded_path,
 )
 from sase.core.time import generate_timestamp, get_timezone
@@ -163,13 +164,14 @@ def generate_chat_filename(
     if timestamp is None:
         timestamp = generate_timestamp()
 
-    # Normalize workflow name: replace dashes and slashes with underscores for consistent filenames
-    normalized_workflow = workflow.replace("-", "_").replace("/", "_")
-
-    # Build filename parts
-    parts = [branch_or_workspace, normalized_workflow]
+    # Sanitize user/project/workflow-derived parts before joining so path-like
+    # labels such as "~/org" remain a single filename component.
+    parts = [
+        make_safe_filename(branch_or_workspace),
+        make_safe_filename(workflow),
+    ]
     if agent is not None:
-        parts.append(agent)
+        parts.append(make_safe_filename(agent))
     parts.append(timestamp)
 
     # Join with dashes

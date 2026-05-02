@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-01 22:56:28
-status: wip
+status: done
 ---
 # Plan: Fix `#cd` Chat Filename Paths
 

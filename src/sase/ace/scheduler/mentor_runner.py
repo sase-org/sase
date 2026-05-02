@@ -11,6 +11,7 @@ from sase.core.paths import (
     make_safe_filename,
     sharded_path,
 )
+from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.config.mentor import MentorProfileConfig
 
 from ..changespec import ChangeSpec
@@ -48,16 +49,14 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
         timestamp: The timestamp in YYmmdd_HHMMSS format.
 
     Returns:
-        Full path to the chat file (e.g., ~/.sase/chats/{cl_name}-mentor_{mentor_name}-{timestamp}.md)
+        Full path to the chat file.
     """
-    # Format matches chat_history.generate_chat_filename() with:
-    # - branch_or_workspace = cl_name (used as-is, NOT stripped)
-    # - workflow = "mentor-{mentor_name}" (normalized to "mentor_{mentor_name}")
-    # NOTE: Do NOT apply strip_reverted_suffix here — save_chat_history() uses
-    # the branch_or_workspace value as-is when it's explicitly provided (which
-    # MentorWorkflow always does). Stripping here would cause a naming mismatch.
-    filename = f"{cl_name}-mentor_{mentor_name}-{timestamp}.md"
-    return sharded_path("chats", filename, ensure=False)
+    basename = generate_chat_filename(
+        f"mentor-{mentor_name}",
+        branch_or_workspace=cl_name,
+        timestamp=timestamp,
+    )
+    return get_chat_file_path(basename)
 
 
 def start_single_mentor(
