@@ -12,10 +12,14 @@ SDD fixes this by writing prompt snapshots and plans to disk as first-class arti
 - **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
 - **Legends** record higher-level coordination plans that can own linked epics.
+- **Myths** record long-horizon narrative, strategy, and context that is broader than active roadmap plans.
+- **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
   IDs in commit messages.
 
-Together, these create an audit trail: prompt --> tale, epic, or legend --> bead hierarchy --> phase beads --> commits.
+Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales, epics,
+and legends can link into the bead hierarchy and phase commits; myths and research notes preserve the longer-lived
+context those plans depend on.
 
 ## Storage Modes
 
@@ -41,6 +45,12 @@ Files are stored in a standalone git repo inside the primary workspace:
   legends/
     {YYYYMM}/
       {plan_name}.md        # Higher-level coordination plans
+  myths/
+    README.md               # Generated directory guide
+  research/
+    README.md
+    {YYYYMM}/
+      {note_name}.md        # Research notes and critiques
   beads/                    # Bead database (SQLite + JSONL)
     beads.db
     issues.jsonl
@@ -69,7 +79,10 @@ Files are stored at the project root and tracked in the project's own git repo:
     legends/
       {YYYYMM}/
         {plan_name}.md
+    myths/
+      README.md
     research/
+      README.md
       {YYYYMM}/
         {note_name}.md
   sdd/beads/              # Bead database (git-tracked)
@@ -127,7 +140,7 @@ The `sase sdd` command group manages generated SDD documentation and frontmatter
 
 | Command                 | Purpose                                                                                   |
 | ----------------------- | ----------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Create or refresh `sdd/README.md` and `sdd/assets/sdd-directory-map.png`                  |
+| `sase sdd init`         | Create or refresh `sdd/README.md`, tier READMEs, and `sdd/assets/sdd-directory-map.png`   |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `legends` |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact        |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, and `--strict` tune output         |
@@ -137,8 +150,9 @@ Each subcommand accepts `-p/--path`, which may point at an SDD root or a project
 ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
 targets, wrong link kinds, and broken reverse links are errors unless explicitly allowlisted for legacy migration.
 
-The `sase sdd init` output is intentionally a short, project-local README. Keep conceptual details here in
-`docs/sdd.md`; use `sase sdd init` to refresh the generated project guide and directory map asset.
+The `sase sdd init` output is intentionally short project-local documentation. It refreshes `sdd/README.md`, the
+directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. Keep
+conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides.
 
 ## Bead Integration
 

@@ -193,7 +193,7 @@ sase
 | `sase revert`                  | Revert a ChangeSpec by pruning its CL and archiving its diff                                                   |
 | `sase run`                     | Run a workflow, execute a query, resume a conversation, or list chat history                                   |
 | `sase changespec search`       | Search and filter ChangeSpecs with query expressions                                                           |
-| `sase sdd init`                | Create or refresh `sdd/README.md` and its directory map asset                                                  |
+| `sase sdd init`                | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset                                   |
 | `sase sdd links`               | List SDD prompt/artifact frontmatter links                                                                     |
 | `sase sdd list`                | List SDD markdown artifacts by kind (`prompts`, `tales`, `epics`, `legends`, or `all`)                         |
 | `sase sdd repair-links`        | Infer and optionally write missing bidirectional SDD frontmatter links                                         |
@@ -236,10 +236,12 @@ generating workflow DAGs (`graph`).
 ### Spec-Driven Development
 
 SDD keeps durable planning context close to the code. Prompt snapshots live under `prompts/`, ordinary approved plans
-are saved as `tales/`, executable multi-phase plans live under `epics/`, and broad roadmap artifacts live under
-`legends/`. Each prompt/artifact pair is linked through frontmatter so validation and repair commands can keep the
-history navigable. See [`docs/sdd.md`](docs/sdd.md) for storage modes and [`docs/beads.md`](docs/beads.md) for the issue
-tracker that executes epic phases.
+are saved as `tales/`, executable multi-phase plans live under `epics/`, broad roadmap artifacts live under `legends/`,
+long-horizon context lives under `myths/`, and exploratory notes live under `research/`. `sase sdd init` creates the
+project-local SDD README, directory map, and short README files for the generated content directories. Each
+prompt/artifact pair is linked through frontmatter so validation and repair commands can keep the history navigable. See
+[`docs/sdd.md`](docs/sdd.md) for storage modes and [`docs/beads.md`](docs/beads.md) for the issue tracker that executes
+epic phases.
 
 ## Project Structure
 

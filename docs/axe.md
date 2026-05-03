@@ -183,6 +183,10 @@ shelling out to a chop script. Configured agent chops are **visible by default**
 agents (e.g. orchestration housekeepers) show up alongside user-launched agents so their state, retries, and last output
 are discoverable. Use the prompt-side `%hide` directive if a particular chop should remain hidden.
 
+During a scheduled lumberjack tick, script chops are still dispatched concurrently, but eligible agent chops are
+launched sequentially in their configured order. That keeps multiple same-tick `run_every` agent chops from racing each
+other for workspace allocation while preserving parallel script execution.
+
 `sase axe chop run <agent-chop>` follows the same path as the scheduled lumberjack tick, so a one-shot run records the
 same chop registry metadata as the periodic invocation.
 

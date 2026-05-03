@@ -93,6 +93,11 @@ note explaining the limit. The final PDF and image lists are also written to `do
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and the ACE terminal graphics preview notes.
 
+For user-agent completion and failure notifications, `action_data` also includes `bead_display` when the agent name maps
+to a bead created by `sase bead work`. The value includes the bead ID plus the issue description or title when the bead
+can be resolved, and falls back to the ID alone otherwise. Cross-project lookups prefer the agent's owning project, then
+the caller's current bead view, then all known SASE projects.
+
 ### Mentors-Complete Notification
 
 A `mentors_complete` notification fires once per `(ChangeSpec, COMMITS entry)` under either of two conditions:

@@ -106,6 +106,9 @@ sdd/beads/
 
 In non-version-controlled mode, the directory is `.sase/sdd/beads/` with the same structure.
 
+Read paths also recognize the older workspace-local `.sase_beads/` directory while legacy projects are being migrated.
+New bead stores should use `sdd/beads/` in version-controlled mode or `.sase/sdd/beads/` in local mode.
+
 ### SQLite + JSONL Dual Storage
 
 Rust owns the bead storage/query/mutation path. SQLite is the local query cache and mutation target; JSONL is the
@@ -298,7 +301,8 @@ When running in version-controlled mode with multiple workspace variants (e.g., 
 `myproject_3/`), bead provides a merged read view across all workspaces:
 
 - **Reads** (list, show, ready, blocked, stats) aggregate issues from all workspace variants using the Rust merged
-  workspace view. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins.
+  workspace view. For duplicate IDs across workspaces, the version with the most recent `updated_at` wins. The merged
+  view includes canonical `sdd/beads/` stores and legacy `.sase_beads/` stores.
 - **Writes** (create, update, close, rm, dep add) always go to the primary workspace only.
 - **ID allocation** scans JSONL stores from all discovered workspace variants before assigning the next top-level or
   child ID, preventing agents in sibling workspaces from reusing IDs that have not yet been merged into the primary
@@ -306,6 +310,11 @@ When running in version-controlled mode with multiple workspace variants (e.g., 
 
 This enables multiple agents working in different workspace clones to track their own issues while still providing a
 unified view of all work.
+
+Agent-facing metadata lookups use the same workspace-aware read path. When an agent belongs to another known SASE
+project, bead display resolution checks that project first, then the current directory's project, then all known project
+bead stores. This is what lets ACE and completion notifications show phase/land bead titles even when the TUI is opened
+from a different project.
 
 ## ACE TUI Integration
 

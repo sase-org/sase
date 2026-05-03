@@ -320,6 +320,10 @@ axe:
 | `run_every`   | string       | no       | -       | Time-based duration string (e.g., `"60m"`, `"30s"`, `"2h"`). Limits how often the chop runs. |
 | `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                                  |
 
+On a scheduled lumberjack tick, script chops remain concurrent, but configured agent chops launch sequentially in config
+order. This prevents same-tick `run_every` agent chops from racing while they allocate workspaces. A manual
+`sase axe chop run <agent-chop>` still launches only that one agent chop.
+
 Each chop entry can also be a plain string (chop name only, legacy format):
 
 ```yaml
@@ -594,8 +598,8 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
 ### sdd
 
-Configuration for spec-driven development features, including prompt/tale/epic/legend storage and the bead issue
-tracker.
+Configuration for spec-driven development features, including prompt, tale, epic, legend, myth, research, and bead
+storage.
 
 ```yaml
 sdd:
@@ -606,10 +610,10 @@ sdd:
 | ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------------------------------------- |
 | `sdd.version_controlled` | bool | `false` | Store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace. |
 
-When enabled, prompt snapshots, tales, epics, legends, and the bead database directory are placed in the project root so
-they can be committed with the code. When disabled, SDD writes to a standalone `.sase/sdd/` git repo in the primary
-workspace. See [`docs/sdd.md`](sdd.md) for storage behavior and [`docs/beads.md`](beads.md) for the bead system
-reference.
+When enabled, prompt snapshots, tales, epics, legends, myths, research notes, and the bead database directory are placed
+in the project root so they can be committed with the code. When disabled, SDD writes to a standalone `.sase/sdd/` git
+repo in the primary workspace. See [`docs/sdd.md`](sdd.md) for storage behavior and [`docs/beads.md`](beads.md) for the
+bead system reference.
 
 Source: `src/sase/default_config.yml`
 
@@ -929,7 +933,7 @@ may point at an SDD root or at a project root containing `sdd/`.
 
 | Subcommand     | Flags                                              | Description                                                                             |
 | -------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`                                        | Create or refresh `sdd/README.md` and the directory map asset                           |
+| `init`         | `-p/--path`                                        | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset            |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`              | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`       |
 | `links`        | `-p/--path`, `-j/--json`                           | List prompt/artifact frontmatter links and bidirectional status                         |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors |
