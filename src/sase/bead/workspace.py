@@ -29,6 +29,41 @@ def get_project_beads_dirs() -> list[Path] | None:
     return _enumerate_workspace_beads_dirs(primary)
 
 
+def get_project_beads_dirs_for_project(project_name: str) -> list[Path] | None:
+    """Find all bead store directories for an explicit project name.
+
+    This bypasses CWD-based project inference so cross-project callers can read
+    beads for the project that owns an agent.
+    """
+    primary = _resolve_from_project_file(project_name)
+    if primary is None:
+        primary = _resolve_from_workspace_provider(project_name)
+    if primary is None:
+        return None
+    return _enumerate_workspace_beads_dirs(primary)
+
+
+def get_all_project_beads_dirs() -> list[Path]:
+    """Find bead store directories for every known project under ``~/.sase``."""
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.is_dir():
+        return []
+
+    bead_dirs: list[Path] = []
+    for project_dir in sorted(projects_dir.iterdir()):
+        if not project_dir.is_dir():
+            continue
+        project_name = project_dir.name
+        project_file = project_dir / f"{project_name}.gp"
+        if not project_file.exists():
+            continue
+        project_bead_dirs = get_project_beads_dirs_for_project(project_name)
+        if project_bead_dirs:
+            bead_dirs.extend(project_bead_dirs)
+
+    return _dedupe_existing_dirs(bead_dirs)
+
+
 def resolve_primary_workspace() -> Path | None:
     """Resolve the primary workspace directory from CWD.
 

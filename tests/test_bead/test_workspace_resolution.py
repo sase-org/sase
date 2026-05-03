@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from sase.bead.project_name import _cwd_matches_project_workspace
 from sase.bead.workspace import (
+    get_all_project_beads_dirs,
+    get_project_beads_dirs_for_project,
     _enumerate_workspace_beads_dirs,
     _resolve_by_scanning_projects,
     resolve_primary_workspace,
@@ -65,6 +67,50 @@ def test_enumerate_workspace_beads_dirs_non_vc_ignores_legacy_siblings(
     result = _enumerate_workspace_beads_dirs(primary)
 
     assert result == [primary / ".sase" / "sdd" / "beads"]
+
+
+def test_get_project_beads_dirs_for_project_uses_explicit_project(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "zorg"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / project_name
+    sibling = tmp_path / "workspaces" / f"{project_name}_2"
+    (primary / "sdd/beads").mkdir(parents=True)
+    (sibling / ".sase_beads").mkdir(parents=True)
+    (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    result = get_project_beads_dirs_for_project(project_name)
+
+    assert result == [primary / "sdd/beads", sibling / ".sase_beads"]
+
+
+def test_get_all_project_beads_dirs_dedupes_known_project_dirs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    shared_primary = tmp_path / "workspaces" / "shared"
+    unique_primary = tmp_path / "workspaces" / "unique"
+    (shared_primary / "sdd/beads").mkdir(parents=True)
+    (unique_primary / ".sase/sdd/beads").mkdir(parents=True)
+
+    for project_name, primary in {
+        "alpha": shared_primary,
+        "beta": shared_primary,
+        "gamma": unique_primary,
+    }.items():
+        project_dir = tmp_path / ".sase" / "projects" / project_name
+        project_dir.mkdir(parents=True)
+        (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    result = get_all_project_beads_dirs()
+
+    assert result == [
+        shared_primary / "sdd/beads",
+        unique_primary / ".sase" / "sdd" / "beads",
+    ]
 
 
 # --- cwd_matches_workspace_variant tests ---

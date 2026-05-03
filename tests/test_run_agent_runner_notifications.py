@@ -95,7 +95,9 @@ def test_real_failure_stays_runner_failure():
 def test_completion_notification_adds_bead_display_for_bead_agent(
     base_kwargs, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lambda _: None)
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue", lambda _, **__: None
+    )
     base_kwargs["agent_name"] = "sase-x.3"
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
@@ -118,7 +120,9 @@ def test_completion_notification_omits_bead_display_for_ordinary_agent(base_kwar
 def test_failure_error_report_notification_adds_bead_display(
     base_kwargs, tmp_path, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lambda _: None)
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue", lambda _, **__: None
+    )
     error_report = tmp_path / "error.md"
     error_report.write_text("boom\n")
     base_kwargs["success"] = False

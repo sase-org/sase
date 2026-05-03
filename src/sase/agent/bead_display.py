@@ -58,17 +58,43 @@ def derive_agent_bead_id_from_name(agent_name: str | None) -> str | None:
     return None
 
 
-def _lookup_bead_issue(bead_id: str) -> Issue | None:
+def _lookup_bead_issue(
+    bead_id: str, *, project_name: str | None = None
+) -> Issue | None:
     """Return the persisted issue for *bead_id*, if available."""
+    if project_name:
+        try:
+            from sase.bead.workspace import (
+                MergedBeadView,
+                get_project_beads_dirs_for_project,
+            )
+
+            beads_dirs = get_project_beads_dirs_for_project(project_name)
+            if beads_dirs:
+                with MergedBeadView(beads_dirs) as view:
+                    return view.show(bead_id)
+        except Exception:
+            pass
+
     try:
         from sase.bead.cli_common import get_read_view
 
         with get_read_view() as view:
-            issue = view.show(bead_id)
+            return view.show(bead_id)
     except Exception:
-        return None
+        pass
 
-    return issue
+    try:
+        from sase.bead.workspace import MergedBeadView, get_all_project_beads_dirs
+
+        beads_dirs = get_all_project_beads_dirs()
+        if beads_dirs:
+            with MergedBeadView(beads_dirs) as view:
+                return view.show(bead_id)
+    except Exception:
+        pass
+
+    return None
 
 
 def _normalize_bead_text(text: str | None) -> str | None:
@@ -80,7 +106,10 @@ def _normalize_bead_text(text: str | None) -> str | None:
 
 
 def format_agent_bead_display_for_name(
-    agent_name: str | None, *, include_description: bool = True
+    agent_name: str | None,
+    *,
+    include_description: bool = True,
+    project_name: str | None = None,
 ) -> str | None:
     """Format the bead metadata value for an agent name."""
     bead_id = derive_agent_bead_id_from_name(agent_name)
@@ -88,7 +117,7 @@ def format_agent_bead_display_for_name(
         return None
 
     if include_description:
-        issue = _lookup_bead_issue(bead_id)
+        issue = _lookup_bead_issue(bead_id, project_name=project_name)
         description = _normalize_bead_text(getattr(issue, "description", None))
         if description:
             return f"{bead_id} - {description}"
@@ -96,6 +125,9 @@ def format_agent_bead_display_for_name(
             title = _normalize_bead_text(getattr(issue, "title", None))
             if title:
                 return f"{bead_id} - Land epic: {title}"
+        title = _normalize_bead_text(getattr(issue, "title", None))
+        if title:
+            return f"{bead_id} - {title}"
 
     return bead_id
 

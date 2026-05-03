@@ -120,7 +120,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: Issue(
+            lambda bead_id, **_: Issue(
                 id=bead_id,
                 title="Phase title",
                 description="First line\n\n second\tline ",
@@ -133,6 +133,33 @@ class TestAgentBeadMetadata:
             header.plain
         )
 
+    def test_full_header_passes_agent_project_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = _make_agent(
+            agent_name="zorg-4.3.6",
+            project_file="/home/me/.sase/projects/zorg/zorg.gp",
+        )
+        seen_project_names: list[str | None] = []
+
+        def lookup(bead_id: str, *, project_name: str | None = None) -> Issue | None:
+            seen_project_names.append(project_name)
+            return Issue(
+                id=bead_id,
+                title="Phase 6: count() MVP And Final Epic Hardening",
+                description="",
+            )
+
+        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert seen_project_names == ["zorg"]
+        assert (
+            "Name: @zorg-4.3.6\n"
+            "Bead: zorg-4.3.6 - Phase 6: count() MVP And Final Epic Hardening\n"
+        ) in header.plain
+
     def test_full_header_falls_back_for_empty_bead_description(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -140,7 +167,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: Issue(
+            lambda bead_id, **_: Issue(
                 id=bead_id,
                 title="Phase title",
                 description=" \n\t ",
@@ -149,7 +176,7 @@ class TestAgentBeadMetadata:
 
         header, _ = build_header_text(agent, cheap=False)
 
-        assert "Name: @sase-x.3\nBead: sase-x.3\n" in header.plain
+        assert "Name: @sase-x.3\nBead: sase-x.3 - Phase title\n" in header.plain
 
     def test_full_header_falls_back_for_missing_bead(
         self, monkeypatch: pytest.MonkeyPatch
@@ -158,7 +185,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: None,
+            lambda bead_id, **_: None,
         )
 
         header, _ = build_header_text(agent, cheap=False)
@@ -189,7 +216,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: Issue(
+            lambda bead_id, **_: Issue(
                 id=bead_id,
                 title=" Make `sase bead` Fast With `sase-core` ",
                 description=" \n\t ",
@@ -210,7 +237,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: Issue(
+            lambda bead_id, **_: Issue(
                 id=bead_id,
                 title=" Make `sase bead` Fast With `sase-core` ",
                 issue_type=IssueType.PLAN,
@@ -233,7 +260,7 @@ class TestAgentBeadMetadata:
 
         monkeypatch.setattr(
             "sase.agent.bead_display._lookup_bead_issue",
-            lambda bead_id: Issue(
+            lambda bead_id, **_: Issue(
                 id=bead_id,
                 title="Plan title",
                 description="Use the explicit plan description",
