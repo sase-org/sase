@@ -183,7 +183,8 @@ class Lumberjack:
         now = datetime.now(get_timezone())
 
         # Filter eligible chops (run_every + agent dedup checks in main thread)
-        eligible_chops: list[ChopConfig] = []
+        eligible_script_chops: list[ChopConfig] = []
+        eligible_agent_chops: list[ChopConfig] = []
         for chop in self.config.chops:
             if chop.run_every is not None:
                 last_run = self._chop_timestamps.get(chop.name)
@@ -191,17 +192,24 @@ class Lumberjack:
                     elapsed = (now - last_run).total_seconds()
                     if elapsed < chop.run_every:
                         continue
-            if chop.agent is not None and not self._is_agent_eligible(chop):
-                continue
-            eligible_chops.append(chop)
+            if chop.agent is not None:
+                if not self._is_agent_eligible(chop):
+                    continue
+                eligible_agent_chops.append(chop)
+            else:
+                eligible_script_chops.append(chop)
 
-        # Run eligible chops concurrently
+        # Run script chops concurrently. Agent launches are sequentialized below
+        # because launch preparation allocates workspaces before the eventual
+        # RUNNING-field claim, so same-tick launches can race on one workspace.
         results: list[_ChopResult] = []
         with ThreadPoolExecutor() as executor:
             futures = {
                 executor.submit(self._run_single_chop, chop, context_file): chop
-                for chop in eligible_chops
+                for chop in eligible_script_chops
             }
+            for chop in eligible_agent_chops:
+                results.append(self._run_single_chop(chop, context_file))
             for future in as_completed(futures):
                 results.append(future.result())
 
@@ -240,7 +248,7 @@ class Lumberjack:
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
     def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
-        """Execute a single chop (runs in a worker thread)."""
+        """Execute a single chop."""
         if chop.agent is not None:
             return self._launch_agent_chop(chop)
 
@@ -355,7 +363,7 @@ class Lumberjack:
         )
 
     def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
-        """Launch an agent chop as a background process (runs in a worker thread)."""
+        """Launch an agent chop as a background process."""
         assert chop.agent is not None
         try:
             from sase.agent.launcher import launch_agent_from_cwd

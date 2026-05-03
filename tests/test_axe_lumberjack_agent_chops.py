@@ -1,7 +1,9 @@
 """Tests for Lumberjack agent-chop dedup, registry, and chop-env behavior."""
 
+import time
 from collections.abc import Iterator
 from pathlib import Path
+from threading import Event, Lock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -176,6 +178,164 @@ def test_visible_run_every_agent_chop_is_still_deduped_by_registry(
     restarted_lumberjack = Lumberjack("recurring_dedup", config, axe_config)
     with patch("sase.axe.chop_agents.is_process_running", return_value=True):
         assert restarted_lumberjack._is_agent_eligible(config.chops[0]) is False
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_launches_agent_chops_sequentially_in_config_order(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Same-tick agent chops launch one at a time, in configured order."""
+    config = LumberjackConfig(
+        name="sequential_agents",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="first_agent",
+                description="",
+                agent="first prompt",
+                run_every=3600,
+            ),
+            ChopConfig(
+                name="second_agent",
+                description="",
+                agent="second prompt",
+                run_every=3600,
+            ),
+        ],
+    )
+    lumberjack = Lumberjack("sequential_agents", config, axe_config)
+
+    lock = Lock()
+    active_launches = 0
+    max_active_launches = 0
+    claimed_workspaces: set[int] = set()
+    launch_order: list[str] = []
+    claims_seen_by_launch: list[tuple[str, tuple[int, ...]]] = []
+
+    def launch_agent(
+        query: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+    ) -> AgentLaunchResult:
+        nonlocal active_launches, max_active_launches
+        assert extra_env is not None
+        chop_name = extra_env["SASE_CHOP_NAME"]
+        with lock:
+            launch_order.append(chop_name)
+            claims_seen_by_launch.append((chop_name, tuple(sorted(claimed_workspaces))))
+            active_launches += 1
+            max_active_launches = max(max_active_launches, active_launches)
+
+        try:
+            if chop_name == "first_agent":
+                time.sleep(0.05)
+                with lock:
+                    claimed_workspaces.add(100)
+                workspace_num = 100
+                pid = 111
+            else:
+                with lock:
+                    saw_first_claim = 100 in claimed_workspaces
+                if not saw_first_claim:
+                    raise AssertionError("second launch raced before first claim")
+                workspace_num = 101
+                pid = 222
+
+            return AgentLaunchResult(
+                pid=pid,
+                workspace_num=workspace_num,
+                workspace_dir=f"/tmp/ws{workspace_num}",
+                output_path=f"/tmp/out{workspace_num}",
+                project_file="/tmp/projects/proj/proj.gp",
+                project_name="proj",
+                workflow_name=f"ace(run)-260101_1200{pid}",
+                cl_name="proj",
+                timestamp=f"260101_1200{pid}",
+            )
+        finally:
+            with lock:
+                active_launches -= 1
+
+    with patch("sase.agent.launcher.launch_agent_from_cwd", side_effect=launch_agent):
+        lumberjack._run_tick()
+
+    assert launch_order == ["first_agent", "second_agent"]
+    assert claims_seen_by_launch == [
+        ("first_agent", ()),
+        ("second_agent", (100,)),
+    ]
+    assert max_active_launches == 1
+    assert lumberjack._metrics.errors_encountered == 0
+    assert lumberjack._metrics.chops_executed == 2
+    assert set(lumberjack._chop_timestamps) == {"first_agent", "second_agent"}
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_launches_agent_chop_while_script_chop_is_running(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Script chops stay concurrent and do not block eligible agent launches."""
+    config = LumberjackConfig(
+        name="mixed_chops",
+        interval=10,
+        chops=[
+            ChopConfig(name="slow_script", description=""),
+            ChopConfig(
+                name="agent_chop",
+                description="",
+                agent="agent prompt",
+                run_every=3600,
+            ),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    script_started = Event()
+    agent_launched = Event()
+
+    def run_script(*args: object, **kwargs: object) -> object:
+        script_started.set()
+        assert agent_launched.wait(timeout=1.0), "agent launch waited for script"
+        return ok_result()
+
+    def launch_agent(
+        query: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+    ) -> AgentLaunchResult:
+        assert script_started.wait(timeout=1.0), "script chop did not start"
+        assert extra_env is not None
+        assert extra_env["SASE_CHOP_NAME"] == "agent_chop"
+        agent_launched.set()
+        return AgentLaunchResult(
+            pid=333,
+            workspace_num=100,
+            workspace_dir="/tmp/ws100",
+            output_path="/tmp/out100",
+            project_file="/tmp/projects/proj/proj.gp",
+            project_name="proj",
+            workflow_name="ace(run)-260101_1200333",
+            cl_name="proj",
+            timestamp="260101_1200333",
+        )
+
+    mock_run.side_effect = run_script
+    lumberjack = Lumberjack("mixed_chops", config, axe_config)
+    with patch("sase.agent.launcher.launch_agent_from_cwd", side_effect=launch_agent):
+        lumberjack._run_tick()
+
+    assert mock_run.call_count == 1
+    assert agent_launched.is_set()
+    assert lumberjack._metrics.errors_encountered == 0
+    assert lumberjack._metrics.chops_executed == 2
+    assert set(lumberjack._chop_timestamps) == {"agent_chop"}
 
 
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
