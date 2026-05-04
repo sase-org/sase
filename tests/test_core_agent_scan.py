@@ -19,7 +19,11 @@ from typing import Any
 
 import pytest
 
-from sase.core.agent_scan_facade import scan_agent_artifacts, with_options
+from sase.core.agent_scan_facade import (
+    scan_agent_artifacts,
+    verify_agent_artifact_index,
+    with_options,
+)
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -466,6 +470,124 @@ def _install_fake_scan_module(
     fake.scan_agent_artifacts = scan_fn  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
     return fake
+
+
+def _minimal_snapshot(
+    projects_root: str, records: list[dict[str, Any]]
+) -> dict[str, Any]:
+    return {
+        "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        "projects_root": projects_root,
+        "options": {},
+        "stats": {
+            "projects_visited": 0,
+            "artifact_dirs_visited": len(records),
+            "marker_files_parsed": 0,
+            "json_decode_errors": 0,
+            "os_errors": 0,
+            "prompt_step_markers_parsed": 0,
+        },
+        "records": records,
+    }
+
+
+def _minimal_record(root: Path, timestamp: str, name: str) -> dict[str, Any]:
+    artifact_dir = root / "myproj" / "artifacts" / "ace-run" / timestamp
+    return {
+        "project_name": "myproj",
+        "project_dir": str(root / "myproj"),
+        "project_file": str(root / "myproj" / "myproj.gp"),
+        "workflow_dir_name": "ace-run",
+        "artifact_dir": str(artifact_dir),
+        "timestamp": timestamp,
+        "agent_meta": {"name": name},
+        "done": None,
+        "running": None,
+        "waiting": None,
+        "workflow_state": None,
+        "plan_path": None,
+        "prompt_steps": [],
+        "raw_prompt_snippet": None,
+        "has_done_marker": False,
+    }
+
+
+def test_verify_agent_artifact_index_reports_clean_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_root = tmp_path / "projects"
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    record = _minimal_record(projects_root, "20260504121212", "active")
+
+    def fake_scan(projects_root_arg: str, options: dict[str, Any]) -> dict[str, Any]:
+        return _minimal_snapshot(projects_root_arg, [record])
+
+    fake = _install_fake_scan_module(monkeypatch, fake_scan)
+    fake.query_agent_artifact_index = (  # type: ignore[attr-defined]
+        lambda index_arg, root_arg, query, options: _minimal_snapshot(
+            root_arg, [record]
+        )
+    )
+
+    result = verify_agent_artifact_index(index_path, projects_root)
+
+    assert result.ok is True
+    assert result.indexed_rows == 1
+    assert result.source_rows == 1
+    assert result.missing_rows == 0
+    assert result.stale_rows == 0
+
+
+def test_verify_agent_artifact_index_reports_stale_and_missing_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_root = tmp_path / "projects"
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    source_record = _minimal_record(projects_root, "20260504121212", "new-name")
+    indexed_record = _minimal_record(projects_root, "20260504121212", "old-name")
+    missing_record = _minimal_record(projects_root, "20260504131313", "missing")
+
+    def fake_scan(projects_root_arg: str, options: dict[str, Any]) -> dict[str, Any]:
+        return _minimal_snapshot(projects_root_arg, [source_record, missing_record])
+
+    fake = _install_fake_scan_module(monkeypatch, fake_scan)
+    fake.query_agent_artifact_index = (  # type: ignore[attr-defined]
+        lambda index_arg, root_arg, query, options: _minimal_snapshot(
+            root_arg, [indexed_record]
+        )
+    )
+
+    result = verify_agent_artifact_index(index_path, projects_root)
+
+    assert result.ok is False
+    assert result.indexed_rows == 1
+    assert result.source_rows == 2
+    assert result.stale_rows == 1
+    assert result.missing_rows == 1
+
+
+def test_verify_agent_artifact_index_reports_missing_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    projects_root = tmp_path / "projects"
+    record = _minimal_record(projects_root, "20260504121212", "active")
+
+    def fake_scan(projects_root_arg: str, options: dict[str, Any]) -> dict[str, Any]:
+        return _minimal_snapshot(projects_root_arg, [record])
+
+    _install_fake_scan_module(monkeypatch, fake_scan)
+
+    result = verify_agent_artifact_index(
+        tmp_path / "missing.sqlite",
+        projects_root,
+    )
+
+    assert result.ok is False
+    assert result.schema_version == 0
+    assert result.indexed_rows == 0
+    assert result.missing_rows == 1
 
 
 def test_scan_agent_artifacts_calls_rust_binding(

@@ -212,8 +212,7 @@ def rebuild_dismissed_bundle_index() -> tuple[int, int]:
     Returns:
         ``(indexed_rows, skipped_corrupt)``.
     """
-    _maybe_migrate_bundles()
-    _maybe_fix_child_collisions()
+    _run_dismissed_archive_maintenance()
     from .dismissed_bundle_index import rebuild_index
 
     result = rebuild_index(_DISMISSED_BUNDLES_DIR)
@@ -296,8 +295,11 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
     Returns:
         List of Agent objects reconstructed from bundle files.
     """
-    _maybe_migrate_bundles()
-    _maybe_fix_child_collisions()
+    if suffixes is None:
+        _run_dismissed_archive_maintenance()
+    else:
+        _maybe_migrate_bundles()
+        _maybe_shard_root_bundles()
 
     if not _DISMISSED_BUNDLES_DIR.is_dir():
         return []
@@ -465,7 +467,38 @@ def _maybe_migrate_bundles() -> None:
         pass
 
 
-_CHILD_COLLISION_MARKER = _DISMISSED_BUNDLES_DIR / ".child_collision_fixed"
+_ROOT_SHARD_MARKER_NAME = ".root_bundles_sharded"
+_CHILD_COLLISION_MARKER_NAME = ".child_collision_fixed"
+
+
+def _run_dismissed_archive_maintenance() -> None:
+    """Run startup-safe, one-shot dismissed archive migrations."""
+    _maybe_migrate_bundles()
+    _maybe_shard_root_bundles()
+    _maybe_fix_child_collisions()
+
+
+def _maybe_shard_root_bundles() -> None:
+    """One-time migration: move pre-shard root bundle files into YYYYMM dirs."""
+    marker = _DISMISSED_BUNDLES_DIR / _ROOT_SHARD_MARKER_NAME
+    if marker.exists():
+        return
+    if not _DISMISSED_BUNDLES_DIR.is_dir():
+        return
+
+    try:
+        for filepath in list(_DISMISSED_BUNDLES_DIR.glob("*.json")):
+            if not filepath.is_file():
+                continue
+            destination = _bundle_shard_dir(filepath.name) / filepath.name
+            if destination == filepath:
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.exists():
+                filepath.rename(destination)
+        marker.touch()
+    except OSError:
+        pass
 
 
 def _maybe_fix_child_collisions() -> None:
@@ -476,7 +509,8 @@ def _maybe_fix_child_collisions() -> None:
     overwrote the parent file.  This scans for those mis-named child
     bundles and renames them to ``{raw_suffix}__c{step_index}.json``.
     """
-    if _CHILD_COLLISION_MARKER.exists():
+    marker = _DISMISSED_BUNDLES_DIR / _CHILD_COLLISION_MARKER_NAME
+    if marker.exists():
         return
     if not _DISMISSED_BUNDLES_DIR.is_dir():
         return
@@ -502,6 +536,6 @@ def _maybe_fix_child_collisions() -> None:
     # won't help if the OS is failing on us).
     try:
         _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
-        _CHILD_COLLISION_MARKER.touch()
+        marker.touch()
     except OSError:
         pass

@@ -170,6 +170,22 @@ class AgentArtifactIndexUpdateWire:
 
 
 @dataclass(frozen=True)
+class AgentArtifactIndexVerifyWire:
+    """Summary returned by artifact index verification."""
+
+    ok: bool
+    schema_version: int
+    index_path: str
+    projects_root: str
+    indexed_rows: int = 0
+    source_rows: int = 0
+    stale_rows: int = 0
+    missing_rows: int = 0
+    extra_rows: int = 0
+    corrupt_rows: int = 0
+
+
+@dataclass(frozen=True)
 class AgentArtifactScanStatsWire:
     """Diagnostic counters for one snapshot scan.
 
@@ -639,6 +655,7 @@ __all__ = [
     "WORKFLOW_STATE_DIR_NAMES",
     "WORKFLOW_STATE_DIR_PREFIXES",
     "AgentArtifactRecordWire",
+    "AgentArtifactIndexVerifyWire",
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",

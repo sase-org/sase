@@ -21,8 +21,10 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_scan_wire import (
+    AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVerifyWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
@@ -37,6 +39,7 @@ from sase.core.agent_scan_wire import (
     WorkflowStepStateWire,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_update_from_dict,
+    agent_scan_wire_to_json_dict,
     agent_scan_wire_from_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -147,6 +150,92 @@ def query_agent_artifact_index(
     return agent_scan_wire_from_dict(payload)
 
 
+def verify_agent_artifact_index(
+    index_path: Path | str,
+    projects_root: Path | str,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactIndexVerifyWire:
+    """Compare the persistent artifact index to source artifact files."""
+    index = Path(index_path).expanduser()
+    root = Path(projects_root).expanduser()
+    opts = options or AgentArtifactScanOptionsWire()
+    source = scan_agent_artifacts(root, opts)
+
+    if not index.is_file():
+        return AgentArtifactIndexVerifyWire(
+            ok=not source.records,
+            schema_version=0,
+            index_path=str(index),
+            projects_root=str(root),
+            indexed_rows=0,
+            source_rows=len(source.records),
+            missing_rows=len(source.records),
+            corrupt_rows=source.stats.json_decode_errors,
+        )
+
+    try:
+        indexed = query_agent_artifact_index(
+            index,
+            root,
+            AgentArtifactIndexQueryWire(
+                include_active=False,
+                include_recent_completed=False,
+                include_full_history=True,
+                recent_completed_limit=None,
+                include_hidden=True,
+            ),
+            opts,
+        )
+    except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
+        return AgentArtifactIndexVerifyWire(
+            ok=False,
+            schema_version=0,
+            index_path=str(index),
+            projects_root=str(root),
+            source_rows=len(source.records),
+            missing_rows=len(source.records),
+            corrupt_rows=source.stats.json_decode_errors + 1,
+        )
+
+    source_by_dir = {
+        record.artifact_dir: agent_scan_wire_to_json_dict(record)
+        for record in source.records
+    }
+    indexed_by_dir = {
+        record.artifact_dir: agent_scan_wire_to_json_dict(record)
+        for record in indexed.records
+    }
+    source_dirs = set(source_by_dir)
+    indexed_dirs = set(indexed_by_dir)
+    common_dirs = source_dirs & indexed_dirs
+    stale_rows = sum(
+        1
+        for artifact_dir in common_dirs
+        if indexed_by_dir[artifact_dir] != source_by_dir[artifact_dir]
+    )
+    missing_rows = len(source_dirs - indexed_dirs)
+    extra_rows = len(indexed_dirs - source_dirs)
+    corrupt_rows = (
+        indexed.stats.json_decode_errors
+        + indexed.stats.os_errors
+        + source.stats.json_decode_errors
+        + source.stats.os_errors
+    )
+
+    return AgentArtifactIndexVerifyWire(
+        ok=not (stale_rows or missing_rows or extra_rows or corrupt_rows),
+        schema_version=AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+        index_path=str(index),
+        projects_root=str(root),
+        indexed_rows=len(indexed.records),
+        source_rows=len(source.records),
+        stale_rows=stale_rows,
+        missing_rows=missing_rows,
+        extra_rows=extra_rows,
+        corrupt_rows=corrupt_rows,
+    )
+
+
 def with_options(
     base: AgentArtifactScanOptionsWire,
     **overrides: Any,
@@ -163,6 +252,7 @@ __all__ = [
     "AgentArtifactRecordWire",
     "AgentArtifactIndexQueryWire",
     "AgentArtifactIndexUpdateWire",
+    "AgentArtifactIndexVerifyWire",
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
@@ -180,5 +270,6 @@ __all__ = [
     "rebuild_agent_artifact_index",
     "scan_agent_artifacts",
     "upsert_agent_artifact_index_row",
+    "verify_agent_artifact_index",
     "with_options",
 ]

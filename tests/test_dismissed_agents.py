@@ -1,6 +1,7 @@
 """Tests for dismissed agents persistence."""
 
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -280,6 +281,58 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
         }
         assert any(summary.is_workflow_child for summary in summaries)
         assert load_dismissed_bundle_summaries(project_name="bundles") == []
+
+
+def test_rebuild_shards_legacy_root_bundle_files(tmp_path: Path) -> None:
+    """Archive maintenance moves pre-shard root bundles before indexing."""
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    legacy = _make_agent(cl_name="legacy_cl", raw_suffix="20250615110000")
+    root_path = bundles_dir / "20250615110000.json"
+    root_path.write_text(json.dumps(legacy.to_bundle_dict()))
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        indexed, skipped = rebuild_dismissed_bundle_index()
+
+        assert (indexed, skipped) == (1, 0)
+        assert not root_path.exists()
+        assert (bundles_dir / "202506" / "20250615110000.json").exists()
+        assert (bundles_dir / ".root_bundles_sharded").exists()
+
+
+def test_dismissed_bundle_index_schema_mismatch_recreates_table(
+    tmp_path: Path,
+) -> None:
+    """Opening an older dismissed archive index schema rebuilds the table."""
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    index_path = bundles_dir / "index.sqlite"
+    with sqlite3.connect(index_path) as conn:
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_index_meta "
+            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO dismissed_bundle_index_meta(key, value) "
+            "VALUES ('schema_version', '0')"
+        )
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_summaries "
+            "(bundle_path TEXT PRIMARY KEY, raw_suffix TEXT NOT NULL)"
+        )
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+        save_dismissed_bundle(agent)
+        summaries = load_dismissed_bundle_summaries(cl_name="indexed_cl")
+
+    assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
 
 
 def test_indexed_suffix_load_avoids_scanning_unrelated_children(

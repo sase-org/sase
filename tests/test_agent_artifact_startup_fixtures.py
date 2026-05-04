@@ -41,8 +41,13 @@ def test_dismissed_archive_fixture_covers_shards_legacy_and_corrupt_files(
         for a in fixture.agents[3:]
     )
     assert all(
+        (bundles_dir / "202501" / f"{a.raw_suffix}.json").exists()
+        for a in fixture.agents[:3]
+    )
+    assert not any(
         (bundles_dir / f"{a.raw_suffix}.json").exists() for a in fixture.agents[:3]
     )
+    assert (bundles_dir / ".root_bundles_sharded").exists()
 
 
 def test_suffix_filtered_bundle_load_does_not_hydrate_unrelated_parent(

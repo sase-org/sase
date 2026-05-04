@@ -291,6 +291,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             )
             """
         )
+        row = conn.execute(
+            "SELECT value FROM dismissed_bundle_index_meta WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is not None and row["value"] != str(SCHEMA_VERSION):
+            conn.execute("DROP TABLE IF EXISTS dismissed_bundle_summaries")
+            conn.execute("DELETE FROM dismissed_bundle_index_meta")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS dismissed_bundle_summaries (

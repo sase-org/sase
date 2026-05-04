@@ -14,7 +14,10 @@ from sase.agent.running import _KillResult, RunningAgentInfo
 from sase.agents.cli_kill import handle_agents_kill
 from sase.agents.cli_show import handle_agents_show
 from sase.agents.cli_status import handle_agents_status
-from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactIndexUpdateWire,
+    AgentArtifactIndexVerifyWire,
+)
 from sase.main.agents_handler import handle_agents_command
 
 
@@ -307,6 +310,40 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
     assert excinfo.value.code == 0
     mock_rebuild.assert_called_once()
     assert json.loads(capsys.readouterr().out) == update
+
+
+def test_dispatch_index_verify_json_exits_nonzero_when_stale(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`sase agents index verify -j` reports drift and exits nonzero."""
+    args = argparse.Namespace(
+        agents_subcommand="index",
+        index_subcommand="verify",
+        index_path="/tmp/index.sqlite",
+        projects_root="/tmp/projects",
+        json=True,
+    )
+
+    with (
+        patch(
+            "sase.agents.cli_index.verify_agent_artifact_index",
+            return_value=AgentArtifactIndexVerifyWire(
+                ok=False,
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                indexed_rows=1,
+                source_rows=2,
+                missing_rows=1,
+            ),
+        ) as mock_verify,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+
+    assert excinfo.value.code == 1
+    mock_verify.assert_called_once()
+    assert json.loads(capsys.readouterr().out)["missing_rows"] == 1
 
 
 # === sase agents kill ===
