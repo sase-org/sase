@@ -16,7 +16,12 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
+from sase.bead.cli_work import (
+    expected_legend_agent_names,
+    find_live_legend_name_collisions,
+)
 from sase.bead.model import IssueType, Status
+from sase.bead.work import LegendEpicAssignment, LegendWorkPlan
 from sase.bead.project import BeadProject
 from sase.xprompt.workflow_models import Workflow
 
@@ -635,6 +640,28 @@ def test_work_passes_when_no_collisions(
 
     bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
     assert "---" in captured["query"]
+
+
+def test_legend_collision_helpers_report_live_planning_agents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = LegendWorkPlan(
+        legend_id="l1",
+        plan_file="sdd/legends/202605/roadmap.md",
+        assignments=(
+            LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
+            LegendEpicAssignment(
+                epic_number=2, agent_name="l1.2.0", waits_on=("l1.1",)
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_live_agent_name_map",
+        lambda: {"l1.2.0": "/tmp/l1.2.0", "other": "/tmp/other"},
+    )
+
+    assert expected_legend_agent_names(plan) == {"l1.1.0", "l1.2.0"}
+    assert find_live_legend_name_collisions(plan) == {"l1.2.0": "/tmp/l1.2.0"}
 
 
 def test_rollback_kills_partially_launched_agents(

@@ -13,7 +13,12 @@ from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
-    from sase.bead.work import ChangeSpecLaunchContext, EpicWorkPlan, VCSLaunchContext
+    from sase.bead.work import (
+        ChangeSpecLaunchContext,
+        EpicWorkPlan,
+        LegendWorkPlan,
+        VCSLaunchContext,
+    )
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
@@ -263,6 +268,19 @@ def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     legacy_land_name = _legacy_land_agent_name(plan)
     if legacy_land_name:
         expected.add(legacy_land_name)
+    live = get_live_agent_name_map()
+    return {name: live[name] for name in expected if name in live}
+
+
+def expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
+    return {assignment.agent_name for assignment in plan.assignments}
+
+
+def find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
+    """Return live collisions for legend epic-planning agent names."""
+    from sase.agent.names import get_live_agent_name_map
+
+    expected = expected_legend_agent_names(plan)
     live = get_live_agent_name_map()
     return {name: live[name] for name in expected if name in live}
 

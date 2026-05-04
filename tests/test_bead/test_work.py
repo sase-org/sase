@@ -3,20 +3,28 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
 from sase.bead import db
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.project import BeadProject
 from sase.bead.work import (
     ChangeSpecLaunchContext,
     CrossEpicBlockerError,
     CycleError,
     EpicPlanError,
     EpicWorkPlan,
+    LegendEpicAssignment,
+    LegendPlanError,
+    LegendWorkPlan,
     PhaseAssignment,
     VCSLaunchContext,
     build_epic_work_plan,
+    build_legend_work_plan,
+    build_legend_work_plan_from_beads_dir,
+    render_legend_multi_prompt,
     render_multi_prompt,
 )
 from sase.xprompt.workflow_models import Workflow
@@ -35,6 +43,24 @@ def _epic(epic_id: str = "e1") -> Issue:
         title=f"Epic {epic_id}",
         issue_type=IssueType.PLAN,
         parent_id=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
+def _legend(
+    legend_id: str = "l1",
+    *,
+    epic_count: int | None = 3,
+    design: str = "sdd/legends/202605/roadmap.md",
+) -> Issue:
+    return Issue(
+        id=legend_id,
+        title=f"Legend {legend_id}",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.LEGEND,
+        epic_count=epic_count,
+        design=design,
         created_at=NOW,
         updated_at=NOW,
     )
@@ -351,6 +377,118 @@ class TestEpicValidation:
         )
         with pytest.raises(EpicPlanError, match="no non-closed phase children"):
             build_epic_work_plan(conn, "e1")
+
+
+class TestLegendWorkPlan:
+    def test_builds_linear_epic_assignments(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_legend("l1", epic_count=3)])
+
+        plan = build_legend_work_plan(conn, "l1")
+
+        assert isinstance(plan, LegendWorkPlan)
+        assert plan.legend_id == "l1"
+        assert plan.plan_file == "sdd/legends/202605/roadmap.md"
+        assert all(isinstance(a, LegendEpicAssignment) for a in plan.assignments)
+        assert [a.epic_number for a in plan.assignments] == [1, 2, 3]
+        assert [a.agent_name for a in plan.assignments] == [
+            "l1.1.0",
+            "l1.2.0",
+            "l1.3.0",
+        ]
+        assert [a.waits_on for a in plan.assignments] == [
+            (),
+            ("l1.1",),
+            ("l1.2",),
+        ]
+
+    def test_missing_epic_count_raises(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_legend("l1", epic_count=None)])
+
+        with pytest.raises(LegendPlanError, match="missing epic_count"):
+            build_legend_work_plan(conn, "l1")
+
+    def test_missing_design_path_raises(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_legend("l1", design="")])
+
+        with pytest.raises(LegendPlanError, match="missing a design/plan file"):
+            build_legend_work_plan(conn, "l1")
+
+    def test_non_legend_plan_raises(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_epic("e1")])
+
+        with pytest.raises(LegendPlanError, match="not a legend bead"):
+            build_legend_work_plan(conn, "e1")
+
+    def test_phase_target_raises(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_epic("e1"), _phase("p1")])
+
+        with pytest.raises(LegendPlanError, match="not a plan/legend bead"):
+            build_legend_work_plan(conn, "p1")
+
+    def test_builds_from_beads_dir(self, tmp_path: Path) -> None:
+        with BeadProject.init(tmp_path) as proj:
+            legend = proj.create(
+                "Legend l1",
+                IssueType.PLAN,
+                tier=BeadTier.LEGEND,
+                epic_count=2,
+                design="sdd/legends/202605/roadmap.md",
+            )
+            plan = build_legend_work_plan_from_beads_dir(proj.beads_dir, legend.id)
+
+        assert plan.legend_id == legend.id
+        assert [a.agent_name for a in plan.assignments] == [
+            f"{legend.id}.1.0",
+            f"{legend.id}.2.0",
+        ]
+
+
+class TestLegendRendering:
+    def test_renders_snapshot_without_vcs(self, conn: sqlite3.Connection) -> None:
+        _seed(conn, [_legend("l1", epic_count=2)])
+        plan = build_legend_work_plan(conn, "l1")
+
+        rendered = render_legend_multi_prompt(plan)
+
+        expected = (
+            "%name:l1.1.0\n"
+            "%approve\n"
+            "%epic\n"
+            "Can you help me implement epic #1 from the legend plan in the "
+            "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
+            "this epic will be split into phases and worked by separate "
+            "agents after approval.\n"
+            "---\n"
+            "%name:l1.2.0\n"
+            "%approve\n"
+            "%epic\n"
+            "%w:l1.1\n"
+            "Can you help me implement epic #2 from the legend plan in the "
+            "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
+            "this epic will be split into phases and worked by separate "
+            "agents after approval."
+        )
+        assert rendered == expected
+
+    def test_vcs_context_prefixes_every_legend_segment(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(conn, [_legend("l1", epic_count=2)])
+        plan = build_legend_work_plan(conn, "l1")
+
+        rendered = render_legend_multi_prompt(
+            plan,
+            vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+        )
+
+        segments = rendered.split("\n---\n")
+        assert len(segments) == 2
+        assert all(segment.startswith("#git:sase\n") for segment in segments)
+        assert "%name:l1.1.0" in rendered
+        assert "%name:l1.2.0" in rendered
+        assert "%epic" in rendered
+        assert "%approve" in rendered
+        assert "%w:l1.1" in rendered
 
 
 class TestRenderEdgeCases:
