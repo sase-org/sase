@@ -49,3 +49,6 @@ mark_ready_to_work
 unmark_ready_to_work
 export_jsonl
 sync_is_clean
+delete_agent_artifact_index_row
+query_agent_artifact_index
+upsert_agent_artifact_index_row

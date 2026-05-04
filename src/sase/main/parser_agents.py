@@ -127,3 +127,34 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         "verify",
         help="Verify the dismissed bundle summary index",
     )
+
+    # sase agents index rebuild
+    index_parser = agents_sub.add_parser(
+        "index",
+        help="Manage the persistent agent artifact index",
+    )
+    index_sub = index_parser.add_subparsers(
+        dest="index_subcommand", help="Index subcommands"
+    )
+    rebuild_parser = index_sub.add_parser(
+        "rebuild",
+        help="Rebuild the persistent agent artifact index from artifacts",
+    )
+    rebuild_parser.add_argument(
+        "-i",
+        "--index-path",
+        default=None,
+        help="SQLite index path (default: ~/.sase/agent_artifact_index.sqlite)",
+    )
+    rebuild_parser.add_argument(
+        "-p",
+        "--projects-root",
+        default=None,
+        help="Projects artifact root (default: ~/.sase/projects)",
+    )
+    rebuild_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )

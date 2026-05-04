@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexQueryWire,
+    AgentArtifactIndexUpdateWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
@@ -33,6 +35,8 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    agent_artifact_index_query_to_dict,
+    agent_artifact_index_update_from_dict,
     agent_scan_wire_from_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -65,6 +69,78 @@ def scan_agent_artifacts(
     return agent_scan_wire_from_dict(payload)
 
 
+def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Path:
+    """Return the default persistent artifact index path."""
+    root = (
+        Path(sase_home).expanduser() if sase_home is not None else Path.home() / ".sase"
+    )
+    return root / "agent_artifact_index.sqlite"
+
+
+def rebuild_agent_artifact_index(
+    index_path: Path | str,
+    projects_root: Path | str,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactIndexUpdateWire:
+    """Rebuild the persistent artifact index from source artifact files."""
+    opts = options or AgentArtifactScanOptionsWire()
+    rust_rebuild = require_rust_binding("rebuild_agent_artifact_index")
+    payload: dict[str, Any] = rust_rebuild(
+        str(index_path), str(projects_root), _options_to_dict(opts)
+    )
+    return agent_artifact_index_update_from_dict(payload)
+
+
+# pyvision: public_api_methods.txt
+def upsert_agent_artifact_index_row(
+    index_path: Path | str,
+    projects_root: Path | str,
+    artifact_dir: Path | str,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactIndexUpdateWire:
+    """Reparse and upsert one artifact directory into the index."""
+    opts = options or AgentArtifactScanOptionsWire()
+    rust_upsert = require_rust_binding("upsert_agent_artifact_index_row")
+    payload: dict[str, Any] = rust_upsert(
+        str(index_path),
+        str(projects_root),
+        str(artifact_dir),
+        _options_to_dict(opts),
+    )
+    return agent_artifact_index_update_from_dict(payload)
+
+
+# pyvision: public_api_methods.txt
+def delete_agent_artifact_index_row(
+    index_path: Path | str,
+    artifact_dir: Path | str,
+) -> AgentArtifactIndexUpdateWire:
+    """Remove one artifact directory row from the index."""
+    rust_delete = require_rust_binding("delete_agent_artifact_index_row")
+    payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
+    return agent_artifact_index_update_from_dict(payload)
+
+
+# pyvision: public_api_methods.txt
+def query_agent_artifact_index(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> AgentArtifactScanWire:
+    """Return scanner-shaped records from the persistent artifact index."""
+    opts = options or AgentArtifactScanOptionsWire()
+    query_wire = query or AgentArtifactIndexQueryWire()
+    rust_query = require_rust_binding("query_agent_artifact_index")
+    payload: dict[str, Any] = rust_query(
+        str(index_path),
+        str(projects_root),
+        agent_artifact_index_query_to_dict(query_wire),
+        _options_to_dict(opts),
+    )
+    return agent_scan_wire_from_dict(payload)
+
+
 def with_options(
     base: AgentArtifactScanOptionsWire,
     **overrides: Any,
@@ -79,6 +155,8 @@ def with_options(
 
 __all__ = [
     "AgentArtifactRecordWire",
+    "AgentArtifactIndexQueryWire",
+    "AgentArtifactIndexUpdateWire",
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
@@ -90,6 +168,11 @@ __all__ = [
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",
+    "default_agent_artifact_index_path",
+    "delete_agent_artifact_index_row",
+    "query_agent_artifact_index",
+    "rebuild_agent_artifact_index",
     "scan_agent_artifacts",
+    "upsert_agent_artifact_index_row",
     "with_options",
 ]

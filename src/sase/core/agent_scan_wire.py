@@ -68,6 +68,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 1
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 1
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -117,6 +118,33 @@ class AgentArtifactScanOptionsWire:
     include_raw_prompt_snippets: bool = True
     max_prompt_snippet_bytes: int = 200
     only_workflow_dirs: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AgentArtifactIndexQueryWire:
+    """Query knobs for the persistent agent artifact index.
+
+    The default query matches the Tier 1 startup use case: active/incomplete
+    rows plus a bounded window of recently completed visible rows.
+    """
+
+    include_active: bool = True
+    include_recent_completed: bool = True
+    include_full_history: bool = False
+    recent_completed_limit: int | None = 200
+    include_hidden: bool = False
+
+
+@dataclass(frozen=True)
+class AgentArtifactIndexUpdateWire:
+    """Summary returned by artifact index rebuild/upsert/delete operations."""
+
+    schema_version: int
+    index_path: str
+    projects_root: str
+    rows_indexed: int = 0
+    rows_deleted: int = 0
+    rows_skipped: int = 0
 
 
 @dataclass(frozen=True)
@@ -466,6 +494,31 @@ def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
         include_raw_prompt_snippets=bool(data.get("include_raw_prompt_snippets", True)),
         max_prompt_snippet_bytes=int(data.get("max_prompt_snippet_bytes", 200)),
         only_workflow_dirs=tuple(data.get("only_workflow_dirs") or ()),
+    )
+
+
+def agent_artifact_index_query_to_dict(
+    query: AgentArtifactIndexQueryWire,
+) -> dict[str, Any]:
+    return {
+        "include_active": query.include_active,
+        "include_recent_completed": query.include_recent_completed,
+        "include_full_history": query.include_full_history,
+        "recent_completed_limit": query.recent_completed_limit,
+        "include_hidden": query.include_hidden,
+    }
+
+
+def agent_artifact_index_update_from_dict(
+    data: dict[str, Any],
+) -> AgentArtifactIndexUpdateWire:
+    return AgentArtifactIndexUpdateWire(
+        schema_version=int(data["schema_version"]),
+        index_path=str(data["index_path"]),
+        projects_root=str(data.get("projects_root") or ""),
+        rows_indexed=int(data.get("rows_indexed", 0)),
+        rows_deleted=int(data.get("rows_deleted", 0)),
+        rows_skipped=int(data.get("rows_skipped", 0)),
     )
 
 

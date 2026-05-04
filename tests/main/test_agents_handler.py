@@ -14,6 +14,7 @@ from sase.agent.running import _KillResult, RunningAgentInfo
 from sase.agents.cli_kill import handle_agents_kill
 from sase.agents.cli_show import handle_agents_show
 from sase.agents.cli_status import handle_agents_status
+from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
 from sase.main.agents_handler import handle_agents_command
 
 
@@ -267,6 +268,45 @@ def test_dispatch_archive_verify_exits_nonzero_when_stale(
         handle_agents_command(args)
     assert excinfo.value.code == 1
     assert '"missing_rows": 1' in capsys.readouterr().out
+
+
+def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None:
+    """`sase agents index rebuild -j` reports the Rust rebuild summary."""
+    args = argparse.Namespace(
+        agents_subcommand="index",
+        index_subcommand="rebuild",
+        index_path="/tmp/index.sqlite",
+        projects_root="/tmp/projects",
+        json=True,
+    )
+    update = {
+        "schema_version": 1,
+        "index_path": "/tmp/index.sqlite",
+        "projects_root": "/tmp/projects",
+        "rows_indexed": 7,
+        "rows_deleted": 0,
+        "rows_skipped": 0,
+    }
+
+    with (
+        patch(
+            "sase.agents.cli_index.rebuild_agent_artifact_index",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                rows_indexed=7,
+                rows_deleted=0,
+                rows_skipped=0,
+            ),
+        ) as mock_rebuild,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+
+    assert excinfo.value.code == 0
+    mock_rebuild.assert_called_once()
+    assert json.loads(capsys.readouterr().out) == update
 
 
 # === sase agents kill ===

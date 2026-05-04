@@ -21,8 +21,13 @@ import pytest
 
 from sase.core.agent_scan_facade import scan_agent_artifacts, with_options
 from sase.core.agent_scan_wire import (
+    AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactIndexQueryWire,
+    AgentArtifactIndexUpdateWire,
     AgentArtifactScanOptionsWire,
+    agent_artifact_index_query_to_dict,
+    agent_artifact_index_update_from_dict,
     agent_scan_wire_to_json_dict,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
@@ -62,6 +67,43 @@ def _record_by_timestamp(snapshot, timestamp: str):
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 1
+
+
+def test_artifact_index_wire_helpers() -> None:
+    query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=False,
+        include_full_history=True,
+        recent_completed_limit=None,
+        include_hidden=True,
+    )
+    assert agent_artifact_index_query_to_dict(query) == {
+        "include_active": True,
+        "include_recent_completed": False,
+        "include_full_history": True,
+        "recent_completed_limit": None,
+        "include_hidden": True,
+    }
+
+    update = agent_artifact_index_update_from_dict(
+        {
+            "schema_version": 1,
+            "index_path": "/tmp/index.sqlite",
+            "projects_root": "/tmp/projects",
+            "rows_indexed": 2,
+            "rows_deleted": 1,
+            "rows_skipped": 3,
+        }
+    )
+    assert update == AgentArtifactIndexUpdateWire(
+        schema_version=1,
+        index_path="/tmp/index.sqlite",
+        projects_root="/tmp/projects",
+        rows_indexed=2,
+        rows_deleted=1,
+        rows_skipped=3,
+    )
 
 
 def test_fixture_summary_matches_expectations() -> None:
