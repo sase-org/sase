@@ -50,11 +50,19 @@ def test_extract_simple_reference() -> None:
     call = extract_top_level_xprompt_reference("#foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
+    assert call.marker.value == "#"
     assert call.positional_args == []
 
 
+def test_extract_standalone_reference() -> None:
+    call = extract_top_level_xprompt_reference("#!foo", {"foo"})
+    assert call is not None
+    assert call.name == "foo"
+    assert call.marker.value == "#!"
+
+
 def test_extract_with_args() -> None:
-    call = extract_top_level_xprompt_reference("#foo(a, b)", {"foo"})
+    call = extract_top_level_xprompt_reference("#!foo(a, b)", {"foo"})
     assert call is not None
     assert call.positional_args == ["a", "b"]
 
@@ -101,12 +109,27 @@ def test_expand_single_segment_xprompt_unchanged() -> None:
     assert out == ["#single"]
 
 
+def test_bang_single_segment_xprompt_invalid() -> None:
+    """Ordinary xprompts remain embeddable and cannot use the standalone marker."""
+    catalog = {"single": _xp("single", "just one body")}
+    with _patch_catalog(catalog):
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"Use '#single'"):
+            expand_multi_agent_xprompts(["#!single"])
+
+
 def test_expand_three_segment_xprompt() -> None:
     """Xprompt body with 3 segments → 3 sub-segments after expansion."""
     catalog = {"three": _xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#three"])
+        out = expand_multi_agent_xprompts(["#!three"])
     assert out == ["phase A", "phase B", "phase C"]
+
+
+def test_bare_multi_agent_xprompt_requires_bang() -> None:
+    catalog = {"three": _xp("three", "phase A\n---\nphase B\n---\nphase C")}
+    with _patch_catalog(catalog):
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
+            expand_multi_agent_xprompts(["#three"])
 
 
 def test_expand_with_positional_args() -> None:
@@ -119,7 +142,7 @@ def test_expand_with_positional_args() -> None:
         )
     }
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#three(login bug fix)"])
+        out = expand_multi_agent_xprompts(["#!three(login bug fix)"])
     assert out == [
         "Plan for login bug fix.",
         "Implement login bug fix.",
@@ -139,7 +162,7 @@ def test_expand_with_named_args() -> None:
         )
     }
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#two(x=A, y=B)"])
+        out = expand_multi_agent_xprompts(["#!two(x=A, y=B)"])
     assert out == ["Run with A and B", "A/B done"]
 
 
@@ -163,7 +186,7 @@ def test_expand_jinja_in_body() -> None:
         )
     }
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#loop(login, include_plan=true)"])
+        out = expand_multi_agent_xprompts(["#!loop(login, include_plan=true)"])
     assert len(out) == 3
     assert out[0] == "Plan first."
     assert out[1] == "Implement login."
@@ -174,37 +197,58 @@ def test_expand_mixed_with_prose_raises() -> None:
     """Multi-agent xprompt referenced mid-prose → MultiAgentXPromptUsageError."""
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError):
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
             expand_multi_agent_xprompts(["Hello #three(arg) world"])
 
 
-def test_expand_inline_inside_other_xprompt_body_no_resplit() -> None:
-    """If #b appears inline inside #a's body (not standalone), no re-split.
+def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -> None:
+    """If ordinary #b appears inline inside #a's body, no re-split.
 
     The inner xprompt reference survives as text in one of the outer's segments
     and gets passed through unchanged — the agent runner expands it later.
     """
     catalog = {
         "outer": _xp("outer", "first\n---\nprose with #inner here\n---\nthird"),
-        "inner": _xp("inner", "x\n---\ny"),
+        "inner": _xp("inner", "x"),
     }
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#outer"])
+        out = expand_multi_agent_xprompts(["#!outer"])
     assert len(out) == 3
     assert out[0] == "first"
     assert "#inner" in out[1]
     assert out[2] == "third"
 
 
+def test_expand_inline_multi_agent_inside_other_xprompt_body_requires_bang() -> None:
+    """A real inline reference to a multi-agent xprompt is rejected recursively."""
+    catalog = {
+        "outer": _xp("outer", "first\n---\nprose with #inner here\n---\nthird"),
+        "inner": _xp("inner", "x\n---\ny"),
+    }
+    with _patch_catalog(catalog):
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!inner"):
+            expand_multi_agent_xprompts(["#!outer"])
+
+
 def test_expand_recursive_standalone_reference() -> None:
     """Multi-agent xprompt that references another multi-agent xprompt as a sole segment."""
+    catalog = {
+        "outer": _xp("outer", "before\n---\n#!inner\n---\nafter"),
+        "inner": _xp("inner", "x1\n---\nx2"),
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#!outer"])
+    assert out == ["before", "x1", "x2", "after"]
+
+
+def test_expand_recursive_bare_reference_requires_bang() -> None:
     catalog = {
         "outer": _xp("outer", "before\n---\n#inner\n---\nafter"),
         "inner": _xp("inner", "x1\n---\nx2"),
     }
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#outer"])
-    assert out == ["before", "x1", "x2", "after"]
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!inner"):
+            expand_multi_agent_xprompts(["#!outer"])
 
 
 def test_expand_separator_inside_fenced_block_in_body() -> None:
@@ -212,7 +256,7 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
     body = "intro\n```\ncode\n---\ndata\n```\n---\nreal split"
     catalog = {"x": _xp("x", body)}
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#x"])
+        out = expand_multi_agent_xprompts(["#!x"])
     assert len(out) == 2
     assert "```" in out[0]
     assert out[1] == "real split"
@@ -221,7 +265,7 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
 def test_expand_leading_directives_attach_to_first_subsegment() -> None:
     catalog = {"x": _xp("x", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["%name:custom\n#x"])
+        out = expand_multi_agent_xprompts(["%name:custom\n#!x"])
     assert out[0] == "%name:custom\na"
     assert out[1] == "b"
     assert out[2] == "c"
@@ -233,16 +277,25 @@ def test_expand_local_xprompts_resolve() -> None:
         "_local_three": _xp("_local_three", "alpha\n---\nbeta\n---\ngamma"),
     }
     with _patch_catalog({}):  # No global xprompts
-        out = expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
+        out = expand_multi_agent_xprompts(["#!_local_three"], local_xprompts=local)
     assert out == ["alpha", "beta", "gamma"]
+
+
+def test_expand_local_xprompts_require_bang() -> None:
+    local = {
+        "_local_three": _xp("_local_three", "alpha\n---\nbeta\n---\ngamma"),
+    }
+    with _patch_catalog({}):
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!_local_three"):
+            expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
 
 
 def test_expand_depth_cap() -> None:
     """A self-referential multi-agent xprompt blows the depth cap."""
-    catalog = {"loopy": _xp("loopy", "step\n---\n#loopy")}
+    catalog = {"loopy": _xp("loopy", "step\n---\n#!loopy")}
     with _patch_catalog(catalog):
         with pytest.raises(MultiAgentXPromptDepthError):
-            expand_multi_agent_xprompts(["#loopy"], max_depth=3)
+            expand_multi_agent_xprompts(["#!loopy"], max_depth=3)
 
 
 def test_expand_passthrough_unknown_name() -> None:
@@ -262,7 +315,7 @@ def test_expand_empty_subsegments_dropped() -> None:
     """Empty or whitespace-only sub-segments are dropped."""
     catalog = {"x": _xp("x", "a\n---\n   \n---\nb")}
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#x"])
+        out = expand_multi_agent_xprompts(["#!x"])
     assert out == ["a", "b"]
 
 
@@ -270,5 +323,13 @@ def test_expand_mixes_passthrough_and_expansion() -> None:
     """When a list contains a plain segment plus a multi-agent ref, both are handled."""
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["plain", "#three"])
+        out = expand_multi_agent_xprompts(["plain", "#!three"])
     assert out == ["plain", "a", "b", "c"]
+
+
+def test_fenced_multi_agent_references_are_ignored() -> None:
+    catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
+    segment = "Example:\n```\n#three\n#!three\n```"
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts([segment])
+    assert out == [segment]

@@ -15,6 +15,13 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
+def _multi_agent_xprompt_workflow(name: str) -> Workflow:
+    return Workflow(
+        name=name,
+        steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
+    )
+
+
 def _embeddable_workflow(name: str) -> Workflow:
     return Workflow(
         name=name,
@@ -34,6 +41,7 @@ def test_xprompt_list_includes_kind_and_insertion(
 ) -> None:
     prompts = {
         "commit": _simple_workflow("commit"),
+        "multi": _multi_agent_xprompt_workflow("multi"),
         "gh": _embeddable_workflow("gh"),
         "sync": _standalone_workflow("sync"),
     }
@@ -50,6 +58,11 @@ def test_xprompt_list_includes_kind_and_insertion(
     assert rows["commit"]["kind"] == "xprompt"
     assert rows["commit"]["prefix"] == "#"
     assert rows["commit"]["insertion"] == "#commit"
+
+    assert rows["multi"]["type"] == "xprompt"
+    assert rows["multi"]["kind"] == "xprompt"
+    assert rows["multi"]["prefix"] == "#!"
+    assert rows["multi"]["insertion"] == "#!multi"
 
     assert rows["gh"]["type"] == "workflow"
     assert rows["gh"]["kind"] == "embeddable_workflow"

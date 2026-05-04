@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt.reference_display import workflow_reference_insertion
-from sase.xprompt.workflow_models import WorkflowKind
+from sase.xprompt.reference_display import (
+    workflow_reference_insertion,
+    workflow_reference_prefix,
+)
 
 
 def is_xprompt_like_token(token: str) -> bool:
@@ -38,10 +40,7 @@ def build_xprompt_completion_candidates(
 
     candidates: list[CompletionCandidate] = []
     for name, workflow in all_prompts.items():
-        if (
-            standalone_only
-            and workflow.prompt_kind() is not WorkflowKind.STANDALONE_WORKFLOW
-        ):
+        if standalone_only and workflow_reference_prefix(workflow) != "#!":
             continue
         if not name.lower().startswith(partial_lower):
             continue

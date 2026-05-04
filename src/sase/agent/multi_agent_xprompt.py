@@ -16,24 +16,18 @@ from dataclasses import dataclass, field
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
-from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+from sase.xprompt._parsing import (
+    XPromptReference,
+    XPromptReferenceArgKind,
+    XPromptReferenceMarker,
+    iter_xprompt_references,
+)
 from sase.xprompt.loader import get_all_xprompts
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import expand_single_xprompt
+from sase.xprompt.segment_separators import xprompt_has_segment_separators
 
-_SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
-
-# Lines that are treated as leading directives attached to the call site
-# (not part of the xprompt reference itself).  Mirrors the directive forms
-# accepted elsewhere in the codebase: %name, %name:..., %wait, %m(...), etc.
 _DIRECTIVE_LINE_RE = re.compile(r"^%[a-zA-Z][a-zA-Z0-9_]*(?:[:(].*)?\s*$")
-
-# Matches a single xprompt reference token (subset of processor._XPROMPT_PATTERN
-# without the leading-context lookbehind, since we anchor at start-of-string).
-_REFERENCE_RE = re.compile(
-    r"^#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
-)
 
 
 class _MultiAgentXPromptError(ValueError):
@@ -59,16 +53,11 @@ class _XPromptCall:
     """A parsed top-level xprompt reference in a segment."""
 
     name: str
+    marker: XPromptReferenceMarker
+    raw: str
     positional_args: list[str] = field(default_factory=list)
     named_args: dict[str, str] = field(default_factory=dict)
     leading_directives: list[str] = field(default_factory=list)
-
-
-def xprompt_has_segment_separators(xp: XPrompt) -> bool:
-    """Return True iff *xp*'s body contains a ``---`` line outside fenced blocks."""
-    blocks: list[str] = []
-    protected = protect_fenced_blocks(xp.content, blocks)
-    return bool(_SEGMENT_SEP_RE.search(protected))
 
 
 def _split_leading_directives(segment: str) -> tuple[list[str], str]:
@@ -95,87 +84,114 @@ def _split_leading_directives(segment: str) -> tuple[list[str], str]:
     return directives, remaining
 
 
+def _parse_xprompt_reference_arguments(
+    ref: XPromptReference,
+) -> tuple[list[str], dict[str, str]]:
+    """Parse reference arguments using xprompt-compatible argument semantics."""
+    if ref.arg_kind is XPromptReferenceArgKind.NONE:
+        return [], {}
+    if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+        return ["true"], {}
+    if ref.arg_kind is XPromptReferenceArgKind.COLON:
+        colon_arg = ref.argument_source[1:]
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            return [colon_arg[1:-1]], {}
+        return colon_arg.split(","), {}
+    return ref.parse_arguments()
+
+
 def extract_top_level_xprompt_reference(
     segment: str, available: set[str]
 ) -> _XPromptCall | None:
     """Return the call info if *segment* is a sole top-level xprompt reference.
 
     A segment qualifies if, after stripping leading blank/directive lines and
-    trailing whitespace, what remains is exactly one ``#name`` (optionally with
-    args) and nothing else, and ``name`` is in *available*.
+    trailing whitespace, what remains is exactly one ``#name`` or ``#!name``
+    (optionally with args) and nothing else, and ``name`` is in *available*.
     """
     directives, body = _split_leading_directives(segment)
     if not body:
         return None
 
-    match = _REFERENCE_RE.match(body)
-    if match is None:
+    refs = iter_xprompt_references(body)
+    if len(refs) != 1:
         return None
-
-    name = match.group(1).replace("__", "/")
-    has_open_paren = match.group(2) is not None
-    colon_arg = match.group(3)
-    plus_suffix = match.group(4)
-
-    positional_args: list[str] = []
-    named_args: dict[str, str] = {}
-    end = match.end()
-
-    if has_open_paren:
-        paren_start = match.end() - 1
-        paren_end = find_matching_paren_for_args(body, paren_start)
-        if paren_end is None:
-            return None
-        paren_content = body[paren_start + 1 : paren_end]
-        positional_args, named_args = parse_args(paren_content)
-        end = paren_end + 1
-    elif colon_arg is not None:
-        if colon_arg.startswith("`") and colon_arg.endswith("`"):
-            positional_args = [colon_arg[1:-1]]
-        else:
-            positional_args = colon_arg.split(",")
-    elif plus_suffix is not None:
-        positional_args = ["true"]
 
     # Must be the only non-directive content in the segment.
-    trailing = body[end:].strip()
-    if trailing:
+    ref = refs[0]
+    if ref.start != 0 or ref.end != len(body):
         return None
 
-    if name not in available:
+    if ref.name not in available:
         return None
 
+    positional_args, named_args = _parse_xprompt_reference_arguments(ref)
     return _XPromptCall(
-        name=name,
+        name=ref.name,
+        marker=ref.marker,
+        raw=ref.raw,
         positional_args=positional_args,
         named_args=named_args,
         leading_directives=directives,
     )
 
 
-def _segment_contains_multi_agent_reference(
-    segment: str, multi_agent_names: set[str]
-) -> bool:
-    """Return True if *segment* references any multi-agent xprompt anywhere.
-
-    Used to detect the "mixed with other prose" error case.  The segment
-    qualified for sole-reference treatment if and only if
-    :func:`extract_top_level_xprompt_reference` returned a call;
-    if it didn't but a multi-agent xprompt name still appears, the segment
-    is mid-prose and we raise.
-    """
-    if not multi_agent_names:
-        return False
-    # Strip fenced code blocks so we don't false-positive on inline examples.
+def _real_xprompt_references(segment: str) -> list[XPromptReference]:
+    """Return lexical xprompt references in *segment*, excluding fenced examples."""
     blocks: list[str] = []
     protected = protect_fenced_blocks(segment, blocks)
-    # Lazy import to avoid a circular dependency at module load.
-    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
+    return iter_xprompt_references(protected)
 
-    for call in extract_xprompt_calls(protected):
-        if call.name in multi_agent_names:
-            return True
-    return False
+
+def _first_multi_agent_reference(
+    segment: str, multi_agent_names: set[str]
+) -> XPromptReference | None:
+    """Return the first real reference to a multi-agent xprompt in *segment*."""
+    if not multi_agent_names:
+        return None
+    for ref in _real_xprompt_references(segment):
+        if ref.name in multi_agent_names:
+            return ref
+    return None
+
+
+def _first_invalid_standalone_xprompt_reference(
+    segment: str,
+    catalog: dict[str, XPrompt],
+    multi_agent_names: set[str],
+) -> XPromptReference | None:
+    """Return the first ``#!`` reference to an ordinary embeddable xprompt."""
+    for ref in _real_xprompt_references(segment):
+        if (
+            ref.is_standalone_marker
+            and ref.name in catalog
+            and ref.name not in multi_agent_names
+        ):
+            return ref
+    return None
+
+
+def _multi_agent_requires_bang_message(name: str) -> str:
+    return (
+        f"Multi-agent xprompt '#{name}' must be invoked as '#!{name}' "
+        "because it expands to multiple agent prompts."
+    )
+
+
+def _invalid_explicit_xprompt_message(ref: XPromptReference) -> str:
+    return (
+        "Only standalone workflows and multi-agent xprompts use '#!'; "
+        f"'{ref.raw}' resolves to an embeddable xprompt. "
+        f"Use '#{ref.name}' for inline expansion."
+    )
+
+
+def _mixed_multi_agent_reference_message(segment: str) -> str:
+    return (
+        "Multi-agent xprompt reference must be invoked as a sole '#!' "
+        "reference in its segment (no surrounding prose). Segment:\n"
+        f"{segment}"
+    )
 
 
 def expand_multi_agent_xprompts(
@@ -223,10 +239,14 @@ def expand_multi_agent_xprompts(
     for segment in segments:
         call = extract_top_level_xprompt_reference(segment, available)
         if call is not None and call.name in multi_agent_names:
+            if call.marker is XPromptReferenceMarker.INLINE:
+                raise MultiAgentXPromptUsageError(
+                    _multi_agent_requires_bang_message(call.name)
+                )
             if max_depth <= 0:
                 raise MultiAgentXPromptDepthError(
                     f"multi-agent xprompt expansion exceeded max depth at "
-                    f"#{call.name} (possible self-reference)"
+                    f"#!{call.name} (possible self-reference)"
                 )
             xp = catalog[call.name]
             substituted = expand_single_xprompt(
@@ -244,18 +264,41 @@ def expand_multi_agent_xprompts(
                 sub_segments,
                 local_xprompts=local_xprompts,
                 max_depth=max_depth - 1,
-                _strict_segment_check=False,
             )
             expanded.extend(recursively_expanded)
-        elif _strict_segment_check and _segment_contains_multi_agent_reference(
-            segment, multi_agent_names
-        ):
+        elif call is not None and call.marker is XPromptReferenceMarker.STANDALONE:
             raise MultiAgentXPromptUsageError(
-                "Multi-agent xprompt reference must be the only content in "
-                "its segment (no surrounding prose). Segment:\n"
-                f"{segment}"
+                _invalid_explicit_xprompt_message(
+                    XPromptReference(
+                        marker=call.marker,
+                        name=call.name,
+                        start=0,
+                        end=0,
+                        raw=call.raw,
+                    )
+                )
             )
         else:
+            invalid_standalone = _first_invalid_standalone_xprompt_reference(
+                segment, catalog, multi_agent_names
+            )
+            if invalid_standalone is not None:
+                raise MultiAgentXPromptUsageError(
+                    _invalid_explicit_xprompt_message(invalid_standalone)
+                )
+
+            if _strict_segment_check:
+                multi_agent_ref = _first_multi_agent_reference(
+                    segment, multi_agent_names
+                )
+                if multi_agent_ref is not None:
+                    if multi_agent_ref.is_standalone_marker:
+                        raise MultiAgentXPromptUsageError(
+                            _mixed_multi_agent_reference_message(segment)
+                        )
+                    raise MultiAgentXPromptUsageError(
+                        _multi_agent_requires_bang_message(multi_agent_ref.name)
+                    )
             expanded.append(segment)
 
     return expanded

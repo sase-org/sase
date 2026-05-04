@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 15:24:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/require_bang_for_multi_agent_xprompts.md
 ---
 # Require `#!` for multi-agent Markdown xprompts

@@ -14,6 +14,7 @@ from sase.xprompt import get_all_prompts
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
+    workflow_reference_prefix,
 )
 from sase.xprompt.workflow_models import Workflow
 
@@ -233,14 +234,15 @@ class XPromptBrowserModal(
     def _create_item_label(self, item: BrowserItem) -> Text:
         """Create styled label for an xprompt item."""
         text = Text()
+        prefix = workflow_reference_prefix(item.workflow)
         if item.kind == "standalone_workflow":
             text.append("  ▶ ", style="bold #FFD700")
-            text.append("#!", style="bold #87D7FF")
+            text.append(prefix, style="bold #87D7FF")
         elif item.kind == "embeddable_workflow":
             text.append("  ⚙ ", style="bold #FFD700")  # Gold gear for workflows
-            text.append("#", style="bold #87D7FF")
+            text.append(prefix, style="bold #87D7FF")
         else:
-            text.append("  #", style="bold #87D7FF")
+            text.append(f"  {prefix}", style="bold #87D7FF")
         text.append(item.name)
         # Append input arg signatures
         append_input_args(text, item.workflow.inputs)

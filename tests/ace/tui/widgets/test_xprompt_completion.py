@@ -15,6 +15,13 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
+def _multi_agent_xprompt_workflow(name: str) -> Workflow:
+    return Workflow(
+        name=name,
+        steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
+    )
+
+
 def _embeddable_workflow(name: str) -> Workflow:
     return Workflow(
         name=name,
@@ -55,6 +62,7 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
     prompts = {
         "sync": _standalone_workflow("sync"),
         "setup": _simple_workflow("setup"),
+        "split": _multi_agent_xprompt_workflow("split"),
         "send": _embeddable_workflow("send"),
     }
     with patch("sase.xprompt.loader.get_all_prompts", return_value=prompts):
@@ -62,7 +70,8 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
-        ("#!sync", "#!sync", "sync")
+        ("#!split", "#!split", "split"),
+        ("#!sync", "#!sync", "sync"),
     ]
 
 

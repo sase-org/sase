@@ -12,6 +12,13 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
+def _multi_agent_xprompt_workflow(name: str) -> Workflow:
+    return Workflow(
+        name=name,
+        steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
+    )
+
+
 def _standalone_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="run", agent="do it")])
 
@@ -19,6 +26,7 @@ def _standalone_workflow(name: str) -> Workflow:
 def test_xprompt_select_returns_suffix_for_existing_hash_trigger() -> None:
     prompts = {
         "commit": _simple_workflow("commit"),
+        "multi": _multi_agent_xprompt_workflow("multi"),
         "sync": _standalone_workflow("sync"),
     }
     with patch(
@@ -28,4 +36,5 @@ def test_xprompt_select_returns_suffix_for_existing_hash_trigger() -> None:
         modal = XPromptSelectModal()
 
     assert modal._insertion_suffix("commit") == "commit"
+    assert modal._insertion_suffix("multi") == "!multi"
     assert modal._insertion_suffix("sync") == "!sync"

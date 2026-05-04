@@ -12,6 +12,7 @@ from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
 from sase.xprompt.reference_display import (
     workflow_kind_value,
+    workflow_reference_prefix,
     workflow_reference_suffix,
 )
 from sase.xprompt.workflow_models import Workflow
@@ -161,16 +162,17 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         text = Text()
         kind = self._all_items.get(name, ("", "xprompt"))[1]
         workflow = self._prompts.get(name)
+        prefix = workflow_reference_prefix(workflow) if workflow else "#"
         if kind == "standalone_workflow":
             text.append("▶ ", style="bold #FFD700")
-            text.append("#!", style="bold #87D7FF")
+            text.append(prefix, style="bold #87D7FF")
             text.append(name)
         elif kind == "embeddable_workflow":
             text.append("⚙ ", style="bold #FFD700")  # Gold gear for workflows
-            text.append("#", style="bold #87D7FF")
+            text.append(prefix, style="bold #87D7FF")
             text.append(name)
         else:
-            text.append("#", style="bold #87D7FF")
+            text.append(prefix, style="bold #87D7FF")
             text.append(name)
         # Append input arg signatures
         if workflow:
