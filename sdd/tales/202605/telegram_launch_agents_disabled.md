@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 17:49:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_launch_agents_disabled.md
 ---
 # Telegram Launch Disable Environment Variable
