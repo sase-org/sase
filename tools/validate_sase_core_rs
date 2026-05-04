@@ -32,6 +32,8 @@ REQUIRED_BINDINGS = (
     "derive_git_workspace_name",
     "parse_git_conflicted_files",
     "parse_git_local_changes",
+    "bead_build_legend_work_plan",
+    "bead_build_legend_work_plan_from_issues",
 )
 
 
