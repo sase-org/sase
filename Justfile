@@ -122,19 +122,22 @@ fmt-md-check:
 [positional-arguments]
 test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
-    {{ venv_bin }}/pytest -n auto --dist=loadfile "$@"
+    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
+        {{ venv_bin }}/pytest -n auto --dist=loadfile "$@"
 
 # Run slow tests (excluded from the default `just test` run)
 [positional-arguments]
 test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
-    {{ venv_bin }}/pytest -n auto --dist=loadfile -m slow "$@"
+    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
+        {{ venv_bin }}/pytest -n auto --dist=loadfile -m slow "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI)
 [positional-arguments]
 test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
-    {{ venv_bin }}/pytest -n auto --dist=loadfile \
+    @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
+        {{ venv_bin }}/pytest -n auto --dist=loadfile \
         --cov=src/sase \
         --cov-branch \
         --cov-report=term-missing:skip-covered \
