@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -89,11 +87,7 @@ def test_load_agents_from_disk_hides_dismissed_identity_without_hiding_running_a
     assert running_alias not in dismissed_from_loader
 
 
-@pytest.mark.xfail(
-    reason="Phase 2 removes full dismissed-bundle hydration from startup.",
-    strict=True,
-)
-def test_future_startup_loader_does_not_hydrate_dismissed_archive() -> None:
+def test_startup_loader_does_not_hydrate_dismissed_archive() -> None:
     """Perf sentinel: Phase 2 should stop touching dismissed bundles here."""
 
     with (
@@ -143,3 +137,30 @@ def test_revive_grouping_restores_children_loaded_from_child_bundle_filenames(
     }
     assert mock_remove.call_args.kwargs == {"child_raw_suffixes": {parent.raw_suffix}}
     assert app.load_count == 1
+
+
+def test_revive_archive_load_repairs_identity_index_on_demand() -> None:
+    """Archive open, not startup, recovers bundle identities and prunes orphans."""
+
+    archived = make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="archived",
+        raw_suffix="20250101140000",
+    )
+    orphan = (AgentType.WORKFLOW, "missing", "20250101150000")
+    app = FakeReviveApp()
+    app._dismissed_agents = {orphan}
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.load_dismissed_bundles",
+            return_value=[archived],
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+    ):
+        loaded = app._load_dismissed_archive()
+
+    assert loaded == [archived]
+    assert archived._loaded_from_dismissed_bundle is True
+    assert app._dismissed_agents == {archived.identity}
+    mock_save.assert_called_once_with(app._dismissed_agents)

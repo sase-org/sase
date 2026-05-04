@@ -137,27 +137,24 @@ def test_self_heal_skips_second_reload_even_for_missing_dir(tmp_path: Path) -> N
         assert mock_is_dir.call_count == first_calls
 
 
-def test_cleanup_keeps_identity_with_sharded_bundle(tmp_path: Path) -> None:
-    """A sharded bundle prevents dismissed-index orphan pruning."""
-    bundles_dir = tmp_path / "bundles"
-    shard_dir = bundles_dir / "202401"
-    shard_dir.mkdir(parents=True)
+def test_cleanup_does_not_probe_bundles_for_orphaned_identities() -> None:
+    """Startup cleanup no longer scans bundles for missing dismissed rows."""
     raw_suffix = "20240101120000"
-    (shard_dir / f"{raw_suffix}.json").write_text("{}")
     identity = (AgentType.WORKFLOW, "archived", raw_suffix)
 
     with (
-        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents.has_dismissed_bundle") as mock_has_bundle,
         patch("sase.ace.tui.actions.agents._killing.delete_agent_artifacts"),
     ):
         orphaned, cleaned_dirs = _loading._compute_loader_cleanup({identity}, [])
 
     assert orphaned == set()
     assert cleaned_dirs == set()
+    mock_has_bundle.assert_not_called()
 
 
-def test_load_agents_from_disk_includes_bundles_missing_from_index() -> None:
-    """Revive candidates come from all bundle files, not only indexed suffixes."""
+def test_load_agents_from_disk_does_not_include_bundle_only_archive_rows() -> None:
+    """Startup revive candidates come from loader rows, not the full archive."""
     bundled = _make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="bundle_only",
@@ -175,9 +172,8 @@ def test_load_agents_from_disk_includes_bundles_missing_from_index() -> None:
         all_agents, dismissed_from_loader = load_agents_from_disk(set())
 
     assert all_agents == []
-    assert dismissed_from_loader == [bundled]
-    assert bundled._loaded_from_dismissed_bundle is True
-    mock_dismissed_bundles.assert_called_once_with()
+    assert dismissed_from_loader == []
+    mock_dismissed_bundles.assert_not_called()
 
 
 def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:

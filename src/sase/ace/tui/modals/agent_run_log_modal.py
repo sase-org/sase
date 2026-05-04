@@ -66,13 +66,23 @@ def _load_agents_for_cl(
     dismissed_suffixes: set[str] = {
         raw_suffix for _, _, raw_suffix in dismissed_ids if raw_suffix is not None
     }
+    candidate_dismissed_suffixes: set[str] = {
+        raw_suffix
+        for _, dismissed_cl_name, raw_suffix in dismissed_ids
+        if raw_suffix is not None and changespec_names_match(dismissed_cl_name, cl_name)
+    }
 
     # Load dismissed bundles for this CL, deduplicating against active agents
     active_identities = {a.identity for a in active}
     active_suffixes = {a.raw_suffix for a in active if a.raw_suffix is not None}
 
     dismissed_for_cl: list[Agent] = []
-    for agent in load_dismissed_bundles():
+    dismissed_bundles = (
+        load_dismissed_bundles(suffixes=candidate_dismissed_suffixes)
+        if candidate_dismissed_suffixes
+        else []
+    )
+    for agent in dismissed_bundles:
         if agent.is_workflow_child:
             continue
         # Match by cl_name or by meta CL/PR creation

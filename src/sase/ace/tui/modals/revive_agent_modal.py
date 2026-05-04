@@ -79,6 +79,7 @@ class DismissedAgentSelectModal(
         agents: list[Agent],
         *,
         all_dismissed: list[Agent] | None = None,
+        loading_archive: bool = False,
     ) -> None:
         """Initialize the modal.
 
@@ -95,6 +96,7 @@ class DismissedAgentSelectModal(
         self._filtered: list[tuple[int, Agent]] = list(enumerate(agents))
         self._step_counts: dict[str, int] = self._compute_step_counts()
         self._marked: set[int] = set()
+        self._loading_archive = loading_archive
 
     def _compute_step_counts(self) -> dict[str, int]:
         """Count child steps per parent (keyed by raw_suffix)."""
@@ -140,7 +142,7 @@ class DismissedAgentSelectModal(
             with Horizontal(id="dismissed-agent-panels"):
                 with Vertical(id="dismissed-agent-list-panel"):
                     yield OptionList(
-                        *self._create_options(self.agents),
+                        *self._create_options_or_placeholder(),
                         id="dismissed-agent-list",
                     )
                 with Vertical(id="dismissed-agent-preview-panel"):
@@ -148,9 +150,42 @@ class DismissedAgentSelectModal(
                         yield Static("", id="dismissed-preview-metadata")
                         yield Static("", id="dismissed-preview-content")
             yield Static(
-                "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll | Enter: revive | Esc/q: cancel",
+                self._hints_text(),
                 id="dismissed-agent-hints",
             )
+
+    def set_agents(
+        self,
+        agents: list[Agent],
+        *,
+        all_dismissed: list[Agent] | None = None,
+        loading_archive: bool = False,
+    ) -> None:
+        """Replace modal contents after an on-demand archive load."""
+        self.agents = agents
+        self._all_dismissed = all_dismissed or agents
+        self._step_counts = self._compute_step_counts()
+        self._marked = {idx for idx in self._marked if idx < len(self.agents)}
+        self._loading_archive = loading_archive
+
+        self._chat_contents.clear()
+        for i, agent in enumerate(self.agents):
+            content = agent.get_response_content()
+            if content:
+                self._chat_contents[i] = content.lower()
+
+        try:
+            filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
+            self._filtered = self._get_filtered_agents(filter_input.value)
+        except Exception:
+            self._filtered = list(enumerate(self.agents))
+
+        self._rebuild_options()
+        if self._filtered:
+            self._update_preview(self._filtered[0][1])
+        else:
+            self._clear_preview()
+        self._update_hints()
 
     def _get_type_color(self, agent: Agent) -> str:
         """Get the color for an agent's type label."""
@@ -222,6 +257,20 @@ class DismissedAgentSelectModal(
             for i, agent in enumerate(agents)
         ]
 
+    def _create_options_or_placeholder(self) -> list[Option]:
+        """Create agent options or a disabled loading/empty placeholder."""
+        if self.agents:
+            return self._create_options(self.agents)
+        if self._loading_archive:
+            return [
+                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
+            ]
+        return [
+            Option(
+                Text("No dismissed agents in this scope", style="dim"), disabled=True
+            )
+        ]
+
     def _get_filtered_agents(self, filter_text: str) -> list[tuple[int, Agent]]:
         """Get agents matching the filter text."""
         if not filter_text:
@@ -274,25 +323,42 @@ class DismissedAgentSelectModal(
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         old_highlighted = option_list.highlighted
         option_list.clear_options()
-        for orig_idx, agent in self._filtered:
+        if self._filtered:
+            for orig_idx, agent in self._filtered:
+                option_list.add_option(
+                    Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                )
+        elif self._loading_archive:
             option_list.add_option(
-                Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
+            )
+        else:
+            option_list.add_option(
+                Option(
+                    Text("No dismissed agents in this scope", style="dim"),
+                    disabled=True,
+                )
             )
         if old_highlighted is not None and 0 <= old_highlighted < len(self._filtered):
             option_list.highlighted = old_highlighted
 
+    def _hints_text(self) -> str:
+        count = len(self._marked)
+        loading = " | archive loading" if self._loading_archive else ""
+        if count:
+            return (
+                "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
+                f" | Enter: revive ({count}) | Esc/q: cancel{loading}"
+            )
+        return (
+            "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
+            f" | Enter: revive | Esc/q: cancel{loading}"
+        )
+
     def _update_hints(self) -> None:
         """Update the hints bar to reflect current mark count."""
         hints = self.query_one("#dismissed-agent-hints", Static)
-        count = len(self._marked)
-        if count:
-            text = (
-                "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
-                f" | Enter: revive ({count}) | Esc/q: cancel"
-            )
-        else:
-            text = "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll | Enter: revive | Esc/q: cancel"
-        hints.update(text)
+        hints.update(self._hints_text())
 
     def _get_marked_agents(self) -> list[Agent]:
         """Get all marked agents in original order."""
@@ -305,9 +371,21 @@ class DismissedAgentSelectModal(
         self._filtered = self._get_filtered_agents(event.value)
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         option_list.clear_options()
-        for orig_idx, agent in self._filtered:
+        if self._filtered:
+            for orig_idx, agent in self._filtered:
+                option_list.add_option(
+                    Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                )
+        elif self._loading_archive:
             option_list.add_option(
-                Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+                Option(Text("Loading dismissed archive...", style="dim"), disabled=True)
+            )
+        else:
+            option_list.add_option(
+                Option(
+                    Text("No dismissed agents in this scope", style="dim"),
+                    disabled=True,
+                )
             )
         if self._filtered:
             self._update_preview(self._filtered[0][1])

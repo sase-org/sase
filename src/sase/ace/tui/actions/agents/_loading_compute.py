@@ -40,20 +40,10 @@ def compute_loader_cleanup(
     set[str],
 ]:
     """Compute orphaned-dismissed entries and clean loader-sourced artifacts."""
-    # Self-heal dismissed entries with no in-memory agent and no bundle file.
-    from ....dismissed_agents import has_dismissed_bundle
     from ._killing import delete_agent_artifacts
 
-    found_suffixes = {
-        a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
-    }
+    del dismissed_snapshot
     orphaned: set[tuple[AgentType, str, str | None]] = set()
-    for identity in dismissed_snapshot:
-        _, _, raw_suffix = identity
-        if raw_suffix is None or raw_suffix in found_suffixes:
-            continue
-        if not has_dismissed_bundle(raw_suffix):
-            orphaned.add(identity)
 
     # Self-healing: clean stale artifacts only for loader-sourced dismissed agents.
     cleaned_dirs: set[str] = set()

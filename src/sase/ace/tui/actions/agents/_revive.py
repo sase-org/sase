@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from ._revive_artifacts import ArtifactRestorationMixin
 
@@ -91,6 +92,21 @@ def _is_child_of(child: Agent, parent: Agent) -> bool:
     return child.parent_workflow is None or child.parent_workflow == parent.workflow
 
 
+def _merge_dismissed_agents(
+    in_memory: Iterable[Agent],
+    archive: Iterable[Agent],
+) -> list[Agent]:
+    """Merge same-session dismissed rows with archive rows, preserving order."""
+    merged: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for agent in (*list(in_memory), *list(archive)):
+        if agent.identity in seen:
+            continue
+        merged.append(agent)
+        seen.add(agent.identity)
+    return merged
+
+
 class AgentRevivalMixin(ArtifactRestorationMixin):
     """Mixin providing agent revival (un-dismiss) functionality.
 
@@ -130,7 +146,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         """Show project selection modal, then dismissed agent selection."""
         from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
 
-        if not self._dismissed_agent_objects:
+        if not self._dismissed_agent_objects and not self._dismissed_agents:
             self.notify("No dismissed agents to revive")  # type: ignore[attr-defined]
             return
 
@@ -154,8 +170,65 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         if not isinstance(selection, SelectionItem):
             return
 
-        agents = self._dismissed_agent_objects
+        def _filter_for_scope(agents: list[Agent]) -> tuple[list[Agent], list[Agent]]:
+            return self._filter_dismissed_agents_for_scope(selection, agents)
 
+        agents = self._dismissed_agent_objects
+        filtered, all_in_scope = _filter_for_scope(agents)
+
+        def _on_agents_selected(agents: object) -> None:
+            if agents is None:
+                return
+            if not isinstance(agents, list) or not agents:
+                return
+            if len(agents) == 1:
+                self._do_revive_agent(agents[0])
+            else:
+                self._do_revive_agents(agents)  # type: ignore[attr-defined]
+
+        modal = DismissedAgentSelectModal(
+            filtered,
+            all_dismissed=all_in_scope,
+            loading_archive=True,
+        )
+        self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
+
+        async def _load_archive_for_modal() -> None:
+            archive_agents = await asyncio.to_thread(self._load_dismissed_archive)
+            merged = _merge_dismissed_agents(
+                self._dismissed_agent_objects, archive_agents
+            )
+            next_filtered, next_all_in_scope = _filter_for_scope(merged)
+            self._dismissed_agent_objects = merged
+            try:
+                modal.set_agents(
+                    next_filtered,
+                    all_dismissed=next_all_in_scope,
+                    loading_archive=False,
+                )
+            except Exception:
+                pass
+
+        try:
+            self.run_worker(  # type: ignore[attr-defined]
+                cast(Any, _load_archive_for_modal),
+                thread=False,
+                exclusive=False,
+                group="dismissed-archive",
+            )
+        except Exception:
+            self.notify("Failed to load dismissed archive", severity="error")  # type: ignore[attr-defined]
+
+    def _filter_dismissed_agents_for_scope(
+        self,
+        selection: object,
+        agents: list[Agent],
+    ) -> tuple[list[Agent], list[Agent]]:
+        """Return parent options and all dismissed rows for a selected scope."""
+        from ...modals import SelectionItem
+
+        if not isinstance(selection, SelectionItem):
+            return [], []
         if selection.item_type == "all":
             filtered = list(agents)
         elif selection.item_type == "home":
@@ -169,7 +242,7 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         elif selection.item_type == "cl":
             filtered = [a for a in agents if a.cl_name == selection.cl_name]
         else:
-            return
+            return [], []
 
         # Sort: project-level agents first, then by CL name, then most recent first
         filtered.sort(
@@ -183,25 +256,37 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
         # Only show top-level DONE entries (no child steps)
         all_in_scope = list(filtered)
         filtered = [a for a in filtered if not a.is_workflow_child]
+        return filtered, all_in_scope
 
-        if not filtered:
-            self.notify("No dismissed agents in this scope")  # type: ignore[attr-defined]
-            return
+    def _load_dismissed_archive(self) -> list[Agent]:
+        """Load dismissed bundles on demand and repair the compact identity index."""
+        from ....dismissed_agents import load_dismissed_bundles, save_dismissed_agents
 
-        def _on_agents_selected(agents: object) -> None:
-            if agents is None:
-                return
-            if not isinstance(agents, list) or not agents:
-                return
-            if len(agents) == 1:
-                self._do_revive_agent(agents[0])
-            else:
-                self._do_revive_agents(agents)  # type: ignore[attr-defined]
-
-        self.app.push_screen(  # type: ignore[attr-defined]
-            DismissedAgentSelectModal(filtered, all_dismissed=all_in_scope),
-            _on_agents_selected,
-        )
+        archive_agents = load_dismissed_bundles()
+        found_identities = {agent.identity for agent in archive_agents}
+        found_suffixes = {
+            agent.raw_suffix for agent in archive_agents if agent.raw_suffix is not None
+        }
+        in_memory_suffixes = {
+            agent.raw_suffix
+            for agent in self._dismissed_agent_objects
+            if agent.raw_suffix is not None
+        }
+        next_dismissed = set(self._dismissed_agents)
+        next_dismissed.update(found_identities)
+        next_dismissed = {
+            identity
+            for identity in next_dismissed
+            if identity[2] is None
+            or identity[2] in found_suffixes
+            or identity[2] in in_memory_suffixes
+        }
+        if next_dismissed != self._dismissed_agents:
+            self._dismissed_agents = next_dismissed
+            save_dismissed_agents(self._dismissed_agents)
+        for agent in archive_agents:
+            agent._loaded_from_dismissed_bundle = True
+        return archive_agents
 
     def _do_revive_agent(self, agent: object) -> None:
         """Revive a dismissed agent by removing it from the dismissed set."""
