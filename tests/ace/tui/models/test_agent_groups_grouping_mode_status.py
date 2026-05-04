@@ -16,7 +16,7 @@ def test_status_bucket_running() -> None:
 
 
 def test_status_bucket_planning_is_needs_attention() -> None:
-    """``PLANNING`` is an active drafting state where the user is on call."""
+    """``PLANNING`` is a submitted plan waiting on user review."""
     assert _status_bucket_for(_agent(status="PLANNING")) == "Needs Attention"
 
 

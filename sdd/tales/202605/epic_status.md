@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 14:50:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/epic_status.md
 ---
 # Plan: Keep `%epic` Plan Writers Running Until a Plan Is Submitted

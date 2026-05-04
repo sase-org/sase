@@ -36,6 +36,36 @@ def _parse_utc_to_eastern(iso_str: str) -> datetime:
     return dt.astimezone(_cached_timezone()).replace(tzinfo=None)
 
 
+def _has_plan_submission_marker(raw_value: object) -> bool:
+    if isinstance(raw_value, str):
+        return bool(raw_value)
+    if isinstance(raw_value, list):
+        return any(isinstance(value, str) and value for value in raw_value)
+    return False
+
+
+def _plan_enrichment_status(
+    *,
+    plan_approved: bool,
+    plan_action: str | None,
+    plan_submitted: bool,
+    auto_approved: bool,
+) -> str | None:
+    if plan_approved:
+        if plan_action == "commit":
+            return "PLAN COMMITTED"
+        if plan_action == "epic":
+            return "EPIC APPROVED"
+        if plan_action == "legend":
+            return "LEGEND APPROVED"
+        return "PLAN APPROVED"
+
+    if plan_submitted and not auto_approved:
+        return "PLANNING"
+
+    return None
+
+
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     """Read agent_meta.json and populate model/vcs_provider fields.
 
@@ -200,21 +230,19 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         if isinstance(raw_until, str) and raw_until:
             agent.wait_until = raw_until
 
-    # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC APPROVED status
-    # for agents launched with %plan directive
+    # Set plan review / approval statuses for agents launched with %plan
+    # directives. PLANNING means a submitted plan is waiting on manual review;
+    # agents still drafting a plan, or using an auto-approval path, remain
+    # RUNNING until later markers take over.
     if data.get("plan") and agent.status == "RUNNING":
-        if data.get("plan_approved"):
-            plan_action = data.get("plan_action")
-            if plan_action == "commit":
-                agent.status = "PLAN COMMITTED"
-            elif plan_action == "epic":
-                agent.status = "EPIC APPROVED"
-            elif plan_action == "legend":
-                agent.status = "LEGEND APPROVED"
-            else:
-                agent.status = "PLAN APPROVED"
-        else:
-            agent.status = "PLANNING"
+        plan_status = _plan_enrichment_status(
+            plan_approved=bool(data.get("plan_approved")),
+            plan_action=data.get("plan_action"),
+            plan_submitted=_has_plan_submission_marker(data.get("plan_submitted_at")),
+            auto_approved=agent.approve,
+        )
+        if plan_status is not None:
+            agent.status = plan_status
 
 
 def enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
@@ -348,17 +376,14 @@ def enrich_agent_from_meta_wire(
         agent.wait_until = meta.wait_until
 
     if meta.plan and agent.status == "RUNNING":
-        if meta.plan_approved:
-            if meta.plan_action == "commit":
-                agent.status = "PLAN COMMITTED"
-            elif meta.plan_action == "epic":
-                agent.status = "EPIC APPROVED"
-            elif meta.plan_action == "legend":
-                agent.status = "LEGEND APPROVED"
-            else:
-                agent.status = "PLAN APPROVED"
-        else:
-            agent.status = "PLANNING"
+        plan_status = _plan_enrichment_status(
+            plan_approved=meta.plan_approved,
+            plan_action=meta.plan_action,
+            plan_submitted=bool(meta.plan_submitted_at),
+            auto_approved=agent.approve,
+        )
+        if plan_status is not None:
+            agent.status = plan_status
 
 
 def enrich_agent_from_prompt_markers_wire(

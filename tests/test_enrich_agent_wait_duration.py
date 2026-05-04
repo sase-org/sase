@@ -180,6 +180,147 @@ def test_auto_approve_plan_action_from_agent_meta_wire() -> None:
     assert agent.approve is True
 
 
+def test_auto_epic_plan_before_submission_stays_running(tmp_path: Path) -> None:
+    """An auto-epic plan writer is still active before it submits a plan."""
+    meta = {"pid": 1234, "plan": True, "auto_approve_plan_action": "epic"}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+    assert agent.auto_approve_plan_action == "epic"
+    assert agent.approve is True
+
+
+def test_manual_plan_before_submission_stays_running(tmp_path: Path) -> None:
+    """A manual plan writer is still active until a plan exists for review."""
+    meta = {"pid": 1234, "plan": True}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+
+
+def test_manual_plan_after_submission_becomes_planning(tmp_path: Path) -> None:
+    """PLANNING means a submitted plan is waiting on manual review."""
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "PLANNING"
+    assert len(agent.plan_times) == 1
+
+
+def test_auto_epic_plan_after_submission_stays_running(tmp_path: Path) -> None:
+    """Auto-epic plans do not require manual review after submission."""
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "auto_approve_plan_action": "epic",
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+    assert len(agent.plan_times) == 1
+
+
+def test_approved_plan_statuses_are_preserved(tmp_path: Path) -> None:
+    """Approved plan markers still take precedence over submission state."""
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_approved": True,
+        "plan_action": "epic",
+        "auto_approve_plan_action": "epic",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "EPIC APPROVED"
+
+
+def test_approve_plan_after_submission_stays_running(tmp_path: Path) -> None:
+    """General auto-approval also means no manual plan review is pending."""
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "approve": True,
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+    assert agent.approve is True
+
+
+def test_wire_auto_epic_plan_before_submission_stays_running() -> None:
+    """Snapshot enrichment mirrors active auto-epic plan drafting."""
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(plan=True, auto_approve_plan_action="epic"),
+        None,
+    )
+
+    assert agent.status == "RUNNING"
+    assert agent.auto_approve_plan_action == "epic"
+    assert agent.approve is True
+
+
+def test_wire_manual_plan_after_submission_becomes_planning() -> None:
+    """Snapshot enrichment mirrors manual plan review state."""
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            plan=True,
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+        ),
+        None,
+    )
+
+    assert agent.status == "PLANNING"
+    assert len(agent.plan_times) == 1
+
+
+def test_wire_auto_epic_plan_after_submission_stays_running() -> None:
+    """Snapshot auto-epic plans do not become manual review items."""
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            plan=True,
+            auto_approve_plan_action="epic",
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+        ),
+        None,
+    )
+
+    assert agent.status == "RUNNING"
+    assert len(agent.plan_times) == 1
+
+
 def test_wait_until_with_agents(tmp_path: Path) -> None:
     """Mixed case: waiting_for agents + wait_until both populated."""
     meta = {"pid": 1234}
