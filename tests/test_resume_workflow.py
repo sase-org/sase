@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_loader import _load_workflow_from_file
@@ -16,7 +17,7 @@ from sase.xprompt.workflow_validator import validate_workflow
 
 
 def _load_resume_workflow() -> Workflow:
-    workflow = _load_workflow_from_file(Path("src/sase/xprompts/resume.yml"))
+    workflow = _load_workflow_from_file(get_sase_package_xprompts_dir() / "resume.yml")
     assert workflow is not None
     return workflow
 
