@@ -2,6 +2,8 @@
 create_time: 2026-05-04 13:43:10
 status: wip
 prompt: sdd/prompts/202605/legend_bead_integration.md
+bead_id: sase-21
+tier: epic
 ---
 # Improve Legend Bead Integration
 
