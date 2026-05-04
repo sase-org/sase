@@ -1,6 +1,6 @@
 """Functions for loading and aggregating agents from all sources."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -65,6 +65,11 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 )
 
 _TIER1_RECENT_COMPLETED_LIMIT = 200
+_TIER1_FALLBACK_SCAN_OPTIONS = replace(
+    _TUI_SCAN_OPTIONS,
+    max_records=_TIER1_RECENT_COMPLETED_LIMIT,
+    newest_first=True,
+)
 
 
 @dataclass(frozen=True)
@@ -93,7 +98,9 @@ class _AgentLoadResult:
     state: AgentLoadState
 
 
-def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
+def _scan_artifacts_for_loader(
+    options: AgentArtifactScanOptionsWire | None = None,
+) -> "AgentArtifactScanWire":
     """Return one fresh artifact-tree snapshot for the TUI loader.
 
     Single-purpose seam between :func:`_load_agents_from_all_sources` and
@@ -103,7 +110,7 @@ def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
     """
     return scan_agent_artifacts(
         Path.home() / ".sase" / "projects",
-        _TUI_SCAN_OPTIONS,
+        options or _TUI_SCAN_OPTIONS,
     )
 
 
@@ -117,17 +124,18 @@ def _query_artifact_index_for_loader(
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
 
+    if full_history:
+        return None
+
     index_path = default_agent_artifact_index_path()
     if not index_path.is_file():
         return None
 
     query = AgentArtifactIndexQueryWire(
         include_active=True,
-        include_recent_completed=not full_history,
-        include_full_history=full_history,
-        recent_completed_limit=(
-            None if full_history else _TIER1_RECENT_COMPLETED_LIMIT
-        ),
+        include_recent_completed=True,
+        include_full_history=False,
+        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
     )
     try:
@@ -139,10 +147,10 @@ def _query_artifact_index_for_loader(
         )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
         return (
-            _scan_artifacts_for_loader(),
+            _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
             AgentLoadState(
-                tier="tier2",
-                complete_history=True,
+                tier="tier1",
+                complete_history=False,
                 artifact_source="source_scan",
                 used_artifact_index=False,
                 index_error=str(exc),
@@ -152,8 +160,8 @@ def _query_artifact_index_for_loader(
     return (
         snapshot,
         AgentLoadState(
-            tier="tier2" if full_history else "tier1",
-            complete_history=full_history,
+            tier="tier1",
+            complete_history=False,
             artifact_source="artifact_index",
             used_artifact_index=True,
         ),
@@ -166,20 +174,32 @@ def _artifact_snapshot_for_tui_load(
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
-    Tier 1 uses the persistent artifact index when available. Missing indexes
-    fall back to the canonical source scan, which preserves current behavior
-    on machines that have not rebuilt yet.
+    Tier 1 uses the persistent artifact index when available. Missing or bad
+    indexes fall back to a bounded source scan so first paint remains capped.
+    Tier 2 always reconciles from source-of-truth artifacts so a stale index
+    cannot keep visible history stale indefinitely.
     """
+
+    if full_history:
+        return (
+            _scan_artifacts_for_loader(),
+            AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+            ),
+        )
 
     indexed = _query_artifact_index_for_loader(full_history=full_history)
     if indexed is not None:
         return indexed
 
     return (
-        _scan_artifacts_for_loader(),
+        _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
         AgentLoadState(
-            tier="tier2",
-            complete_history=True,
+            tier="tier1",
+            complete_history=False,
             artifact_source="source_scan",
             used_artifact_index=False,
         ),

@@ -199,22 +199,20 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     mock_scan.assert_not_called()
 
 
-def test_load_agents_from_disk_full_history_queries_complete_tier(tmp_path) -> None:
-    """Full-history refreshes ask the artifact index for complete history."""
+def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
+    """Full-history refreshes use source artifacts so stale indexes cannot persist."""
 
-    index_path = tmp_path / "agent_artifact_index.sqlite"
-    index_path.touch()
     snapshot = _empty_artifact_snapshot()
 
     with (
         patch(
-            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
-            return_value=index_path,
-        ),
-        patch(
             "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
             return_value=snapshot,
         ) as mock_query,
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
+        ) as mock_scan,
         patch(
             "sase.ace.tui.models.agent_loader.find_all_changespecs",
             return_value=[],
@@ -248,6 +246,64 @@ def test_load_agents_from_disk_full_history_queries_complete_tier(tmp_path) -> N
         result = load_agents_from_disk_with_state(set(), full_history=True)
 
     assert result.load_state.complete_history is True
-    query = mock_query.call_args.kwargs["query"]
-    assert query.include_full_history is True
-    assert query.include_recent_completed is False
+    assert result.load_state.artifact_source == "source_scan"
+    assert result.load_state.used_artifact_index is False
+    mock_query.assert_not_called()
+    mock_scan.assert_called_once()
+
+
+def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
+    tmp_path,
+) -> None:
+    """Missing artifact indexes do not force a full source scan before first paint."""
+
+    index_path = tmp_path / "missing_agent_artifact_index.sqlite"
+    snapshot = _empty_artifact_snapshot()
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.default_agent_artifact_index_path",
+            return_value=index_path,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
+        ) as mock_scan,
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+    ):
+        result = load_agents_from_disk_with_state(set())
+
+    assert result.load_state.tier == "tier1"
+    assert result.load_state.complete_history is False
+    assert result.load_state.artifact_source == "source_scan"
+    options = mock_scan.call_args.args[0]
+    assert options.max_records == 200
+    assert options.newest_first is True
