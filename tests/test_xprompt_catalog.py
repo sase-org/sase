@@ -72,6 +72,32 @@ def test_classify_builtin(tmp_path: Path) -> None:
     assert entry.project is None
 
 
+def test_classify_default_xprompts_builtin(tmp_path: Path) -> None:
+    pkg_dir = tmp_path / "pkg"
+    default_dir = tmp_path / "default_xprompts"
+    default_dir.mkdir()
+    source = default_dir / "research_swarm.md"
+    source.write_text("x")
+
+    xp = _make_xprompt("research_swarm", source_path=str(source))
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=pkg_dir,
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+            return_value=default_dir,
+        ),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        entry = _classify(xp, project=None)
+
+    assert entry.bucket == "built-in"
+    assert entry.project is None
+
+
 def test_classify_plugin_source() -> None:
     xp = _make_xprompt("foo", source_path="plugin:some_module/foo.md")
     with (

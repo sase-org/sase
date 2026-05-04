@@ -18,6 +18,7 @@ from pathlib import Path
 from sase.xprompt.loader import (
     get_all_xprompts,
     get_known_project_workspaces,
+    get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
     load_project_local_xprompts,
 )
@@ -166,17 +167,23 @@ def _classify(xp: XPrompt, project: str | None) -> _CatalogEntry:
 
     source_path = Path(source) if source else None
 
-    try:
-        package_dir = get_sase_package_xprompts_dir()
-    except Exception:
-        package_dir = None
-
-    if source_path is not None and package_dir is not None:
+    package_dirs: list[Path] = []
+    for get_package_dir in (
+        get_sase_package_xprompts_dir,
+        get_sase_package_default_xprompts_dir,
+    ):
         try:
-            source_path.resolve().relative_to(package_dir.resolve())
-            return _CatalogEntry(xp, bucket="built-in", project=None)
-        except (ValueError, OSError):
+            package_dirs.append(get_package_dir())
+        except Exception:
             pass
+
+    if source_path is not None:
+        for package_dir in package_dirs:
+            try:
+                source_path.resolve().relative_to(package_dir.resolve())
+                return _CatalogEntry(xp, bucket="built-in", project=None)
+            except (ValueError, OSError):
+                pass
 
     if source_path is not None and "memory/long" in source_path.as_posix():
         return _CatalogEntry(xp, bucket="memory", project=None)

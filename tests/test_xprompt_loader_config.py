@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from sase.xprompt.loader import (
     _load_xprompt_from_file,
+    _load_xprompts_from_default_files,
     get_all_prompts,
     get_all_xprompts,
 )
@@ -155,6 +156,63 @@ def test_get_all_xprompts_includes_md_files() -> None:
 
         assert "hello" in result
         assert result["hello"].content == "Hello from md"
+
+
+def test_load_xprompts_from_default_files_includes_research_swarm() -> None:
+    """Package default_xprompts markdown files are built-in xprompts."""
+    result = _load_xprompts_from_default_files()
+
+    assert "research_swarm" in result
+    xprompt = result["research_swarm"]
+    assert xprompt.name == "research_swarm"
+    assert "default_xprompts/research_swarm.md" in xprompt.source_path
+    assert "{{ prompt }} #research" in xprompt.content
+
+
+def test_default_file_xprompt_not_project_namespaced(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Default file-backed xprompts stay global even when a project is set."""
+    monkeypatch.chdir(tmp_path)
+
+    with (
+        patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
+        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.loader._load_xprompts_from_project", return_value={}),
+        patch(
+            "sase.xprompt.loader.get_xprompt_search_paths",
+            return_value=[tmp_path / ".xprompts", tmp_path / "xprompts"],
+        ),
+    ):
+        result = get_all_xprompts(project="sase")
+
+    assert not (tmp_path / "xprompts" / "research_swarm.md").exists()
+    assert "research_swarm" in result
+    assert "sase/research_swarm" not in result
+    assert "default_xprompts/research_swarm.md" in result["research_swarm"].source_path
+
+
+def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
+    """Config-defined xprompts keep overriding package default markdown files."""
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core._get_local_config_path", return_value=None),
+        patch(
+            "sase.xprompt.loader.load_xprompts_by_source",
+            return_value=[("config", {"research_swarm": "From config"})],
+        ),
+        patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
+        patch("sase.xprompt.loader._load_xprompts_from_plugins", return_value={}),
+        patch("sase.xprompt.loader._load_memory_long_xprompts", return_value={}),
+        patch("sase.xprompt.loader.detect_project", return_value=None),
+        patch("sase.xprompt.loader.get_xprompt_search_paths", return_value=[]),
+    ):
+        result = get_all_xprompts(project=None)
+
+    assert result["research_swarm"].content == "From config"
+    assert result["research_swarm"].source_path == "config"
 
 
 def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:

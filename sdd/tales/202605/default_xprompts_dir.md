@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 17:16:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/default_xprompts_dir.md
 ---
 # Default XPrompts Directory

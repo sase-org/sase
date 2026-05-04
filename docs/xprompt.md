@@ -117,22 +117,23 @@ into an HTML section, and produces a single PDF using the bundled `catalog_templ
 XPrompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
 higher-priority source wins (first-wins).
 
-| Priority | Location                              | Notes                                     |
-| -------- | ------------------------------------- | ----------------------------------------- |
-| 1        | `.xprompts/` (CWD, hidden dir)        | Highest priority; project-local overrides |
-| 2        | `xprompts/` (CWD)                     | Non-hidden variant                        |
-| 3        | `~/.xprompts/` (home, hidden dir)     | User-wide overrides                       |
-| 4        | `~/xprompts/` (home)                  | Non-hidden variant                        |
-| 5        | `~/.config/sase/xprompts/{project}/`  | Project-specific (when project is set)    |
-| 6        | `sase.yml` `xprompts:` section        | Config-based definitions (local + global) |
-| 7        | Plugin packages (`sase_xprompts` EPs) | Installed plugin xprompts                 |
-| 8        | `<sase_package>/xprompts/`            | Built-in xprompts shipped with sase       |
+| Priority | Location                               | Notes                                       |
+| -------- | -------------------------------------- | ------------------------------------------- |
+| 1        | `.xprompts/` (CWD, hidden dir)         | Highest priority; project-local overrides   |
+| 2        | `xprompts/` (CWD)                      | Non-hidden variant                          |
+| 3        | `~/.xprompts/` (home, hidden dir)      | User-wide overrides                         |
+| 4        | `~/xprompts/` (home)                   | Non-hidden variant                          |
+| 5        | `~/.config/sase/xprompts/{project}/`   | Project-specific (when project is set)      |
+| 6        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)   |
+| 7        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                   |
+| 8        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts          |
+| 9        | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with sase |
 
-Each directory (priorities 1-5, 7-8) can contain individual `.md` files. Within priority 6, the config merge chain
+Each directory (priorities 1-5, 7-9) can contain individual `.md` files. Within priority 6, the config merge chain
 applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a local
 `./sase.yml` in the current working directory (highest config priority).
 
-For file-based xprompts (priorities 1-5, 7), the xprompt name defaults to the filename stem (e.g., `summarize.md`
+For file-based xprompts (priorities 1-5, 7-9), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
 
 Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`.
@@ -652,9 +653,10 @@ them as `/sase_<name>`:
 
 ## Built-in XPrompts
 
-A handful of xprompts ship in `src/sase/default_config.yml` and are always available without needing a project- or
-user-level definition. They're the lowest priority in the [discovery order](#discovery-order), so any project or user
-xprompt with the same name overrides them.
+A handful of xprompts ship in `src/sase/default_config.yml` and `src/sase/default_xprompts/*.md` and are always
+available without needing a project- or user-level definition. They're at the built-in end of the
+[discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the
+file-backed markdown defaults.
 
 | Reference             | Body summary                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------- |
@@ -667,6 +669,7 @@ xprompt with the same name overrides them.
 | `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                          |
 | `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps               |
 | `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution           |
+| `#research_swarm`     | Fans out a research prompt into initial research, follow-up research, and image research agents   |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
 | `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`            |

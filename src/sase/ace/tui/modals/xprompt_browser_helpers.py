@@ -11,7 +11,10 @@ from pathlib import Path
 from rich.text import Text
 
 from sase.main.plugin_discovery import discover_plugin_resources
-from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.loader import (
+    get_sase_package_default_xprompts_dir,
+    get_sase_package_xprompts_dir,
+)
 from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
 
@@ -61,7 +64,10 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     home = str(Path.home())
     cwd = str(Path.cwd())
-    sase_pkg_dir = str(get_sase_package_xprompts_dir())
+    sase_pkg_dirs = [
+        str(get_sase_package_xprompts_dir()),
+        str(get_sase_package_default_xprompts_dir()),
+    ]
 
     # Plugin sources: "plugin:module_name/filename.md" (xprompts/ dirs)
     # or "plugin_config:module_name" (default_config.yml)
@@ -99,7 +105,7 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         return f"Project ({proj}) sase.yml", f"~/.sase/projects/{proj}/sase.yml", True
 
     # Inside sase package (built-in)
-    if source_path.startswith(sase_pkg_dir):
+    if any(source_path.startswith(pkg_dir) for pkg_dir in sase_pkg_dirs):
         return "Built-in", source_path.replace(home, "~"), True
 
     # Project-specific: ~/.config/sase/xprompts/{proj}/

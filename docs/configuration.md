@@ -459,7 +459,7 @@ xprompts:
     tags: [crs]
 ```
 
-Xprompts defined in `sase.yml` are priority 6 out of 8 in the resolution order:
+Xprompts defined in `sase.yml` are priority 6 out of 9 in the resolution order:
 
 1. `.xprompts/*.md` (CWD, hidden directory)
 2. `xprompts/*.md` (CWD)
@@ -468,7 +468,8 @@ Xprompts defined in `sase.yml` are priority 6 out of 8 in the resolution order:
 5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
 6. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
 7. Plugin packages (via `sase_xprompts` entry points)
-8. `<sase_package>/xprompts/*.md` (built-in)
+8. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
+9. `<sase_package>/xprompts/*.md` (built-in package xprompts)
 
 Earlier sources win on name conflicts. File-based xprompts use YAML front matter for metadata and the file body for
 content.

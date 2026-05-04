@@ -77,6 +77,26 @@ def get_sase_package_xprompts_dir() -> Path:
     return candidate
 
 
+def get_sase_package_default_xprompts_dir() -> Path:
+    """Get the path to the internal sase default markdown xprompts directory.
+
+    Default file-backed xprompts live at ``src/sase/default_xprompts/`` inside
+    the package, so ``importlib.resources`` resolves them for both wheel and
+    editable installs.
+    """
+    candidate = Path(
+        str(importlib.resources.files("sase").joinpath("default_xprompts"))
+    )
+    if candidate.is_dir():
+        return candidate
+
+    log.warning(
+        "Default xprompts directory not found via "
+        "importlib.resources('sase/default_xprompts')",
+    )
+    return candidate
+
+
 def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     """Load a single xprompt from a markdown file.
 
@@ -139,7 +159,8 @@ def get_xprompt_search_paths() -> list[Path]:
     3. ~/.xprompts/*.md (home, hidden)
     4. ~/xprompts/*.md (home, non-hidden)
     5. (config is handled separately)
-    6. <sase_package>/xprompts/*.md (internal)
+    6. <sase_package>/default_xprompts/*.md (default built-ins, separate)
+    7. <sase_package>/xprompts/*.md (internal, separate)
 
     Returns:
         List of directory paths to search, in priority order.
@@ -241,6 +262,27 @@ def _load_xprompts_from_internal() -> dict[str, XPrompt]:
 
     xprompts: dict[str, XPrompt] = {}
     for md_file in internal_dir.glob("*.md"):
+        if md_file.is_file():
+            xprompt = _load_xprompt_from_file(md_file)
+            if xprompt:
+                xprompts[xprompt.name] = xprompt
+
+    return xprompts
+
+
+def _load_xprompts_from_default_files() -> dict[str, XPrompt]:
+    """Load xprompts from the internal sase package default_xprompts directory.
+
+    Returns:
+        Dictionary mapping xprompt name to XPrompt object.
+    """
+    default_dir = get_sase_package_default_xprompts_dir()
+
+    if not default_dir.is_dir():
+        return {}
+
+    xprompts: dict[str, XPrompt] = {}
+    for md_file in default_dir.glob("*.md"):
         if md_file.is_file():
             xprompt = _load_xprompt_from_file(md_file)
             if xprompt:
@@ -523,7 +565,8 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     6. memory/long/*.md auto-discovered (frontmatter keywords)
     7. sase.yml xprompts:/snippets: section
     8. Plugin packages (via sase_xprompts entry points)
-    9. <sase_package>/xprompts/*.md (internal)
+    9. <sase_package>/default_xprompts/*.md (default built-ins)
+    10. <sase_package>/xprompts/*.md (internal)
 
     Args:
         project: Optional project name.  When ``None``, the project is
@@ -537,8 +580,11 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     # Start with lowest priority and let higher priority override
     all_xprompts: dict[str, XPrompt] = {}
 
-    # 9. Internal xprompts (lowest priority)
+    # 10. Internal xprompts (lowest priority)
     all_xprompts.update(_load_xprompts_from_internal())
+
+    # 9. Default markdown xprompts
+    all_xprompts.update(_load_xprompts_from_default_files())
 
     # 8. Plugin xprompts
     all_xprompts.update(_load_xprompts_from_plugins())
