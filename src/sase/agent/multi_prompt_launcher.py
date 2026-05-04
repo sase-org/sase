@@ -6,19 +6,49 @@ rewritten to the planned name of agent N when that name is knowable; otherwise
 the launcher falls back to the legacy naming poll.
 """
 
-import json
-import os
-import re
-import tempfile
-import time
 from collections.abc import Callable
-from dataclasses import dataclass
 
 from sase.agent.launcher import AgentLaunchResult
+from sase.agent.multi_prompt_references import (
+    _PLANNED_AGENT_NAME_ENV,
+    PlannedNameAllocator as _PlannedNameAllocator,
+    extract_static_name_directive as _extract_static_name_directive,
+    has_bare_resume_reference as _has_bare_resume_reference,
+    has_bare_wait_directive as _has_bare_wait_directive,
+    rewrite_bare_resume_references as _rewrite_bare_resume_references,
+    rewrite_bare_wait_directives as _rewrite_bare_wait_directives,
+    wait_for_agent_naming as _wait_for_agent_naming,
+)
+from sase.agent.multi_prompt_vcs import (
+    SegmentVcsContext as _SegmentVcsContext,
+    extract_vcs_ref as _extract_vcs_ref,
+    resolve_segment_vcs_context as _resolve_segment_vcs_context,
+)
+from sase.agent.multi_prompt_xprompts import (
+    deserialize_local_xprompts as deserialize_local_xprompts,
+    extract_called_xprompt_names as _extract_called_xprompt_names,
+    local_xprompts_for_segment as _local_xprompts_for_segment,
+    serialize_local_xprompts as _serialize_local_xprompts,
+)
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.xprompt.models import XPrompt
 
-_PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
+__all__ = [
+    "_MultiPromptPartialLaunchError",
+    "_SegmentVcsContext",
+    "_extract_called_xprompt_names",
+    "_extract_static_name_directive",
+    "_extract_vcs_ref",
+    "_has_bare_resume_reference",
+    "_has_bare_wait_directive",
+    "_local_xprompts_for_segment",
+    "_rewrite_bare_resume_references",
+    "_rewrite_bare_wait_directives",
+    "_serialize_local_xprompts",
+    "_wait_for_agent_naming",
+    "deserialize_local_xprompts",
+    "launch_multi_prompt_agents",
+]
 
 
 class _MultiPromptPartialLaunchError(RuntimeError):
@@ -31,431 +61,6 @@ class _MultiPromptPartialLaunchError(RuntimeError):
     def __init__(self, results: list[AgentLaunchResult], cause: BaseException) -> None:
         super().__init__(f"partial multi-prompt launch failed: {cause}")
         self.results = results
-
-
-def _extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set[str]:
-    """Extract xprompt names called in *text*.
-
-    Supports shorthand syntaxes by preprocessing before extraction.
-    """
-    from sase.xprompt._parsing import preprocess_shorthand_syntax
-    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
-
-    preprocessed = preprocess_shorthand_syntax(text, available_xprompts)
-    return {
-        call.name
-        for call in extract_xprompt_calls(preprocessed)
-        if call.name in available_xprompts
-    }
-
-
-def _local_xprompts_for_segment(
-    segment: str, local_xprompts: dict[str, XPrompt]
-) -> dict[str, XPrompt]:
-    """Return only local xprompts referenced by this segment.
-
-    Includes transitive references between local xprompts so a called xprompt
-    can depend on other local xprompts.
-    """
-    if not local_xprompts:
-        return {}
-
-    available = set(local_xprompts.keys())
-    needed = _extract_called_xprompt_names(segment, available)
-    queue = list(needed)
-
-    while queue:
-        name = queue.pop()
-        xp = local_xprompts.get(name)
-        if xp is None:
-            continue
-        for called in _extract_called_xprompt_names(xp.content, available):
-            if called not in needed:
-                needed.add(called)
-                queue.append(called)
-
-    # Preserve original definition order for deterministic serialization.
-    return {name: xp for name, xp in local_xprompts.items() if name in needed}
-
-
-def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
-    """Serialize local xprompts to a temp JSON file.
-
-    Returns the path to the temp file.
-    """
-    from sase.core.paths import get_sase_tmpdir
-
-    data: dict[str, object] = {}
-    for name, xp in xprompts.items():
-        data[name] = {
-            "name": xp.name,
-            "content": xp.content,
-            "inputs": [
-                {
-                    "name": inp.name,
-                    "type": inp.type.value,
-                    "default": None if inp.default is _UNSET else inp.default,
-                    "is_step_input": inp.is_step_input,
-                }
-                for inp in xp.inputs
-            ],
-            "source_path": xp.source_path,
-            "tags": [t.value for t in xp.tags],
-        }
-
-    fd, path = tempfile.mkstemp(
-        suffix=".json", prefix="sase_local_xprompts_", dir=get_sase_tmpdir()
-    )
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    return path
-
-
-def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
-    """Read a local-xprompts JSON file and reconstruct XPrompt objects."""
-    from sase.xprompt.models import InputArg, InputType
-    from sase.xprompt.tags import parse_tags
-
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    result: dict[str, XPrompt] = {}
-    for name, entry in data.items():
-        inputs = []
-        for inp in entry.get("inputs", []):
-            default = inp.get("default")
-            if default is None:
-                default = _UNSET
-            inputs.append(
-                InputArg(
-                    name=inp["name"],
-                    type=InputType(inp.get("type", "line")),
-                    default=default,
-                    is_step_input=inp.get("is_step_input", False),
-                )
-            )
-        result[name] = XPrompt(
-            name=entry["name"],
-            content=entry["content"],
-            inputs=inputs,
-            source_path=entry.get("source_path"),
-            tags=parse_tags(entry.get("tags")),
-        )
-    return result
-
-
-def _wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | None:
-    """Poll ``agent_meta.json`` for a ``name`` field.
-
-    Returns the agent name when found, or ``None`` on timeout.
-    """
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    start = time.monotonic()
-    while time.monotonic() - start < timeout:
-        try:
-            with open(meta_path) as f:
-                data = json.load(f)
-            if data.get("name"):
-                return data["name"]
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        time.sleep(0.5)
-    return None
-
-
-def _extract_static_name_directive(prompt: str) -> str | None:
-    """Return an explicit top-level ``%name`` value that is safe to reuse."""
-    if "%" not in prompt:
-        return None
-
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
-            continue
-
-        value = ""
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None:
-                inner = protected[paren_start + 1 : paren_end]
-                positional_args, _ = parse_args(inner)
-                value = positional_args[0] if positional_args else ""
-        elif match.group(3) is not None:
-            colon_arg = match.group(3)
-            value = (
-                colon_arg[1:-1]
-                if colon_arg.startswith("`") and colon_arg.endswith("`")
-                else colon_arg
-            )
-
-        if not value or "#" in value:
-            return None
-        return value
-    return None
-
-
-def _has_bare_wait_directive(prompt: str) -> bool:
-    """Return True when *prompt* contains a top-level bare ``%wait``."""
-    if "%" not in prompt:
-        return False
-
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
-            continue
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None and protected[paren_start + 1 : paren_end]:
-                continue
-        elif match.group(3) is not None or match.group(4) is not None:
-            continue
-        return True
-    return False
-
-
-def _rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
-    """Rewrite top-level bare ``%wait``/``%w`` directives to *agent_name*."""
-    if "%" not in prompt:
-        return prompt
-
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import (
-        protect_disabled_regions,
-        unprotect_disabled_regions,
-    )
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-    from sase.xprompt._parsing import find_matching_paren_for_args
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    replacements: list[tuple[int, int, str]] = []
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
-            continue
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None and protected[paren_start + 1 : paren_end]:
-                continue
-            end = paren_end + 1 if paren_end is not None else match.end()
-        elif match.group(3) is not None or match.group(4) is not None:
-            continue
-        else:
-            end = match.end()
-        replacements.append((match.start(), end, f"%{raw_name}:{agent_name}"))
-
-    rewritten = protected
-    for start, end, value in reversed(replacements):
-        rewritten = rewritten[:start] + value + rewritten[end:]
-    rewritten = unprotect_disabled_regions(rewritten, disabled)
-    return unprotect_fenced_blocks(rewritten, fenced)
-
-
-_BARE_RESUME_RE = re.compile(r"#resume(?![A-Za-z0-9_])")
-
-
-def _has_bare_resume_reference(prompt: str) -> bool:
-    """Return True when *prompt* contains a top-level bare ``#resume``."""
-    if "#resume" not in prompt:
-        return False
-
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    return any(
-        _is_bare_resume_match(protected, match)
-        for match in _BARE_RESUME_RE.finditer(protected)
-    )
-
-
-def _rewrite_bare_resume_references(prompt: str, agent_name: str) -> str:
-    """Rewrite top-level bare ``#resume`` references to *agent_name*."""
-    if "#resume" not in prompt:
-        return prompt
-
-    from sase.xprompt._disabled_regions import (
-        protect_disabled_regions,
-        unprotect_disabled_regions,
-    )
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    replacements: list[tuple[int, int, str]] = []
-    for match in _BARE_RESUME_RE.finditer(protected):
-        if _is_bare_resume_match(protected, match):
-            replacements.append((match.start(), match.end(), f"#resume:{agent_name}"))
-
-    rewritten = protected
-    for start, end, value in reversed(replacements):
-        rewritten = rewritten[:start] + value + rewritten[end:]
-    rewritten = unprotect_disabled_regions(rewritten, disabled)
-    return unprotect_fenced_blocks(rewritten, fenced)
-
-
-def _is_bare_resume_match(text: str, match: re.Match[str]) -> bool:
-    if match.end() >= len(text):
-        return True
-    return text[match.end()] not in ":("
-
-
-class _PlannedNameAllocator:
-    """Allocate parent-side names for multi-prompt wait rewrites."""
-
-    def __init__(self) -> None:
-        self._auto_reserved: set[str] | None = None
-
-    def planned_name_for_prompt(self, prompt: str) -> tuple[str | None, str | None]:
-        """Return ``(name, env_value)`` for a prompt, if safely knowable."""
-        explicit_name = _extract_static_name_directive(prompt)
-        if explicit_name is not None:
-            return explicit_name, None
-
-        if "#" in prompt:
-            return None, None
-
-        from sase.agent.names import allocate_auto_names
-
-        if self._auto_reserved is None:
-            from sase.agent.names import get_active_agent_names
-
-            self._auto_reserved = get_active_agent_names()
-        name = allocate_auto_names(1, reserved=self._auto_reserved)[0]
-        return name, name
-
-
-@dataclass(frozen=True)
-class _SegmentVcsContext:
-    cl_name: str
-    project_file: str
-    project_name: str
-    is_home_mode: bool
-    vcs_ref: tuple[str, str] | None
-    history_sort_key: str
-    update_target: str
-    workspace_num: int | None = None
-    workspace_dir: str | None = None
-
-
-def _extract_vcs_ref(prompt: str) -> tuple[str, str] | None:
-    """Return the first VCS ref present in *prompt*, if any."""
-    from sase.workspace_provider import get_ref_patterns
-
-    for wf_name, pattern in get_ref_patterns().items():
-        match = pattern.search(prompt)
-        if match is None:
-            continue
-        ref_value = match.group(1) or match.group(2)
-        if ref_value:
-            return wf_name, ref_value
-    return None
-
-
-def _resolve_segment_vcs_context(
-    *,
-    prompt: str,
-    fallback_cl_name: str,
-    fallback_project_file: str,
-    fallback_project_name: str,
-    fallback_is_home_mode: bool,
-    fallback_vcs_ref: tuple[str, str] | None,
-    has_wait: bool,
-) -> _SegmentVcsContext:
-    """Resolve launch metadata for one multi-prompt segment.
-
-    Multi-prompts can mix VCS refs across segments.  The launcher therefore
-    derives the display CL, workspace/project context, pre-allocation ref, and
-    history key from the segment's own VCS ref when present, falling back to the
-    caller's context for legacy prompts that rely on an already-selected CL.
-    """
-    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
-        is_non_workspace_workflow,
-        resolve_ref_from_prompt,
-    )
-
-    segment_vcs_ref = _extract_vcs_ref(prompt) or fallback_vcs_ref
-    if segment_vcs_ref is None:
-        return _SegmentVcsContext(
-            cl_name=fallback_cl_name,
-            project_file=fallback_project_file,
-            project_name=fallback_project_name,
-            is_home_mode=fallback_is_home_mode,
-            vcs_ref=None,
-            history_sort_key="",
-            update_target="",
-        )
-
-    wf_name, ref_value = segment_vcs_ref
-    if is_non_workspace_workflow(wf_name):
-        update_target = ""
-    else:
-        from sase.vcs_provider import VCS_DEFAULT_REVISION
-
-        update_target = VCS_DEFAULT_REVISION
-    resolved = resolve_ref_from_prompt(prompt, wf_name, skip_workspace=has_wait)
-    if resolved is None:
-        return _SegmentVcsContext(
-            cl_name=ref_value,
-            project_file=fallback_project_file,
-            project_name=fallback_project_name,
-            is_home_mode=fallback_is_home_mode,
-            vcs_ref=segment_vcs_ref,
-            history_sort_key=ref_value,
-            update_target=update_target,
-        )
-
-    project_file, project_name, workspace_dir, workspace_num, resolved_ref = resolved
-    return _SegmentVcsContext(
-        cl_name=resolved_ref,
-        project_file=project_file,
-        project_name=project_name,
-        is_home_mode=is_non_workspace_workflow(wf_name),
-        vcs_ref=(wf_name, resolved_ref),
-        history_sort_key=resolved_ref,
-        update_target=update_target,
-        workspace_num=workspace_num,
-        workspace_dir=workspace_dir,
-    )
 
 
 def launch_multi_prompt_agents(
@@ -723,8 +328,3 @@ def _spawn_segments_into(
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
     timer.finish(outcome="ok", launched=len(results))
-
-
-# Import sentinel at module level (after function definitions to avoid
-# circular import issues at class-definition time).
-from sase.xprompt.models import UNSET as _UNSET  # noqa: E402
