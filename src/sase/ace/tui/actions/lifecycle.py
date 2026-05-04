@@ -27,6 +27,12 @@ class LifecycleMixin:
     _last_unread_ids: set[str]
     _activity_log: ActivityLog
 
+    def on_unmount(self) -> None:
+        """Clean up resources when Textual tears the app down."""
+        stop_watcher = getattr(self, "_stop_artifact_watcher", None)
+        if stop_watcher is not None:
+            stop_watcher()
+
     def _read_unread_notification_ids(self) -> set[str]:
         """Read active-unread (non-silent, non-muted) notification ids from disk.
 

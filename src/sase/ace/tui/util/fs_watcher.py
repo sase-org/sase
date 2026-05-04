@@ -219,6 +219,8 @@ class ArtifactWatcher:
 
     def _maybe_flush(self) -> None:
         """Dispatch coalesced events to the UI thread once idle."""
+        if self._stop_event.is_set():
+            return
         with self._lock:
             last = self._last_event_mono
         if last == 0.0:
@@ -230,6 +232,8 @@ class ArtifactWatcher:
             if self._last_event_mono == 0.0:
                 return
             self._last_event_mono = 0.0
+        if self._stop_event.is_set():
+            return
         try:
             self._schedule_callback(self._on_change)
         except RuntimeError:

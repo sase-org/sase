@@ -122,3 +122,20 @@ def test_watcher_returns_false_when_no_paths_watchable(tmp_path: Path) -> None:
         schedule_callback=schedule,
     )
     assert watcher.start() is False
+
+
+def test_watcher_drops_pending_flush_after_stop(tmp_path: Path) -> None:
+    """A pending coalesced event must not schedule into a stopped app."""
+
+    def schedule(cb: Callable[[], None]) -> None:
+        raise AssertionError("stopped watcher should not dispatch callbacks")
+
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=schedule,
+        coalesce_s=0.01,
+    )
+    watcher._last_event_mono = time.monotonic() - 1.0
+    watcher.stop()
+    watcher._maybe_flush()
