@@ -1,12 +1,12 @@
 """Multi-agent xprompt expansion at dispatch time.
 
-When a user-prompt segment is a top-level reference to an xprompt whose body
-contains ``---`` segment separators, expand the xprompt body once (substituting
-the call-site's arguments) and then split the substituted body on ``---``,
-replacing the original segment with N sub-segments — one per body segment.
+When a user-prompt segment references an xprompt whose body contains ``---``
+segment separators, expand the xprompt body once (substituting the call-site's
+arguments) and then split the substituted body on ``---``.
 
-Each spawned agent therefore receives the same input arguments, substituted
-into its own segment.  See ``sdd/tales/202604/multi_agent_xprompts.md``.
+A sole reference becomes one prompt per body segment.  An embedded reference
+uses the first body segment as the embeddable prompt part and appends the
+remaining body segments as follow-up agent prompts.
 """
 
 from __future__ import annotations
@@ -15,8 +15,11 @@ import re
 from dataclasses import dataclass, field
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
-from sase.xprompt._disabled_regions import protect_disabled_regions
-from sase.xprompt._fenced_blocks import protect_fenced_blocks
+from sase.xprompt._disabled_regions import (
+    disabled_region_ranges,
+    protect_disabled_regions,
+)
+from sase.xprompt._fenced_blocks import fenced_block_ranges, protect_fenced_blocks
 from sase.xprompt._parsing import (
     extract_known_project_vcs_ref,
     XPromptReference,
@@ -38,13 +41,7 @@ class _MultiAgentXPromptError(ValueError):
 
 
 class MultiAgentXPromptUsageError(_MultiAgentXPromptError):
-    """Raised when a multi-agent xprompt is referenced mid-segment.
-
-    A multi-agent xprompt (one whose body contains ``---`` separators) must
-    be the *only* content in its segment.  Mixing the reference with other
-    prose is ambiguous — the user can split their prompt manually if they
-    want surrounding text.
-    """
+    """Raised when a multi-agent xprompt reference is ambiguous or invalid."""
 
 
 class MultiAgentXPromptDepthError(_MultiAgentXPromptError):
@@ -223,6 +220,15 @@ def _prefix_segment_vcs_ref(segment: str, vcs_ref_text: str) -> str:
     return f"{directive_block}\n{vcs_ref_text} {body}"
 
 
+def _leading_vcs_ref_text(segment: str) -> str | None:
+    """Return the leading VCS ref inherited by embedded generated prompts."""
+    _directives, body = _split_leading_directives(segment)
+    if not body:
+        return None
+    stripped = _strip_leading_vcs_ref(body)
+    return stripped[0] if stripped is not None else None
+
+
 def extract_top_level_xprompt_reference(
     segment: str, available: set[str]
 ) -> _XPromptCall | None:
@@ -256,22 +262,32 @@ def extract_top_level_xprompt_reference(
     )
 
 
+def _span_overlaps_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(
+        start < range_end and end > range_start for range_start, range_end in ranges
+    )
+
+
 def _real_xprompt_references(segment: str) -> list[XPromptReference]:
-    """Return lexical xprompt references in *segment*, excluding fenced examples."""
-    protected = _protected_prompt_for_ref_detection(segment)
-    return iter_xprompt_references(protected)
+    """Return lexical xprompt references in *segment*, excluding disabled examples."""
+    ignored_ranges = fenced_block_ranges(segment) + disabled_region_ranges(segment)
+    return [
+        ref
+        for ref in iter_xprompt_references(segment)
+        if not _span_overlaps_ranges(ref.start, ref.end, ignored_ranges)
+    ]
 
 
-def _first_multi_agent_reference(
+def _multi_agent_references(
     segment: str, multi_agent_names: set[str]
-) -> XPromptReference | None:
-    """Return the first real reference to a multi-agent xprompt in *segment*."""
+) -> list[XPromptReference]:
     if not multi_agent_names:
-        return None
-    for ref in _real_xprompt_references(segment):
-        if ref.name in multi_agent_names:
-            return ref
-    return None
+        return []
+    return [
+        ref
+        for ref in _real_xprompt_references(segment)
+        if ref.name in multi_agent_names
+    ]
 
 
 def _first_invalid_standalone_xprompt_reference(
@@ -290,10 +306,12 @@ def _first_invalid_standalone_xprompt_reference(
     return None
 
 
-def _multi_agent_requires_bang_message(name: str) -> str:
+def _multiple_multi_agent_reference_message(segment: str) -> str:
     return (
-        f"Multi-agent xprompt '#{name}' must be invoked as '#!{name}' "
-        "because it expands to multiple agent prompts."
+        "A prompt segment can contain only one multi-agent xprompt reference. "
+        "Split the prompt manually if you need to combine multiple fan-outs. "
+        "Segment:\n"
+        f"{segment}"
     )
 
 
@@ -305,11 +323,49 @@ def _invalid_explicit_xprompt_message(ref: XPromptReference) -> str:
     )
 
 
-def _mixed_multi_agent_reference_message(segment: str) -> str:
-    return (
-        "Multi-agent xprompt reference must be invoked as a sole '#!' "
-        "reference in its segment (no surrounding prose). Segment:\n"
-        f"{segment}"
+def _render_multi_agent_xprompt(
+    xprompt: XPrompt,
+    positional_args: list[str],
+    named_args: dict[str, str],
+) -> list[str]:
+    substituted = expand_single_xprompt(
+        xprompt,
+        positional_args,
+        named_args,
+        preserve_segment_separators=True,
+    )
+    return split_segments_protecting_fences(substituted)
+
+
+def _expand_embedded_multi_agent_reference(
+    segment: str,
+    ref: XPromptReference,
+    catalog: dict[str, XPrompt],
+    local_xprompts: dict[str, XPrompt] | None,
+    max_depth: int,
+) -> list[str]:
+    if max_depth <= 0:
+        raise MultiAgentXPromptDepthError(
+            f"multi-agent xprompt expansion exceeded max depth at "
+            f"#{ref.name} (possible self-reference)"
+        )
+
+    call = _build_xprompt_call(ref, [])
+    sub_segments = _render_multi_agent_xprompt(
+        catalog[call.name], call.positional_args, call.named_args
+    )
+    if not sub_segments:
+        reconstructed = segment[: ref.start] + segment[ref.end :]
+        return [reconstructed] if reconstructed.strip() else []
+
+    first = segment[: ref.start] + sub_segments[0] + segment[ref.end :]
+    follow_ups = _prepend_inherited_vcs_ref(
+        sub_segments[1:], _leading_vcs_ref_text(segment)
+    )
+    return expand_multi_agent_xprompts(
+        [first, *follow_ups],
+        local_xprompts=local_xprompts,
+        max_depth=max_depth - 1,
     )
 
 
@@ -358,20 +414,15 @@ def expand_multi_agent_xprompts(
     for segment in segments:
         call = extract_top_level_xprompt_reference(segment, available)
         if call is not None and call.name in multi_agent_names:
-            if call.marker is XPromptReferenceMarker.INLINE:
-                raise MultiAgentXPromptUsageError(
-                    _multi_agent_requires_bang_message(call.name)
-                )
             if max_depth <= 0:
                 raise MultiAgentXPromptDepthError(
                     f"multi-agent xprompt expansion exceeded max depth at "
                     f"#!{call.name} (possible self-reference)"
                 )
             xp = catalog[call.name]
-            substituted = expand_single_xprompt(
+            sub_segments = _render_multi_agent_xprompt(
                 xp, call.positional_args, call.named_args
             )
-            sub_segments = split_segments_protecting_fences(substituted)
             if not sub_segments:
                 # An xprompt body that had separators but produces no content
                 # after substitution (e.g. all-empty segments): drop entirely.
@@ -410,17 +461,22 @@ def expand_multi_agent_xprompts(
                 )
 
             if _strict_segment_check:
-                multi_agent_ref = _first_multi_agent_reference(
-                    segment, multi_agent_names
-                )
-                if multi_agent_ref is not None:
-                    if multi_agent_ref.is_standalone_marker:
-                        raise MultiAgentXPromptUsageError(
-                            _mixed_multi_agent_reference_message(segment)
-                        )
+                multi_agent_refs = _multi_agent_references(segment, multi_agent_names)
+                if len(multi_agent_refs) > 1:
                     raise MultiAgentXPromptUsageError(
-                        _multi_agent_requires_bang_message(multi_agent_ref.name)
+                        _multiple_multi_agent_reference_message(segment)
                     )
+                if len(multi_agent_refs) == 1:
+                    expanded.extend(
+                        _expand_embedded_multi_agent_reference(
+                            segment,
+                            multi_agent_refs[0],
+                            catalog,
+                            local_xprompts,
+                            max_depth,
+                        )
+                    )
+                    continue
             expanded.append(segment)
 
     return expanded

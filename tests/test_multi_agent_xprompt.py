@@ -16,6 +16,7 @@ from sase.agent.multi_agent_xprompt import (
     xprompt_has_segment_separators,
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.processor import process_xprompt_references
 
 
 def _xp(name: str, content: str, *, inputs: list[InputArg] | None = None) -> XPrompt:
@@ -145,11 +146,11 @@ def test_expand_three_segment_xprompt() -> None:
     assert out == ["phase A", "phase B", "phase C"]
 
 
-def test_bare_multi_agent_xprompt_requires_bang() -> None:
+def test_bare_multi_agent_xprompt_expands_as_sole_segment() -> None:
     catalog = {"three": _xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
-            expand_multi_agent_xprompts(["#three"])
+        out = expand_multi_agent_xprompts(["#three"])
+    assert out == ["phase A", "phase B", "phase C"]
 
 
 def test_expand_with_positional_args() -> None:
@@ -213,12 +214,59 @@ def test_expand_jinja_in_body() -> None:
     assert out[2] == "Test login."
 
 
-def test_expand_mixed_with_prose_raises() -> None:
-    """Multi-agent xprompt referenced mid-prose → MultiAgentXPromptUsageError."""
+def test_expand_mixed_with_prose_embeds_first_segment() -> None:
+    """Multi-agent xprompt referenced mid-prose embeds its first sub-prompt."""
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
-            expand_multi_agent_xprompts(["Hello #three(arg) world"])
+        out = expand_multi_agent_xprompts(["Hello #three world"])
+    assert out == ["Hello a world", "b", "c"]
+
+
+def test_expand_inline_with_shorthand_args() -> None:
+    catalog = {
+        "three": _xp(
+            "three",
+            "Plan {{ feature }}\n---\nBuild {{ feature }}\n---\nTest {{ feature }}",
+            inputs=[InputArg(name="feature", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#three:: login flow"])
+    assert out == ["Plan login flow", "Build login flow", "Test login flow"]
+
+
+def test_expand_inline_with_vcs_prefix_inherits_followups() -> None:
+    catalog = {
+        "three": _xp(
+            "three",
+            "Plan {{ feature }}\n---\nBuild {{ feature }}\n---\nTest {{ feature }}",
+            inputs=[InputArg(name="feature", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase #three:: login flow"])
+    assert out == [
+        "#gh:sase Plan login flow",
+        "#gh:sase Build login flow",
+        "#gh:sase Test login flow",
+    ]
+
+
+def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:
+    catalog = {"three": _xp("three", "Plan\n---\n#git:other Build\n---\nTest")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase #three"])
+    assert out == ["#gh:sase Plan", "#git:other Build", "#gh:sase Test"]
+
+
+def test_multiple_multi_agent_references_in_one_segment_raises() -> None:
+    catalog = {
+        "a": _xp("a", "a1\n---\na2"),
+        "b": _xp("b", "b1\n---\nb2"),
+    }
+    with _patch_catalog(catalog):
+        with pytest.raises(MultiAgentXPromptUsageError, match="only one"):
+            expand_multi_agent_xprompts(["Use #a and #b"])
 
 
 def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -> None:
@@ -239,15 +287,15 @@ def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -
     assert out[2] == "third"
 
 
-def test_expand_inline_multi_agent_inside_other_xprompt_body_requires_bang() -> None:
-    """A real inline reference to a multi-agent xprompt is rejected recursively."""
+def test_expand_inline_multi_agent_inside_other_xprompt_body_embeds() -> None:
+    """A real inline reference to a multi-agent xprompt is expanded recursively."""
     catalog = {
         "outer": _xp("outer", "first\n---\nprose with #inner here\n---\nthird"),
         "inner": _xp("inner", "x\n---\ny"),
     }
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!inner"):
-            expand_multi_agent_xprompts(["#!outer"])
+        out = expand_multi_agent_xprompts(["#!outer"])
+    assert out == ["first", "prose with x here", "y", "third"]
 
 
 def test_expand_recursive_standalone_reference() -> None:
@@ -261,14 +309,14 @@ def test_expand_recursive_standalone_reference() -> None:
     assert out == ["before", "x1", "x2", "after"]
 
 
-def test_expand_recursive_bare_reference_requires_bang() -> None:
+def test_expand_recursive_bare_reference() -> None:
     catalog = {
         "outer": _xp("outer", "before\n---\n#inner\n---\nafter"),
         "inner": _xp("inner", "x1\n---\nx2"),
     }
     with _patch_catalog(catalog):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!inner"):
-            expand_multi_agent_xprompts(["#!outer"])
+        out = expand_multi_agent_xprompts(["#!outer"])
+    assert out == ["before", "x1", "x2", "after"]
 
 
 def test_expand_separator_inside_fenced_block_in_body() -> None:
@@ -337,18 +385,18 @@ def test_expand_vcs_prefix_does_not_override_segment_local_vcs_ref() -> None:
     assert out == ["#gh:sase Plan", "#git:other Implement", "#gh:sase Verify"]
 
 
-def test_bare_vcs_prefixed_multi_agent_xprompt_requires_bang() -> None:
+def test_bare_vcs_prefixed_multi_agent_xprompt_expands() -> None:
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog), _patch_vcs_patterns():
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
-            expand_multi_agent_xprompts(["#gh:sase #three"])
+        out = expand_multi_agent_xprompts(["#gh:sase #three"])
+    assert out == ["#gh:sase a", "#gh:sase b", "#gh:sase c"]
 
 
-def test_vcs_prefixed_multi_agent_xprompt_with_prose_remains_invalid() -> None:
+def test_vcs_prefixed_multi_agent_xprompt_with_prose_inherits_vcs() -> None:
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     with _patch_catalog(catalog), _patch_vcs_patterns():
-        with pytest.raises(MultiAgentXPromptUsageError, match="sole '#!'"):
-            expand_multi_agent_xprompts(["#gh:sase please #!three"])
+        out = expand_multi_agent_xprompts(["#gh:sase please #!three"])
+    assert out == ["#gh:sase please a", "#gh:sase b", "#gh:sase c"]
 
 
 def test_expand_local_xprompts_resolve() -> None:
@@ -361,13 +409,13 @@ def test_expand_local_xprompts_resolve() -> None:
     assert out == ["alpha", "beta", "gamma"]
 
 
-def test_expand_local_xprompts_require_bang() -> None:
+def test_expand_local_xprompts_bare_reference() -> None:
     local = {
         "_local_three": _xp("_local_three", "alpha\n---\nbeta\n---\ngamma"),
     }
     with _patch_catalog({}):
-        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!_local_three"):
-            expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
+        out = expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
+    assert out == ["alpha", "beta", "gamma"]
 
 
 def test_expand_depth_cap() -> None:
@@ -421,3 +469,10 @@ def test_fenced_vcs_prefixed_multi_agent_references_are_ignored() -> None:
     with _patch_catalog(catalog), _patch_vcs_patterns():
         out = expand_multi_agent_xprompts([segment])
     assert out == [segment]
+
+
+def test_process_xprompt_references_uses_first_multi_prompt_part() -> None:
+    catalog = {"three": _xp("three", "first\n---\nsecond\n---\nthird")}
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value=catalog):
+        out = process_xprompt_references("before #three after")
+    assert out == "before first after"

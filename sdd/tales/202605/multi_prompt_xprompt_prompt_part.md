@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 17:13:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/multi_prompt_xprompt_prompt_part.md
 ---
 # Plan: Treat Multi-Prompt XPrompts As Embeddable Prompt Parts

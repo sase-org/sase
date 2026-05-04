@@ -138,6 +138,8 @@ def expand_single_xprompt(
     positional_args: list[str],
     named_args: dict[str, str],
     scope: dict[str, Any] | None = None,
+    *,
+    preserve_segment_separators: bool = False,
 ) -> str:
     """Expand a single xprompt with its arguments.
 
@@ -147,6 +149,9 @@ def expand_single_xprompt(
         named_args: Dictionary of named argument values.
         scope: Optional base context (e.g., workflow execution context).
             Xprompt-specific args take priority over scope values.
+        preserve_segment_separators: When True, return a rendered multi-prompt
+            xprompt body intact. Normal prompt-part expansion keeps only the
+            first rendered segment.
 
     Returns:
         The expanded xprompt content.
@@ -159,9 +164,20 @@ def expand_single_xprompt(
         xprompt, positional_args, named_args
     )
 
-    return substitute_placeholders(
+    rendered = substitute_placeholders(
         xprompt.content, conv_positional, conv_named, xprompt.name, scope=scope
     )
+    if preserve_segment_separators:
+        return rendered
+
+    from sase.agent.multi_prompt import split_segments_protecting_fences
+    from sase.xprompt.segment_separators import xprompt_has_segment_separators
+
+    if not xprompt_has_segment_separators(xprompt):
+        return rendered
+
+    segments = split_segments_protecting_fences(rendered)
+    return segments[0] if segments else ""
 
 
 def _resolve_command_substitution_in_args(
