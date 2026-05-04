@@ -101,8 +101,8 @@ The facade lives at `src/sase/core/`:
 | `rust.py`                      | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
 | `health.py`                    | `sase core health` Rust-extension probe + report                                                                   |
 | `parser_facade.py`             | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
-| `wire.py`                      | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
-| `wire_conversion.py`           | Python `ChangeSpec` ↔ wire record serialization                                                                    |
+| `wire.py`                      | Stable wire record types that cross the Python ↔ Rust boundary                                                    |
+| `wire_conversion.py`           | Python `ChangeSpec` ↔ wire record serialization                                                                   |
 | `query_facade.py`              | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
 | `query_corpus_facade.py`       | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
 | `notification_store_facade.py` | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |

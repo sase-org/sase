@@ -49,16 +49,16 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Navigation
 
-| Key                 | Action                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)  |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                          |
-| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                  |
-| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
-| `g` / `G`           | Scroll detail panel to top / bottom                                                |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
+| Key                 | Action                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, CL at the leaf level)   |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                                           |
+| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too  |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))               |
+| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                                   |
+| `o` / `O`           | Cycle CL grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`) |
+| `g` / `G`           | Scroll detail panel to top / bottom                                                 |
+| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                           |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and CLs tabs (each tab
 > keeps its own in-session mode). On the AXE tab it is a silent no-op. See
@@ -119,19 +119,19 @@ the cursor always sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
 
-| Key     | Action                                                 |
-| ------- | ------------------------------------------------------ |
-| `z` `c` | Cycle commits section (expand → collapse)              |
+| Key     | Action                                                  |
+| ------- | ------------------------------------------------------- |
+| `z` `c` | Cycle commits section (expand → collapse)               |
 | `z` `d` | Cycle deltas section (folded ↔ unfolded)               |
-| `z` `h` | Cycle hooks section (expand → collapse)                |
-| `z` `m` | Cycle mentors section (expand → collapse)              |
-| `z` `t` | Cycle timestamps section (expand → collapse)           |
+| `z` `h` | Cycle hooks section (expand → collapse)                 |
+| `z` `m` | Cycle mentors section (expand → collapse)               |
+| `z` `t` | Cycle timestamps section (expand → collapse)            |
 | `z` `C` | Toggle commits section (collapsed ↔ fully expanded)    |
 | `z` `D` | Toggle deltas section (folded ↔ unfolded)              |
 | `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
 | `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
 | `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
-| `z` `z` | Cycle all sections                                     |
+| `z` `z` | Cycle all sections                                      |
 | `z` `Z` | Toggle all sections (expand ↔ collapse)                |
 
 COMMITS, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
@@ -246,7 +246,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
-| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
+| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                        |
 | `g`                 | Scroll to top (file, thinking, or metadata panel)                                                     |
 | `G`                 | Scroll to bottom (file, thinking, or metadata panel)                                                  |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
@@ -404,10 +404,10 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 
 | Glyph | Meaning                                              |
 | ----- | ---------------------------------------------------- |
-| `▶`   | RUNNING                                              |
+| `▶`  | RUNNING                                              |
 | `✓`   | DONE                                                 |
 | `✓P`  | PLAN DONE                                            |
-| `▶P`  | PLAN APPROVED                                        |
+| `▶P` | PLAN APPROVED                                        |
 | `★E`  | EPIC CREATED                                         |
 | `✎`   | PLANNING                                             |
 | `✗`   | FAILED                                               |
