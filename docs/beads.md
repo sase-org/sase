@@ -147,6 +147,7 @@ Create a new issue.
 | `--tier`            | no       | Plan-bead tier: `plan`, `epic`, or `legend`                                 |
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                     |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
+| `-E, --epic-count`  | no       | Positive number of epics proposed by a legend plan bead                     |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
@@ -163,8 +164,8 @@ List issues with optional filtering. Closed beads are excluded from the default 
 
 ### `sase bead show <id>`
 
-Display complete details for an issue including status, type, tier, parent/children, dependencies, blockers,
-description, notes, and linked plan path.
+Display complete details for an issue including status, type, tier, epic count, parent/children, dependencies, blockers,
+description, notes, ChangeSpec metadata, and linked plan path.
 
 ### `sase bead ready`
 
@@ -178,15 +179,16 @@ Reopen an issue by setting its status to `open`. This is equivalent to `sase bea
 
 Update one or more fields on an issue.
 
-| Flag                | Description        |
-| ------------------- | ------------------ |
-| `-s, --status`      | Change status      |
-| `-t, --title`       | Change title       |
-| `-d, --description` | Change description |
-| `-n, --notes`       | Change notes       |
-| `-D, --design`      | Change plan path   |
-| `-a, --assignee`    | Change assignee    |
-| `--tier`            | Change plan tier   |
+| Flag                | Description              |
+| ------------------- | ------------------------ |
+| `-s, --status`      | Change status            |
+| `-t, --title`       | Change title             |
+| `-d, --description` | Change description       |
+| `-n, --notes`       | Change notes             |
+| `-D, --design`      | Change plan path         |
+| `-a, --assignee`    | Change assignee          |
+| `--tier`            | Change plan tier         |
+| `-E, --epic-count`  | Change legend epic count |
 
 ### `sase bead close <id> [<id2> ...]`
 
@@ -263,7 +265,7 @@ For legend-tier plans, the command:
 2. Scans the live agent registry for generated epic-planning agent names like `<legend_id>.1.0` and refuses collisions.
 3. Flips the legend plan bead's `is_ready_to_work` flag to `True` when launching.
 4. Hands a single `---`-separated multi-prompt to the agent launcher. Each segment includes `%approve`, `%epic`, and
-   `%name:<legend_id>.<N>.0`; epic `N > 1` also waits on `%w:<legend_id>.<N-1>`, the prior epic's land agent.
+   `%name:<legend_id>.<N>.0`; epic `N > 1` also waits on `%w:<legend_id>.<N-1>`, so epic planning proceeds in order.
 
 Legend work does not create phase beads directly. The spawned epic-planning agents create epic plans, and the existing
 `bd/new_epic` automation handles the linked epic and phase beads after those plans are approved.
@@ -345,5 +347,5 @@ plan.
 
 The plan approval popup in ACE includes normal approval, **E** (Epic), and **L** (Legend) actions. Normal approval saves
 to `sdd/tales/`, Epic saves to `sdd/epics/` and launches the epic follow-up that creates an `epic`-tier plan bead plus
-phase beads, and Legend saves to `sdd/legends/` and launches a legend follow-up that creates a `legend`-tier plan bead
-without phase agents.
+phase beads, and Legend saves to `sdd/legends/` and launches a legend follow-up that records a `legend`-tier plan bead
+with `epic_count` before starting the legend work chain.

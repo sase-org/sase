@@ -697,10 +697,13 @@ user-managed Codex config while preserving auth, hooks, skills, logs, and caches
 
 ### General
 
-| Variable            | Description                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `SASE_TMPDIR`       | Override the temp directory for all sase operations. Falls back to system default when unset.                |
-| `SASE_TUI_GRAPHICS` | Control ACE terminal graphics probing: disable with `off`/`0`; force Kitty probing with `kitty`/`force`/`1`. |
+| Variable                              | Description                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset.                |
+| `SASE_TUI_GRAPHICS`                   | Control ACE terminal graphics probing: disable with `off`/`0`; force Kitty probing with `kitty`/`force`/`1`. |
+| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                              |
+| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                         |
+| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                  |
 
 ### Workspace Management (Internal)
 
@@ -994,12 +997,14 @@ Supported date range formats:
 
 `sase agents` provides cross-project visibility into running agents. Subcommands:
 
-| Subcommand | Flags                                   | Description                                                                                                                                                                                                                                  |
-| ---------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`   | `-a/--all`, `-j/--json`, `-p/--project` | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                      |
-| `show`     | `-n/--name`                             | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                             |
-| `kill`     | `-n/--name`                             | SIGTERM a running agent by name.                                                                                                                                                                                                             |
-| `tag`      | `set` / `unset` / `list`                | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set -n <agent> -t <tag>` replaces any prior tag; `tag unset -n <agent>` clears it; `tag list [-n <agent>]` prints tags as JSON (filtered when given). |
+| Subcommand | Flags                                                                      | Description                                                                                                                                                                                                                                  |
+| ---------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `-a/--all`, `-j/--json`, `-p/--project`                                    | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                      |
+| `show`     | `-n/--name`                                                                | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                             |
+| `kill`     | `-n/--name`                                                                | SIGTERM a running agent by name.                                                                                                                                                                                                             |
+| `tag`      | `set` / `unset` / `list`                                                   | Manage the user-defined tag on an agent (used by the Agents tab tag side panels). `tag set -n <agent> -t <tag>` replaces any prior tag; `tag unset -n <agent>` clears it; `tag list [-n <agent>]` prints tags as JSON (filtered when given). |
+| `archive`  | `rebuild-index` / `verify`                                                 | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                  |
+| `index`    | `rebuild` / `verify`, `-i/--index-path`, `-p/--projects-root`, `-j/--json` | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `verify` exits non-zero when the index diverges from source artifacts.                                              |
 
 ### `sase chats`
 

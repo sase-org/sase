@@ -146,6 +146,8 @@ sase
 | `sase agents show`             | Render a full detail panel for one running agent                                                               |
 | `sase agents kill`             | SIGTERM a running agent by name                                                                                |
 | `sase agents tag`              | Manage the user-defined tag on an agent (`set` / `unset` / `list`)                                             |
+| `sase agents archive`          | Rebuild or verify the dismissed-agent bundle summary index                                                     |
+| `sase agents index`            | Rebuild or verify the persistent agent artifact index used for fast agent startup                              |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
 | `sase axe maintenance`         | Enter, exit, or inspect maintenance mode, which pauses lumberjack ticks                                        |
@@ -281,7 +283,7 @@ src/sase/
 │   ├── agent_artifacts_cache.py # Cached agent metadata reads
 │   ├── dismissed_name_rewrites.py # YYmmdd-prefix dismissal/revival helpers
 │   └── names/             # Auto-naming, dedup, dismissal, claim helpers
-├── agents/                # `sase agents` subcommand handlers (status/show/kill/tag)
+├── agents/                # `sase agents` subcommand handlers (status/show/kill/tag/archive/index)
 ├── chats/                 # `sase chats` subcommand handlers (list/show transcripts)
 ├── memory/                # Dynamic-memory keyword matching (#memory injection)
 ├── axe/                   # Lumberjack-based daemon and agent runners

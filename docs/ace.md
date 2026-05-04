@@ -263,7 +263,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `R`                 | Revive a previously dismissed agent                                                                           |
 | `A`                 | Open the Agent Run Log modal for the focused agent                                                            |
 | `@`                 | Run custom agent                                                                                              |
-| `a`                 | Toggle auto-approve / answer HITL                                                                             |
+| `a`                 | Cycle auto-approve state / answer HITL                                                                        |
 | `n`                 | Name agent                                                                                                    |
 | `r`                 | Resume agent (by name if running, by chat file if completed)                                                  |
 | `v`                 | View files (hint mode)                                                                                        |
@@ -927,7 +927,9 @@ Press `R` on the Agents tab to revive a previously dismissed agent. All dismisse
 files under `~/.sase/dismissed_bundles/` and can be restored at any time. There is no limit on the number of dismissed
 agents that can be stored.
 
-Dismiss operations are O(1) per agent — each agent is saved to its own file rather than a monolithic store.
+Dismiss operations are O(1) per agent — each agent is saved to its own file rather than a monolithic store. ACE keeps a
+SQLite summary index in that directory so revival and run-log lookups can load dismissed agents lazily. Use
+`sase agents archive verify` to check the index, or `sase agents archive rebuild-index` to rebuild it from bundle files.
 
 #### Dismissed-Name Prefix
 
@@ -988,6 +990,11 @@ artifact watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI i
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Google blue for Gemini, neutral muted for other providers. The badge is
 omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
+
+For active Agents-tab rows, `a` cycles through normal auto-approve, epic auto-approve, and disabled. Epic auto-approve
+is the same plan-specific path as the `%epic` directive: the next submitted plan is accepted as an epic, SDD epic
+artifacts are written, beads are initialized, and the epic follow-up agent is launched. It does not answer unrelated
+HITL prompts.
 
 ### Plan Approval Keybindings
 

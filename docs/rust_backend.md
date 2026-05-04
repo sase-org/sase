@@ -109,8 +109,8 @@ The facade lives at `src/sase/core/`:
 | `notification_store_wire.py`   | Stable notification snapshot/update wire records across the Rust boundary                                          |
 | `status_facade.py`             | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
 | `graph_index_facade.py`        | `build_changespec_graph_index()` facade (Python host logic)                                                        |
-| `agent_scan_facade.py`         | `scan_agent_artifacts()` snapshot facade (Rust)                                                                    |
-| `agent_scan_wire.py`           | Stable wire records for the agent-artifact scan snapshot                                                           |
+| `agent_scan_facade.py`         | Agent artifact scan plus persistent index query/rebuild/verify facade (Rust)                                       |
+| `agent_scan_wire.py`           | Stable wire records for agent-artifact scans and index maintenance                                                 |
 | `agent_cleanup_wire.py`        | Stable cleanup planning and side-effect intent wires                                                               |
 | `agent_cleanup_facade.py`      | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
 | `agent_cleanup_execution.py`   | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
