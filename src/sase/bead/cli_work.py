@@ -218,7 +218,7 @@ def _handle_legend_bead_work(
         sys.exit(1)
 
     vcs_context = _resolve_vcs_launch_context()
-    collisions = find_live_legend_name_collisions(plan)
+    collisions = _find_live_legend_name_collisions(plan)
     if collisions and not dry_run:
         print(
             "Error: refusing to launch; these agent names are still live:",
@@ -376,15 +376,15 @@ def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     return {name: live[name] for name in expected if name in live}
 
 
-def expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
+def _expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
     return {assignment.agent_name for assignment in plan.assignments}
 
 
-def find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
+def _find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
     """Return live collisions for legend epic-planning agent names."""
     from sase.agent.names import get_live_agent_name_map
 
-    expected = expected_legend_agent_names(plan)
+    expected = _expected_legend_agent_names(plan)
     live = get_live_agent_name_map()
     return {name: live[name] for name in expected if name in live}
 

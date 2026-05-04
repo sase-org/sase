@@ -21,7 +21,7 @@ from sase.xprompt.models import XPrompt
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 
-class MultiPromptPartialLaunchError(RuntimeError):
+class _MultiPromptPartialLaunchError(RuntimeError):
     """Raised when one segment of a multi-prompt launch fails after others succeeded.
 
     ``results`` holds the agents that were spawned before the failure, so
@@ -424,7 +424,7 @@ def launch_multi_prompt_agents(
     Returns a list of ``AgentLaunchResult`` for all launched agents.
 
     On partial failure (one segment raises after others succeeded), raises
-    :class:`MultiPromptPartialLaunchError` with the already-spawned results
+    :class:`_MultiPromptPartialLaunchError` with the already-spawned results
     so callers can roll back.
     """
     results: list[AgentLaunchResult] = []
@@ -447,7 +447,7 @@ def launch_multi_prompt_agents(
         )
     except Exception as exc:
         if results:
-            raise MultiPromptPartialLaunchError(results, exc) from exc
+            raise _MultiPromptPartialLaunchError(results, exc) from exc
         raise
     return results
 
