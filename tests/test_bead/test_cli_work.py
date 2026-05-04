@@ -20,7 +20,7 @@ from sase.bead.cli_work import (
     expected_legend_agent_names,
     find_live_legend_name_collisions,
 )
-from sase.bead.model import IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.work import LegendEpicAssignment, LegendWorkPlan
 from sase.bead.project import BeadProject
 from sase.xprompt.workflow_models import Workflow
@@ -86,6 +86,18 @@ def _seed_changespec_epic(project_dir: Path) -> tuple[str, list[str]]:
         p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
         proj.add_dependency(p2.id, p1.id)
         return epic.id, [p1.id, p2.id]
+
+
+def _seed_legend(project_dir: Path, *, epic_count: int = 2) -> str:
+    with BeadProject(project_dir) as proj:
+        legend = proj.create(
+            "Legend roadmap",
+            IssueType.PLAN,
+            tier=BeadTier.LEGEND,
+            design="sdd/legends/202605/roadmap.md",
+            epic_count=epic_count,
+        )
+        return legend.id
 
 
 def _make_args(epic_id: str, *, dry_run: bool = False, yes: bool = False) -> Any:
@@ -640,6 +652,133 @@ def test_work_passes_when_no_collisions(
 
     bead_cli.handle_bead_work(_make_args(epic_id, yes=True))
     assert "---" in captured["query"]
+
+
+def test_legend_work_dry_run_never_mutates_or_launches(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    legend_id = _seed_legend(project_dir, epic_count=2)
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(_make_args(legend_id, dry_run=True, yes=True))
+
+    assert launch_calls == []
+    out = capsys.readouterr().out
+    assert f"Legend {legend_id}" in out
+    assert "2 epic agent(s)" in out
+    assert f"%name:{legend_id}.1.0" in out
+    assert f"%name:{legend_id}.2.0" in out
+    assert f"%w:{legend_id}.1" in out
+    assert "%epic" in out
+    with BeadProject(project_dir) as proj:
+        legend = proj.show(legend_id)
+        assert legend.is_ready_to_work is False
+        assert proj.get_epic_children(legend_id) == []
+
+
+def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    legend_id = _seed_legend(project_dir, epic_count=3)
+    captured: dict[str, Any] = {}
+
+    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        captured["query"] = query
+        captured["extra_env"] = extra_env
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(_make_args(legend_id, yes=True))
+
+    query = captured["query"]
+    assert query.count("%epic") == 3
+    assert query.count("#epic") == 3
+    assert query.count("---") == 2
+    assert f"%name:{legend_id}.1.0" in query
+    assert f"%name:{legend_id}.2.0" in query
+    assert f"%name:{legend_id}.3.0" in query
+    assert f"%w:{legend_id}.1" in query
+    assert f"%w:{legend_id}.2" in query
+    with BeadProject(project_dir) as proj:
+        legend = proj.show(legend_id)
+        assert legend.is_ready_to_work is True
+        assert proj.get_epic_children(legend_id) == []
+
+    out = capsys.readouterr().out
+    assert "Launched 3 epic agents for legend" in out
+
+
+def test_legend_work_rolls_back_ready_on_launch_failure(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    legend_id = _seed_legend(project_dir)
+
+    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        raise RuntimeError("workspace claim failed")
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(legend_id, yes=True))
+    assert excinfo.value.code == 1
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(legend_id).is_ready_to_work is False
+        assert proj.get_epic_children(legend_id) == []
+
+    err = capsys.readouterr().err
+    assert "launch failed" in err
+    assert "Rolling back is_ready_to_work flag" in err
+
+
+def test_legend_work_retry_keeps_already_ready_flag_on_launch_failure(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    legend_id = _seed_legend(project_dir)
+
+    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        raise RuntimeError("workspace claim failed")
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
+    with BeadProject(project_dir) as proj:
+        proj.mark_ready_to_work(legend_id)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(legend_id, yes=True))
+    assert excinfo.value.code == 1
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(legend_id).is_ready_to_work is True
+
+    captured = capsys.readouterr()
+    assert "already ready; retrying epic agent launch" in captured.out
+    assert "Rolling back is_ready_to_work flag" not in captured.err
+
+
+def test_work_rejects_plain_plan_tier(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Plain plan", IssueType.PLAN, tier=BeadTier.PLAN)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(_make_args(plan.id, yes=True))
+    assert excinfo.value.code == 1
+    assert "only applies to epic or legend plan beads" in capsys.readouterr().err
 
 
 def test_legend_collision_helpers_report_live_planning_agents(

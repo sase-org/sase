@@ -386,6 +386,19 @@ def test_mark_ready_to_work_flips_flag(project):
     assert project.show(epic.id).is_ready_to_work is True
 
 
+def test_mark_ready_to_work_allows_legend(project):
+    legend = project.create(
+        "Legend",
+        IssueType.PLAN,
+        tier=BeadTier.LEGEND,
+        design="sdd/legends/roadmap.md",
+        epic_count=2,
+    )
+    updated = project.mark_ready_to_work(legend.id)
+    assert updated.is_ready_to_work is True
+    assert project.show(legend.id).is_ready_to_work is True
+
+
 def test_mark_ready_to_work_rejects_phase(project):
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
