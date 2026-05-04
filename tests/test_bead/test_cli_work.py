@@ -682,15 +682,49 @@ def test_legend_work_dry_run_never_mutates_or_launches(
         assert proj.get_epic_children(legend_id) == []
 
 
+def test_legend_work_dry_run_renders_three_epic_chain(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    legend_id = _seed_legend(project_dir, epic_count=3)
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+    )
+
+    bead_cli.handle_bead_work(_make_args(legend_id, dry_run=True, yes=True))
+
+    assert launch_calls == []
+    out = capsys.readouterr().out
+    prompt = out.split("--- Multi-prompt (dry run) ---", 1)[1].strip()
+    segments = prompt.split("\n---\n")
+    assert len(segments) == 3
+    for number, segment in enumerate(segments, start=1):
+        assert f"%name:{legend_id}.{number}.0" in segment
+        assert f"epic #{number} from the legend plan" in segment
+        assert "%epic" in segment
+    assert f"%w:{legend_id}.1" in segments[1]
+    assert f"%w:{legend_id}.2" in segments[2]
+    assert "%w:" not in segments[0]
+    with BeadProject(project_dir) as proj:
+        legend = proj.show(legend_id)
+        assert legend.is_ready_to_work is False
+        assert proj.get_epic_children(legend_id) == []
+
+
 def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     legend_id = _seed_legend(project_dir, epic_count=3)
+    launch_calls: list[str] = []
     captured: dict[str, Any] = {}
 
     def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        launch_calls.append(query)
         captured["query"] = query
         captured["extra_env"] = extra_env
         return FakeLaunchResult()
@@ -699,6 +733,7 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
 
     bead_cli.handle_bead_work(_make_args(legend_id, yes=True))
 
+    assert len(launch_calls) == 1
     query = captured["query"]
     assert query.count("%epic") == 3
     assert query.count("#epic") == 3
