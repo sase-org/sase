@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS issues (
     notes       TEXT,
     design      TEXT,
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
+    epic_count  INTEGER,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
     CHECK(
@@ -41,6 +42,10 @@ CREATE TABLE IF NOT EXISTS issues (
     ),
     CHECK(issue_type = 'plan' OR tier IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
+    CHECK(
+        epic_count IS NULL OR
+        (issue_type = 'plan' AND tier = 'legend' AND epic_count > 0)
+    ),
     CHECK(
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
@@ -102,6 +107,17 @@ def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE issues ADD COLUMN changespec_bug_id TEXT NOT NULL DEFAULT ''"
         )
+    conn.commit()
+
+
+def _migrate_add_epic_count(conn: sqlite3.Connection) -> None:
+    """Add legend epic-count metadata to a pre-existing issues table."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "epic_count" in columns:
+        return
+    conn.execute("ALTER TABLE issues ADD COLUMN epic_count INTEGER")
     conn.commit()
 
 
@@ -184,6 +200,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_is_ready_to_work(conn)
     _migrate_add_changespec_metadata(conn)
     _migrate_add_tier(conn)
+    _migrate_add_epic_count(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -216,6 +233,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         notes=row["notes"] or "",
         design=row["design"] or "",
         is_ready_to_work=bool(row["is_ready_to_work"]),
+        epic_count=row["epic_count"],
         changespec_name=row["changespec_name"] or "",
         changespec_bug_id=row["changespec_bug_id"] or "",
     )
@@ -247,9 +265,9 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design, is_ready_to_work, changespec_name, "
-        "changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "description, notes, design, is_ready_to_work, epic_count, "
+        "changespec_name, changespec_bug_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -268,6 +286,7 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.notes,
             issue.design,
             int(issue.is_ready_to_work),
+            issue.epic_count,
             issue.changespec_name,
             issue.changespec_bug_id,
         ),
@@ -333,6 +352,7 @@ def update_issue(
         "design",
         "tier",
         "is_ready_to_work",
+        "epic_count",
         "changespec_name",
         "changespec_bug_id",
     }

@@ -31,6 +31,7 @@ def test_current_schema_fixture_imports_hierarchy_dependencies_and_metadata(
 
     assert parent is not None
     assert parent.is_ready_to_work is True
+    assert parent.epic_count is None
     assert parent.changespec_name == "current_changespec"
     assert parent.changespec_bug_id == "BUG-100"
     assert child is not None
@@ -59,6 +60,7 @@ def test_pre_changespec_metadata_schema_defaults_metadata_empty(tmp_path: Path) 
     assert issue is not None
     assert issue.changespec_name == ""
     assert issue.changespec_bug_id == ""
+    assert issue.epic_count is None
 
 
 def test_corrupt_jsonl_fixture_skips_bad_lines(tmp_path: Path) -> None:

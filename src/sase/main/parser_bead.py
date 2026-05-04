@@ -47,6 +47,12 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "--bug-id",
         help="Bug ID to pass when creating the attached ChangeSpec",
     )
+    bead_create_parser.add_argument(
+        "-E",
+        "--epic-count",
+        type=int,
+        help="Number of epics proposed by a legend plan bead",
+    )
 
     # sase bead dep
     bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
@@ -144,3 +150,4 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
     bead_update_parser.add_argument("--tier", choices=["plan", "epic", "legend"])
+    bead_update_parser.add_argument("-E", "--epic-count", type=int)

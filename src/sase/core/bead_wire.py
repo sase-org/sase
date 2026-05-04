@@ -71,6 +71,9 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         notes="" if data.get("notes") is None else str(data.get("notes", "")),
         design="" if data.get("design") is None else str(data.get("design", "")),
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
+        epic_count=(
+            None if data.get("epic_count") is None else int(data["epic_count"])
+        ),
         changespec_name=(
             ""
             if data.get("changespec_name") is None

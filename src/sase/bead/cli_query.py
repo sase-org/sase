@@ -47,6 +47,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         )
         if issue.assignee:
             print(f"Assignee: {issue.assignee}")
+        if issue.epic_count is not None:
+            print(f"Epic Count: {issue.epic_count}")
         if issue.parent_id:
             try:
                 parent = view.show(issue.parent_id)

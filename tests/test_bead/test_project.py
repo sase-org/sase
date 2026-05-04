@@ -60,6 +60,31 @@ def test_create_legend_and_filter_by_tier(project):
     assert project.show(epic.id).tier == BeadTier.EPIC
 
 
+def test_create_and_update_legend_epic_count(project):
+    legend = project.create(
+        "Legend",
+        IssueType.PLAN,
+        tier=BeadTier.LEGEND,
+        epic_count=2,
+    )
+
+    assert project.show(legend.id).epic_count == 2
+
+    updated = project.update(legend.id, epic_count=5)
+    assert updated.epic_count == 5
+    assert project.show(legend.id).epic_count == 5
+
+
+def test_create_rejects_epic_count_on_epic_plan(project):
+    with pytest.raises(ValueError, match="Only legend plan beads"):
+        project.create(
+            "Epic",
+            IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            epic_count=2,
+        )
+
+
 def test_create_epic_with_changespec_metadata(project):
     issue = project.create(
         "My Epic",

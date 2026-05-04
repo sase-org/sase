@@ -75,6 +75,38 @@ class TestIssueValidation:
         )
         issue.validate()  # Should not raise
 
+    def test_legend_plan_with_epic_count_is_valid(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A legend",
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.LEGEND,
+            epic_count=3,
+        )
+        issue.validate()
+
+    def test_non_legend_plan_with_epic_count_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            epic_count=3,
+        )
+        with pytest.raises(ValueError, match="Only legend plan beads"):
+            issue.validate()
+
+    def test_non_positive_epic_count_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A legend",
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.LEGEND,
+            epic_count=0,
+        )
+        with pytest.raises(ValueError, match="positive integer"):
+            issue.validate()
+
     def test_phase_with_tier_raises(self) -> None:
         issue = Issue(
             id="test-1",

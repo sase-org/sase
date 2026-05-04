@@ -20,7 +20,7 @@ from sase.bead.db import (
     stats,
     update_issue,
 )
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, Status
 
 NOW = "2026-03-17T00:00:00Z"
 
@@ -129,6 +129,23 @@ class TestCreateAndGet:
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
 
+    def test_create_legend_with_epic_count(self, conn: sqlite3.Connection) -> None:
+        create_issue(
+            conn,
+            Issue(
+                id="l-1",
+                title="Legend",
+                issue_type=IssueType.PLAN,
+                tier=BeadTier.LEGEND,
+                created_at=NOW,
+                updated_at=NOW,
+                epic_count=4,
+            ),
+        )
+        issue = get_issue(conn, "l-1")
+        assert issue is not None
+        assert issue.epic_count == 4
+
     def test_create_phase_with_changespec_metadata_fails(
         self, conn: sqlite3.Connection
     ) -> None:
@@ -195,6 +212,23 @@ class TestUpdateIssue:
         assert updated is not None
         assert updated.changespec_name == "feature_epic"
         assert updated.changespec_bug_id == "12345"
+
+    def test_update_epic_count(self, conn: sqlite3.Connection) -> None:
+        create_issue(
+            conn,
+            Issue(
+                id="l-1",
+                title="Legend",
+                issue_type=IssueType.PLAN,
+                tier=BeadTier.LEGEND,
+                created_at=NOW,
+                updated_at=NOW,
+                epic_count=2,
+            ),
+        )
+        updated = update_issue(conn, "l-1", epic_count=5, updated_at=NOW)
+        assert updated is not None
+        assert updated.epic_count == 5
 
 
 class TestCloseIssue:

@@ -83,6 +83,9 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     if issue_type != IssueType.PLAN and tier is not None:
         print("Error: --tier can only be set on plan beads", file=sys.stderr)
         sys.exit(1)
+    epic_count = getattr(args, "epic_count", None)
+    if epic_count is not None:
+        _validate_epic_count_create(issue_type, tier, epic_count)
 
     design = ""
     if plan_path:
@@ -100,23 +103,28 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 print(f"Error: parent bead not found: {parent_id}", file=sys.stderr)
                 sys.exit(1)
 
-        issue = proj.create(
-            title=args.title,
-            issue_type=issue_type,
-            parent_id=parent_id,
-            description=args.description or "",
-            assignee=args.assignee or "",
-            design=design,
-            tier=tier,
-            changespec_name=changespec_name,
-            changespec_bug_id=changespec_bug_id,
-        )
+        try:
+            issue = proj.create(
+                title=args.title,
+                issue_type=issue_type,
+                parent_id=parent_id,
+                description=args.description or "",
+                assignee=args.assignee or "",
+                design=design,
+                tier=tier,
+                changespec_name=changespec_name,
+                changespec_bug_id=changespec_bug_id,
+                epic_count=epic_count,
+            )
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
     with get_project() as proj:
-        fields: dict[str, str | None] = {}
+        fields: dict[str, str | int | None] = {}
         if args.status:
             fields["status"] = args.status
         if args.title:
@@ -131,13 +139,28 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["assignee"] = args.assignee
         if getattr(args, "tier", None) is not None:
             fields["tier"] = args.tier
+        if getattr(args, "epic_count", None) is not None:
+            fields["epic_count"] = args.epic_count
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)
         try:
+            if "epic_count" in fields:
+                current = proj.show(args.id)
+                next_tier = (
+                    BeadTier(str(fields["tier"]))
+                    if "tier" in fields and fields["tier"] is not None
+                    else current.tier
+                )
+                _validate_epic_count_create(
+                    current.issue_type, next_tier, int(str(fields["epic_count"]))
+                )
             issue = proj.update(args.id, **fields)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         print(f"✓ Updated issue: {issue.id} — {issue.title}")
 
@@ -175,3 +198,22 @@ def handle_bead_rm(args: argparse.Namespace) -> None:
 
 
 _parse_type_arg = parse_type_arg
+
+
+def _validate_epic_count_create(
+    issue_type: IssueType,
+    tier: BeadTier | None,
+    epic_count: int,
+) -> None:
+    if epic_count <= 0:
+        print("Error: --epic-count must be a positive integer", file=sys.stderr)
+        sys.exit(1)
+    if issue_type != IssueType.PLAN:
+        print("Error: --epic-count can only be set on plan beads", file=sys.stderr)
+        sys.exit(1)
+    if tier != BeadTier.LEGEND:
+        print(
+            "Error: --epic-count can only be set on legend plan beads",
+            file=sys.stderr,
+        )
+        sys.exit(1)

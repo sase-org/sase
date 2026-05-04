@@ -100,6 +100,7 @@ class BeadProject:
         tier: BeadTier | str | None = None,
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
+        epic_count: int | None = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -121,6 +122,7 @@ class BeadProject:
             assignee=assignee,
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
+            epic_count=epic_count,
             now=_now(),
             workspace_beads_dirs=self._workspace_beads_dirs(),
         )
