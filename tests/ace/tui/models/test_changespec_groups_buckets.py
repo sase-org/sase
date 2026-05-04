@@ -19,8 +19,6 @@ from sase.ace.tui.models.date_subgroups import (
     NO_TIMESTAMP_LABEL,
     day_subgroup_label,
     day_subgroup_sort_key,
-    four_hour_window_label,
-    four_hour_window_sort_key,
     one_hour_window_label,
     one_hour_window_sort_key,
     week_subgroup_label,
@@ -130,35 +128,6 @@ def test_date_bucket_sort_index_orders_buckets() -> None:
 # --- Date subgroups ---
 
 
-def test_four_hour_window_boundary_labels() -> None:
-    cases = [
-        (0, "12AM-4AM"),
-        (3, "12AM-4AM"),
-        (4, "4AM-8AM"),
-        (7, "4AM-8AM"),
-        (8, "8AM-12PM"),
-        (11, "8AM-12PM"),
-        (12, "12PM-4PM"),
-        (15, "12PM-4PM"),
-        (16, "4PM-8PM"),
-        (19, "4PM-8PM"),
-        (20, "8PM-12AM"),
-        (23, "8PM-12AM"),
-    ]
-    for hour, expected in cases:
-        assert four_hour_window_label(datetime(2026, 4, 25, hour, 30)) == expected
-
-
-def test_four_hour_window_sort_key_newest_first() -> None:
-    labels = ["8AM-12PM", "8PM-12AM", "12AM-4AM", "4PM-8PM"]
-    assert sorted(labels, key=four_hour_window_sort_key) == [
-        "8PM-12AM",
-        "4PM-8PM",
-        "8AM-12PM",
-        "12AM-4AM",
-    ]
-
-
 def test_one_hour_window_labels_are_zero_padded() -> None:
     assert one_hour_window_label(datetime(2026, 4, 25, 0, 30)) == "00:00"
     assert one_hour_window_label(datetime(2026, 4, 25, 9, 30)) == "09:00"
@@ -204,8 +173,8 @@ def test_date_subgroup_for_changespec_by_bucket() -> None:
     earlier = _cs("e", timestamps=[_ts("260415_100000")])
     undated = _cs("u", timestamps=None)
 
-    assert date_subgroup_for_changespec(today, "Today") == "8AM-12PM"
-    assert date_subgroup_for_changespec(yesterday, "Yesterday") == "8PM-12AM"
+    assert date_subgroup_for_changespec(today, "Today") == "10:00"
+    assert date_subgroup_for_changespec(yesterday, "Yesterday") == "21:00"
     assert date_subgroup_for_changespec(this_week, "This Week") == "Fri Apr 24"
     assert date_subgroup_for_changespec(earlier, "Earlier") == "Apr 13-19"
     assert date_subgroup_for_changespec(undated, "Earlier") == NO_TIMESTAMP_LABEL

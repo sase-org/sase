@@ -99,14 +99,12 @@ def test_by_date_emits_l0_banners_in_fixed_bucket_order() -> None:
         ("Earlier",),
     ]
     assert _group_keys(entries, 1) == [
-        ("Today", "8AM-12PM"),
-        ("Yesterday", "12PM-4PM"),
+        ("Today", "11:00"),
+        ("Today", "08:00"),
+        ("Yesterday", "12:00"),
         ("Earlier", "Apr 13-19"),
     ]
-    assert _group_keys(entries, 2) == [
-        ("Today", "8AM-12PM", "11:00"),
-        ("Today", "8AM-12PM", "08:00"),
-    ]
+    assert _group_keys(entries, 2) == []
 
 
 def test_by_date_today_emits_hourly_groups_and_newest_first() -> None:
@@ -117,11 +115,10 @@ def test_by_date_today_emits_hourly_groups_and_newest_first() -> None:
     ]
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
     assert _group_keys(entries, 0) == [("Today",)]
-    assert _group_keys(entries, 1) == [("Today", "8AM-12PM")]
-    assert _group_keys(entries, 2) == [
-        ("Today", "8AM-12PM", "11:00"),
-        ("Today", "8AM-12PM", "10:00"),
-        ("Today", "8AM-12PM", "08:00"),
+    assert _group_keys(entries, 1) == [
+        ("Today", "11:00"),
+        ("Today", "10:00"),
+        ("Today", "08:00"),
     ]
     cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
     assert cs_indices == [1, 2, 0]
@@ -147,13 +144,10 @@ def test_by_date_yesterday_emits_windows_newest_first() -> None:
     ]
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
     assert _group_keys(entries, 1) == [
-        ("Yesterday", "8PM-12AM"),
-        ("Yesterday", "4PM-8PM"),
-        ("Yesterday", "8AM-12PM"),
-    ]
-    assert _group_keys(entries, 2) == [
-        ("Yesterday", "8AM-12PM", "11:00"),
-        ("Yesterday", "8AM-12PM", "09:00"),
+        ("Yesterday", "21:00"),
+        ("Yesterday", "17:00"),
+        ("Yesterday", "11:00"),
+        ("Yesterday", "09:00"),
     ]
     cs_indices = [e.changespec_idx for e in entries if e.kind == "changespec"]
     assert cs_indices == [3, 1, 0, 2]
@@ -211,7 +205,7 @@ def test_by_date_collapsed_subgroup_hides_only_that_subgroup() -> None:
         _cs("afternoon", timestamps=[_ts("260425_140000")]),
     ]
     registry = GroupFoldRegistry()
-    registry.collapse(("Yesterday", "8PM-12AM"))
+    registry.collapse(("Yesterday", "21:00"))
     entries = build_changespec_tree(
         cl, ChangeSpecGroupingMode.BY_DATE, fold_registry=registry, now=_NOW
     )
@@ -219,25 +213,6 @@ def test_by_date_collapsed_subgroup_hides_only_that_subgroup() -> None:
         ("group", 0),
         ("group", 1),
         ("group", 1),
-        ("changespec", 1),
-    ]
-
-
-def test_by_date_collapsed_hourly_subgroup_hides_only_that_hour() -> None:
-    cl = [
-        _cs("morning_late", timestamps=[_ts("260425_110000")]),
-        _cs("morning_early", timestamps=[_ts("260425_090000")]),
-    ]
-    registry = GroupFoldRegistry()
-    registry.collapse(("Yesterday", "8AM-12PM", "11:00"))
-    entries = build_changespec_tree(
-        cl, ChangeSpecGroupingMode.BY_DATE, fold_registry=registry, now=_NOW
-    )
-    assert _kinds(entries) == [
-        ("group", 0),
-        ("group", 1),
-        ("group", 2),
-        ("group", 2),
         ("changespec", 1),
     ]
 
@@ -251,19 +226,19 @@ def test_by_date_enumerate_keys_includes_l1_subgroup_keys() -> None:
     keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
     assert keys == [
         ("Today",),
-        ("Today", "8AM-12PM"),
+        ("Today", "10:00"),
         ("Yesterday",),
-        ("Yesterday", "8PM-12AM"),
+        ("Yesterday", "21:00"),
         ("Earlier",),
         ("Earlier", "Apr 13-19"),
     ]
 
 
-def test_by_date_singleton_window_suppresses_hourly_subgroup() -> None:
+def test_by_date_singleton_today_emits_one_hour_subgroup() -> None:
     cl = [_cs("today", timestamps=[_ts("260426_100000")])]
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
 
-    assert _group_keys(entries, 1) == [("Today", "8AM-12PM")]
+    assert _group_keys(entries, 1) == [("Today", "10:00")]
     assert _group_keys(entries, 2) == []
     assert _kinds(entries) == [
         ("group", 0),
@@ -271,26 +246,22 @@ def test_by_date_singleton_window_suppresses_hourly_subgroup() -> None:
         ("changespec", 0),
     ]
     keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
-    assert keys == [("Today",), ("Today", "8AM-12PM")]
+    assert keys == [("Today",), ("Today", "10:00")]
 
 
-def test_by_date_two_cls_in_same_window_emit_hourly_subgroups() -> None:
+def test_by_date_two_cls_in_same_hour_share_l1_banner() -> None:
     cl = [
-        _cs("morning_late", timestamps=[_ts("260426_110000")]),
-        _cs("morning_early", timestamps=[_ts("260426_090000")]),
+        _cs("morning_late", timestamps=[_ts("260426_113000")]),
+        _cs("morning_early", timestamps=[_ts("260426_110500")]),
     ]
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
 
-    assert _group_keys(entries, 2) == [
-        ("Today", "8AM-12PM", "11:00"),
-        ("Today", "8AM-12PM", "09:00"),
-    ]
+    assert _group_keys(entries, 1) == [("Today", "11:00")]
     keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
-    assert ("Today", "8AM-12PM", "11:00") in keys
-    assert ("Today", "8AM-12PM", "09:00") in keys
+    assert ("Today", "11:00") in keys
 
 
-def test_by_date_two_cls_in_different_singleton_windows_suppress_hourly() -> None:
+def test_by_date_two_cls_in_different_hours_emit_two_banners() -> None:
     cl = [
         _cs("afternoon", timestamps=[_ts("260426_140000")]),
         _cs("morning", timestamps=[_ts("260426_090000")]),
@@ -298,29 +269,10 @@ def test_by_date_two_cls_in_different_singleton_windows_suppress_hourly() -> Non
     entries = build_changespec_tree(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
 
     assert _group_keys(entries, 1) == [
-        ("Today", "12PM-4PM"),
-        ("Today", "8AM-12PM"),
+        ("Today", "14:00"),
+        ("Today", "09:00"),
     ]
     assert _group_keys(entries, 2) == []
-    keys = enumerate_changespec_group_keys(cl, ChangeSpecGroupingMode.BY_DATE, now=_NOW)
-    assert ("Today", "12PM-4PM", "14:00") not in keys
-    assert ("Today", "8AM-12PM", "09:00") not in keys
-
-
-def test_by_date_stale_collapsed_hourly_state_ignored_for_singleton_window() -> None:
-    cl = [_cs("today", timestamps=[_ts("260426_100000")])]
-    registry = GroupFoldRegistry()
-    registry.collapse(("Today", "8AM-12PM", "10:00"))
-
-    entries = build_changespec_tree(
-        cl, ChangeSpecGroupingMode.BY_DATE, fold_registry=registry, now=_NOW
-    )
-
-    assert _kinds(entries) == [
-        ("group", 0),
-        ("group", 1),
-        ("changespec", 0),
-    ]
 
 
 # --- BY_STATUS ---

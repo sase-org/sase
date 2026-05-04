@@ -10,9 +10,9 @@ Modes:
 * ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ CLs share
   the same ``foobar``-style base name.
 * ``BY_DATE`` — L0 date bucket from the latest TIMESTAMPS entry;
-  ``Today`` / ``Yesterday`` add 4-hour L1 windows with hourly L2
-  headings, ``This Week`` adds day L1 headings, and ``Earlier`` adds
-  week L1 headings plus ``(no timestamp)``.
+  ``Today`` / ``Yesterday`` add 1-hour L1 windows, ``This Week`` adds
+  day L1 headings, and ``Earlier`` adds week L1 headings plus
+  ``(no timestamp)``.
 * ``BY_STATUS`` — L0 status bucket from the literal ``status`` string;
   L1 sibling root only when 2+ CLs share the same base name inside the
   same status bucket.
@@ -27,7 +27,6 @@ from ._buckets import (
     date_bucket_sort_index,
     date_subgroup_for_changespec,
     date_subgroup_sort_key,
-    hour_subgroup_for_changespec,
     latest_changespec_timestamp,
     status_bucket_for_changespec,
     status_sort_index,
@@ -50,7 +49,6 @@ __all__ = [
     "date_subgroup_for_changespec",
     "date_subgroup_sort_key",
     "enumerate_changespec_group_keys",
-    "hour_subgroup_for_changespec",
     "latest_changespec_timestamp",
     "sibling_root_for_changespec",
     "status_bucket_for_changespec",

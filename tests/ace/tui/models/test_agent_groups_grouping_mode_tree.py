@@ -118,14 +118,14 @@ def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:
     # Single "Today" banner — project / changespec are no longer in the
     # hierarchy, so two different projects collapse into one L0 group.
     assert l0_banners == [("Today",)]
-    # L1 is now the time-window layer under BY_DATE; no project or ChangeSpec
-    # identity is retained in those keys.
+    # L1 is the date-aware subgroup layer under BY_DATE; no project or
+    # ChangeSpec identity is retained in those keys.
     l1_banners = [
         e.group.group_key  # type: ignore[union-attr]
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
+    assert l1_banners == [("Today", "13:00"), ("Today", "09:00")]
     assert all("cl-" not in key for banner in l1_banners for key in banner)
     assert all("proj" not in key for banner in l1_banners for key in banner)
 
@@ -151,7 +151,7 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
     """Under BY_DATE the name-root banner is suppressed entirely.
 
     Within a date bucket, same-base-name agents are not a meaningful unit
-    — the bucket renders with time-window banners sorted by ``start_time``.
+    — the bucket renders with subgroup banners sorted by ``start_time``.
     """
     a = _agent(
         cl_name="x",
@@ -169,7 +169,7 @@ def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
-    assert l1_banners == [("Today", "12PM-4PM"), ("Today", "8AM-12PM")]
+    assert l1_banners == [("Today", "13:00"), ("Today", "09:00")]
     assert ("Today", "coder") not in l1_banners
 
 
@@ -285,9 +285,9 @@ def test_build_agent_tree_by_date_no_name_root_banner_across_buckets() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 1
     ]
     assert l1_banners == [
-        ("Today", "12PM-4PM"),
-        ("Today", "8AM-12PM"),
-        ("Earlier", "8AM-12PM"),
+        ("Today", "13:00"),
+        ("Today", "09:00"),
+        ("Earlier", "Mar 30-Apr 5"),
     ]
     assert all(banner[-1] != "coder" for banner in l1_banners)
 

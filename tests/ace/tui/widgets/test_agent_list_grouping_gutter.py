@@ -8,7 +8,6 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
     _CHANGESPEC_BANNER_RULE_STYLE,
-    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
 )
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -125,8 +124,8 @@ def test_agent_row_under_by_status_carries_one_bucket_gutter_segment() -> None:
     assert not agent_plain.startswith("│  │  ")
 
 
-def test_by_date_4hour_banner_uses_level2_visual_style() -> None:
-    """BY_DATE 4-hour headings use the promoted L1/ChangeSpec register."""
+def test_by_date_subgroup_banner_uses_level2_visual_style() -> None:
+    """BY_DATE subgroup headings use the promoted L1/ChangeSpec register."""
     widget = AgentList()
     widget.update_list(
         [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],
@@ -137,42 +136,14 @@ def test_by_date_4hour_banner_uses_level2_visual_style() -> None:
     options = list(widget._options)
     window_text = options[1].prompt
     window_plain = window_text.plain  # type: ignore[union-attr]
-    assert window_plain.startswith("│  ▎ 8AM-12PM ")
+    assert window_plain.startswith("│  ▎ 09:00 ")
     window_styles = {s.style for s in window_text.spans}  # type: ignore[union-attr]
     assert _PROJECT_BANNER_RULE_STYLE in window_styles
     assert _CHANGESPEC_BANNER_BAR_STYLE in window_styles
     assert _CHANGESPEC_BANNER_RULE_STYLE in window_styles
 
 
-def test_by_date_hourly_banner_carries_bucket_and_window_gutters() -> None:
-    """BY_DATE hourly headings sit under the date bucket and 4-hour window."""
-    widget = AgentList()
-    widget.update_list(
-        [
-            make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0)),
-            make_agent(start_time=datetime(2026, 4, 25, 9, 30, 0)),
-        ],
-        current_idx=0,
-        grouping_mode=GroupingMode.BY_DATE,
-        now=datetime(2026, 4, 25, 12, 0, 0),
-    )
-    options = list(widget._options)
-    hourly_text = options[2].prompt
-    hourly_plain = hourly_text.plain  # type: ignore[union-attr]
-    assert hourly_plain.startswith("│  │  ▸ 09:00 ")
-    hourly_styles = {s.style for s in hourly_text.spans}  # type: ignore[union-attr]
-    assert _PROJECT_BANNER_RULE_STYLE in hourly_styles
-    assert _CHANGESPEC_BANNER_RULE_STYLE in hourly_styles
-    assert _NAME_ROOT_BANNER_BRANCH_STYLE in hourly_styles
-    assert any(
-        span.start == 3
-        and span.end == 6
-        and span.style == _CHANGESPEC_BANNER_RULE_STYLE
-        for span in hourly_text.spans  # type: ignore[union-attr]
-    )
-
-
-def test_by_date_agent_row_carries_bucket_and_window_gutters() -> None:
+def test_by_date_agent_row_carries_bucket_and_subgroup_gutters() -> None:
     widget = AgentList()
     widget.update_list(
         [make_agent(start_time=datetime(2026, 4, 25, 9, 0, 0))],

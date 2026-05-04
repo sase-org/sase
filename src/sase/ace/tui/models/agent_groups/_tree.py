@@ -27,8 +27,8 @@ from ._keys import (
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
-    # 0 = project/date/status bucket; 1 = ChangeSpec/name-root/4-hour window;
-    # 2 = name-root in STANDARD 3-level mode or one-hour window in BY_DATE.
+    # 0 = project/date/status bucket; 1 = ChangeSpec/name-root/BY_DATE
+    # subgroup; 2 = name-root in STANDARD 3-level mode.
     level: int
     group_key: tuple[str, ...]
     agent_indices: tuple[int, ...]
@@ -54,18 +54,17 @@ class _BannerSummary:
     awaiting: int
 
 
-def _should_emit_time_window_banner(hour: str, count: int) -> bool:
-    """Whether a BY_DATE time-window bucket should have a visible banner."""
-    if not hour:
+def _should_emit_date_subgroup_banner(subgroup: str, count: int) -> bool:
+    """Whether a BY_DATE subgroup bucket should have a visible banner.
+
+    A real subgroup label always emits a banner; the synthetic
+    ``(no time)`` label only emits when 2+ agents share it.
+    """
+    if not subgroup:
         return False
-    if hour == NO_HOUR_LABEL:
+    if subgroup == NO_HOUR_LABEL:
         return count >= 2
     return True
-
-
-def _should_emit_one_hour_banner(parent_count: int, one_hour: str) -> bool:
-    """Whether a BY_DATE one-hour bucket should have a visible banner."""
-    return bool(one_hour) and parent_count >= 2
 
 
 def enumerate_group_keys(
@@ -78,8 +77,8 @@ def enumerate_group_keys(
     Partitions *agents* by panel key so each panel's mode (2- vs 3-level)
     is decided independently, mirroring :func:`build_agent_tree`.  The
     name-root banner is only included when its group has 2+ entries;
-    BY_DATE time-window keys mirror the visible banner predicate, with
-    hourly keys emitted only under real 4-hour windows.
+    BY_DATE subgroup keys mirror the visible banner predicate (synthetic
+    ``(no time)`` only emits with 2+ agents).
     """
     if not agents:
         return []
@@ -108,7 +107,7 @@ def enumerate_group_keys(
             mode=mode,
         )
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
-        hour_counts: dict[tuple[str, str], int] = {}
+        subgroup_counts: dict[tuple[str, str], int] = {}
         for k in keys_per_agent:
             parent: tuple[str, ...] = (
                 (k.project, k.changespec) if use_cs else (k.project,)
@@ -117,9 +116,9 @@ def enumerate_group_keys(
                 root_counts[(parent, k.name_root)] = (
                     root_counts.get((parent, k.name_root), 0) + 1
                 )
-            if mode is GroupingMode.BY_DATE and k.hour:
-                hour_counts[(k.project, k.hour)] = (
-                    hour_counts.get((k.project, k.hour), 0) + 1
+            if mode is GroupingMode.BY_DATE and k.date_subgroup:
+                subgroup_counts[(k.project, k.date_subgroup)] = (
+                    subgroup_counts.get((k.project, k.date_subgroup), 0) + 1
                 )
         for i in walk:
             k = keys_per_agent[i]
@@ -135,20 +134,14 @@ def enumerate_group_keys(
                 parent = l1
             else:
                 parent = l0
-            if mode is GroupingMode.BY_DATE and _should_emit_time_window_banner(
-                k.hour, hour_counts.get((k.project, k.hour), 0)
+            if mode is GroupingMode.BY_DATE and _should_emit_date_subgroup_banner(
+                k.date_subgroup,
+                subgroup_counts.get((k.project, k.date_subgroup), 0),
             ):
-                hour_key: GroupKey = (k.project, k.hour)
-                if hour_key not in seen:
-                    seen.add(hour_key)
-                    out.append(hour_key)
-            if mode is GroupingMode.BY_DATE and _should_emit_one_hour_banner(
-                hour_counts.get((k.project, k.hour), 0), k.one_hour
-            ):
-                one_hour_key: GroupKey = (k.project, k.hour, k.one_hour)
-                if one_hour_key not in seen:
-                    seen.add(one_hour_key)
-                    out.append(one_hour_key)
+                subgroup_key: GroupKey = (k.project, k.date_subgroup)
+                if subgroup_key not in seen:
+                    seen.add(subgroup_key)
+                    out.append(subgroup_key)
             if k.name_root and root_counts.get((parent, k.name_root), 0) >= 2:
                 deep: GroupKey = (*parent, k.name_root)
                 if deep not in seen:
@@ -174,8 +167,10 @@ def build_agent_tree(
         mode: How to bucket agents at L0.  Defaults to ``STANDARD``
             (existing project / ChangeSpec hierarchy).  ``BY_DATE`` and
             ``BY_STATUS`` drop the ChangeSpec level entirely; L0 becomes
-            the bucket.  ``BY_DATE`` uses 4-hour and one-hour time-window
-            banners under the bucket; ``BY_STATUS`` uses the name-root layer.
+            the bucket.  ``BY_DATE`` uses date-aware subgroup banners under
+            the bucket (1-hour under Today/Yesterday, calendar day under
+            This Week, Monday-start week under Earlier); ``BY_STATUS``
+            uses the name-root layer.
         now: Reference time for ``BY_DATE`` bucketing.  Defaults to
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
 
@@ -197,8 +192,7 @@ def build_agent_tree(
 
     proj_indices: dict[str, list[int]] = {}
     cs_indices: dict[tuple[str, str], list[int]] = {}
-    hour_indices: dict[tuple[str, str], list[int]] = {}
-    one_hour_indices: dict[tuple[str, str, str], list[int]] = {}
+    subgroup_indices: dict[tuple[str, str], list[int]] = {}
     root_indices: dict[tuple[tuple[str, ...], str], list[int]] = {}
     for i in walk:
         k = keys_per_agent[i]
@@ -208,23 +202,19 @@ def build_agent_tree(
             parent: tuple[str, ...] = (k.project, k.changespec)
         else:
             parent = (k.project,)
-        if mode is GroupingMode.BY_DATE and k.hour:
-            hour_indices.setdefault((k.project, k.hour), []).append(i)
-        if mode is GroupingMode.BY_DATE and k.one_hour:
-            one_hour_indices.setdefault((k.project, k.hour, k.one_hour), []).append(i)
+        if mode is GroupingMode.BY_DATE and k.date_subgroup:
+            subgroup_indices.setdefault((k.project, k.date_subgroup), []).append(i)
         if k.name_root:
             root_indices.setdefault((parent, k.name_root), []).append(i)
 
     entries: list[TreeEntry] = []
     cur_proj: str | None = None
     cur_cs: str | None = None  # only meaningful when use_cs
-    cur_hour: str = ""  # only meaningful under BY_DATE
-    cur_one_hour: str = ""  # only meaningful under BY_DATE
+    cur_subgroup: str = ""  # only meaningful under BY_DATE
     cur_root: str = ""
     cur_proj_collapsed = False
     cur_cs_collapsed = False
-    cur_hour_collapsed = False
-    cur_one_hour_collapsed = False
+    cur_subgroup_collapsed = False
     cur_root_collapsed = False
 
     for i in walk:
@@ -245,12 +235,10 @@ def build_agent_tree(
             )
             cur_proj = k.project
             cur_cs = None
-            cur_hour = ""
-            cur_one_hour = ""
+            cur_subgroup = ""
             cur_root = ""
             cur_cs_collapsed = False
-            cur_hour_collapsed = False
-            cur_one_hour_collapsed = False
+            cur_subgroup_collapsed = False
             cur_root_collapsed = False
         if cur_proj_collapsed:
             continue
@@ -281,59 +269,29 @@ def build_agent_tree(
             parent_key = (k.project,)
             deep_level = 1
 
-        if mode is GroupingMode.BY_DATE and k.hour != cur_hour:
-            cur_hour = k.hour
-            cur_one_hour = ""
-            cur_hour_collapsed = False
-            cur_one_hour_collapsed = False
+        if mode is GroupingMode.BY_DATE and k.date_subgroup != cur_subgroup:
+            cur_subgroup = k.date_subgroup
+            cur_subgroup_collapsed = False
             cur_root = ""
             cur_root_collapsed = False
-            hour_count = len(hour_indices.get((k.project, k.hour), []))
-            if _should_emit_time_window_banner(k.hour, hour_count):
-                hour_key: GroupKey = (k.project, k.hour)
-                cur_hour_collapsed = registry.is_collapsed(hour_key)
+            subgroup_count = len(subgroup_indices.get((k.project, k.date_subgroup), []))
+            if _should_emit_date_subgroup_banner(k.date_subgroup, subgroup_count):
+                subgroup_key: GroupKey = (k.project, k.date_subgroup)
+                cur_subgroup_collapsed = registry.is_collapsed(subgroup_key)
                 entries.append(
                     TreeEntry(
                         kind="group",
                         group=GroupRow(
                             level=1,
-                            group_key=hour_key,
-                            agent_indices=tuple(hour_indices[(k.project, k.hour)]),
-                            is_collapsed=cur_hour_collapsed,
+                            group_key=subgroup_key,
+                            agent_indices=tuple(
+                                subgroup_indices[(k.project, k.date_subgroup)]
+                            ),
+                            is_collapsed=cur_subgroup_collapsed,
                         ),
                     )
                 )
-        if cur_hour_collapsed:
-            continue
-
-        if mode is GroupingMode.BY_DATE and k.one_hour:
-            parent_count = len(hour_indices.get((k.project, k.hour), []))
-            if _should_emit_one_hour_banner(parent_count, k.one_hour):
-                if k.one_hour != cur_one_hour:
-                    cur_one_hour = k.one_hour
-                    one_hour_key: GroupKey = (k.project, k.hour, k.one_hour)
-                    cur_one_hour_collapsed = registry.is_collapsed(one_hour_key)
-                    entries.append(
-                        TreeEntry(
-                            kind="group",
-                            group=GroupRow(
-                                level=2,
-                                group_key=one_hour_key,
-                                agent_indices=tuple(
-                                    one_hour_indices[(k.project, k.hour, k.one_hour)]
-                                ),
-                                is_collapsed=cur_one_hour_collapsed,
-                            ),
-                        )
-                    )
-            else:
-                cur_one_hour = ""
-                cur_one_hour_collapsed = False
-        elif mode is GroupingMode.BY_DATE and not k.one_hour:
-            cur_one_hour = ""
-            cur_one_hour_collapsed = False
-
-        if cur_one_hour_collapsed:
+        if cur_subgroup_collapsed:
             continue
 
         if k.name_root != cur_root:
@@ -401,10 +359,10 @@ def banner_label(group: GroupRow) -> str:
       ChangeSpec name or the synthetic ``"(no ChangeSpec)"`` bucket.
     * Level 1, 2-level mode (2-tuple ``(project, name_root)``) → the
       bare name-root (always non-empty for a real banner).
-    * Level 1, BY_DATE mode (2-tuple ``(date_bucket, "8AM-12PM")``) → the
-      bare 4-hour window label.
-    * Level 2 (3-tuple ``(project, changespec, name_root)`` or
-      ``(date_bucket, "8AM-12PM", "09:00")``) → the bare suffix.
+    * Level 1, BY_DATE mode (2-tuple ``(date_bucket, subgroup)``) → the
+      bare subgroup label (1-hour ``HH:00``, calendar day, or week range).
+    * Level 2 (3-tuple ``(project, changespec, name_root)``) → the bare
+      name-root suffix.
 
     All non-L0 banners use the ``group_key[-1]`` suffix as their label.
     """

@@ -7,17 +7,15 @@ from datetime import datetime
 from pathlib import Path
 
 from ..agent import Agent
-from ..date_subgroups import four_hour_window_sort_key, one_hour_window_sort_key
 from ._buckets import (
-    NO_HOUR_LABEL,
     NO_PROJECT,
     GroupingMode,
-    hour_anchor_time,
     bucket_sort_index,
     date_bucket_for,
-    one_hour_bucket_for,
+    date_subgroup_bucket_for,
+    date_subgroup_sort_key,
+    hour_anchor_time,
     status_bucket_for,
-    time_window_bucket_for,
 )
 
 
@@ -26,8 +24,8 @@ class _GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
-    hour: str = ""  # populated only under BY_DATE; "" otherwise
-    one_hour: str = ""  # populated only under real BY_DATE 4-hour windows
+    date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
+    anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
 
 
 def _project_name(agent: Agent) -> str:
@@ -86,24 +84,17 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
-def _hour_sort_key(hour: str) -> tuple[int, int]:
-    """Sort key for time windows — newest window first, ``(no time)`` last.
+def _date_subgroup_sort_key(
+    date_bucket: str, subgroup: str, anchor: datetime | None
+) -> tuple[int, int]:
+    """Sort key for BY_DATE L1 subgroups within a date bucket.
 
-    Empty ``hour`` is the non-BY_DATE neutral (``(0, 0)``) so existing
+    Empty ``subgroup`` is the non-BY_DATE neutral (``(0, 0)``) so existing
     orderings under STANDARD / BY_STATUS are preserved byte-for-byte.
     """
-    if hour == "":
+    if subgroup == "":
         return (0, 0)
-    if hour == NO_HOUR_LABEL:
-        return (2, 0)
-    return four_hour_window_sort_key(hour)
-
-
-def _one_hour_sort_key(one_hour: str) -> tuple[int, int]:
-    """Sort key for hourly BY_DATE subgroups — newest hour first."""
-    if one_hour == "":
-        return (0, 0)
-    return one_hour_window_sort_key(one_hour)
+    return date_subgroup_sort_key(date_bucket, subgroup, anchor)
 
 
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
@@ -143,16 +134,19 @@ def grouping_keys_for(
         if parent is not None:
             target = parent
     reference = now if now is not None else datetime.now()
+    l0 = _l0_value_for(target, mode, reference)
     return _GroupingKeys(
-        project=_l0_value_for(target, mode, reference),
+        project=l0,
         changespec=(
             _changespec_name_for_grouping(target)
             if mode is GroupingMode.STANDARD
             else ""
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
-        hour=time_window_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
-        one_hour=one_hour_bucket_for(target) if mode is GroupingMode.BY_DATE else "",
+        date_subgroup=(
+            date_subgroup_bucket_for(target, l0) if mode is GroupingMode.BY_DATE else ""
+        ),
+        anchor=(hour_anchor_time(target) if mode is GroupingMode.BY_DATE else None),
     )
 
 
@@ -262,8 +256,11 @@ def walk_order(
                 if use_changespec_level
                 else (0, "")
             ),
-            _hour_sort_key(keys_per_agent[i].hour),
-            _one_hour_sort_key(keys_per_agent[i].one_hour),
+            _date_subgroup_sort_key(
+                keys_per_agent[i].project,
+                keys_per_agent[i].date_subgroup,
+                keys_per_agent[i].anchor,
+            ),
             _name_root_sort_key(
                 keys_per_agent[i].name_root,
                 in_group=bool(keys_per_agent[i].name_root)

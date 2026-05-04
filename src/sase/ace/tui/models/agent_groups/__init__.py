@@ -38,8 +38,10 @@ original input order via a stable sort.
 Name-root banners are only emitted when the name-root group contains
 two or more entries; a singleton root renders its lone agent directly
 under the parent banner without an extra header.  In ``BY_DATE`` mode,
-visible real 4-hour banners are emitted even for singleton windows, and
-real anchored agents get hourly banners beneath them.
+the L1 subgroup banner uses 1-hour windows under Today/Yesterday,
+calendar days under This Week, and Monday-start weeks under Earlier;
+real labels always emit a banner, while the synthetic ``(no time)``
+label only emits when 2+ agents share it.
 """
 
 from ._buckets import (
@@ -51,10 +53,8 @@ from ._buckets import (
     _NEEDS_INPUT_STATUSES,
     _TERMINAL_STATUSES,
     date_bucket_for,
-    hour_bucket_for,
-    one_hour_bucket_for,
+    date_subgroup_bucket_for,
     status_bucket_for,
-    time_window_bucket_for,
 )
 from ._keys import grouping_keys_for_agents, panel_uses_changespec_level
 from ._tree import (
@@ -89,12 +89,10 @@ __all__ = [
     "build_agent_tree",
     "compute_banner_summary",
     "date_bucket_for",
+    "date_subgroup_bucket_for",
     "enumerate_group_keys",
     "find_visible_ancestor_banner",
     "grouping_keys_for_agents",
-    "hour_bucket_for",
-    "one_hour_bucket_for",
     "panel_uses_changespec_level",
     "status_bucket_for",
-    "time_window_bucket_for",
 ]

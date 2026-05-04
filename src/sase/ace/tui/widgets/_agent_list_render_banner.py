@@ -54,16 +54,15 @@ def format_banner_option(
 
     - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
       heavy rule ``━`` and chip.
-    - STANDARD L1 (ChangeSpec, 3-level mode) and BY_DATE L1 (4-hour
-      windows such as ``8AM-12PM``): cooler accent + ``▎`` bar, light
-      rule ``─``.
+    - STANDARD L1 (ChangeSpec, 3-level mode) and BY_DATE L1 subgroup
+      banners (1-hour ``HH:00``, calendar day, week range): cooler accent
+      + ``▎`` bar, light rule ``─``.
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
       ``Needs Attention``) + bold sky-blue label + heavy rule.
-    - L1/L2 (name-root) in any mode, plus BY_DATE L2 hourly windows such
-      as ``09:00``: dim-gray ``▸`` branch glyph, teal label, dim-gray
-      light rule ``─`` and chip.
+    - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
+      label, dim-gray light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` so OptionList cursor
     navigation skips them at full expansion.  When *selectable* is True

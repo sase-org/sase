@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 18:38:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/ace_by_date_subgroups.md
 ---
 # Plan: Replace 4-Hour Window Subgroups in `sase ace` "By Date" Grouping

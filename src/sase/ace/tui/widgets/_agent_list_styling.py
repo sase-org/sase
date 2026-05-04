@@ -16,11 +16,11 @@ _MIN_BANNER_WIDTH = 40
 # blue) and a dimmer rule+chip region (dim sky blue) so the label reads as
 # the brightest element while the rule and right-aligned chip stay
 # secondary.  Level-2 visual banners (STANDARD L1 ChangeSpec and real
-# BY_DATE L1 4-hour windows) inherit the same bar+rule treatment but in a
-# slightly cooler accent so the top-level bucket still reads as the
-# dominant header.  Level-3 visual banners (name-root and BY_DATE hourly)
-# use a single dim-gray style for the branch glyph, trailing rule, and
-# chip; only the label gets its own teal accent.
+# BY_DATE L1 subgroup banners) inherit the same bar+rule treatment but in
+# a slightly cooler accent so the top-level bucket still reads as the
+# dominant header.  Level-3 visual banners (name-root) use a single
+# dim-gray style for the branch glyph, trailing rule, and chip; only the
+# label gets its own teal accent.
 _PROJECT_BANNER_BAR_STYLE = "bold #5FAFFF"
 _PROJECT_BANNER_RULE_STYLE = "dim #5FAFFF"
 _CHANGESPEC_BANNER_BAR_STYLE = "bold #87D7FF"

@@ -21,8 +21,6 @@ from sase.ace.tui.widgets import ChangeSpecList
 from sase.ace.tui.widgets._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
     _CHANGESPEC_BANNER_RULE_STYLE,
-    _NAME_ROOT_BANNER_BRANCH_STYLE,
-    _NAME_ROOT_BANNER_LABEL_STYLE,
 )
 from sase.ace.tui.widgets._changespec_list_banner import banner_natural_width
 from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
@@ -132,9 +130,9 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
         if widget._row_entries[i] == _BANNER_ROW
         and not (widget.get_option_at_index(i).id or "").startswith("cs-spacer:")
     ]
-    assert len(banner_rows) == 4
+    # L0 ("Yesterday") + two L1 1-hour subgroups (21:00, 20:00) = 3 banners.
+    assert len(banner_rows) == 3
     assert widget._row_entries == [
-        _BANNER_ROW,
         _BANNER_ROW,
         _BANNER_ROW,
         0,
@@ -144,28 +142,21 @@ def test_by_date_renders_l1_subgroup_banner_rows(monkeypatch: Any) -> None:
 
     window_text = widget.get_option_at_index(1).prompt
     window_plain = window_text.plain  # type: ignore[union-attr]
-    assert window_plain.startswith("▎ 8PM-12AM ")
+    assert window_plain.startswith("▎ 21:00 ")
     window_styles = {s.style for s in window_text.spans}  # type: ignore[union-attr]
     assert _CHANGESPEC_BANNER_BAR_STYLE in window_styles
     assert _CHANGESPEC_BANNER_RULE_STYLE in window_styles
-
-    hourly_text = widget.get_option_at_index(2).prompt
-    hourly_plain = hourly_text.plain  # type: ignore[union-attr]
-    assert hourly_plain.startswith("▸ 21:00 ")
-    hourly_styles = {s.style for s in hourly_text.spans}  # type: ignore[union-attr]
-    assert _NAME_ROOT_BANNER_LABEL_STYLE in hourly_styles
-    assert _NAME_ROOT_BANNER_BRANCH_STYLE in hourly_styles
 
 
 def test_banner_natural_width_uses_two_cell_prefix_for_l1() -> None:
     group = ChangeSpecGroupRow(
         level=1,
-        group_key=("Yesterday", "8PM-12AM"),
+        group_key=("Yesterday", "21:00"),
         changespec_indices=(0, 1),
     )
 
     assert banner_natural_width(group, hint_char="x") == (
-        4 + 2 + len("8PM-12AM") + 1 + 2 + len("2 CLs")
+        4 + 2 + len("21:00") + 1 + 2 + len("2 CLs")
     )
 
 
@@ -173,53 +164,26 @@ def test_by_date_collapsed_l1_banner_maps_to_group_key(monkeypatch: Any) -> None
     widget, _ = _wire_widget(monkeypatch)
     css = [
         _cs("night", timestamps=[_ts("260425_210000")]),
-        _cs("afternoon", timestamps=[_ts("260425_140000")]),
-    ]
-    fold = GroupFoldRegistry()
-    fold.collapse(("Yesterday", "8PM-12AM"))
-
-    widget.update_list(
-        css,
-        current_idx=0,
-        grouping_mode=ChangeSpecGroupingMode.BY_DATE,
-        fold_registry=fold,
-        current_group_key=("Yesterday", "8PM-12AM"),
-        now=_NOW,
-    )
-
-    row = widget._banner_row_by_key[("Yesterday", "8PM-12AM")]
-    assert widget.highlighted == row
-    assert widget._banner_at_row[row].group_key == ("Yesterday", "8PM-12AM")
-    index, group_key = widget._resolve_row(row)
-    assert index == 0
-    assert group_key == ("Yesterday", "8PM-12AM")
-
-
-def test_by_date_collapsed_hourly_banner_maps_to_group_key(monkeypatch: Any) -> None:
-    widget, _ = _wire_widget(monkeypatch)
-    css = [
-        _cs("night", timestamps=[_ts("260425_210000")]),
         _cs("late_evening", timestamps=[_ts("260425_200000")]),
     ]
     fold = GroupFoldRegistry()
-    fold.collapse(("Yesterday", "8PM-12AM", "21:00"))
+    fold.collapse(("Yesterday", "21:00"))
 
     widget.update_list(
         css,
         current_idx=0,
         grouping_mode=ChangeSpecGroupingMode.BY_DATE,
         fold_registry=fold,
-        current_group_key=("Yesterday", "8PM-12AM", "21:00"),
+        current_group_key=("Yesterday", "21:00"),
         now=_NOW,
     )
 
-    key = ("Yesterday", "8PM-12AM", "21:00")
-    row = widget._banner_row_by_key[key]
+    row = widget._banner_row_by_key[("Yesterday", "21:00")]
     assert widget.highlighted == row
-    assert widget._banner_at_row[row].group_key == key
+    assert widget._banner_at_row[row].group_key == ("Yesterday", "21:00")
     index, group_key = widget._resolve_row(row)
     assert index == 0
-    assert group_key == key
+    assert group_key == ("Yesterday", "21:00")
 
 
 def test_grouped_render_marks_l0_banners_disabled_when_expanded(

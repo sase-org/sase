@@ -14,7 +14,14 @@ from sase.agent.status_buckets import (
 )
 
 from ..agent import Agent
-from ..date_subgroups import four_hour_window_label, one_hour_window_label
+from ..date_subgroups import (
+    day_subgroup_label,
+    day_subgroup_sort_key,
+    one_hour_window_label,
+    one_hour_window_sort_key,
+    week_subgroup_label,
+    week_subgroup_sort_key,
+)
 
 #: Sentinel used as the project key for agents without a ``project_file``.
 NO_PROJECT = ""
@@ -23,7 +30,7 @@ NO_PROJECT = ""
 #: panel that otherwise has at least one ChangeSpec.
 NO_CHANGESPEC_LABEL = "(no ChangeSpec)"
 
-#: Synthetic time-window label for agents with no usable anchor time
+#: Synthetic subgroup label for agents with no usable anchor time
 #: under :data:`GroupingMode.BY_DATE`.  Sorts last within its date bucket.
 NO_HOUR_LABEL = "(no time)"
 
@@ -40,9 +47,11 @@ class GroupingMode(Enum):
       agent's ``status``.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
-    levels disappear.  ``BY_DATE`` renders date bucket → 4-hour window →
-    one-hour window, while ``BY_STATUS`` renders status bucket → name-root
-    with the same singleton-suppression rule as ``STANDARD`` mode.
+    levels disappear.  ``BY_DATE`` renders date bucket → date-aware
+    subgroup (1-hour under Today/Yesterday, calendar day under This Week,
+    Monday-start week under Earlier), while ``BY_STATUS`` renders status
+    bucket → name-root with the same singleton-suppression rule as
+    ``STANDARD`` mode.
     """
 
     STANDARD = "standard"
@@ -93,43 +102,56 @@ def hour_anchor_time(agent: Agent) -> datetime | None:
     return agent.start_time
 
 
-def time_window_bucket_for(agent: Agent) -> str:
-    """Map an agent's anchor time to a 4-hour window label.
+def date_subgroup_bucket_for(agent: Agent, date_bucket: str) -> str:
+    """Map an agent's anchor time to a BY_DATE L1 subgroup label.
+
+    The label depends on the L0 *date_bucket*:
+
+    - ``Today`` / ``Yesterday`` → 1-hour ``HH:00`` window.
+    - ``This Week`` → calendar-day label (e.g. ``Fri Apr 24``).
+    - ``Earlier`` → Monday-start week range (e.g. ``Apr 21-27``).
 
     Uses ``stop_time`` for terminal agents (falling back to ``start_time``
     when missing) and ``start_time`` otherwise — same rule as
-    :func:`walk_anchors` so time-window banners agree with the sort order
+    :func:`walk_anchors` so subgroup banners agree with the sort order
     inside each date bucket.
 
     Returns :data:`NO_HOUR_LABEL` for agents with no usable anchor; that
-    bucket sorts last within its date bucket.
-
-    Note: under ``BY_DATE``'s ``Earlier`` bucket, agents with the same
-    4-hour window on different calendar dates land in the same sub-bucket.
-    This is intentional — the design trades calendar precision for
-    compactness inside the already-coarse ``Earlier`` bucket.
+    sub-bucket sorts last within its date bucket.
     """
     anchor = hour_anchor_time(agent)
     if anchor is None:
         return NO_HOUR_LABEL
-    return four_hour_window_label(anchor)
+    if date_bucket in {"Today", "Yesterday"}:
+        return one_hour_window_label(anchor)
+    if date_bucket == "This Week":
+        return day_subgroup_label(anchor)
+    if date_bucket == "Earlier":
+        return week_subgroup_label(anchor)
+    return ""
 
 
-def one_hour_bucket_for(agent: Agent) -> str:
-    """Map an agent's anchor time to a one-hour ``HH:00`` label.
+def date_subgroup_sort_key(
+    date_bucket: str, subgroup: str, anchor: datetime | None
+) -> tuple[int, int]:
+    """Sort key for BY_DATE L1 subgroups within a date bucket.
 
-    Returns an empty string when no real anchor exists so callers can keep
-    ``(no time)`` as a terminal synthetic bucket.
+    Newest-first within real labels, with ``NO_HOUR_LABEL`` placed last.
+    Mirrors the CLs tab's sort rule so both tabs agree on subgroup order.
     """
-    anchor = hour_anchor_time(agent)
+    if not subgroup:
+        return (0, 0)
+    if subgroup == NO_HOUR_LABEL:
+        return (2, 0)
     if anchor is None:
-        return ""
-    return one_hour_window_label(anchor)
-
-
-def hour_bucket_for(agent: Agent) -> str:
-    """Compatibility alias for :func:`time_window_bucket_for`."""
-    return time_window_bucket_for(agent)
+        return (1, 0)
+    if date_bucket in {"Today", "Yesterday"}:
+        return one_hour_window_sort_key(subgroup)
+    if date_bucket == "This Week":
+        return day_subgroup_sort_key(anchor)
+    if date_bucket == "Earlier":
+        return week_subgroup_sort_key(anchor)
+    return (1, 0)
 
 
 def status_bucket_for(agent: Agent) -> str:

@@ -76,9 +76,9 @@ def compute_tier_styles(
     The gutter for a row is the list of ancestor tier styles that
     contribute a ``│  `` segment.  L0 (project / bucket) and level-2
     visual banners contribute: STANDARD L1 ChangeSpec banners and real
-    BY_DATE L1 4-hour windows both use the cooler ChangeSpec rule style.
-    Name-root banners and synthetic ``(no time)`` buckets do not add a
-    descendant tier.  Order is outermost first.
+    BY_DATE L1 subgroup banners both use the cooler ChangeSpec rule
+    style.  Name-root banners and synthetic ``(no time)`` buckets do not
+    add a descendant tier.  Order is outermost first.
     """
     agent_styles: dict[int, tuple[str, ...]] = {}
     banner_styles: list[tuple[str, ...]] = []
