@@ -403,6 +403,9 @@ xprompts:
 
       ### THE PROMPT
       {{ prompt }}
+  research/image: |
+    Can you use GPT image to generate an infographic that illustrates the main points made in this research markdown
+    file? Write the image to a new file in the same directory.
   research/more: |
     Can you help me improve this research markdown file by doing your own research and filling in any gaps missed by the
     previous agent? Preserve the existing file path unless I explicitly ask for a new file, and follow
