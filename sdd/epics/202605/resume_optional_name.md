@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-04 15:54:50
+bead_id: sase-22
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/resume_optional_name.md
 ---
