@@ -108,3 +108,22 @@ def register_agents_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Limit output to a single agent",
     )
+
+    # sase agents archive {rebuild-index,verify}
+    archive_parser = agents_sub.add_parser(
+        "archive",
+        help="Maintain dismissed-agent archive indexes",
+    )
+    archive_sub = archive_parser.add_subparsers(
+        dest="archive_subcommand",
+        help="Archive maintenance subcommands",
+    )
+
+    archive_sub.add_parser(
+        "rebuild-index",
+        help="Rebuild the dismissed bundle summary index",
+    )
+    archive_sub.add_parser(
+        "verify",
+        help="Verify the dismissed bundle summary index",
+    )

@@ -221,6 +221,54 @@ def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None
     assert "Usage: sase agents" in capsys.readouterr().out
 
 
+def test_dispatch_archive_rebuild_index(capsys: pytest.CaptureFixture[str]) -> None:
+    """Archive maintenance dispatches to the dismissed-bundle index rebuild."""
+    args = argparse.Namespace(
+        agents_subcommand="archive",
+        archive_subcommand="rebuild-index",
+    )
+    with (
+        patch(
+            "sase.ace.dismissed_agents.rebuild_dismissed_bundle_index",
+            return_value=(2, 1),
+        ),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+    assert excinfo.value.code == 0
+    assert (
+        "Indexed 2 dismissed bundles; skipped 1 corrupt files."
+        in capsys.readouterr().out
+    )
+
+
+def test_dispatch_archive_verify_exits_nonzero_when_stale(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Archive verify reports failures through its process exit code."""
+    args = argparse.Namespace(
+        agents_subcommand="archive",
+        archive_subcommand="verify",
+    )
+    with (
+        patch(
+            "sase.ace.dismissed_agents.verify_dismissed_bundle_index",
+            return_value={
+                "ok": False,
+                "indexed_rows": 1,
+                "valid_bundles": 2,
+                "corrupt_bundles": 0,
+                "stale_rows": 0,
+                "missing_rows": 1,
+            },
+        ),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_command(args)
+    assert excinfo.value.code == 1
+    assert '"missing_rows": 1' in capsys.readouterr().out
+
+
 # === sase agents kill ===
 
 

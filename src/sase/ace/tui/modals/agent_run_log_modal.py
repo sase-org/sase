@@ -14,7 +14,11 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.ace.dismissed_agents import load_dismissed_agents, load_dismissed_bundles
+from sase.ace.dismissed_agents import (
+    load_dismissed_agents,
+    load_dismissed_bundle_summaries,
+    load_dismissed_bundles,
+)
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_all_agents
@@ -71,6 +75,12 @@ def _load_agents_for_cl(
         for _, dismissed_cl_name, raw_suffix in dismissed_ids
         if raw_suffix is not None and changespec_names_match(dismissed_cl_name, cl_name)
     }
+    for summary in load_dismissed_bundle_summaries(
+        cl_name=cl_name,
+        top_level_only=True,
+    ):
+        if summary.raw_suffix:
+            candidate_dismissed_suffixes.add(summary.raw_suffix)
 
     # Load dismissed bundles for this CL, deduplicating against active agents
     active_identities = {a.identity for a in active}

@@ -1,5 +1,6 @@
 """Tests for dismissed agents persistence."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -7,10 +8,13 @@ from unittest.mock import patch
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_agents,
+    load_dismissed_bundle_summaries,
     load_dismissed_bundles,
     remove_bundle_by_identity,
+    rebuild_dismissed_bundle_index,
     save_dismissed_agents,
     save_dismissed_bundle,
+    verify_dismissed_bundle_index,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -234,6 +238,89 @@ def test_bundle_load_by_suffixes_with_children(tmp_path: Path) -> None:
         assert len(loaded) == 3
         step_indices = sorted(a.step_index for a in loaded if a.step_index is not None)
         assert step_indices == [0, 1]
+
+
+def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
+    """Rebuild stores queryable summaries for sharded and legacy bundles."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="indexed_cl",
+            raw_suffix="20250615100000",
+            workflow="wf",
+        )
+        child = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="indexed_cl",
+            raw_suffix="20250615100000",
+            parent_workflow="wf",
+            parent_timestamp="20250615100000",
+            step_index=0,
+        )
+        legacy = _make_agent(cl_name="legacy_cl", raw_suffix="20250615110000")
+        save_dismissed_bundle(parent)
+        save_dismissed_bundle(child)
+        legacy_dir = bundles_dir
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        (legacy_dir / "20250615110000.json").write_text(
+            json.dumps(legacy.to_bundle_dict())
+        )
+
+        indexed, skipped = rebuild_dismissed_bundle_index()
+        assert (indexed, skipped) == (3, 0)
+
+        summaries = load_dismissed_bundle_summaries(cl_name="indexed_cl")
+        assert {summary.filename for summary in summaries} == {
+            "20250615100000.json",
+            "20250615100000__c0.json",
+        }
+        assert any(summary.is_workflow_child for summary in summaries)
+        assert load_dismissed_bundle_summaries(project_name="bundles") == []
+
+
+def test_indexed_suffix_load_avoids_scanning_unrelated_children(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Targeted bundle loading uses indexed paths when the index is available."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        target = _make_agent(cl_name="target", raw_suffix="20250615100000")
+        unrelated = _make_agent(cl_name="other", raw_suffix="20250615110000")
+        save_dismissed_bundle(target)
+        save_dismissed_bundle(unrelated)
+        rebuild_dismissed_bundle_index()
+
+        def fail_scan(*args, **kwargs):
+            raise AssertionError("fallback scan should not be used")
+
+        monkeypatch.setattr("sase.ace.dismissed_agents._iter_bundle_paths", fail_scan)
+        loaded = load_dismissed_bundles({"20250615100000"})
+
+        assert [agent.identity for agent in loaded] == [target.identity]
+
+
+def test_dismissed_bundle_index_remove_and_verify(tmp_path: Path) -> None:
+    """Removing bundles deletes matching index rows and verify reports clean."""
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = _make_agent(cl_name="delete_me", raw_suffix="20250615100000")
+        save_dismissed_bundle(agent)
+        assert load_dismissed_bundle_summaries(suffixes={"20250615100000"})
+
+        assert remove_bundle_by_identity(agent.identity)
+        assert load_dismissed_bundle_summaries(suffixes={"20250615100000"}) == []
+        assert verify_dismissed_bundle_index()["ok"] is True
 
 
 def test_bundle_load_by_suffixes_child_only(tmp_path: Path) -> None:
