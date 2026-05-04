@@ -12,7 +12,6 @@ from typing import Any
 from sase.agent.names import find_named_agent, get_most_recent_agent_name
 
 
-# pyvision: sdd/epics/202605/resume_optional_name.md
 def resolve_agent_chat_path(name: str | None = None) -> str:
     """Return the chat path for an explicit or default resume target.
 

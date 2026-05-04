@@ -280,6 +280,65 @@ def _rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
     return unprotect_fenced_blocks(rewritten, fenced)
 
 
+_BARE_RESUME_RE = re.compile(r"#resume(?![A-Za-z0-9_])")
+
+
+def _has_bare_resume_reference(prompt: str) -> bool:
+    """Return True when *prompt* contains a top-level bare ``#resume``."""
+    if "#resume" not in prompt:
+        return False
+
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    return any(
+        _is_bare_resume_match(protected, match)
+        for match in _BARE_RESUME_RE.finditer(protected)
+    )
+
+
+def _rewrite_bare_resume_references(prompt: str, agent_name: str) -> str:
+    """Rewrite top-level bare ``#resume`` references to *agent_name*."""
+    if "#resume" not in prompt:
+        return prompt
+
+    from sase.xprompt._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    replacements: list[tuple[int, int, str]] = []
+    for match in _BARE_RESUME_RE.finditer(protected):
+        if _is_bare_resume_match(protected, match):
+            replacements.append((match.start(), match.end(), f"#resume:{agent_name}"))
+
+    rewritten = protected
+    for start, end, value in reversed(replacements):
+        rewritten = rewritten[:start] + value + rewritten[end:]
+    rewritten = unprotect_disabled_regions(rewritten, disabled)
+    return unprotect_fenced_blocks(rewritten, fenced)
+
+
+def _is_bare_resume_match(text: str, match: re.Match[str]) -> bool:
+    if match.end() >= len(text):
+        return True
+    return text[match.end()] not in ":("
+
+
 class _PlannedNameAllocator:
     """Allocate parent-side names for multi-prompt wait rewrites."""
 
@@ -494,18 +553,26 @@ def _spawn_segments_into(
         if default_bare_segments_to_home:
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
-        with timer.stage("wait_rewrite", segment_index=i):
+        with timer.stage("wait_resume_rewrite", segment_index=i):
             segment_has_bare_wait = _has_bare_wait_directive(segment)
-            if segment_has_bare_wait and previous_agent_name:
-                segment = _rewrite_bare_wait_directives(segment, previous_agent_name)
-                segment_has_bare_wait = False
+            segment_has_bare_resume = _has_bare_resume_reference(segment)
+            if previous_agent_name:
+                if segment_has_bare_wait:
+                    segment = _rewrite_bare_wait_directives(
+                        segment, previous_agent_name
+                    )
+                if segment_has_bare_resume:
+                    segment = _rewrite_bare_resume_references(
+                        segment, previous_agent_name
+                    )
         with timer.stage("prompt_parse", segment_index=i):
             has_wait = has_wait_directive(segment)
             segment_local_xprompts = _local_xprompts_for_segment(
                 segment, local_xprompts
             )
-        next_segment_needs_name = i < len(segments) - 1 and _has_bare_wait_directive(
-            segments[i + 1]
+        next_segment_needs_name = i < len(segments) - 1 and (
+            _has_bare_wait_directive(segments[i + 1])
+            or _has_bare_resume_reference(segments[i + 1])
         )
 
         # Check for launch fan-out directives (e.g., %m(opus,sonnet) or %alt(a,b)).
