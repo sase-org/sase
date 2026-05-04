@@ -8,8 +8,8 @@ input:
 
 ---
 
-#resume #research/more %m:opus
+%w #resume #research/more %m:opus
 
 ---
 
-#resume #research/image
+%w #resume #research/image
