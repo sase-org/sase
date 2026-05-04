@@ -181,6 +181,9 @@ class Agent:
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
+    # Explicit plan-only auto-approval action, e.g. "epic".
+    auto_approve_plan_action: str | None = None
+
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 

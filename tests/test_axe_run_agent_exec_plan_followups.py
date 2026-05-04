@@ -3,10 +3,11 @@
 import dataclasses
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
+from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
@@ -61,6 +62,33 @@ class TestPlanFollowupPrompts:
     def test_epic_prompt_no_model_when_none(self, tmp_path) -> None:
         state = self._run(tmp_path, action="epic", agent_model=None)
         assert not state.current_prompt.startswith("%model:")
+
+    def test_accepted_plan_persists_epic_action(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_artifacts_dir = state.current_artifacts_dir
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert call(plan_artifacts_dir, "plan_approved", True) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+        assert call(plan_artifacts_dir, "plan_action", "epic") in (
+            plan_mod.update_meta_field.call_args_list
+        )
 
     def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
         """Legend approval writes to sdd/legends and launches bd/new_legend."""

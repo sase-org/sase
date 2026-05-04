@@ -235,6 +235,7 @@ class AgentMetaWire:
     workspace_num: int | None = None
     workspace_dir: str | None = None
     approve: bool = False
+    auto_approve_plan_action: str | None = None
     hidden: bool = False
     plan: bool = False
     plan_approved: bool = False

@@ -160,3 +160,15 @@ class TestExtractDirectivesAutoDismiss:
         expected = str(tmp_path / "workspace")
         assert result["meta"]["workspace_dir"] == expected
         assert "vcs_provider" not in result["meta"]
+
+
+def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%epic is plan-specific and does not enable full auto-approve."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _run_extract(tmp_path, prompt="%epic\nDraft the epic")
+
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    assert result["meta"]["plan"] is True
+    assert result["meta"]["auto_approve_plan_action"] == "epic"
+    assert "approve" not in result["meta"]

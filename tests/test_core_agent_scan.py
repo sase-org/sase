@@ -122,6 +122,28 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.workspace_dir == "/tmp/workspaces/alpha"
 
 
+def test_running_record_carries_auto_approve_plan_action(
+    fixture_root: Path,
+) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["auto_approve_plan_action"] = "epic"
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = _record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.auto_approve_plan_action == "epic"
+
+
 def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:
     timestamp = "2026-04-27T11:05:00Z"
     epic_timestamp = "2026-04-27T11:08:00Z"

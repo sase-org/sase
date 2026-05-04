@@ -129,11 +129,12 @@ def handle_plan_approval(
     Returns a ``PlanApprovalResult`` when accepted, or ``None`` if
     rejected / missing / killed.
     """
-    from sase.main.plan_approve_handler import is_auto_approve_active
+    from sase.main.plan_approve_handler import get_auto_plan_approval_action
 
-    if is_auto_approve_active():
+    auto_action = get_auto_plan_approval_action()
+    if auto_action is not None:
         return (
-            PlanApprovalResult(action="approve", plan_file=plan_file)
+            PlanApprovalResult(action=auto_action, plan_file=plan_file)
             if plan_file
             else None
         )

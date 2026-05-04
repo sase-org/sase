@@ -1,4 +1,4 @@
-"""Tests for individual directive types (%approve, %name, %wait, %plan, %hide, %edit, %repeat)."""
+"""Tests for individual directive types."""
 
 from unittest.mock import patch
 
@@ -56,6 +56,34 @@ def test_approve_duplicate_raises() -> None:
     prompt = "%approve\n%approve\nDo the work"
     with pytest.raises(DirectiveError, match="Duplicate directive '%approve'"):
         extract_prompt_directives(prompt)
+
+
+# --- %epic directive tests ---
+
+
+def test_epic_bare() -> None:
+    """%epic sets epic=True and strips the directive."""
+    prompt = "%epic\nWrite an epic plan"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Write an epic plan"
+    assert directives.epic is True
+    assert directives.plan is False
+    assert directives.approve is False
+
+
+def test_epic_duplicate_raises() -> None:
+    """Duplicate %epic raises DirectiveError."""
+    prompt = "%epic\n%epic\nDo the work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%epic'"):
+        extract_prompt_directives(prompt)
+
+
+def test_e_alias_still_means_edit_not_epic() -> None:
+    """%e remains the edit alias; %epic has no short alias."""
+    cleaned, directives = extract_prompt_directives("%e\nDo the work")
+    assert cleaned == "Do the work"
+    assert directives.edit is True
+    assert directives.epic is False
 
 
 # --- %name directive tests ---

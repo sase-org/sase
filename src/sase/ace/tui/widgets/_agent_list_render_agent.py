@@ -49,7 +49,12 @@ def format_agent_option(
 
     # Approve icon for autonomous agents
     if agent.approve:
-        text.append(f"{_APPROVE_ICON} ", style="bold #00FFFF")
+        icon = (
+            f"{_APPROVE_ICON}E"
+            if agent.auto_approve_plan_action == "epic"
+            else _APPROVE_ICON
+        )
+        text.append(f"{icon} ", style="bold #00FFFF")
 
     # Indentation for retry-chain attempts: render under the chain
     # root so the user sees the lineage at a glance.  retry_attempt
@@ -146,6 +151,12 @@ def format_agent_option(
         text.append(agent.status, style="bold #FF87AF")  # Pink
     elif agent.status == "PLAN APPROVED":
         text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+    elif agent.status == "PLAN COMMITTED":
+        text.append(agent.status, style="bold #5FD75F")  # Green
+    elif agent.status == "EPIC APPROVED":
+        text.append(agent.status, style="bold #5FD7AF")  # Sea-green
+    elif agent.status == "LEGEND APPROVED":
+        text.append(agent.status, style="bold #D7AFFF")  # Lavender
     elif agent.status == "WAITING":
         text.append(agent.status, style="bold #AF87FF")  # Amethyst
         if agent.wait_until:

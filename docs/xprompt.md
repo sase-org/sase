@@ -784,6 +784,7 @@ the prompt before further processing.
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display        |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)          |
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)               |
+| `%epic`    |       | Enable plan mode and auto-approve the plan as an epic     |
 | `%edit`    | `%e`  | Return editor text to the prompt bar for review           |
 | `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)         |
 | `%tag`     | `%t`  | Assign the agent's user-managed tag (e.g., `%tag:review`) |
@@ -825,6 +826,7 @@ Directives use the same argument syntax as xprompt references:
 %e                           # Same, using alias
 %plan                        # Enable plan mode
 %p                           # Same, using alias
+%epic                        # Enable plan mode and auto-approve the plan as an epic
 %tag:review                  # Assign the tag "review" to this agent
 %t:review                    # Same, using alias
 ```
@@ -855,8 +857,8 @@ Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated argume
 several lines: `%wait:agent_a,agent_b,5m` is equivalent to three separate `%wait:` directives. Backtick-quoted values
 (e.g. `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
-The `%approve`, `%edit`, and `%plan` directives are boolean flags — they take no arguments and are simply present or
-absent.
+The `%approve`, `%edit`, `%plan`, and `%epic` directives are boolean flags — they take no arguments and are simply
+present or absent.
 
 ### Example
 
@@ -925,6 +927,19 @@ its `plan_file` input, injects it with `@`, and instructs the agent to implement
 _not_ inherit the planner's chat transcript — the plan file is the hand-off artifact. Set
 `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a `#resume:<planner_name>` reference is
 prepended to the coder prompt so it resumes the planner's session.
+
+### Epic Directive
+
+The `%epic` directive enables plan mode and marks the submitted plan for epic approval. When the agent later submits a
+plan with `/sase_plan` or `sase plan`, sase follows the same epic path as the TUI Epic action: it writes the SDD epic
+files, commits them as needed, initializes beads, and launches the epic follow-up agent. Unlike `%approve`, `%epic` is
+plan-specific and does not automatically answer unrelated questions.
+
+```
+%epic
+%name:billing-epic
+Plan the billing dashboard epic.
+```
 
 ### Repeat Directive
 

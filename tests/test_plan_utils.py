@@ -12,6 +12,10 @@ from sase.llm_provider._plan_utils import (
     handle_plan_approval,
     save_plan_to_sase,
 )
+from sase.main.plan_approve_handler import (
+    get_auto_plan_approval_action,
+    is_auto_approve_active,
+)
 
 from tests.conftest import redirect_sase_home
 
@@ -80,10 +84,40 @@ def test_add_create_time_frontmatter_no_duplicate_status() -> None:
 def test_handle_plan_approval_auto_approve() -> None:
     """Test that handle_plan_approval returns plan_file when auto-approve is active."""
     with patch(
-        "sase.main.plan_approve_handler.is_auto_approve_active", return_value=True
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        return_value="approve",
     ):
         result = handle_plan_approval("/path/to/plan.md", "session-123")
     assert result == PlanApprovalResult(action="approve", plan_file="/path/to/plan.md")
+
+
+def test_handle_plan_approval_auto_epic_skips_notification() -> None:
+    """Plan-specific auto-epic enters the existing epic action path."""
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value="epic",
+        ),
+        patch("sase.notifications.senders.notify_plan_approval") as notify,
+    ):
+        result = handle_plan_approval("/path/to/plan.md", "session-123")
+
+    assert result == PlanApprovalResult(action="epic", plan_file="/path/to/plan.md")
+    notify.assert_not_called()
+
+
+def test_auto_plan_action_reads_epic_from_agent_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        '{"auto_approve_plan_action": "epic", "approve": true}'
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    assert get_auto_plan_approval_action() == "epic"
+    assert is_auto_approve_active() is True
 
 
 def test_handle_plan_approval_commit(
@@ -110,8 +144,8 @@ def test_handle_plan_approval_commit(
 
     with (
         patch(
-            "sase.main.plan_approve_handler.is_auto_approve_active",
-            return_value=False,
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value=None,
         ),
         patch(
             "sase.notifications.senders.notify_plan_approval",
@@ -137,7 +171,8 @@ def test_handle_plan_approval_commit(
 def test_handle_plan_approval_none_plan_file() -> None:
     """Test that handle_plan_approval returns None when plan_file is None."""
     with patch(
-        "sase.main.plan_approve_handler.is_auto_approve_active", return_value=False
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        return_value=None,
     ):
         result = handle_plan_approval(None, "session-123")
     assert result is None
@@ -169,8 +204,8 @@ def test_handle_plan_approval_approve_with_options(
 
     with (
         patch(
-            "sase.main.plan_approve_handler.is_auto_approve_active",
-            return_value=False,
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value=None,
         ),
         patch(
             "sase.notifications.senders.notify_plan_approval",
@@ -211,8 +246,8 @@ def test_handle_plan_approval_accepts_legend_action(
 
     with (
         patch(
-            "sase.main.plan_approve_handler.is_auto_approve_active",
-            return_value=False,
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value=None,
         ),
         patch(
             "sase.notifications.senders.notify_plan_approval",

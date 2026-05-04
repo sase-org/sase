@@ -18,7 +18,18 @@ _DIRECTIVE_PATTERN = (
 
 # Known directive names
 _KNOWN_DIRECTIVES = frozenset(
-    {"approve", "edit", "hide", "model", "name", "plan", "repeat", "tag", "wait"}
+    {
+        "approve",
+        "edit",
+        "epic",
+        "hide",
+        "model",
+        "name",
+        "plan",
+        "repeat",
+        "tag",
+        "wait",
+    }
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
@@ -50,6 +61,7 @@ class PromptDirectives:
 
     approve: bool = False
     edit: bool = False
+    epic: bool = False
     hide: bool = False
     model: str | None = None
     name: str | None = None

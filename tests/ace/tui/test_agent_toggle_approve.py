@@ -12,6 +12,7 @@ import pytest
 from sase.ace.tui.actions.agents._approve import (
     AgentApproveMixin,
     persist_approve_field,
+    persist_plan_auto_approval,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -79,6 +80,20 @@ def testpersist_approve_field_preserves_other_keys(tmp_path: Any) -> None:
     assert data["other"] == "keep"
 
 
+def test_persist_plan_auto_approval_epic_clears_legacy_approve(
+    tmp_path: Any,
+) -> None:
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(json.dumps({"approve": True, "other": "keep"}))
+
+    persist_plan_auto_approval(meta_path, False, "epic")
+
+    data = json.loads(meta_path.read_text())
+    assert data["auto_approve_plan_action"] == "epic"
+    assert data["other"] == "keep"
+    assert "approve" not in data
+
+
 def test_action_toggle_approve_optimistic_update(tmp_path: Any) -> None:
     """The in-memory toggle and refresh happen before any disk write."""
     agent = _make_agent(str(tmp_path))
@@ -114,6 +129,57 @@ def test_action_toggle_approve_persists_via_worker(tmp_path: Any) -> None:
     assert not any(sev == "error" for _, sev in app.notifications)
 
 
+def test_action_toggle_approve_cycles_to_epic(tmp_path: Any) -> None:
+    """A second press switches normal auto-approve to plan-only epic."""
+    agent = _make_agent(str(tmp_path), approve=True)
+    app = FakeApproveApp(agent)
+
+    app.action_toggle_approve()
+
+    assert agent.approve is True
+    assert agent.auto_approve_plan_action == "epic"
+    assert any(
+        msg.startswith("Epic auto-approve enabled") for msg, _ in app.notifications
+    )
+
+    callback = app.scheduled[0][0]
+    asyncio.run(callback())
+
+    data = json.loads((tmp_path / "agent_meta.json").read_text())
+    assert data == {"auto_approve_plan_action": "epic"}
+
+
+def test_action_toggle_approve_cycles_epic_to_off(tmp_path: Any) -> None:
+    """A third press disables both legacy and plan-specific auto approval."""
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "approve": True,
+                "auto_approve_plan_action": "epic",
+                "other": "keep",
+            }
+        )
+    )
+    agent = _make_agent(
+        str(tmp_path),
+        approve=True,
+        auto_approve_plan_action="epic",
+    )
+    app = FakeApproveApp(agent)
+
+    app.action_toggle_approve()
+
+    assert agent.approve is False
+    assert agent.auto_approve_plan_action is None
+
+    callback = app.scheduled[0][0]
+    asyncio.run(callback())
+
+    data = json.loads(meta_path.read_text())
+    assert data == {"other": "keep"}
+
+
 def test_action_toggle_approve_rolls_back_on_persist_failure(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -126,7 +192,7 @@ def test_action_toggle_approve_rolls_back_on_persist_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._approve.persist_approve_field", _boom
+        "sase.ace.tui.actions.agents._approve.persist_plan_auto_approval", _boom
     )
     app.action_toggle_approve()
     assert agent.approve is True  # optimistic

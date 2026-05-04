@@ -154,6 +154,32 @@ def test_wait_until_none_when_absent(tmp_path: Path) -> None:
     assert agent.wait_until is None
 
 
+def test_auto_approve_plan_action_from_agent_meta(tmp_path: Path) -> None:
+    """Plan-specific auto approval is preserved and renders as approved."""
+    meta = {"pid": 1234, "auto_approve_plan_action": "epic"}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.auto_approve_plan_action == "epic"
+    assert agent.approve is True
+
+
+def test_auto_approve_plan_action_from_agent_meta_wire() -> None:
+    """Snapshot metadata mirrors filesystem auto-approval enrichment."""
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(auto_approve_plan_action="epic"),
+        None,
+    )
+
+    assert agent.auto_approve_plan_action == "epic"
+    assert agent.approve is True
+
+
 def test_wait_until_with_agents(tmp_path: Path) -> None:
     """Mixed case: waiting_for agents + wait_until both populated."""
     meta = {"pid": 1234}

@@ -261,7 +261,10 @@ def build_header_text(
     # Mode (autonomous agents)
     if agent.approve:
         header_text.append("Mode: ", style="bold #87D7FF")
-        header_text.append("\u26a1 Auto-Approve\n", style="bold #00FFFF")
+        if agent.auto_approve_plan_action == "epic":
+            header_text.append("\u26a1 Epic Auto-Approve\n", style="bold #00FFFF")
+        else:
+            header_text.append("\u26a1 Auto-Approve\n", style="bold #00FFFF")
 
     # PID (if available)
     if agent.pid:

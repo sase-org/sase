@@ -104,6 +104,7 @@ def agent_render_key(
         is_marked,
         hint_char,
         agent.approve,
+        agent.auto_approve_plan_action,
         agent.tag,
         agent.agent_name,
         derive_agent_bead_id(agent),

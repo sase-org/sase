@@ -57,6 +57,12 @@ _plan_kind_for_action = plan_kind_for_action
 _write_plan_path_artifact = write_plan_path_artifact
 
 
+def _accepted_plan_action_for_meta(plan_result: Any) -> str:
+    if plan_result.action == "approve" and not plan_result.run_coder:
+        return "commit"
+    return str(plan_result.action)
+
+
 def _commit_sdd_files(
     workspace_dir: str, plan_name: str, *, plan_kind: str = "tales"
 ) -> None:
@@ -193,6 +199,13 @@ def handle_plan_marker(
         reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
         state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
         return None  # continue loop
+
+    update_meta_field(state.current_artifacts_dir, "plan_approved", True)
+    update_meta_field(
+        state.current_artifacts_dir,
+        "plan_action",
+        _accepted_plan_action_for_meta(plan_result),
+    )
 
     # Write SDD files (spec + plan) to project
     from sase.sdd.beads import get_sdd_config

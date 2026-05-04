@@ -67,6 +67,10 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.agent_name = data["name"]
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
+    raw_auto_action = data.get("auto_approve_plan_action")
+    if isinstance(raw_auto_action, str) and raw_auto_action:
+        agent.auto_approve_plan_action = raw_auto_action
+        agent.approve = True
     if data.get("approve"):
         agent.approve = True
     if data.get("hidden"):
@@ -267,6 +271,9 @@ def enrich_agent_from_meta_wire(
         agent.agent_name = meta.name
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)
+    if meta.auto_approve_plan_action:
+        agent.auto_approve_plan_action = meta.auto_approve_plan_action
+        agent.approve = True
     if meta.approve:
         agent.approve = True
     if meta.hidden:

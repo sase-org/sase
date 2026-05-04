@@ -290,7 +290,9 @@ class ArtifactRestorationMixin:
             data["vcs_provider"] = agent.vcs_provider
         if agent.agent_name:
             data["name"] = agent.agent_name
-        if agent.approve:
+        if agent.auto_approve_plan_action:
+            data["auto_approve_plan_action"] = agent.auto_approve_plan_action
+        elif agent.approve:
             data["approve"] = agent.approve
         if agent.extra_files:
             data["plan_path"] = agent.extra_files[0]
@@ -318,7 +320,9 @@ class ArtifactRestorationMixin:
             data["name"] = agent.agent_name
         if agent.waiting_for:
             data["wait_for"] = agent.waiting_for
-        if agent.approve:
+        if agent.auto_approve_plan_action:
+            data["auto_approve_plan_action"] = agent.auto_approve_plan_action
+        elif agent.approve:
             data["approve"] = agent.approve
         if agent.hidden:
             data["hidden"] = True

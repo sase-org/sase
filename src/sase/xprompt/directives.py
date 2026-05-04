@@ -325,6 +325,7 @@ def extract_prompt_directives(
     directives = PromptDirectives(
         approve="approve" in expanded_args,
         edit="edit" in expanded_args,
+        epic="epic" in expanded_args,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,

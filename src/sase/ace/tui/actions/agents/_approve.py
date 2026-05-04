@@ -13,8 +13,12 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-def persist_approve_field(meta_path: Path, approve: bool) -> None:
-    """Read ``agent_meta.json``, set the ``approve`` field, write it back.
+def persist_plan_auto_approval(
+    meta_path: Path,
+    approve: bool,
+    auto_approve_plan_action: str | None,
+) -> None:
+    """Read ``agent_meta.json``, update auto-approval fields, and write it back.
 
     Runs on a worker thread; raises on filesystem errors so the scheduler
     can surface them to the user as a toast.
@@ -26,9 +30,33 @@ def persist_approve_field(meta_path: Path, approve: bool) -> None:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         # Missing/corrupt file is recoverable — we'll write a fresh one.
         meta = {}
-    meta["approve"] = approve
+    if approve:
+        meta["approve"] = True
+    else:
+        meta.pop("approve", None)
+    if auto_approve_plan_action:
+        meta["auto_approve_plan_action"] = auto_approve_plan_action
+    else:
+        meta.pop("auto_approve_plan_action", None)
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
+
+
+def persist_approve_field(meta_path: Path, approve: bool) -> None:
+    """Backward-compatible wrapper for the legacy boolean auto-approve field."""
+    persist_plan_auto_approval(
+        meta_path,
+        approve=approve,
+        auto_approve_plan_action=None,
+    )
+
+
+def _next_auto_approval_state(agent: Agent) -> tuple[bool, str | None, str]:
+    if agent.auto_approve_plan_action == "epic":
+        return False, None, "Auto-approve disabled"
+    if agent.approve:
+        return True, "epic", "Epic auto-approve enabled"
+    return True, None, "Auto-approve enabled"
 
 
 class AgentApproveMixin:
@@ -76,8 +104,10 @@ class AgentApproveMixin:
             return
 
         prior_approve = agent.approve
-        new_approve = not prior_approve
+        prior_auto_action = agent.auto_approve_plan_action
+        new_approve, new_auto_action, toast = _next_auto_approval_state(agent)
         agent.approve = new_approve
+        agent.auto_approve_plan_action = new_auto_action
         # Approve flips one in-memory boolean — try the selective patch
         # first; fall back to the full rebuild if the row can't be
         # patched in place (cross-group risk, alignment overflow, etc.).
@@ -89,17 +119,18 @@ class AgentApproveMixin:
         def _rollback(exc: BaseException) -> None:
             del exc
             agent.approve = prior_approve
+            agent.auto_approve_plan_action = prior_auto_action
             if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         schedule_persist(
             self,  # type: ignore[arg-type]
-            persist_approve_field,
+            persist_plan_auto_approval,
             meta_path,
-            new_approve,
+            new_approve and new_auto_action is None,
+            new_auto_action,
             error_label="Auto-approve persist",
             on_error=_rollback,
         )
 
-        label = "enabled" if new_approve else "disabled"
-        self.notify(f"Auto-approve {label}")  # type: ignore[attr-defined]
+        self.notify(toast)  # type: ignore[attr-defined]

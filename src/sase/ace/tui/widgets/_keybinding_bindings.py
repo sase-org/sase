@@ -128,10 +128,12 @@ class KeybindingBindingsMixin:
                 "QUESTION",
             }
             if agent.status in _APPROVE_ELIGIBLE:
-                if not agent.approve:
-                    bindings.append((self._kd("accept_proposal"), "approve"))
-                else:
+                if agent.auto_approve_plan_action == "epic":
                     bindings.append((self._kd("accept_proposal"), "unapprove"))
+                elif agent.approve:
+                    bindings.append((self._kd("accept_proposal"), "epic"))
+                else:
+                    bindings.append((self._kd("accept_proposal"), "approve"))
 
         # Name agent (not available for done/failed agents)
         if agent.status not in ("DONE", "FAILED"):

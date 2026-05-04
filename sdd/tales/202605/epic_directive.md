@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 13:12:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/epic_directive.md
 ---
 # Plan: `%epic` Directive and Epic Auto-Approval
