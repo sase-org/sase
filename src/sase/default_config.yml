@@ -411,7 +411,7 @@ xprompts:
       {{ prompt }}
   research: |
     Store new research in a markdown file under the sdd/research/ directory. Organize research files in YYYYMM month
-    directories consistently with the generated SDD docs, and consult sdd/research/README.md when it is present.
+    subdirectories.
   review: |
     Can you help me fix any bugs that were introduced by this implementation? Also, look for any ways you can improve
     the implementation, but make sure any improvements you make are clear wins (not subjective).
