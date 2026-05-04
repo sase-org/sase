@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fcntl
+import json
 import os
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -19,6 +21,7 @@ from sase.vcs_provider import get_vcs_provider
 
 _STATE_DIR = Path.home() / ".sase" / "chat_install"
 _LOG_DIR = _STATE_DIR / "logs"
+_COMPLETIONS_DIR = _STATE_DIR / "completions"
 _LOCK_PATH = _STATE_DIR / "install.lock"
 _LOCK_FD_ENV = "SASE_CHAT_INSTALL_LOCK_FD"
 
@@ -47,6 +50,8 @@ class ChatInstallLaunchResult:
     log_path: Path | None = None
     workspace: Path | None = None
     pid: int | None = None
+    job_id: str | None = None
+    status_path: Path | None = None
 
 
 def load_chat_install_config() -> ChatInstallConfig:
@@ -119,7 +124,9 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
                 message="Could not resolve the primary SASE workspace; update was not started.",
             )
 
-        log_path = _new_log_path()
+        job_id = _new_job_id()
+        log_path = _new_log_path(job_id)
+        status_path = _completion_path(job_id)
         log_file = open(log_path, "a", encoding="utf-8")
         env = os.environ.copy()
         env[_LOCK_FD_ENV] = str(lock_fd)
@@ -129,6 +136,12 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
             "sase.integrations.chat_install",
             "--workspace",
             str(workspace),
+            "--job-id",
+            job_id,
+            "--status-path",
+            str(status_path),
+            "--log-path",
+            str(log_path),
         ]
         try:
             with log_file:
@@ -147,6 +160,8 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
                 message=f"Failed to launch chat update worker: {exc}",
                 log_path=log_path,
                 workspace=workspace,
+                job_id=job_id,
+                status_path=status_path,
             )
 
         return ChatInstallLaunchResult(
@@ -155,15 +170,26 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
             log_path=log_path,
             workspace=workspace,
             pid=proc.pid,
+            job_id=job_id,
+            status_path=status_path,
         )
     finally:
         os.close(lock_fd)
 
 
-def run_worker(workspace: Path) -> int:
+def run_worker(
+    workspace: Path,
+    *,
+    job_id: str | None = None,
+    status_path: Path | None = None,
+    log_path: Path | None = None,
+) -> int:
     """Run the stop/sync/install/start sequence in the detached worker."""
     lock_fd = _adopt_lock_fd()
     exit_code = 1
+    started_at = _utc_now()
+    restart_succeeded: bool | None = None
+    message = "Update failed with exit code 1."
     try:
         _log("chat install worker started")
         _log(f"workspace: {workspace}")
@@ -171,41 +197,57 @@ def run_worker(workspace: Path) -> int:
         if not config.command:
             _log("chat_install.command is empty; skipping stop/sync/install")
             exit_code = 2
-            return 2
+            message = "Update failed with exit code 2."
+            return exit_code
 
         try:
-            try:
-                _log("stopping axe")
-                stopped = stop_axe_daemon()
-                _log(f"stop axe result: {'stopped' if stopped else 'not running'}")
+            _log("stopping axe")
+            stopped = stop_axe_daemon()
+            _log(f"stop axe result: {'stopped' if stopped else 'not running'}")
 
-                if not workspace.is_dir():
-                    _log(f"workspace does not exist: {workspace}")
-                    exit_code = 3
-                    return 3
-
-                if config.sync_workspace:
-                    _log("syncing workspace")
-                    provider = get_vcs_provider(str(workspace))
-                    success, error = provider.sync_workspace(str(workspace))
-                    if not success:
-                        _log(
-                            f"sync failed; skipping install command: {error or 'unknown error'}"
-                        )
-                        exit_code = 4
-                        return 4
-                    _log("sync succeeded")
+            if not workspace.is_dir():
+                _log(f"workspace does not exist: {workspace}")
+                exit_code = 3
+                message = "Update failed with exit code 3."
+            elif config.sync_workspace:
+                _log("syncing workspace")
+                provider = get_vcs_provider(str(workspace))
+                success, error = provider.sync_workspace(str(workspace))
+                if not success:
+                    _log(
+                        f"sync failed; skipping install command: {error or 'unknown error'}"
+                    )
+                    exit_code = 4
+                    message = "Update failed with exit code 4."
                 else:
-                    _log("workspace sync disabled by config")
-
+                    _log("sync succeeded")
+                    exit_code = _run_install_command(config, workspace)
+                    message = (
+                        "Update completed successfully."
+                        if exit_code == 0
+                        else f"Update failed with exit code {exit_code}."
+                    )
+            else:
+                _log("workspace sync disabled by config")
                 exit_code = _run_install_command(config, workspace)
-                return exit_code
-            finally:
-                _restart_axe(config.restart_attempts)
+                message = (
+                    "Update completed successfully."
+                    if exit_code == 0
+                    else f"Update failed with exit code {exit_code}."
+                )
+
+            restart_succeeded = _restart_axe(config.restart_attempts)
+            if exit_code == 0 and not restart_succeeded:
+                exit_code = 5
+                message = "Update failed with exit code 5; axe restart failed."
+            return exit_code
         except Exception as exc:
             _log(f"worker failed: {type(exc).__name__}: {exc}")
             exit_code = 1
-            return 1
+            message = "Update failed with exit code 1."
+            if restart_succeeded is None:
+                restart_succeeded = _restart_axe(config.restart_attempts)
+            return exit_code
     finally:
         if lock_fd is not None:
             try:
@@ -213,13 +255,40 @@ def run_worker(workspace: Path) -> int:
             finally:
                 os.close(lock_fd)
         _log(f"chat install worker exiting with status {exit_code}")
+        if status_path is not None:
+            try:
+                _write_completion_record(
+                    status_path,
+                    job_id=job_id,
+                    exit_code=exit_code,
+                    log_path=log_path,
+                    workspace=workspace,
+                    started_at=started_at,
+                    completed_at=_utc_now(),
+                    restart_succeeded=restart_succeeded,
+                    message=message,
+                )
+            except Exception as exc:
+                _log(f"failed to write completion record: {type(exc).__name__}: {exc}")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m sase.integrations.chat_install")
     parser.add_argument("--workspace", required=True, help="Primary SASE workspace")
+    parser.add_argument("--job-id", default=None, help="Chat install job id")
+    parser.add_argument(
+        "--status-path",
+        default=None,
+        help="Path to write the final chat install completion JSON",
+    )
+    parser.add_argument("--log-path", default=None, help="Worker log path")
     args = parser.parse_args(argv)
-    return run_worker(Path(args.workspace).expanduser().resolve())
+    return run_worker(
+        Path(args.workspace).expanduser().resolve(),
+        job_id=args.job_id,
+        status_path=Path(args.status_path).expanduser() if args.status_path else None,
+        log_path=Path(args.log_path).expanduser() if args.log_path else None,
+    )
 
 
 def _positive_int(value: object, default: int) -> int:
@@ -258,10 +327,21 @@ def _adopt_lock_fd() -> int | None:
     return fd
 
 
-def _new_log_path() -> Path:
-    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+def _new_job_id() -> str:
     timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return _LOG_DIR / f"install_{timestamp}_{os.getpid()}.log"
+    return f"{timestamp}_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+
+
+def _new_log_path(job_id: str | None = None) -> Path:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    if job_id is None:
+        job_id = _new_job_id()
+    return _LOG_DIR / f"install_{job_id}.log"
+
+
+def _completion_path(job_id: str) -> Path:
+    _COMPLETIONS_DIR.mkdir(parents=True, exist_ok=True)
+    return _COMPLETIONS_DIR / f"{job_id}.json"
 
 
 def _shorten_home(path: Path) -> str:
@@ -297,7 +377,7 @@ def _run_install_command(config: ChatInstallConfig, workspace: Path) -> int:
     return completed.returncode
 
 
-def _restart_axe(attempts: int) -> None:
+def _restart_axe(attempts: int) -> bool:
     for attempt in range(1, attempts + 1):
         _log(f"starting axe (attempt {attempt}/{attempts})")
         try:
@@ -307,9 +387,43 @@ def _restart_axe(attempts: int) -> None:
             pid = None
         if pid is not None and is_axe_running():
             _log(f"axe restart succeeded: pid {pid}")
-            return
+            return True
         time.sleep(min(attempt, 5))
     _log("axe restart failed after all attempts")
+    return False
+
+
+def _utc_now() -> str:
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+
+
+def _write_completion_record(
+    status_path: Path,
+    *,
+    job_id: str | None,
+    exit_code: int,
+    log_path: Path | None,
+    workspace: Path,
+    started_at: str,
+    completed_at: str,
+    restart_succeeded: bool | None,
+    message: str,
+) -> None:
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "job_id": job_id,
+        "status": "success" if exit_code == 0 else "failed",
+        "exit_code": exit_code,
+        "log_path": str(log_path) if log_path is not None else None,
+        "workspace": str(workspace),
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "restart_succeeded": restart_succeeded,
+        "message": message,
+    }
+    temp_path = status_path.with_name(f".{status_path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    temp_path.replace(status_path)
 
 
 def _log(message: str) -> None:
