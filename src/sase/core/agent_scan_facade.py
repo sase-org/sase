@@ -128,7 +128,6 @@ def delete_agent_artifact_index_row(
     return agent_artifact_index_update_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def query_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,

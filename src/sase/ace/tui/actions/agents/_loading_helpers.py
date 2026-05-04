@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ...models import Agent
     from ...models.agent import AgentType  # noqa: F401
+    from ...models.agent_loader import AgentLoadState
 
 from ...util.trace import tui_trace
 
@@ -23,6 +25,15 @@ DISMISSABLE_STATUSES = {
     "PLAN REJECTED",
     "EPIC CREATED",
 }
+
+
+@dataclass(frozen=True)
+class _AgentDiskLoadResult:
+    """Disk-loaded agents plus the artifact-history completeness state."""
+
+    all_agents: list[Agent]
+    dismissed_from_loader: list[Agent]
+    load_state: AgentLoadState
 
 
 def is_always_visible(agent: Agent) -> bool:
@@ -89,8 +100,25 @@ def load_agents_from_disk(
         Tuple of (all_agents, dismissed_from_loader).
     """
     with tui_trace("agents.load_from_disk"):
-        return _load_agents_from_disk_impl(
+        result = _load_agents_from_disk_impl(
             dismissed_agents, changespec_snapshot=changespec_snapshot
+        )
+    return result.all_agents, result.dismissed_from_loader
+
+
+def load_agents_from_disk_with_state(
+    dismissed_agents: set[tuple[AgentType, str, str | None]],
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    full_history: bool = False,
+) -> _AgentDiskLoadResult:
+    """Load agents from disk and include the tiered load state."""
+
+    with tui_trace("agents.load_from_disk"):
+        return _load_agents_from_disk_impl(
+            dismissed_agents,
+            changespec_snapshot=changespec_snapshot,
+            full_history=full_history,
         )
 
 
@@ -98,10 +126,14 @@ def _load_agents_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
-) -> tuple[list[Agent], list[Agent]]:
-    from ...models import load_all_agents
+    full_history: bool = False,
+) -> _AgentDiskLoadResult:
+    from ...models.agent_loader import load_tiered_agents
 
-    all_agents = load_all_agents(changespec_snapshot=changespec_snapshot)
+    all_agents, load_state = load_tiered_agents(
+        changespec_snapshot=changespec_snapshot,
+        full_history=full_history,
+    )
 
     # Populate retry fields from retry_state.json for running agents and
     # prior-attempt history (from attempts/<N>/) for all agents.
@@ -154,4 +186,8 @@ def _load_agents_from_disk_impl(
         )
     ]
 
-    return all_agents, dismissed_from_loader
+    return _AgentDiskLoadResult(
+        all_agents=all_agents,
+        dismissed_from_loader=dismissed_from_loader,
+        load_state=load_state,
+    )

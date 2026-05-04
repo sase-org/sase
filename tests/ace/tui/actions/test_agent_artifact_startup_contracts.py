@@ -6,11 +6,20 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
+from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.agent_artifact_startup_fixtures import (
     build_workflow_collision_archive,
     make_agent,
+)
+
+
+_SOURCE_SCAN_STATE = AgentLoadState(
+    tier="tier2",
+    complete_history=True,
+    artifact_source="source_scan",
+    used_artifact_index=False,
 )
 
 
@@ -70,8 +79,8 @@ def test_load_agents_from_disk_hides_dismissed_identity_without_hiding_running_a
 
     with (
         patch(
-            "sase.ace.tui.models.load_all_agents",
-            return_value=[dismissed_done, running_alias, visible],
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([dismissed_done, running_alias, visible], _SOURCE_SCAN_STATE),
         ),
         patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
         patch(
@@ -91,7 +100,10 @@ def test_startup_loader_does_not_hydrate_dismissed_archive() -> None:
     """Perf sentinel: Phase 2 should stop touching dismissed bundles here."""
 
     with (
-        patch("sase.ace.tui.models.load_all_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([], _SOURCE_SCAN_STATE),
+        ),
         patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"

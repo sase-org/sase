@@ -18,6 +18,15 @@ from sase.ace.tui.actions.agents import _loading
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.actions.agents._loading_helpers import load_agents_from_disk
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_loader import AgentLoadState
+
+
+_SOURCE_SCAN_STATE = AgentLoadState(
+    tier="tier2",
+    complete_history=True,
+    artifact_source="source_scan",
+    used_artifact_index=False,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -162,7 +171,10 @@ def test_load_agents_from_disk_does_not_include_bundle_only_archive_rows() -> No
     )
 
     with (
-        patch("sase.ace.tui.models.load_all_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([], _SOURCE_SCAN_STATE),
+        ),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
             ".dismissed_bundles",

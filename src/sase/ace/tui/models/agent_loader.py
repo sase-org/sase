@@ -1,10 +1,17 @@
 """Functions for loading and aggregating agents from all sources."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_facade import (
+    default_agent_artifact_index_path,
+    query_agent_artifact_index,
+    scan_agent_artifacts,
+)
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
@@ -49,6 +56,34 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_raw_prompt_snippets=False,
 )
 
+_TIER1_RECENT_COMPLETED_LIMIT = 200
+
+
+@dataclass(frozen=True)
+class AgentLoadState:
+    """Artifact-history completeness for one TUI agent load."""
+
+    tier: Literal["tier1", "tier2"]
+    complete_history: bool
+    artifact_source: Literal["artifact_index", "source_scan"]
+    used_artifact_index: bool
+    index_error: str | None = None
+
+    @property
+    def needs_full_history_reconcile(self) -> bool:
+        """Return whether the caller should schedule a Tier 2 refresh."""
+
+        return not self.complete_history
+
+
+@dataclass(frozen=True)
+class _AgentLoadResult:
+    """Agents plus metadata about the artifact-history tier used."""
+
+    agents: list[Agent]
+    workflow_agent_steps: list[Agent]
+    state: AgentLoadState
+
 
 def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
     """Return one fresh artifact-tree snapshot for the TUI loader.
@@ -61,6 +96,85 @@ def _scan_artifacts_for_loader() -> "AgentArtifactScanWire":
     return scan_agent_artifacts(
         Path.home() / ".sase" / "projects",
         _TUI_SCAN_OPTIONS,
+    )
+
+
+def _projects_root_for_loader() -> Path:
+    return Path.home() / ".sase" / "projects"
+
+
+def _query_artifact_index_for_loader(
+    *,
+    full_history: bool,
+) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
+    """Return an index-backed snapshot when the persistent index exists."""
+
+    index_path = default_agent_artifact_index_path()
+    if not index_path.is_file():
+        return None
+
+    query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=not full_history,
+        include_full_history=full_history,
+        recent_completed_limit=(
+            None if full_history else _TIER1_RECENT_COMPLETED_LIMIT
+        ),
+        include_hidden=False,
+    )
+    try:
+        snapshot = query_agent_artifact_index(
+            index_path,
+            _projects_root_for_loader(),
+            query=query,
+            options=_TUI_SCAN_OPTIONS,
+        )
+    except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
+        return (
+            _scan_artifacts_for_loader(),
+            AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+                index_error=str(exc),
+            ),
+        )
+
+    return (
+        snapshot,
+        AgentLoadState(
+            tier="tier2" if full_history else "tier1",
+            complete_history=full_history,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+        ),
+    )
+
+
+def _artifact_snapshot_for_tui_load(
+    *,
+    full_history: bool,
+) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+    """Return the artifact snapshot for a TUI refresh.
+
+    Tier 1 uses the persistent artifact index when available. Missing indexes
+    fall back to the canonical source scan, which preserves current behavior
+    on machines that have not rebuilt yet.
+    """
+
+    indexed = _query_artifact_index_for_loader(full_history=full_history)
+    if indexed is not None:
+        return indexed
+
+    return (
+        _scan_artifacts_for_loader(),
+        AgentLoadState(
+            tier="tier2",
+            complete_history=True,
+            artifact_source="source_scan",
+            used_artifact_index=False,
+        ),
     )
 
 
@@ -93,7 +207,9 @@ def load_all_workflows() -> list[WorkflowEntry]:
 
 
 def _load_agents_from_all_sources(
-    *, changespec_snapshot: list[ChangeSpec] | None = None
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    artifact_snapshot: AgentArtifactScanWire | None = None,
 ) -> tuple[list[Agent], list[Agent]]:
     """Load agents from all sources and return (agents, workflow_agent_steps).
 
@@ -144,7 +260,8 @@ def _load_agents_from_all_sources(
     # subtrees with one ``scan_agent_artifacts()`` snapshot so the
     # filesystem (and, in Rust mode, the FFI conversion) only pays the
     # walking + JSON parsing cost once per refresh.
-    artifact_snapshot = _scan_artifacts_for_loader()
+    if artifact_snapshot is None:
+        artifact_snapshot = _scan_artifacts_for_loader()
 
     # 1a. Load completed (DONE) agents
     agents.extend(
@@ -185,6 +302,27 @@ def _load_agents_from_all_sources(
         agents.extend(load_agents_from_comments(cs, bug, cl_num))
 
     return agents, workflow_agent_steps
+
+
+def _load_agents_with_load_state(
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    full_history: bool = False,
+) -> _AgentLoadResult:
+    """Load agents for the TUI and report whether history is complete."""
+
+    artifact_snapshot, state = _artifact_snapshot_for_tui_load(
+        full_history=full_history
+    )
+    agents, workflow_agent_steps = _load_agents_from_all_sources(
+        changespec_snapshot=changespec_snapshot,
+        artifact_snapshot=artifact_snapshot,
+    )
+    return _AgentLoadResult(
+        agents=agents,
+        workflow_agent_steps=workflow_agent_steps,
+        state=state,
+    )
 
 
 def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
@@ -568,7 +706,9 @@ def _sort_and_reorder(
 
 
 def load_all_agents(
-    *, changespec_snapshot: list[ChangeSpec] | None = None
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    artifact_snapshot: AgentArtifactScanWire | None = None,
 ) -> list[Agent]:
     """Load all running agents from all sources.
 
@@ -589,7 +729,8 @@ def load_all_agents(
         with agents that have no start time at the end.
     """
     agents, workflow_agent_steps = _load_agents_from_all_sources(
-        changespec_snapshot=changespec_snapshot
+        changespec_snapshot=changespec_snapshot,
+        artifact_snapshot=artifact_snapshot,
     )
 
     # Filter out agents with dead PIDs (but keep completed agents)
@@ -607,3 +748,32 @@ def load_all_agents(
 
     # Sort and insert workflow steps
     return _sort_and_reorder(agents, workflow_agent_steps)
+
+
+def load_tiered_agents(
+    *,
+    changespec_snapshot: list[ChangeSpec] | None = None,
+    full_history: bool = False,
+) -> tuple[list[Agent], AgentLoadState]:
+    """Load agents through the TUI tiered artifact path."""
+
+    result = _load_agents_with_load_state(
+        changespec_snapshot=changespec_snapshot,
+        full_history=full_history,
+    )
+    agents = result.agents
+
+    # Filter out agents with dead PIDs (but keep completed agents)
+    agents = _filter_dead_pids(agents)
+
+    # Deduplication pipeline
+    agents = dedup_axe_spawned_agents(agents)
+    agents = remove_vcs_workspace_claims(agents)
+    agents = dedup_workflow_entries(agents)
+    agents = dedup_running_vs_workflow(agents)
+    agents = dedup_by_pid(agents)
+
+    # Override statuses based on workflow relationships
+    _apply_status_overrides(agents)
+
+    return _sort_and_reorder(agents, result.workflow_agent_steps), result.state

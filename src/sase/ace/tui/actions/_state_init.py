@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
     from ..models import Agent
     from ..models.agent import AgentType
+    from ..models.agent_loader import AgentLoadState
     from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
     from sase.core.query_corpus_facade import QueryCorpus
@@ -205,8 +206,11 @@ class StateInitMixin:
         self._agents: list[Agent] = []
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
+        self._agents_refresh_pending_full_history: bool = False
         self._agents_refresh_scheduled: bool = False
+        self._agents_refresh_scheduled_full_history: bool = False
         self._agents_refresh_debounce_armed: bool = False
+        self._agent_load_state: AgentLoadState | None = None
         self._post_mount_background_loads_started = False
         self._changespecs_loading: bool = False
         self._changespecs_refresh_pending: bool = False

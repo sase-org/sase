@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_loader import AgentLoadState
     from ...models.agent_content_search import AgentContentSearchCache
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.fold_state import FoldStateManager
@@ -36,7 +37,7 @@ from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     TabName,
-    load_agents_from_disk,
+    load_agents_from_disk_with_state,
 )
 
 # Aliases preserved so `_loading._compute_loader_cleanup` and
@@ -116,7 +117,9 @@ class AgentLoadingMixin:
     # itself once it finishes so the final UI state reflects disk state
     # after the last trigger.
     _agents_refresh_pending: bool
+    _agents_refresh_pending_full_history: bool
     _agents_refresh_scheduled: bool
+    _agents_refresh_scheduled_full_history: bool
     # Source-aware debounce gate for ``request_agents_refresh``: True while
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
@@ -127,6 +130,7 @@ class AgentLoadingMixin:
     # mid j/k burst — the same protection `_on_artifact_change` and
     # `_on_auto_refresh` already apply to their refresh triggers.
     _nav_gate: NavigationGate
+    _agent_load_state: AgentLoadState | None
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
@@ -145,14 +149,20 @@ class AgentLoadingMixin:
 
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = find_all_changespecs_cached()
-        all_agents, dismissed_from_loader = load_agents_from_disk(
-            dismissed_snapshot, changespec_snapshot=changespec_snapshot
+        load_result = load_agents_from_disk_with_state(
+            dismissed_snapshot,
+            changespec_snapshot=changespec_snapshot,
+            full_history=bool(getattr(self, "_agent_search_query", "")),
         )
         self._apply_loaded_agents(
-            all_agents, dismissed_from_loader, on_agents_tab, selected_identity
+            load_result.all_agents,
+            load_result.dismissed_from_loader,
+            on_agents_tab,
+            selected_identity,
+            load_state=load_result.load_state,
         )
 
-    async def _load_agents_async(self) -> None:
+    async def _load_agents_async(self, *, full_history: bool = False) -> None:
         """Load agents with disk IO and pure-data filtering off the UI thread.
 
         Phase 2 of the post-launch j/k lag fix: the dismissed-set filter,
@@ -170,17 +180,23 @@ class AgentLoadingMixin:
         dismissed_snapshot = set(self._dismissed_agents)
         changespec_snapshot = await asyncio.to_thread(find_all_changespecs_cached)
         disk_start = time.perf_counter()
-        all_agents, dismissed_from_loader = await asyncio.to_thread(
-            load_agents_from_disk,
+        load_result = await asyncio.to_thread(
+            load_agents_from_disk_with_state,
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
+            full_history=full_history or bool(getattr(self, "_agent_search_query", "")),
         )
+        all_agents = load_result.all_agents
+        dismissed_from_loader = load_result.dismissed_from_loader
         disk_elapsed = time.perf_counter() - disk_start
         log.debug(
-            "agents async load: disk=%.3fs agents=%d dismissed=%d",
+            "agents async load: disk=%.3fs agents=%d dismissed=%d tier=%s source=%s complete=%s",
             disk_elapsed,
             len(all_agents),
             len(dismissed_from_loader),
+            load_result.load_state.tier,
+            load_result.load_state.artifact_source,
+            load_result.load_state.complete_history,
         )
         cleanup_start = time.perf_counter()
         orphaned, cleaned_dirs = await asyncio.to_thread(
@@ -231,6 +247,7 @@ class AgentLoadingMixin:
             prep,
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
+            load_state=load_result.load_state,
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
@@ -243,6 +260,7 @@ class AgentLoadingMixin:
         dismissed_from_loader: list[Agent],
         on_agents_tab: bool,
         selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None = None,
     ) -> None:
         """Apply loaded agent data to app state (main thread only).
 
@@ -276,6 +294,7 @@ class AgentLoadingMixin:
             prep,
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
+            load_state=load_state,
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
@@ -287,6 +306,7 @@ class AgentLoadingMixin:
         *,
         on_agents_tab: bool,
         selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
@@ -329,6 +349,16 @@ class AgentLoadingMixin:
             from ....dismissed_agents import save_dismissed_agents
 
             save_dismissed_agents(self._dismissed_agents)
+
+        self._agent_load_state = load_state
+        if (
+            load_state is not None
+            and load_state.needs_full_history_reconcile
+            and not getattr(self, "_agents_refresh_pending_full_history", False)
+            and not getattr(self, "_agents_refresh_scheduled_full_history", False)
+        ):
+            self._agents_refresh_pending = True
+            self._agents_refresh_pending_full_history = True
 
         self._dismissed_agent_objects = prep.dismissed_agent_objects
         self._has_always_visible = prep.has_always_visible
@@ -377,7 +407,7 @@ class AgentLoadingMixin:
         self._agents_refresh_debounce_armed = False
         self._schedule_agents_async_refresh()
 
-    def _schedule_agents_async_refresh(self) -> None:
+    def _schedule_agents_async_refresh(self, *, full_history: bool = False) -> None:
         """Schedule an async agent reload without blocking.
 
         If a refresh is already in flight, mark a pending follow-up so the
@@ -389,11 +419,16 @@ class AgentLoadingMixin:
         """
         if self._agents_loading:
             self._agents_refresh_pending = True
+            if full_history:
+                self._agents_refresh_pending_full_history = True
             return
         if self._agents_refresh_scheduled:
             self._agents_refresh_pending = True
+            if full_history:
+                self._agents_refresh_pending_full_history = True
             return
         self._agents_refresh_scheduled = True
+        self._agents_refresh_scheduled_full_history = full_history
         self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
 
     async def _run_agents_async_refresh(self) -> None:
@@ -412,20 +447,36 @@ class AgentLoadingMixin:
             delay = self._nav_gate.time_until_idle() + 0.05
             self.set_timer(delay, self._run_agents_async_refresh)  # type: ignore[attr-defined]
             return
+        full_history = getattr(self, "_agents_refresh_scheduled_full_history", False)
         self._agents_refresh_scheduled = False
+        self._agents_refresh_scheduled_full_history = False
         if self._agents_loading:
             self._agents_refresh_pending = True
+            if full_history:
+                self._agents_refresh_pending_full_history = True
             return
         self._agents_loading = True
         try:
-            await self._load_agents_async()
+            import inspect
+
+            load_agents_async = self._load_agents_async
+            if "full_history" in inspect.signature(load_agents_async).parameters:
+                await load_agents_async(full_history=full_history)
+            else:
+                await load_agents_async()
         finally:
             self._agents_loading = False
             # If a refresh was requested while we were running, schedule one
             # more pass so the UI reflects the latest on-disk state.
             if self._agents_refresh_pending:
                 self._agents_refresh_pending = False
-                self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
+                pending_full_history = getattr(
+                    self, "_agents_refresh_pending_full_history", False
+                )
+                self._agents_refresh_pending_full_history = False
+                self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                    full_history=pending_full_history
+                )
 
     def _get_or_parse_agent_query(self) -> QueryExpr | None:
         """Return the parsed AST for the active agent search query."""
