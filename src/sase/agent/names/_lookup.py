@@ -329,19 +329,30 @@ def is_workflow_complete(name: str) -> bool | None:
     return True
 
 
-def get_most_recent_agent_name() -> str | None:
+def get_most_recent_agent_name(
+    *, exclude_artifacts_dir: str | Path | None = None
+) -> str | None:
     """Return the name of the most recently created named agent.
 
     Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
     for agents with a name, ordered by artifact directory timestamp
     (directory names are timestamps).
 
-    Returns the name of the most recently created one, or ``None`` if
-    no named agents exist.
+    Args:
+        exclude_artifacts_dir: Optional artifact directory to ignore. Used by
+            bare ``#resume`` resolution so a workflow does not select its own
+            just-written metadata as the most recent agent.
+
+    Returns the name of the most recently created one, or ``None`` if no named
+    agents exist.
     """
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
         return None
+
+    excluded: Path | None = None
+    if exclude_artifacts_dir:
+        excluded = Path(exclude_artifacts_dir).expanduser().resolve(strict=False)
 
     candidates: list[tuple[str, str]] = []  # (dir_name, agent_name)
     for project_dir in projects_dir.iterdir():
@@ -355,6 +366,10 @@ def get_most_recent_agent_name() -> str | None:
         for artifact_dir in ace_run_dir.iterdir():
             if not artifact_dir.is_dir():
                 continue
+            if excluded is not None:
+                candidate_dir = artifact_dir.expanduser().resolve(strict=False)
+                if candidate_dir == excluded:
+                    continue
 
             meta_path = artifact_dir / "agent_meta.json"
             if not meta_path.exists():

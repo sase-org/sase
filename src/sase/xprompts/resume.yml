@@ -1,40 +1,13 @@
 input:
-  - name: name
+  name: { type: word, default: null }
 
 steps:
   - name: resolve
     hidden: true
     python: |
-      import json
-      import os
-      from sase.agent.names import find_named_agent
+      from sase.scripts.agent_chat_from_name import main
       name = {{ name | tojson }}
-      response_path = None
-
-      # Standard path: done agent with response_path in done.json
-      agent = find_named_agent(name, only_done=True)
-      if agent is not None:
-          done_path = os.path.join(agent.artifacts_dir, "done.json")
-          try:
-              with open(done_path, encoding="utf-8") as f:
-                  response_path = json.load(f).get("response_path")
-          except (FileNotFoundError, json.JSONDecodeError, OSError):
-              pass
-
-      # Fallback: any agent (including running) with chat_path in meta
-      if not response_path:
-          agent = find_named_agent(name)
-          if agent is not None:
-              meta_path = os.path.join(agent.artifacts_dir, "agent_meta.json")
-              try:
-                  with open(meta_path, encoding="utf-8") as f:
-                      response_path = json.load(f).get("chat_path")
-              except (FileNotFoundError, json.JSONDecodeError, OSError):
-                  pass
-
-      if not response_path:
-          raise RuntimeError(f"No agent with chat history found for: {name}")
-      print(json.dumps({"path": response_path}))
+      main([name] if name else [])
     output: { path: text }
 
   - name: load_history

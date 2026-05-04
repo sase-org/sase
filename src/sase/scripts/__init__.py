@@ -66,6 +66,12 @@ def sase_xcmd() -> NoReturn:
     _exec_script("sase_xcmd")
 
 
+def agent_chat_from_name() -> None:
+    from sase.scripts.agent_chat_from_name import main
+
+    raise SystemExit(main())
+
+
 def sase_git_commit() -> NoReturn:
     _exec_script("sase_git_commit")
 

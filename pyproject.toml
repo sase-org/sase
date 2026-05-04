@@ -61,6 +61,7 @@ sase_chop_cl_submitted_checks = "sase.scripts:sase_chop_cl_submitted_checks"
 sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
 sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 sase_xcmd = "sase.scripts:sase_xcmd"
+agent_chat_from_name = "sase.scripts:agent_chat_from_name"
 
 [project.entry-points."sase_llm"]
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
