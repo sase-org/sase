@@ -48,6 +48,13 @@ def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
         "include_raw_prompt_snippets": options.include_raw_prompt_snippets,
         "max_prompt_snippet_bytes": options.max_prompt_snippet_bytes,
         "only_workflow_dirs": list(options.only_workflow_dirs),
+        "max_records": options.max_records,
+        "newest_first": options.newest_first,
+        "not_before_timestamp": options.not_before_timestamp,
+        "include_done_markers": options.include_done_markers,
+        "include_workflow_state": options.include_workflow_state,
+        "include_waiting": options.include_waiting,
+        "only_projects": list(options.only_projects),
     }
 
 

@@ -383,9 +383,51 @@ def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:
         include_raw_prompt_snippets=False,
         max_prompt_snippet_bytes=42,
         only_workflow_dirs=("ace-run", "workflow-three_phase"),
+        max_records=3,
+        newest_first=True,
+        not_before_timestamp="20260427120000",
+        include_done_markers=False,
+        include_workflow_state=False,
+        include_waiting=False,
+        only_projects=("myproj",),
     )
     snapshot = scan_agent_artifacts(fixture_root, options=options)
     assert snapshot.options == options
+
+
+def test_bounded_newest_first_limits_completed_without_hiding_incomplete(
+    fixture_root: Path,
+) -> None:
+    options = AgentArtifactScanOptionsWire(max_records=2, newest_first=True)
+    snapshot = scan_agent_artifacts(fixture_root, options=options)
+    timestamps = [r.timestamp for r in snapshot.records]
+    completed = [r.timestamp for r in snapshot.records if r.has_done_marker]
+
+    assert completed == [TS_MENTOR_DONE, TS_ACE_RUN_RETRIED_PARENT]
+    assert TS_HOME_RUNNING in timestamps
+    assert TS_ACE_RUN_RUNNING in timestamps
+    assert TS_WAITING in timestamps
+    assert timestamps == sorted(timestamps, reverse=True)
+
+
+def test_selective_marker_options_skip_payloads_but_keep_done_presence(
+    fixture_root: Path,
+) -> None:
+    options = AgentArtifactScanOptionsWire(
+        include_done_markers=False,
+        include_waiting=False,
+        include_workflow_state=False,
+    )
+    snapshot = scan_agent_artifacts(fixture_root, options=options)
+
+    done_rec = _record_by_timestamp(snapshot, TS_ACE_RUN_DONE)
+    assert done_rec.has_done_marker is True
+    assert done_rec.done is None
+
+    workflow_rec = _record_by_timestamp(snapshot, TS_WORKFLOW_ROOT)
+    assert workflow_rec.workflow_state is None
+    waiting_rec = _record_by_timestamp(snapshot, TS_WAITING)
+    assert waiting_rec.waiting is None
 
 
 def test_snapshot_serializes_to_json(fixture_root: Path) -> None:
@@ -468,6 +510,13 @@ def test_scan_agent_artifacts_calls_rust_binding(
     assert options_dict["include_prompt_step_markers"] is True
     assert options_dict["include_raw_prompt_snippets"] is True
     assert options_dict["only_workflow_dirs"] == []
+    assert options_dict["max_records"] is None
+    assert options_dict["newest_first"] is False
+    assert options_dict["not_before_timestamp"] is None
+    assert options_dict["include_done_markers"] is True
+    assert options_dict["include_workflow_state"] is True
+    assert options_dict["include_waiting"] is True
+    assert options_dict["only_projects"] == []
 
 
 def test_scan_agent_artifacts_missing_extension_raises_importerror(

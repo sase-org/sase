@@ -112,12 +112,34 @@ class AgentArtifactScanOptionsWire:
             workflow directory names that exactly match an entry. Useful
             for callers that only need ``ace-run`` data. ``None`` /
             empty means "scan every supported workflow family".
+        max_records: Bound the number of completed/history records returned.
+            Active or otherwise incomplete records are still returned so old
+            running/waiting agents do not disappear from fallback startup
+            scans.
+        newest_first: Return records ordered by newest timestamp first instead
+            of the deterministic full-scan order.
+        not_before_timestamp: Exclude completed/history records older than this
+            ``YYYYmmddHHMMSS`` timestamp. Active or otherwise incomplete
+            records are still returned.
+        include_done_markers: When False, expose ``has_done_marker`` but skip
+            parsing ``done.json`` payloads.
+        include_workflow_state: When False, skip ``workflow_state.json``.
+        include_waiting: When False, skip ``waiting.json``.
+        only_projects: When non-empty, restrict the scan to project directory
+            names that exactly match an entry.
     """
 
     include_prompt_step_markers: bool = True
     include_raw_prompt_snippets: bool = True
     max_prompt_snippet_bytes: int = 200
     only_workflow_dirs: tuple[str, ...] = ()
+    max_records: int | None = None
+    newest_first: bool = False
+    not_before_timestamp: str | None = None
+    include_done_markers: bool = True
+    include_workflow_state: bool = True
+    include_waiting: bool = True
+    only_projects: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -494,6 +516,17 @@ def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
         include_raw_prompt_snippets=bool(data.get("include_raw_prompt_snippets", True)),
         max_prompt_snippet_bytes=int(data.get("max_prompt_snippet_bytes", 200)),
         only_workflow_dirs=tuple(data.get("only_workflow_dirs") or ()),
+        max_records=(
+            None
+            if data.get("max_records") is None
+            else int(data.get("max_records") or 0)
+        ),
+        newest_first=bool(data.get("newest_first", False)),
+        not_before_timestamp=data.get("not_before_timestamp"),
+        include_done_markers=bool(data.get("include_done_markers", True)),
+        include_workflow_state=bool(data.get("include_workflow_state", True)),
+        include_waiting=bool(data.get("include_waiting", True)),
+        only_projects=tuple(data.get("only_projects") or ()),
     )
 
 
