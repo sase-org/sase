@@ -15,12 +15,15 @@ import re
 from dataclasses import dataclass, field
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
+from sase.xprompt._disabled_regions import protect_disabled_regions
 from sase.xprompt._fenced_blocks import protect_fenced_blocks
 from sase.xprompt._parsing import (
+    extract_known_project_vcs_ref,
     XPromptReference,
     XPromptReferenceArgKind,
     XPromptReferenceMarker,
     iter_xprompt_references,
+    normalize_vcs_underscore_refs,
 )
 from sase.xprompt.loader import get_all_xprompts
 from sase.xprompt.models import XPrompt
@@ -58,6 +61,7 @@ class _XPromptCall:
     positional_args: list[str] = field(default_factory=list)
     named_args: dict[str, str] = field(default_factory=dict)
     leading_directives: list[str] = field(default_factory=list)
+    leading_vcs_ref_text: str | None = None
 
 
 def _split_leading_directives(segment: str) -> tuple[list[str], str]:
@@ -100,6 +104,125 @@ def _parse_xprompt_reference_arguments(
     return ref.parse_arguments()
 
 
+def _build_xprompt_call(
+    ref: XPromptReference,
+    leading_directives: list[str],
+    *,
+    leading_vcs_ref_text: str | None = None,
+) -> _XPromptCall:
+    positional_args, named_args = _parse_xprompt_reference_arguments(ref)
+    return _XPromptCall(
+        name=ref.name,
+        marker=ref.marker,
+        raw=ref.raw,
+        positional_args=positional_args,
+        named_args=named_args,
+        leading_directives=leading_directives,
+        leading_vcs_ref_text=leading_vcs_ref_text,
+    )
+
+
+def _sole_xprompt_reference(body: str, available: set[str]) -> XPromptReference | None:
+    refs = iter_xprompt_references(body)
+    if len(refs) != 1:
+        return None
+
+    ref = refs[0]
+    if ref.start != 0 or ref.end != len(body):
+        return None
+
+    return ref if ref.name in available else None
+
+
+def _strip_leading_known_project_vcs_ref(body: str) -> tuple[str, str] | None:
+    """Strip one leading generic known-project VCS ref from *body*."""
+    known_ref = extract_known_project_vcs_ref(body)
+    if known_ref is None:
+        return None
+
+    workflow_type, ref = known_ref
+    normalized = normalize_vcs_underscore_refs(body)
+    forms = (
+        rf"#{re.escape(workflow_type)}(?:!!|\?\?)?[_:]{re.escape(ref)}(?=\s|$)",
+        rf"#{re.escape(workflow_type)}(?:!!|\?\?)?\({re.escape(ref)}\)(?=\s|$)",
+    )
+    for form in forms:
+        match = re.match(form, normalized)
+        if match is None:
+            continue
+        prefix_text = body[match.start() : match.end()].strip()
+        remaining = body[match.end() :].strip()
+        if remaining:
+            return prefix_text, remaining
+    return None
+
+
+def _strip_leading_vcs_ref(body: str) -> tuple[str, str] | None:
+    """Return ``(vcs_ref_text, remaining_body)`` for one leading VCS ref."""
+    if not body.startswith("#"):
+        return None
+
+    from sase.workspace_provider import get_ref_patterns
+
+    normalized = normalize_vcs_underscore_refs(body)
+    for pattern in get_ref_patterns().values():
+        match = pattern.match(normalized)
+        if match is None:
+            continue
+        prefix_text = body[match.start() : match.end()].strip()
+        remaining = body[match.end() :].strip()
+        if remaining:
+            return prefix_text, remaining
+
+    return _strip_leading_known_project_vcs_ref(body)
+
+
+def _protected_prompt_for_ref_detection(prompt: str) -> str:
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    return protect_disabled_regions(protected, disabled_regions)
+
+
+def _segment_has_vcs_ref(segment: str) -> bool:
+    """Return whether *segment* contains a real VCS workflow ref."""
+    if "#" not in segment:
+        return False
+
+    from sase.workspace_provider import get_ref_patterns
+
+    protected = _protected_prompt_for_ref_detection(segment)
+    normalized = normalize_vcs_underscore_refs(protected)
+    for pattern in get_ref_patterns().values():
+        if pattern.search(normalized) is not None:
+            return True
+
+    return extract_known_project_vcs_ref(protected) is not None
+
+
+def _prepend_inherited_vcs_ref(
+    sub_segments: list[str], vcs_ref_text: str | None
+) -> list[str]:
+    if vcs_ref_text is None:
+        return sub_segments
+    return [
+        segment
+        if _segment_has_vcs_ref(segment)
+        else _prefix_segment_vcs_ref(segment, vcs_ref_text)
+        for segment in sub_segments
+    ]
+
+
+def _prefix_segment_vcs_ref(segment: str, vcs_ref_text: str) -> str:
+    """Prefix *segment* with *vcs_ref_text* after any generated directives."""
+    directives, body = _split_leading_directives(segment)
+    if not directives:
+        return f"{vcs_ref_text} {segment}"
+
+    directive_block = "\n".join(directives)
+    return f"{directive_block}\n{vcs_ref_text} {body}"
+
+
 def extract_top_level_xprompt_reference(
     segment: str, available: set[str]
 ) -> _XPromptCall | None:
@@ -113,33 +236,29 @@ def extract_top_level_xprompt_reference(
     if not body:
         return None
 
-    refs = iter_xprompt_references(body)
-    if len(refs) != 1:
+    ref = _sole_xprompt_reference(body, available)
+    if ref is not None:
+        return _build_xprompt_call(ref, directives)
+
+    vcs_prefixed = _strip_leading_vcs_ref(body)
+    if vcs_prefixed is None:
         return None
 
-    # Must be the only non-directive content in the segment.
-    ref = refs[0]
-    if ref.start != 0 or ref.end != len(body):
+    leading_vcs_ref_text, remaining_body = vcs_prefixed
+    ref = _sole_xprompt_reference(remaining_body, available)
+    if ref is None:
         return None
 
-    if ref.name not in available:
-        return None
-
-    positional_args, named_args = _parse_xprompt_reference_arguments(ref)
-    return _XPromptCall(
-        name=ref.name,
-        marker=ref.marker,
-        raw=ref.raw,
-        positional_args=positional_args,
-        named_args=named_args,
-        leading_directives=directives,
+    return _build_xprompt_call(
+        ref,
+        directives,
+        leading_vcs_ref_text=leading_vcs_ref_text,
     )
 
 
 def _real_xprompt_references(segment: str) -> list[XPromptReference]:
     """Return lexical xprompt references in *segment*, excluding fenced examples."""
-    blocks: list[str] = []
-    protected = protect_fenced_blocks(segment, blocks)
+    protected = _protected_prompt_for_ref_detection(segment)
     return iter_xprompt_references(protected)
 
 
@@ -257,6 +376,9 @@ def expand_multi_agent_xprompts(
                 # An xprompt body that had separators but produces no content
                 # after substitution (e.g. all-empty segments): drop entirely.
                 continue
+            sub_segments = _prepend_inherited_vcs_ref(
+                sub_segments, call.leading_vcs_ref_text
+            )
             if call.leading_directives:
                 directive_block = "\n".join(call.leading_directives)
                 sub_segments[0] = f"{directive_block}\n{sub_segments[0]}"

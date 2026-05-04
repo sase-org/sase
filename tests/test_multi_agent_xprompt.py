@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -24,6 +26,16 @@ def _patch_catalog(catalog: dict[str, XPrompt]):
     """Patch ``get_all_xprompts`` in both the helper and the inline expander."""
     return patch(
         "sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog
+    )
+
+
+def _patch_vcs_patterns():
+    return patch(
+        "sase.workspace_provider.get_ref_patterns",
+        return_value={
+            "gh": re.compile(r"#gh(?::([^\s]+)|\(([^)]*)\))"),
+            "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
+        },
     )
 
 
@@ -96,6 +108,14 @@ def test_extract_colon_arg() -> None:
     call = extract_top_level_xprompt_reference("#foo:hello", {"foo"})
     assert call is not None
     assert call.positional_args == ["hello"]
+
+
+def test_extract_with_leading_vcs_ref() -> None:
+    with _patch_vcs_patterns():
+        call = extract_top_level_xprompt_reference("#gh:sase #!foo", {"foo"})
+    assert call is not None
+    assert call.name == "foo"
+    assert call.leading_vcs_ref_text == "#gh:sase"
 
 
 # --- expand_multi_agent_xprompts ---
@@ -271,6 +291,66 @@ def test_expand_leading_directives_attach_to_first_subsegment() -> None:
     assert out[2] == "c"
 
 
+def test_expand_vcs_prefixed_multi_agent_xprompt_prefixes_every_subsegment() -> None:
+    catalog = {"three": _xp("three", "Plan\n---\nImplement\n---\nVerify")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+    assert out == ["#gh:sase Plan", "#gh:sase Implement", "#gh:sase Verify"]
+
+
+def test_expand_known_project_vcs_prefix_without_registered_provider() -> None:
+    catalog = {"three": _xp("three", "Plan\n---\nImplement")}
+    with (
+        _patch_catalog(catalog),
+        patch("sase.workspace_provider.get_ref_patterns", return_value={}),
+        patch(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            return_value={"sase": Path("/work/sase")},
+        ),
+    ):
+        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+    assert out == ["#gh:sase Plan", "#gh:sase Implement"]
+
+
+def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -> None:
+    catalog = {"three": _xp("three", "Plan\n---\nImplement\n---\nVerify")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["%name:custom\n#gh:sase #!three"])
+    assert out == [
+        "%name:custom\n#gh:sase Plan",
+        "#gh:sase Implement",
+        "#gh:sase Verify",
+    ]
+
+
+def test_expand_vcs_prefix_preserves_generated_directives() -> None:
+    catalog = {"three": _xp("three", "%name:plan\nPlan\n---\nImplement")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+    assert out == ["%name:plan\n#gh:sase Plan", "#gh:sase Implement"]
+
+
+def test_expand_vcs_prefix_does_not_override_segment_local_vcs_ref() -> None:
+    catalog = {"three": _xp("three", "Plan\n---\n#git:other Implement\n---\nVerify")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+    assert out == ["#gh:sase Plan", "#git:other Implement", "#gh:sase Verify"]
+
+
+def test_bare_vcs_prefixed_multi_agent_xprompt_requires_bang() -> None:
+    catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        with pytest.raises(MultiAgentXPromptUsageError, match=r"#!three"):
+            expand_multi_agent_xprompts(["#gh:sase #three"])
+
+
+def test_vcs_prefixed_multi_agent_xprompt_with_prose_remains_invalid() -> None:
+    catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
+    with _patch_catalog(catalog), _patch_vcs_patterns():
+        with pytest.raises(MultiAgentXPromptUsageError, match="sole '#!'"):
+            expand_multi_agent_xprompts(["#gh:sase please #!three"])
+
+
 def test_expand_local_xprompts_resolve() -> None:
     """Locally-defined xprompts (frontmatter) participate in expansion."""
     local = {
@@ -331,5 +411,13 @@ def test_fenced_multi_agent_references_are_ignored() -> None:
     catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
     segment = "Example:\n```\n#three\n#!three\n```"
     with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts([segment])
+    assert out == [segment]
+
+
+def test_fenced_vcs_prefixed_multi_agent_references_are_ignored() -> None:
+    catalog = {"three": _xp("three", "a\n---\nb\n---\nc")}
+    segment = "Example:\n```\n#gh:sase #!three\n```"
+    with _patch_catalog(catalog), _patch_vcs_patterns():
         out = expand_multi_agent_xprompts([segment])
     assert out == [segment]
