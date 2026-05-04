@@ -209,6 +209,16 @@ def _handle_legend_bead_work(
         build_legend_work_plan_from_beads_dir,
         render_legend_multi_prompt,
     )
+    from sase.bead.xprompts import (
+        BeadXPromptNotFoundError,
+        resolve_land_legend_xprompt,
+    )
+
+    try:
+        land_legend_xprompt = resolve_land_legend_xprompt()
+    except (BeadXPromptNotFoundError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     issue = proj.show(legend_id)
     try:
@@ -233,7 +243,11 @@ def _handle_legend_bead_work(
         )
         sys.exit(1)
 
-    query = render_legend_multi_prompt(plan, vcs_context=vcs_context)
+    query = render_legend_multi_prompt(
+        plan,
+        land_legend_xprompt=land_legend_xprompt,
+        vcs_context=vcs_context,
+    )
 
     if issue.is_ready_to_work:
         print(f"Legend {legend_id} is already ready; retrying epic agent launch.")
@@ -284,10 +298,12 @@ def _handle_legend_bead_work(
         )
         sys.exit(1)
 
-    agent_count = len(plan.assignments)
+    epic_agent_count = len(plan.assignments)
+    agent_count = epic_agent_count + 1
     print(
-        f"✓ Launched {agent_count} epic agents for legend {legend_id} — "
-        f"{issue.title} (workspace {result.workspace_num})"
+        f"✓ Launched {agent_count} agents for legend {legend_id} — "
+        f"{issue.title} ({epic_agent_count} epic-planning, 1 land; "
+        f"workspace {result.workspace_num})"
     )
 
 
@@ -377,7 +393,9 @@ def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
 
 
 def _expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
-    return {assignment.agent_name for assignment in plan.assignments}
+    names = {assignment.agent_name for assignment in plan.assignments}
+    names.add(plan.land_agent_name)
+    return names
 
 
 def _find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
@@ -409,7 +427,10 @@ def _print_legend_work_plan_summary(
     plan: LegendWorkPlan,
 ) -> None:
     agent_count = len(plan.assignments)
-    print(f"Legend {legend_id} — {title}: {agent_count} epic agent(s).")
+    print(
+        f"Legend {legend_id} — {title}: {agent_count} epic agent(s) plus "
+        f"1 land agent ({plan.land_agent_name})."
+    )
     for assignment in plan.assignments:
         print(f"  Epic #{assignment.epic_number}: {assignment.agent_name}")
     wait_edges = [
@@ -419,6 +440,8 @@ def _print_legend_work_plan_summary(
     ]
     if wait_edges:
         print(f"  Wait chain: {'; '.join(wait_edges)}")
+    if plan.land_waits_on:
+        print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
 
 
 def confirm_launch() -> bool:

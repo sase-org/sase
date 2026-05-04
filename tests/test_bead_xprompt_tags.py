@@ -10,6 +10,7 @@ from sase.bead.xprompts import (
     BeadXPromptNotFoundError,
     _resolve_bead_xprompt,
     resolve_land_epic_xprompt,
+    resolve_land_legend_xprompt,
     resolve_work_phase_xprompt,
 )
 from sase.xprompt.loader import get_all_prompts, get_all_xprompts
@@ -29,11 +30,18 @@ def test_new_tags_parse_from_string() -> None:
     )
     assert parse_tags("work_phase_bead") == frozenset({XPromptTag.work_phase_bead})
     assert parse_tags("land_epic") == frozenset({XPromptTag.land_epic})
+    assert parse_tags("land_legend") == frozenset({XPromptTag.land_legend})
 
 
 def test_new_tags_parse_from_list() -> None:
-    parsed = parse_tags(["create_epic_bead", "land_epic"])
-    assert parsed == frozenset({XPromptTag.create_epic_bead, XPromptTag.land_epic})
+    parsed = parse_tags(["create_epic_bead", "land_epic", "land_legend"])
+    assert parsed == frozenset(
+        {
+            XPromptTag.create_epic_bead,
+            XPromptTag.land_epic,
+            XPromptTag.land_legend,
+        }
+    )
 
 
 # ── Built-ins resolvable by tag ────────────────────────────────────────
@@ -51,16 +59,24 @@ def test_builtin_land_epic_resolves() -> None:
     assert XPromptTag.land_epic in wf.tags
 
 
+def test_builtin_land_legend_resolves() -> None:
+    wf = resolve_land_legend_xprompt()
+    assert wf.name == "bd/land_legend"
+    assert XPromptTag.land_legend in wf.tags
+
+
 def test_builtin_xprompts_loaded_from_config() -> None:
     """Confirm the bead automation built-ins are present in the loader registry."""
     prompts = get_all_prompts()
     assert "bd/new_epic" in prompts
     assert "bd/new_legend" in prompts
     assert "bd/land_epic" in prompts
+    assert "bd/land_legend" in prompts
     assert "bd/work_phase_bead" in prompts
     assert XPromptTag.create_epic_bead in prompts["bd/new_epic"].tags
     assert XPromptTag.create_legend_bead in prompts["bd/new_legend"].tags
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
+    assert XPromptTag.land_legend in prompts["bd/land_legend"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
     assert (
         "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
@@ -157,6 +173,17 @@ def test_user_override_wins() -> None:
         return_value={override.name: override},
     ):
         wf = resolve_work_phase_xprompt()
+    assert wf is override
+
+
+def test_land_legend_user_override_wins() -> None:
+    """A custom land_legend prompt is returned by the strict resolver."""
+    override = _user_xprompt("user/land_legend_override", XPromptTag.land_legend)
+    with patch(
+        "sase.xprompt.loader.get_all_prompts",
+        return_value={override.name: override},
+    ):
+        wf = resolve_land_legend_xprompt()
     assert wf is override
 
 

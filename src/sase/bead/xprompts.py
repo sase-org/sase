@@ -1,7 +1,6 @@
 """Resolve the bead-automation xprompts by their semantic tags.
 
-The ``sase bead work`` machinery binds three roles — *create the epic*,
-*work a phase bead*, *land the epic* — to xprompts via
+The ``sase bead work`` machinery binds bead automation roles to xprompts via
 :class:`sase.xprompt.tags.XPromptTag`. Built-in xprompts ship with these
 tags pre-applied; users may override any of them by tagging an xprompt
 of their own with the same tag (the loader's precedence chain handles
@@ -43,3 +42,8 @@ def resolve_work_phase_xprompt(project: str | None = None) -> Workflow:
 def resolve_land_epic_xprompt(project: str | None = None) -> Workflow:
     """Resolve the xprompt tagged ``land_epic``."""
     return _resolve_bead_xprompt(XPromptTag.land_epic, project=project)
+
+
+def resolve_land_legend_xprompt(project: str | None = None) -> Workflow:
+    """Resolve the xprompt tagged ``land_legend``."""
+    return _resolve_bead_xprompt(XPromptTag.land_legend, project=project)

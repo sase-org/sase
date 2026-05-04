@@ -37,10 +37,12 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     assert launch_calls == []
     out = capsys.readouterr().out
     assert f"Legend {legend_id}" in out
-    assert "2 epic agent(s)" in out
+    assert "2 epic agent(s) plus 1 land agent" in out
     assert f"%name:{legend_id}.1.0" in out
     assert f"%name:{legend_id}.2.0" in out
+    assert f"%name:{legend_id}" in out
     assert f"%w:{legend_id}.1" in out
+    assert f"#bd/land_legend:{legend_id}" in out
     assert "%epic" in out
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
@@ -66,14 +68,18 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     out = capsys.readouterr().out
     prompt = out.split("--- Multi-prompt (dry run) ---", 1)[1].strip()
     segments = prompt.split("\n---\n")
-    assert len(segments) == 3
-    for number, segment in enumerate(segments, start=1):
+    assert len(segments) == 4
+    for number, segment in enumerate(segments[:3], start=1):
         assert f"%name:{legend_id}.{number}.0" in segment
         assert f"epic #{number} from the legend plan" in segment
         assert "%epic" in segment
     assert f"%w:{legend_id}.1" in segments[1]
     assert f"%w:{legend_id}.2" in segments[2]
     assert "%w:" not in segments[0]
+    assert f"%name:{legend_id}" in segments[3]
+    assert f"%w:{legend_id}.3" in segments[3]
+    assert f"#bd/land_legend:{legend_id}" in segments[3]
+    assert "%epic" not in segments[3]
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is False
@@ -103,19 +109,23 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     query = captured["query"]
     assert query.count("%epic") == 3
     assert query.count("#epic") == 3
-    assert query.count("---") == 2
+    assert query.count("---") == 3
     assert f"%name:{legend_id}.1.0" in query
     assert f"%name:{legend_id}.2.0" in query
     assert f"%name:{legend_id}.3.0" in query
+    assert f"%name:{legend_id}" in query
     assert f"%w:{legend_id}.1" in query
     assert f"%w:{legend_id}.2" in query
+    assert f"%w:{legend_id}.3" in query
+    assert f"#bd/land_legend:{legend_id}" in query
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is True
         assert proj.get_epic_children(legend_id) == []
 
     out = capsys.readouterr().out
-    assert "Launched 3 epic agents for legend" in out
+    assert "Launched 4 agents for legend" in out
+    assert "3 epic-planning, 1 land" in out
 
 
 def test_legend_work_rolls_back_ready_on_launch_failure(
@@ -181,11 +191,16 @@ def test_legend_collision_helpers_report_live_planning_agents(
                 epic_number=2, agent_name="l1.2.0", waits_on=("l1.1",)
             ),
         ),
+        land_agent_name="l1",
+        land_waits_on=("l1.2",),
     )
     monkeypatch.setattr(
         "sase.agent.names.get_live_agent_name_map",
-        lambda: {"l1.2.0": "/tmp/l1.2.0", "other": "/tmp/other"},
+        lambda: {"l1.2.0": "/tmp/l1.2.0", "l1": "/tmp/l1", "other": "/tmp/other"},
     )
 
-    assert _expected_legend_agent_names(plan) == {"l1.1.0", "l1.2.0"}
-    assert _find_live_legend_name_collisions(plan) == {"l1.2.0": "/tmp/l1.2.0"}
+    assert _expected_legend_agent_names(plan) == {"l1.1.0", "l1.2.0", "l1"}
+    assert _find_live_legend_name_collisions(plan) == {
+        "l1.2.0": "/tmp/l1.2.0",
+        "l1": "/tmp/l1",
+    }

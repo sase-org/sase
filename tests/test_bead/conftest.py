@@ -26,6 +26,7 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub xprompt resolution for ``sase bead work`` CLI tests."""
     work_phase = Workflow(name="bd/work_phase_bead")
     land_epic = Workflow(name="bd/land_epic")
+    land_legend = Workflow(name="bd/land_legend")
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_work_phase_xprompt",
         lambda project=None: work_phase,
@@ -33,4 +34,8 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_land_epic_xprompt",
         lambda project=None: land_epic,
+    )
+    monkeypatch.setattr(
+        "sase.bead.xprompts.resolve_land_legend_xprompt",
+        lambda project=None: land_legend,
     )

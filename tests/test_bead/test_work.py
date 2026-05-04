@@ -400,6 +400,8 @@ class TestLegendWorkPlan:
             ("l1.1",),
             ("l1.2",),
         ]
+        assert plan.land_agent_name == "l1"
+        assert plan.land_waits_on == ("l1.3",)
 
     def test_missing_epic_count_raises(self, conn: sqlite3.Connection) -> None:
         _seed(conn, [_legend("l1", epic_count=None)])
@@ -441,6 +443,8 @@ class TestLegendWorkPlan:
             f"{legend.id}.1.0",
             f"{legend.id}.2.0",
         ]
+        assert plan.land_agent_name == legend.id
+        assert plan.land_waits_on == (f"{legend.id}.2",)
 
 
 class TestLegendRendering:
@@ -448,7 +452,10 @@ class TestLegendRendering:
         _seed(conn, [_legend("l1", epic_count=2)])
         plan = build_legend_work_plan(conn, "l1")
 
-        rendered = render_legend_multi_prompt(plan)
+        rendered = render_legend_multi_prompt(
+            plan,
+            land_legend_xprompt=Workflow(name="bd/land_legend"),
+        )
 
         expected = (
             "%name:l1.1.0\n"
@@ -466,7 +473,12 @@ class TestLegendRendering:
             "Can you help me implement epic #2 from the legend plan in the "
             "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
             "this epic will be split into phases and worked by separate "
-            "agents after approval."
+            "agents after approval.\n"
+            "---\n"
+            "%name:l1\n"
+            "%approve\n"
+            "%w:l1.2\n"
+            "#bd/land_legend:l1"
         )
         assert rendered == expected
 
@@ -478,17 +490,35 @@ class TestLegendRendering:
 
         rendered = render_legend_multi_prompt(
             plan,
+            land_legend_xprompt=Workflow(name="bd/land_legend"),
             vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
         )
 
         segments = rendered.split("\n---\n")
-        assert len(segments) == 2
+        assert len(segments) == 3
         assert all(segment.startswith("#git:sase\n") for segment in segments)
         assert "%name:l1.1.0" in rendered
         assert "%name:l1.2.0" in rendered
+        assert "%name:l1" in rendered
         assert "%epic" in rendered
         assert "%approve" in rendered
         assert "%w:l1.1" in rendered
+        assert "%w:l1.2" in rendered
+        assert "#bd/land_legend:l1" in rendered
+        assert "%epic" not in segments[-1]
+
+    def test_user_override_land_legend_xprompt_name_propagates(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(conn, [_legend("l1", epic_count=1)])
+        plan = build_legend_work_plan(conn, "l1")
+
+        rendered = render_legend_multi_prompt(
+            plan,
+            land_legend_xprompt=Workflow(name="custom/land_legend"),
+        )
+
+        assert "#custom/land_legend:l1" in rendered
 
 
 class TestRenderEdgeCases:

@@ -287,6 +287,7 @@ xprompts:
       subdirectory). If found, a `status` field should be added (or updated if it already exists) to the frontmatter of
       the plan file with a value of `done`.
   bd/land_legend:
+    tags: land_legend
     input:
       bead_id: word
     content: |

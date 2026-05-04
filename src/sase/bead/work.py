@@ -52,11 +52,13 @@ class LegendEpicAssignment:
 
 @dataclass(frozen=True)
 class LegendWorkPlan:
-    """Linear plan to create the epics proposed by a legend bead."""
+    """Linear plan to create proposed epics plus the final legend land agent."""
 
     legend_id: str
     plan_file: str
     assignments: tuple[LegendEpicAssignment, ...]
+    land_agent_name: str
+    land_waits_on: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -203,17 +205,24 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
 
 
 def _legend_plan_from_payload(payload: dict[str, Any]) -> LegendWorkPlan:
+    legend_id = str(payload["legend_id"])
+    assignments = tuple(
+        LegendEpicAssignment(
+            epic_number=int(assignment["epic_number"]),
+            agent_name=str(assignment["agent_name"]),
+            waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
+        )
+        for assignment in payload["assignments"]
+    )
+    land_waits_on = (
+        (f"{legend_id}.{assignments[-1].epic_number}",) if assignments else ()
+    )
     return LegendWorkPlan(
-        legend_id=str(payload["legend_id"]),
+        legend_id=legend_id,
         plan_file=str(payload["plan_file"]),
-        assignments=tuple(
-            LegendEpicAssignment(
-                epic_number=int(assignment["epic_number"]),
-                agent_name=str(assignment["agent_name"]),
-                waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
-            )
-            for assignment in payload["assignments"]
-        ),
+        assignments=assignments,
+        land_agent_name=legend_id,
+        land_waits_on=land_waits_on,
     )
 
 
@@ -326,9 +335,10 @@ def render_multi_prompt(
 
 def render_legend_multi_prompt(
     plan: LegendWorkPlan,
+    land_legend_xprompt: Workflow,
     vcs_context: VCSLaunchContext | None = None,
 ) -> str:
-    """Render legend epic-planning assignments as a multi-prompt string."""
+    """Render legend epic-planning assignments and final land agent."""
     if isinstance(vcs_context, ChangeSpecLaunchContext):
         raise ValueError("legend work does not support ChangeSpec launch context")
     if vcs_context is not None:
@@ -354,6 +364,13 @@ def render_legend_multi_prompt(
             "approval."
         )
         segments.append("\n".join(lines))
+
+    land_lines = _segment_prefix(vcs_context, is_first_phase=True)
+    land_lines.extend([f"%name:{plan.land_agent_name}", "%approve"])
+    if plan.land_waits_on:
+        land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
+    land_lines.append(f"#{land_legend_xprompt.name}:{plan.legend_id}")
+    segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
 
