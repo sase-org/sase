@@ -187,7 +187,7 @@ def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
 
     research_body = prompts["research"].steps[0].prompt_part or ""
     assert "sdd/research/" in research_body
-    assert "sdd/research/README.md" in research_body
+    assert "YYYYMM month" in research_body
 
     body = research_prompt.steps[0].prompt_part or ""
     assert "#research" in body
