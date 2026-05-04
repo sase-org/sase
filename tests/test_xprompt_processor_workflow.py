@@ -8,6 +8,7 @@ import pytest
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_runner import (
     _WORKFLOW_HITL_OVERRIDE_ARG,
+    _WORKFLOW_INHERITED_VCS_TAG_ARG,
     _WORKFLOW_MODEL_OVERRIDE_ARG,
     WorkflowResult,
     _flatten_anonymous_workflow,
@@ -534,6 +535,79 @@ def test_execute_workflow_flatten_preserves_wrapper_model_override(
     assert call_kwargs["inherited_model_override"] == "gemini-3-flash-preview"
     assert _WORKFLOW_MODEL_OVERRIDE_ARG not in call_kwargs["args"]
     assert call_kwargs["args"]["cl_name"] == "my_feature"
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_passes_inherited_vcs_tag_without_context_leak(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Inherited VCS metadata reaches the executor but not workflow args."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={
+            "cl_name": "my_feature",
+            _WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
+        },
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    call_kwargs = mock_workflow_executor.call_args.kwargs
+    assert call_kwargs["inherited_vcs_tag"] == "#gh:sase "
+    assert _WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
+    assert call_kwargs["args"]["cl_name"] == "my_feature"
+
+
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_xprompt_template(
+    mock_workflow_executor: MagicMock,
+) -> None:
+    """Internal VCS metadata is stripped before prompt_part rendering."""
+    simple_wf = Workflow(
+        name="simple",
+        steps=[
+            WorkflowStep(
+                name="main",
+                prompt_part=(
+                    "{{ __sase_workflow_inherited_vcs_tag is defined }} {{ topic }}"
+                ),
+            )
+        ],
+    )
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    execute_workflow(
+        name=simple_wf.name,
+        positional_args=[],
+        named_args={
+            "topic": "visible",
+            _WORKFLOW_INHERITED_VCS_TAG_ARG: "#gh:sase ",
+        },
+        workflow_obj=simple_wf,
+        silent=True,
+    )
+
+    call_kwargs = mock_workflow_executor.call_args.kwargs
+    assert call_kwargs["inherited_vcs_tag"] == "#gh:sase "
+    assert call_kwargs["workflow"].steps[0].agent == "false visible"
+    assert _WORKFLOW_INHERITED_VCS_TAG_ARG not in call_kwargs["args"]
 
 
 # --- _resolve_vcs_cwd tests ---

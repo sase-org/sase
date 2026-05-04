@@ -141,6 +141,7 @@ class PromptStepMixin:
     output_handler: "WorkflowOutputHandler | None"
     state: WorkflowState
     inherited_model_override: str | None
+    inherited_vcs_tag: str | None
 
     # Method type declarations for methods provided by other mixins/main class
     _save_state: Any  # () -> None
@@ -180,9 +181,13 @@ class PromptStepMixin:
                 f"Agent step '{step.name}' has no agent prompt"
             )
 
+        from sase.xprompt._parsing import inherit_vcs_workflow_tag
+
+        step_prompt = inherit_vcs_workflow_tag(step.agent, self.inherited_vcs_tag)
+
         # Early phase: directives, Jinja2 context rendering, xprompt expansion
         early = preprocess_prompt_early(
-            step.agent,
+            step_prompt,
             extra_xprompts=self.workflow.xprompts,
             scope=self.context,
             context=self.context,

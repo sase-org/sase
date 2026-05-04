@@ -79,6 +79,33 @@ class EmbeddedWorkflowExpandMixin:
             total_pre_steps_executed). The post_steps should be executed
             after the main prompt completes.
         """
+        from sase.xprompt._parsing import _SEGMENT_SEPARATOR_RE
+
+        segment_fenced_blocks: list[str] = []
+        protected_for_segments = protect_fenced_blocks(prompt, segment_fenced_blocks)
+        pieces = _SEGMENT_SEPARATOR_RE.split(protected_for_segments)
+        separators = _SEGMENT_SEPARATOR_RE.findall(protected_for_segments)
+        if separators:
+            expanded_pieces: list[str] = []
+            all_embedded_workflows: list[EmbeddedWorkflowInfo] = []
+            total_pre_steps = 0
+            for piece in pieces:
+                restored_piece = unprotect_fenced_blocks(piece, segment_fenced_blocks)
+                expanded_piece, segment_embedded_workflows, segment_pre_step_count = (
+                    self._expand_embedded_workflows_in_prompt(
+                        restored_piece,
+                        pre_step_offset=pre_step_offset + total_pre_steps,
+                    )
+                )
+                expanded_pieces.append(expanded_piece)
+                all_embedded_workflows.extend(segment_embedded_workflows)
+                total_pre_steps += segment_pre_step_count
+
+            rebuilt = expanded_pieces[0] if expanded_pieces else ""
+            for sep, piece in zip(separators, expanded_pieces[1:], strict=False):
+                rebuilt = f"{rebuilt}{sep}{piece}"
+            return rebuilt, all_embedded_workflows, total_pre_steps
+
         from sase.xprompt._parsing import (
             iter_xprompt_references,
             normalize_vcs_underscore_refs,

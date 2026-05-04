@@ -109,6 +109,26 @@ def test_multiple_wraps_all_raises_error() -> None:
             )
 
 
+def test_multiple_wraps_all_allowed_across_multi_prompt_segments() -> None:
+    """Each multi-prompt segment gets its own wraps_all validation scope."""
+    wf_git = _make_workflow("git", wraps_all=True)
+
+    executor = _FakeExecutor({"git": wf_git})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"git": wf_git},
+    ):
+        prompt, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
+            "#git:main Fix A\n---\n#git:main Fix B"
+        )
+
+    assert "Fix A" in prompt
+    assert "Fix B" in prompt
+    assert len(embedded) == 2
+    assert pre_steps == 2
+
+
 def test_single_wraps_all_does_not_raise() -> None:
     """A single wraps_all workflow with other non-wraps_all workflows is fine."""
     wf_git = _make_workflow("git", wraps_all=True)

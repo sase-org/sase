@@ -1,5 +1,6 @@
 """Tests for the WorkflowExecutor class."""
 
+import re
 import tempfile
 from unittest.mock import MagicMock, patch
 
@@ -89,6 +90,131 @@ class TestShouldHitl:
             directives = captured.get("directives")
             assert directives is not None
             assert getattr(directives, "model", None) == "gemini-3-flash-preview"
+
+    def test_inherited_vcs_tag_prefixes_bare_prompt_step(self) -> None:
+        """Workflow step prompts inherit the wrapper VCS tag before expansion."""
+        step = WorkflowStep(name="s1", agent="Fix it")
+        workflow = _create_test_workflow(steps=[step])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured: dict[str, str] = {}
+
+            def _fake_expand(
+                self: WorkflowExecutor, prompt: str
+            ) -> tuple[str, list[object], int]:
+                del self
+                captured["expanded_input"] = prompt
+                return prompt, [], 0
+
+            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+                captured["prompt"] = prompt
+                return AIMessage(content="ok")
+
+            with (
+                patch.object(
+                    WorkflowExecutor,
+                    "_expand_embedded_workflows_in_prompt",
+                    _fake_expand,
+                ),
+                patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
+            ):
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                    inherited_vcs_tag="#gh:sase ",
+                )
+                assert executor.execute() is True
+
+        assert captured["expanded_input"] == "#gh:sase Fix it"
+        assert captured["prompt"] == "#gh:sase Fix it\n"
+
+    def test_inherited_vcs_tag_preserves_directives_and_segments(self) -> None:
+        """Inherited VCS tags are inserted per segment after leading directives."""
+        step = WorkflowStep(name="s1", agent="%w Follow up\n---\nSecond")
+        workflow = _create_test_workflow(steps=[step])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured: dict[str, str] = {}
+
+            def _fake_expand(
+                self: WorkflowExecutor, prompt: str
+            ) -> tuple[str, list[object], int]:
+                del self
+                captured["expanded_input"] = prompt
+                return prompt, [], 0
+
+            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+                captured["prompt"] = prompt
+                return AIMessage(content="ok")
+
+            with (
+                patch.object(
+                    WorkflowExecutor,
+                    "_expand_embedded_workflows_in_prompt",
+                    _fake_expand,
+                ),
+                patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
+            ):
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                    inherited_vcs_tag="#gh:sase ",
+                )
+                assert executor.execute() is True
+
+        expected = " #gh:sase Follow up\n---\n#gh:sase Second"
+        assert captured["expanded_input"] == expected
+
+    def test_inherited_vcs_tag_does_not_override_explicit_step_ref(self) -> None:
+        """A step-local workspace ref remains authoritative."""
+        step = WorkflowStep(name="s1", agent="#git:other Fix it")
+        workflow = _create_test_workflow(steps=[step])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured: dict[str, str] = {}
+
+            def _fake_expand(
+                self: WorkflowExecutor, prompt: str
+            ) -> tuple[str, list[object], int]:
+                del self
+                captured["expanded_input"] = prompt
+                return prompt, [], 0
+
+            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+                captured["prompt"] = prompt
+                return AIMessage(content="ok")
+
+            ref_pattern = re.compile(
+                r"#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
+            )
+            with (
+                patch.object(
+                    WorkflowExecutor,
+                    "_expand_embedded_workflows_in_prompt",
+                    _fake_expand,
+                ),
+                patch(
+                    "sase.workspace_provider.get_ref_patterns",
+                    return_value={"git": ref_pattern},
+                ),
+                patch(
+                    "sase.xprompt.loader.get_known_project_workspaces",
+                    return_value=set(),
+                ),
+                patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
+            ):
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                    inherited_vcs_tag="#gh:sase ",
+                )
+                assert executor.execute() is True
+
+        assert captured["expanded_input"] == "#git:other Fix it"
+        assert captured["prompt"] == "#git:other Fix it\n"
 
 
 class TestPythonStepExecution:

@@ -349,7 +349,10 @@ def run_execution_loop(
     Returns an _AgentExecResult with the outcome.
     """
     from sase.xprompt.models import create_anonymous_workflow
-    from sase.xprompt.workflow_runner import execute_workflow
+    from sase.xprompt.workflow_runner import (
+        _WORKFLOW_INHERITED_VCS_TAG_ARG,
+        execute_workflow,
+    )
 
     # Pre-set SASE_AGENT_CHAT_PATH so the commit stop hook (and
     # create_changespec_for_workflow) can reference the ace-run chat file.
@@ -404,6 +407,9 @@ def run_execution_loop(
                 pass
         if ctx.wait_chats:
             named_args["wait_chats"] = ctx.wait_chats
+        vcs_tag = getattr(ctx, "vcs_tag", None)
+        if vcs_tag:
+            named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG] = vcs_tag
 
         try:
             result = execute_workflow(

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 _WORKFLOW_MODEL_OVERRIDE_ARG = "__sase_workflow_model_override"
 _WORKFLOW_HITL_OVERRIDE_ARG = "__sase_workflow_hitl_override"
+_WORKFLOW_INHERITED_VCS_TAG_ARG = "__sase_workflow_inherited_vcs_tag"
 
 
 def standalone_deprecation_message(name: str) -> str:
@@ -409,6 +410,15 @@ def execute_workflow(
     else:
         os.makedirs(artifacts_dir, exist_ok=True)
 
+    # Caller-injected workflow metadata must not be visible to templates,
+    # state, or declared workflow inputs.
+    inherited_vcs_tag: str | None = None
+    if _WORKFLOW_INHERITED_VCS_TAG_ARG in named_args:
+        inherited_vcs_tag = str(named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG])
+        named_args = {
+            k: v for k, v in named_args.items() if k != _WORKFLOW_INHERITED_VCS_TAG_ARG
+        }
+
     # Handle simple xprompts: convert prompt_part to prompt step so they go
     # through WorkflowExecutor (producing workflow_state.json and markers)
     if workflow.is_simple_xprompt():
@@ -474,6 +484,11 @@ def execute_workflow(
         named_args = {
             k: v for k, v in named_args.items() if k != _WORKFLOW_HITL_OVERRIDE_ARG
         }
+    if _WORKFLOW_INHERITED_VCS_TAG_ARG in named_args:
+        inherited_vcs_tag = str(named_args[_WORKFLOW_INHERITED_VCS_TAG_ARG])
+        named_args = {
+            k: v for k, v in named_args.items() if k != _WORKFLOW_INHERITED_VCS_TAG_ARG
+        }
 
     # Build args dict from positional and named args
     args: dict[str, Any] = dict(named_args)
@@ -530,6 +545,7 @@ def execute_workflow(
         output_handler=output_handler,
         hitl_override=hitl_override,
         inherited_model_override=inherited_model_override,
+        inherited_vcs_tag=inherited_vcs_tag,
     )
 
     success = executor.execute()

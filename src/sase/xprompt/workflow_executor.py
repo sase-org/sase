@@ -46,6 +46,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         output_handler: "WorkflowOutputHandler | None" = None,
         hitl_override: bool | None = None,
         inherited_model_override: str | None = None,
+        inherited_vcs_tag: str | None = None,
     ) -> None:
         """Initialize the workflow executor.
 
@@ -62,6 +63,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                 inherited from an outer wrapper prompt (e.g., ``%model`` on
                 ``#split``). When set, it takes precedence over step-local
                 model directives for all agent steps.
+            inherited_vcs_tag: Optional workspace workflow tag inherited from
+                an outer wrapper prompt. Untagged agent prompt segments run
+                under this workspace ref.
         """
         self.workflow = workflow
         self.context: dict[str, Any] = dict(args)
@@ -70,6 +74,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self.output_handler = output_handler
         self.hitl_override = hitl_override
         self.inherited_model_override = inherited_model_override
+        self.inherited_vcs_tag = inherited_vcs_tag
         self._current_embedded_workflow_name: str | None = None
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False

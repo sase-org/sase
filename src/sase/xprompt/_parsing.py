@@ -216,6 +216,59 @@ def normalize_default_vcs_workflow_segment(
     return f"{leading_ws}{directive_prefix}{default_vcs_prefix} {remainder}"
 
 
+def _inherit_vcs_workflow_tag_segment(segment: str, inherited_vcs_tag: str) -> str:
+    """Prefix *segment* with *inherited_vcs_tag* when it has no workspace ref."""
+    if (
+        not segment.strip()
+        or _prompt_segment_has_vcs_workflow_ref(segment)
+        or extract_known_project_vcs_ref(segment) is not None
+    ):
+        return segment
+
+    leading_ws_match = re.match(r"\s*", segment)
+    assert leading_ws_match is not None
+    leading_ws = leading_ws_match.group(0)
+    body = segment[leading_ws_match.end() :]
+
+    tag = inherited_vcs_tag.strip()
+    directive_match = _DIRECTIVE_PREFIX_RE.match(body)
+    if directive_match is None:
+        return f"{leading_ws}{tag} {body}"
+
+    directive_prefix = directive_match.group(0)
+    remainder = body[directive_match.end() :]
+    return f"{leading_ws}{directive_prefix}{tag} {remainder}"
+
+
+def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
+    """Apply an inherited workspace workflow tag to each untagged prompt segment."""
+    if not inherited_vcs_tag or not inherited_vcs_tag.strip():
+        return prompt
+
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+
+    frontmatter, body = _split_frontmatter_block(prompt)
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(body, fenced_blocks)
+    pieces = _SEGMENT_SEPARATOR_RE.split(protected)
+    separators = _SEGMENT_SEPARATOR_RE.findall(protected)
+
+    normalized_pieces: list[str] = []
+    for piece in pieces:
+        restored = unprotect_fenced_blocks(piece, fenced_blocks)
+        normalized_pieces.append(
+            _inherit_vcs_workflow_tag_segment(restored, inherited_vcs_tag)
+        )
+
+    rebuilt = normalized_pieces[0] if normalized_pieces else ""
+    for sep, piece in zip(separators, normalized_pieces[1:], strict=False):
+        rebuilt = f"{rebuilt}{sep}{piece}"
+    return f"{frontmatter}{rebuilt}"
+
+
 def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
     """Split raw leading YAML frontmatter from *prompt*, preserving text."""
     lines = prompt.splitlines(keepends=True)
@@ -417,6 +470,7 @@ __all__ = [
     "find_double_colon_text_end",
     "find_matching_paren_for_args",
     "find_shorthand_text_end",
+    "inherit_vcs_workflow_tag",
     "iter_xprompt_references",
     "normalize_vcs_underscore_refs",
     "normalize_default_vcs_workflow",

@@ -7,6 +7,7 @@ from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
     extract_vcs_workflow_tag,
     find_matching_paren_for_args,
+    inherit_vcs_workflow_tag,
     normalize_vcs_underscore_refs,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
@@ -422,3 +423,73 @@ def test_replace_vcs_tags_mixed_vcs_multi_prompt() -> None:
     with _patch_vcs_replace_pattern():
         result = replace_vcs_workflow_tags(prompt, "#gh:other")
         assert result == "#gh:other Fix A\n---\n#gh:other Fix B"
+
+
+# Tests for inherit_vcs_workflow_tag
+
+
+def _patch_ref_patterns(names: set[str] | None = None):
+    pattern = re.compile(
+        r"#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
+    )
+    return patch(
+        "sase.workspace_provider.get_ref_patterns",
+        return_value=dict.fromkeys(names or {"gh", "git", "hg", "cd"}, pattern),
+    )
+
+
+def test_inherit_vcs_tag_prefixes_bare_prompt() -> None:
+    """Bare prompt segments inherit the wrapper VCS tag."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        assert inherit_vcs_workflow_tag("Fix the bug", "#gh:sase ") == (
+            "#gh:sase Fix the bug"
+        )
+
+
+def test_inherit_vcs_tag_preserves_leading_directives() -> None:
+    """Inherited tags are inserted after leading % directives."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "%w #resume #research/more %m:opus"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == (
+            "%w #gh:sase #resume #research/more %m:opus"
+        )
+
+
+def test_inherit_vcs_tag_applies_per_multi_prompt_segment() -> None:
+    """Each untagged multi-prompt segment inherits independently."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "Fix A\n---\n%w Fix B"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == (
+            "#gh:sase Fix A\n---\n%w #gh:sase Fix B"
+        )
+
+
+def test_inherit_vcs_tag_skips_explicit_workspace_refs() -> None:
+    """Explicit VCS or directory refs remain authoritative."""
+    with (
+        _patch_ref_patterns(),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
+    ):
+        prompt = "#git:other Fix A\n---\n#cd:~/work Fix B"
+        assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == prompt
+
+
+def test_inherit_vcs_tag_skips_known_project_fallback_ref() -> None:
+    """Known-project refs are preserved even without a registered provider."""
+    with (
+        patch("sase.workspace_provider.get_ref_patterns", return_value={}),
+        patch(
+            "sase.xprompt.loader.get_known_project_workspaces", return_value={"sase"}
+        ),
+    ):
+        prompt = "#gh:sase Fix it"
+        assert inherit_vcs_workflow_tag(prompt, "#git:other ") == prompt
