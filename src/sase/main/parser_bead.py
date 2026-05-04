@@ -122,9 +122,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead work
     bead_work_parser = bead_subparsers.add_parser(
         "work",
-        help="Mark an epic plan bead ready and launch its phase + land agents",
+        help="Launch agents for an epic or legend plan bead",
     )
-    bead_work_parser.add_argument("id", help="Epic plan bead ID")
+    bead_work_parser.add_argument("id", help="Epic or legend plan bead ID")
     bead_work_parser.add_argument(
         "-n",
         "--dry-run",

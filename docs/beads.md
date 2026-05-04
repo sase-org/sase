@@ -3,7 +3,7 @@
 Bead is a lightweight, git-native issue tracking system built into sase. It uses Rust-backed SQLite/query/mutation logic
 through the required `sase_core_rs` extension, with JSONL export for git portability (inspired by
 [Fossil](https://fossil-scm.org/)). Issues are organized into plan-like containers and executable child phases. Plan
-beads can represent ordinary plans, executable epics, or non-executable legends through their `tier` metadata.
+beads can represent ordinary plans, executable epics, or legend-level roadmaps through their `tier` metadata.
 
 ![Bead issue model, storage sync, and epic wave execution](images/bead-epic-work-infographic.png)
 
@@ -29,7 +29,7 @@ beads can represent ordinary plans, executable epics, or non-executable legends 
 sase bead init                                          # Initialize beads in current project
 sase bead create -t "New feature" --type "plan(sdd/tales/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(sdd/epics/202605/epic.md)" --tier epic
-sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend
+sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend --epic-count 3
 sase bead create -t "Linked epic" --type "plan(sdd/epics/202605/epic.md,<legend-id>)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List all issues
@@ -44,7 +44,7 @@ sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Commit JSONL to git
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
-sase bead work beads-001                                # Launch phase + land agents for an epic-tier plan
+sase bead work beads-001                                # Launch agents for an epic or legend plan bead
 ```
 
 ## Data Model
@@ -61,11 +61,11 @@ plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
 Plan beads carry a tier:
 
-| Tier     | SDD Path                    | Behavior                                                           |
-| -------- | --------------------------- | ------------------------------------------------------------------ |
-| `plan`   | `sdd/tales/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                |
-| `epic`   | `sdd/epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`           |
-| `legend` | `sdd/legends/{YYYYMM}/*.md` | Higher-level coordination plan; does not run phase agents directly |
+| Tier     | SDD Path                    | Behavior                                                                      |
+| -------- | --------------------------- | ----------------------------------------------------------------------------- |
+| `plan`   | `sdd/tales/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                           |
+| `epic`   | `sdd/epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`                      |
+| `legend` | `sdd/legends/{YYYYMM}/*.md` | Higher-level coordination plan; launches epic-planning agents by `epic_count` |
 
 Linked epics use the existing parented plan syntax:
 
@@ -235,11 +235,12 @@ extension is importable and exposes the representative bead CLI binding used by 
 
 Display a quick-start guide with common command examples.
 
-### `sase bead work <epic_id>`
+### `sase bead work <id>`
 
-Run an entire epic-tier plan end-to-end by launching one agent per phase plus a final land agent. Legend-tier plan beads
-are coordination containers and are rejected by `sase bead work` until legend orchestration exists. Concretely, the
-command:
+Run an entire epic-tier plan end-to-end by launching one agent per phase plus a final land agent, or run a legend-tier
+plan by launching one epic-planning agent per stored `epic_count`.
+
+For epic-tier plans, the command:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
    `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
@@ -254,6 +255,18 @@ command:
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
    `<epic_id>` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w` waits on
    blocker phase-agent names, and the land agent waits on the leaf phase agents.
+
+For legend-tier plans, the command:
+
+1. Validates that `<id>` resolves to a plan bead with `tier=legend`, a positive `epic_count`, and a linked legend plan
+   path.
+2. Scans the live agent registry for generated epic-planning agent names like `<legend_id>.1.0` and refuses collisions.
+3. Flips the legend plan bead's `is_ready_to_work` flag to `True` when launching.
+4. Hands a single `---`-separated multi-prompt to the agent launcher. Each segment includes `%approve`, `%epic`, and
+   `%name:<legend_id>.<N>.0`; epic `N > 1` also waits on `%w:<legend_id>.<N-1>`, the prior epic's land agent.
+
+Legend work does not create phase beads directly. The spawned epic-planning agents create epic plans, and the existing
+`bd/new_epic` automation handles the linked epic and phase beads after those plans are approved.
 
 | Flag            | Description                                                                       |
 | --------------- | --------------------------------------------------------------------------------- |

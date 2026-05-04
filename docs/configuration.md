@@ -872,6 +872,7 @@ that insert references should prefer `kind`/`insertion` metadata when present so
 | `--tier`            | `plan`, `epic`, `legend` | -          | Plan-bead tier                                                              |
 | `-c, --changespec`  | ChangeSpec name          | -          | Attach ChangeSpec metadata to a plan bead                                   |
 | `-b, --bug-id`      | string                   | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
+| `-E, --epic-count`  | positive integer         | -          | Number of epics proposed by a legend plan bead                              |
 
 #### `sase bead list`
 
@@ -889,16 +890,17 @@ that insert references should prefer `kind`/`insertion` metadata when present so
 
 #### `sase bead update`
 
-| Flag                | Values                          | Default    | Description           |
-| ------------------- | ------------------------------- | ---------- | --------------------- |
-| `id`                | string                          | (required) | Issue ID to update    |
-| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status         |
-| `-t, --title`       | string                          | -          | Change title          |
-| `-d, --description` | string                          | -          | Change description    |
-| `-n, --notes`       | string                          | -          | Change notes          |
-| `-D, --design`      | path                            | -          | Change plan path      |
-| `-a, --assignee`    | string                          | -          | Change assignee       |
-| `--tier`            | `plan`, `epic`, `legend`        | -          | Change plan-bead tier |
+| Flag                | Values                          | Default    | Description              |
+| ------------------- | ------------------------------- | ---------- | ------------------------ |
+| `id`                | string                          | (required) | Issue ID to update       |
+| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status            |
+| `-t, --title`       | string                          | -          | Change title             |
+| `-d, --description` | string                          | -          | Change description       |
+| `-n, --notes`       | string                          | -          | Change notes             |
+| `-D, --design`      | path                            | -          | Change plan path         |
+| `-a, --assignee`    | string                          | -          | Change assignee          |
+| `--tier`            | `plan`, `epic`, `legend`        | -          | Change plan-bead tier    |
+| `-E, --epic-count`  | positive integer                | -          | Change legend epic count |
 
 #### `sase bead close`
 

@@ -166,7 +166,7 @@ sase
 | `sase bead stats`              | Show project statistics                                                                                        |
 | `sase bead sync`               | Sync bead database with git                                                                                    |
 | `sase bead update`             | Update an issue (title, description, status, assignee, tier, etc.)                                             |
-| `sase bead work`               | Launch phase + land agents for an epic-tier plan (pre-claims phases, builds Kahn-wave multi-prompt)            |
+| `sase bead work`               | Launch agents for epic-tier plans or legend-tier epic planning                                                 |
 | `sase changespec current`      | Render the ChangeSpec for the current workspace (markdown / plain / JSON)                                      |
 | `sase changespec sync-deltas`  | Recompute the DELTAS field for a ChangeSpec from the live VCS state                                            |
 | `sase chats list`              | List recent agent chat transcripts (pretty table or JSON)                                                      |
@@ -500,7 +500,8 @@ drastically simplifying the surface area:
   persistence without an external database engine.
 - **Plan tiers instead of arbitrary nesting** — sase uses plan-like beads with explicit `plan`, `epic`, and `legend`
   tiers plus executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
-  `--type plan(<plan_file>,<legend_bead_id>) --tier epic`, and `sase bead work` intentionally runs epic-tier beads only.
+  `--type plan(<plan_file>,<legend_bead_id>) --tier epic`; legend beads store `--epic-count` and `sase bead work`
+  launches one epic-planning agent per proposed epic.
 - **Multi-workspace aggregation** — Because sase already manages multiple parallel workspaces, `sase bead` can read
   issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
   project state without Dolt's sync machinery.

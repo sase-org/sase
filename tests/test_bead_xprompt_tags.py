@@ -65,10 +65,12 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert (
         "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
     )
-    assert "--tier legend" in prompts["bd/new_legend"].steps[0].prompt_part
-    assert (
-        "Do not run `sase bead work`" in prompts["bd/new_legend"].steps[0].prompt_part
-    )
+    legend_body = prompts["bd/new_legend"].steps[0].prompt_part
+    assert "--tier legend" in legend_body
+    assert "--epic-count <epic_count>" in legend_body
+    assert "epic_count: <epic_count>" in legend_body
+    assert "sase bead work <legend_bead_id> --yes" in legend_body
+    assert "Do not run `sase bead work`" not in legend_body
 
 
 def test_new_epic_accepts_changespec_inputs() -> None:
@@ -113,6 +115,23 @@ def test_new_epic_colon_args_render_linked_legend_guidance() -> None:
     assert "sdd/epics/202605/my_feature.md" in body
     assert "Use `zorg-1` as the linked legend bead ID." in body
     assert "--type plan(<plan_file>,<legend_bead_id>)" in body
+
+
+def test_new_legend_colon_args_render_plan_path_and_work_guidance() -> None:
+    xprompt = get_all_xprompts()["bd/new_legend"]
+
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts",
+        return_value={"bd/new_legend": xprompt},
+    ):
+        body = process_xprompt_references(
+            "#bd/new_legend:sdd/legends/202605/roadmap.md"
+        )
+
+    assert "sdd/legends/202605/roadmap.md" in body
+    assert "--epic-count <epic_count>" in body
+    assert "epic_count: <epic_count>" in body
+    assert "sase bead work <legend_bead_id> --yes" in body
 
 
 # ── User overrides win via precedence chain ────────────────────────────

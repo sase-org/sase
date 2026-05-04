@@ -19,7 +19,8 @@ Quick reference for the `sase bead` CLI. Use `sase bead` (not `.venv/bin/sase be
 
 Plan beads can carry `--tier plan`, `--tier epic`, or `--tier legend`. Normal approved plans live under
 `sdd/tales/{YYYYMM}/`, executable epics under `sdd/epics/{YYYYMM}/`, and legends under `sdd/legends/{YYYYMM}/`.
-`sase bead work` only runs `epic`-tier plan beads.
+`sase bead work` runs `epic`-tier plan beads by launching phase + land agents, and `legend`-tier plan beads by launching
+one epic-planning agent per stored `epic_count`.
 
 ## Commands
 
@@ -32,8 +33,8 @@ sase bead create --title "Add auth system" --type plan(sdd/tales/202605/auth.md)
 # Create an executable epic bead
 sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md) --tier epic
 
-# Create a legend bead
-sase bead create --title "Auth roadmap" --type plan(sdd/legends/202605/auth.md) --tier legend
+# Create a legend bead that proposes 5 epics
+sase bead create --title "Auth roadmap" --type plan(sdd/legends/202605/auth.md) --tier legend --epic-count 5
 
 # Create an epic linked under a legend
 sase bead create --title "Auth epic" --type plan(sdd/epics/202605/auth.md,<legend-bead-id>) --tier epic
@@ -64,6 +65,7 @@ sase bead update <id> --description "Updated description"
 sase bead update <id> --notes "Implementation notes"
 sase bead update <id> --assignee bob
 sase bead update <id> --design sdd/tales/202605/revised.md
+sase bead update <legend-id> --epic-count 6
 
 # Combine multiple updates
 sase bead update <id> --status in_progress --assignee alice
@@ -125,3 +127,16 @@ sase bead dep add <issue> <depends_on>
 5. `sase bead update <id> --status in_progress` — claim work
 6. _(do the work)_
 7. `sase bead update <id> --status closed` — mark done
+
+## Legend Workflow
+
+Legend beads store the number of epics they propose with `--epic-count` / `-E`.
+
+```bash
+sase bead create --title "Roadmap" --type plan(sdd/legends/202605/roadmap.md) --tier legend --epic-count 3
+sase bead work <legend-id> --dry-run
+sase bead work <legend-id> --yes
+```
+
+Working a legend does not create phase beads directly. It launches one epic-planning agent per proposed epic; each
+created epic then follows the normal `bd/new_epic` automation.

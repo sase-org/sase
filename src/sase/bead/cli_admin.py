@@ -46,7 +46,7 @@ Quick Start:
   sase bead create -t "Fix bug" --type phase(<plan-id>)
   sase bead create -t "New feature" --type plan(sdd/tales/202605/feature.md) --tier plan
   sase bead create -t "Epic" --type plan(sdd/epics/202605/epic.md) --tier epic
-  sase bead create -t "Legend" --type plan(sdd/legends/202605/roadmap.md) --tier legend
+  sase bead create -t "Legend" --type plan(sdd/legends/202605/roadmap.md) --tier legend --epic-count 3
   sase bead create -t "Linked epic" --type plan(sdd/epics/202605/epic.md,<legend-id>) --tier epic
   sase bead list                                 List all issues
   sase bead list --status=open                   List open issues
@@ -62,4 +62,4 @@ Quick Start:
   sase bead sync                                 Commit JSONL to git
   sase bead stats                                Project statistics
   sase bead doctor                               Health check
-  sase bead work <epic>                          Mark an epic-tier plan ready to work""")
+  sase bead work <epic-or-legend>                Launch epic phase agents or legend epic-planning agents""")

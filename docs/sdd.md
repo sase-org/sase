@@ -122,8 +122,8 @@ keeps the directories manageable as the number of prompts and plans grows over t
 supported for backwards compatibility — SDD also searches legacy `specs` and `plans` paths when resolving files.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
-the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead; epics linked under a legend
-also preserve that `legend_bead_id`.
+the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead and `epic_count` for the
+number of proposed epics; epics linked under a legend also preserve that `legend_bead_id`.
 
 After writing the plan, `sase plan` touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the
 `PLANNING` status immediately rather than waiting for the next auto-refresh tick. The pulse file is consumed by the
@@ -170,8 +170,8 @@ Plan-like beads carry a `tier` value:
 
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
 own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. Legend files
-carry `legend_bead_id` and `tier: legend`; linked epics also include `legend_bead_id`. For smaller plans, commit
-messages include a `PLAN=<path>` tag pointing back to the plan file.
+carry `legend_bead_id`, `tier: legend`, and `epic_count`; linked epics also include `legend_bead_id`. For smaller plans,
+commit messages include a `PLAN=<path>` tag pointing back to the plan file.
 
 Linked epics are created as ordinary plan beads with a legend parent:
 
@@ -179,7 +179,8 @@ Linked epics are created as ordinary plan beads with a legend parent:
 sase bead create --title "<title>" --type plan(sdd/epics/202605/example.md,<legend_bead_id>) --tier epic
 ```
 
-Legend beads are non-executable containers for now. `sase bead work <id>` accepts epic-tier plan beads, not legends.
+Legend beads are executable kickoff points for their proposed epics. `sase bead work <legend_bead_id>` launches one
+epic-planning agent per stored `epic_count`; it does not create phase beads directly.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
 workspaces can resolve. In version-controlled mode this is the project-relative `sdd/epics/{YYYYMM}/{name}.md` path. In
