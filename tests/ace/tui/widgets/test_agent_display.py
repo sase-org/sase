@@ -4,18 +4,26 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
+from rich.console import Group
+from rich.syntax import Syntax
+from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
-from sase.bead.model import BeadTier, Issue, IssueType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
+    AgentHintsDisplayMixin,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
     get_phase_label,
     render_phase_divider,
 )
+from sase.bead.model import BeadTier, Issue, IssueType
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -29,6 +37,102 @@ def _make_agent(**overrides: object) -> Agent:
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
+
+
+class _FakePromptPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
+    """Mixin-only test double recording ``self.update(...)`` calls."""
+
+    def __init__(self) -> None:
+        self.captured: list[object] = []
+
+    def update(self, renderable: object) -> None:
+        self.captured.append(renderable)
+
+
+def _plain_of(renderable: object) -> str:
+    """Flatten a prompt panel renderable into plain text for assertions."""
+    if isinstance(renderable, Text):
+        return renderable.plain
+    if isinstance(renderable, Syntax):
+        return str(renderable.code)
+    if isinstance(renderable, Group):
+        return "\n".join(_plain_of(child) for child in renderable.renderables)
+    return str(renderable)
+
+
+def _make_artifact_agent(
+    tmp_path: Path,
+    *,
+    status: str,
+    raw_xprompt: str = "Launch from @src/raw.py",
+    workspace_dir: str | None = None,
+) -> Agent:
+    artifacts_dir = tmp_path / f"{status.lower()}-artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "raw_xprompt.md").write_text(raw_xprompt, encoding="utf-8")
+    (artifacts_dir / "01_prompt.md").write_text(
+        "Expanded prompt body\n",
+        encoding="utf-8",
+    )
+    response_path = artifacts_dir / "response.md"
+    response_path.write_text("Final response body\n", encoding="utf-8")
+
+    return _make_agent(
+        status=status,
+        stop_time=datetime(2024, 1, 1, 14, 30, 0),
+        artifacts_dir=str(artifacts_dir),
+        response_path=str(response_path),
+        workspace_dir=workspace_dir,
+    )
+
+
+# -- xprompt rendering --------------------------------------------------------
+
+
+class TestAgentXPromptRendering:
+    def test_done_agent_renders_raw_xprompt(self, tmp_path: Path) -> None:
+        panel = _FakePromptPanel()
+        agent = _make_artifact_agent(tmp_path, status="DONE")
+
+        panel.update_display(agent)
+
+        plain = _plain_of(panel.captured[-1])
+        assert "AGENT XPROMPT" in plain
+        assert "Launch from @src/raw.py" in plain
+        assert "AGENT PROMPT" in plain
+        assert "AGENT CHAT" in plain
+
+    def test_failed_agent_renders_raw_xprompt(self, tmp_path: Path) -> None:
+        panel = _FakePromptPanel()
+        agent = _make_artifact_agent(tmp_path, status="FAILED")
+
+        panel.update_display(agent)
+
+        plain = _plain_of(panel.captured[-1])
+        assert "AGENT XPROMPT" in plain
+        assert "Launch from @src/raw.py" in plain
+        assert "AGENT PROMPT" in plain
+        assert "AGENT CHAT" in plain
+
+    def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        panel = _FakePromptPanel()
+        agent = _make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            workspace_dir=str(workspace_dir),
+        )
+
+        hint_mappings = panel.update_display_with_hints(agent)
+
+        plain = _plain_of(panel.captured[-1])
+        assert "AGENT XPROMPT" in plain
+        assert "[1] @src/raw.py" in plain
+        assert hint_mappings[1] == str(workspace_dir / "src/raw.py")
 
 
 # -- _get_phase_label ---------------------------------------------------------

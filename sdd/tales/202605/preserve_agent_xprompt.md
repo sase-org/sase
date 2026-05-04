@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 16:18:16
-status: wip
+status: done
 prompt: sdd/prompts/202605/preserve_agent_xprompt.md
 ---
 # Preserve AGENT XPROMPT After Agent Completion

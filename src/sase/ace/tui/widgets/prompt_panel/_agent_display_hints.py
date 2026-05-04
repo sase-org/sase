@@ -117,21 +117,20 @@ class AgentHintsDisplayMixin:
             )
 
         # AGENT XPROMPT section (with file path hints)
-        if agent.status not in ("DONE", "FAILED"):
-            raw_xprompt = agent.get_raw_xprompt_content()
-            if raw_xprompt:
-                header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
-                hint_counter = append_text_with_file_hints(
-                    header_text,
-                    raw_xprompt + "\n",
-                    hint_counter,
-                    hint_mappings,
-                    workspace_dir,
-                )
-                header_text.append("\n")
-                header_text.append("\u2500" * 50 + "\n", style="dim")
-                header_text.append("\n")
+        raw_xprompt = agent.get_raw_xprompt_content()
+        if raw_xprompt:
+            header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
+            header_text.append("\n")
+            hint_counter = append_text_with_file_hints(
+                header_text,
+                raw_xprompt + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+            header_text.append("\n")
+            header_text.append("\u2500" * 50 + "\n", style="dim")
+            header_text.append("\n")
 
         # AGENT PROMPT section (with file path hints, Text instead of Syntax)
         header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
