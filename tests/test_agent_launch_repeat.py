@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -107,14 +106,6 @@ def _fake_context() -> PromptContext:
     )
 
 
-def _join_threads() -> None:
-    """Wait for all non-main daemon threads to finish."""
-    for t in list(threading.enumerate()):
-        if t is threading.main_thread():
-            continue
-        t.join(timeout=5)
-
-
 class TestLaunchRepeatAgents:
     def test_spawns_n_agents_with_repeat_envs(self, tmp_path: Path) -> None:
         app = _FakeApp()
@@ -125,7 +116,6 @@ class TestLaunchRepeatAgents:
                 vcs_ref=None,
                 has_wait=False,
             )
-            _join_threads()
 
         assert len(app.launched) == 3
         names = [call["extra_env"]["SASE_REPEAT_NAME"] for call in app.launched]  # type: ignore[index]
@@ -150,7 +140,6 @@ class TestLaunchRepeatAgents:
                 vcs_ref=None,
                 has_wait=False,
             )
-            _join_threads()
 
         assert len(app.launched) == 2
         for idx, call in enumerate(app.launched, start=1):
@@ -190,7 +179,6 @@ class TestLaunchRepeatAgents:
                 vcs_ref=None,
                 has_wait=False,
             )
-            _join_threads()
 
         error_notifications = [
             msg for msg, severity in app.notifications if severity == "error"
