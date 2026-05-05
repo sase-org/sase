@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-05 13:06:04
+bead_id: sase-23.4
+tier: epic
+legend_bead_id: sase-23
 status: wip
 prompt: sdd/prompts/202605/artifacts_tui_panel.md
 ---
