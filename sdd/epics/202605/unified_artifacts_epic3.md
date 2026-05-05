@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-05 12:05:34
+bead_id: sase-23.3
+tier: epic
+legend_bead_id: sase-23
 legend: sdd/legends/202605/unified_artifacts.md
 epic: 3
 status: wip
