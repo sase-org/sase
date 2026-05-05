@@ -2,6 +2,9 @@
 create_time: 2026-05-05 08:32:38
 status: wip
 prompt: sdd/prompts/202605/unified_artifact_epic1.md
+bead_id: sase-23.1
+tier: epic
+legend_bead_id: sase-23
 ---
 # Plan: Unified Artifact Epic 1
 
