@@ -1,5 +1,6 @@
 """Tests for Lumberjack agent-chop dedup, registry, and chop-env behavior."""
 
+import os
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -50,9 +51,7 @@ def test_agent_chop_skips_when_already_running(
     # Simulate a still-alive PID
     lumberjack._agent_pids["my_agent"] = {99999}
 
-    with patch("os.kill") as mock_kill:
-        # os.kill(pid, 0) succeeds → process is alive
-        mock_kill.return_value = None
+    with patch("sase.axe.lumberjack.is_process_running", return_value=True):
         result = lumberjack._is_agent_eligible(config.chops[0])
 
     assert result is False
@@ -79,7 +78,7 @@ def test_agent_chop_launches_after_previous_completes(
     mock_proc.pid = 12345
 
     with (
-        patch("os.kill", side_effect=OSError("No such process")),
+        patch("sase.axe.lumberjack.is_process_running", return_value=False),
         patch(
             "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
         ) as mock_launch,
@@ -97,6 +96,56 @@ def test_agent_chop_launches_after_previous_completes(
     assert extra_env["SASE_CHOP_LUMBERJACK"] == "dedup2"
     assert extra_env["SASE_CHOP_NAME"] == "my_agent"
     assert extra_env["SASE_CHOP_RUN_ID"]
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_reaps_exited_in_memory_child_pid(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """An exited direct child PID is reaped and does not block relaunch."""
+    config = LumberjackConfig(
+        name="dedup_reap",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    lumberjack = Lumberjack("dedup_reap", config, axe_config)
+    lumberjack._agent_pids["my_agent"] = {12345}
+
+    with (
+        patch("os.waitpid", return_value=(12345, 0)) as mock_waitpid,
+        patch("sase.axe.lumberjack.is_process_running") as mock_is_running,
+    ):
+        assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+    mock_waitpid.assert_called_once_with(12345, os.WNOHANG)
+    mock_is_running.assert_not_called()
+    assert "my_agent" not in lumberjack._agent_pids
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_stale_in_memory_pid_does_not_block_when_not_reaped(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A stale non-child or zombie-like PID is pruned by the liveness check."""
+    config = LumberjackConfig(
+        name="dedup_stale_memory",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    lumberjack = Lumberjack("dedup_stale_memory", config, axe_config)
+    lumberjack._agent_pids["my_agent"] = {99999}
+
+    with (
+        patch("os.waitpid", side_effect=ChildProcessError()),
+        patch("sase.axe.lumberjack.is_process_running", return_value=False),
+    ):
+        assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+    assert "my_agent" not in lumberjack._agent_pids
 
 
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
@@ -404,6 +453,83 @@ def test_agent_chop_registry_prunes_dead_pid(
     lumberjack = Lumberjack("dedup_prune", config, axe_config)
     with patch("sase.axe.chop_agents.is_process_running", return_value=False):
         assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_completed_outer_pid_does_not_block_without_live_registry_record(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A completed outer workflow PID cannot block solely via memory fallback."""
+    from sase.axe.chop_agents import _record_chop_agent_launch
+
+    config = LumberjackConfig(
+        name="dedup_completed_outer",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    _record_chop_agent_launch(
+        lumberjack_name="dedup_completed_outer",
+        chop_name="my_agent",
+        run_id="outer-run",
+        pid=99999,
+        project_file="/tmp/projects/proj/proj.gp",
+        project_name="proj",
+        workspace_num=1,
+        workflow_name="ace(run)-260101_120000",
+        cl_name="proj",
+        timestamp="260101_120000",
+        prompt="some_agent",
+    )
+
+    lumberjack = Lumberjack("dedup_completed_outer", config, axe_config)
+    lumberjack._agent_pids["my_agent"] = {99999}
+    with (
+        patch("sase.axe.chop_agents.is_process_running", return_value=False),
+        patch("sase.axe.lumberjack.is_process_running", return_value=False),
+    ):
+        assert lumberjack._is_agent_eligible(config.chops[0]) is True
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_live_durable_child_record_blocks_relaunch(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A live child spawned under chop env still dedups the parent chop."""
+    from sase.axe.chop_agents import _record_chop_agent_launch, prompt_hash
+
+    config = LumberjackConfig(
+        name="dedup_live_child",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="pylimit_split",
+                description="",
+                agent="#!sase/pylimit_split %approve",
+            )
+        ],
+    )
+    _record_chop_agent_launch(
+        lumberjack_name="dedup_live_child",
+        chop_name="pylimit_split",
+        run_id="shared-run",
+        pid=88888,
+        project_file="/tmp/projects/proj/proj.gp",
+        project_name="proj",
+        workspace_num=2,
+        workflow_name="ace(run)-260101_120100",
+        cl_name="proj",
+        timestamp="260101_120100",
+        prompt="#sase/pysplit:src/sase/large_file.py",
+        prompt_hash_value=prompt_hash("#!sase/pylimit_split %approve"),
+    )
+
+    lumberjack = Lumberjack("dedup_live_child", config, axe_config)
+    with patch("sase.axe.chop_agents.is_process_running", return_value=True):
+        assert lumberjack._is_agent_eligible(config.chops[0]) is False
 
 
 @patch("sase.axe.lumberjack.run_chop_script")

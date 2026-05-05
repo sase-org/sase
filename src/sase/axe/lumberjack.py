@@ -19,6 +19,7 @@ from datetime import datetime
 import schedule
 from rich.console import Console
 
+from sase.ace.hooks.processes import is_process_running
 from sase.ace.query import parse_query
 from sase.core.time import get_timezone
 from sase.telemetry import init_telemetry, register_push_on_exit
@@ -337,14 +338,12 @@ class Lumberjack:
             )
             return False
 
+        self._reap_agent_pids(chop.name)
         live_pids = self._agent_pids.get(chop.name, set())
         still_alive: set[int] = set()
         for pid in live_pids:
-            try:
-                os.kill(pid, 0)
+            if is_process_running(pid):
                 still_alive.add(pid)
-            except OSError:
-                pass
         if still_alive:
             self._agent_pids[chop.name] = still_alive
             self._log(
@@ -353,6 +352,27 @@ class Lumberjack:
             return False
         self._agent_pids.pop(chop.name, None)
         return True
+
+    def _reap_agent_pids(self, chop_name: str) -> None:
+        """Reap exited direct child agent PIDs tracked by this lumberjack."""
+        pids = self._agent_pids.get(chop_name)
+        if not pids:
+            return
+
+        remaining: set[int] = set()
+        for pid in pids:
+            try:
+                reaped_pid, _status = os.waitpid(pid, os.WNOHANG)
+            except (ChildProcessError, OSError):
+                remaining.add(pid)
+                continue
+            if reaped_pid == 0:
+                remaining.add(pid)
+
+        if remaining:
+            self._agent_pids[chop_name] = remaining
+        else:
+            self._agent_pids.pop(chop_name, None)
 
     def _chop_launch_env(self, chop: ChopConfig) -> dict[str, str]:
         """Build env vars that identify a chop-launched workflow."""

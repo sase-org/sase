@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 15:26:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/pylimit_split_chop_stale_pid.md
 ---
 # Plan: Fix stale PID dedup for `sase_pylimit_split` agent chops
