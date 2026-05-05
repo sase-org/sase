@@ -32,12 +32,14 @@ def _wait(predicate: Callable[[], bool], timeout: float = 2.0) -> bool:
 def test_watcher_dispatches_on_file_create(tmp_path: Path) -> None:
     """A new file inside a watched dir wakes the callback."""
     fired = threading.Event()
+    changed: list[tuple[Path, ...]] = []
 
     def schedule(cb: Callable[[], None]) -> None:
         # Run the dispatcher inline — simulates Textual's call_from_thread
         cb()
 
-    def on_change() -> None:
+    def on_change(paths: tuple[Path, ...]) -> None:
+        changed.append(paths)
         fired.set()
 
     watcher = ArtifactWatcher(
@@ -50,6 +52,38 @@ def test_watcher_dispatches_on_file_create(tmp_path: Path) -> None:
     try:
         (tmp_path / "new_file.json").write_text("{}")
         assert _wait(fired.is_set, timeout=3.0)
+        assert any(tmp_path / "new_file.json" in paths for paths in changed)
+    finally:
+        watcher.stop()
+
+
+@_LINUX_ONLY
+def test_watcher_dispatches_on_nested_marker_write(tmp_path: Path) -> None:
+    """Existing agent marker directories are watched recursively."""
+    fired = threading.Event()
+    changed: list[tuple[Path, ...]] = []
+    marker_dir = tmp_path / "proj" / "artifacts" / "ace-run" / "20260505120000"
+    marker_dir.mkdir(parents=True)
+    marker_path = marker_dir / "agent_meta.json"
+
+    def schedule(cb: Callable[[], None]) -> None:
+        cb()
+
+    def on_change(paths: tuple[Path, ...]) -> None:
+        changed.append(paths)
+        fired.set()
+
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=on_change,
+        schedule_callback=schedule,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    try:
+        marker_path.write_text("{}")
+        assert _wait(fired.is_set, timeout=3.0)
+        assert any(marker_path in paths for paths in changed)
     finally:
         watcher.stop()
 

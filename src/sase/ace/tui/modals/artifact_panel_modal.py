@@ -39,11 +39,9 @@ ArtifactShowFunc = Callable[[Path | str, str], ArtifactDetailWire]
 ArtifactGraphFunc = Callable[[Path | str, ArtifactGraphOptionsWire], ArtifactGraphWire]
 ArtifactExportFunc = Callable[[Path | str, ArtifactGraphOptionsWire, str], str]
 ArtifactDetailRenderer = Callable[[ArtifactDetailWire], RenderableType]
-
-
-def _default_artifact_index_path() -> Path:
-    """Return the default unified artifact SQLite index path."""
-    return Path.home() / ".sase" / "artifacts.sqlite"
+ArtifactRefreshFunc = Callable[
+    [Path | str, str, Path | str | None, Path | str | None], None
+]
 
 
 class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
@@ -76,15 +74,26 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         graph_func: ArtifactGraphFunc | None = None,
         export_func: ArtifactExportFunc | None = None,
         detail_renderer: ArtifactDetailRenderer | None = None,
+        refresh_missing_func: ArtifactRefreshFunc | None = None,
+        context_path: Path | str | None = None,
+        artifact_dir: Path | str | None = None,
     ) -> None:
         super().__init__()
         self._artifact_id = artifact_id
         self._state = ArtifactPanelNavigationState(current_id=artifact_id)
-        self._index_path = index_path or _default_artifact_index_path()
+        if index_path is None:
+            from ..artifact_graph_refresh import default_artifact_index_path
+
+            index_path = default_artifact_index_path()
+        self._index_path = index_path
         self._show_func = show_func
         self._graph_func = graph_func
         self._export_func = export_func
         self._detail_renderer = detail_renderer
+        self._refresh_missing_func = refresh_missing_func
+        self._context_path = context_path
+        self._context_artifact_dir = artifact_dir
+        self._missing_refresh_attempted: set[str] = set()
         self._detail: ArtifactDetailWire | None = None
         self._error_message: str | None = None
         self._load_worker: Worker[ArtifactDetailWire] | None = None
@@ -135,6 +144,36 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             from sase.core.artifact_facade import artifact_show
 
             show_func = artifact_show
+        detail = show_func(self._index_path, artifact_id)
+        if detail.node is not None or artifact_id in self._missing_refresh_attempted:
+            return detail
+
+        self._missing_refresh_attempted.add(artifact_id)
+        refresh_func = self._refresh_missing_func
+        if refresh_func is None:
+            from ..artifact_graph_refresh import (
+                refresh_artifact_graph_for_missing_artifact,
+            )
+
+            def refresh_func(
+                index_path: Path | str,
+                artifact_id: str,
+                context_path: Path | str | None,
+                artifact_dir: Path | str | None,
+            ) -> None:
+                refresh_artifact_graph_for_missing_artifact(
+                    index_path,
+                    artifact_id,
+                    context_path=context_path,
+                    artifact_dir=artifact_dir,
+                )
+
+        refresh_func(
+            self._index_path,
+            artifact_id,
+            self._context_path,
+            self._context_artifact_dir,
+        )
         return show_func(self._index_path, artifact_id)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:

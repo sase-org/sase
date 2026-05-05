@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -123,6 +124,29 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app._dirty_agents is True
     assert app._dirty_axe is True
     # Existing scheduling behavior preserved.
+    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
+
+
+def test_artifact_change_runs_targeted_graph_refresh(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Source-change events update the unified graph before UI reloads."""
+    app = _FakeApp(watcher_active=True)
+    changed = (tmp_path / "proj.gp",)
+    refresh_calls: list[tuple[str, tuple[Path, ...]]] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_graph_refresh.default_artifact_index_path",
+        lambda: Path("/tmp/artifacts.sqlite"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_graph_refresh.refresh_artifact_graph_for_paths",
+        lambda index_path, paths: refresh_calls.append((str(index_path), paths)),
+    )
+
+    app._on_artifact_change(changed)
+
+    assert refresh_calls == [("/tmp/artifacts.sqlite", changed)]
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
 

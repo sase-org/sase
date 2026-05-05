@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import inspect
 import logging
 import os
 import select
@@ -40,6 +41,7 @@ _IN_MOVED_FROM = 0x00000040
 _IN_MOVED_TO = 0x00000080
 _IN_CREATE = 0x00000100
 _IN_DELETE = 0x00000200
+_IN_ISDIR = 0x40000000
 
 DEFAULT_EVENT_MASK = (
     _IN_MODIFY
@@ -95,7 +97,7 @@ class ArtifactWatcher:
     def __init__(
         self,
         paths: Iterable[Path | str],
-        on_change: Callable[[], None],
+        on_change: Callable[..., None],
         schedule_callback: Callable[[Callable[[], None]], object],
         *,
         mask: int = DEFAULT_EVENT_MASK,
@@ -103,13 +105,16 @@ class ArtifactWatcher:
     ) -> None:
         self._paths: list[Path] = [Path(p) for p in paths]
         self._on_change = on_change
+        self._on_change_accepts_paths = _callback_accepts_positional(on_change)
         self._schedule_callback = schedule_callback
         self._mask = mask
         self._coalesce_s = coalesce_s
         self._fd: int = -1
+        self._watch_paths_by_wd: dict[int, Path] = {}
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._last_event_mono: float = 0.0
+        self._pending_paths: set[Path] = set()
         self._lock = threading.Lock()
 
     def start(self) -> bool:
@@ -131,17 +136,7 @@ class ArtifactWatcher:
             return False
         installed = 0
         for path in self._paths:
-            try:
-                if not path.exists():
-                    continue
-            except OSError:
-                continue
-            wd = libc.inotify_add_watch(fd, str(path).encode("utf-8"), self._mask)
-            if wd < 0:
-                err = ctypes.get_errno()
-                log.debug("inotify_add_watch(%s) failed: errno=%d", path, err)
-                continue
-            installed += 1
+            installed += self._add_watch_tree(libc, fd, path)
         if installed == 0:
             try:
                 os.close(fd)
@@ -173,6 +168,7 @@ class ArtifactWatcher:
         if thread is not None:
             thread.join(timeout=1.0)
             self._thread = None
+        self._watch_paths_by_wd.clear()
 
     def _loop(self) -> None:
         """Worker loop: read events, coalesce, dispatch to UI."""
@@ -199,23 +195,67 @@ class ArtifactWatcher:
                 data = os.read(fd, 4096)
             except (BlockingIOError, OSError):
                 continue
-            if not self._has_relevant_event(data):
+            changed_paths = self._collect_relevant_events(data)
+            if not changed_paths:
                 continue
             with self._lock:
                 self._last_event_mono = time.monotonic()
+                self._pending_paths.update(changed_paths)
             self._maybe_flush()
 
-    def _has_relevant_event(self, data: bytes) -> bool:
+    def _add_watch_tree(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
+        """Install watches for ``path`` and existing descendants."""
+
+        try:
+            if not path.exists():
+                return 0
+        except OSError:
+            return 0
+
+        paths = [path]
+        if path.is_dir():
+            try:
+                paths.extend(child for child in path.rglob("*") if child.is_dir())
+            except OSError:
+                pass
+
+        installed = 0
+        for watch_path in paths:
+            wd = libc.inotify_add_watch(fd, str(watch_path).encode("utf-8"), self._mask)
+            if wd < 0:
+                err = ctypes.get_errno()
+                log.debug("inotify_add_watch(%s) failed: errno=%d", watch_path, err)
+                continue
+            self._watch_paths_by_wd[wd] = watch_path
+            installed += 1
+        return installed
+
+    def _collect_relevant_events(self, data: bytes) -> set[Path]:
         offset = 0
-        saw = False
+        paths: set[Path] = set()
+        libc = _libc()
         while offset + _EVENT_HEADER_SIZE <= len(data):
-            unpacked = _EVENT_HEADER.unpack_from(data, offset)
-            mask = unpacked[1]
-            name_len = unpacked[3]
-            offset += _EVENT_HEADER_SIZE + name_len
+            wd, mask, _, name_len = _EVENT_HEADER.unpack_from(data, offset)
+            offset += _EVENT_HEADER_SIZE
+            raw_name = data[offset : offset + name_len].split(b"\0", 1)[0]
+            offset += name_len
             if mask & self._mask:
-                saw = True
-        return saw
+                base_path = self._watch_paths_by_wd.get(wd)
+                if base_path is None:
+                    continue
+                try:
+                    name = raw_name.decode("utf-8", errors="replace")
+                except UnicodeDecodeError:
+                    name = ""
+                event_path = base_path / name if name else base_path
+                paths.add(event_path)
+                if (
+                    libc is not None
+                    and mask & _IN_ISDIR
+                    and mask & (_IN_CREATE | _IN_MOVED_TO)
+                ):
+                    self._add_watch_tree(libc, self._fd, event_path)
+        return paths
 
     def _maybe_flush(self) -> None:
         """Dispatch coalesced events to the UI thread once idle."""
@@ -232,13 +272,41 @@ class ArtifactWatcher:
             if self._last_event_mono == 0.0:
                 return
             self._last_event_mono = 0.0
+            changed_paths = tuple(sorted(self._pending_paths))
+            self._pending_paths.clear()
         if self._stop_event.is_set():
             return
         try:
-            self._schedule_callback(self._on_change)
+
+            def dispatch() -> None:
+                self._dispatch_change(changed_paths)
+
+            self._schedule_callback(dispatch)
         except RuntimeError:
             # Textual rejects ``call_from_thread`` after the app exits;
             # treat that as a clean shutdown signal.
             self._stop_event.set()
         except Exception:
             log.exception("artifact watcher callback dispatch failed")
+
+    def _dispatch_change(self, changed_paths: tuple[Path, ...]) -> None:
+        if self._on_change_accepts_paths:
+            self._on_change(changed_paths)
+        else:
+            self._on_change()
+
+
+def _callback_accepts_positional(callback: Callable[..., object]) -> bool:
+    try:
+        signature = inspect.signature(callback)
+    except (TypeError, ValueError):
+        return False
+    for parameter in signature.parameters.values():
+        if parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+            return True
+        if parameter.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            return True
+    return False

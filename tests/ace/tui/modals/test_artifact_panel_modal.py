@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 import threading
 from time import perf_counter
 from typing import Any
@@ -64,6 +65,10 @@ def _detail(
         inbound_links=inbound_links or [],
         path_to_root=path_to_root or [],
     )
+
+
+def _missing_detail() -> ArtifactDetailWire:
+    return ArtifactDetailWire(schema_version=ARTIFACT_WIRE_SCHEMA_VERSION, node=None)
 
 
 class _LargeFakeArtifactGraph:
@@ -231,6 +236,62 @@ async def test_row_navigation_does_not_requery_and_open_selected_queries_once() 
         await pilot.pause()
 
     assert graph.show_calls == ["changespec:current", "agent:0"]
+
+
+@pytest.mark.asyncio
+async def test_missing_start_artifact_rebuilds_context_and_retries_once(
+    tmp_path: Path,
+) -> None:
+    show_calls: list[str] = []
+    refresh_calls: list[tuple[str, str, str | None, str | None]] = []
+    context_path = tmp_path / "project.gp"
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        show_calls.append(artifact_id)
+        if len(show_calls) == 1:
+            return _missing_detail()
+        return _detail(artifact_id, kind="changespec")
+
+    def fake_refresh(
+        index_path: str | Any,
+        artifact_id: str,
+        ctx_path: str | Any | None,
+        artifact_dir: str | Any | None,
+    ) -> None:
+        refresh_calls.append(
+            (
+                str(index_path),
+                artifact_id,
+                str(ctx_path) if ctx_path is not None else None,
+                str(artifact_dir) if artifact_dir is not None else None,
+            )
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:current",
+        index_path="/tmp/artifacts.sqlite",
+        show_func=fake_show,
+        refresh_missing_func=fake_refresh,
+        context_path=context_path,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+    assert show_calls == ["changespec:current", "changespec:current"]
+    assert refresh_calls == [
+        (
+            "/tmp/artifacts.sqlite",
+            "changespec:current",
+            str(context_path),
+            None,
+        )
+    ]
+    assert modal._detail is not None
+    assert modal._detail.node is not None
 
 
 @pytest.mark.asyncio

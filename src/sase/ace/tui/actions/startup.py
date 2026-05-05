@@ -293,6 +293,9 @@ class StartupMixin(StateInitMixin):
             # Project files (.gp) live directly in ``project_dir``;
             # watching the dir picks up RUNNING-field updates.
             watch_paths.append(project_dir)
+        beads_dir = Path.cwd() / "sdd" / "beads"
+        if beads_dir.is_dir():
+            watch_paths.append(beads_dir)
         if not watch_paths:
             return
         watcher = ArtifactWatcher(

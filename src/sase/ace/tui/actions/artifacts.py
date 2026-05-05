@@ -64,6 +64,28 @@ class ArtifactsMixin:
 
         return None
 
+    def _artifact_panel_context(self) -> tuple[Path | None, Path | None]:
+        """Return source context for a targeted graph refresh on panel open."""
+        if self.current_tab == "changespecs":
+            if not self.changespecs:
+                return None, None
+            if not 0 <= self.current_idx < len(self.changespecs):
+                return None, None
+            file_path = getattr(self.changespecs[self.current_idx], "file_path", None)
+            if isinstance(file_path, str | Path) and file_path:
+                return Path(file_path).expanduser(), None
+            return None, None
+
+        if self.current_tab == "agents":
+            agents = getattr(self, "_agents", [])
+            if not 0 <= self.current_idx < len(agents):
+                return None, None
+            agent = agents[self.current_idx]
+            artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+            return None, Path(artifacts_dir).expanduser() if artifacts_dir else None
+
+        return None, None
+
     def action_open_artifacts_panel(self) -> None:
         """Open the unified artifacts modal from the current tab context."""
         artifact_id = self._artifact_panel_start_id()
@@ -77,4 +99,11 @@ class ArtifactsMixin:
 
         from ..modals import ArtifactPanelModal
 
-        self.push_screen(ArtifactPanelModal(artifact_id=artifact_id))  # type: ignore[attr-defined]
+        context_path, artifact_dir = self._artifact_panel_context()
+        self.push_screen(  # type: ignore[attr-defined]
+            ArtifactPanelModal(
+                artifact_id=artifact_id,
+                context_path=context_path,
+                artifact_dir=artifact_dir,
+            )
+        )

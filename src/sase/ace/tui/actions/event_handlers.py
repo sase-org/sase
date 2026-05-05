@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import time
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from textual import events
@@ -24,6 +26,7 @@ from ..widgets import (
 # net for missed events (NFS, container bind-mount edge cases, etc.).
 FULL_SANITY_REFRESH_SECONDS = 60.0
 PROMPT_INPUT_DEFER_SECONDS = 0.25
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from textual.widgets import Input
@@ -110,7 +113,9 @@ class EventHandlersMixin:
 
         return bool(query(PromptInputBar))
 
-    def _on_artifact_change(self) -> None:
+    def _on_artifact_change(
+        self, changed_paths: tuple[Path, ...] | None = None
+    ) -> None:
         """Inotify dispatch: schedule a reconcile when the user is idle.
 
         Called on the UI thread by :class:`ArtifactWatcher` after coalescing
@@ -124,8 +129,17 @@ class EventHandlersMixin:
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._on_artifact_change)  # type: ignore[attr-defined]
+            callback = (
+                self._on_artifact_change
+                if changed_paths is None
+                else lambda: self._on_artifact_change(changed_paths)
+            )
+            self.set_timer(  # type: ignore[attr-defined]
+                delay,
+                callback,
+            )
             return
+        self._schedule_artifact_graph_refresh(changed_paths)
         # The watcher cannot currently distinguish per-surface events
         # (artifacts vs project files vs axe state) without a deeper
         # rework of ``ArtifactWatcher``; mark every surface dirty so the
@@ -134,6 +148,9 @@ class EventHandlersMixin:
         self._dirty_agents = True
         self._dirty_axe = True
         if self._prompt_input_active():
+            pending = set(getattr(self, "_artifact_change_deferred_paths", ()))
+            pending.update(changed_paths or ())
+            self._artifact_change_deferred_paths = tuple(sorted(pending))
             if not self._artifact_change_defer_pending:
                 self._artifact_change_defer_pending = True
                 self.set_timer(  # type: ignore[attr-defined]
@@ -148,6 +165,38 @@ class EventHandlersMixin:
         self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
 
+    def _schedule_artifact_graph_refresh(
+        self, changed_paths: tuple[Path, ...] | None
+    ) -> None:
+        """Refresh unified graph rows for explicit source changes.
+
+        The compatibility agent list index remains an implementation detail for
+        startup, while source-change events update the unified graph directly.
+        Pure selection/highlight movement never calls this path.
+        """
+
+        if not changed_paths:
+            return
+
+        def _refresh() -> None:
+            from ..artifact_graph_refresh import (
+                default_artifact_index_path,
+                refresh_artifact_graph_for_paths,
+            )
+
+            try:
+                refresh_artifact_graph_for_paths(
+                    default_artifact_index_path(), changed_paths
+                )
+            except Exception:
+                log.debug("targeted artifact graph refresh failed", exc_info=True)
+
+        run_worker = getattr(self, "run_worker", None)
+        if callable(run_worker):
+            run_worker(_refresh, thread=True, exclusive=False, group="artifact-graph")
+        else:
+            _refresh()
+
     def _on_artifact_change_deferred(self) -> None:
         """Timer-fired wrapper that clears the dedup flag before reentering.
 
@@ -157,7 +206,9 @@ class EventHandlersMixin:
         scheduling and firing collapse into the existing pending timer.
         """
         self._artifact_change_defer_pending = False
-        self._on_artifact_change()
+        changed_paths = getattr(self, "_artifact_change_deferred_paths", ())
+        self._artifact_change_deferred_paths = ()
+        self._on_artifact_change(changed_paths or None)
 
     def _watcher_active(self) -> bool:
         """Return True when the inotify watcher is currently driving refreshes."""

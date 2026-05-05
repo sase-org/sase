@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -128,6 +129,18 @@ def test_open_artifacts_panel_uses_current_changespec_id() -> None:
     assert modal._artifact_id == "beta"
 
 
+def test_open_artifacts_panel_passes_changespec_file_context() -> None:
+    cs = _make_cs("alpha")
+    cs.file_path = "/home/me/.sase/projects/proj/proj.gp"
+    app = _FakeApp(changespecs=[cs])
+
+    app.action_open_artifacts_panel()
+
+    assert app.pushed_modals[0]._context_path == Path(
+        "/home/me/.sase/projects/proj/proj.gp"
+    )
+
+
 def test_open_artifacts_panel_uses_selected_agent_name() -> None:
     app = _FakeApp(
         agents=[_make_agent(agent_name="named-agent")],
@@ -137,6 +150,18 @@ def test_open_artifacts_panel_uses_selected_agent_name() -> None:
     app.action_open_artifacts_panel()
 
     assert app.pushed_modals[0]._artifact_id == "named-agent"
+
+
+def test_open_artifacts_panel_passes_agent_artifact_dir_context() -> None:
+    artifact_dir = "/home/me/.sase/projects/proj/artifacts/codex/260505_120000"
+    app = _FakeApp(
+        agents=[_make_agent(agent_name="named-agent", artifacts_dir=artifact_dir)],
+        current_tab="agents",
+    )
+
+    app.action_open_artifacts_panel()
+
+    assert app.pushed_modals[0]._context_artifact_dir == Path(artifact_dir)
 
 
 def test_open_artifacts_panel_uses_legacy_agent_fallback_id() -> None:
