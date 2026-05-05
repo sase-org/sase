@@ -14,7 +14,10 @@ import pytest
 from sase.core.artifact_wire import (
     ARTIFACT_ROOT_ID,
     ARTIFACT_WIRE_SCHEMA_VERSION,
+    ArtifactDetailWire,
+    ArtifactDoctorIssueWire,
     ArtifactDoctorOptionsWire,
+    ArtifactDoctorWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
     ArtifactLinkRemoveWire,
@@ -171,6 +174,39 @@ def test_list_json_calls_facade_with_query(
     assert payload[0]["id"] == "file:/tmp/a.py"
 
 
+def test_list_human_outputs_compact_table(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    node = ArtifactNodeWire(
+        id="file:/tmp/a.py",
+        kind="file",
+        display_title="a.py",
+        provenance="derived",
+        source_kind="directory",
+        source_id="/tmp",
+        updated_at="2026-05-05T12:00:00Z",
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_list",
+        Mock(return_value=[node]),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "list", "-i", str(tmp_path / "graph.sqlite")]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "KIND" in output
+    assert "file:/tmp/a.py" in output
+    assert "directory:/tmp" in output
+
+
 def test_show_json_calls_facade(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -198,6 +234,74 @@ def test_show_json_calls_facade(
     assert exc_info.value.code == 0
     mock_show.assert_called_once_with(tmp_path / "graph.sqlite", "x")
     assert json.loads(capsys.readouterr().out)["schema_version"] == 1
+
+
+def test_show_human_outputs_detail_sections(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    node = ArtifactNodeWire(
+        id="note:1",
+        kind="note",
+        display_title="Design note",
+        provenance="manual",
+        updated_at="2026-05-05T12:00:00Z",
+    )
+    detail = ArtifactDetailWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=node,
+        payloads=[
+            ArtifactPayloadWire(
+                artifact_id="note:1",
+                payload_type="summary",
+                payload={"body": "hello"},
+            )
+        ],
+        outbound_links=[
+            ArtifactLinkWire(
+                id="link-1",
+                link_type="related",
+                source_id="note:1",
+                target_id="note:2",
+            )
+        ],
+        inbound_links=[],
+        children=[ArtifactNodeWire(id="note:1.1", kind="note", display_title="Child")],
+        path_to_root=[
+            ArtifactNodeWire(id="/", kind="root", display_title="/"),
+            node,
+        ],
+        diagnostics=[
+            ArtifactDoctorIssueWire(
+                issue_type="dangling_link",
+                severity="warning",
+                artifact_id="note:1",
+                message="example diagnostic",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_show",
+        Mock(return_value=detail),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "show", "-i", str(tmp_path / "graph.sqlite"), "-a", "note:1"]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "Artifact: Design note" in output
+    assert "Path to root:" in output
+    assert "/ -> note:1" in output
+    assert "Children:" in output
+    assert "related:" in output
+    assert "object keys: body" in output
+    assert "example diagnostic" in output
 
 
 def test_graph_json_calls_facade_with_options(
@@ -433,6 +537,46 @@ def test_rebuild_json_calls_facade_with_request(
     assert json.loads(capsys.readouterr().out)["operation"] == "rebuild"
 
 
+def test_rebuild_human_outputs_mutation_counts_and_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    result = ArtifactMutationResultWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        operation="rebuild",
+        nodes_added=2,
+        links_updated=1,
+        tombstones_added=1,
+        affected_node_ids=["note:1"],
+        errors=["skipped unreadable source"],
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_rebuild_request",
+        Mock(return_value=ArtifactRebuildRequestWire()),
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_rebuild",
+        Mock(return_value=result),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "rebuild", "-i", str(tmp_path / "graph.sqlite")]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "operation: rebuild" in output
+    assert "nodes +2 ~0 -0" in output
+    assert "tombstones +1" in output
+    assert "affected nodes: note:1" in output
+    assert "skipped unreadable source" in output
+
+
 def test_doctor_json_calls_facade(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -456,6 +600,77 @@ def test_doctor_json_calls_facade(
         ArtifactDoctorOptionsWire(),
     )
     assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
+def test_doctor_human_exits_nonzero_when_issues_returned(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    doctor = ArtifactDoctorWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        ok=False,
+        issues=[
+            ArtifactDoctorIssueWire(
+                issue_type="dangling_link",
+                severity="error",
+                artifact_id="note:1",
+                link_id="link-1",
+                message="link target is missing",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_doctor",
+        Mock(return_value=doctor),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "doctor", "-i", str(tmp_path / "graph.sqlite")]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 1
+    output = capsys.readouterr().out
+    assert "status: FAIL" in output
+    assert "dangling_link" in output
+    assert "link target is missing" in output
+
+
+def test_doctor_json_exits_nonzero_when_issues_returned(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    doctor = ArtifactDoctorWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        ok=False,
+        issues=[
+            ArtifactDoctorIssueWire(
+                issue_type="missing_root",
+                severity="error",
+                message="root is missing",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_doctor",
+        Mock(return_value=doctor),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "doctor", "-j", "-i", str(tmp_path / "graph.sqlite")]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 1
+    assert json.loads(capsys.readouterr().out)["issues"][0]["issue_type"] == (
+        "missing_root"
+    )
 
 
 def test_add_json_builds_node_upsert_request(
@@ -765,13 +980,21 @@ def test_remove_rejects_incomplete_link_tuple(
     assert "link tuple removal requires" in capsys.readouterr().err
 
 
-def test_non_json_read_only_command_reports_json_requirement(
+def test_facade_exception_reports_to_stderr_only(
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_list",
+        Mock(side_effect=RuntimeError("index is unreadable")),
+    )
     args = create_parser().parse_args(["artifact", "list"])
 
     with pytest.raises(SystemExit) as exc_info:
         artifact_handler.handle_artifact_command(args)
 
     assert exc_info.value.code == 1
-    assert "use `sase artifact list -j`" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "index is unreadable" in captured.err
