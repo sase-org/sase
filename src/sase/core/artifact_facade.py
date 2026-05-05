@@ -13,6 +13,7 @@ from typing import Any
 
 from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
+    ARTIFACT_STALE_CLEANUP_NONE,
     ArtifactDoctorOptionsWire,
     ArtifactDoctorWire,
     ArtifactDetailWire,
@@ -173,3 +174,59 @@ def artifact_node_upsert_request(
         node=node,
         replace_payloads=replace_payloads,
     )
+
+
+def artifact_rebuild_request(
+    *,
+    projects_root: Path | str | None = None,
+    workspace_root: Path | str | None = None,
+    beads_dir: Path | str | None = None,
+    include_sources: tuple[str, ...] = (),
+    exclude_sources: tuple[str, ...] = (),
+    target_path: Path | str | None = None,
+    artifact_dir: Path | str | None = None,
+    stale_cleanup: str = ARTIFACT_STALE_CLEANUP_NONE,
+) -> ArtifactRebuildRequestWire:
+    """Build a schema-versioned artifact rebuild request."""
+    return ArtifactRebuildRequestWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        projects_root=_optional_path_str(projects_root),
+        workspace_root=_optional_path_str(workspace_root),
+        beads_dir=_optional_path_str(beads_dir),
+        include_sources=tuple(include_sources),
+        exclude_sources=tuple(exclude_sources),
+        target_path=_optional_path_str(target_path),
+        artifact_dir=_optional_path_str(artifact_dir),
+        stale_cleanup=stale_cleanup,
+    )
+
+
+def artifact_path_upsert_request(
+    *,
+    kind: str | None = None,
+    display_title: str | None = None,
+    subtitle: str | None = None,
+    provenance: str | None = None,
+    source_kind: str | None = None,
+    source_id: str | None = None,
+    source_version: str | None = None,
+    search_text: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> ArtifactPathUpsertRequestWire:
+    """Build a schema-versioned path upsert request."""
+    return ArtifactPathUpsertRequestWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        kind=kind,
+        display_title=display_title,
+        subtitle=subtitle,
+        provenance=provenance,
+        source_kind=source_kind,
+        source_id=source_id,
+        source_version=source_version,
+        search_text=search_text,
+        metadata=metadata,
+    )
+
+
+def _optional_path_str(path: Path | str | None) -> str | None:
+    return None if path is None else _path_str(path)

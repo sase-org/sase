@@ -182,6 +182,36 @@ def test_rebuild_and_path_upsert_request_shapes_keep_defaults() -> None:
     }
 
 
+def test_facade_request_helpers_surface_typed_incremental_fields() -> None:
+    rebuild = artifact_facade.artifact_rebuild_request(
+        projects_root=Path("/tmp/projects"),
+        target_path=Path("/tmp/projects/acme/acme.gp"),
+        include_sources=("project_file", "changespec", "commit"),
+        stale_cleanup="mark",
+    )
+    assert artifact_rebuild_request_to_dict(rebuild) == {
+        "schema_version": 1,
+        "projects_root": "/tmp/projects",
+        "workspace_root": None,
+        "beads_dir": None,
+        "include_sources": ["project_file", "changespec", "commit"],
+        "exclude_sources": [],
+        "target_path": "/tmp/projects/acme/acme.gp",
+        "artifact_dir": None,
+        "stale_cleanup": "mark",
+    }
+
+    path_request = artifact_facade.artifact_path_upsert_request(
+        provenance=ARTIFACT_PROVENANCE_DERIVED,
+        source_kind=ARTIFACT_SOURCE_DIRECTORY,
+        source_id="/tmp/example.md",
+        metadata={"reason": "watcher"},
+    )
+    assert artifact_path_upsert_request_to_dict(path_request)["metadata"] == {
+        "reason": "watcher"
+    }
+
+
 def test_root_node_shape_matches_rust_helper() -> None:
     assert artifact_wire_to_json_dict(artifact_root_node()) == {
         "id": "/",
