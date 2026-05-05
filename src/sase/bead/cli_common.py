@@ -132,6 +132,43 @@ def normalize_workspace_path(resolved: Path) -> Path:
     return resolved
 
 
+def storage_plan_path(resolved: Path) -> str:
+    """Return the plan path representation to persist on a bead.
+
+    Workspace-local plan paths are stored relative to the effective project
+    root. External paths remain absolute after workspace-prefix normalization.
+    """
+    normalized = normalize_workspace_path(resolved)
+
+    for root in _storage_relative_roots():
+        try:
+            return str(normalized.relative_to(root))
+        except ValueError:
+            continue
+
+    return str(normalized)
+
+
+def _storage_relative_roots() -> list[Path]:
+    """Trusted roots that can produce stable storage-relative plan paths."""
+    from sase.bead.workspace import resolve_primary_workspace
+
+    roots: list[Path] = []
+    primary = resolve_primary_workspace()
+    if primary:
+        roots.append(primary.resolve())
+        return roots
+
+    root, _beads_dirname = find_beads_location()
+    roots.append(root.resolve())
+
+    cwd = Path.cwd().resolve()
+    if cwd not in roots:
+        roots.append(cwd)
+
+    return roots
+
+
 def status_icon(status: Status) -> str:
     return {"open": "○", "in_progress": "◐", "closed": "✓"}[status.value]
 

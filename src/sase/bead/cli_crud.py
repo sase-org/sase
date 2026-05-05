@@ -11,7 +11,7 @@ from sase.bead.cli_common import (
     find_beads_location,
     get_project,
     init_beads,
-    normalize_workspace_path,
+    storage_plan_path,
 )
 from sase.bead.model import BeadTier, IssueType
 
@@ -93,7 +93,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         if not plan_file.exists():
             print(f"Error: plan file not found: {plan_path}", file=sys.stderr)
             sys.exit(1)
-        design = str(normalize_workspace_path(plan_file.resolve()))
+        design = storage_plan_path(plan_file.resolve())
 
     with get_project() as proj:
         if parent_id:

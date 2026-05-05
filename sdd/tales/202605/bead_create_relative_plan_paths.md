@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 08:39:07
-status: wip
+status: done
 prompt: sdd/prompts/202605/bead_create_relative_plan_paths.md
 ---
 # Bead Create Relative Plan Paths

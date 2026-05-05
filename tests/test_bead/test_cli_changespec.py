@@ -59,8 +59,62 @@ def test_create_plan_accepts_changespec_and_bug(
 
     with BeadProject(project_dir) as proj:
         issue = proj.list_issues()[0]
+        assert issue.design == "plan.md"
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
+    assert "Created plan" in capsys.readouterr().out
+
+
+def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary = tmp_path / "workspaces" / "sase"
+    sibling = tmp_path / "workspaces" / "sase_101"
+    plan = sibling / "sdd" / "legends" / "202605" / "roadmap.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Roadmap\n")
+    with BeadProject.init(primary):
+        pass
+    monkeypatch.chdir(sibling)
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace", lambda: primary
+    )
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: True)
+    args = _create_args(title="Legend", type_value=f"plan({plan})", tier="legend")
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(primary) as proj:
+        issue = proj.list_issues()[0]
+        assert issue.design == "sdd/legends/202605/roadmap.md"
+    assert "Created plan" in capsys.readouterr().out
+
+
+def test_create_plan_preserves_external_absolute_plan_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary = tmp_path / "workspaces" / "sase"
+    external = tmp_path / "external" / "roadmap.md"
+    external.parent.mkdir()
+    external.write_text("# Roadmap\n")
+    with BeadProject.init(primary):
+        pass
+    monkeypatch.chdir(primary)
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace", lambda: primary
+    )
+    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: True)
+    args = _create_args(title="Legend", type_value=f"plan({external})", tier="legend")
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(primary) as proj:
+        issue = proj.list_issues()[0]
+        assert issue.design == str(external.resolve())
     assert "Created plan" in capsys.readouterr().out
 
 
