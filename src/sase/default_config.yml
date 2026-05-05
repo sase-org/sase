@@ -413,7 +413,7 @@ xprompts:
       particular, what design decisions would you need from me if I were to ask you to implement the functionality described
       by that prompt?
 
-      ### THE PROMPT
+      ## THE PROMPT
       {{ prompt }}
   research/image: |
     Can you use GPT image to generate an infographic that illustrates the main points made in this research markdown
