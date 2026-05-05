@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList
+from textual.widgets import Input, OptionList, Static
 
 from sase.ace.tui.actions.artifacts import ArtifactsMixin
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.modals.agent_run_log_modal import AgentRunLogModal
 from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
 from sase.ace.tui.modals.artifact_panel_state import build_artifact_panel_rows
 from sase.core.artifact_wire import (
@@ -93,6 +94,7 @@ def _detail(
     *,
     kind: str = "file",
     title: str | None = None,
+    metadata: dict[str, Any] | None = None,
     children: list[ArtifactNodeWire] | None = None,
     outbound_links: list[ArtifactLinkWire] | None = None,
     inbound_links: list[ArtifactLinkWire] | None = None,
@@ -100,7 +102,13 @@ def _detail(
 ) -> ArtifactDetailWire:
     return ArtifactDetailWire(
         schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
-        node=_node(artifact_id, kind, title),
+        node=ArtifactNodeWire(
+            id=artifact_id,
+            kind=kind,
+            display_title=title or artifact_id,
+            provenance="derived",
+            metadata=metadata or {},
+        ),
         children=children or [],
         outbound_links=outbound_links or [],
         inbound_links=inbound_links or [],
@@ -174,6 +182,15 @@ def test_default_keymap_binds_capital_a_to_open_artifacts_panel() -> None:
     matches = [b for b in bindings if b.action == "open_artifacts_panel"]
     assert len(matches) == 1
     assert matches[0].key == "A"
+
+
+def test_capital_a_opens_artifacts_panel_not_agent_run_log() -> None:
+    app = _FakeApp(changespecs=[_make_cs("alpha")])
+
+    app.action_open_artifacts_panel()
+
+    assert isinstance(app.pushed_modals[0], ArtifactPanelModal)
+    assert not isinstance(app.pushed_modals[0], AgentRunLogModal)
 
 
 @pytest.mark.asyncio
@@ -427,3 +444,58 @@ async def test_artifact_graph_calls_happen_only_from_explicit_actions() -> None:
     assert [(call.root_id, output_format) for call, output_format in export_calls] == [
         ("alpha", "mermaid")
     ]
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_opens_legacy_run_log_from_changespec() -> None:
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path, artifact_id
+        return _detail(
+            "cs-artifact",
+            kind="changespec",
+            metadata={"name": "feature/test"},
+        )
+
+    modal = ArtifactPanelModal(artifact_id="feature/test", show_func=fake_show)
+    app = _ModalTestApp()
+    with patch(
+        "sase.ace.tui.modals.agent_run_log_modal._load_agents_for_cl",
+        return_value=([], set()),
+    ) as load_agents:
+        async with app.run_test() as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+            await pilot.pause()
+
+            modal.action_open_legacy_run_log()
+            await pilot.pause()
+
+            assert isinstance(pilot.app.screen, AgentRunLogModal)
+            assert pilot.app.screen._cl_name == "feature/test"
+
+    load_agents.assert_called_once_with("feature/test")
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_footer_hints_fit_small_terminal() -> None:
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        return _detail(
+            artifact_id,
+            kind="changespec",
+            metadata={"name": artifact_id},
+            children=[
+                _node("agent-1", "agent", "Agent one"),
+                _node("commit-1", "commit", "Commit one"),
+            ],
+        )
+
+    modal = ArtifactPanelModal(artifact_id="tiny-cl", show_func=fake_show)
+    app = _ModalTestApp()
+    async with app.run_test(size=(54, 18)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        hints = modal.query_one("#artifact-panel-hints", Static)
+        assert "L: run log" in str(hints.render())

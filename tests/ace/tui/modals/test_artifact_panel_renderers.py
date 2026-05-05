@@ -263,14 +263,59 @@ def test_agent_renderer_lists_payload_types_and_related_artifacts() -> None:
             _node("thought-1", "thought"),
             _node("sase-1", "bead"),
             _node("cl-1", "changespec"),
+            _node("plan.md", "file", metadata={"artifact_type": "plan"}),
+            _node("answer.md", "file", metadata={"payload_type": "question"}),
+            _node("chat.md", "file", metadata={"role": "transcript"}),
+            _node("saved.diff", "file", metadata={"role": "diff"}),
+        ],
+        outbound_links=[
+            ArtifactLinkWire(
+                id="created-1",
+                link_type="created",
+                source_id="agent-1",
+                target_id="created-file",
+            )
         ],
     )
 
     rendered = _render_text(render_artifact_detail(detail))
 
     assert "Artifact payloads: diff, transcript" in rendered
+    assert "Created artifacts: created-file" in rendered
+    assert "Linked transcripts: chat.md" in rendered
+    assert "Linked diffs: saved.diff" in rendered
+    assert "Linked plans: plan.md" in rendered
+    assert "Linked questions: answer.md" in rendered
     assert "Linked thoughts: thought-1" in rendered
     assert "Linked changespecs: cl-1" in rendered
+
+
+def test_changespec_renderer_surfaces_legacy_workflow_artifacts() -> None:
+    detail = _detail(
+        "cs-1",
+        ARTIFACT_KIND_CHANGESPEC,
+        metadata={"name": "feature/test", "status": "WIP"},
+        children=[
+            _node("agent-1", "agent"),
+            _node("commit-1", "commit"),
+            _node("sase-1", "bead"),
+            _node("plan.md", "file", metadata={"artifact_type": "plan"}),
+            _node("question.json", "file", metadata={"role": "question"}),
+            _node("transcript.md", "file", metadata={"role": "transcript"}),
+            _node("diff.patch", "file", metadata={"role": "diff"}),
+        ],
+    )
+
+    rendered = _render_text(render_artifact_detail(detail))
+
+    assert "Linked agents: agent-1" in rendered
+    assert "Linked commits: commit-1" in rendered
+    assert "Linked plans: plan.md" in rendered
+    assert "Linked questions: question.json" in rendered
+    assert "Linked transcripts: transcript.md" in rendered
+    assert "Linked diffs: diff.patch" in rendered
+    assert "Linked beads: sase-1" in rendered
+    assert "Legacy run log: press L" in rendered
 
 
 def test_renderer_handles_absent_payloads_and_metadata_gracefully() -> None:

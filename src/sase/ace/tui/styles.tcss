@@ -2080,11 +2080,11 @@ ArtifactPanelModal {
 }
 
 ArtifactPanelModal > Container {
-    width: 92%;
-    height: 85%;
+    width: 94%;
+    height: 88%;
     border: thick $primary;
     background: $surface;
-    padding: 1 2;
+    padding: 1;
 }
 
 ArtifactPanelModal #artifact-panel-title {
@@ -2098,7 +2098,9 @@ ArtifactPanelModal #artifact-panel-body {
 }
 
 ArtifactPanelModal #artifact-panel-left {
-    width: 44;
+    width: 34%;
+    min-width: 18;
+    max-width: 44;
     height: 100%;
 }
 
@@ -2124,7 +2126,7 @@ ArtifactPanelModal #artifact-panel-detail {
 }
 
 ArtifactPanelModal #artifact-panel-hints {
-    height: 1;
+    height: auto;
     color: $text-muted;
     text-align: center;
     margin-top: 1;

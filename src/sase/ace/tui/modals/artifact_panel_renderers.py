@@ -264,7 +264,23 @@ def _render_changespec(
             "bead_id",
         ),
     )
-    _append_linked_kinds(text, detail, ("agent", "file", "bead", "commit"))
+    _append_artifact_groups(
+        text,
+        detail,
+        (
+            ("agents", ("agent",)),
+            ("commits", ("commit",)),
+            ("plans", ("plan",)),
+            ("questions", ("question", "hitl_question")),
+            ("transcripts", ("transcript", "chat", "conversation")),
+            ("diffs", ("diff", "patch", "delta")),
+            ("beads", ("bead",)),
+            ("files", ("file",)),
+        ),
+    )
+    cl_name = legacy_run_log_changespec_name(detail)
+    if cl_name:
+        _append_kv(text, "Legacy run log", "press L")
     return _with_empty_notice(text)
 
 
@@ -362,18 +378,19 @@ def _render_agent(
         ),
     )
     _append_payload_types(text, detail.payloads)
-    _append_linked_kinds(
+    _append_created_artifacts(text, detail)
+    _append_artifact_groups(
         text,
         detail,
         (
-            "transcript",
-            "diff",
-            "plan",
-            "question",
-            "thought",
-            "changespec",
-            "bead",
-            "file",
+            ("transcripts", ("transcript", "chat", "conversation")),
+            ("diffs", ("diff", "patch", "delta")),
+            ("plans", ("plan",)),
+            ("questions", ("question", "hitl_question")),
+            ("thoughts", ("thought",)),
+            ("changespecs", ("changespec", "cl")),
+            ("beads", ("bead",)),
+            ("files", ("file",)),
         ),
     )
     return _with_empty_notice(text)
@@ -526,6 +543,82 @@ def _append_linked_kinds(
             _append_kv(text, f"Linked {kind}s", ", ".join(ids[:8]))
 
 
+def _append_artifact_groups(
+    text: Text,
+    detail: ArtifactDetailWire,
+    groups: tuple[tuple[str, tuple[str, ...]], ...],
+) -> None:
+    grouped = _semantic_artifact_ids(detail)
+    for label, aliases in groups:
+        ids: list[str] = []
+        seen: set[str] = set()
+        for alias in aliases:
+            for artifact_id in grouped.get(alias, []):
+                if artifact_id in seen:
+                    continue
+                seen.add(artifact_id)
+                ids.append(artifact_id)
+        if ids:
+            _append_kv(text, f"Linked {label}", ", ".join(ids[:8]))
+
+
+def _append_created_artifacts(text: Text, detail: ArtifactDetailWire) -> None:
+    created_ids: list[str] = []
+    node_id = detail.node.id if detail.node is not None else None
+    for link in detail.outbound_links:
+        if link.link_type == "created" and link.source_id == node_id:
+            created_ids.append(link.target_id)
+    if created_ids:
+        _append_kv(text, "Created artifacts", ", ".join(created_ids[:8]))
+
+
+def _semantic_artifact_ids(detail: ArtifactDetailWire) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for child in detail.children:
+        for key in _semantic_keys_for_node(child):
+            grouped[key].append(child.id)
+    return grouped
+
+
+def _semantic_keys_for_node(node: ArtifactNodeWire) -> set[str]:
+    keys = {_normalize_semantic_key(node.kind)}
+    for metadata_key in (
+        "artifact_type",
+        "payload_type",
+        "role",
+        "type",
+        "kind",
+        "source_kind",
+    ):
+        value = node.metadata.get(metadata_key)
+        if isinstance(value, str):
+            keys.add(_normalize_semantic_key(value))
+
+    searchable = " ".join(
+        part
+        for part in (node.id, node.display_title, node.subtitle, node.search_text)
+        if part
+    ).casefold()
+    for marker, key in (
+        ("plan", "plan"),
+        ("question", "question"),
+        ("hitl", "question"),
+        ("transcript", "transcript"),
+        ("conversation", "conversation"),
+        ("chat", "chat"),
+        ("diff", "diff"),
+        ("patch", "patch"),
+        ("delta", "delta"),
+    ):
+        if marker in searchable:
+            keys.add(key)
+    return keys
+
+
+def _normalize_semantic_key(value: str) -> str:
+    return value.casefold().replace("-", "_").replace(" ", "_")
+
+
 def _append_payload_types(text: Text, payloads: list[ArtifactPayloadWire]) -> None:
     if payloads:
         _append_kv(
@@ -667,6 +760,17 @@ def _label_from_key(key: str) -> str:
 def _join_compact(parts: Iterable[str | None]) -> str | None:
     values = [part for part in parts if part]
     return " / ".join(values) if values else None
+
+
+def legacy_run_log_changespec_name(detail: ArtifactDetailWire) -> str | None:
+    """Return the ChangeSpec name for the legacy run-log bridge, if any."""
+    node = detail.node
+    if node is None or node.kind != ARTIFACT_KIND_CHANGESPEC:
+        return None
+    name = _metadata_value(node.metadata, "name", "changespec", "cl_name")
+    if name is None:
+        name = node.id
+    return str(name) if name else None
 
 
 def _require_node(detail: ArtifactDetailWire) -> ArtifactNodeWire:

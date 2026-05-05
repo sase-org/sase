@@ -29,7 +29,10 @@ from .artifact_panel_state import (
     build_artifact_panel_rows,
     parent_id_from_detail,
 )
-from .artifact_panel_renderers import render_artifact_detail
+from .artifact_panel_renderers import (
+    legacy_run_log_changespec_name,
+    render_artifact_detail,
+)
 from .base import FilterInput, OptionListNavigationMixin
 
 ArtifactShowFunc = Callable[[Path | str, str], ArtifactDetailWire]
@@ -55,6 +58,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         ("r", "root", "Root"),
         ("/", "focus_filter", "Filter"),
         ("y", "copy_artifact_id", "Copy ID"),
+        ("upper_l", "open_legacy_run_log", "Run Log"),
         ("e", "open_file_in_editor", "Edit"),
         ("g", "preview_graph", "Graph"),
         ("G", "export_graph", "Export"),
@@ -100,7 +104,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="artifact-panel-detail-scroll"):
                         yield Static("Loading artifact...", id="artifact-panel-detail")
             yield Static(
-                "j/k: move  enter: open  b/f: history  p/r: parent/root  /: filter  y: copy  e: edit  g/G: graph  q/Esc: close",
+                "j/k: move  enter: open  b/f: history  p/r: parent/root  /: filter  y: copy  L: run log  e: edit  g/G: graph  q/Esc: close",
                 id="artifact-panel-hints",
             )
 
@@ -309,6 +313,22 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self.app.notify("Copied artifact ID")
         else:
             self.app.notify("Failed to copy artifact ID", severity="error")
+
+    def action_open_legacy_run_log(self) -> None:
+        detail = self._detail
+        if detail is None:
+            return
+        cl_name = legacy_run_log_changespec_name(detail)
+        if cl_name is None:
+            self.app.notify(
+                "Legacy run log is available from ChangeSpec artifacts",
+                severity="warning",
+            )
+            return
+
+        from .agent_run_log_modal import AgentRunLogModal
+
+        self.app.push_screen(AgentRunLogModal(cl_name=cl_name))
 
     def action_open_file_in_editor(self) -> None:
         detail = self._detail
