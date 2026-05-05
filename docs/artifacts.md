@@ -219,3 +219,22 @@ monitoring. Historical discovery should use the artifact panel and `sase artifac
 
 Keep troubleshooting commands pointed at a temporary index with `-i` when reproducing bugs. Do not let tests or examples
 write to the default `~/.sase/artifacts.sqlite` unless they are intentionally exercising the user's live index.
+
+## Quality Gate
+
+For artifact graph changes that cross the Rust/Python boundary, run the integrated gate from this checkout:
+
+```bash
+(cd ../sase-core && cargo test)
+just install && just check
+```
+
+Use the performance smoke when changing rebuild, targeted upsert, artifact detail, or TUI artifact-panel open behavior:
+
+```bash
+just artifact-perf-smoke
+```
+
+The smoke writes `sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json` and records fixture size, operation
+name, latency, mutation or query counts, and whether each operation is intentionally bounded. It uses temp SQLite
+indexes and synthetic fixtures, so it must not read or mutate `~/.sase/artifacts.sqlite`.

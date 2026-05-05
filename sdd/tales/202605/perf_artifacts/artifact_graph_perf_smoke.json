@@ -1,0 +1,585 @@
+{
+  "measurements": [
+    {
+      "affected_links": 167,
+      "affected_nodes": 97,
+      "bounded": false,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 104.76671799551696,
+      "mutation_counts": {
+        "links_added": 167,
+        "links_removed": 0,
+        "links_updated": 348,
+        "nodes_added": 96,
+        "nodes_removed": 0,
+        "nodes_updated": 490,
+        "tombstones_added": 0
+      },
+      "operation": "full_graph_rebuild"
+    },
+    {
+      "affected_links": 18,
+      "affected_nodes": 8,
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 3.071473001909908,
+      "mutation_counts": {
+        "links_added": 0,
+        "links_removed": 0,
+        "links_updated": 4,
+        "nodes_added": 0,
+        "nodes_removed": 0,
+        "nodes_updated": 11,
+        "tombstones_added": 0
+      },
+      "operation": "targeted_project_file_upsert"
+    },
+    {
+      "affected_links": 37,
+      "affected_nodes": 17,
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 3.6903349973727018,
+      "mutation_counts": {
+        "links_added": 0,
+        "links_removed": 0,
+        "links_updated": 2,
+        "nodes_added": 0,
+        "nodes_removed": 0,
+        "nodes_updated": 5,
+        "tombstones_added": 0
+      },
+      "operation": "targeted_bead_store_upsert"
+    },
+    {
+      "affected_links": 30,
+      "affected_nodes": 14,
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 11.281535000307485,
+      "mutation_counts": {
+        "links_added": 1,
+        "links_removed": 0,
+        "links_updated": 35,
+        "nodes_added": 0,
+        "nodes_removed": 0,
+        "nodes_updated": 42,
+        "tombstones_added": 0
+      },
+      "operation": "targeted_agent_artifact_upsert"
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.006431004498154,
+      "operation": "artifact_show:project",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.0879670007852837,
+      "operation": "artifact_show:changespec",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.0547129932092503,
+      "operation": "artifact_show:commit",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.221491998876445,
+      "operation": "artifact_show:bead",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.2465690015233122,
+      "operation": "artifact_show:agent",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 0.6055859994376078,
+      "operation": "artifact_show:file",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.1771770004997961,
+      "operation": "artifact_show:thought",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 1
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 0.0,
+      "operation": "artifact_doctor",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 0
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency_ms": 154.00837599736406,
+      "operation": "modal_open:/",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 102
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency_ms": 123.10004600294633,
+      "operation": "modal_open:changespec:current",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 105
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency_ms": 134.55334799800767,
+      "operation": "modal_open:agent:current",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 103
+    }
+  ],
+  "operations": {
+    "artifact_doctor": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 0.0,
+        "median_ms": 0.0,
+        "min_ms": 0.0,
+        "p95_ms": 0.0
+      }
+    },
+    "artifact_show:agent": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.2465690015233122,
+        "median_ms": 1.2465690015233122,
+        "min_ms": 1.2465690015233122,
+        "p95_ms": 1.2465690015233122
+      }
+    },
+    "artifact_show:bead": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.221491998876445,
+        "median_ms": 1.221491998876445,
+        "min_ms": 1.221491998876445,
+        "p95_ms": 1.221491998876445
+      }
+    },
+    "artifact_show:changespec": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.0879670007852837,
+        "median_ms": 1.0879670007852837,
+        "min_ms": 1.0879670007852837,
+        "p95_ms": 1.0879670007852837
+      }
+    },
+    "artifact_show:commit": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.0547129932092503,
+        "median_ms": 1.0547129932092503,
+        "min_ms": 1.0547129932092503,
+        "p95_ms": 1.0547129932092503
+      }
+    },
+    "artifact_show:file": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 0.6055859994376078,
+        "median_ms": 0.6055859994376078,
+        "min_ms": 0.6055859994376078,
+        "p95_ms": 0.6055859994376078
+      }
+    },
+    "artifact_show:project": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.006431004498154,
+        "median_ms": 1.006431004498154,
+        "min_ms": 1.006431004498154,
+        "p95_ms": 1.006431004498154
+      }
+    },
+    "artifact_show:thought": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.1771770004997961,
+        "median_ms": 1.1771770004997961,
+        "min_ms": 1.1771770004997961,
+        "p95_ms": 1.1771770004997961
+      }
+    },
+    "full_graph_rebuild": {
+      "bounded": false,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 104.76671799551696,
+        "median_ms": 104.76671799551696,
+        "min_ms": 104.76671799551696,
+        "p95_ms": 104.76671799551696
+      }
+    },
+    "modal_open:/": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 154.00837599736406,
+        "median_ms": 154.00837599736406,
+        "min_ms": 154.00837599736406,
+        "p95_ms": 154.00837599736406
+      }
+    },
+    "modal_open:agent:current": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 134.55334799800767,
+        "median_ms": 134.55334799800767,
+        "min_ms": 134.55334799800767,
+        "p95_ms": 134.55334799800767
+      }
+    },
+    "modal_open:changespec:current": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 123.10004600294633,
+        "median_ms": 123.10004600294633,
+        "min_ms": 123.10004600294633,
+        "p95_ms": 123.10004600294633
+      }
+    },
+    "targeted_agent_artifact_upsert": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 11.281535000307485,
+        "median_ms": 11.281535000307485,
+        "min_ms": 11.281535000307485,
+        "p95_ms": 11.281535000307485
+      }
+    },
+    "targeted_bead_store_upsert": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 3.6903349973727018,
+        "median_ms": 3.6903349973727018,
+        "min_ms": 3.6903349973727018,
+        "p95_ms": 3.6903349973727018
+      }
+    },
+    "targeted_project_file_upsert": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 3.071473001909908,
+        "median_ms": 3.071473001909908,
+        "min_ms": 3.071473001909908,
+        "p95_ms": 3.071473001909908
+      }
+    }
+  },
+  "runs": 1,
+  "schema_version": 1
+}

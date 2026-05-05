@@ -342,6 +342,21 @@ bead-perf-smoke *args: _setup
         --output sdd/tales/202605/perf_artifacts/bead_perf_smoke.json \
         {{ args }}
 
+# Run a tiny unified artifact graph benchmark as a CI/local smoke. This records
+# rebuild, targeted upsert, common show, doctor, and fake modal-open metrics
+# without enforcing workstation-sensitive latency thresholds.
+artifact-perf-smoke *args: _setup
+    @printf "\n---------- Unified artifact graph performance smoke (sase-23.6.6) ----------\n"
+    mkdir -p sdd/tales/202605/perf_artifacts
+    {{ venv_bin }}/python tests/perf/bench_artifact_graph.py \
+        --runs 1 \
+        --projects 2 \
+        --beads 10 \
+        --agents 10 \
+        --modal-linked 120 \
+        --output sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json \
+        {{ args }}
+
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,
 # is_valid_transition, remove_workspace_suffix) and the
