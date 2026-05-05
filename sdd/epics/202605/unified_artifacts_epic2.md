@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-05 10:30:33
+bead_id: sase-23.2
+tier: epic
+legend_bead_id: sase-23
 status: wip
 prompt: sdd/prompts/202605/unified_artifacts_epic2.md
 ---
