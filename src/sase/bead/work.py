@@ -350,7 +350,6 @@ def render_legend_multi_prompt(
         lines.extend(
             [
                 f"%name:{assignment.agent_name}",
-                "%approve",
                 "%epic",
             ]
         )

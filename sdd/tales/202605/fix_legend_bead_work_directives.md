@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 08:38:45
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_legend_bead_work_directives.md
 ---
 # Fix Legend Bead Work Directives
