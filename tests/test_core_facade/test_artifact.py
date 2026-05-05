@@ -17,6 +17,7 @@ from sase.core.artifact_wire import (
     ARTIFACT_PROVENANCE_DERIVED,
     ARTIFACT_PROVENANCE_MANUAL,
     ARTIFACT_ROOT_ID,
+    ARTIFACT_SOURCE_DIRECTORY,
     ARTIFACT_WIRE_SCHEMA_VERSION,
     ArtifactDoctorOptionsWire,
     ArtifactGraphOptionsWire,
@@ -25,10 +26,14 @@ from sase.core.artifact_wire import (
     ArtifactNodeRemoveWire,
     ArtifactNodeUpsertWire,
     ArtifactNodeWire,
+    ArtifactPathUpsertRequestWire,
     ArtifactQueryWire,
+    ArtifactRebuildRequestWire,
+    artifact_path_upsert_request_to_dict,
     artifact_detail_from_dict,
     artifact_query_from_dict,
     artifact_query_to_dict,
+    artifact_rebuild_request_to_dict,
     artifact_root_node,
     artifact_wire_to_json_dict,
 )
@@ -144,6 +149,39 @@ def test_query_options_and_detail_shapes_keep_nulls_and_lists() -> None:
     }
 
 
+def test_rebuild_and_path_upsert_request_shapes_keep_defaults() -> None:
+    rebuild = ArtifactRebuildRequestWire()
+    assert artifact_rebuild_request_to_dict(rebuild) == {
+        "schema_version": 1,
+        "projects_root": None,
+        "workspace_root": None,
+        "beads_dir": None,
+        "include_sources": [],
+        "exclude_sources": [],
+        "target_path": None,
+        "artifact_dir": None,
+        "stale_cleanup": "none",
+    }
+
+    path_request = ArtifactPathUpsertRequestWire(
+        provenance=ARTIFACT_PROVENANCE_DERIVED,
+        source_kind=ARTIFACT_SOURCE_DIRECTORY,
+        source_id="/tmp/example.md",
+    )
+    assert artifact_path_upsert_request_to_dict(path_request) == {
+        "schema_version": 1,
+        "kind": None,
+        "display_title": None,
+        "subtitle": None,
+        "provenance": "derived",
+        "source_kind": "directory",
+        "source_id": "/tmp/example.md",
+        "source_version": None,
+        "search_text": None,
+        "metadata": None,
+    }
+
+
 def test_root_node_shape_matches_rust_helper() -> None:
     assert artifact_wire_to_json_dict(artifact_root_node()) == {
         "id": "/",
@@ -226,12 +264,22 @@ def test_artifact_facade_calls_expected_bindings(
         calls.append(("artifact_doctor", args))
         return {"schema_version": 1, "ok": True, "issues": []}
 
+    def artifact_rebuild(*args: Any) -> dict[str, Any]:
+        calls.append(("artifact_rebuild", args))
+        return _mutation_result("rebuild")
+
+    def artifact_upsert_path(*args: Any) -> dict[str, Any]:
+        calls.append(("artifact_upsert_path", args))
+        return _mutation_result("upsert_path")
+
     fake.artifact_add = artifact_add  # type: ignore[attr-defined]
     fake.artifact_remove = artifact_remove  # type: ignore[attr-defined]
     fake.artifact_list = artifact_list  # type: ignore[attr-defined]
     fake.artifact_show = artifact_show  # type: ignore[attr-defined]
     fake.artifact_graph = artifact_graph  # type: ignore[attr-defined]
     fake.artifact_doctor = artifact_doctor  # type: ignore[attr-defined]
+    fake.artifact_rebuild = artifact_rebuild  # type: ignore[attr-defined]
+    fake.artifact_upsert_path = artifact_upsert_path  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
 
     index_path = Path("/tmp/artifacts.sqlite")
@@ -252,6 +300,11 @@ def test_artifact_facade_calls_expected_bindings(
     assert artifact_facade.artifact_show(index_path, "/tmp/example.md").node == _node()
     assert artifact_facade.artifact_graph(index_path).node_count == 1
     assert artifact_facade.artifact_doctor(index_path).ok is True
+    assert artifact_facade.artifact_rebuild(index_path).operation == "rebuild"
+    assert (
+        artifact_facade.artifact_upsert_path(index_path, "/tmp/example.md").operation
+        == "upsert_path"
+    )
 
     assert calls == [
         (
@@ -290,6 +343,21 @@ def test_artifact_facade_calls_expected_bindings(
                 artifact_wire_to_json_dict(ArtifactDoctorOptionsWire()),
             ),
         ),
+        (
+            "artifact_rebuild",
+            (
+                "/tmp/artifacts.sqlite",
+                artifact_rebuild_request_to_dict(ArtifactRebuildRequestWire()),
+            ),
+        ),
+        (
+            "artifact_upsert_path",
+            (
+                "/tmp/artifacts.sqlite",
+                "/tmp/example.md",
+                artifact_path_upsert_request_to_dict(ArtifactPathUpsertRequestWire()),
+            ),
+        ),
     ]
 
 
@@ -297,6 +365,8 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     required = {
         "artifact_add",
+        "artifact_rebuild",
+        "artifact_upsert_path",
         "artifact_list",
         "artifact_show",
         "artifact_graph",
@@ -350,3 +420,26 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     assert artifact_facade.artifact_show(index_path, str(child_path)).node == child_node
     assert artifact_facade.artifact_graph(index_path).node_count >= 1
     assert artifact_facade.artifact_doctor(index_path).ok is True
+
+    upserted_path = tmp_path / "nested" / "path.md"
+    upserted_path.parent.mkdir()
+    upserted_path.write_text("artifact body")
+    path_result = artifact_facade.artifact_upsert_path(index_path, upserted_path)
+    assert str(upserted_path) in path_result.affected_node_ids
+    assert (
+        artifact_facade.artifact_show(index_path, str(upserted_path))
+        .path_to_root[-1]
+        .id
+        == ARTIFACT_ROOT_ID
+    )
+
+    rebuild_result = artifact_facade.artifact_rebuild(
+        index_path,
+        ArtifactRebuildRequestWire(
+            workspace_root=str(tmp_path),
+            beads_dir=str(tmp_path / "sdd/beads"),
+            include_sources=(ARTIFACT_SOURCE_DIRECTORY,),
+        ),
+    )
+    assert rebuild_result.operation == "rebuild"
+    assert rebuild_result.errors == []

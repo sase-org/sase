@@ -24,8 +24,10 @@ from sase.core.artifact_wire import (
     ArtifactNodeRemoveWire,
     ArtifactNodeUpsertWire,
     ArtifactNodeWire,
+    ArtifactPathUpsertRequestWire,
     ArtifactPayloadWire,
     ArtifactQueryWire,
+    ArtifactRebuildRequestWire,
     artifact_detail_from_dict,
     artifact_doctor_from_dict,
     artifact_doctor_options_to_dict,
@@ -33,7 +35,9 @@ from sase.core.artifact_wire import (
     artifact_graph_options_to_dict,
     artifact_mutation_result_from_dict,
     artifact_node_from_dict,
+    artifact_path_upsert_request_to_dict,
     artifact_query_to_dict,
+    artifact_rebuild_request_to_dict,
     artifact_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -113,42 +117,33 @@ def artifact_graph(
     return artifact_graph_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_rebuild(
     index_path: Path | str,
-    request: dict[str, Any] | None = None,
+    request: ArtifactRebuildRequestWire | None = None,
 ) -> ArtifactMutationResultWire:
-    """Run the current Rust rebuild entry point.
-
-    Epic 1's binding returns an explicit no-op result until source ingesters
-    are implemented in a later epic.
-    """
+    """Run the typed Rust artifact rebuild entry point."""
     binding = require_rust_binding("artifact_rebuild")
-    if request is None:
-        payload: dict[str, Any] = binding(_path_str(index_path))
-    else:
-        payload = binding(_path_str(index_path), artifact_wire_to_json_dict(request))
+    request_wire = request or ArtifactRebuildRequestWire()
+    payload: dict[str, Any] = binding(
+        _path_str(index_path),
+        artifact_rebuild_request_to_dict(request_wire),
+    )
     return artifact_mutation_result_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_upsert_path(
     index_path: Path | str,
     artifact_path: Path | str,
-    request: dict[str, Any] | None = None,
+    request: ArtifactPathUpsertRequestWire | None = None,
 ) -> ArtifactMutationResultWire:
-    """Upsert a path-derived node using the Rust binding's path helper."""
+    """Upsert a path-derived node and deterministic directory parents."""
     binding = require_rust_binding("artifact_upsert_path")
-    if request is None:
-        payload: dict[str, Any] = binding(
-            _path_str(index_path), _path_str(artifact_path)
-        )
-    else:
-        payload = binding(
-            _path_str(index_path),
-            _path_str(artifact_path),
-            artifact_wire_to_json_dict(request),
-        )
+    request_wire = request or ArtifactPathUpsertRequestWire()
+    payload: dict[str, Any] = binding(
+        _path_str(index_path),
+        _path_str(artifact_path),
+        artifact_path_upsert_request_to_dict(request_wire),
+    )
     return artifact_mutation_result_from_dict(payload)
 
 

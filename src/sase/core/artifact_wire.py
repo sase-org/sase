@@ -38,6 +38,18 @@ ARTIFACT_PROVENANCE_DERIVED = "derived"
 ARTIFACT_TOMBSTONE_NODE = "node"
 ARTIFACT_TOMBSTONE_LINK = "link"
 
+ARTIFACT_STALE_CLEANUP_NONE = "none"
+ARTIFACT_STALE_CLEANUP_MARK = "mark"
+
+ARTIFACT_SOURCE_PROJECT_FILE = "project_file"
+ARTIFACT_SOURCE_CHANGESPEC = "changespec"
+ARTIFACT_SOURCE_COMMIT = "commit"
+ARTIFACT_SOURCE_DIRECTORY = "directory"
+ARTIFACT_SOURCE_BEAD_STORE = "bead_store"
+ARTIFACT_SOURCE_AGENT_ARTIFACT = "agent_artifact"
+ARTIFACT_SOURCE_AGENT_CREATED_FILE = "agent_created_file"
+ARTIFACT_SOURCE_AGENT_THOUGHT = "agent_thought"
+
 
 @dataclass(frozen=True)
 class ArtifactNodeWire:
@@ -80,6 +92,33 @@ class ArtifactPayloadWire:
     source_version: str | None = None
     payload: Any = None
     updated_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ArtifactRebuildRequestWire:
+    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
+    projects_root: str | None = None
+    workspace_root: str | None = None
+    beads_dir: str | None = None
+    include_sources: tuple[str, ...] = ()
+    exclude_sources: tuple[str, ...] = ()
+    target_path: str | None = None
+    artifact_dir: str | None = None
+    stale_cleanup: str = ARTIFACT_STALE_CLEANUP_NONE
+
+
+@dataclass(frozen=True)
+class ArtifactPathUpsertRequestWire:
+    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
+    kind: str | None = None
+    display_title: str | None = None
+    subtitle: str | None = None
+    provenance: str | None = None
+    source_kind: str | None = None
+    source_id: str | None = None
+    source_version: str | None = None
+    search_text: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 # pyvision: public_api_methods.txt
@@ -259,6 +298,18 @@ def artifact_doctor_options_to_dict(
     return artifact_wire_to_json_dict(options)
 
 
+def artifact_rebuild_request_to_dict(
+    request: ArtifactRebuildRequestWire,
+) -> dict[str, Any]:
+    return artifact_wire_to_json_dict(request)
+
+
+def artifact_path_upsert_request_to_dict(
+    request: ArtifactPathUpsertRequestWire,
+) -> dict[str, Any]:
+    return artifact_wire_to_json_dict(request)
+
+
 def _check_keys(
     data: dict[str, Any],
     allowed: set[str],
@@ -337,6 +388,52 @@ def artifact_payload_from_dict(data: dict[str, Any]) -> ArtifactPayloadWire:
         source_version=data.get("source_version"),
         payload=data.get("payload"),
         updated_at=data.get("updated_at"),
+    )
+
+
+# pyvision: public_api_methods.txt
+def artifact_rebuild_request_from_dict(
+    data: dict[str, Any],
+) -> ArtifactRebuildRequestWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactRebuildRequestWire)},
+        "ArtifactRebuildRequestWire",
+    )
+    return ArtifactRebuildRequestWire(
+        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        projects_root=data.get("projects_root"),
+        workspace_root=data.get("workspace_root"),
+        beads_dir=data.get("beads_dir"),
+        include_sources=_tuple_strs(data.get("include_sources")),
+        exclude_sources=_tuple_strs(data.get("exclude_sources")),
+        target_path=data.get("target_path"),
+        artifact_dir=data.get("artifact_dir"),
+        stale_cleanup=str(data.get("stale_cleanup", ARTIFACT_STALE_CLEANUP_NONE)),
+    )
+
+
+# pyvision: public_api_methods.txt
+def artifact_path_upsert_request_from_dict(
+    data: dict[str, Any],
+) -> ArtifactPathUpsertRequestWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactPathUpsertRequestWire)},
+        "ArtifactPathUpsertRequestWire",
+    )
+    metadata = data.get("metadata")
+    return ArtifactPathUpsertRequestWire(
+        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        kind=data.get("kind"),
+        display_title=data.get("display_title"),
+        subtitle=data.get("subtitle"),
+        provenance=data.get("provenance"),
+        source_kind=data.get("source_kind"),
+        source_id=data.get("source_id"),
+        source_version=data.get("source_version"),
+        search_text=data.get("search_text"),
+        metadata=dict(metadata) if isinstance(metadata, dict) else None,
     )
 
 
@@ -590,6 +687,16 @@ __all__ = [
     "ARTIFACT_PROVENANCE_DERIVED",
     "ARTIFACT_PROVENANCE_MANUAL",
     "ARTIFACT_ROOT_ID",
+    "ARTIFACT_SOURCE_AGENT_ARTIFACT",
+    "ARTIFACT_SOURCE_AGENT_CREATED_FILE",
+    "ARTIFACT_SOURCE_AGENT_THOUGHT",
+    "ARTIFACT_SOURCE_BEAD_STORE",
+    "ARTIFACT_SOURCE_CHANGESPEC",
+    "ARTIFACT_SOURCE_COMMIT",
+    "ARTIFACT_SOURCE_DIRECTORY",
+    "ARTIFACT_SOURCE_PROJECT_FILE",
+    "ARTIFACT_STALE_CLEANUP_MARK",
+    "ARTIFACT_STALE_CLEANUP_NONE",
     "ARTIFACT_TOMBSTONE_LINK",
     "ARTIFACT_TOMBSTONE_NODE",
     "ARTIFACT_WIRE_SCHEMA_VERSION",
@@ -606,8 +713,10 @@ __all__ = [
     "ArtifactNodeRemoveWire",
     "ArtifactNodeUpsertWire",
     "ArtifactNodeWire",
+    "ArtifactPathUpsertRequestWire",
     "ArtifactPayloadWire",
     "ArtifactQueryWire",
+    "ArtifactRebuildRequestWire",
     "artifact_detail_from_dict",
     "artifact_doctor_from_dict",
     "artifact_doctor_options_from_dict",
@@ -622,9 +731,13 @@ __all__ = [
     "artifact_node_from_dict",
     "artifact_node_remove_from_dict",
     "artifact_node_upsert_from_dict",
+    "artifact_path_upsert_request_from_dict",
+    "artifact_path_upsert_request_to_dict",
     "artifact_payload_from_dict",
     "artifact_query_from_dict",
     "artifact_query_to_dict",
+    "artifact_rebuild_request_from_dict",
+    "artifact_rebuild_request_to_dict",
     "artifact_root_node",
     "artifact_wire_to_json_dict",
 ]

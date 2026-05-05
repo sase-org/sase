@@ -67,9 +67,11 @@ artifact_list
 artifact_node_remove_from_dict
 artifact_node_upsert_from_dict
 artifact_node_upsert_request
+artifact_path_upsert_request_from_dict
 artifact_payload_from_dict
 artifact_query_from_dict
 artifact_rebuild
+artifact_rebuild_request_from_dict
 artifact_remove
 artifact_root_node
 artifact_show
