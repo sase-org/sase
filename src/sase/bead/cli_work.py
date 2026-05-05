@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING
 from sase.bead.cli_common import get_project
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
+from sase.axe.artifact_metadata import SASE_AGENT_WORKFLOW_LINKS_ENV
 
 if TYPE_CHECKING:
     from sase.bead.work import (
@@ -174,7 +176,10 @@ def _handle_epic_bead_work(
     try:
         from sase.agent import launcher as _launcher
 
-        result = _launcher.launch_agent_from_cwd(query)
+        result = _launcher.launch_agent_from_cwd(
+            query,
+            extra_env=_epic_workflow_link_env(plan, changespec_context),
+        )
     except Exception as e:
         print(
             f"Error: agent launch failed for epic {epic_id}: {e}",
@@ -283,7 +288,10 @@ def _handle_legend_bead_work(
     try:
         from sase.agent import launcher as _launcher
 
-        result = _launcher.launch_agent_from_cwd(query)
+        result = _launcher.launch_agent_from_cwd(
+            query,
+            extra_env=_legend_workflow_link_env(plan),
+        )
     except Exception as e:
         print(
             f"Error: agent launch failed for legend {legend_id}: {e}",
@@ -419,6 +427,54 @@ def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> Non
         print(f"  Wave {i}: {names}")
     if plan.land_waits_on:
         print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
+
+
+def _epic_workflow_link_env(
+    plan: EpicWorkPlan,
+    changespec_context: ChangeSpecLaunchContext | None,
+) -> dict[str, str]:
+    links: dict[str, dict[str, str]] = {}
+    common: dict[str, str] = {"epic_bead_id": plan.epic_id}
+    if changespec_context is not None:
+        common["changespec_name"] = changespec_context.changespec_name
+    links["*"] = common
+    for wave in plan.waves:
+        for assignment in wave:
+            links[assignment.agent_name] = {
+                "epic_bead_id": plan.epic_id,
+                "phase_bead_id": assignment.bead_id,
+                "bead_id": assignment.bead_id,
+            }
+            if changespec_context is not None:
+                links[assignment.agent_name]["changespec_name"] = (
+                    changespec_context.changespec_name
+                )
+    links[plan.land_agent_name] = {
+        "epic_bead_id": plan.epic_id,
+        "bead_id": plan.epic_id,
+    }
+    if changespec_context is not None:
+        links[plan.land_agent_name]["changespec_name"] = (
+            changespec_context.changespec_name
+        )
+    return {SASE_AGENT_WORKFLOW_LINKS_ENV: json.dumps(links, sort_keys=True)}
+
+
+def _legend_workflow_link_env(plan: LegendWorkPlan) -> dict[str, str]:
+    links: dict[str, dict[str, str]] = {"*": {"legend_bead_id": plan.legend_id}}
+    for assignment in plan.assignments:
+        links[assignment.agent_name] = {
+            "legend_bead_id": plan.legend_id,
+            "bead_id": plan.legend_id,
+            "epic_number": str(assignment.epic_number),
+            "sdd_plan_path": plan.plan_file,
+        }
+    links[plan.land_agent_name] = {
+        "legend_bead_id": plan.legend_id,
+        "bead_id": plan.legend_id,
+        "sdd_plan_path": plan.plan_file,
+    }
+    return {SASE_AGENT_WORKFLOW_LINKS_ENV: json.dumps(links, sort_keys=True)}
 
 
 def _print_legend_work_plan_summary(

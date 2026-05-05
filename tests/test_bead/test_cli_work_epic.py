@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.axe.artifact_metadata import SASE_AGENT_WORKFLOW_LINKS_ENV
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -48,6 +50,12 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     for pid in phase_ids:
         assert f"#bd/work_phase_bead:{pid}" in query
     assert f"#bd/land_epic:{epic_id}" in query
+    links = json.loads(captured["extra_env"][SASE_AGENT_WORKFLOW_LINKS_ENV])
+    assert links["*"]["epic_bead_id"] == epic_id
+    for pid in phase_ids:
+        assert links[pid]["phase_bead_id"] == pid
+        assert links[pid]["epic_bead_id"] == epic_id
+    assert links[epic_id]["bead_id"] == epic_id
 
     # Each phase was pre-claimed.
     with BeadProject(project_dir) as proj:

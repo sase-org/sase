@@ -46,12 +46,16 @@ class TestWriteResultMarker:
             assert data == {
                 "method": "create_commit",
                 "result": "abc123",
+                "commit_result": "abc123",
                 "message": "fix: bug",
                 "name": "feat-x",
                 "bead_id": "",
                 "changespec_name": "proj_feat_1",
+                "commit_changespec_name": "proj_feat_1",
                 "entry_id": None,
+                "commit_entry_id": None,
                 "diff_path": None,
+                "commit_diff_path": None,
             }
 
     def test_writes_none_values(self) -> None:
@@ -75,6 +79,30 @@ class TestWriteResultMarker:
 
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["entry_id"] == "entry_42"
+            assert data["commit_entry_id"] == "entry_42"
+
+    def test_updates_agent_meta_with_commit_relationships(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta_path = Path(tmpdir) / "agent_meta.json"
+            meta_path.write_text(json.dumps({"name": "agent-alpha"}))
+            diff_path = str(Path(tmpdir) / "commit.diff")
+            payload = {"message": "fix: bug", "bead_id": "sase-1.2"}
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    diff_path,
+                    "abc123",
+                    "proj_feat_1",
+                    entry_id="7",
+                )
+
+            meta = json.loads(meta_path.read_text())
+            assert meta["commit_changespec_name"] == "proj_feat_1"
+            assert meta["commit_entry_id"] == "7"
+            assert meta["commit_diff_path"] == diff_path
+            assert meta["bead_id"] == "sase-1.2"
+            assert meta["changespec_name"] == "proj_feat_1"
 
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}

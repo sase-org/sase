@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 
 from sase.axe.artifact_metadata import (
+    SASE_AGENT_WORKFLOW_LINKS_ENV,
     _fallback_agent_artifact_id,
     enrich_agent_artifact_metadata,
+    enrich_agent_workflow_relationships,
+    workflow_relationships_from_env,
 )
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.axe.run_agent_runner_setup import apply_retry_chain_to_meta
@@ -124,3 +127,42 @@ def test_followup_artifacts_inherit_parent_contract(
     assert meta["parent_agent_name"] == "planner"
     assert meta["changespec_name"] == "feature"
     assert meta["model"] == "gpt-5.4"
+
+
+def test_workflow_relationships_normalize_changespec_and_bead_fields() -> None:
+    enriched = enrich_agent_workflow_relationships(
+        {"name": "worker"},
+        {
+            "commit_changespec_name": "feature",
+            "commit_entry_id": "3",
+            "phase_bead_id": "sase-1.2",
+            "questions_submitted_at": "2026-05-05T12:00:00Z",
+            "ignored": "nope",
+        },
+    )
+
+    assert enriched["changespec_name"] == "feature"
+    assert enriched["cl_name"] == "feature"
+    assert enriched["bead_id"] == "sase-1.2"
+    assert enriched["commit_entry_id"] == "3"
+    assert enriched["questions_submitted_at"] == ["2026-05-05T12:00:00Z"]
+    assert "ignored" not in enriched
+
+
+def test_workflow_relationships_from_env_merges_common_and_named(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        SASE_AGENT_WORKFLOW_LINKS_ENV,
+        json.dumps(
+            {
+                "*": {"epic_bead_id": "sase-9"},
+                "sase-9.1": {"phase_bead_id": "sase-9.1"},
+            }
+        ),
+    )
+
+    assert workflow_relationships_from_env("sase-9.1") == {
+        "epic_bead_id": "sase-9",
+        "phase_bead_id": "sase-9.1",
+    }

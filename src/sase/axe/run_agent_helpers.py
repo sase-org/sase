@@ -344,6 +344,7 @@ def create_followup_artifacts(
     workspace_num: int | None = None,
     agent_name_override: str | None = None,
     workflow_name: str | None = None,
+    relationships: dict[str, Any] | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
@@ -380,6 +381,8 @@ def create_followup_artifacts(
     if workspace_num is not None:
         followup_meta["workspace_num"] = workspace_num
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
+    if relationships:
+        followup_meta.update(relationships)
 
     followup_meta = write_agent_artifact_metadata(
         new_artifacts_dir,
@@ -389,6 +392,7 @@ def create_followup_artifacts(
         bead_id=followup_meta.get("bead_id"),
         parent_agent_timestamp=prev_artifacts_timestamp,
         parent_agent_name=base_meta.get("name"),
+        relationships=relationships,
     )
 
     # Write initial workflow_state.json so the TUI can merge follow-up agents
@@ -489,7 +493,12 @@ def handle_questions_flow(
         if os.path.exists(response_path):
             try:
                 with open(response_path, encoding="utf-8") as f:
-                    return json.load(f)
+                    response = json.load(f)
+                if isinstance(response, dict):
+                    response["_question_request_path"] = request_path
+                    response["_question_response_path"] = response_path
+                    response["_question_session_id"] = session_id
+                return response
             except (json.JSONDecodeError, OSError):
                 pass
 

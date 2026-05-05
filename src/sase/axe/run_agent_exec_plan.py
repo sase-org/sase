@@ -42,6 +42,7 @@ from sase.plan_chain import (
     plan_chain_agent_name,
     plan_chain_feedback_suffix,
 )
+from sase.axe.artifact_metadata import update_agent_artifact_metadata
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -93,6 +94,22 @@ def _update_coder_model_meta(
         )
 
 
+def _agent_name_for_suffix(ctx: AgentExecContext, suffix: str | None) -> str | None:
+    if not ctx.agent_name or not suffix:
+        return None
+    return plan_chain_agent_name(ctx.agent_name, suffix)
+
+
+def _record_workflow_metadata(
+    artifacts_dir: str,
+    relationships: dict[str, Any],
+) -> None:
+    for key, value in relationships.items():
+        if value is not None and value != "":
+            update_meta_field(artifacts_dir, key, value)
+    update_agent_artifact_metadata(artifacts_dir, relationships)
+
+
 def handle_plan_marker(
     plan_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -108,10 +125,14 @@ def handle_plan_marker(
     if state.feedback_round == 0:
         update_meta_suffix(state.current_artifacts_dir, PLAN_CHAIN_PLAN_SUFFIX)
 
-    update_meta_field(
+    plan_submitted_at = datetime.now(UTC).isoformat()
+    _record_workflow_metadata(
         state.current_artifacts_dir,
-        "plan_submitted_at",
-        datetime.now(UTC).isoformat(),
+        {
+            "plan_submitted_at": plan_submitted_at,
+            "plan_path": plan_data.get("plan_file"),
+            "changespec_name": ctx.cl_name,
+        },
     )
 
     from sase.llm_provider._plan_utils import handle_plan_approval
@@ -135,6 +156,13 @@ def handle_plan_marker(
     # Write plan_path.json so the TUI can show the plan
     # in the file panel for the .plan agent entry.
     _write_plan_path_artifact(state.current_artifacts_dir, plan_result.plan_file)
+    _record_workflow_metadata(
+        state.current_artifacts_dir,
+        {
+            "plan_path": plan_result.plan_file,
+            "changespec_name": ctx.cl_name,
+        },
+    )
 
     # Save a chat file for the planner step (the LLM response was lost
     # to SIGTERM, so we use a plan-file preview as the synthetic response).
@@ -166,13 +194,23 @@ def handle_plan_marker(
         state.feedback_round += 1
         state.feedback_bullets.append(plan_result.feedback)
 
+        feedback_submitted_at = datetime.now(UTC).isoformat()
         update_meta_field(
             state.current_artifacts_dir,
             "feedback_submitted_at",
-            datetime.now(UTC).isoformat(),
+            feedback_submitted_at,
         )
 
         suffix = plan_chain_feedback_suffix(state.feedback_round)
+        feedback_agent_name = _agent_name_for_suffix(ctx, suffix)
+        _record_workflow_metadata(
+            state.current_artifacts_dir,
+            {
+                "feedback_submitted_at": feedback_submitted_at,
+                "followup_agent_name": feedback_agent_name,
+                "plan_path": plan_result.plan_file,
+            },
+        )
         state.current_role_suffix = suffix
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
@@ -190,6 +228,14 @@ def handle_plan_marker(
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
+            relationships={
+                "plan_path": plan_result.plan_file,
+                "feedback_submitted_at": feedback_submitted_at,
+                "changespec_name": ctx.cl_name,
+                "source_plan_agent_name": _agent_name_for_suffix(
+                    ctx, PLAN_CHAIN_PLAN_SUFFIX
+                ),
+            },
         )
 
         # Reconstruct prompt: original + all Q&A + requirements
@@ -240,6 +286,13 @@ def handle_plan_marker(
             plan_kind=plan_kind,
         )
         state.sdd_spec_path = str(sdd_prompt_path_obj)
+        _record_workflow_metadata(
+            state.current_artifacts_dir,
+            {
+                "sdd_prompt_path": str(sdd_prompt_path_obj),
+                "sdd_plan_path": str(sdd_plan_path),
+            },
+        )
         if not version_controlled:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
     except Exception:
@@ -284,6 +337,15 @@ def handle_plan_marker(
         from sase.sdd.beads import ensure_beads_initialized
 
         ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
+        legend_bead_id = (
+            _infer_epic_legend_bead_id(
+                sdd_plan_path=sdd_plan_path,
+                workspace_dir=ctx.workspace_dir,
+                sdd_dir=sdd_dir,
+            )
+            if plan_result.action == "epic"
+            else None
+        )
 
         # Epic/legend: spawn a follow-up agent to create the container bead.
         state.current_role_suffix = (
@@ -302,6 +364,20 @@ def handle_plan_marker(
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
+            relationships={
+                "plan_path": plan_result.plan_file,
+                "sdd_prompt_path": str(state.sdd_spec_path)
+                if state.sdd_spec_path
+                else None,
+                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "legend_bead_id": (
+                    legend_bead_id if plan_result.action == "epic" else None
+                ),
+                "changespec_name": ctx.cl_name,
+                "source_plan_agent_name": _agent_name_for_suffix(
+                    ctx, PLAN_CHAIN_PLAN_SUFFIX
+                ),
+            },
         )
         update_meta_field(
             state.current_artifacts_dir,
@@ -368,6 +444,17 @@ def handle_plan_marker(
             if ctx.agent_name
             else None,
             workflow_name=ctx.agent_name,
+            relationships={
+                "plan_path": plan_result.plan_file,
+                "sdd_prompt_path": str(state.sdd_spec_path)
+                if state.sdd_spec_path
+                else None,
+                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "changespec_name": ctx.cl_name,
+                "source_plan_agent_name": _agent_name_for_suffix(
+                    ctx, PLAN_CHAIN_PLAN_SUFFIX
+                ),
+            },
         )
         _update_coder_model_meta(plan_result, ctx, state)
         coder_extra = ""
@@ -430,10 +517,11 @@ def handle_questions_marker(
         state.current_role_suffix or PLAN_CHAIN_QUESTION_SUFFIX,
     )
 
+    questions_submitted_at = datetime.now(UTC).isoformat()
     update_meta_field(
         state.current_artifacts_dir,
         "questions_submitted_at",
-        datetime.now(UTC).isoformat(),
+        questions_submitted_at,
     )
 
     # Clear the killed flag set by the questions command's
@@ -445,6 +533,14 @@ def handle_questions_marker(
     )
     if response is None:
         return "killed"
+    question_relationships = {
+        "questions_submitted_at": questions_submitted_at,
+        "question_request_path": response.get("_question_request_path"),
+        "question_response_path": response.get("_question_response_path"),
+        "question_session_id": response.get("_question_session_id"),
+        "changespec_name": ctx.cl_name,
+    }
+    _record_workflow_metadata(state.current_artifacts_dir, question_relationships)
 
     # Save a chat file for the questions step
     from sase.history.chat import save_chat_history
@@ -490,6 +586,10 @@ def handle_questions_marker(
         if ctx.agent_name
         else None,
         workflow_name=ctx.agent_name,
+        relationships={
+            **question_relationships,
+            "source_plan_agent_name": _agent_name_for_suffix(ctx, previous_role_suffix),
+        },
     )
     qa_text = format_qa_for_prompt(q_data.get("questions", []), response)
     state.qa_sections.append(qa_text)

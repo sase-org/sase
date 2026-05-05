@@ -12,6 +12,7 @@ from typing import Any, NamedTuple
 
 from sase.axe.artifact_metadata import (
     enrich_agent_artifact_metadata,
+    workflow_relationships_from_env,
     write_agent_artifact_metadata,
 )
 from sase.axe.runner_utils import was_killed
@@ -177,6 +178,9 @@ def extract_directives_and_write_meta(
         if directives.tag:
             agent_meta["tag"] = directives.tag
         agent_meta.update(agent_meta_from_chop_env())
+        workflow_relationships = workflow_relationships_from_env(agent_name)
+        if workflow_relationships:
+            agent_meta.update(workflow_relationships)
 
         # Write agent_meta.json
         if agent_meta:
@@ -184,7 +188,11 @@ def extract_directives_and_write_meta(
                 artifacts_dir,
                 agent_meta,
                 agent_name=agent_name,
-                cl_name=cl_name,
+                cl_name=agent_meta.get("changespec_name")
+                or agent_meta.get("cl_name")
+                or cl_name,
+                bead_id=agent_meta.get("bead_id"),
+                relationships=workflow_relationships,
             )
 
             if agent_name:

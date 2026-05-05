@@ -219,16 +219,42 @@ def write_result_marker(
     marker = {
         "method": method,
         "result": result,
+        "commit_result": result,
         "message": payload.get("message", ""),
         "name": payload.get("name", ""),
         "bead_id": payload.get("bead_id", ""),
         "changespec_name": changespec_name,
+        "commit_changespec_name": changespec_name,
         "entry_id": entry_id,
+        "commit_entry_id": entry_id,
         "diff_path": diff_path,
+        "commit_diff_path": diff_path,
     }
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
-    with open(marker_path, "w") as f:
+    with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)
+    _update_agent_meta_for_commit_result(artifacts_dir, marker)
+
+
+def _update_agent_meta_for_commit_result(
+    artifacts_dir: str, marker: dict[str, object]
+) -> None:
+    try:
+        from sase.axe.artifact_metadata import update_agent_artifact_metadata
+
+        update_agent_artifact_metadata(
+            artifacts_dir,
+            {
+                "bead_id": marker.get("bead_id"),
+                "commit_changespec_name": marker.get("commit_changespec_name"),
+                "commit_entry_id": marker.get("commit_entry_id"),
+                "commit_result": marker.get("commit_result"),
+                "commit_diff_path": marker.get("commit_diff_path"),
+                "changespec_name": marker.get("commit_changespec_name"),
+            },
+        )
+    except Exception:
+        pass
 
 
 def create_changespec(

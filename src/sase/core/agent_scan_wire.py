@@ -291,6 +291,25 @@ class AgentMetaWire:
     """
 
     name: str | None = None
+    artifact_agent_id: str | None = None
+    artifact_source_dir: str | None = None
+    changespec_name: str | None = None
+    cl_name: str | None = None
+    bead_id: str | None = None
+    plan_path: str | None = None
+    sdd_prompt_path: str | None = None
+    sdd_plan_path: str | None = None
+    question_request_path: str | None = None
+    question_response_path: str | None = None
+    epic_bead_id: str | None = None
+    phase_bead_id: str | None = None
+    legend_bead_id: str | None = None
+    commit_changespec_name: str | None = None
+    commit_entry_id: str | None = None
+    commit_result: str | None = None
+    commit_diff_path: str | None = None
+    parent_agent_timestamp: str | None = None
+    parent_agent_name: str | None = None
     workflow_name: str | None = None
     pid: int | None = None
     model: str | None = None
