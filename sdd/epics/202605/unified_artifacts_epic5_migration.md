@@ -2,6 +2,9 @@
 legend: sdd/legends/202605/unified_artifacts.md
 epic: 5
 title: Unified Artifacts Epic 5 Migration Compatibility And Cleanup
+bead_id: sase-23.5
+tier: epic
+legend_bead_id: sase-23
 create_time: 2026-05-05 14:06:06
 status: wip
 prompt: sdd/prompts/202605/unified_artifacts_epic5_migration.md
