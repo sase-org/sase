@@ -6,7 +6,7 @@ the Rust-backed regression-floor source:
 
 - ``notification_store_5k_load_snapshot``: load and classify a 5k JSONL corpus.
 - ``notification_store_5k_mark_dismissed_burst``: mark a burst of agent
-  notifications dismissed through the public one-at-a-time API.
+  notifications dismissed through the public bulk API.
 - ``notification_store_5k_mark_all_read``: run the current full-file read/rewrite.
 - ``notification_store_append_plus_rewrite_concurrency``: race append and
   rewrite operations and validate the resulting JSONL remains parseable.
@@ -44,7 +44,7 @@ from sase.notifications.store import (
     append_notification,
     load_notifications,
     mark_all_read,
-    mark_dismissed,
+    mark_many_dismissed,
     rewrite_notifications,
 )
 
@@ -173,12 +173,7 @@ def _run_modal_dismiss_burst() -> int:
 
     notifications = load_notifications()
     modal = NotificationModal(notifications)
-    modal._rebuild_list = lambda *args, **kwargs: None  # type: ignore[method-assign]
-    dismissed = 0
-    while modal._notifications and dismissed < 25:
-        modal._dismiss_notification_by_index(0)
-        dismissed += 1
-    return dismissed
+    return modal._bulk_dismiss_notifications_by_index(25)
 
 
 def run_bench(
@@ -210,11 +205,7 @@ def run_bench(
         dismiss_ids = [f"synthetic-{idx:06d}" for idx in range(1, min(count, 500), 7)]
 
         def mark_dismissed_burst() -> int:
-            count_marked = 0
-            for notification_id in dismiss_ids:
-                if mark_dismissed(notification_id):
-                    count_marked += 1
-            return count_marked
+            return mark_many_dismissed(dismiss_ids)
 
         scenarios = {
             "notification_store_5k_load_snapshot": load_snapshot,

@@ -19,6 +19,7 @@ from sase.notifications import (
     Notification,
     mark_all_read,
     mark_dismissed,
+    mark_many_dismissed,
     mark_muted,
     mark_snoozed,
 )
@@ -132,6 +133,10 @@ class NotificationModal(
     def _mark_dismissed(self, notification_id: str) -> None:
         """Mark one notification as dismissed in the backing store."""
         mark_dismissed(notification_id)
+
+    def _mark_many_dismissed(self, notification_ids: list[str]) -> int:
+        """Mark multiple notifications as dismissed in the backing store."""
+        return mark_many_dismissed(notification_ids)
 
     def _mark_muted(self, notification_id: str, muted: bool) -> None:
         """Persist one notification's muted state."""

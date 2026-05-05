@@ -73,6 +73,30 @@ class NotificationStateActionsMixin:
         )
         self._rebuild_list(highlight_index=highlight)
 
+    def _bulk_dismiss_notifications_by_index(self: Any, count: int) -> int:
+        """Dismiss a burst of notifications from the current modal list."""
+        if count <= 0 or not self._notifications:
+            return 0
+
+        start_idx = self._get_selected_index()
+        if start_idx is None:
+            start_idx = 0
+        if start_idx >= len(self._notifications):
+            return 0
+
+        end_idx = min(len(self._notifications), start_idx + count)
+        notification_ids = [
+            notification.id for notification in self._notifications[start_idx:end_idx]
+        ]
+        if not notification_ids:
+            return 0
+
+        self._mark_many_dismissed(notification_ids)
+        del self._notifications[start_idx:end_idx]
+        highlight = min(start_idx, len(self._notifications) - 1)
+        self._rebuild_list(highlight_index=highlight if highlight >= 0 else None)
+        return len(notification_ids)
+
     def action_toggle_mute(self: Any) -> None:
         """Toggle mute on the highlighted notification."""
         idx = self._get_selected_index()

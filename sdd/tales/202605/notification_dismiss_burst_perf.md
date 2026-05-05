@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 18:21:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_dismiss_burst_perf.md
 ---
 # Plan: Fix notification dismiss burst perf floor

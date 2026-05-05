@@ -23,6 +23,7 @@ from sase.notifications.store import (
     load_notifications,
     mark_all_read,
     mark_dismissed,
+    mark_many_dismissed,
     mark_muted,
     mark_read,
     mark_snoozed,
@@ -252,6 +253,53 @@ class TestMarkDismissed:
         assert mark_dismissed("nonexistent") is False
         loaded = load_notifications()
         assert loaded[0].dismissed is False
+
+
+class TestMarkManyDismissed:
+    """Tests for mark_many_dismissed()."""
+
+    def test_marks_many_and_returns_matched_count(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = _make_notification(id="n1")
+        n2 = _make_notification(id="n2")
+        n3 = _make_notification(id="n3")
+        for notification in (n1, n2, n3):
+            append_notification(notification)
+
+        count = mark_many_dismissed(["n1", "n3", "missing"])
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+        assert count == 2
+        assert by_id["n1"].dismissed is True
+        assert by_id["n2"].dismissed is False
+        assert by_id["n3"].dismissed is True
+
+    def test_empty_ids_skip_store_update(self, temp_notifications_dir: Path) -> None:
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update"
+        ) as mock_update:
+            assert mark_many_dismissed([]) == 0
+
+        mock_update.assert_not_called()
+
+    def test_routes_through_bulk_rust_update(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        import sase.notifications.store as store
+
+        n = _make_notification(id="n1")
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_many_dismissed(["n1"]) == 1
+
+        mock_update.assert_called_once()
+        update = mock_update.call_args.args[1]
+        assert update.kind == "mark_many_dismissed"
+        assert update.ids == ("n1",)
 
 
 # =========================================================================

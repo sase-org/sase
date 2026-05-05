@@ -89,6 +89,29 @@ def test_dismiss_final_visible_notification_highlights_previous_visual_row() -> 
     modal._rebuild_list.assert_called_once_with(highlight_index=1)
 
 
+def test_bulk_dismiss_persists_once_removes_rows_and_rebuilds_once() -> None:
+    """Bulk dismiss persists one ID burst and rebuilds the modal once."""
+    modal = NotificationModal(
+        [
+            _make_notification("n1", action="JumpToAgent"),
+            _make_notification("n2", action="JumpToAgent"),
+            _make_notification("n3", action="JumpToAgent"),
+        ]
+    )
+    modal._get_selected_index = lambda: 1  # type: ignore[method-assign]
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.tui.modals.notification_modal.mark_many_dismissed"
+    ) as mock_mark:
+        dismissed = modal._bulk_dismiss_notifications_by_index(2)
+
+    assert dismissed == 2
+    mock_mark.assert_called_once_with(["n2", "n3"])
+    assert [notification.id for notification in modal._notifications] == ["n1"]
+    modal._rebuild_list.assert_called_once_with(highlight_index=0)
+
+
 def test_toggle_mute_sets_muted_and_rebuilds() -> None:
     """m should toggle mute state, persist via mark_muted, and rebuild."""
     notification = _make_notification("n1", action="JumpToAgent")

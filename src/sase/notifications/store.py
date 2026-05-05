@@ -2,6 +2,7 @@
 
 import dataclasses
 import os
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -156,6 +157,15 @@ def mark_dismissed(notification_id: str) -> bool:
         _state_update(kind="mark_dismissed", id=notification_id)
     )
     return outcome.matched_count > 0
+
+
+def mark_many_dismissed(notification_ids: Iterable[str]) -> int:
+    """Mark notifications as dismissed. Returns the number of found rows."""
+    ids = tuple(notification_ids)
+    if not ids:
+        return 0
+    outcome = _apply_state_update(_state_update(kind="mark_many_dismissed", ids=ids))
+    return int(outcome.matched_count)
 
 
 def mark_muted(notification_id: str, muted: bool = True) -> bool:

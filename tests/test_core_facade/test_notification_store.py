@@ -149,6 +149,15 @@ def test_update_wire_serializes_tagged_shape() -> None:
     }
 
 
+def test_update_wire_serializes_mark_many_dismissed_shape() -> None:
+    update = NotificationStateUpdateWire(kind="mark_many_dismissed", ids=("n1", "n2"))
+
+    assert notification_store_wire_to_json_dict(update) == {
+        "kind": "mark_many_dismissed",
+        "ids": ["n1", "n2"],
+    }
+
+
 def test_wire_helpers_rehydrate_and_serialize_agent_keys() -> None:
     n = notification_from_dict(
         {
