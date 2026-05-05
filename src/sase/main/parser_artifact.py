@@ -39,11 +39,17 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     add_parser.add_argument("-p", "--payload-json", help="Payload JSON value")
     add_parser.add_argument("-P", "--payload-type", help="Payload type")
     add_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit stable JSON output",
+    )
+    add_parser.add_argument(
         "-l",
         "--link",
         action="append",
         default=[],
-        help="Compact link spec; repeatable",
+        help="Compact link spec TYPE|SOURCE_ID|TARGET_ID or ID|TYPE|SOURCE_ID|TARGET_ID; repeatable",
     )
     add_parser.add_argument(
         "-L",
@@ -69,6 +75,12 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Provenance selector for removal/tombstone semantics",
     )
     remove_parser.add_argument("-r", "--reason", help="Removal reason")
+    remove_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit stable JSON output",
+    )
 
     list_parser = artifact_sub.add_parser(
         "list",
