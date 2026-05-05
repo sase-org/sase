@@ -11,6 +11,7 @@ from sase.running_field import get_claimed_workspaces
 from textual.widgets import Static
 
 from ...changespec import ChangeSpec
+from ....core.changespec import get_workspace_directory_for_changespec
 from ...display_helpers import (
     format_running_claims_aligned,
     get_status_color,
@@ -258,6 +259,10 @@ class ChangeSpecDetail(Static):
         # Determine which entries get hints
         show_history_hints = with_hints and hints_for in (None, "all")
         show_comment_hints = with_hints and hints_for in (None, "all")
+        show_delta_hints = with_hints and hints_for in (None, "all")
+        delta_workspace_dir = (
+            self._resolve_delta_workspace_dir(changespec) if show_delta_hints else None
+        )
 
         # Build RUNNING field (displayed at top of panel)
         self._build_running_field(text, changespec)
@@ -288,6 +293,8 @@ class ChangeSpecDetail(Static):
             changespec,
             deltas_collapsed,
             hint_tracker,
+            show_file_hints=show_delta_hints,
+            workspace_dir=delta_workspace_dir,
         )
 
         # Build HOOKS section
@@ -345,6 +352,13 @@ class ChangeSpecDetail(Static):
             hint_tracker.hint_to_entry_id,
             hint_tracker.mentor_hint_to_info,
         )
+
+    def _resolve_delta_workspace_dir(self, changespec: ChangeSpec) -> str | None:
+        """Resolve the primary workspace used for repo-relative DELTAS paths."""
+        workspace_dir = get_workspace_directory_for_changespec(changespec)
+        if workspace_dir is None:
+            return None
+        return str(Path(workspace_dir).expanduser())
 
     def _build_running_field(
         self,

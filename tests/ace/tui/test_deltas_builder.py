@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+from pytest import MonkeyPatch
 from rich.text import Text
 
 from sase.ace.changespec.models import ChangeSpec, DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.deltas_builder import build_deltas_section
+from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
+from sase.ace.tui.widgets.hint_tracker import HintTracker
 
 
 def _make_changespec(
@@ -224,3 +230,158 @@ class TestFullyExpanded:
         assert "bold #5FD787" in plus_styles
         assert "bold #FFD787" in tilde_styles
         assert "bold #FF5F5F" in minus_styles
+
+
+class TestFileHints:
+    def test_expanded_entries_emit_hints_and_mappings(self) -> None:
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(path="b.py", change_type="M"),
+                DeltaEntry(path="a.py", change_type="A"),
+            ]
+        )
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.FULLY_EXPANDED,
+            show_file_hints=True,
+        )
+
+        assert "+ [1] a.py" in text.plain
+        assert "~ [2] b.py" in text.plain
+        assert tracker.mappings == {
+            1: os.path.abspath("a.py"),
+            2: os.path.abspath("b.py"),
+        }
+        assert tracker.counter == 3
+
+    def test_relative_paths_resolve_under_workspace_dir(self, tmp_path: Path) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        cs = _make_changespec(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.FULLY_EXPANDED,
+            show_file_hints=True,
+            workspace_dir=str(workspace_dir),
+        )
+
+        assert tracker.mappings[1] == str(workspace_dir / "src/foo.py")
+
+    def test_absolute_and_home_paths_resolve_directly(self) -> None:
+        abs_path = "/tmp/sase-abs.py"
+        home_path = "~/sase-home.py"
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(path=home_path, change_type="A"),
+                DeltaEntry(path=abs_path, change_type="M"),
+            ]
+        )
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.FULLY_EXPANDED,
+            show_file_hints=True,
+            workspace_dir="/ignored/workspace",
+        )
+
+        assert tracker.mappings[1] == abs_path
+        assert tracker.mappings[2] == os.path.expanduser(home_path)
+
+    def test_collapsed_deltas_do_not_add_hidden_hints(self) -> None:
+        incoming = HintTracker(
+            counter=7,
+            mappings={3: "/already.py"},
+            hook_hint_to_idx={},
+            hint_to_entry_id={},
+            mentor_hint_to_info={},
+        )
+        cs = _make_changespec(deltas=[DeltaEntry(path="hidden.py", change_type="M")])
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.COLLAPSED,
+            incoming,
+            show_file_hints=True,
+            workspace_dir="/workspace",
+        )
+
+        assert "[7]" not in text.plain
+        assert tracker == incoming
+
+    def test_hint_counter_continues_from_incoming_tracker(self) -> None:
+        incoming = HintTracker(
+            counter=3,
+            mappings={1: "/one.py", 2: "/two.py"},
+            hook_hint_to_idx={9: 4},
+            hint_to_entry_id={8: "1a"},
+            mentor_hint_to_info={7: ("mentor", "profile")},
+        )
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(path="b.py", change_type="M"),
+                DeltaEntry(path="a.py", change_type="A"),
+            ]
+        )
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.FULLY_EXPANDED,
+            incoming,
+            show_file_hints=True,
+            workspace_dir="/workspace",
+        )
+
+        assert "+ [3] a.py" in text.plain
+        assert "~ [4] b.py" in text.plain
+        assert tracker.counter == 5
+        assert tracker.mappings == {
+            1: "/one.py",
+            2: "/two.py",
+            3: "/workspace/a.py",
+            4: "/workspace/b.py",
+        }
+        assert tracker.hook_hint_to_idx == incoming.hook_hint_to_idx
+        assert tracker.hint_to_entry_id == incoming.hint_to_entry_id
+        assert tracker.mentor_hint_to_info == incoming.mentor_hint_to_info
+
+
+class TestChangeSpecDetailFileHints:
+    def test_update_display_with_hints_includes_expanded_deltas(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        project_file = tmp_path / "proj.gp"
+        cs = _make_changespec(deltas=[DeltaEntry(path="src/foo.py", change_type="M")])
+        cs.file_path = str(project_file)
+
+        monkeypatch.setattr(
+            "sase.ace.tui.widgets.changespec_detail.get_claimed_workspaces",
+            lambda _project_file: [],
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.widgets.changespec_detail."
+            "get_workspace_directory_for_changespec",
+            lambda _changespec: str(workspace_dir),
+        )
+
+        detail = ChangeSpecDetail()
+        hint_mappings, _, _, _ = detail.update_display_with_hints(
+            cs,
+            query_string="",
+            deltas_collapsed=FoldLevel.FULLY_EXPANDED,
+        )
+
+        assert hint_mappings == {1: str(workspace_dir / "src/foo.py")}

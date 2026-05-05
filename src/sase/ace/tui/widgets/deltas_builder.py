@@ -98,10 +98,25 @@ def _append_summary(text: Text, deltas: list[DeltaEntry]) -> None:
     text.append(f" ({total} {suffix})\n", style=_COLOR_DIM_ITALIC)
 
 
-def _append_entry(text: Text, entry: DeltaEntry) -> None:
+def _resolve_delta_path(path: str, workspace_dir: str | None) -> str:
+    expanded = os.path.expanduser(path)
+    if os.path.isabs(expanded):
+        return expanded
+    if workspace_dir:
+        return os.path.join(workspace_dir, expanded)
+    return os.path.abspath(expanded)
+
+
+def _append_entry(
+    text: Text,
+    entry: DeltaEntry,
+    hint_counter: int | None = None,
+) -> None:
     glyph = _GLYPH_BY_TYPE.get(entry.change_type, "?")
     style = _GLYPH_STYLE.get(entry.change_type, "")
     text.append(f"  {glyph} ", style=style)
+    if hint_counter is not None:
+        text.append(f"[{hint_counter}] ", style="bold #FFFF00")
     _append_path(text, entry.path)
     if entry.line_stats is not None:
         text.append("  ")
@@ -114,6 +129,8 @@ def build_deltas_section(
     changespec: ChangeSpec,
     deltas_fold: FoldLevel = FoldLevel.COLLAPSED,
     hint_tracker: HintTracker | None = None,
+    show_file_hints: bool = False,
+    workspace_dir: str | None = None,
 ) -> HintTracker:
     """Build the DELTAS section of the display.
 
@@ -132,12 +149,14 @@ def build_deltas_section(
         changespec: The ChangeSpec to display.
         deltas_fold: Fold level for the DELTAS section.
         hint_tracker: Current hint tracking state.
+        show_file_hints: Whether to show file path hints on visible entries.
+        workspace_dir: Workspace directory for resolving relative paths.
 
     Returns:
-        Updated HintTracker (unchanged — DELTAS has no hints).
+        Updated HintTracker.
     """
     tracker = hint_tracker or HintTracker(
-        counter=0,
+        counter=1 if show_file_hints else 0,
         mappings={},
         hook_hint_to_idx={},
         hint_to_entry_id={},
@@ -154,6 +173,20 @@ def build_deltas_section(
         return tracker
 
     text.append("\n")
+    hint_counter = tracker.counter
+    hint_mappings = dict(tracker.mappings)
     for entry in sorted(deltas, key=lambda e: e.path):
-        _append_entry(text, entry)
-    return tracker
+        if show_file_hints:
+            hint_mappings[hint_counter] = _resolve_delta_path(entry.path, workspace_dir)
+            _append_entry(text, entry, hint_counter)
+            hint_counter += 1
+        else:
+            _append_entry(text, entry)
+
+    return HintTracker(
+        counter=hint_counter,
+        mappings=hint_mappings,
+        hook_hint_to_idx=tracker.hook_hint_to_idx,
+        hint_to_entry_id=tracker.hint_to_entry_id,
+        mentor_hint_to_info=tracker.mentor_hint_to_info,
+    )
