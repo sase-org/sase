@@ -19,7 +19,9 @@ def _agent_artifact_id(agent: Agent) -> str | None:
     if agent.agent_name:
         return agent.agent_name
 
-    artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+    artifacts_dir = agent.artifacts_dir
+    if not artifacts_dir and agent.project_file:
+        artifacts_dir = agent.get_artifacts_dir()
     if artifacts_dir:
         path = Path(artifacts_dir).expanduser()
         if path.name and path.parent.name and path.parent.parent.name == "artifacts":
@@ -81,7 +83,9 @@ class ArtifactsMixin:
             if not 0 <= self.current_idx < len(agents):
                 return None, None
             agent = agents[self.current_idx]
-            artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+            artifacts_dir = agent.artifacts_dir
+            if not artifacts_dir and agent.project_file:
+                artifacts_dir = agent.get_artifacts_dir()
             return None, Path(artifacts_dir).expanduser() if artifacts_dir else None
 
         return None, None

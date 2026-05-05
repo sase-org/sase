@@ -17,7 +17,11 @@ from sase.ace.tui.keymaps import (
     load_builtin_app_defaults,
     load_keymap_registry,
 )
-from sase.ace.tui.modals.help_modal.bindings import cls_bindings
+from sase.ace.tui.modals.help_modal.bindings import (
+    agents_bindings,
+    axe_bindings,
+    cls_bindings,
+)
 
 
 def _default_app_keymaps(**overrides: str) -> AppKeymaps:
@@ -46,6 +50,20 @@ def test_edit_hooks_default_binding() -> None:
     """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
     reg = load_keymap_registry({})
     assert reg.app.edit_hooks == "f"
+
+
+def test_help_modal_labels_capital_a_as_artifacts() -> None:
+    """Guard the ``A`` help label after demoting the legacy run-log surface."""
+    reg = load_keymap_registry({})
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        action_labels = {
+            label
+            for _section, bindings in sections
+            for key, label in bindings
+            if key == "A"
+        }
+        assert "Artifacts" in action_labels
+        assert all("run log" not in label.lower() for label in action_labels)
 
 
 def test_g_and_o_default_bindings_do_not_collide() -> None:

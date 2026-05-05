@@ -133,6 +133,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._render_worker.cancel()
         self._load_worker = self.run_worker(
             lambda: self._load_detail(artifact_id),
+            exit_on_error=False,
             thread=True,
         )
 
@@ -282,6 +283,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._update_detail("Rendering artifact preview...")
         self._render_worker = self.run_worker(
             lambda: self._build_detail_renderable(detail),
+            exit_on_error=False,
             thread=True,
         )
 

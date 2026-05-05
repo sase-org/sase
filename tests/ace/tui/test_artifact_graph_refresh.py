@@ -132,3 +132,73 @@ def test_refresh_paths_targets_bead_store(monkeypatch, tmp_path: Path) -> None:
         include_sources=(ARTIFACT_SOURCE_BEAD_STORE,),
         beads_dir=issues.parent,
     )
+
+
+def test_missing_artifact_refresh_prefers_agent_artifact_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    artifact_dir = tmp_path / "artifacts" / "codex" / "20260505120000"
+    artifact_dir.mkdir(parents=True)
+    context_path = tmp_path / "project.gp"
+    context_path.write_text("NAME: alpha\n")
+    mock_builder = Mock(return_value=ArtifactRebuildRequestWire())
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild_request",
+        mock_builder,
+    )
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild",
+        Mock(return_value=_mutation()),
+    )
+
+    artifact_graph_refresh.refresh_artifact_graph_for_missing_artifact(
+        "/tmp/artifacts.sqlite",
+        "named-agent",
+        context_path=context_path,
+        artifact_dir=artifact_dir,
+    )
+
+    mock_builder.assert_called_once_with(
+        target_path=None,
+        artifact_dir=artifact_dir,
+        include_sources=(
+            ARTIFACT_SOURCE_AGENT_ARTIFACT,
+            ARTIFACT_SOURCE_AGENT_CREATED_FILE,
+            ARTIFACT_SOURCE_AGENT_THOUGHT,
+        ),
+        beads_dir=None,
+    )
+
+
+def test_missing_artifact_refresh_without_context_avoids_agent_sources(
+    monkeypatch,
+) -> None:
+    mock_builder = Mock(return_value=ArtifactRebuildRequestWire())
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild_request",
+        mock_builder,
+    )
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild",
+        Mock(return_value=_mutation()),
+    )
+
+    artifact_graph_refresh.refresh_artifact_graph_for_missing_artifact(
+        "/tmp/artifacts.sqlite",
+        "changespec:current",
+    )
+
+    mock_builder.assert_called_once_with(
+        target_path=None,
+        artifact_dir=None,
+        include_sources=(
+            ARTIFACT_SOURCE_PROJECT_FILE,
+            ARTIFACT_SOURCE_CHANGESPEC,
+            ARTIFACT_SOURCE_COMMIT,
+        ),
+        beads_dir=None,
+    )

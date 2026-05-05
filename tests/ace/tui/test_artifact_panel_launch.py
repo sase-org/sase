@@ -199,6 +199,29 @@ def test_open_artifacts_panel_warns_without_context() -> None:
     ]
 
 
+def test_open_artifacts_panel_warns_without_agent_context() -> None:
+    app = _FakeApp(
+        agents=[
+            _make_agent(
+                agent_name=None,
+                artifacts_dir=None,
+                project_file=None,
+                workflow=None,
+                parent_workflow=None,
+                raw_suffix=None,
+            )
+        ],
+        current_tab="agents",
+    )
+
+    app.action_open_artifacts_panel()
+
+    assert app.pushed_modals == []
+    assert app.notifications == [
+        ("No artifact context for the current selection", "warning")
+    ]
+
+
 def test_default_keymap_binds_capital_a_to_open_artifacts_panel() -> None:
     registry = load_keymap_registry({"keymaps": {"app": {}}})
     assert registry.app.open_artifacts_panel == "A"

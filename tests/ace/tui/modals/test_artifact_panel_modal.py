@@ -295,6 +295,107 @@ async def test_missing_start_artifact_rebuilds_context_and_retries_once(
 
 
 @pytest.mark.asyncio
+async def test_missing_start_artifact_does_not_refresh_more_than_once(
+    tmp_path: Path,
+) -> None:
+    show_calls: list[str] = []
+    refresh_calls: list[str] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        show_calls.append(artifact_id)
+        return _missing_detail()
+
+    def fake_refresh(
+        index_path: str | Any,
+        artifact_id: str,
+        ctx_path: str | Any | None,
+        artifact_dir: str | Any | None,
+    ) -> None:
+        del index_path, ctx_path, artifact_dir
+        refresh_calls.append(artifact_id)
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:missing",
+        show_func=fake_show,
+        refresh_missing_func=fake_refresh,
+        context_path=tmp_path / "project.gp",
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_root()
+        await pilot.pause()
+        await pilot.pause()
+        modal._navigate_to("changespec:missing")
+        await pilot.pause()
+        await pilot.pause()
+
+    assert show_calls == [
+        "changespec:missing",
+        "changespec:missing",
+        "/",
+        "/",
+        "changespec:missing",
+    ]
+    assert refresh_calls == ["changespec:missing", "/"]
+
+
+@pytest.mark.asyncio
+async def test_artifact_load_error_renders_error_without_broad_queries() -> None:
+    show_calls: list[str] = []
+    graph_calls: list[ArtifactGraphOptionsWire] = []
+    export_calls: list[tuple[ArtifactGraphOptionsWire, str]] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        show_calls.append(artifact_id)
+        raise RuntimeError("synthetic artifact backend failure")
+
+    def fake_graph(
+        index_path: str | Any, options: ArtifactGraphOptionsWire
+    ) -> ArtifactGraphWire:
+        del index_path
+        graph_calls.append(options)
+        return ArtifactGraphWire(schema_version=ARTIFACT_WIRE_SCHEMA_VERSION)
+
+    def fake_export(
+        index_path: str | Any,
+        options: ArtifactGraphOptionsWire,
+        output_format: str,
+    ) -> str:
+        del index_path
+        export_calls.append((options, output_format))
+        return ""
+
+    modal = ArtifactPanelModal(
+        artifact_id="broken",
+        show_func=fake_show,
+        graph_func=fake_graph,
+        export_func=fake_export,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_next_option()
+        modal.action_prev_option()
+        await pilot.pause()
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+
+    assert show_calls == ["broken"]
+    assert graph_calls == []
+    assert export_calls == []
+    assert "Artifact load failed" in detail_text
+    assert "synthetic artifact backend failure" in detail_text
+
+
+@pytest.mark.asyncio
 async def test_graph_preview_and_export_are_bounded_and_explicit() -> None:
     graph = _LargeFakeArtifactGraph()
     modal = ArtifactPanelModal(
