@@ -38,6 +38,7 @@ from .base import FilterInput, OptionListNavigationMixin
 ArtifactShowFunc = Callable[[Path | str, str], ArtifactDetailWire]
 ArtifactGraphFunc = Callable[[Path | str, ArtifactGraphOptionsWire], ArtifactGraphWire]
 ArtifactExportFunc = Callable[[Path | str, ArtifactGraphOptionsWire, str], str]
+ArtifactDetailRenderer = Callable[[ArtifactDetailWire], RenderableType]
 
 
 def _default_artifact_index_path() -> Path:
@@ -74,6 +75,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         show_func: ArtifactShowFunc | None = None,
         graph_func: ArtifactGraphFunc | None = None,
         export_func: ArtifactExportFunc | None = None,
+        detail_renderer: ArtifactDetailRenderer | None = None,
     ) -> None:
         super().__init__()
         self._artifact_id = artifact_id
@@ -82,9 +84,11 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._show_func = show_func
         self._graph_func = graph_func
         self._export_func = export_func
+        self._detail_renderer = detail_renderer
         self._detail: ArtifactDetailWire | None = None
         self._error_message: str | None = None
         self._load_worker: Worker[ArtifactDetailWire] | None = None
+        self._render_worker: Worker[RenderableType] | None = None
         self._row_by_option_id: dict[str, ArtifactPanelRow] = {}
 
     def compose(self) -> ComposeResult:
@@ -118,6 +122,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._render_loading()
         if self._load_worker is not None:
             self._load_worker.cancel()
+        if self._render_worker is not None:
+            self._render_worker.cancel()
         self._load_worker = self.run_worker(
             lambda: self._load_detail(artifact_id),
             thread=True,
@@ -133,6 +139,12 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Render the artifact load result."""
+        if event.worker == self._load_worker:
+            self._handle_load_worker_state(event)
+        elif event.worker == self._render_worker:
+            self._handle_render_worker_state(event)
+
+    def _handle_load_worker_state(self, event: Worker.StateChanged) -> None:
         if event.worker != self._load_worker:
             return
 
@@ -149,6 +161,21 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._error_message = str(event.worker.error or "Unknown artifact error")
             self._render_error()
 
+    def _handle_render_worker_state(self, event: Worker.StateChanged) -> None:
+        if event.worker != self._render_worker:
+            return
+
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            assert result is not None
+            self._update_detail(result)
+        elif event.state == WorkerState.ERROR:
+            message = str(event.worker.error or "Unknown artifact render error")
+            text = Text()
+            text.append("Artifact preview failed\n", style="bold yellow")
+            text.append(message, style="yellow")
+            self._update_detail(text)
+
     def _render_loading(self) -> None:
         self._row_by_option_id = {}
         self._replace_options(
@@ -159,13 +186,15 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
     def _render_error(self) -> None:
         message = self._error_message or "Artifact could not be loaded."
         self._row_by_option_id = {}
+        if self._render_worker is not None:
+            self._render_worker.cancel()
         self._replace_options([Option("Load failed", id="__error__", disabled=True)])
         text = Text()
         text.append("Artifact load failed\n", style="bold red")
         text.append(message, style="red")
         self._update_detail(text)
 
-    def _render_detail(self) -> None:
+    def _render_detail(self, *, update_preview: bool = True) -> None:
         detail = self._detail
         if detail is None or detail.node is None:
             self._replace_options([Option("Artifact not found", disabled=True)])
@@ -178,7 +207,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._replace_options(
             self._build_options(detail), prefer_row_id=self._state.selected_row_id
         )
-        self._update_detail(self._build_detail_renderable(detail))
+        if update_preview:
+            self._start_detail_render(detail)
 
     def _build_options(self, detail: ArtifactDetailWire) -> list[Option]:
         options: list[Option] = []
@@ -206,7 +236,17 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         return options
 
     def _build_detail_renderable(self, detail: ArtifactDetailWire) -> RenderableType:
-        return render_artifact_detail(detail)
+        renderer = self._detail_renderer or render_artifact_detail
+        return renderer(detail)
+
+    def _start_detail_render(self, detail: ArtifactDetailWire) -> None:
+        if self._render_worker is not None:
+            self._render_worker.cancel()
+        self._update_detail("Rendering artifact preview...")
+        self._render_worker = self.run_worker(
+            lambda: self._build_detail_renderable(detail),
+            thread=True,
+        )
 
     def _replace_options(
         self,
@@ -280,7 +320,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             return
         self._state.set_filter(event.value)
         if self._detail is not None:
-            self._render_detail()
+            self._render_detail(update_preview=False)
 
     def action_focus_filter(self) -> None:
         self.query_one("#artifact-panel-filter", Input).focus()

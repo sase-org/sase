@@ -1,0 +1,357 @@
+"""Performance and hardening tests for the artifact panel modal."""
+
+from __future__ import annotations
+
+from collections import Counter
+import threading
+from time import perf_counter
+from typing import Any
+
+import pytest
+from rich.console import RenderableType
+from textual.app import App, ComposeResult
+from textual.widgets import Input, OptionList, Static
+
+from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
+from sase.core.artifact_wire import (
+    ARTIFACT_WIRE_SCHEMA_VERSION,
+    ArtifactDetailWire,
+    ArtifactGraphOptionsWire,
+    ArtifactGraphWire,
+    ArtifactLinkWire,
+    ArtifactNodeWire,
+)
+
+
+class _ModalTestApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+
+def _node(
+    artifact_id: str,
+    kind: str = "file",
+    title: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> ArtifactNodeWire:
+    return ArtifactNodeWire(
+        id=artifact_id,
+        kind=kind,
+        display_title=title or artifact_id,
+        provenance="derived",
+        metadata=metadata or {},
+    )
+
+
+def _detail(
+    artifact_id: str,
+    *,
+    kind: str = "file",
+    title: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    children: list[ArtifactNodeWire] | None = None,
+    outbound_links: list[ArtifactLinkWire] | None = None,
+    inbound_links: list[ArtifactLinkWire] | None = None,
+    path_to_root: list[ArtifactNodeWire] | None = None,
+) -> ArtifactDetailWire:
+    return ArtifactDetailWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=_node(artifact_id, kind, title, metadata),
+        children=children or [],
+        outbound_links=outbound_links or [],
+        inbound_links=inbound_links or [],
+        path_to_root=path_to_root or [],
+    )
+
+
+class _LargeFakeArtifactGraph:
+    """Deterministic large graph fixture that avoids Rust and user state."""
+
+    def __init__(self, *, linked_count: int = 240) -> None:
+        self.show_calls: list[str] = []
+        self.graph_calls: list[ArtifactGraphOptionsWire] = []
+        self.export_calls: list[tuple[ArtifactGraphOptionsWire, str]] = []
+        self.details = self._build_details(linked_count)
+
+    def show(self, index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        self.show_calls.append(artifact_id)
+        return self.details[artifact_id]
+
+    def graph(
+        self, index_path: str | Any, options: ArtifactGraphOptionsWire
+    ) -> ArtifactGraphWire:
+        del index_path
+        self.graph_calls.append(options)
+        root_id = options.root_id or "/"
+        nodes = [self.details[root_id].node, *self.details[root_id].children]
+        limit = options.limit or len(nodes)
+        return ArtifactGraphWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            root_id=root_id,
+            nodes=[node for node in nodes if node is not None][:limit],
+            node_count=len(nodes),
+            link_count=len(self.details[root_id].outbound_links)
+            + len(self.details[root_id].inbound_links),
+            truncated=len(nodes) > limit,
+        )
+
+    def export(
+        self,
+        index_path: str | Any,
+        options: ArtifactGraphOptionsWire,
+        output_format: str,
+    ) -> str:
+        del index_path
+        self.export_calls.append((options, output_format))
+        return "flowchart TD\n  root --> child\n"
+
+    def _build_details(self, linked_count: int) -> dict[str, ArtifactDetailWire]:
+        root_children = [
+            _node(f"changespec:{idx}", "changespec", f"ChangeSpec {idx}")
+            for idx in range(linked_count)
+        ]
+        changespec_children = [
+            _node(f"agent:{idx}", "agent", f"Agent {idx}")
+            for idx in range(linked_count)
+        ]
+        agent_children = [
+            _node(
+                f"file:{idx}",
+                "file",
+                f"File {idx}",
+                {"path": f"/tmp/nonexistent-artifact-{idx}.txt"},
+            )
+            for idx in range(linked_count)
+        ]
+        details = {
+            "/": _detail("/", kind="root", children=root_children),
+            "changespec:current": _detail(
+                "changespec:current",
+                kind="changespec",
+                metadata={"name": "feature/current", "status": "WIP"},
+                children=changespec_children,
+                outbound_links=[
+                    ArtifactLinkWire(
+                        id=f"cs-created-{idx}",
+                        link_type="created",
+                        source_id="changespec:current",
+                        target_id=f"agent:{idx}",
+                    )
+                    for idx in range(linked_count)
+                ],
+                inbound_links=[
+                    ArtifactLinkWire(
+                        id=f"cs-related-{idx}",
+                        link_type="related",
+                        source_id=f"project:{idx}",
+                        target_id="changespec:current",
+                    )
+                    for idx in range(linked_count)
+                ],
+                path_to_root=[_node("/", "root")],
+            ),
+            "agent:current": _detail(
+                "agent:current",
+                kind="agent",
+                metadata={"status": "DONE", "provider": "codex"},
+                children=agent_children,
+                path_to_root=[_node("/", "root"), _node("changespec:current")],
+            ),
+        }
+        for nodes in (root_children, changespec_children, agent_children):
+            for node in nodes:
+                details[node.id] = _detail(node.id, kind=node.kind)
+        return details
+
+
+@pytest.mark.parametrize("start_id", ["/", "changespec:current", "agent:current"])
+@pytest.mark.asyncio
+async def test_large_graph_open_smoke_documents_latency_and_query_counts(
+    start_id: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    graph = _LargeFakeArtifactGraph()
+    modal = ArtifactPanelModal(artifact_id=start_id, show_func=graph.show)
+    app = _ModalTestApp()
+
+    start = perf_counter()
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        assert option_list.option_count > 100
+    elapsed_ms = (perf_counter() - start) * 1000
+
+    query_counts = Counter(graph.show_calls)
+    print(
+        "artifact_panel_large_open "
+        f"start={start_id} latency_ms={elapsed_ms:.2f} "
+        f"show_calls={len(graph.show_calls)} "
+        f"graph_calls={len(graph.graph_calls)} export_calls={len(graph.export_calls)}"
+    )
+    captured = capsys.readouterr()
+
+    assert query_counts == Counter({start_id: 1})
+    assert graph.graph_calls == []
+    assert graph.export_calls == []
+    assert f"start={start_id}" in captured.out
+    assert "show_calls=1 graph_calls=0 export_calls=0" in captured.out
+
+
+@pytest.mark.asyncio
+async def test_row_navigation_does_not_requery_and_open_selected_queries_once() -> None:
+    graph = _LargeFakeArtifactGraph()
+    modal = ArtifactPanelModal(artifact_id="changespec:current", show_func=graph.show)
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        modal.action_next_option()
+        modal.action_next_option()
+        modal.action_prev_option()
+        await pilot.pause()
+        assert graph.show_calls == ["changespec:current"]
+
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        for index in range(option_list.option_count):
+            if option_list.get_option_at_index(index).id == "child:agent:0":
+                option_list.highlighted = index
+                break
+        else:
+            raise AssertionError("child:agent:0 row was not rendered")
+
+        modal.action_open_selected()
+        await pilot.pause()
+        await pilot.pause()
+
+    assert graph.show_calls == ["changespec:current", "agent:0"]
+
+
+@pytest.mark.asyncio
+async def test_graph_preview_and_export_are_bounded_and_explicit() -> None:
+    graph = _LargeFakeArtifactGraph()
+    modal = ArtifactPanelModal(
+        artifact_id="agent:current",
+        show_func=graph.show,
+        graph_func=graph.graph,
+        export_func=graph.export,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_next_option()
+        modal.action_prev_option()
+        await pilot.pause()
+        assert graph.graph_calls == []
+        assert graph.export_calls == []
+
+        modal.action_preview_graph()
+        modal.action_export_graph()
+
+    assert [(call.root_id, call.limit) for call in graph.graph_calls] == [
+        ("agent:current", 100)
+    ]
+    assert [(call.root_id, call.limit, fmt) for call, fmt in graph.export_calls] == [
+        ("agent:current", 100, "mermaid")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_filter_updates_do_not_rerender_file_preview() -> None:
+    render_calls: list[str] = []
+
+    def render_detail(detail: ArtifactDetailWire) -> RenderableType:
+        assert detail.node is not None
+        render_calls.append(detail.node.id)
+        return f"preview for {detail.node.id}"
+
+    graph = _LargeFakeArtifactGraph()
+    modal = ArtifactPanelModal(
+        artifact_id="agent:current",
+        show_func=graph.show,
+        detail_renderer=render_detail,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert render_calls == ["agent:current"]
+
+        filter_input = modal.query_one("#artifact-panel-filter", Input)
+        filter_input.value = "File 12"
+        await pilot.pause()
+
+    assert render_calls == ["agent:current"]
+    assert graph.show_calls == ["agent:current"]
+
+
+@pytest.mark.asyncio
+async def test_stale_detail_preview_worker_is_ignored_after_navigation() -> None:
+    graph = _LargeFakeArtifactGraph(linked_count=4)
+    alpha_started = threading.Event()
+    release_alpha = threading.Event()
+    render_calls: list[str] = []
+
+    def render_detail(detail: ArtifactDetailWire) -> RenderableType:
+        assert detail.node is not None
+        render_calls.append(detail.node.id)
+        if detail.node.id == "changespec:current":
+            alpha_started.set()
+            release_alpha.wait(timeout=2)
+            return "stale changespec preview"
+        return f"fresh preview for {detail.node.id}"
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:current",
+        show_func=graph.show,
+        detail_renderer=render_detail,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        for _ in range(20):
+            await pilot.pause()
+            if alpha_started.is_set():
+                break
+        assert alpha_started.is_set()
+
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        for index in range(option_list.option_count):
+            if option_list.get_option_at_index(index).id == "child:agent:0":
+                option_list.highlighted = index
+                break
+        else:
+            raise AssertionError("child:agent:0 row was not rendered")
+
+        modal.action_open_selected()
+        await pilot.pause()
+        await pilot.pause()
+
+        release_alpha.set()
+        for _ in range(20):
+            await pilot.pause()
+            detail_text = str(
+                modal.query_one("#artifact-panel-detail", Static).render()
+            )
+            if "fresh preview for agent:0" in detail_text:
+                break
+
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+
+    assert graph.show_calls == ["changespec:current", "agent:0"]
+    assert render_calls[:2] == ["changespec:current", "agent:0"]
+    assert "fresh preview for agent:0" in detail_text
+    assert "stale changespec preview" not in detail_text
