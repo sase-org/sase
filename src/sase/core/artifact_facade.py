@@ -58,7 +58,6 @@ def _request_to_dict(
     return payload
 
 
-# pyvision: public_api_methods.txt
 def artifact_add(
     index_path: Path | str,
     request: ArtifactAddRequest,
@@ -69,7 +68,6 @@ def artifact_add(
     return artifact_mutation_result_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_remove(
     index_path: Path | str,
     request: ArtifactRemoveRequest,
@@ -80,7 +78,6 @@ def artifact_remove(
     return artifact_mutation_result_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_list(
     index_path: Path | str,
     query: ArtifactQueryWire | None = None,
@@ -95,7 +92,6 @@ def artifact_list(
     return [artifact_node_from_dict(node) for node in payload]
 
 
-# pyvision: public_api_methods.txt
 def artifact_show(index_path: Path | str, artifact_id: str) -> ArtifactDetailWire:
     """Return one artifact detail record."""
     binding = require_rust_binding("artifact_show")
@@ -103,7 +99,6 @@ def artifact_show(index_path: Path | str, artifact_id: str) -> ArtifactDetailWir
     return artifact_detail_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_graph(
     index_path: Path | str,
     options: ArtifactGraphOptionsWire | None = None,
@@ -157,7 +152,6 @@ def artifact_upsert_path(
     return artifact_mutation_result_from_dict(payload)
 
 
-# pyvision: public_api_methods.txt
 def artifact_doctor(
     index_path: Path | str,
     options: ArtifactDoctorOptionsWire | None = None,

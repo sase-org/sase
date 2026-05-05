@@ -55,7 +55,6 @@ class ArtifactNodeWire:
     updated_at: str | None = None
 
 
-# pyvision: public_api_methods.txt
 @dataclass(frozen=True)
 class ArtifactLinkWire:
     id: str
@@ -214,7 +213,6 @@ class ArtifactDoctorWire:
     issues: list[ArtifactDoctorIssueWire] = field(default_factory=list)
 
 
-# pyvision: public_api_methods.txt
 def artifact_root_node() -> ArtifactNodeWire:
     """Return the canonical root artifact node."""
     return ArtifactNodeWire(
@@ -391,7 +389,6 @@ def artifact_detail_from_dict(data: dict[str, Any]) -> ArtifactDetailWire:
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_query_from_dict(data: dict[str, Any]) -> ArtifactQueryWire:
     _check_keys(
         data,
