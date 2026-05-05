@@ -5,7 +5,7 @@ tier: epic
 legend_bead_id: sase-23
 legend: sdd/legends/202605/unified_artifacts.md
 epic: 3
-status: wip
+status: done
 prompt: sdd/prompts/202605/unified_artifacts_epic3.md
 ---
 
