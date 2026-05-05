@@ -16,6 +16,7 @@ from sase.agent.multi_agent_xprompt import (
     xprompt_has_segment_separators,
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 from sase.xprompt.processor import process_xprompt_references
 
 
@@ -34,6 +35,17 @@ def _patch_vcs_patterns():
     return patch(
         "sase.workspace_provider.get_ref_patterns",
         return_value={
+            "gh": re.compile(r"#gh(?::([^\s]+)|\(([^)]*)\))"),
+            "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
+        },
+    )
+
+
+def _patch_vcs_patterns_with_cd():
+    return patch(
+        "sase.workspace_provider.get_ref_patterns",
+        return_value={
+            "cd": re.compile(r"#cd(?::([^\s]+)|\(([^)]*)\))"),
             "gh": re.compile(r"#gh(?::([^\s]+)|\(([^)]*)\))"),
             "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
         },
@@ -91,6 +103,17 @@ def test_extract_with_leading_directives() -> None:
     assert call is not None
     assert call.name == "foo"
     assert call.leading_directives == ["%name:custom", "%wait"]
+
+
+def test_extract_with_same_line_directives_before_vcs_ref() -> None:
+    with _patch_vcs_patterns():
+        call = extract_top_level_xprompt_reference(
+            "%n:custom %model:opus #gh:sase #!foo", {"foo"}
+        )
+    assert call is not None
+    assert call.name == "foo"
+    assert call.leading_directives == ["%n:custom", "%model:opus"]
+    assert call.leading_vcs_ref_text == "#gh:sase"
 
 
 def test_extract_returns_none_for_prose() -> None:
@@ -250,6 +273,89 @@ def test_expand_inline_with_vcs_prefix_inherits_followups() -> None:
         "#gh:sase Build login flow",
         "#gh:sase Test login flow",
     ]
+
+
+def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
+    catalog = {
+        "swarm": _xp(
+            "swarm",
+            "Plan {{ prompt }}\n"
+            "---\n"
+            "%w #resume #research/more %m:opus\n"
+            "---\n"
+            "%w #resume #research/image",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog), _patch_vcs_patterns_with_cd():
+        out = expand_multi_agent_xprompts(
+            ["%n:abq #gh:sase #swarm:: review the changes"]
+        )
+        normalized = [
+            normalize_default_vcs_workflow_segment(segment) for segment in out
+        ]
+    assert normalized == [
+        "%n:abq #gh:sase Plan review the changes",
+        "%w #gh:sase #resume #research/more %m:opus",
+        "%w #gh:sase #resume #research/image",
+    ]
+    assert "#cd:~" not in "\n".join(normalized)
+
+
+def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
+    catalog = {
+        "swarm": _xp(
+            "swarm",
+            "Plan {{ prompt }}\n---\n%w #resume #research/more",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog), _patch_vcs_patterns_with_cd():
+        out = expand_multi_agent_xprompts(
+            ["%n:abq %model:opus #gh:sase #swarm:: review the changes"]
+        )
+        normalized = [
+            normalize_default_vcs_workflow_segment(segment) for segment in out
+        ]
+    assert normalized == [
+        "%n:abq %model:opus #gh:sase Plan review the changes",
+        "%w #gh:sase #resume #research/more",
+    ]
+    assert "#cd:~" not in "\n".join(normalized)
+
+
+def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref() -> (
+    None
+):
+    catalog = {
+        "swarm": _xp(
+            "swarm",
+            "Plan {{ prompt }}\n---\n%w #resume #research/more",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with (
+        _patch_catalog(catalog),
+        patch(
+            "sase.workspace_provider.get_ref_patterns",
+            return_value={"cd": re.compile(r"#cd(?::([^\s]+)|\(([^)]*)\))")},
+        ),
+        patch(
+            "sase.xprompt.loader.get_known_project_workspaces",
+            return_value={"sase": Path("/work/sase")},
+        ),
+    ):
+        out = expand_multi_agent_xprompts(
+            ["%n:abq #gh_sase #swarm:: review the changes"]
+        )
+        normalized = [
+            normalize_default_vcs_workflow_segment(segment) for segment in out
+        ]
+    assert normalized == [
+        "%n:abq #gh_sase Plan review the changes",
+        "%w #gh_sase #resume #research/more",
+    ]
+    assert "#cd:~" not in "\n".join(normalized)
 
 
 def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 20:03:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/inline_directive_vcs_xprompt_inheritance.md
 ---
 # Fix inline-directive VCS inheritance for multi-agent xprompts

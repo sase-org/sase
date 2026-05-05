@@ -21,6 +21,7 @@ from sase.xprompt._disabled_regions import (
 )
 from sase.xprompt._fenced_blocks import fenced_block_ranges, protect_fenced_blocks
 from sase.xprompt._parsing import (
+    _DIRECTIVE_PREFIX_RE,
     extract_known_project_vcs_ref,
     XPromptReference,
     XPromptReferenceArgKind,
@@ -58,31 +59,81 @@ class _XPromptCall:
     positional_args: list[str] = field(default_factory=list)
     named_args: dict[str, str] = field(default_factory=dict)
     leading_directives: list[str] = field(default_factory=list)
+    leading_directive_prefix: str = ""
     leading_vcs_ref_text: str | None = None
+
+
+@dataclass(frozen=True)
+class _LeadingDirectiveSplit:
+    """Leading launch directives plus the remaining prompt body."""
+
+    directives: list[str]
+    prefix: str
+    body: str
+
+
+def _directive_tokens(text: str) -> list[str]:
+    """Return parser-style directive tokens from a leading directive prefix."""
+    return re.findall(r"%\S+", text)
+
+
+def _split_leading_directive_prefix(segment: str) -> _LeadingDirectiveSplit:
+    """Split leading whitespace/directives from the prompt body.
+
+    This mirrors the parser's same-line directive prefix handling while also
+    keeping support for directive-only lines.  The returned prefix preserves
+    original spacing so generated segments can insert VCS refs after launch
+    directives without moving those directives behind the workspace tag.
+    """
+    leading_ws_match = re.match(r"\s*", segment)
+    assert leading_ws_match is not None
+    prefix = leading_ws_match.group(0)
+    pos = leading_ws_match.end()
+    directives: list[str] = []
+
+    while pos < len(segment):
+        line_end = segment.find("\n", pos)
+        if line_end == -1:
+            line = segment[pos:]
+        else:
+            line = segment[pos : line_end + 1]
+
+        line_indent_match = re.match(r"[ \t]*", line)
+        assert line_indent_match is not None
+        line_indent = line_indent_match.group(0)
+        directive_match = _DIRECTIVE_PREFIX_RE.match(line[line_indent_match.end() :])
+        if directive_match is not None:
+            directive_prefix = line_indent + directive_match.group(0)
+            prefix += directive_prefix
+            directives.extend(_directive_tokens(directive_prefix))
+            pos += len(directive_prefix)
+            if segment[pos:].lstrip(" \t").startswith("%"):
+                continue
+            break
+
+        stripped = line.strip()
+        if stripped and _DIRECTIVE_LINE_RE.match(stripped):
+            prefix += line
+            directives.append(stripped)
+            pos += len(line)
+            continue
+
+        break
+
+    return _LeadingDirectiveSplit(
+        directives=directives, prefix=prefix, body=segment[pos:]
+    )
 
 
 def _split_leading_directives(segment: str) -> tuple[list[str], str]:
     """Split *segment* into (leading directive lines, remaining body).
 
-    Directive lines are consecutive lines at the top of the segment matching
-    ``_DIRECTIVE_LINE_RE``.  Leading blank lines are skipped.  The returned
-    body keeps its original trailing whitespace stripped.
+    Supports both directive-only lines and parser-style same-line directive
+    prefixes.  The returned body keeps legacy stripped semantics for callers
+    that use it for reference detection.
     """
-    directives: list[str] = []
-    lines = segment.splitlines()
-    i = 0
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if not stripped:
-            i += 1
-            continue
-        if _DIRECTIVE_LINE_RE.match(stripped):
-            directives.append(stripped)
-            i += 1
-            continue
-        break
-    remaining = "\n".join(lines[i:]).strip()
-    return directives, remaining
+    split = _split_leading_directive_prefix(segment)
+    return split.directives, split.body.strip()
 
 
 def _parse_xprompt_reference_arguments(
@@ -105,6 +156,7 @@ def _build_xprompt_call(
     ref: XPromptReference,
     leading_directives: list[str],
     *,
+    leading_directive_prefix: str = "",
     leading_vcs_ref_text: str | None = None,
 ) -> _XPromptCall:
     positional_args, named_args = _parse_xprompt_reference_arguments(ref)
@@ -115,6 +167,7 @@ def _build_xprompt_call(
         positional_args=positional_args,
         named_args=named_args,
         leading_directives=leading_directives,
+        leading_directive_prefix=leading_directive_prefix,
         leading_vcs_ref_text=leading_vcs_ref_text,
     )
 
@@ -212,12 +265,10 @@ def _prepend_inherited_vcs_ref(
 
 def _prefix_segment_vcs_ref(segment: str, vcs_ref_text: str) -> str:
     """Prefix *segment* with *vcs_ref_text* after any generated directives."""
-    directives, body = _split_leading_directives(segment)
-    if not directives:
-        return f"{vcs_ref_text} {segment}"
-
-    directive_block = "\n".join(directives)
-    return f"{directive_block}\n{vcs_ref_text} {body}"
+    split = _split_leading_directive_prefix(segment)
+    if not split.body:
+        return f"{split.prefix}{vcs_ref_text}"
+    return f"{split.prefix}{vcs_ref_text} {split.body}"
 
 
 def _leading_vcs_ref_text(segment: str) -> str | None:
@@ -238,13 +289,18 @@ def extract_top_level_xprompt_reference(
     trailing whitespace, what remains is exactly one ``#name`` or ``#!name``
     (optionally with args) and nothing else, and ``name`` is in *available*.
     """
-    directives, body = _split_leading_directives(segment)
+    directive_split = _split_leading_directive_prefix(segment)
+    directives, body = directive_split.directives, directive_split.body.strip()
     if not body:
         return None
 
     ref = _sole_xprompt_reference(body, available)
     if ref is not None:
-        return _build_xprompt_call(ref, directives)
+        return _build_xprompt_call(
+            ref,
+            directives,
+            leading_directive_prefix=directive_split.prefix,
+        )
 
     vcs_prefixed = _strip_leading_vcs_ref(body)
     if vcs_prefixed is None:
@@ -258,6 +314,7 @@ def extract_top_level_xprompt_reference(
     return _build_xprompt_call(
         ref,
         directives,
+        leading_directive_prefix=directive_split.prefix,
         leading_vcs_ref_text=leading_vcs_ref_text,
     )
 
@@ -430,9 +487,8 @@ def expand_multi_agent_xprompts(
             sub_segments = _prepend_inherited_vcs_ref(
                 sub_segments, call.leading_vcs_ref_text
             )
-            if call.leading_directives:
-                directive_block = "\n".join(call.leading_directives)
-                sub_segments[0] = f"{directive_block}\n{sub_segments[0]}"
+            if call.leading_directive_prefix:
+                sub_segments[0] = f"{call.leading_directive_prefix}{sub_segments[0]}"
             recursively_expanded = expand_multi_agent_xprompts(
                 sub_segments,
                 local_xprompts=local_xprompts,
