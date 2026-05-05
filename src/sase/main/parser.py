@@ -34,6 +34,26 @@ from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_xprompt import register_xprompt_parser
 
 
+def _sort_subcommand_help(parser: argparse.ArgumentParser) -> None:
+    """Sort every subparser action by command name for stable help output."""
+    for action in parser._actions:
+        if not isinstance(action, argparse._SubParsersAction):
+            continue
+
+        sorted_choices = dict(sorted(action.choices.items()))
+        action.choices.clear()
+        action.choices.update(sorted_choices)
+        action._choices_actions.sort(key=lambda choice_action: choice_action.dest)
+
+        seen_child_parsers: set[int] = set()
+        for child_parser in action.choices.values():
+            child_id = id(child_parser)
+            if child_id in seen_child_parsers:
+                continue
+            seen_child_parsers.add(child_id)
+            _sort_subcommand_help(child_parser)
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with subcommands."""
     parser = argparse.ArgumentParser(
@@ -74,4 +94,5 @@ def create_parser() -> argparse.ArgumentParser:
     register_telemetry_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)
 
+    _sort_subcommand_help(parser)
     return parser

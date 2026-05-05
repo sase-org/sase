@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 08:45:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/cli_help_subcommand_sorting.md
 ---
 # Plan: Alphabetize CLI Subcommands In All Help Output
