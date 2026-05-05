@@ -198,6 +198,79 @@ def test_add_json_can_upsert_payload_and_links(
     assert payload["affected_link_ids"] == ["link-1", "link-2"]
 
 
+def test_add_json_parses_multiple_compact_links(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    mock_add = Mock(
+        side_effect=[
+            ArtifactMutationResultWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                operation="upsert_link",
+                links_added=1,
+                affected_link_ids=["link-1"],
+            ),
+            ArtifactMutationResultWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                operation="upsert_link",
+                links_added=1,
+                affected_link_ids=["explicit-link"],
+            ),
+        ]
+    )
+    monkeypatch.setattr(artifact_handler.artifact_facade, "artifact_add", mock_add)
+    args = create_parser().parse_args(
+        [
+            "artifact",
+            "add",
+            "-j",
+            "-i",
+            str(tmp_path / "graph.sqlite"),
+            "-l",
+            "parent|note:1|/",
+            "-l",
+            "explicit-link|related|note:1|note:2",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    mock_add.assert_has_calls(
+        [
+            call(
+                tmp_path / "graph.sqlite",
+                ArtifactLinkUpsertWire(
+                    schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                    link=ArtifactLinkWire(
+                        id="",
+                        link_type="parent",
+                        source_id="note:1",
+                        target_id="/",
+                    ),
+                ),
+            ),
+            call(
+                tmp_path / "graph.sqlite",
+                ArtifactLinkUpsertWire(
+                    schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                    link=ArtifactLinkWire(
+                        id="explicit-link",
+                        link_type="related",
+                        source_id="note:1",
+                        target_id="note:2",
+                    ),
+                ),
+            ),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["links_added"] == 2
+    assert payload["affected_link_ids"] == ["link-1", "explicit-link"]
+
+
 def test_remove_json_builds_node_remove_request(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

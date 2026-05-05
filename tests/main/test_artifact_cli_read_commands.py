@@ -215,6 +215,49 @@ def test_show_human_outputs_detail_sections(
     assert "example diagnostic" in output
 
 
+def test_show_human_truncates_long_payload_scalars(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    long_payload = "x" * 120
+    detail = ArtifactDetailWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=ArtifactNodeWire(id="note:1", kind="note", display_title="Design note"),
+        payloads=[
+            ArtifactPayloadWire(
+                artifact_id="note:1",
+                payload_type="summary",
+                payload=long_payload,
+            )
+        ],
+        outbound_links=[],
+        inbound_links=[],
+        children=[],
+        path_to_root=[],
+        diagnostics=[],
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_show",
+        Mock(return_value=detail),
+    )
+    args = create_parser().parse_args(
+        ["artifact", "show", "-i", str(tmp_path / "graph.sqlite"), "-a", "note:1"]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert (
+        '"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'
+        in output
+    )
+    assert long_payload not in output
+
+
 def test_graph_json_calls_facade_with_options(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

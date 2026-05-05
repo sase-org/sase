@@ -229,6 +229,24 @@ def test_doctor_json_exits_nonzero_when_issues_returned(
     )
 
 
+def test_default_index_path_uses_patched_home_without_touching_real_home(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    mock_list = Mock(return_value=[])
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setattr(artifact_handler.artifact_facade, "artifact_list", mock_list)
+    args = create_parser().parse_args(["artifact", "list", "-j"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    assert mock_list.call_args.args[0] == home / ".sase" / "artifacts.sqlite"
+    assert not (home / ".sase").exists()
+
+
 def test_add_rejects_malformed_metadata_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -241,6 +259,18 @@ def test_add_rejects_malformed_metadata_json(
 
     assert exc_info.value.code == 1
     assert "malformed metadata JSON" in capsys.readouterr().err
+
+
+def test_add_rejects_malformed_compact_link_tuple(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(["artifact", "add", "-l", "parent|note:1"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 1
+    assert "compact link must be" in capsys.readouterr().err
 
 
 def test_remove_rejects_incomplete_link_tuple(
