@@ -128,6 +128,11 @@
                 "description": "Tick interval in seconds for this lumberjack",
                 "default": 1
               },
+              "chop_timeout": {
+                "type": "string",
+                "description": "Default duration string (e.g., '30s', '5m', '1h') controlling the maximum runtime for chops in this lumberjack",
+                "pattern": "^\\d+(s|m|h)$"
+              },
               "chops": {
                 "type": "array",
                 "description": "List of chop scripts to run on each tick",
@@ -179,6 +184,35 @@
               }
             }
           }
+        }
+      }
+    },
+    "chat_install": {
+      "type": "object",
+      "description": "Configuration for chat-driven update workflows",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Shell command to run from the registered sase primary workspace. Empty string disables use.",
+          "default": ""
+        },
+        "sync_workspace": {
+          "type": "boolean",
+          "description": "Sync the registered sase primary workspace via the selected VCS provider before updating.",
+          "default": true
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Maximum runtime for the update command before returning exit code 124.",
+          "default": 900,
+          "minimum": 1
+        },
+        "restart_attempts": {
+          "type": "integer",
+          "description": "Number of axe restart attempts after the update command completes or fails.",
+          "default": 3,
+          "minimum": 1
         }
       }
     },
@@ -391,6 +425,19 @@
         "workspace_root": {
           "type": "string",
           "description": "Root directory for workspaces. Overridden by SASE_WORKSPACE_ROOT env var. Defaults to $HOME/workspace for git."
+        },
+        "pr_tags": {
+          "type": "object",
+          "description": "Key-value tags appended as TAG=VALUE lines to PR commit messages",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "use_project_pr_prefix": {
+          "type": "boolean",
+          "description": "Prepend [<project>] to PR titles or CL descriptions.",
+          "default": false
         }
       }
     },
@@ -461,16 +508,102 @@
                 "type": "string",
                 "description": "Template content with Jinja2 placeholders"
               },
+              "tags": {
+                "description": "Semantic role tags for tag-based xprompt lookup",
+                "oneOf": [
+                  { "type": "string" },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
               "snippet": {
                 "oneOf": [
                   { "type": "boolean" },
                   { "type": "string" }
                 ],
                 "description": "Opt-in snippet expansion: true for auto trigger word, or a custom trigger string"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable xprompt description"
+              },
+              "skill": {
+                "description": "Skill deployment metadata for generated skills",
+                "oneOf": [
+                  { "type": "boolean" },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "keywords": {
+                "type": "array",
+                "description": "Keywords used to match dynamic memory xprompts",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
         ]
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "description": "Standalone YAML workflows that can be referenced with #!name syntax in prompts",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Workflow definition using the same format as files in an xprompts directory",
+        "required": ["steps"],
+        "additionalProperties": true,
+        "properties": {
+          "tags": {
+            "description": "Semantic role tags for tag-based workflow lookup",
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "xprompts": {
+            "type": "object",
+            "description": "Workflow-local xprompt definitions"
+          },
+          "wraps_all": {
+            "type": "boolean",
+            "description": "If true, this workflow's pre-steps run before all other embedded workflows and post-steps run after all others.",
+            "default": false
+          },
+          "environment": {
+            "type": "object",
+            "description": "Environment variables to set at workflow start",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "input": {
+            "description": "Input argument definitions"
+          },
+          "steps": {
+            "type": "array",
+            "description": "Ordered list of workflow steps to execute",
+            "minItems": 1,
+            "items": {
+              "type": "object"
+            }
+          }
+        }
       }
     },
     "telemetry": {
