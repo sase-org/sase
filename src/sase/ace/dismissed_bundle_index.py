@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -78,7 +80,7 @@ def upsert_bundle_summary(root: Path, path: Path, bundle: dict[str, Any]) -> boo
 
     try:
         summary = _summary_from_bundle(root, path, bundle)
-        with _connect(root) as conn:
+        with _connection(root) as conn:
             _upsert_summary(conn, summary, _file_signature(path))
         return True
     except (OSError, sqlite3.Error, ValueError, TypeError):
@@ -91,7 +93,7 @@ def delete_bundle_summaries_for_suffixes(root: Path, suffixes: set[str]) -> bool
     if not suffixes:
         return True
     try:
-        with _connect(root) as conn:
+        with _connection(root) as conn:
             conn.executemany(
                 "DELETE FROM dismissed_bundle_summaries WHERE raw_suffix = ?",
                 [(suffix,) for suffix in suffixes],
@@ -142,7 +144,7 @@ def query_summaries(
         params.append(max(0, limit))
 
     try:
-        with _connect(root, create=False) as conn:
+        with _connection(root, create=False) as conn:
             rows = conn.execute(sql, params).fetchall()
         return [_summary_from_row(row) for row in rows]
     except sqlite3.Error:
@@ -164,7 +166,7 @@ def rebuild_index(root: Path) -> _DismissedBundleIndexRebuildResult:
     indexed = 0
     skipped = 0
     root.mkdir(parents=True, exist_ok=True)
-    with _connect(root) as conn:
+    with _connection(root) as conn:
         conn.execute("DELETE FROM dismissed_bundle_summaries")
         for path in _iter_bundle_paths(root):
             try:
@@ -187,7 +189,7 @@ def verify_index(root: Path) -> _DismissedBundleIndexVerifyResult:
     stale_rows = 0
     if _index_path_for_root(root).is_file():
         try:
-            with _connect(root, create=False) as conn:
+            with _connection(root, create=False) as conn:
                 rows = conn.execute(
                     "SELECT bundle_path, mtime_ns, size_bytes "
                     "FROM dismissed_bundle_summaries"
@@ -278,6 +280,15 @@ def _connect(root: Path, *, create: bool = True) -> sqlite3.Connection:
     if create:
         _ensure_schema(conn)
     return conn
+
+
+@contextmanager
+def _connection(root: Path, *, create: bool = True) -> Iterator[sqlite3.Connection]:
+    """Open an index connection, commit/rollback work, and always close it."""
+
+    with closing(_connect(root, create=create)) as conn:
+        with conn:
+            yield conn
 
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:

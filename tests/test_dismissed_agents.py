@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_agents,
@@ -453,6 +455,26 @@ def test_bundle_no_limit(tmp_path: Path) -> None:
             save_dismissed_bundle(agent)
         loaded = load_dismissed_bundles()
         assert len(loaded) == total
+
+
+def test_bundle_save_does_not_leak_index_file_descriptors(tmp_path: Path) -> None:
+    """Repeated bundle saves should close SQLite index file descriptors."""
+    fd_dir = Path("/proc/self/fd")
+    if not fd_dir.is_dir():
+        pytest.skip("/proc/self/fd is only available on Linux")
+
+    bundles_dir = tmp_path / "bundles"
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        before = len(list(fd_dir.iterdir()))
+        for i in range(200):
+            agent = _make_agent(raw_suffix=f"{i:014d}")
+            assert save_dismissed_bundle(agent)
+        after = len(list(fd_dir.iterdir()))
+
+    assert after - before < 20
 
 
 def test_remove_bundle_by_identity(tmp_path: Path) -> None:

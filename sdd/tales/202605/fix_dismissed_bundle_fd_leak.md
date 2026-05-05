@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 09:02:23
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_dismissed_bundle_fd_leak.md
 ---
 # Plan: Fix dismissed bundle SQLite file descriptor leak
