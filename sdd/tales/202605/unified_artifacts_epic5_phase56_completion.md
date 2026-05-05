@@ -1,6 +1,5 @@
 ---
 plan: sdd/epics/202605/unified_artifacts_epic5_migration.md
-prompt: sdd/prompts/202605/unified_artifacts_epic5_migration.md
 status: completed
 bead_id: sase-23.5.6
 ---

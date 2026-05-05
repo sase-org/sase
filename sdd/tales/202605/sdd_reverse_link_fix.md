@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 17:18:24
-status: wip
+status: done
 prompt: sdd/prompts/202605/sdd_reverse_link_fix.md
 ---
 # SDD Reverse-Link CI Failure Fix Plan
