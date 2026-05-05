@@ -111,4 +111,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
     # Jump to CL from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
+    # Unified artifact graph (all tabs)
+    Binding("A", "open_artifacts_panel", "Artifacts", show=False),
 ]

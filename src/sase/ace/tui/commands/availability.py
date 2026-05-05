@@ -77,7 +77,6 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.toggle_attempt_view",
         "app.start_agent_from_changespec",
         "app.jump_to_agent_changespec",
-        "app.show_agent_run_log",
     }
 )
 

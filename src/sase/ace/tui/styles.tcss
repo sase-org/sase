@@ -2074,6 +2074,62 @@ AgentRunLogModal #agent-log-hints {
     margin-top: 1;
 }
 
+/* Artifact panel modal styling */
+ArtifactPanelModal {
+    align: center middle;
+}
+
+ArtifactPanelModal > Container {
+    width: 92%;
+    height: 85%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+ArtifactPanelModal #artifact-panel-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+ArtifactPanelModal #artifact-panel-body {
+    width: 100%;
+    height: 1fr;
+}
+
+ArtifactPanelModal #artifact-panel-left {
+    width: 44;
+    height: 100%;
+}
+
+ArtifactPanelModal OptionList {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+ArtifactPanelModal #artifact-panel-right {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+
+ArtifactPanelModal #artifact-panel-detail-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ArtifactPanelModal #artifact-panel-detail {
+    height: auto;
+}
+
+ArtifactPanelModal #artifact-panel-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* Add xprompt modal styling */
 AddXPromptModal {
     align: center middle;

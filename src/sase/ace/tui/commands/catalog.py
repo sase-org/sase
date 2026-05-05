@@ -151,7 +151,13 @@ _APP_COMMAND_META: tuple[
         ("go to cl",),
     ),
     ("edit_panel", "Edit panel file", "Agents", _AGENTS_ONLY, ()),
-    ("show_agent_run_log", "Show agent run log", "Agents", _AGENTS_ONLY, ("log",)),
+    (
+        "open_artifacts_panel",
+        "Open artifacts panel",
+        "Display",
+        _ALL_TABS,
+        ("artifact", "graph"),
+    ),
     (
         "toggle_attempt_view",
         "Toggle attempt view",
