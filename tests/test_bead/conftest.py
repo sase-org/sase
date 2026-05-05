@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
+from sase.bead import db
 from sase.bead.project import BeadProject
 from sase.xprompt.workflow_models import Workflow
+
+
+@pytest.fixture
+def conn() -> sqlite3.Connection:
+    return db.create_memory_db()
 
 
 @pytest.fixture
