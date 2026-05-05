@@ -290,6 +290,10 @@ def test_artifact_facade_calls_expected_bindings(
             "limit": 500,
         }
 
+    def artifact_export(*args: Any) -> str:
+        calls.append(("artifact_export", args))
+        return "digraph artifact_graph {\n}\n"
+
     def artifact_doctor(*args: Any) -> dict[str, Any]:
         calls.append(("artifact_doctor", args))
         return {"schema_version": 1, "ok": True, "issues": []}
@@ -307,6 +311,7 @@ def test_artifact_facade_calls_expected_bindings(
     fake.artifact_list = artifact_list  # type: ignore[attr-defined]
     fake.artifact_show = artifact_show  # type: ignore[attr-defined]
     fake.artifact_graph = artifact_graph  # type: ignore[attr-defined]
+    fake.artifact_export = artifact_export  # type: ignore[attr-defined]
     fake.artifact_doctor = artifact_doctor  # type: ignore[attr-defined]
     fake.artifact_rebuild = artifact_rebuild  # type: ignore[attr-defined]
     fake.artifact_upsert_path = artifact_upsert_path  # type: ignore[attr-defined]
@@ -329,6 +334,9 @@ def test_artifact_facade_calls_expected_bindings(
     assert artifact_facade.artifact_list(index_path)[0] == _node()
     assert artifact_facade.artifact_show(index_path, "/tmp/example.md").node == _node()
     assert artifact_facade.artifact_graph(index_path).node_count == 1
+    assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
+        "digraph"
+    )
     assert artifact_facade.artifact_doctor(index_path).ok is True
     assert artifact_facade.artifact_rebuild(index_path).operation == "rebuild"
     assert (
@@ -367,6 +375,14 @@ def test_artifact_facade_calls_expected_bindings(
             ),
         ),
         (
+            "artifact_export",
+            (
+                "/tmp/artifacts.sqlite",
+                artifact_wire_to_json_dict(ArtifactGraphOptionsWire()),
+                "dot",
+            ),
+        ),
+        (
             "artifact_doctor",
             (
                 "/tmp/artifacts.sqlite",
@@ -400,6 +416,7 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
         "artifact_list",
         "artifact_show",
         "artifact_graph",
+        "artifact_export",
         "artifact_doctor",
     }
     missing = sorted(name for name in required if not hasattr(rust_module, name))
@@ -449,6 +466,13 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     assert child_node in listed
     assert artifact_facade.artifact_show(index_path, str(child_path)).node == child_node
     assert artifact_facade.artifact_graph(index_path).node_count >= 1
+    assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
+        "digraph artifact_graph"
+    )
+    assert "flowchart TD" in artifact_facade.artifact_export(
+        index_path,
+        output_format="mermaid",
+    )
     assert artifact_facade.artifact_doctor(index_path).ok is True
 
     upserted_path = tmp_path / "nested" / "path.md"

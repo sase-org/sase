@@ -118,6 +118,22 @@ def artifact_graph(
     return artifact_graph_from_dict(payload)
 
 
+def artifact_export(
+    index_path: Path | str,
+    options: ArtifactGraphOptionsWire | None = None,
+    output_format: str = "json",
+) -> str:
+    """Export a bounded artifact graph as JSON, DOT, or Mermaid text."""
+    binding = require_rust_binding("artifact_export")
+    options_wire = options or ArtifactGraphOptionsWire()
+    payload: str = binding(
+        _path_str(index_path),
+        artifact_graph_options_to_dict(options_wire),
+        output_format,
+    )
+    return payload
+
+
 def artifact_rebuild(
     index_path: Path | str,
     request: ArtifactRebuildRequestWire | None = None,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 from typing import NoReturn
 
 from sase.core import artifact_facade
@@ -16,6 +16,7 @@ from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
     ArtifactDoctorOptionsWire,
     ArtifactGraphOptionsWire,
+    ArtifactGraphWire,
     ArtifactLinkRemoveWire,
     ArtifactLinkUpsertWire,
     ArtifactLinkWire,
@@ -208,8 +209,6 @@ def _handle_show(args: argparse.Namespace) -> NoReturn:
 
 def _handle_graph(args: argparse.Namespace) -> NoReturn:
     output_format = "json" if args.json else args.format
-    if output_format != "json":
-        raise ValueError("only JSON graph output is implemented yet; use `-f json`")
     options = ArtifactGraphOptionsWire(
         root_id=args.artifact_id if args.artifact_id else ARTIFACT_ROOT_ID,
         max_depth=args.depth,
@@ -219,7 +218,44 @@ def _handle_graph(args: argparse.Namespace) -> NoReturn:
         full_graph=args.full,
         limit=args.limit,
     )
-    _emit_json(artifact_facade.artifact_graph(_index_path(args), options))
+    if output_format == "json":
+        _emit_json(artifact_facade.artifact_graph(_index_path(args), options))
+    if output_format == "text":
+        print(
+            _format_graph_text(
+                artifact_facade.artifact_graph(_index_path(args), options)
+            )
+        )
+        sys.exit(0)
+    if output_format in {"dot", "mermaid"}:
+        print(
+            artifact_facade.artifact_export(
+                _index_path(args),
+                options,
+                output_format,
+            ),
+            end="",
+        )
+        sys.exit(0)
+    raise ValueError(f"unsupported graph output format: {output_format}")
+
+
+def _format_graph_text(graph: ArtifactGraphWire) -> str:
+    lines = [
+        f"root: {graph.root_id or '(full graph)'}",
+        f"nodes: {len(graph.nodes)} shown / {graph.node_count} total",
+        f"links: {len(graph.links)} shown / {graph.link_count} total",
+        f"truncated: {str(graph.truncated).lower()}",
+        f"limit: {graph.limit if graph.limit is not None else 'none'}",
+    ]
+    if not graph.links:
+        lines.append("edges: none")
+        return "\n".join(lines)
+
+    lines.append("edges:")
+    for link in graph.links:
+        lines.append(f"  {link.source_id} -[{link.link_type}]-> {link.target_id}")
+    return "\n".join(lines)
 
 
 def _handle_rebuild(args: argparse.Namespace) -> NoReturn:

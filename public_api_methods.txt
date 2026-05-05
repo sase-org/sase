@@ -58,6 +58,7 @@ artifact_add
 artifact_doctor
 artifact_doctor_issue_from_dict
 artifact_doctor_options_from_dict
+artifact_export
 artifact_graph
 artifact_graph_options_from_dict
 artifact_link_from_dict
