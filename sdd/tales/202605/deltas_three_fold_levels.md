@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 16:42:46
-status: wip
+status: done
 prompt: sdd/prompts/202605/deltas_three_fold_levels.md
 ---
 # Plan: DELTAS Three-Level Folding

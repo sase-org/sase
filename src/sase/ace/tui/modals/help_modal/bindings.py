@@ -110,7 +110,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_deltas'))}",
-                    "Cycle deltas folded/unfolded",
+                    "Cycle deltas summary/files/lines",
                 ),
                 (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_commits'))}",

@@ -7,7 +7,13 @@ from unittest.mock import patch
 
 from textual.app import App, ComposeResult
 
-from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
+from sase.ace.changespec import (
+    ChangeSpec,
+    CommentEntry,
+    CommitEntry,
+    DeltaEntry,
+    HookEntry,
+)
 from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -22,6 +28,7 @@ def make_changespec(
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
+    deltas: list[DeltaEntry] | None = None,
 ) -> ChangeSpec:
     """Create a ChangeSpec for testing."""
     return ChangeSpec(
@@ -37,6 +44,7 @@ def make_changespec(
         commits=commits,
         hooks=hooks,
         comments=comments,
+        deltas=deltas,
     )
 
 
@@ -74,6 +82,7 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         "hooks_collapsed": app.hooks_collapsed.value,
         "commits_collapsed": app.commits_collapsed.value,
         "mentors_collapsed": app.mentors_collapsed.value,
+        "deltas_collapsed": app.deltas_collapsed.value,
     }
 
     # Selected changespec info

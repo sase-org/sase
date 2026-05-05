@@ -6,7 +6,7 @@ from rich.text import Text
 
 from ...changespec import ChangeSpec
 from ...changespec.models import DeltaEntry, DeltaLineStats
-from ..models.fold_state import FoldLevel, normalize_deltas_fold_level
+from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 
 _COLOR_HEADER = "bold #87D7FF"
@@ -111,6 +111,8 @@ def _append_entry(
     text: Text,
     entry: DeltaEntry,
     hint_counter: int | None = None,
+    *,
+    show_line_stats: bool = False,
 ) -> None:
     glyph = _GLYPH_BY_TYPE.get(entry.change_type, "?")
     style = _GLYPH_STYLE.get(entry.change_type, "")
@@ -118,7 +120,7 @@ def _append_entry(
     if hint_counter is not None:
         text.append(f"[{hint_counter}] ", style="bold #FFFF00")
     _append_path(text, entry.path)
-    if entry.line_stats is not None:
+    if show_line_stats and entry.line_stats is not None:
         text.append("  ")
         _append_line_tokens(text, entry.line_stats)
     text.append("\n")
@@ -134,12 +136,10 @@ def build_deltas_section(
 ) -> HintTracker:
     """Build the DELTAS section of the display.
 
-    DELTAS has two semantic states:
-    - Folded: header + one-line summary ``+A ~M -D (N files)``.
-    - Unfolded: header + alphabetical entry list with bold basename.
-
-    ``FoldLevel.EXPANDED`` is accepted as a compatibility/shared-control input
-    and is normalized to the unfolded DELTAS state.
+    DELTAS uses the shared three fold levels:
+    - Collapsed: header + one-line summary ``+A ~M -D (N files)``.
+    - Expanded: header + alphabetical entry list with bold basename.
+    - Fully expanded: expanded entries plus per-entry line stats.
 
     The section is also fully omitted when ``changespec.deltas`` is ``None``
     (never computed) or ``[]`` (computed; no file changes).
@@ -168,20 +168,21 @@ def build_deltas_section(
         return tracker
 
     text.append("DELTAS:", style=_COLOR_HEADER)
-    if normalize_deltas_fold_level(deltas_fold) == FoldLevel.COLLAPSED:
+    if deltas_fold == FoldLevel.COLLAPSED:
         _append_summary(text, deltas)
         return tracker
 
     text.append("\n")
+    show_line_stats = deltas_fold == FoldLevel.FULLY_EXPANDED
     hint_counter = tracker.counter
     hint_mappings = dict(tracker.mappings)
     for entry in sorted(deltas, key=lambda e: e.path):
         if show_file_hints:
             hint_mappings[hint_counter] = _resolve_delta_path(entry.path, workspace_dir)
-            _append_entry(text, entry, hint_counter)
+            _append_entry(text, entry, hint_counter, show_line_stats=show_line_stats)
             hint_counter += 1
         else:
-            _append_entry(text, entry)
+            _append_entry(text, entry, show_line_stats=show_line_stats)
 
     return HintTracker(
         counter=hint_counter,

@@ -9,7 +9,6 @@ from ...models.fold_state import (
     FoldLevel,
     cycle_deltas_fold_level,
     cycle_forward,
-    normalize_deltas_fold_level,
 )
 from .jump_hints import (
     BannerJumpTarget,
@@ -77,7 +76,11 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 else FoldLevel.COLLAPSED
             )
         elif key == fold_keys["toggle_deltas"]:
-            self.deltas_collapsed = cycle_deltas_fold_level(self.deltas_collapsed)
+            self.deltas_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.deltas_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if self._all_fold_states_aligned():
@@ -88,7 +91,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
-            self.deltas_collapsed = normalize_deltas_fold_level(new_state)
+            self.deltas_collapsed = new_state
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (
@@ -106,7 +109,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
-            self.deltas_collapsed = normalize_deltas_fold_level(new_state)
+            self.deltas_collapsed = new_state
         else:
             # Invalid key - cancel fold mode and restore footer
             self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -117,14 +120,14 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         return True
 
     def _all_fold_states_aligned(self) -> bool:
-        """Return whether all section folds are aligned under their local semantics."""
+        """Return whether all section folds are aligned."""
         shared_state = self.commits_collapsed
         return (
             shared_state
             == self.hooks_collapsed
             == self.mentors_collapsed
             == self.timestamps_collapsed
-            and self.deltas_collapsed == normalize_deltas_fold_level(shared_state)
+            == self.deltas_collapsed
         )
 
     def _update_fold_footer(self) -> None:

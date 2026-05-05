@@ -1,7 +1,16 @@
 """Tests for the ace TUI app initialization, navigation, and modals."""
 
+from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.testing import AcePage, make_changespec
+from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
 from textual.widgets import Input
+
+
+def _detail_plain(page: AcePage) -> str:
+    detail = page.query_one_widget("#detail-panel", ChangeSpecDetail)
+    content = detail.content
+    renderable = getattr(content, "renderable", content)
+    return getattr(renderable, "plain", str(renderable))
 
 
 # --- Navigation Tests ---
@@ -146,3 +155,39 @@ async def test_mark_single_spec_stays() -> None:
         await page.press("m")
         assert 0 in page.state["marked"]
         assert page.state["idx"] == 0
+
+
+# --- Fold Mode Tests ---
+
+
+async def test_deltas_fold_mode_cycles_summary_files_lines() -> None:
+    """Test zd cycles DELTAS through summary, file list, and line details."""
+    changespecs = [
+        make_changespec(
+            name="feature_deltas",
+            deltas=[
+                DeltaEntry(
+                    path="src/feature.py",
+                    change_type="M",
+                    line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+                )
+            ],
+        )
+    ]
+    async with AcePage(query='"feature_deltas"', changespecs=changespecs) as page:
+        assert "DELTAS:  +0 ~1 (+2 ~3 -1) -0 (1 file)" in _detail_plain(page)
+        assert "src/feature.py" not in _detail_plain(page)
+
+        await page.press("z", "d")
+        await page.expect_state("deltas_collapsed", "expanded")
+        assert "~ src/feature.py" in _detail_plain(page)
+        assert "+2 ~3 -1" not in _detail_plain(page)
+
+        await page.press("z", "d")
+        await page.expect_state("deltas_collapsed", "fully_expanded")
+        assert "~ src/feature.py  +2 ~3 -1" in _detail_plain(page)
+
+        await page.press("z", "d")
+        await page.expect_state("deltas_collapsed", "collapsed")
+        assert "DELTAS:  +0 ~1 (+2 ~3 -1) -0 (1 file)" in _detail_plain(page)
+        assert "src/feature.py" not in _detail_plain(page)

@@ -124,11 +124,11 @@ class TestCollapsed:
         assert "bold #FF5F5F" in deleted_styles
 
 
-class TestFullyExpanded:
+class TestExpanded:
     def test_lists_all_paths_alphabetically(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())
         text = Text()
-        build_deltas_section(text, cs, FoldLevel.FULLY_EXPANDED)
+        build_deltas_section(text, cs, FoldLevel.EXPANDED)
         plain = text.plain
         assert plain.startswith("DELTAS:\n")
         # Alphabetical sort by path
@@ -145,17 +145,37 @@ class TestFullyExpanded:
         assert "~ src/sase/ace/changespec/models.py" in plain
         assert "- src/sase/legacy/old_deltas.py" in plain
 
-    def test_expanded_compatibility_state_lists_paths(self) -> None:
-        cs = _make_changespec(deltas=_sample_deltas())
+    def test_expanded_suppresses_entry_line_stats(self) -> None:
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(
+                    path="README.md",
+                    change_type="M",
+                    line_stats=DeltaLineStats(added=2, modified=3, removed=1),
+                ),
+                DeltaEntry(
+                    path="image.bin",
+                    change_type="A",
+                    line_stats=DeltaLineStats(binary=True),
+                ),
+                DeltaEntry(
+                    path="rename.py", change_type="A", line_stats=DeltaLineStats()
+                ),
+            ]
+        )
         text = Text()
         build_deltas_section(text, cs, FoldLevel.EXPANDED)
         plain = text.plain
         assert plain.startswith("DELTAS:\n")
-        assert "+ src/sase/ace/changespec/deltas.py" in plain
-        assert "~ src/sase/ace/changespec/models.py" in plain
-        assert "- src/sase/legacy/old_deltas.py" in plain
-        assert "(5 files)" not in plain
+        assert "~ README.md\n" in plain
+        assert "+ image.bin\n" in plain
+        assert "+ rename.py\n" in plain
+        assert "+2 ~3 -1" not in plain
+        assert "binary" not in plain
+        assert "0 lines" not in plain
 
+
+class TestFullyExpanded:
     def test_basename_is_bold(self) -> None:
         cs = _make_changespec(
             deltas=[
@@ -233,7 +253,7 @@ class TestFullyExpanded:
 
 
 class TestFileHints:
-    def test_expanded_entries_emit_hints_and_mappings(self) -> None:
+    def test_visible_entries_emit_hints_and_mappings_when_expanded(self) -> None:
         cs = _make_changespec(
             deltas=[
                 DeltaEntry(path="b.py", change_type="M"),
@@ -245,12 +265,44 @@ class TestFileHints:
         tracker = build_deltas_section(
             text,
             cs,
-            FoldLevel.FULLY_EXPANDED,
+            FoldLevel.EXPANDED,
             show_file_hints=True,
         )
 
         assert "+ [1] a.py" in text.plain
         assert "~ [2] b.py" in text.plain
+        assert tracker.mappings == {
+            1: os.path.abspath("a.py"),
+            2: os.path.abspath("b.py"),
+        }
+        assert tracker.counter == 3
+
+    def test_visible_entries_emit_hints_and_mappings_when_fully_expanded(self) -> None:
+        cs = _make_changespec(
+            deltas=[
+                DeltaEntry(
+                    path="b.py",
+                    change_type="M",
+                    line_stats=DeltaLineStats(modified=2),
+                ),
+                DeltaEntry(
+                    path="a.py",
+                    change_type="A",
+                    line_stats=DeltaLineStats(added=1),
+                ),
+            ]
+        )
+        text = Text()
+
+        tracker = build_deltas_section(
+            text,
+            cs,
+            FoldLevel.FULLY_EXPANDED,
+            show_file_hints=True,
+        )
+
+        assert "+ [1] a.py  +1" in text.plain
+        assert "~ [2] b.py  ~2" in text.plain
         assert tracker.mappings == {
             1: os.path.abspath("a.py"),
             2: os.path.abspath("b.py"),

@@ -275,7 +275,7 @@ _FOLD_LABELS: dict[str, str] = {
     "cycle_hooks": "Cycle hooks fold",
     "cycle_mentors": "Cycle mentors fold",
     "cycle_timestamps": "Cycle timestamps fold",
-    "cycle_deltas": "Cycle deltas fold",
+    "cycle_deltas": "Cycle deltas summary/files/lines",
     "toggle_commits": "Toggle commits fold",
     "toggle_hooks": "Toggle hooks fold",
     "toggle_mentors": "Toggle mentors fold",
