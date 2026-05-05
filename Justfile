@@ -4,7 +4,6 @@ venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
 venv_dir_abs := justfile_directory() / venv_dir
 venv_bin_abs := justfile_directory() / venv_bin
-pytest_workers := env_var_or_default("SASE_PYTEST_WORKERS", "16")
 
 # Sibling Rust core repo. CI can override this with SASE_CORE_DIR after
 # checking out sase-core inside the Actions workspace.
@@ -124,21 +123,24 @@ fmt-md-check:
 test *args: _setup (_header "test")
     @printf "\n---------- Running pytest (parallel, no coverage)... ----------\n"
     @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        {{ venv_bin }}/pytest -n {{ pytest_workers }} --dist=loadfile "$@"
+        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
+        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile "$@"
 
 # Run slow tests (excluded from the default `just test` run)
 [positional-arguments]
 test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
     @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        {{ venv_bin }}/pytest -n {{ pytest_workers }} --dist=loadfile -m slow "$@"
+        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
+        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile -m slow "$@"
 
 # Parallel test run with coverage reports + 50% gate (used by CI)
 [positional-arguments]
 test-cov *args: _setup (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     @if [ "$#" -gt 0 ] && [ "$1" = "--" ]; then shift; fi; \
-        {{ venv_bin }}/pytest -n {{ pytest_workers }} --dist=loadfile \
+        workers="${SASE_PYTEST_WORKERS:-$({{ venv_bin }}/python -c 'import os; print(min(os.cpu_count() or 1, 16))')}"; \
+        {{ venv_bin }}/pytest -n "$workers" --dist=loadfile \
         --cov=src/sase \
         --cov-branch \
         --cov-report=term-missing:skip-covered \
