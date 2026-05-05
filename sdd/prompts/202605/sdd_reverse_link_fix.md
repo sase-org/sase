@@ -1,0 +1,102 @@
+---
+plan: sdd/tales/202605/sdd_reverse_link_fix.md
+---
+ GitHub Actions is failing with the below error. Can you help me diagnose the root cause of this issue and fix it? Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
+
+```
+ just sdd-validate
+  shell: /usr/bin/bash -e {0}
+  env:
+    SASE_CORE_DIR: /home/runner/work/sase/sase/sase-core
+    UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+    CARGO_HOME: /home/runner/.cargo
+    CARGO_INCREMENTAL: 0
+    CARGO_TERM_COLOR: always
+.venv/bin/sase sdd validate
+error: tales/202605/unified_artifacts_epic5_phase56_completion.md: prompts/202605/unified_artifacts_epic5_migration.md links back to sdd/epics/202605/unified_artifacts_epic5_migration.md, not tales/202605/unified_artifacts_epic5_phase56_completion.md (reverse-link)
+SDD validation failed: 1 errors, 182 warnings
+warning: epics/202602/ace_agent_mode.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/axe_lumberjacks.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/axe_lumberjacks_v2.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/claude_ask_user_question.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/claude_thinking_panel.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/file_panel_paging.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/fix_git_to_branch.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/gh_workflow.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/git_change_specs.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/git_change_specs_v2.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/git_change_specs_v3.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/git_workflow.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/mark_and_wait.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/multi_file_panel.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/notify.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/notify_v2.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/planning_coding_question.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/plugin_repos.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/sync_workflow.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/telegram.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/vcs_plugins.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/vcs_plugins_v2.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/vcs_plugins_v3.md: no inferable counterpart file (unpaired-file)
+warning: epics/202602/vcs_plugins_v4.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase1_rust_core_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase2_pyo3_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase3_python_facade_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase4_perf_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase5_tui_routing_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase6_product_perf_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/query_corpus_phase7_cleanup_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase1_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase3_agent_scan_phase3a_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase3_agent_scan_phase3b_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase3_agent_scan_phase3c_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase3_agent_scan_phase3g_handoff.md: no inferable counterpart file (unpaired-file)
+warning: epics/202604/rust_backend_phase3_agent_scan_phase3h_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/fix_setup_just_ci.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/fix_silent_mentor_failures.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/fix_split_cl_name_v2.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/fix_split_hg_ref_detection.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/fix_tab_bar_worker_flake.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/jetski_empty_output_fix.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/jump_to_entry_keymap.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/just_check_uses_test.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/keymap_inbox_swap.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/lower_claude_effort_level.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/model_picker.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/notification_jump_hints_modal_navigation.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/notification_rust_migration_phase7_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/orange_notification_indicator.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/pinned_default_tag.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/plan_rejection_notifications.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/prometheus_telemetry_root_plan.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/prompt_file_completion.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/prompt_input_lag.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/remove_shard_migration_tooling.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/resume_agent_names.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/revive_agents_exact_restore.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/runtime_suffix_color.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7a_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7b_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7c_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7d_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7e_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase7_phase7f_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase8_phase8a_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase8_phase8b_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase8_phase8c_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/rust_backend_phase8_phase8d_handoff.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/search_markdown_format_3.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/timestamps_folded_count_color.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/tui_fold_perf.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/unblock_sase_15_4.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/migrate_remaining_sdd_artifacts.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/migrate_research_xprompts.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/migrate_sdd_tales_root_plan.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/resolve_bead_metadata_conflict.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/revert_independent_plan_chain_agents.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/sdd_directory_map_hierarchy.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/sdd_directory_map_refresh.md: no inferable counterpart file (unpaired-file)
+warning: tales/202605/unified_artifacts_epic2_phase7_handoff.md: no inferable counterpart file (unpaired-file)
+error: Recipe `sdd-validate` failed on line 173 with exit code 1
+Error: Process completed with exit code 1.
+```
