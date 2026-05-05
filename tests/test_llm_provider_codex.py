@@ -93,6 +93,78 @@ def test_codex_provider_model_override(
     assert "gpt-5.5" not in cmd
 
 
+@patch.dict(os.environ, {"SASE_CODEX_PATH": "/opt/openai/bin/codex"})
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_uses_sase_codex_path(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """Test that SASE_CODEX_PATH overrides Codex executable resolution."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    cmd = mock_popen.call_args.args[0]
+    assert cmd[0] == "/opt/openai/bin/codex"
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_uses_nvm_bin_fallback(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that NVM_BIN/codex is used when PATH lookup fails."""
+    nvm_bin = tmp_path / "nvm" / "bin"
+    nvm_bin.mkdir(parents=True)
+    nvm_codex = nvm_bin / "codex"
+    nvm_codex.write_text("#!/bin/sh\n")
+    monkeypatch.delenv("SASE_CODEX_PATH", raising=False)
+    monkeypatch.setenv("NVM_BIN", str(nvm_bin))
+    monkeypatch.setattr("sase.llm_provider.codex.shutil.which", lambda _: None)
+
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    cmd = mock_popen.call_args.args[0]
+    assert cmd[0] == str(nvm_codex)
+
+
+@patch("sase.llm_provider.codex.subprocess.Popen")
+def test_codex_provider_missing_executable_error_mentions_resolution_paths(
+    mock_popen: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test missing Codex executable errors name supported resolution paths."""
+    monkeypatch.delenv("SASE_CODEX_PATH", raising=False)
+    monkeypatch.delenv("NVM_BIN", raising=False)
+    monkeypatch.setattr("sase.llm_provider.codex.shutil.which", lambda _: None)
+    mock_popen.side_effect = FileNotFoundError("missing")
+
+    provider = CodexProvider()
+    with pytest.raises(FileNotFoundError) as exc_info:
+        provider.invoke("test", model_tier="large", suppress_output=True)
+
+    message = str(exc_info.value)
+    assert "SASE_CODEX_PATH" in message
+    assert "PATH" in message
+    assert "NVM_BIN/codex" in message
+
+
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.gemini_timer")
@@ -100,8 +172,12 @@ def test_codex_provider_normal_mode_command_construction(
     mock_timer: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test full base_args construction in normal mode."""
+    monkeypatch.delenv("SASE_CODEX_PATH", raising=False)
+    monkeypatch.delenv("NVM_BIN", raising=False)
+    monkeypatch.setattr("sase.llm_provider.codex.shutil.which", lambda _: None)
     mock_process = MagicMock()
     mock_popen.return_value = mock_process
     mock_stream.return_value = ("response", "", 0)

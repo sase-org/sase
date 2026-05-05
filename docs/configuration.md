@@ -664,6 +664,7 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 | `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).     |
 | `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset). |
 | `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset). |
+| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex). |
 | `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).  |
 | `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).  |
 | `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.              |

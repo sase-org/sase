@@ -21,6 +21,36 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
     "small": "codex-mini-latest",
 }
 _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
+_CODEX_PATH_ENV = "SASE_CODEX_PATH"
+
+
+def _resolve_codex_executable() -> str:
+    """Return the Codex executable SASE should launch."""
+    explicit_path = os.environ.get(_CODEX_PATH_ENV)
+    if explicit_path:
+        return explicit_path
+
+    path_result = shutil.which("codex")
+    if path_result:
+        return path_result
+
+    nvm_bin = os.environ.get("NVM_BIN")
+    if nvm_bin:
+        nvm_codex = Path(nvm_bin) / "codex"
+        if nvm_codex.exists():
+            return str(nvm_codex)
+
+    return "codex"
+
+
+def _codex_executable_not_found_error(command: str) -> FileNotFoundError:
+    """Build an actionable missing-Codex diagnostic."""
+    return FileNotFoundError(
+        "Unable to launch Codex CLI executable "
+        f"{command!r}. Set SASE_CODEX_PATH to the Codex binary, ensure "
+        "'codex' is discoverable on PATH, or set NVM_BIN so SASE can try "
+        "NVM_BIN/codex."
+    )
 
 
 def _sase_codex_shadow_home_root() -> Path:
@@ -207,7 +237,7 @@ class CodexProvider(LLMProvider):
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         base_args = [
-            "codex",
+            _resolve_codex_executable(),
             "exec",
             "--model",
             model,
@@ -304,23 +334,26 @@ class CodexProvider(LLMProvider):
             Tuple of (stdout_content, stderr_content, return_code).
         """
         with _codex_subprocess_env() as env:
-            if env is None:
-                process = subprocess.Popen(
-                    args,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-            else:
-                process = subprocess.Popen(
-                    args,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    env=env,
-                )
+            try:
+                if env is None:
+                    process = subprocess.Popen(
+                        args,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                else:
+                    process = subprocess.Popen(
+                        args,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        env=env,
+                    )
+            except FileNotFoundError as exc:
+                raise _codex_executable_not_found_error(args[0]) from exc
 
             # Write prompt to stdin
             if process.stdin:

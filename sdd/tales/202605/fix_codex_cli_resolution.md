@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 08:43:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_codex_cli_resolution.md
 ---
 # Fix Codex CLI Resolution for SASE Agents
