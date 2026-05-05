@@ -186,6 +186,7 @@ sase
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
+| `sase notify create`           | Explicit notification-create subcommand (alias of legacy `sase notify` create behavior)                        |
 | `sase notify list`             | List recent notifications (pretty table or stable JSON)                                                        |
 | `sase notify show`             | Show one notification by id (markdown or JSON)                                                                 |
 | `sase path`                    | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
@@ -401,12 +402,17 @@ just install       # Install with dev deps
 just fmt           # Auto-format code
 just lint          # Run ruff + mypy
 just test          # Fast parallel test run (no coverage)
+just test-slow     # Slow pytest subset only
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # All checks (fmt-check + lint + test)
 just test-tox      # Test across Python 3.12, 3.13, 3.14
 just clean         # Remove build artifacts
 just build         # Build wheel + sdist
 ```
+
+`just test`, `just test-slow`, and `just test-cov` size their pytest-xdist worker pool from the local CPU count, capped
+at 16 workers. Set `SASE_PYTEST_WORKERS=<N>` to override that value when debugging concurrency-sensitive tests or when a
+smaller worker pool is better for the machine.
 
 ### Required Rust Core
 

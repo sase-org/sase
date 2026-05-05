@@ -176,9 +176,10 @@ If no front matter is present, the entire file content is the template body and 
 
 ## Reference Syntax
 
-Reference inline-capable xprompts inside any prompt with the `#` prefix. Use `#!` for standalone workflows: YAML
-workflows that do not have a `prompt_part` step and therefore cannot contribute inline text to a containing prompt. The
-marker must appear at the start of the string, after whitespace, or after one of `([{"'`.
+Reference inline-capable xprompts inside any prompt with the `#` prefix. Use `#!` for standalone references: YAML
+workflows that do not have a `prompt_part` step, plus markdown-defined multi-agent xprompts whose body contains
+top-level `---` segment separators. The marker must appear at the start of the string, after whitespace, or after one of
+`([{"'`.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -189,9 +190,9 @@ marker must appear at the start of the string, after whitespace, or after one of
 | `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces (single only) |
 | `#name+`                      | Plus syntax, equivalent to `#name:true`                        |
 | `#ns/name`                    | Namespaced reference (e.g., project-specific)                  |
-| `#!name`                      | Standalone workflow reference, no arguments                    |
-| `#!name(args)`                | Standalone workflow with parenthesized arguments               |
-| `#!name:arg`                  | Standalone workflow with one colon-style positional arg        |
+| `#!name`                      | Standalone workflow or multi-agent xprompt reference, no args  |
+| `#!name(args)`                | Standalone/multi-agent reference with parenthesized arguments  |
+| `#!name:arg`                  | Standalone/multi-agent reference with one colon-style arg      |
 | `#!name!!` / `#!name??`       | Standalone workflow with an explicit HITL approval override    |
 
 Examples:
@@ -667,9 +668,10 @@ file-backed markdown defaults.
 | `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#research`           | Tells the agent to store research in a new `sdd/research/` markdown file                          |
+| `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                  |
 | `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps               |
 | `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution           |
-| `#research_swarm`     | Fans out a research prompt into initial research, follow-up research, and image research agents   |
+| `#!research_swarm`    | Fans out a research prompt into initial research, follow-up research, and image research agents   |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
 | `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`            |
@@ -1239,8 +1241,10 @@ share the `_common` local xprompt.
 
 An xprompt itself can be a "multi-agent xprompt": its body contains `---` separators (outside fenced blocks), and
 referencing it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The
-spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in. These
-markdown-defined fan-out xprompts still use `#name`; do not switch them to `#!name`.
+spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in. The
+catalog, TUI picker, and completion UI display markdown-defined fan-out xprompts with the standalone marker (`#!name`)
+because they expand into multiple agent prompts. The legacy `#name` form is still recognized for multi-agent xprompts,
+but new prompts should prefer `#!name` for clarity.
 
 ```
 # xprompts/three_phase.md
@@ -1263,7 +1267,7 @@ Review the {{ target }} implementation and propose follow-ups.
 Invoking it:
 
 ```bash
-sase run '#three_phase(login)'
+sase run '#!three_phase(login)'
 ```
 
 …dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
@@ -1272,12 +1276,28 @@ sequentially; without `%wait` they would run in parallel.
 Detection happens at dispatch time (after standard `parse_multi_prompt`), in `src/sase/agent/multi_agent_xprompt.py`,
 and applies at every dispatch site (`sase run`, the TUI agent launcher, the query handler).
 
+Multi-agent xprompts can also be embedded inside a larger prompt. In that case, the first rendered body segment is
+embedded at the reference location and the remaining rendered body segments become follow-up agent prompts:
+
+```bash
+sase run '#gh:sase Review this first: #!three_phase(login)'
+```
+
+When the call site starts with a VCS workspace reference such as `#gh:sase`, `#git:feature`, `#hg:branch`, or a
+known-project underscore form such as `#gh_sase`, that workspace reference is inherited by every generated follow-up
+segment unless the generated segment already declares its own VCS reference. Leading launch directives stay before the
+inherited workspace reference, so a prompt like `%name:abq #gh:sase #!three_phase(login)` keeps `%name:abq` attached to
+the first generated segment and prefixes `#gh:sase` onto follow-ups.
+
 #### Rules and Limitations
 
-- A multi-agent xprompt reference must be the **only** content in its user-prompt segment. Mixing the reference with
-  other prose raises a usage error — split your prompt manually if you need surrounding text.
-- Fan-out is one level deep. An inline `#name(args)` reference **inside another xprompt's body** is NOT re-split into
-  segments; it is expanded by the agent runner's normal xprompt expansion as a single block.
+- A user-prompt segment can contain at most one multi-agent xprompt reference. Split the prompt manually if you need to
+  combine multiple fan-outs.
+- A sole multi-agent reference replaces the whole segment with its generated segments. An embedded multi-agent reference
+  replaces only that reference with the first generated segment, then appends the remaining generated segments as
+  follow-ups.
+- Ordinary inline xprompt references inside a multi-agent xprompt body remain inline xprompt references; the agent
+  runner expands them later as normal prompt text.
 - `---` inside fenced code blocks in the xprompt body is not treated as a separator.
 - Recursive fan-out (a multi-agent xprompt body whose own segments reference more multi-agent xprompts) is bounded by a
   depth cap and will raise if exceeded.
@@ -1288,10 +1308,11 @@ XPrompts and [workflows](workflow_spec.md) share the same argument grammar, but 
 reference is allowed to participate in a prompt:
 
 - `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step.
-- `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step.
+- `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step and marks markdown-defined
+  multi-agent xprompts that expand into multiple prompt segments.
 
 Simple markdown xprompts are converted internally to single-step workflows with a `prompt_part` step, so they remain
-inline-capable and continue to use `#name`.
+inline-capable and continue to use `#name` unless their body contains top-level `---` segment separators.
 
 Workflow agent steps can embed xprompt references inline:
 
