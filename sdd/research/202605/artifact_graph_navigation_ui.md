@@ -123,6 +123,114 @@ the graph one useful neighborhood at a time.
 
 Source: https://www.thebrain.com/products/thebrain/
 
+### Roam Research And Logseq Backlinks
+
+Roam Research popularized, and Logseq inherited, the *Linked References* / *Unlinked References* split on every page:
+a list of pages and blocks that link *to* the current page, separated from blocks that mention the title without an
+explicit link. References render as the host page name plus the surrounding block, so the relationship reason is visible
+without opening the source. Logseq adds a configurable "References Hierarchy" depth and per-source folding.
+
+Takeaway for SASE: the inbound side of the artifact graph should look like a "linked references" panel, not just a list
+of IDs. Each inbound row should show the source artifact's kind, title/path, and a short reason snippet (link type plus
+nearby payload context such as commit subject, bead title, or agent role). This is a strictly higher-information
+analogue of today's `Inbound` group.
+
+Sources:
+
+- https://roamresearch.com/#/app/help/page/Vu1MmQpc7
+- https://docs.logseq.com/#/page/linked%20references
+
+### Sourcegraph And LSP Find References
+
+Cross-repository code navigation tools (Sourcegraph, the LSP `textDocument/references` and `callHierarchy` requests as
+implemented by VS Code, Neovim's quickfix list, and JetBrains' Find Usages window) all converge on the same shape: a
+flat or grouped list of *call sites* with file:line, repo/module grouping, and a synchronized preview. Sourcegraph adds
+*precise vs search-based* badges so users can tell whether a reference is semantically resolved or just a text match,
+and "definitions / references / implementations" tabs that act as relationship lenses over the same target symbol.
+
+Takeaway for SASE: the precise-vs-fuzzy distinction maps to SASE's `derived` vs `manual` artifact provenance, and to
+the difference between strong typed links (`parent`, `created`, `worker`) and looser `related` links. Surfacing
+provenance and link strength as a badge prevents users from over-trusting weak associations.
+
+Sources:
+
+- https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references
+- https://docs.sourcegraph.com/code_navigation/explanations/precise_code_navigation
+- https://www.jetbrains.com/help/idea/find-highlight-usages.html
+
+### Linear And Jira Issue Hierarchies
+
+Linear's issue detail panel and Jira's issue view are direct prior art for navigating a typed graph of work items.
+Linear shows: parent issue, sub-issues (with progress), blocking/blocked-by, duplicate-of, and "related" — each as a
+named relation with its own row group and inline status. Jira exposes Epic > Story > Sub-task hierarchy plus
+configurable "issue links" (blocks, clones, relates to, causes, is caused by) with directional arrows and reciprocal
+linking.
+
+Takeaway for SASE: ChangeSpec, bead, agent, and commit relationships are exactly issue-tracker relationships in
+disguise. The Linear pattern of showing each relation type as a small captioned group with progress/status is a strong
+fit for SASE's left pane and aligns with the proposed lens model. The Jira lesson is also defensive: too many ad-hoc
+link types without a curation pass produces noise — keep link types small and well-named.
+
+Sources:
+
+- https://linear.app/docs/parent-and-sub-issues
+- https://linear.app/docs/related-issues
+- https://support.atlassian.com/jira-software-cloud/docs/link-issues/
+
+### VS Code Command Palette And Go To Symbol In Workspace
+
+VS Code's `Cmd/Ctrl+T` ("Go to Symbol in Workspace") and `Cmd/Ctrl+P` ("Go to File") demonstrate a fuzzy, prefix-driven
+navigation grammar: prefixes such as `@` for symbols in current file, `#` for workspace symbols, `:` for line numbers,
+and `>` for commands. The same input field changes meaning based on its prefix; results are virtualized and ranked.
+
+Takeaway for SASE: a single search input with prefix grammar (`@` for current-artifact links, `#` for graph-wide
+search, `:` for kind, `>` for actions) is more discoverable than separate keybinds for each search mode and matches
+keyboard-first ergonomics. This is a concrete shape for the "search-first jump action" recommended in V1.
+
+Source: https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette
+
+### Helix And Lapce Symbol Outlines
+
+Helix (`space+s` workspace symbols, `space+S` document symbols) and Lapce ship terminal-first symbol outline panels
+that look almost exactly like SASE's current artifact panel: a dense list of typed entries, a synchronized preview
+pane, fuzzy filtering, and a fast escape hatch. Both editors rely on LSP for the typed structure but render their own
+TUI/UI shell.
+
+Takeaway for SASE: the closest existing UX to the artifact panel is a modern terminal editor's LSP symbol pane, not a
+graph product. Treating the artifact panel as a "symbols of the SASE workspace" view is a cleaner mental model than
+"graph navigator" and makes the keyboard-first constraint feel native rather than imposed.
+
+Sources:
+
+- https://docs.helix-editor.com/keymap.html#space-mode
+- https://docs.lapce.dev/
+
+### HCI Background: Information Foraging, Lost In Hyperspace, Breadcrumbs
+
+Three pieces of HCI research are directly relevant:
+
+- **Information foraging theory** (Pirolli and Card): users follow "information scent" — proximal cues (labels,
+  snippets, link captions) that predict whether a target is on a given path. Weak scent causes thrashing.
+- **Lost in hyperspace** (Conklin, Edwards): users in dense linked corpora lose track of where they came from and
+  whether they have explored a region. The classical mitigations are persistent breadcrumbs, visited-state marking, and
+  history.
+- **Breadcrumb navigation studies** (Nielsen Norman Group): location-style breadcrumbs are cheap, well-understood, and
+  measurably reduce backtracking.
+
+Takeaway for SASE: investing in row labels (scent), breadcrumbs (location), and visited markers (history) typically
+beats investing in additional graph visualization. The artifact panel already has a back/forward stack; making it
+visible as a breadcrumb header and marking previously-visited artifacts in row groups is a high-leverage ergonomics
+change grounded in established research.
+
+Sources:
+
+- Pirolli, P., & Card, S. K. (1999). *Information foraging.* Psychological Review, 106(4).
+  https://www.parc.com/content/attachments/information-foraging-99.pdf
+- Conklin, J. (1987). *Hypertext: An Introduction and Survey.* IEEE Computer, 20(9).
+  https://dl.acm.org/doi/10.1109/MC.1987.1663693
+- Nielsen Norman Group, *Breadcrumbs: 11 Design Guidelines.*
+  https://www.nngroup.com/articles/breadcrumbs/
+
 ## Patterns Worth Copying
 
 1. **Local-first neighborhood.** Start from the current artifact and show one or two bounded hops. Full graph export
@@ -139,6 +247,16 @@ Source: https://www.thebrain.com/products/thebrain/
    than forcing users to step through every intermediate node blindly.
 8. **Detail synchronization.** Highlighting a row should update low-cost context, while opening a row performs the
    narrow detail load. This matches the existing performance contract.
+9. **Visible breadcrumbs and visited marks.** Show the back-stack as a breadcrumb header, and mark rows the user has
+   already opened in this session. Both come from "lost in hyperspace" mitigations and cost almost nothing to render.
+10. **Information-scent-rich row labels.** Each row should carry enough proximal cues — kind, link type, short title,
+    nearby payload context (commit subject, bead title, agent role, plan filename) — that the user can predict whether
+    opening it is worthwhile without doing it.
+11. **Pinning and bookmarks.** Let users pin frequently-revisited artifacts (current ChangeSpec, top epic bead, "latest
+    plan") into a stable section so navigation does not always start from scratch. Linear, JetBrains, and Obsidian all
+    expose this in some form.
+12. **Reciprocal navigation.** Every link the user follows should be trivially reversible from the destination —
+    matching how `parent` is already inverted in the panel.
 
 ## Patterns To Avoid
 
@@ -348,6 +466,109 @@ Also consider saved lenses or named query phrases later, inspired by Bloom Persp
   detail response rather than making the TUI perform N extra `show` calls.
 - Favor stable textual controls over new visual widgets. This panel will be used inside a terminal while someone is
   debugging real SASE state.
+- Prefer Textual's `OptionList`, `Tree`, and `DataTable` primitives over custom-rendered widgets. They already implement
+  virtualization, focus, and selection events that match the keyboard-first contract. A custom widget should only be
+  introduced if no primitive can be styled into the desired row shape.
+
+## Performance Considerations
+
+The graph is bounded today but will grow with project history, archived ChangeSpecs, agent thoughts, and per-commit
+file artifacts. The navigator should be designed so that growth never degrades the common case.
+
+- **Virtualize long lists.** Inbound link sets for high-fanout artifacts (a popular project file, a long-running
+  ChangeSpec) can reach hundreds of rows. Render only visible rows and page additional rows on demand. Textual's
+  `OptionList` and `DataTable` already do this; custom rendering must not regress it.
+- **Cap fan-out per group.** Show the first N (e.g. 50) rows per relation group with a "show more" affordance rather
+  than dumping every neighbor. Pair with a per-group count in the header so users always know the true size.
+- **Stay narrow on highlight.** The current contract — highlight is local, `enter` triggers `artifact_show` — is
+  correct. Do not regress this when adding lenses or facet filters; filtering must operate over the already-loaded row
+  set unless the user explicitly issues a graph-wide search.
+- **Cache neighborhoods.** Re-rooting back to a recently-visited artifact should be instant. A small LRU on the Python
+  side keyed by artifact ID + lens is sufficient and avoids round-tripping to Rust on every back/forward press.
+- **Debounce search input.** Graph-wide search via `artifact_list` should debounce keystrokes (e.g. 120 ms) to avoid
+  hammering the Rust backend during typing.
+- **Bound graph export.** `g/G` already produces explicit exports. Keep their default depth/limit small and require an
+  explicit flag for full snapshots so a misclick on a large root does not freeze the TUI.
+
+## Accessibility
+
+Graph visualizations are well-known accessibility hazards: screen readers cannot describe a force-directed canvas, and
+color-only relationship encoding fails for users with color-vision deficiencies. The recommended list-and-lens approach
+sidesteps most of this, but a few rules still apply.
+
+- **Never encode relationship type with color alone.** Always include a textual label or short code (`parent`,
+  `created`, `worker`, `related`) on the row.
+- **Maintain a logical reading order.** Groups should render in a stable order (Tree, Created, Worker, Related,
+  Inbound, Outbound) so screen-reader navigation is predictable.
+- **Keep focus visible.** Selected and focused rows must have a non-color cue (caret, reverse video) on top of any
+  color highlight.
+- **Honor terminal contrast.** Lean on Textual's theme tokens rather than hardcoded colors so the panel works in both
+  light and dark themes and high-contrast terminals.
+- **Make every action keyboard-reachable.** Mouse should be optional. This is already the de-facto contract, but it
+  must survive the lens/search additions.
+
+## Proposed Keybindings (Strawman)
+
+The current panel uses single letters for actions. The lens/search additions can fit cleanly without conflicts:
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` or arrows | Move row selection |
+| `enter` | Open / re-root on selected row |
+| `h` / `backspace` | Back |
+| `l` | Forward |
+| `p` | Parent |
+| `r` | Root |
+| `/` | Local filter (existing) |
+| `s` | Graph-wide search (new — opens prefix-grammar input) |
+| `t` | Cycle lens forward (Tree -> Created -> Worker -> Related -> Inbound -> Outbound -> All) |
+| `T` | Cycle lens backward |
+| `f` | Toggle group fold under cursor |
+| `b` | Pin / unpin selected artifact (new) |
+| `B` | Open pinned-artifacts section |
+| `g` / `G` | Graph preview / export (existing) |
+| `y` | Copy artifact ID (existing) |
+| `e` | Edit file (existing, file artifacts only) |
+| `?` | Help overlay |
+
+The exact letters should be reconciled with `default_config.yml` and existing AXE/Agents bindings before
+implementation.
+
+## Risks And Open Questions
+
+- **Lens explosion.** Once relationship lenses exist, there is pressure to add more (by source kind, by provenance, by
+  diagnostic state, by recency). Cap V1 to the typed-link lenses plus `Inbound` / `Outbound` / `All`; treat anything
+  else as a facet filter, not a lens.
+- **Route summaries vs hidden links.** Curated route sections (Option 4 ingredient) risk hiding valid but uncommon
+  links. Mitigation: every curated route view must include an "All links" affordance to fall back to the raw lens.
+- **Re-root semantics.** Today `enter` opens a row. If the same key also re-roots, users lose the ability to peek
+  without committing. Either keep `enter` = re-root and add a separate "preview" action, or keep `enter` = preview and
+  add an explicit re-root key (`R`). The Helix/Lapce convention is preview-on-highlight, action-on-enter; SASE should
+  match it.
+- **Search grammar drift.** A facet/prefix grammar is powerful but easy to over-design. Ship with a small, fixed set
+  (`kind:`, `link:`, `dir:`, `source:`, `diag:`) and resist adding ad-hoc operators until real usage shows demand.
+- **Pinning persistence.** Pinned artifact IDs should persist per-project (e.g. under `~/.sase/projects/<project>/`)
+  so they survive TUI restarts. Decide early whether pins are user-private or shared via the project file; default to
+  user-private to avoid noisy diffs.
+- **Telemetry blind spot.** Without lightweight usage tracking (which lens is used, which routes are followed, how
+  often search is invoked), it is hard to evolve V1. Consider an opt-in counter under `~/.sase/` so V2 design is data-
+  informed.
+- **Migration surface.** The legend already wires `A` to `open_artifacts_panel`. The lens model adds state to the
+  modal but does not change CLI/Rust contracts, so it should be backward-compatible. Confirm before V1 lands.
+
+## Migration And Rollout Sketch
+
+1. **Refactor row construction.** Land the lens enum and refactor `build_artifact_panel_rows` to be lens-aware while
+   keeping `All` byte-for-byte equivalent to today's output. Pure unit tests gate this.
+2. **Ship the orientation header and breadcrumbs.** No new queries; reads existing state. Low risk, high ergonomics.
+3. **Add facet filtering over loaded rows.** Local-only, no backend change.
+4. **Add graph search action and prefix grammar.** New `artifact_list` calls behind a debounced input.
+5. **Add curated route sections per artifact kind.** Opt-in and additive; falls back to `All` lens.
+6. **Add pinning.** Persist under project directory; surface as a stable group.
+7. **(Later)** Route finder; saved lenses / Bloom-style perspectives.
+
+Each step is independently shippable and individually rollback-able, which matches SASE's preference for incremental
+landings over big-bang redesigns.
 
 ## Bottom Line
 
