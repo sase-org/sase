@@ -3,6 +3,7 @@ legend: sdd/legends/202605/unified_artifacts.md
 epic: 6
 title: Unified Artifacts Epic 6 End-To-End Quality Gate
 tier: epic
+bead_id: sase-23.6
 legend_bead_id: sase-23
 status: wip
 create_time: 2026-05-05 15:26:26
