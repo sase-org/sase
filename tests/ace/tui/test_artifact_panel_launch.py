@@ -8,14 +8,18 @@ from unittest.mock import MagicMock
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.widgets import Input, OptionList
 
 from sase.ace.tui.actions.artifacts import ArtifactsMixin
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
+from sase.ace.tui.modals.artifact_panel_state import build_artifact_panel_rows
 from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
     ArtifactDetailWire,
+    ArtifactGraphOptionsWire,
+    ArtifactGraphWire,
     ArtifactLinkWire,
     ArtifactNodeWire,
 )
@@ -71,6 +75,37 @@ def _make_agent(**overrides: Any) -> Agent:
     }
     data.update(overrides)
     return Agent(**data)
+
+
+def _node(
+    artifact_id: str, kind: str = "file", title: str | None = None
+) -> ArtifactNodeWire:
+    return ArtifactNodeWire(
+        id=artifact_id,
+        kind=kind,
+        display_title=title or artifact_id,
+        provenance="derived",
+    )
+
+
+def _detail(
+    artifact_id: str,
+    *,
+    kind: str = "file",
+    title: str | None = None,
+    children: list[ArtifactNodeWire] | None = None,
+    outbound_links: list[ArtifactLinkWire] | None = None,
+    inbound_links: list[ArtifactLinkWire] | None = None,
+    path_to_root: list[ArtifactNodeWire] | None = None,
+) -> ArtifactDetailWire:
+    return ArtifactDetailWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=_node(artifact_id, kind, title),
+        children=children or [],
+        outbound_links=outbound_links or [],
+        inbound_links=inbound_links or [],
+        path_to_root=path_to_root or [],
+    )
 
 
 def test_open_artifacts_panel_uses_current_changespec_id() -> None:
@@ -188,3 +223,207 @@ async def test_artifact_modal_renders_fake_facade_detail() -> None:
 
     assert calls == [("/tmp/fake-artifacts.sqlite", "alpha")]
     assert modal._detail == detail
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_open_selected_tracks_history_without_duplicate_push() -> (
+    None
+):
+    details = {
+        "alpha": _detail(
+            "alpha",
+            kind="changespec",
+            children=[_node("beta", "agent", "Beta agent")],
+        ),
+        "beta": _detail("beta", kind="agent"),
+    }
+    calls: list[str] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        calls.append(artifact_id)
+        return details[artifact_id]
+
+    modal = ArtifactPanelModal(artifact_id="alpha", show_func=fake_show)
+    app = _ModalTestApp()
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        option_list.highlighted = 1
+        modal.action_open_selected()
+        await pilot.pause()
+        await pilot.pause()
+
+        modal.action_open_selected()
+        await pilot.pause()
+        modal.action_back()
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_forward()
+        await pilot.pause()
+        await pilot.pause()
+
+    assert calls == ["alpha", "beta", "alpha", "beta"]
+    assert modal._state.current_id == "beta"
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_parent_and_root_use_path_to_root() -> None:
+    details = {
+        "child": _detail(
+            "child",
+            path_to_root=[_node("/", "root"), _node("parent", "directory")],
+        ),
+        "parent": _detail("parent", kind="directory"),
+        "/": _detail("/", kind="root"),
+    }
+    calls: list[str] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        calls.append(artifact_id)
+        return details[artifact_id]
+
+    modal = ArtifactPanelModal(artifact_id="child", show_func=fake_show)
+    app = _ModalTestApp()
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_parent()
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_root()
+        await pilot.pause()
+        await pilot.pause()
+
+    assert calls == ["child", "parent", "/"]
+
+
+def test_artifact_panel_groups_inbound_and_outbound_link_targets() -> None:
+    detail = _detail(
+        "alpha",
+        outbound_links=[
+            ArtifactLinkWire(
+                id="out-1",
+                link_type="created",
+                source_id="alpha",
+                target_id="file-a",
+            )
+        ],
+        inbound_links=[
+            ArtifactLinkWire(
+                id="in-1",
+                link_type="related",
+                source_id="agent-a",
+                target_id="alpha",
+            )
+        ],
+    )
+
+    rows = build_artifact_panel_rows(detail).rows
+
+    assert [row.label for row in rows if row.row_type == "group"] == [
+        "Outbound: created",
+        "Inbound: related",
+    ]
+    assert {row.id: row.artifact_id for row in rows if row.selectable} == {
+        "outbound:out-1": "file-a",
+        "inbound:in-1": "agent-a",
+    }
+
+
+@pytest.mark.asyncio
+async def test_artifact_filter_updates_without_requerying() -> None:
+    calls: list[str] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        calls.append(artifact_id)
+        return _detail(
+            artifact_id,
+            children=[
+                _node("keep-me", "file", "keep me"),
+                _node("hide-me", "file", "hide me"),
+            ],
+        )
+
+    modal = ArtifactPanelModal(artifact_id="alpha", show_func=fake_show)
+    app = _ModalTestApp()
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        filter_input = modal.query_one("#artifact-panel-filter", Input)
+        filter_input.value = "keep"
+        await pilot.pause()
+
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        visible_ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+
+    assert calls == ["alpha"]
+    assert "child:keep-me" in visible_ids
+    assert "child:hide-me" not in visible_ids
+
+
+@pytest.mark.asyncio
+async def test_artifact_graph_calls_happen_only_from_explicit_actions() -> None:
+    graph_calls: list[ArtifactGraphOptionsWire] = []
+    export_calls: list[tuple[ArtifactGraphOptionsWire, str]] = []
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        return _detail(artifact_id, children=[_node("beta")])
+
+    def fake_graph(
+        index_path: str | Any, options: ArtifactGraphOptionsWire
+    ) -> ArtifactGraphWire:
+        del index_path
+        graph_calls.append(options)
+        return ArtifactGraphWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            root_id=options.root_id,
+            nodes=[_node(options.root_id or "/")],
+            node_count=1,
+        )
+
+    def fake_export(
+        index_path: str | Any,
+        options: ArtifactGraphOptionsWire,
+        output_format: str,
+    ) -> str:
+        del index_path
+        export_calls.append((options, output_format))
+        return "flowchart TD\n"
+
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        show_func=fake_show,
+        graph_func=fake_graph,
+        export_func=fake_export,
+    )
+    app = _ModalTestApp()
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        modal.action_next_option()
+        modal.action_prev_option()
+        await pilot.pause()
+        assert graph_calls == []
+        assert export_calls == []
+
+        modal.action_preview_graph()
+        modal.action_export_graph()
+
+    assert [call.root_id for call in graph_calls] == ["alpha"]
+    assert [(call.root_id, output_format) for call, output_format in export_calls] == [
+        ("alpha", "mermaid")
+    ]
