@@ -106,8 +106,12 @@ def test_get_provider_unknown_raises() -> None:
 
 
 @patch("sase.llm_provider.registry.shutil.which", return_value=None)
-def test_get_default_provider_falls_back_to_gemini(mock_which: MagicMock) -> None:
-    """Test that the default provider is 'gemini' when claude is not on PATH."""
+@patch("sase.llm_provider.registry.get_llm_provider_config", return_value={})
+def test_get_default_provider_falls_back_to_gemini(
+    mock_config: MagicMock,
+    mock_which: MagicMock,
+) -> None:
+    """Test that the default provider is 'gemini' when no CLI provider is on PATH."""
     provider = get_provider()
     assert isinstance(provider, LLMPluginManager)
     assert provider.provider_name() == "gemini"
