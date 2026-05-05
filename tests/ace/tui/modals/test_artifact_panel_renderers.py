@@ -254,12 +254,20 @@ def test_agent_renderer_lists_payload_types_and_related_artifacts() -> None:
     detail = _detail(
         "agent-1",
         ARTIFACT_KIND_AGENT,
-        metadata={"status": "DONE", "provider": "codex", "workspace_path": "/tmp/ws"},
+        metadata={
+            "status": "DONE",
+            "provider": "codex",
+            "workspace_path": "/tmp/ws",
+            "retry_of": "agent-parent",
+            "retried_as": "agent-retry",
+            "follow_up_of": "agent-planner",
+        },
         payloads=[
             ArtifactPayloadWire(artifact_id="agent-1", payload_type="transcript"),
             ArtifactPayloadWire(artifact_id="agent-1", payload_type="diff"),
         ],
         children=[
+            _node("agent-retry", "agent"),
             _node("thought-1", "thought"),
             _node("sase-1", "bead"),
             _node("cl-1", "changespec"),
@@ -280,8 +288,12 @@ def test_agent_renderer_lists_payload_types_and_related_artifacts() -> None:
 
     rendered = _render_text(render_artifact_detail(detail))
 
+    assert "Retry Of: agent-parent" in rendered
+    assert "Retried As: agent-retry" in rendered
+    assert "Follow Up Of: agent-planner" in rendered
     assert "Artifact payloads: diff, transcript" in rendered
     assert "Created artifacts: created-file" in rendered
+    assert "Linked agents: agent-retry" in rendered
     assert "Linked transcripts: chat.md" in rendered
     assert "Linked diffs: saved.diff" in rendered
     assert "Linked plans: plan.md" in rendered
@@ -290,7 +302,7 @@ def test_agent_renderer_lists_payload_types_and_related_artifacts() -> None:
     assert "Linked changespecs: cl-1" in rendered
 
 
-def test_changespec_renderer_surfaces_legacy_workflow_artifacts() -> None:
+def test_changespec_renderer_surfaces_artifact_panel_workflow_links() -> None:
     detail = _detail(
         "cs-1",
         ARTIFACT_KIND_CHANGESPEC,
@@ -303,6 +315,7 @@ def test_changespec_renderer_surfaces_legacy_workflow_artifacts() -> None:
             _node("question.json", "file", metadata={"role": "question"}),
             _node("transcript.md", "file", metadata={"role": "transcript"}),
             _node("diff.patch", "file", metadata={"role": "diff"}),
+            _node("created.py", "file"),
         ],
     )
 
@@ -315,7 +328,40 @@ def test_changespec_renderer_surfaces_legacy_workflow_artifacts() -> None:
     assert "Linked transcripts: transcript.md" in rendered
     assert "Linked diffs: diff.patch" in rendered
     assert "Linked beads: sase-1" in rendered
-    assert "Legacy run log: press L" in rendered
+    assert (
+        "Linked files: plan.md, question.json, transcript.md, diff.patch, created.py"
+        in rendered
+    )
+    assert "Legacy run log" not in rendered
+
+
+def test_thought_renderer_surfaces_timeline_metadata_and_text() -> None:
+    detail = _detail(
+        "thought:abc123",
+        ARTIFACT_KIND_THOUGHT,
+        metadata={
+            "source": "codex",
+            "timestamp": "2026-05-05T16:12:00Z",
+            "ordinal": 7,
+            "agent_id": "agent-1",
+        },
+        payloads=[
+            ArtifactPayloadWire(
+                artifact_id="thought:abc123",
+                payload_type="thought",
+                payload={"text": "first line\nsecond line"},
+            )
+        ],
+    )
+
+    rendered = _render_text(render_artifact_detail(detail))
+
+    assert "Source: codex" in rendered
+    assert "Timestamp: 2026-05-05T16:12:00Z" in rendered
+    assert "Ordinal: 7" in rendered
+    assert "Agent Id: agent-1" in rendered
+    assert "first line" in rendered
+    assert "second line" in rendered
 
 
 def test_renderer_handles_absent_payloads_and_metadata_gracefully() -> None:

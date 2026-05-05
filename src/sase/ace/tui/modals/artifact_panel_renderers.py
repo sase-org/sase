@@ -278,9 +278,6 @@ def _render_changespec(
             ("files", ("file",)),
         ),
     )
-    cl_name = legacy_run_log_changespec_name(detail)
-    if cl_name:
-        _append_kv(text, "Legacy run log", "press L")
     return _with_empty_notice(text)
 
 
@@ -383,6 +380,7 @@ def _render_agent(
         text,
         detail,
         (
+            ("agents", ("agent",)),
             ("transcripts", ("transcript", "chat", "conversation")),
             ("diffs", ("diff", "patch", "delta")),
             ("plans", ("plan",)),
@@ -760,17 +758,6 @@ def _label_from_key(key: str) -> str:
 def _join_compact(parts: Iterable[str | None]) -> str | None:
     values = [part for part in parts if part]
     return " / ".join(values) if values else None
-
-
-def legacy_run_log_changespec_name(detail: ArtifactDetailWire) -> str | None:
-    """Return the ChangeSpec name for the legacy run-log bridge, if any."""
-    node = detail.node
-    if node is None or node.kind != ARTIFACT_KIND_CHANGESPEC:
-        return None
-    name = _metadata_value(node.metadata, "name", "changespec", "cl_name")
-    if name is None:
-        name = node.id
-    return str(name) if name else None
 
 
 def _require_node(detail: ArtifactDetailWire) -> ArtifactNodeWire:

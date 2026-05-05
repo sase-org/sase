@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from textual.app import App, ComposeResult
@@ -14,7 +15,6 @@ from textual.widgets import Input, OptionList, Static
 from sase.ace.tui.actions.artifacts import ArtifactsMixin
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.modals.agent_run_log_modal import AgentRunLogModal
 from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
 from sase.ace.tui.modals.artifact_panel_state import build_artifact_panel_rows
 from sase.core.artifact_wire import (
@@ -207,6 +207,9 @@ def test_default_keymap_binds_capital_a_to_open_artifacts_panel() -> None:
     matches = [b for b in bindings if b.action == "open_artifacts_panel"]
     assert len(matches) == 1
     assert matches[0].key == "A"
+    assert all(
+        binding[1] != "open_legacy_run_log" for binding in ArtifactPanelModal.BINDINGS
+    )
 
 
 def test_capital_a_opens_artifacts_panel_not_agent_run_log() -> None:
@@ -215,7 +218,6 @@ def test_capital_a_opens_artifacts_panel_not_agent_run_log() -> None:
     app.action_open_artifacts_panel()
 
     assert isinstance(app.pushed_modals[0], ArtifactPanelModal)
-    assert not isinstance(app.pushed_modals[0], AgentRunLogModal)
 
 
 @pytest.mark.asyncio
@@ -472,33 +474,42 @@ async def test_artifact_graph_calls_happen_only_from_explicit_actions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_artifact_modal_opens_legacy_run_log_from_changespec() -> None:
+async def test_artifact_modal_opens_file_artifact_in_editor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opened: list[list[str]] = []
+    file_path = tmp_path / "agent-output.txt"
+    file_path.write_text("artifact preview parity\n", encoding="utf-8")
+
     def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
         del index_path, artifact_id
         return _detail(
-            "cs-artifact",
-            kind="changespec",
-            metadata={"name": "feature/test"},
+            "file-artifact",
+            kind="file",
+            metadata={"path": str(file_path)},
         )
 
-    modal = ArtifactPanelModal(artifact_id="feature/test", show_func=fake_show)
+    def fake_run(args: list[str], *, check: bool) -> None:
+        del check
+        opened.append(args)
+
+    monkeypatch.setenv("EDITOR", "vim")
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.artifact_panel_modal.subprocess.run",
+        fake_run,
+    )
+
+    modal = ArtifactPanelModal(artifact_id="file-artifact", show_func=fake_show)
     app = _ModalTestApp()
-    with patch(
-        "sase.ace.tui.modals.agent_run_log_modal._load_agents_for_cl",
-        return_value=([], set()),
-    ) as load_agents:
-        async with app.run_test() as pilot:
-            pilot.app.push_screen(modal)
-            await pilot.pause()
-            await pilot.pause()
+    monkeypatch.setattr(app, "suspend", lambda: nullcontext())
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
 
-            modal.action_open_legacy_run_log()
-            await pilot.pause()
+        modal.action_open_file_in_editor()
 
-            assert isinstance(pilot.app.screen, AgentRunLogModal)
-            assert pilot.app.screen._cl_name == "feature/test"
-
-    load_agents.assert_called_once_with("feature/test")
+    assert opened == [["vim", str(file_path)]]
 
 
 @pytest.mark.asyncio
@@ -523,4 +534,6 @@ async def test_artifact_modal_footer_hints_fit_small_terminal() -> None:
         await pilot.pause()
 
         hints = modal.query_one("#artifact-panel-hints", Static)
-        assert "L: run log" in str(hints.render())
+        rendered_hints = str(hints.render())
+        assert "g/G: graph" in rendered_hints
+        assert "run log" not in rendered_hints.lower()
