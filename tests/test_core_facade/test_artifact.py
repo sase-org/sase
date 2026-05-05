@@ -23,6 +23,10 @@ from sase.core.artifact_wire import (
     ArtifactGraphOptionsWire,
     ArtifactLinkUpsertWire,
     ArtifactLinkWire,
+    ArtifactPayloadWire,
+    artifact_doctor_from_dict,
+    artifact_graph_from_dict,
+    artifact_mutation_result_from_dict,
     ArtifactNodeRemoveWire,
     ArtifactNodeUpsertWire,
     ArtifactNodeWire,
@@ -182,6 +186,63 @@ def test_rebuild_and_path_upsert_request_shapes_keep_defaults() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("wire_name", "converter", "payload"),
+    [
+        (
+            "ArtifactQueryWire",
+            artifact_query_from_dict,
+            {"schema_version": 999},
+        ),
+        (
+            "ArtifactDetailWire",
+            artifact_detail_from_dict,
+            {
+                "schema_version": 999,
+                "node": None,
+                "payloads": [],
+                "outbound_links": [],
+                "inbound_links": [],
+                "children": [],
+                "path_to_root": [],
+                "diagnostics": [],
+            },
+        ),
+        (
+            "ArtifactGraphWire",
+            artifact_graph_from_dict,
+            {
+                "schema_version": 999,
+                "root_id": ARTIFACT_ROOT_ID,
+                "nodes": [],
+                "links": [],
+                "node_count": 0,
+                "link_count": 0,
+                "truncated": False,
+                "limit": 500,
+            },
+        ),
+        (
+            "ArtifactMutationResultWire",
+            artifact_mutation_result_from_dict,
+            {**_mutation_result(), "schema_version": 999},
+        ),
+        (
+            "ArtifactDoctorWire",
+            artifact_doctor_from_dict,
+            {"schema_version": 999, "ok": True, "issues": []},
+        ),
+    ],
+)
+def test_wire_converters_reject_schema_version_drift(
+    wire_name: str,
+    converter: Any,
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ValueError, match=wire_name):
+        converter(payload)
+
+
 def test_facade_request_helpers_surface_typed_incremental_fields() -> None:
     rebuild = artifact_facade.artifact_rebuild_request(
         projects_root=Path("/tmp/projects"),
@@ -244,6 +305,21 @@ def test_artifact_facade_missing_binding_raises(
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
     with pytest.raises(AttributeError, match="artifact_list"):
         artifact_facade.artifact_list("/tmp/artifacts.sqlite")
+
+
+def test_artifact_facade_rejects_mismatched_binding_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.artifact_doctor = lambda *args: {  # type: ignore[attr-defined]
+        "schema_version": 999,
+        "ok": True,
+        "issues": [],
+    }
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    with pytest.raises(ValueError, match="ArtifactDoctorWire schema_version 999"):
+        artifact_facade.artifact_doctor("/tmp/artifacts.sqlite")
 
 
 def test_artifact_facade_calls_expected_bindings(
@@ -411,6 +487,7 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     required = {
         "artifact_add",
+        "artifact_remove",
         "artifact_rebuild",
         "artifact_upsert_path",
         "artifact_list",
@@ -458,13 +535,22 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
             link=link,
         ),
     )
+    payload = ArtifactPayloadWire(
+        artifact_id=str(child_path),
+        payload_type="summary",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+        payload={"body": "artifact body", "tags": ["smoke"]},
+    )
+    artifact_facade.artifact_add(index_path, payload)
 
     listed = artifact_facade.artifact_list(
         index_path,
         ArtifactQueryWire(kinds=(ARTIFACT_KIND_FILE,)),
     )
     assert child_node in listed
-    assert artifact_facade.artifact_show(index_path, str(child_path)).node == child_node
+    detail = artifact_facade.artifact_show(index_path, str(child_path))
+    assert detail.node == child_node
+    assert detail.payloads == [payload]
     assert artifact_facade.artifact_graph(index_path).node_count >= 1
     assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
         "digraph artifact_graph"
@@ -497,3 +583,51 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     )
     assert rebuild_result.operation == "rebuild"
     assert rebuild_result.errors == []
+
+    removed = artifact_facade.artifact_remove(
+        index_path,
+        ArtifactNodeRemoveWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            id=str(upserted_path),
+        ),
+    )
+    assert removed.nodes_removed == 1
+
+
+def test_artifact_facade_real_extension_rejects_invalid_requests(
+    tmp_path: Path,
+) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "artifact_rebuild"):
+        pytest.skip("sase_core_rs is too old: missing artifact_rebuild")
+
+    index_path = tmp_path / "artifacts.sqlite"
+    bad_node = ArtifactNodeWire(
+        id=str(tmp_path / "bad.md"),
+        kind=ARTIFACT_KIND_FILE,
+        display_title="bad.md",
+        provenance="sideways",
+    )
+
+    with pytest.raises(ValueError, match="unsupported artifact provenance"):
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactNodeUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                node=bad_node,
+            ),
+        )
+    with pytest.raises(ValueError, match="unsupported artifact export format"):
+        artifact_facade.artifact_export(index_path, output_format="svg")
+    with pytest.raises(ValueError, match="unsupported artifact schema_version"):
+        artifact_facade.artifact_list(index_path, ArtifactQueryWire(schema_version=999))
+    with pytest.raises(ValueError, match="unsupported artifact stale_cleanup"):
+        artifact_facade.artifact_rebuild(
+            index_path,
+            ArtifactRebuildRequestWire(stale_cleanup="delete"),
+        )
+    with pytest.raises(ValueError, match="unsupported artifact source_kind"):
+        artifact_facade.artifact_rebuild(
+            index_path,
+            ArtifactRebuildRequestWire(include_sources=("unknown_source",)),
+        )

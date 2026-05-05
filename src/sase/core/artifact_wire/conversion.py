@@ -96,6 +96,16 @@ def _tuple_strs(value: Any) -> tuple[str, ...]:
     return tuple(str(item) for item in (value or ()))
 
 
+def _schema_version(data: dict[str, Any], wire_name: str) -> int:
+    version = int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION))
+    if version != ARTIFACT_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported {wire_name} schema_version {version}; "
+            f"expected {ARTIFACT_WIRE_SCHEMA_VERSION}"
+        )
+    return version
+
+
 def artifact_node_from_dict(data: dict[str, Any]) -> ArtifactNodeWire:
     _check_keys(
         data,
@@ -166,7 +176,7 @@ def artifact_rebuild_request_from_dict(
         "ArtifactRebuildRequestWire",
     )
     return ArtifactRebuildRequestWire(
-        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        schema_version=_schema_version(data, "ArtifactRebuildRequestWire"),
         projects_root=data.get("projects_root"),
         workspace_root=data.get("workspace_root"),
         beads_dir=data.get("beads_dir"),
@@ -188,7 +198,7 @@ def artifact_path_upsert_request_from_dict(
     )
     metadata = data.get("metadata")
     return ArtifactPathUpsertRequestWire(
-        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        schema_version=_schema_version(data, "ArtifactPathUpsertRequestWire"),
         kind=data.get("kind"),
         display_title=data.get("display_title"),
         subtitle=data.get("subtitle"),
@@ -224,7 +234,7 @@ def artifact_detail_from_dict(data: dict[str, Any]) -> ArtifactDetailWire:
     )
     node = data.get("node")
     return ArtifactDetailWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactDetailWire"),
         node=artifact_node_from_dict(node) if isinstance(node, dict) else None,
         payloads=[
             artifact_payload_from_dict(payload)
@@ -256,7 +266,7 @@ def artifact_query_from_dict(data: dict[str, Any]) -> ArtifactQueryWire:
         "ArtifactQueryWire",
     )
     return ArtifactQueryWire(
-        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        schema_version=_schema_version(data, "ArtifactQueryWire"),
         text=data.get("text"),
         kinds=_tuple_strs(data.get("kinds")),
         link_types=_tuple_strs(data.get("link_types")),
@@ -277,7 +287,7 @@ def artifact_graph_from_dict(data: dict[str, Any]) -> ArtifactGraphWire:
         "ArtifactGraphWire",
     )
     return ArtifactGraphWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactGraphWire"),
         root_id=data.get("root_id"),
         nodes=[artifact_node_from_dict(node) for node in data.get("nodes") or []],
         links=[artifact_link_from_dict(link) for link in data.get("links") or []],
@@ -297,7 +307,7 @@ def artifact_graph_options_from_dict(
         "ArtifactGraphOptionsWire",
     )
     return ArtifactGraphOptionsWire(
-        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        schema_version=_schema_version(data, "ArtifactGraphOptionsWire"),
         root_id=data.get("root_id", ARTIFACT_ROOT_ID),
         max_depth=_optional_int(data.get("max_depth", 2)),
         link_types=_tuple_strs(data.get("link_types")),
@@ -315,7 +325,7 @@ def artifact_node_upsert_from_dict(data: dict[str, Any]) -> ArtifactNodeUpsertWi
         "ArtifactNodeUpsertWire",
     )
     return ArtifactNodeUpsertWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactNodeUpsertWire"),
         node=artifact_node_from_dict(data["node"]),
         replace_payloads=bool(data.get("replace_payloads", False)),
     )
@@ -328,7 +338,7 @@ def artifact_node_remove_from_dict(data: dict[str, Any]) -> ArtifactNodeRemoveWi
         "ArtifactNodeRemoveWire",
     )
     return ArtifactNodeRemoveWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactNodeRemoveWire"),
         id=str(data["id"]),
         provenance=data.get("provenance"),
         source_kind=data.get("source_kind"),
@@ -344,7 +354,7 @@ def artifact_link_upsert_from_dict(data: dict[str, Any]) -> ArtifactLinkUpsertWi
         "ArtifactLinkUpsertWire",
     )
     return ArtifactLinkUpsertWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactLinkUpsertWire"),
         link=artifact_link_from_dict(data["link"]),
     )
 
@@ -356,7 +366,7 @@ def artifact_link_remove_from_dict(data: dict[str, Any]) -> ArtifactLinkRemoveWi
         "ArtifactLinkRemoveWire",
     )
     return ArtifactLinkRemoveWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactLinkRemoveWire"),
         id=data.get("id"),
         link_type=data.get("link_type"),
         source_id=data.get("source_id"),
@@ -377,7 +387,7 @@ def artifact_mutation_result_from_dict(
         "ArtifactMutationResultWire",
     )
     return ArtifactMutationResultWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactMutationResultWire"),
         operation=str(data["operation"]),
         nodes_added=int(data.get("nodes_added", 0)),
         nodes_updated=int(data.get("nodes_updated", 0)),
@@ -402,7 +412,7 @@ def artifact_doctor_options_from_dict(
         "ArtifactDoctorOptionsWire",
     )
     return ArtifactDoctorOptionsWire(
-        schema_version=int(data.get("schema_version", ARTIFACT_WIRE_SCHEMA_VERSION)),
+        schema_version=_schema_version(data, "ArtifactDoctorOptionsWire"),
         check_dangling_links=bool(data.get("check_dangling_links", True)),
         check_root_presence=bool(data.get("check_root_presence", True)),
         check_reachability=bool(data.get("check_reachability", True)),
@@ -418,7 +428,7 @@ def artifact_doctor_from_dict(data: dict[str, Any]) -> ArtifactDoctorWire:
         "ArtifactDoctorWire",
     )
     return ArtifactDoctorWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=_schema_version(data, "ArtifactDoctorWire"),
         ok=bool(data["ok"]),
         issues=[
             artifact_doctor_issue_from_dict(issue) for issue in data.get("issues") or []
