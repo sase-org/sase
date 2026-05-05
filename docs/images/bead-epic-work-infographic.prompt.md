@@ -25,8 +25,8 @@ bidirectional sync arrows. Show two workspace folders feeding into a merged read
 arrow into the database.
 
 Right zone: epic execution flow. Show an epic command trigger feeding into three horizontal wave bands, each wave
-containing small agent nodes connected by dependency arrows, with a final landing node at the far right waiting on leaf
-phases. Use clear arrow direction left-to-right.
+containing small agent nodes connected by dependency arrows, with a final landing node at the far right waiting on every
+phase agent node. Use clear arrow direction left-to-right.
 
 Visual style: GitHub Markdown friendly, readable at 900px wide, restrained mixed accent colors (teal, blue, amber,
 green, red accents) on a neutral white/off-white base, thin dark-gray strokes, generous spacing, professional

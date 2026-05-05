@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 10:00:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/wait_all_epic_phase_agents.md
 ---
 # Wait for All Epic Phase Agents

@@ -99,7 +99,7 @@ def _wave_bead_ids(plan: EpicWorkPlan, wave_index: int) -> list[str]:
 
 
 class TestLinearChain:
-    def test_three_waves_land_on_p3(self, conn: sqlite3.Connection) -> None:
+    def test_three_waves_land_on_all_phases(self, conn: sqlite3.Connection) -> None:
         _seed(
             conn,
             [
@@ -122,8 +122,7 @@ class TestLinearChain:
         assert plan.waves[0][0].waits_on == ()
         assert plan.waves[1][0].waits_on == ("p1",)
         assert plan.waves[2][0].waits_on == ("p2",)
-        # Land waits on the leaf (P3).
-        assert plan.land_waits_on == ("p3",)
+        assert plan.land_waits_on == ("p1", "p2", "p3")
         assert plan.land_agent_name == "e1"
 
 
@@ -144,7 +143,7 @@ class TestDiamond:
         _depends(conn, "p4", "p2")
         _depends(conn, "p4", "p3")
 
-    def test_three_waves_land_on_p4(self, conn: sqlite3.Connection) -> None:
+    def test_three_waves_land_on_all_phases(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
         plan = build_epic_work_plan(conn, "e1")
 
@@ -155,7 +154,7 @@ class TestDiamond:
         assert plan.waves[1][0].waits_on == ("p1",)
         assert plan.waves[1][1].waits_on == ("p1",)
         assert plan.waves[2][0].waits_on == ("p2", "p3")
-        assert plan.land_waits_on == ("p4",)
+        assert plan.land_waits_on == ("p1", "p2", "p3", "p4")
 
     def test_diamond_render_snapshot(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
@@ -189,10 +188,39 @@ class TestDiamond:
             "---\n"
             "%name:e1\n"
             "%approve\n"
-            "%w:p4\n"
+            "%w:p1,p2,p3,p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
+
+
+class TestMixedDAG:
+    def test_land_waits_on_earlier_parallel_phases_too(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _seed(
+            conn,
+            [
+                _epic("e1"),
+                _phase("p1"),
+                _phase("p2"),
+                _phase("p3"),
+                _phase("p4"),
+            ],
+        )
+        _depends(conn, "p2", "p1")
+        _depends(conn, "p3", "p2")
+
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert [_wave_bead_ids(plan, i) for i in range(len(plan.waves))] == [
+            ["p1", "p4"],
+            ["p2"],
+            ["p3"],
+        ]
+        assert plan.waves[1][0].waits_on == ("p1",)
+        assert plan.waves[2][0].waits_on == ("p2",)
+        assert plan.land_waits_on == ("p1", "p4", "p2", "p3")
 
 
 class TestIndependentFanOut:
@@ -640,7 +668,7 @@ class TestChangeSpecRendering:
             "#gh:feature_epic\n"
             "%name:e1\n"
             "%approve\n"
-            "%w:p3\n"
+            "%w:p1,p2,p3\n"
             "#custom/land:e1"
         )
         assert rendered == expected

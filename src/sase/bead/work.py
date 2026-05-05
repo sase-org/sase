@@ -293,9 +293,9 @@ def render_multi_prompt(
 
     Each phase becomes a segment with ``%name``, optional ``%w``, and a
     ``#<work_phase_xprompt.name>:<bead_id>`` reference. A final land segment
-    invokes ``#<land_epic_xprompt.name>:<epic_id>`` and waits on every leaf
-    phase agent. Tag-resolved xprompt names are substituted into the ``#...``
-    references so user overrides flow through unchanged.
+    invokes ``#<land_epic_xprompt.name>:<epic_id>`` and waits on every
+    launched phase agent. Tag-resolved xprompt names are substituted into the
+    ``#...`` references so user overrides flow through unchanged.
 
     When *vcs_context* is provided, every segment is prefixed with the project
     VCS xprompt. When *changespec_context* is provided, the first phase segment

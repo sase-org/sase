@@ -69,7 +69,7 @@ Do not edit these five target docs in phase 1. Later phases should insert only a
   operations.
 - Show multi-workspace merged reads separately from primary-workspace writes.
 - For epic work, show Kahn waves, pre-claimed phase beads, one agent per phase, waits from dependency edges, and a final
-  land agent waiting on leaf phases.
+  land agent waiting on every phase agent.
 - Do not reproduce the full command table inside the image.
 
 ### `docs/rust_backend.md`
