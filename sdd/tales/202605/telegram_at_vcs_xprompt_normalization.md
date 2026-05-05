@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-04 20:44:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/telegram_at_vcs_xprompt_normalization.md
 ---
 # Plan: Normalize Telegram `#workflow@ref` VCS Prompts
