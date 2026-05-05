@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Callable
 import os
 from pathlib import Path
 import subprocess
 
+from rich.console import RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -21,7 +21,6 @@ from sase.core.artifact_wire import (
     ArtifactDetailWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
-    ArtifactLinkWire,
 )
 
 from .artifact_panel_state import (
@@ -30,6 +29,7 @@ from .artifact_panel_state import (
     build_artifact_panel_rows,
     parent_id_from_detail,
 )
+from .artifact_panel_renderers import render_artifact_detail
 from .base import FilterInput, OptionListNavigationMixin
 
 ArtifactShowFunc = Callable[[Path | str, str], ArtifactDetailWire]
@@ -174,7 +174,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._replace_options(
             self._build_options(detail), prefer_row_id=self._state.selected_row_id
         )
-        self._update_detail(self._build_detail_text(detail))
+        self._update_detail(self._build_detail_renderable(detail))
 
     def _build_options(self, detail: ArtifactDetailWire) -> list[Option]:
         options: list[Option] = []
@@ -201,41 +201,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             options.append(Option(message, disabled=True))
         return options
 
-    def _build_detail_text(self, detail: ArtifactDetailWire) -> Text:
-        node = detail.node
-        assert node is not None
-
-        outbound_counts = _link_counts(detail.outbound_links)
-        inbound_counts = _link_counts(detail.inbound_links)
-
-        text = Text()
-        text.append("Artifact\n", style="bold")
-        text.append("ID: ", style="bold")
-        text.append(f"{node.id}\n")
-        text.append("Kind: ", style="bold")
-        text.append(f"{node.kind}\n")
-        text.append("Title: ", style="bold")
-        text.append(f"{node.display_title}\n")
-        if node.subtitle:
-            text.append("Subtitle: ", style="bold")
-            text.append(f"{node.subtitle}\n")
-        text.append("Provenance: ", style="bold")
-        text.append(f"{node.provenance}\n")
-        text.append("\n")
-        text.append(f"Path to root: {len(detail.path_to_root)}\n")
-        text.append(f"Children: {len(detail.children)}\n")
-        text.append(f"Outbound links: {_format_counts(outbound_counts)}\n")
-        text.append(f"Inbound links: {_format_counts(inbound_counts)}\n")
-        if self._state.filter_text:
-            text.append("Filter: ", style="bold")
-            text.append(f"{self._state.filter_text}\n")
-        if detail.payloads:
-            text.append(f"Payloads: {len(detail.payloads)}\n")
-        if detail.diagnostics:
-            text.append("\nDiagnostics\n", style="bold yellow")
-            for issue in detail.diagnostics[:5]:
-                text.append(f"- {issue.severity}: {issue.message}\n")
-        return text
+    def _build_detail_renderable(self, detail: ArtifactDetailWire) -> RenderableType:
+        return render_artifact_detail(detail)
 
     def _replace_options(
         self,
@@ -248,7 +215,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         option_list.add_options(options)
         self._highlight_first_selectable(option_list, prefer_row_id=prefer_row_id)
 
-    def _update_detail(self, content: str | Text) -> None:
+    def _update_detail(self, content: RenderableType) -> None:
         self.query_one("#artifact-panel-detail", Static).update(content)
 
     def _highlight_first_selectable(
@@ -405,16 +372,6 @@ def _row_label(row: ArtifactPanelRow) -> Text:
         text.append(row.label)
         return text
     return Text(row.label)
-
-
-def _link_counts(links: list[ArtifactLinkWire]) -> dict[str, int]:
-    return dict(Counter(link.link_type for link in links))
-
-
-def _format_counts(counts: dict[str, int]) -> str:
-    if not counts:
-        return "0"
-    return ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items()))
 
 
 def _graph_preview_text(graph: ArtifactGraphWire) -> Text:
