@@ -643,6 +643,7 @@ them as `/sase_<name>`:
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently-running sase agents (status, kill, show)                                                  |
+| `sase_artifact`      | Inspect the unified artifact graph via `sase artifact list`, `show`, `graph`, and `doctor`                    |
 | `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                                   |
 | `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chats list` and `sase chats show`                         |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |

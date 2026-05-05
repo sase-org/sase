@@ -31,6 +31,7 @@ from sase.core.artifact_wire import (
     ArtifactQueryWire,
     ArtifactRebuildRequestWire,
 )
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.main import artifact_handler, entry
 from sase.main.parser import create_parser
 
@@ -82,6 +83,15 @@ def test_artifact_options_all_have_short_forms() -> None:
                 option.startswith("-") and not option.startswith("--")
                 for option in action.option_strings
             ), f"sase artifact {name} {action.dest}"
+
+
+def test_artifact_docs_cover_registered_subcommands() -> None:
+    docs_path = Path(__file__).parents[2] / "docs" / "artifacts.md"
+    docs = docs_path.read_text()
+    subcommands = _subparser_action(_artifact_parser()).choices
+
+    for subcommand in subcommands:
+        assert f"sase artifact {subcommand}" in docs
 
 
 def test_entry_dispatches_artifact_command(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -998,3 +1008,201 @@ def test_facade_exception_reports_to_stderr_only(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "index is unreadable" in captured.err
+
+
+def _run_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    *argv: str,
+) -> tuple[int, str, str]:
+    monkeypatch.setattr(sys, "argv", ["sase", *argv])
+    with pytest.raises(SystemExit) as exc_info:
+        entry.main()
+    captured = capsys.readouterr()
+    code = exc_info.value.code
+    return int(code) if isinstance(code, int) else 0, captured.out, captured.err
+
+
+def test_artifact_cli_real_extension_temp_index_e2e(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    required = {
+        "artifact_add",
+        "artifact_remove",
+        "artifact_list",
+        "artifact_show",
+        "artifact_graph",
+        "artifact_doctor",
+    }
+    missing = sorted(name for name in required if not hasattr(rust_module, name))
+    if missing:
+        pytest.skip(f"sase_core_rs is too old: missing {missing}")
+
+    index_path = tmp_path / "artifacts.sqlite"
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "add",
+        "-j",
+        "-i",
+        str(index_path),
+        "-a",
+        "doc:parent",
+        "-k",
+        "note",
+        "-t",
+        "Parent note",
+        "-q",
+        "parent note",
+        "-l",
+        "parent|doc:parent|/",
+    )
+    assert (code, error) == (0, "")
+    assert json.loads(output)["affected_node_ids"] == ["doc:parent"]
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "add",
+        "-j",
+        "-i",
+        str(index_path),
+        "-a",
+        "doc:child",
+        "-k",
+        "note",
+        "-t",
+        "Child note",
+        "-q",
+        "child note",
+        "-P",
+        "summary",
+        "-p",
+        '{"body": "child payload"}',
+        "-l",
+        "parent|doc:child|doc:parent",
+    )
+    add_payload = json.loads(output)
+    assert (code, error) == (0, "")
+    assert add_payload["affected_node_ids"] == ["doc:child"]
+    assert add_payload["nodes_added"] == 1
+    assert add_payload["links_added"] == 1
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "list",
+        "-j",
+        "-i",
+        str(index_path),
+        "-q",
+        "child",
+        "-l",
+        "10",
+    )
+    listed = json.loads(output)
+    assert (code, error) == (0, "")
+    assert [node["id"] for node in listed] == ["doc:child"]
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "show",
+        "-j",
+        "-i",
+        str(index_path),
+        "-a",
+        "doc:child",
+    )
+    detail = json.loads(output)
+    assert (code, error) == (0, "")
+    assert detail["node"]["display_title"] == "Child note"
+    assert detail["payloads"][0]["payload"] == {"body": "child payload"}
+    assert [node["id"] for node in detail["path_to_root"]] == [
+        "doc:child",
+        "doc:parent",
+        "/",
+    ]
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "graph",
+        "-f",
+        "text",
+        "-i",
+        str(index_path),
+        "-a",
+        "doc:parent",
+        "-d",
+        "2",
+        "-I",
+        "-l",
+        "20",
+    )
+    assert (code, error) == (0, "")
+    assert "doc:child -[parent]-> doc:parent" in output
+    assert "truncated: false" in output
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "doctor",
+        "-j",
+        "-i",
+        str(index_path),
+    )
+    assert (code, error) == (0, "")
+    assert json.loads(output)["ok"] is True
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "remove",
+        "-j",
+        "-i",
+        str(index_path),
+        "-T",
+        "parent",
+        "-S",
+        "doc:child",
+        "-D",
+        "doc:parent",
+        "-p",
+        "manual",
+        "-r",
+        "integration test cleanup",
+    )
+    removed_link = json.loads(output)
+    assert (code, error) == (0, "")
+    assert removed_link["links_removed"] + removed_link["tombstones_added"] >= 1
+
+    code, output, error = _run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "remove",
+        "-j",
+        "-i",
+        str(index_path),
+        "-a",
+        "doc:child",
+        "-p",
+        "manual",
+        "-r",
+        "integration test cleanup",
+    )
+    removed_node = json.loads(output)
+    assert (code, error) == (0, "")
+    assert removed_node["affected_node_ids"] == ["doc:child"]
