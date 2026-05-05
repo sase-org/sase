@@ -236,6 +236,9 @@ class TestMarkParentRetried:
         assert data["retry_error_category"] == "context_overflow"
         # Pre-existing fields preserved
         assert data["name"] == "parent"
+        assert data["artifact_schema_version"] == 1
+        assert data["artifact_agent_id"] == "parent"
+        assert data["artifact_source_dir"] == str(tmp_path)
 
     def test_creates_meta_when_missing(self, tmp_path: Path) -> None:
         # No agent_meta.json — function should create one.
@@ -250,6 +253,7 @@ class TestMarkParentRetried:
         assert meta_path.exists()
         data = json.loads(meta_path.read_text())
         assert data["retried_as_timestamp"] == "20260424130000"
+        assert data["artifact_agent_id"].startswith("agent:")
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +293,8 @@ class TestHandleWorkflowErrorSpawnMode:
         meta = json.loads((Path(ctx.artifacts_dir) / "agent_meta.json").read_text())
         assert meta["retried_as_timestamp"] == "20260424140000"
         assert meta["retry_terminal"] is True
+        assert meta["artifact_schema_version"] == 1
+        assert meta["artifact_agent_id"] == "parent_agent"
 
     def test_spawn_failure_falls_back_to_in_process(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)

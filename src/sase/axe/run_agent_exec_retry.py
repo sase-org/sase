@@ -152,6 +152,7 @@ def handle_workflow_error(
                     chain_root_timestamp=spawn_result["chain_root_timestamp"],
                     handoff_path=spawn_result["handoff_path"],
                     error_category=spawn_result["error_category"],
+                    agent_name=ctx.agent_name,
                 )
                 # Mark the loop outcome as retried-and-handed-off so the
                 # parent runner exits cleanly with FAILED status, leaving

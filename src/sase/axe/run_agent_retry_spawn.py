@@ -332,6 +332,7 @@ def mark_parent_retried(
     chain_root_timestamp: str,
     handoff_path: str,
     error_category: str,
+    agent_name: str | None = None,
 ) -> None:
     """Update the parent's ``agent_meta.json`` with retry-chain forward pointers.
 
@@ -352,10 +353,21 @@ def mark_parent_retried(
     data["retry_handoff_path"] = handoff_path
     data["retry_chain_root_timestamp"] = chain_root_timestamp
     data["retry_error_category"] = error_category
+    if agent_name and not data.get("name"):
+        data["name"] = agent_name
 
     try:
-        meta_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        from sase.axe.artifact_metadata import write_agent_artifact_metadata
+
+        write_agent_artifact_metadata(
+            artifacts_dir,
+            data,
+            agent_name=agent_name or data.get("name"),
+            cl_name=data.get("changespec_name") or data.get("cl_name"),
+            bead_id=data.get("bead_id"),
+            parent_agent_timestamp=data.get("parent_agent_timestamp")
+            or data.get("parent_timestamp"),
+            parent_agent_name=data.get("parent_agent_name"),
+        )
     except OSError:
         pass

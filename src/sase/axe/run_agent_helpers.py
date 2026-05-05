@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from sase.axe.artifact_metadata import write_agent_artifact_metadata
 from sase.axe.runner_utils import was_killed
 from sase.artifacts import create_artifacts_directory
 from sase.plan_chain import (
@@ -356,7 +357,16 @@ def create_followup_artifacts(
     new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
 
     followup_meta: dict[str, Any] = {"pid": os.getpid()}
-    for key in ("model", "llm_provider", "vcs_provider", "name", "approve"):
+    for key in (
+        "model",
+        "llm_provider",
+        "vcs_provider",
+        "name",
+        "approve",
+        "changespec_name",
+        "cl_name",
+        "bead_id",
+    ):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]
     if agent_name_override is not None:
@@ -371,9 +381,15 @@ def create_followup_artifacts(
         followup_meta["workspace_num"] = workspace_num
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
 
-    meta_path = os.path.join(new_artifacts_dir, "agent_meta.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(followup_meta, f, indent=2)
+    followup_meta = write_agent_artifact_metadata(
+        new_artifacts_dir,
+        followup_meta,
+        agent_name=followup_meta.get("name"),
+        cl_name=followup_meta.get("changespec_name") or followup_meta.get("cl_name"),
+        bead_id=followup_meta.get("bead_id"),
+        parent_agent_timestamp=prev_artifacts_timestamp,
+        parent_agent_name=base_meta.get("name"),
+    )
 
     # Write initial workflow_state.json so the TUI can merge follow-up agents
     # as WORKFLOW entries immediately, before WorkflowExecutor overwrites it.

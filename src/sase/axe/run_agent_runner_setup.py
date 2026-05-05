@@ -15,6 +15,7 @@ from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
 )
+from sase.axe.artifact_metadata import write_agent_artifact_metadata
 from sase.axe.run_agent_retry_spawn import (
     ENV_RETRY_ATTEMPT,
     ENV_RETRY_CHAIN_ROOT_TIMESTAMP,
@@ -198,7 +199,7 @@ def apply_retry_chain_to_meta(
     retry_handoff: RetryHandoff | None,
     agent_meta: dict[str, Any],
     artifacts_dir: str,
-) -> None:
+) -> dict[str, Any]:
     """Record retry-chain ancestry into ``agent_meta.json``.
 
     With a real handoff: writes parent/attempt/root/category pointers so
@@ -210,26 +211,36 @@ def apply_retry_chain_to_meta(
         agent_meta["retry_attempt"] = retry_handoff.retry_attempt
         agent_meta["retry_chain_root_timestamp"] = retry_handoff.chain_root_timestamp
         agent_meta["retry_error_category"] = retry_handoff.error_category
-        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(agent_meta, f, indent=2)
-        return
+        return write_agent_artifact_metadata(
+            artifacts_dir,
+            agent_meta,
+            agent_name=agent_meta.get("name"),
+            cl_name=agent_meta.get("changespec_name") or agent_meta.get("cl_name"),
+            bead_id=agent_meta.get("bead_id"),
+            parent_agent_timestamp=retry_handoff.parent_timestamp,
+            parent_agent_name=retry_handoff.agent_name,
+        )
 
     env_retry_attempt = os.environ.get(ENV_RETRY_ATTEMPT)
     env_retry_of = os.environ.get(ENV_RETRY_OF_TIMESTAMP)
     env_retry_root = os.environ.get(ENV_RETRY_CHAIN_ROOT_TIMESTAMP)
     if not (env_retry_attempt and env_retry_of):
-        return
+        return agent_meta
     try:
         agent_meta["retry_attempt"] = int(env_retry_attempt)
         agent_meta["retry_of_timestamp"] = env_retry_of
         if env_retry_root:
             agent_meta["retry_chain_root_timestamp"] = env_retry_root
-        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(agent_meta, f, indent=2)
+        return write_agent_artifact_metadata(
+            artifacts_dir,
+            agent_meta,
+            agent_name=agent_meta.get("name"),
+            cl_name=agent_meta.get("changespec_name") or agent_meta.get("cl_name"),
+            bead_id=agent_meta.get("bead_id"),
+            parent_agent_timestamp=env_retry_of,
+        )
     except ValueError:
-        pass
+        return agent_meta
 
 
 def bump_spawn_telemetry(

@@ -206,7 +206,7 @@ def main() -> None:
             agent_hidden = info.hidden
             agent_meta = info.meta
 
-            apply_retry_chain_to_meta(
+            agent_meta = apply_retry_chain_to_meta(
                 retry_handoff=retry_handoff,
                 agent_meta=agent_meta,
                 artifacts_dir=artifacts_dir,

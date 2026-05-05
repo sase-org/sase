@@ -10,6 +10,10 @@ import sys
 import time
 from typing import Any, NamedTuple
 
+from sase.axe.artifact_metadata import (
+    enrich_agent_artifact_metadata,
+    write_agent_artifact_metadata,
+)
 from sase.axe.runner_utils import was_killed
 from sase.axe.chop_agents import agent_meta_from_chop_env
 
@@ -176,9 +180,12 @@ def extract_directives_and_write_meta(
 
         # Write agent_meta.json
         if agent_meta:
-            meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(agent_meta, f, indent=2)
+            agent_meta = write_agent_artifact_metadata(
+                artifacts_dir,
+                agent_meta,
+                agent_name=agent_name,
+                cl_name=cl_name,
+            )
 
             if agent_name:
                 from sase.agent.names import claim_agent_name
@@ -381,9 +388,12 @@ def wait_for_dependencies(
     from datetime import UTC, datetime
 
     agent_meta["run_started_at"] = datetime.now(UTC).isoformat()
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(agent_meta, f, indent=2)
+    write_agent_artifact_metadata(
+        artifacts_dir,
+        agent_meta,
+        agent_name=agent_meta.get("name"),
+        cl_name=cl_name,
+    )
 
 
 def resolve_wait_chat_paths(wait_names: list[str]) -> list[str]:
@@ -632,6 +642,16 @@ def record_stop_time(*artifacts_dirs: str | None) -> None:
             with open(meta_p, encoding="utf-8") as f:
                 meta_data = json.load(f)
             meta_data["stopped_at"] = stopped_at
+            meta_data = enrich_agent_artifact_metadata(
+                meta_data,
+                artifacts_dir=ad,
+                agent_name=meta_data.get("name"),
+                cl_name=meta_data.get("changespec_name") or meta_data.get("cl_name"),
+                bead_id=meta_data.get("bead_id"),
+                parent_agent_timestamp=meta_data.get("parent_agent_timestamp")
+                or meta_data.get("parent_timestamp"),
+                parent_agent_name=meta_data.get("parent_agent_name"),
+            )
             with open(meta_p, "w", encoding="utf-8") as f:
                 json.dump(meta_data, f, indent=2)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
