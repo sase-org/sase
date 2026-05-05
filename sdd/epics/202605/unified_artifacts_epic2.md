@@ -250,6 +250,11 @@ Implementation:
   links more reliable. Do not modify launch workflows in this phase unless the missing metadata blocks the ingestion
   contract.
 
+Follow-up note: phase automation currently makes the bead assignee and intended agent name identical
+(`assignee=<phase_bead_id>`), which is enough to record `pending_worker_agent_id` and reconcile a worker link. A future
+agent-ingestion phase should preserve an explicit `bead_id` or `worker_for_bead_id` field in launch metadata so the graph
+can distinguish the bead artifact from the agent artifact even when their display IDs match.
+
 Tests:
 
 - Bead parent hierarchy produces child -> parent links.
