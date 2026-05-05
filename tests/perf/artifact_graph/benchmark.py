@@ -1,0 +1,58 @@
+"""Artifact graph benchmark orchestration."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+from sase.core.artifact_wire import (
+    ARTIFACT_WIRE_SCHEMA_VERSION,
+)
+
+from .common import ensure_extension, summarize
+from .fixture_measurements import run_fixture_measurements
+from .modal_measurements import run_modal_measurements
+
+
+def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        grouped.setdefault(str(record["operation"]), []).append(record)
+    return {
+        operation: {
+            "latency": summarize([float(item["latency_ms"]) for item in items]),
+            "bounded": items[0]["bounded"],
+            "fixture": items[0]["fixture"],
+            "errors": [error for item in items for error in item.get("errors", [])],
+        }
+        for operation, items in grouped.items()
+    }
+
+
+def run_benchmark(
+    *,
+    runs: int,
+    project_count: int,
+    bead_count: int,
+    agent_count: int,
+    modal_linked_count: int,
+) -> dict[str, Any]:
+    ensure_extension()
+    records: list[dict[str, Any]] = []
+    for _ in range(runs):
+        records.extend(
+            run_fixture_measurements(
+                project_count=project_count,
+                bead_count=bead_count,
+                agent_count=agent_count,
+            )
+        )
+        records.extend(
+            asyncio.run(run_modal_measurements(linked_count=modal_linked_count))
+        )
+    return {
+        "schema_version": ARTIFACT_WIRE_SCHEMA_VERSION,
+        "runs": runs,
+        "operations": _summarize_records(records),
+        "measurements": records,
+    }
