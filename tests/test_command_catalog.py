@@ -172,6 +172,17 @@ def test_build_command_catalog_includes_all_buckets() -> None:
     assert "bang.toggle_axe" in ids
 
 
+def test_agent_run_log_leader_command_is_cl_only() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.agent_run_log")
+
+    assert spec.label == "Agent run log"
+    assert spec.key_display == ",A"
+    assert spec.tabs == ("changespecs",)
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "A"
+
+
 def test_command_specs_are_well_formed() -> None:
     reg = _registry()
     catalog = build_command_catalog(reg)

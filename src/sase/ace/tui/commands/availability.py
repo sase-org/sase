@@ -167,6 +167,7 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         "leader.kill_mentors",
         "leader.review_mentors",
         "leader.clear_comments",
+        "leader.agent_run_log",
     }:
         return cs is not None
 

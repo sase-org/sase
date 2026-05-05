@@ -393,6 +393,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "task_queue": "t",
             "prompt_history": "full_stop",
             "prompt_history_cancelled": "greater_than_sign",
+            "agent_run_log": "A",
             "temporary_llm_override": "P",
             "jump_to_notification": "n",
         }

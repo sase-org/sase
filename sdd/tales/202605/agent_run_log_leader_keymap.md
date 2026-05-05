@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 16:37:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_run_log_leader_keymap.md
 ---
 # Agent Run Log Leader Keymap Plan

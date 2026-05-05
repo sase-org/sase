@@ -324,6 +324,7 @@ _LEADER_LABELS: dict[str, str] = {
     "task_queue": "Task queue",
     "prompt_history": "Prompt history",
     "prompt_history_cancelled": "Prompt history (cancelled)",
+    "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
     "temporary_llm_override": "Temporary model override",
 }
@@ -338,6 +339,7 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "run_cmd": _CL_ONLY,
     "kill_mentors": _CL_ONLY,
     "review_mentors": _CL_ONLY,
+    "agent_run_log": _CL_ONLY,
     "kill_and_edit": _AGENTS_ONLY,
     "retry_edit": _AGENTS_ONLY,
     "clear_comments": _CL_ONLY,

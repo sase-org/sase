@@ -140,6 +140,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["agent_run_log"]:
+            if self.current_tab == "changespecs":
+                self.action_show_agent_run_log()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["temporary_llm_override"]:
             self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]

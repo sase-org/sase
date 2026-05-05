@@ -451,6 +451,7 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
             bindings.append((k("kill_mentors"), "manage mentors"))
             if has_mentor_results:
                 bindings.append((k("review_mentors"), "review mentors"))
+            bindings.append((k("agent_run_log"), "agent run log"))
         if self._runner_count > 0:
             bindings.append((k("runners"), f"runners ({self._runner_count})"))
         bindings.append((k("agent_home"), "agent (home)"))

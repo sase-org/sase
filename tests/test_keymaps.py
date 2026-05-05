@@ -53,9 +53,18 @@ def test_edit_hooks_default_binding() -> None:
 
 
 def test_help_modal_labels_capital_a_as_artifacts() -> None:
-    """Guard the ``A`` help label after demoting the legacy run-log surface."""
+    """Guard the ``A``/``,A`` help-label distinction."""
     reg = load_keymap_registry({})
-    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+    cls_sections = cls_bindings(reg)
+    agents_sections = agents_bindings(reg)
+    axe_sections = axe_bindings(reg)
+
+    cls_pairs = {
+        (key, label) for _section, bindings in cls_sections for key, label in bindings
+    }
+    assert (",A", "Agent run log") in cls_pairs
+
+    for sections in (cls_sections, agents_sections, axe_sections):
         action_labels = {
             label
             for _section, bindings in sections
@@ -64,6 +73,13 @@ def test_help_modal_labels_capital_a_as_artifacts() -> None:
         }
         assert "Artifacts" in action_labels
         assert all("run log" not in label.lower() for label in action_labels)
+
+    for sections in (agents_sections, axe_sections):
+        assert all(
+            "run log" not in label.lower()
+            for _section, bindings in sections
+            for _key, label in bindings
+        )
 
 
 def test_g_and_o_default_bindings_do_not_collide() -> None:
@@ -331,6 +347,12 @@ def test_leader_mode_includes_mark_inactive() -> None:
     """LeaderModeKeymaps default includes mark_inactive bound to ``I``."""
     reg = load_keymap_registry({})
     assert reg.leader_mode.keys["mark_inactive"] == "I"
+
+
+def test_leader_mode_includes_agent_run_log() -> None:
+    """LeaderModeKeymaps default includes the ``,A`` run-log fallback."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
 def test_leader_mode_omits_legacy_kill_all() -> None:

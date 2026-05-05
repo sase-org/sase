@@ -122,6 +122,19 @@ def test_show_diff_visible_with_cl_number() -> None:
     assert is_command_available(spec, ctx)
 
 
+def test_agent_run_log_leader_command_requires_selected_cl() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["leader.agent_run_log"]
+    cs = _make_changespec()
+
+    assert is_command_available(spec, CommandContext(tab="changespecs", changespec=cs))
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", changespec=None),
+    )
+    assert not is_command_available(spec, CommandContext(tab="agents"))
+
+
 def test_mail_visible_only_for_ready_status() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.mail"]

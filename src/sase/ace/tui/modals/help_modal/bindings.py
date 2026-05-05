@@ -197,6 +197,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Prompt history (+cancelled)",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_run_log'))}",
+                    "Agent run log",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'task_queue'))}",
                     "Task queue viewer",
                 ),
