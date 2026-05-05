@@ -57,6 +57,24 @@ def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
     assert ref.parse_arguments() == (["prod"], {})
 
 
+def test_parse_colon_shorthand_reference_with_parentheses_in_text() -> None:
+    ref = _single_ref("#research: find foo (bar)")
+
+    assert ref.name == "research"
+    assert ref.arg_kind is XPromptReferenceArgKind.COLON_SHORTHAND
+    assert ref.argument_source == ": find foo (bar)"
+    assert ref.parse_arguments() == (["find foo (bar)"], {})
+
+
+def test_parse_double_colon_shorthand_reference_with_parentheses_in_text() -> None:
+    ref = _single_ref("#research_swarm:: find foo (bar)")
+
+    assert ref.name == "research_swarm"
+    assert ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert ref.argument_source == ":: find foo (bar)"
+    assert ref.parse_arguments() == (["find foo (bar)"], {})
+
+
 def test_parse_standalone_reference_with_paren_args() -> None:
     ref = _single_ref("#!deploy(arg=value)")
 

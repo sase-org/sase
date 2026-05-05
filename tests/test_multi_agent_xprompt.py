@@ -258,6 +258,42 @@ def test_expand_inline_with_shorthand_args() -> None:
     assert out == ["Plan login flow", "Build login flow", "Test login flow"]
 
 
+def test_expand_inline_with_shorthand_args_preserves_parentheses() -> None:
+    catalog = {
+        "three": _xp(
+            "three",
+            "Plan {{ feature }}\n---\nBuild {{ feature }}\n---\nTest {{ feature }}",
+            inputs=[InputArg(name="feature", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#three:: login flow (oauth)"])
+    assert out == [
+        "Plan login flow (oauth)",
+        "Build login flow (oauth)",
+        "Test login flow (oauth)",
+    ]
+
+
+def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
+    catalog = {
+        "research_swarm": _xp(
+            "research_swarm",
+            "{{ prompt }} #research\n---\n"
+            "%w #resume #research/more %m:opus\n---\n"
+            "%w #resume #research/image",
+            inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+        )
+    }
+    with _patch_catalog(catalog):
+        out = expand_multi_agent_xprompts(["#research_swarm:: find foo (bar)"])
+    assert out == [
+        "find foo (bar) #research",
+        "%w #resume #research/more %m:opus",
+        "%w #resume #research/image",
+    ]
+
+
 def test_expand_inline_with_vcs_prefix_inherits_followups() -> None:
     catalog = {
         "three": _xp(

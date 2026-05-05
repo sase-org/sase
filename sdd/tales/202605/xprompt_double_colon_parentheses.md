@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 18:02:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_double_colon_parentheses.md
 ---
 # Plan: Fix xprompt double-colon text containing parentheses

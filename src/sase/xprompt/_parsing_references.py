@@ -83,6 +83,11 @@ class XPromptReference:
 
     def parse_arguments(self) -> tuple[list[str], dict[str, str]]:
         """Parse this reference's argument payload using workflow arg rules."""
+        if self.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND:
+            return [self.argument_source[3:]], {}
+        if self.arg_kind is XPromptReferenceArgKind.COLON_SHORTHAND:
+            return [self.argument_source[2:]], {}
+
         _name, positional_args, named_args = parse_workflow_reference(
             self.reference_body
         )
