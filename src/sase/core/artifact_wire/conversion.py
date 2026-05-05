@@ -1,267 +1,35 @@
-"""Wire records for the unified artifact graph facade.
-
-These dataclasses mirror the Epic 1 Rust wire records in
-``sase_core::artifact::wire``. They are intentionally plain JSON-shaped
-records: all keys are lowercase ``snake_case``, optional values are preserved
-as ``None``/JSON ``null``, and sequence fields serialize as JSON lists.
-"""
+"""JSON projection and dict rehydration for artifact wire records."""
 
 from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
-from dataclasses import dataclass, field
 from typing import Any
 
-ARTIFACT_WIRE_SCHEMA_VERSION = 1
-
-ARTIFACT_ROOT_ID = "/"
-
-ARTIFACT_KIND_ROOT = "root"
-ARTIFACT_KIND_FILE = "file"
-ARTIFACT_KIND_DIRECTORY = "directory"
-ARTIFACT_KIND_PROJECT = "project"
-ARTIFACT_KIND_CHANGESPEC = "changespec"
-ARTIFACT_KIND_COMMIT = "commit"
-ARTIFACT_KIND_BEAD = "bead"
-ARTIFACT_KIND_AGENT = "agent"
-ARTIFACT_KIND_THOUGHT = "thought"
-ARTIFACT_KIND_UNKNOWN = "unknown"
-
-ARTIFACT_LINK_PARENT = "parent"
-ARTIFACT_LINK_CREATED = "created"
-ARTIFACT_LINK_WORKER = "worker"
-ARTIFACT_LINK_RELATED = "related"
-
-ARTIFACT_PROVENANCE_MANUAL = "manual"
-ARTIFACT_PROVENANCE_DERIVED = "derived"
-
-ARTIFACT_TOMBSTONE_NODE = "node"
-ARTIFACT_TOMBSTONE_LINK = "link"
-
-ARTIFACT_STALE_CLEANUP_NONE = "none"
-ARTIFACT_STALE_CLEANUP_MARK = "mark"
-
-ARTIFACT_SOURCE_PROJECT_FILE = "project_file"
-ARTIFACT_SOURCE_CHANGESPEC = "changespec"
-ARTIFACT_SOURCE_COMMIT = "commit"
-ARTIFACT_SOURCE_DIRECTORY = "directory"
-ARTIFACT_SOURCE_BEAD_STORE = "bead_store"
-ARTIFACT_SOURCE_AGENT_ARTIFACT = "agent_artifact"
-ARTIFACT_SOURCE_AGENT_CREATED_FILE = "agent_created_file"
-ARTIFACT_SOURCE_AGENT_THOUGHT = "agent_thought"
-
-
-@dataclass(frozen=True)
-class ArtifactNodeWire:
-    id: str
-    kind: str
-    display_title: str
-    subtitle: str | None = None
-    provenance: str = ARTIFACT_PROVENANCE_MANUAL
-    source_kind: str | None = None
-    source_id: str | None = None
-    source_version: str | None = None
-    search_text: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: str | None = None
-    updated_at: str | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactLinkWire:
-    id: str
-    link_type: str
-    source_id: str
-    target_id: str
-    provenance: str = ARTIFACT_PROVENANCE_MANUAL
-    source_kind: str | None = None
-    source_id_hint: str | None = None
-    source_version: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: str | None = None
-    updated_at: str | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactPayloadWire:
-    artifact_id: str
-    payload_type: str
-    provenance: str = ARTIFACT_PROVENANCE_MANUAL
-    source_kind: str | None = None
-    source_id: str | None = None
-    source_version: str | None = None
-    payload: Any = None
-    updated_at: str | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactRebuildRequestWire:
-    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
-    projects_root: str | None = None
-    workspace_root: str | None = None
-    beads_dir: str | None = None
-    include_sources: tuple[str, ...] = ()
-    exclude_sources: tuple[str, ...] = ()
-    target_path: str | None = None
-    artifact_dir: str | None = None
-    stale_cleanup: str = ARTIFACT_STALE_CLEANUP_NONE
-
-
-@dataclass(frozen=True)
-class ArtifactPathUpsertRequestWire:
-    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
-    kind: str | None = None
-    display_title: str | None = None
-    subtitle: str | None = None
-    provenance: str | None = None
-    source_kind: str | None = None
-    source_id: str | None = None
-    source_version: str | None = None
-    search_text: str | None = None
-    metadata: dict[str, Any] | None = None
-
-
-# pyvision: public_api_methods.txt
-@dataclass(frozen=True)
-class ArtifactDoctorIssueWire:
-    issue_type: str
-    severity: str
-    artifact_id: str | None = None
-    link_id: str | None = None
-    message: str = ""
-
-
-@dataclass(frozen=True)
-class ArtifactDetailWire:
-    schema_version: int
-    node: ArtifactNodeWire | None = None
-    payloads: list[ArtifactPayloadWire] = field(default_factory=list)
-    outbound_links: list[ArtifactLinkWire] = field(default_factory=list)
-    inbound_links: list[ArtifactLinkWire] = field(default_factory=list)
-    children: list[ArtifactNodeWire] = field(default_factory=list)
-    path_to_root: list[ArtifactNodeWire] = field(default_factory=list)
-    diagnostics: list[ArtifactDoctorIssueWire] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ArtifactQueryWire:
-    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
-    text: str | None = None
-    kinds: tuple[str, ...] = ()
-    link_types: tuple[str, ...] = ()
-    provenance: str | None = None
-    source_kinds: tuple[str, ...] = ()
-    source_ids: tuple[str, ...] = ()
-    root_id: str | None = None
-    include_tombstoned: bool = False
-    limit: int | None = 200
-    offset: int | None = 0
-
-
-@dataclass(frozen=True)
-class ArtifactGraphWire:
-    schema_version: int
-    root_id: str | None = None
-    nodes: list[ArtifactNodeWire] = field(default_factory=list)
-    links: list[ArtifactLinkWire] = field(default_factory=list)
-    node_count: int = 0
-    link_count: int = 0
-    truncated: bool = False
-    limit: int | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactGraphOptionsWire:
-    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
-    root_id: str | None = ARTIFACT_ROOT_ID
-    max_depth: int | None = 2
-    link_types: tuple[str, ...] = ()
-    include_inbound: bool = False
-    include_outbound: bool = True
-    full_graph: bool = False
-    limit: int | None = 500
-
-
-@dataclass(frozen=True)
-class ArtifactNodeUpsertWire:
-    schema_version: int
-    node: ArtifactNodeWire
-    replace_payloads: bool = False
-
-
-@dataclass(frozen=True)
-class ArtifactNodeRemoveWire:
-    schema_version: int
-    id: str
-    provenance: str | None = None
-    source_kind: str | None = None
-    source_id: str | None = None
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactLinkUpsertWire:
-    schema_version: int
-    link: ArtifactLinkWire
-
-
-@dataclass(frozen=True)
-class ArtifactLinkRemoveWire:
-    schema_version: int
-    id: str | None = None
-    link_type: str | None = None
-    source_id: str | None = None
-    target_id: str | None = None
-    provenance: str | None = None
-    source_kind: str | None = None
-    source_id_hint: str | None = None
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactMutationResultWire:
-    schema_version: int
-    operation: str
-    nodes_added: int = 0
-    nodes_updated: int = 0
-    nodes_removed: int = 0
-    links_added: int = 0
-    links_updated: int = 0
-    links_removed: int = 0
-    tombstones_added: int = 0
-    affected_node_ids: list[str] = field(default_factory=list)
-    affected_link_ids: list[str] = field(default_factory=list)
-    tombstone_ids: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ArtifactDoctorOptionsWire:
-    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
-    check_dangling_links: bool = True
-    check_root_presence: bool = True
-    check_reachability: bool = True
-    check_duplicate_parents: bool = True
-    check_tombstones: bool = True
-
-
-@dataclass(frozen=True)
-class ArtifactDoctorWire:
-    schema_version: int
-    ok: bool
-    issues: list[ArtifactDoctorIssueWire] = field(default_factory=list)
-
-
-def artifact_root_node() -> ArtifactNodeWire:
-    """Return the canonical root artifact node."""
-    return ArtifactNodeWire(
-        id=ARTIFACT_ROOT_ID,
-        kind=ARTIFACT_KIND_ROOT,
-        display_title=ARTIFACT_ROOT_ID,
-        subtitle="Artifact root",
-        provenance=ARTIFACT_PROVENANCE_MANUAL,
-        search_text="root /",
-    )
+from sase.core.artifact_wire.constants import (
+    ARTIFACT_PROVENANCE_MANUAL,
+    ARTIFACT_ROOT_ID,
+    ARTIFACT_STALE_CLEANUP_NONE,
+    ARTIFACT_WIRE_SCHEMA_VERSION,
+)
+from sase.core.artifact_wire.models import (
+    ArtifactDetailWire,
+    ArtifactDoctorIssueWire,
+    ArtifactDoctorOptionsWire,
+    ArtifactDoctorWire,
+    ArtifactGraphOptionsWire,
+    ArtifactGraphWire,
+    ArtifactLinkRemoveWire,
+    ArtifactLinkUpsertWire,
+    ArtifactLinkWire,
+    ArtifactMutationResultWire,
+    ArtifactNodeRemoveWire,
+    ArtifactNodeUpsertWire,
+    ArtifactNodeWire,
+    ArtifactPathUpsertRequestWire,
+    ArtifactPayloadWire,
+    ArtifactQueryWire,
+    ArtifactRebuildRequestWire,
+)
 
 
 def artifact_wire_to_json_dict(record: Any) -> Any:
@@ -350,7 +118,6 @@ def artifact_node_from_dict(data: dict[str, Any]) -> ArtifactNodeWire:
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_link_from_dict(data: dict[str, Any]) -> ArtifactLinkWire:
     _check_keys(
         data,
@@ -372,7 +139,6 @@ def artifact_link_from_dict(data: dict[str, Any]) -> ArtifactLinkWire:
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_payload_from_dict(data: dict[str, Any]) -> ArtifactPayloadWire:
     _check_keys(
         data,
@@ -391,7 +157,6 @@ def artifact_payload_from_dict(data: dict[str, Any]) -> ArtifactPayloadWire:
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_rebuild_request_from_dict(
     data: dict[str, Any],
 ) -> ArtifactRebuildRequestWire:
@@ -413,7 +178,6 @@ def artifact_rebuild_request_from_dict(
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_path_upsert_request_from_dict(
     data: dict[str, Any],
 ) -> ArtifactPathUpsertRequestWire:
@@ -437,7 +201,6 @@ def artifact_path_upsert_request_from_dict(
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_doctor_issue_from_dict(data: dict[str, Any]) -> ArtifactDoctorIssueWire:
     _check_keys(
         data,
@@ -525,7 +288,6 @@ def artifact_graph_from_dict(data: dict[str, Any]) -> ArtifactGraphWire:
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_graph_options_from_dict(
     data: dict[str, Any],
 ) -> ArtifactGraphOptionsWire:
@@ -546,7 +308,6 @@ def artifact_graph_options_from_dict(
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_node_upsert_from_dict(data: dict[str, Any]) -> ArtifactNodeUpsertWire:
     _check_keys(
         data,
@@ -560,7 +321,6 @@ def artifact_node_upsert_from_dict(data: dict[str, Any]) -> ArtifactNodeUpsertWi
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_node_remove_from_dict(data: dict[str, Any]) -> ArtifactNodeRemoveWire:
     _check_keys(
         data,
@@ -577,7 +337,6 @@ def artifact_node_remove_from_dict(data: dict[str, Any]) -> ArtifactNodeRemoveWi
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_link_upsert_from_dict(data: dict[str, Any]) -> ArtifactLinkUpsertWire:
     _check_keys(
         data,
@@ -590,7 +349,6 @@ def artifact_link_upsert_from_dict(data: dict[str, Any]) -> ArtifactLinkUpsertWi
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_link_remove_from_dict(data: dict[str, Any]) -> ArtifactLinkRemoveWire:
     _check_keys(
         data,
@@ -635,7 +393,6 @@ def artifact_mutation_result_from_dict(
     )
 
 
-# pyvision: public_api_methods.txt
 def artifact_doctor_options_from_dict(
     data: dict[str, Any],
 ) -> ArtifactDoctorOptionsWire:
@@ -670,55 +427,9 @@ def artifact_doctor_from_dict(data: dict[str, Any]) -> ArtifactDoctorWire:
 
 
 __all__ = [
-    "ARTIFACT_KIND_AGENT",
-    "ARTIFACT_KIND_BEAD",
-    "ARTIFACT_KIND_CHANGESPEC",
-    "ARTIFACT_KIND_COMMIT",
-    "ARTIFACT_KIND_DIRECTORY",
-    "ARTIFACT_KIND_FILE",
-    "ARTIFACT_KIND_PROJECT",
-    "ARTIFACT_KIND_ROOT",
-    "ARTIFACT_KIND_THOUGHT",
-    "ARTIFACT_KIND_UNKNOWN",
-    "ARTIFACT_LINK_CREATED",
-    "ARTIFACT_LINK_PARENT",
-    "ARTIFACT_LINK_RELATED",
-    "ARTIFACT_LINK_WORKER",
-    "ARTIFACT_PROVENANCE_DERIVED",
-    "ARTIFACT_PROVENANCE_MANUAL",
-    "ARTIFACT_ROOT_ID",
-    "ARTIFACT_SOURCE_AGENT_ARTIFACT",
-    "ARTIFACT_SOURCE_AGENT_CREATED_FILE",
-    "ARTIFACT_SOURCE_AGENT_THOUGHT",
-    "ARTIFACT_SOURCE_BEAD_STORE",
-    "ARTIFACT_SOURCE_CHANGESPEC",
-    "ARTIFACT_SOURCE_COMMIT",
-    "ARTIFACT_SOURCE_DIRECTORY",
-    "ARTIFACT_SOURCE_PROJECT_FILE",
-    "ARTIFACT_STALE_CLEANUP_MARK",
-    "ARTIFACT_STALE_CLEANUP_NONE",
-    "ARTIFACT_TOMBSTONE_LINK",
-    "ARTIFACT_TOMBSTONE_NODE",
-    "ARTIFACT_WIRE_SCHEMA_VERSION",
-    "ArtifactDetailWire",
-    "ArtifactDoctorIssueWire",
-    "ArtifactDoctorOptionsWire",
-    "ArtifactDoctorWire",
-    "ArtifactGraphOptionsWire",
-    "ArtifactGraphWire",
-    "ArtifactLinkRemoveWire",
-    "ArtifactLinkUpsertWire",
-    "ArtifactLinkWire",
-    "ArtifactMutationResultWire",
-    "ArtifactNodeRemoveWire",
-    "ArtifactNodeUpsertWire",
-    "ArtifactNodeWire",
-    "ArtifactPathUpsertRequestWire",
-    "ArtifactPayloadWire",
-    "ArtifactQueryWire",
-    "ArtifactRebuildRequestWire",
     "artifact_detail_from_dict",
     "artifact_doctor_from_dict",
+    "artifact_doctor_issue_from_dict",
     "artifact_doctor_options_from_dict",
     "artifact_doctor_options_to_dict",
     "artifact_graph_from_dict",
@@ -738,6 +449,5 @@ __all__ = [
     "artifact_query_to_dict",
     "artifact_rebuild_request_from_dict",
     "artifact_rebuild_request_to_dict",
-    "artifact_root_node",
     "artifact_wire_to_json_dict",
 ]
