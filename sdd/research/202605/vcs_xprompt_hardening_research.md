@@ -1,6 +1,6 @@
 # VCS XPrompt Hardening Research
 
-Date: 2026-05-05
+Date: 2026-05-05 (revised 2026-05-04)
 
 ## Research Question
 
@@ -155,6 +155,116 @@ The commit checkpoint/resume work reduced one major class of failures. `CommitWo
 state. The tests in `tests/test_commit_workflow_checkpointing.py` cover conflict detection and checkpoint retention
 (lines 48-69, 183-199).
 
+### 6. The stop hook silently degrades when provider hooks fail or are missing
+
+`sase_commit_stop_hook._get_changed_files` (lines 206-237) has three layered fallbacks that all swallow exceptions:
+
+- `provider.diff_with_untracked` -> on `NotImplementedError`, fall back to `provider.diff` (lines 213-220). `provider.diff`
+  does not include untracked files. So in a working dir whose only changes are *new* files, an older provider plugin
+  reports "no changes", the hook does not block, and the agent exits without committing.
+- A bare `except Exception: diff_text = None` (lines 221-222) hides any provider crash, including authentication errors,
+  process timeouts, or partial output.
+- The fallback `has_local_changes` path (lines 228-235) reports `(unable to list changed files for this VCS provider)` as a
+  fake file name. The block message that follows is correct, but the JSONL log line records a synthetic file path that
+  looks like a real change.
+
+Combined with `_resolve_commit_skill` (lines 153-162) — which never validates that the resolved skill actually exists —
+the result is that a misconfigured runtime can be told "use `/sase_<unknown>_commit`" without any error.
+
+### 7. `firstresult=True` on every VCS hookspec hides plugin errors
+
+Every entry in `vcs_provider/_hookspec.py` declares `@hookspec(firstresult=True)`. Pluggy stops at the first non-`None`
+return. Provider plugins return `(bool, str | None)` tuples for most ops, so `(False, "<stderr>")` counts as a "result"
+and prevents the next plugin from being tried. There is no error class that means "skip me, try the next plugin":
+plugins must return `None` to fall through, and all current plugins return tuples on every code path.
+
+Practical impact: if two plugins legitimately match (e.g. a custom GitHub fork plus the stock `sase-github`), the first
+one loaded wins on every dispatch — including when it fails. There is no logged warning at registration. Plugin order is
+whatever `importlib.metadata.entry_points()` returns, which is not stable across Python versions or environments.
+
+### 8. Workspace claims have no TTL or crash recovery
+
+The workspace claim list in the project file (`WORKSPACE_CLAIMS:`) is acquired by `claim_workspace` and released by
+`release_workspace`. Only `accept` and `rewind` workflows wrap the agent invocation in a `try/finally` that calls
+`release_workspace` (`workflows/accept/workflow.py:360-363`, `workflows/rewind/workflow.py:209-212`). All other VCS
+xprompt entry points rely on the `git.yml` / `gh.yml` / `hg.yml` `finally` post-step. If the parent process is killed
+between the agent turn and the `finally` post-step (SIGKILL, container OOM, host reboot, or a crash inside the embedded
+executor itself), the claim stays in the project file forever and `sase accept -r` is the only way out.
+
+There is no PID-liveness check during `claim_workspace`, no lockfile-style heartbeat, and no `sase workspace prune`
+command. This is a small change with outsized impact on day-to-day frustration.
+
+### 9. Spawn-on-retry can transfer stale or missing claims
+
+`run_agent_retry_spawn.spawn_retry_agent` (lines 227-326) calls `transfer_workspace_claim` (`running_field/_operations.py:216-248`)
+to hand the claim from the failing parent to the new child. Two gaps:
+
+- The transfer does not check that the parent still owns the claim. If a `finally` post-step ran on the parent before
+  the spawn decision (e.g. because the failure surfaced after `release_workspace`), the transfer silently moves a claim
+  the parent no longer holds.
+- VCS workflow `finally` blocks fire on the parent process. After spawn, the child inherits the in-progress edits via
+  the transferred claim, but it does not re-run pre-steps like `setup`/`prepare`/`checkout`. If the parent died after
+  the partial release of provider state (stash without unstash, sync mid-rebase), the child resumes in that partial
+  state with no awareness.
+
+### 10. Multi-agent xprompt + VCS tag inheritance lacks scoping rules
+
+`agent/multi_agent_xprompt.py:_prepend_inherited_vcs_ref` (around lines 419-421) prepends a leading VCS tag like
+`#gh:sase` to every body segment that lacks its own ref. There is no validation that:
+
+- the workspace ref still exists or is still valid for the inherited target;
+- segments that *intentionally* run outside the inherited workspace (e.g. a meta-analysis segment) can opt out;
+- inheritance does not cross multi-agent xprompt nesting in a way that re-scopes refs to the wrong workspace.
+
+Recursion depth (`max_depth <= 0`, line 404) protects against expansion loops but not against ref-reuse loops where two
+multi-agent xprompts each carry the same `#gh:sase` and conflict on the same workspace.
+
+### 11. Non-xprompt sites also write `SASE_COMMIT_METHOD`
+
+`axe/fix_hook_runner.py:210` and `workflows/crs.py:225` set `SASE_COMMIT_METHOD=create_proposal` directly. These run in
+the same process the embedded workflow already touched. Last-write-wins applies with no conflict detection. The CLI guard
+in `cl_handler.py` rejects conflicting `--type` vs env, but it does not see the historical sequence of who wrote what,
+so an agent that re-enters a commit path in mid-run can act on a method the user never asked for.
+
+There is no test that covers `fix_hook_runner` or `crs.py` setting the method while an active xprompt has already set
+it. The conflicts are easy to miss because they only trigger on certain hook compositions.
+
+### 12. Diff and ChangeSpec writes degrade silently on partial failure
+
+- `commit_tracking.capture_pre_commit_diff` (lines 48-84) returns `None` when `provider.diff(cwd)` reports `(False, ...)`
+  with no log line. The COMMITS drawer then records an entry whose `diff_path` is empty, and the user has no signal that
+  the diff was lost.
+- `commit_tracking.append_commits_entry` (lines 127-150) has no rollback. If it fails after a successful commit, the
+  ChangeSpec drawer is missing the entry while the working tree already has the commit. The next run sees an
+  inconsistent COMMITS list and either resumes incorrectly or duplicates an entry.
+- `workflow_executor_steps_prompt.py` lines 395-406 capture an uncommitted VCS diff after the agent turn. There is no
+  branch for "cwd is not a repo" or "git/hg binary missing": failures are logged at debug level only, so a missing diff
+  artifact looks identical to no work having been done.
+
+### 13. `#sync` agent loop has weak boundary behavior
+
+`xprompts/sync.yml` runs the `resolve` step under `repeat: { until: resolve.all_resolved, max: 20 }`. If the loop hits
+20 without resolving, the workflow exits with `all_resolved=false` and the report step produces a non-success status,
+but:
+
+- there is no documented contract for what the user should do next, and no automatic escalation to `sase commit --resume`;
+- there is no HITL break-out signal: a human who realises the agent is stuck cannot signal "stop iterating" without
+  killing the agent, which leaves the workspace in mid-rebase state and triggers gap #8 above;
+- a successive `#sync` run starts from scratch with no knowledge that a prior loop made partial progress.
+
+### 14. Documentation drifts from code
+
+Several documented behaviors are stronger than the implementation:
+
+- `docs/commit_workflows.md` says missing `commit_result.json` should fail explicitly; in practice the intent xprompts
+  print `success=false` or `{}` and rely on the stop hook to prevent reaching that state. (Already noted in the prior
+  critique, but it remains true.)
+- `docs/vcs.md` does not call out that `#cd` carries the `vcs` tag and competes with `#git`/`#gh`/`#hg` for the
+  at-most-one-vcs slot. Users can be surprised when `#cd #git:sase` is rejected.
+- The `#sync` 20-iteration cap is not documented anywhere user-facing.
+- The list of `SASE_*` environment variables that VCS xprompts read or write is spread across YAML files, hooks, and
+  Python modules with no canonical reference.
+
 ## Debugging Gaps
 
 ### Missing single-command diagnosis
@@ -202,6 +312,25 @@ especially merge/push failures, the debugging path needs exact commands, cwd, ex
 Add an opt-in trace file under artifacts, for example `vcs_commands.jsonl`. Include sanitized command argv, cwd,
 provider, operation name, exit code, duration, stdout/stderr byte counts, and stderr tail. This would materially reduce
 guesswork without turning normal logs into noise.
+
+### Pluggy `firstresult` swallows the chain
+
+Because every VCS hook is `firstresult=True` and plugins return tuples (not `None`) on failure, there is no way to fall
+through to a second matching plugin and no record that a fall-through was attempted. Add a small wrapper at registration
+time that:
+
+- logs which plugins are registered for each hook;
+- emits a one-line warning when more than one plugin is registered for the same hook (potential ambiguity);
+- in trace mode, records which plugin actually handled each call.
+
+This converts what is currently undefined behavior into observable, actionable signals.
+
+### Workspace state is invisible until you touch a project file
+
+The current `WORKSPACE_CLAIMS:` drawer is the only authoritative source of who holds what. There is no
+`sase workspace status` command and no warning when a stale claim is older than the parent process. Even surfacing
+"claim held by PID 12345 (not running)" in `sase debug vcs-xprompt` would let users self-diagnose half of the
+"why can't I claim this workspace" cases.
 
 ### Missing intent artifact
 
@@ -261,6 +390,32 @@ metadata.
    `abort_sync` in `tests/test_vcs_provider_git_sync.py`. Add equivalent contract assertions that provider commit
    dispatch failures expose enough structured state for diagnosis.
 
+7. Stop-hook fallback semantics.
+   Add tests where:
+   - the provider only implements `diff` (not `diff_with_untracked`) and the working tree has only untracked files;
+   - the provider raises an exception inside `diff_with_untracked`;
+   - `_resolve_commit_skill` is asked to resolve a runtime+VCS combo that has no installed skill.
+   Each case should produce a visible diagnostic, not a silent no-op.
+
+8. Workspace lifecycle tests.
+   - Kill the agent process between the agent turn and the `finally` post-step; assert the next `claim_workspace` either
+     prunes the dead claim or fails with an actionable message.
+   - Spawn-on-retry while the parent's `finally` has already released; assert `transfer_workspace_claim` either
+     re-acquires or refuses with a clear error.
+   - Two parallel `#git:sase` claims on the same workspace; assert the second blocks or fails fast.
+
+9. Multi-agent xprompt VCS inheritance.
+   - One body segment with explicit `#cd:~`, leading multi-agent has `#gh:sase`; assert the explicit ref wins.
+   - Inherited ref pointing at a workspace that no longer exists; assert a clear error rather than silent dispatch.
+
+10. ChangeSpec rollback.
+    Inject a failure in `append_commits_entry` after `vcs_commit` succeeds; assert that the COMMITS drawer is either
+    rolled back or that the inconsistency is surfaced as a workflow error rather than masked by the next run.
+
+11. Non-xprompt method writers.
+    Run a VCS xprompt that sets `SASE_COMMIT_METHOD=create_pull_request`, then trigger `fix_hook_runner` /
+    `workflows/crs.py` mid-session; assert the conflict is either rejected or recorded in `vcs_intent.json`.
+
 ## Hardening Recommendations
 
 ### Phase 1: Observability First
@@ -274,6 +429,10 @@ This is the highest leverage because it shortens every future debugging session 
 - Add `sase debug vcs-xprompt [ARTIFACTS_DIR]` to reconstruct the run from existing and new artifacts.
 - Extend `workflow_state.json` with a redacted environment snapshot for known `SASE_*` keys that affect VCS xprompt
   behavior.
+- Log a warning at registration when more than one plugin is registered for the same `vcs_*` hook. This costs nothing
+  and turns the silent "first plugin wins" into a visible signal.
+- Add `sase workspace status` (or fold into `sase debug`) that lists current `WORKSPACE_CLAIMS:` entries with PID
+  liveness and age, so stale claims can be triaged without grepping the project file.
 
 ### Phase 2: Make Commit Intent Explicit
 
@@ -311,6 +470,20 @@ The harness should exercise the full contract:
 
 This is where most regressions will be caught earlier than integration tests.
 
+### Phase 5: Lifecycle Hardening
+
+The deepest source of recurring frustration is workspace state outliving the process that owns it. After Phase 1 makes
+this visible, address the substance:
+
+- Tag every claim with the owner PID and start time.
+- During `claim_workspace`, prune entries whose owner PID is no longer alive (after a short grace window).
+- Make `transfer_workspace_claim` verify the source PID still owns the claim before mutating, and refuse with a clear
+  error otherwise.
+- Make `release_workspace` idempotent and safe to call from anywhere, including a top-level `atexit` handler in the
+  workflow runner. The `try/finally` in `accept` and `rewind` should become the default, not the exception.
+- Add a documented `--abort` path for `#sync` that aborts the in-progress rebase/merge cleanly when the loop hits its
+  iteration cap, rather than leaving the workspace mid-conflict.
+
 ## Suggested Debugging Workflow Until Then
 
 When a VCS xprompt workflow misbehaves, inspect in this order:
@@ -337,4 +510,12 @@ The fastest hardening path is:
 2. make commit intent a first-class typed artifact;
 3. enforce uniqueness and fail-fast contracts;
 4. replace repeated YAML result plumbing with a tested helper;
-5. add scenario tests that exercise parser, embedded workflow, env, hook, and commit-result contracts together.
+5. add scenario tests that exercise parser, embedded workflow, env, hook, and commit-result contracts together;
+6. close the lifecycle gaps: workspace claims with PID-aware pruning, default `try/finally` release, verified
+   `transfer_workspace_claim`, and an explicit `#sync` abort path so failures stop leaving the workspace in mid-rebase
+   state.
+
+The sub-systems most likely to be hiding the next class of bugs are the parts that fail silently today: provider
+plugins returning `(False, ...)` under `firstresult=True`, stop-hook fallbacks that downgrade to "no changes",
+diff/COMMITS-drawer writes that succeed-with-empty, and `SASE_COMMIT_METHOD` writers outside the xprompt path. Each of
+these warrants both an observability change (so the failure is visible) and a contract change (so it stops happening).
