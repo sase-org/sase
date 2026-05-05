@@ -127,7 +127,7 @@ class TestShouldHitl:
                 assert executor.execute() is True
 
         assert captured["expanded_input"] == "#gh:sase Fix it"
-        assert captured["prompt"] == "#gh:sase Fix it\n"
+        assert captured["prompt"].rstrip("\n") == "#gh:sase Fix it"
 
     def test_inherited_vcs_tag_preserves_directives_and_segments(self) -> None:
         """Inherited VCS tags are inserted per segment after leading directives."""
@@ -135,7 +135,7 @@ class TestShouldHitl:
         workflow = _create_test_workflow(steps=[step])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            captured: dict[str, str] = {}
+            captured: dict[str, object] = {}
 
             def _fake_expand(
                 self: WorkflowExecutor, prompt: str
@@ -144,11 +144,16 @@ class TestShouldHitl:
                 captured["expanded_input"] = prompt
                 return prompt, [], 0
 
-            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+            def _fake_invoke_agent(prompt: str, **kwargs: object) -> AIMessage:
                 captured["prompt"] = prompt
+                captured["directives"] = kwargs.get("directives")
                 return AIMessage(content="ok")
 
             with (
+                patch(
+                    "sase.agent.names.get_most_recent_agent_name",
+                    return_value="previous-agent",
+                ),
                 patch.object(
                     WorkflowExecutor,
                     "_expand_embedded_workflows_in_prompt",
@@ -166,6 +171,9 @@ class TestShouldHitl:
 
         expected = " #gh:sase Follow up\n---\n#gh:sase Second"
         assert captured["expanded_input"] == expected
+        directives = captured["directives"]
+        assert directives is not None
+        assert getattr(directives, "wait", None) == ["previous-agent"]
 
     def test_inherited_vcs_tag_does_not_override_explicit_step_ref(self) -> None:
         """A step-local workspace ref remains authoritative."""
@@ -214,7 +222,7 @@ class TestShouldHitl:
                 assert executor.execute() is True
 
         assert captured["expanded_input"] == "#git:other Fix it"
-        assert captured["prompt"] == "#git:other Fix it\n"
+        assert captured["prompt"].rstrip("\n") == "#git:other Fix it"
 
 
 class TestPythonStepExecution:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 11:53:11
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_inherited_vcs_tag_workflow_tests.md
 ---
 # Fix Inherited VCS Tag Workflow Test Failures
