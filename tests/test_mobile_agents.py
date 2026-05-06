@@ -239,6 +239,7 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
         {
             "schema_version": 1,
             "prompt": "#gh@sase Fix it",
+            "request_id": "req-text-1",
             "name": "mobile.demo",
             "provider": "codex",
             "model": "gpt-5.5",
@@ -256,6 +257,7 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
         encoding="utf-8"
     )
     assert '"agent_name": "mobile.demo"' in contexts
+    assert '"request_id": "req-text-1"' in contexts
 
 
 def test_launch_mobile_text_agents_persists_known_project_context(
@@ -380,7 +382,7 @@ def test_launch_mobile_image_agents_stores_upload_and_launches(
 
     monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
 
-    payload = _launch_mobile_image_agents(_image_request())
+    payload = _launch_mobile_image_agents(_image_request(request_id="req-image-1"))
 
     assert payload["primary"]["status"] == "launched"
     stored_files = list(
@@ -393,6 +395,10 @@ def test_launch_mobile_image_agents_stores_upload_and_launches(
     assert "The image has been saved to:" in captured[0]
     assert str(stored_files[0]) in captured[0]
     assert "%name:mobile.image" in captured[0]
+    contexts = (tmp_path / "mobile_gateway" / "agent_launch_contexts.jsonl").read_text(
+        encoding="utf-8"
+    )
+    assert '"request_id": "req-image-1"' in contexts
 
 
 def test_launch_mobile_image_rejects_invalid_base64_without_file(
@@ -658,7 +664,9 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
     monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
     monkeypatch.setattr(mobile_agents, "allocate_retry_name", lambda _name: "alpha.1")
 
-    payload = _retry_mobile_agent({"schema_version": 1, "name": "alpha"})
+    payload = _retry_mobile_agent(
+        {"schema_version": 1, "name": "alpha", "request_id": "req-retry-1"}
+    )
 
     assert captured == ["%name:alpha.1\nDo work"]
     assert payload["source_agent"] == "alpha"
@@ -666,6 +674,7 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
     contexts = store.read_text(encoding="utf-8")
     assert '"agent_name": "alpha.1"' in contexts
     assert '"source_agent_name": "alpha"' in contexts
+    assert '"request_id": "req-retry-1"' in contexts
 
 
 def test_retry_mobile_agent_falls_back_to_mobile_kill_context(
