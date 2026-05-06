@@ -90,6 +90,55 @@ def test_list_json_calls_facade_with_query(
     assert payload[0]["id"] == "file:/tmp/a.py"
 
 
+def test_search_json_calls_facade_search_with_query(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    node = ArtifactNodeWire(id="file:/tmp/a.py", kind="file", display_title="a.py")
+    mock_search = Mock(return_value=[node])
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade, "artifact_search", mock_search
+    )
+
+    args = create_parser().parse_args(
+        [
+            "artifact",
+            "search",
+            "-j",
+            "-i",
+            str(tmp_path / "graph.sqlite"),
+            "-k",
+            "file",
+            "-F",
+            "plan",
+            "-q",
+            "needle",
+            "-l",
+            "25",
+            "-o",
+            "5",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    mock_search.assert_called_once_with(
+        tmp_path / "graph.sqlite",
+        ArtifactQueryWire(
+            text="needle",
+            kinds=("file",),
+            file_types=("plan",),
+            limit=25,
+            offset=5,
+        ),
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0]["id"] == "file:/tmp/a.py"
+
+
 def test_list_human_outputs_compact_table(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

@@ -101,6 +101,20 @@ def artifact_list(
     return [artifact_node_from_dict(node) for node in payload]
 
 
+def artifact_search(
+    index_path: Path | str,
+    query: ArtifactQueryWire | None = None,
+) -> list[ArtifactNodeWire]:
+    """Search artifact nodes with optional query filters."""
+    binding = require_rust_binding("artifact_search")
+    query_wire = query or ArtifactQueryWire()
+    payload: list[dict[str, Any]] = binding(
+        _path_str(index_path),
+        artifact_query_to_dict(query_wire),
+    )
+    return [artifact_node_from_dict(node) for node in payload]
+
+
 def artifact_show(index_path: Path | str, artifact_id: str) -> ArtifactDetailWire:
     """Return one artifact detail record."""
     binding = require_rust_binding("artifact_show")

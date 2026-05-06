@@ -51,6 +51,8 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
             _handle_remove(args)
         if sub == "list":
             _handle_list(args)
+        if sub == "search":
+            _handle_search(args)
         if sub == "show":
             _handle_show(args)
         if sub == "graph":
@@ -63,7 +65,9 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         print(f"sase artifact {sub or ''}: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print("Usage: sase artifact {add,remove,list,show,graph,rebuild,sync,doctor}")
+    print(
+        "Usage: sase artifact {add,remove,list,search,show,graph,rebuild,sync,doctor}"
+    )
     sys.exit(1)
 
 
@@ -196,6 +200,22 @@ def _handle_remove(args: argparse.Namespace) -> NoReturn:
 
 
 def _handle_list(args: argparse.Namespace) -> NoReturn:
+    result = artifact_facade.artifact_list(_index_path(args), _query_from_args(args))
+    if args.json:
+        _emit_json(result)
+    print(_format_node_table(result))
+    sys.exit(0)
+
+
+def _handle_search(args: argparse.Namespace) -> NoReturn:
+    result = artifact_facade.artifact_search(_index_path(args), _query_from_args(args))
+    if args.json:
+        _emit_json(result)
+    print(_format_node_table(result))
+    sys.exit(0)
+
+
+def _query_from_args(args: argparse.Namespace) -> ArtifactQueryWire:
     query = ArtifactQueryWire(
         text=args.text,
         kinds=tuple(args.kind),
@@ -209,11 +229,7 @@ def _handle_list(args: argparse.Namespace) -> NoReturn:
         limit=args.limit,
         offset=args.offset,
     )
-    result = artifact_facade.artifact_list(_index_path(args), query)
-    if args.json:
-        _emit_json(result)
-    print(_format_node_table(result))
-    sys.exit(0)
+    return query
 
 
 def _handle_show(args: argparse.Namespace) -> NoReturn:

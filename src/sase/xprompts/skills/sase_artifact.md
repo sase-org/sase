@@ -38,6 +38,7 @@ Useful filters:
 - `sase artifact list -j -k file -l 50` - file artifacts.
 - `sase artifact list -j -k file -F plan -F diff -l 50` - file artifacts by semantic file type.
 - `sase artifact list -j -q '<text>' -l 50` - text search across indexed artifact fields.
+- `sase artifact search -j -q '<text>' -F plan -l 50` - interactive global artifact search.
 - `sase artifact list -j -L parent -r <root_id> -l 50` - artifacts reachable under a root through parent links.
 - `sase artifact list -j -P manual -l 50` - manually-created artifacts.
 

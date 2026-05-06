@@ -50,9 +50,13 @@ Useful filters include:
 sase artifact list -j -k file -l 50
 sase artifact list -j -k file -F plan -F diff -l 50
 sase artifact list -j -q "needle" -l 50
+sase artifact search -j -q "needle" -F plan -l 50
 sase artifact list -j -L parent -r <root_id> -l 50
 sase artifact list -j -P manual -l 50
 ```
+
+`sase artifact search` accepts the same query filters as `list`, but is the explicit contract for interactive global
+search flows.
 
 File artifacts keep `kind = "file"` and expose their semantic type in `metadata.artifact_type`. The canonical file types
 are `plan`, `diff`, `chat`, `project`, `prompt`, and `misc`; missing or unknown metadata is treated as `misc`. Use

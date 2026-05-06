@@ -466,6 +466,10 @@ def test_artifact_facade_calls_expected_bindings(
         calls.append(("artifact_list", args))
         return [artifact_wire_to_json_dict(_node())]
 
+    def artifact_search(*args: Any) -> list[dict[str, Any]]:
+        calls.append(("artifact_search", args))
+        return [artifact_wire_to_json_dict(_node())]
+
     def artifact_show(*args: Any) -> dict[str, Any]:
         calls.append(("artifact_show", args))
         return {
@@ -535,6 +539,7 @@ def test_artifact_facade_calls_expected_bindings(
     fake.artifact_add = artifact_add  # type: ignore[attr-defined]
     fake.artifact_remove = artifact_remove  # type: ignore[attr-defined]
     fake.artifact_list = artifact_list  # type: ignore[attr-defined]
+    fake.artifact_search = artifact_search  # type: ignore[attr-defined]
     fake.artifact_show = artifact_show  # type: ignore[attr-defined]
     fake.artifact_show_paged = artifact_show_paged  # type: ignore[attr-defined]
     fake.artifact_graph = artifact_graph  # type: ignore[attr-defined]
@@ -559,6 +564,7 @@ def test_artifact_facade_calls_expected_bindings(
         artifact_facade.artifact_remove(index_path, remove_request).nodes_removed == 1
     )
     assert artifact_facade.artifact_list(index_path)[0] == _node()
+    assert artifact_facade.artifact_search(index_path)[0] == _node()
     assert artifact_facade.artifact_show(index_path, "/tmp/example.md").node == _node()
     assert (
         artifact_facade.artifact_show_paged(index_path, "/tmp/example.md").node
@@ -592,6 +598,15 @@ def test_artifact_facade_calls_expected_bindings(
         ),
         (
             "artifact_list",
+            (
+                "/tmp/artifacts.sqlite",
+                artifact_query_to_dict(
+                    ArtifactQueryWire(file_types=(), kinds=(), link_types=())
+                ),
+            ),
+        ),
+        (
+            "artifact_search",
             (
                 "/tmp/artifacts.sqlite",
                 artifact_query_to_dict(
@@ -656,6 +671,7 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
         "artifact_rebuild",
         "artifact_upsert_path",
         "artifact_list",
+        "artifact_search",
         "artifact_show",
         "artifact_show_paged",
         "artifact_graph",
@@ -714,6 +730,11 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
         ArtifactQueryWire(kinds=(ARTIFACT_KIND_FILE,)),
     )
     assert child_node in listed
+    searched = artifact_facade.artifact_search(
+        index_path,
+        ArtifactQueryWire(text="example", kinds=(ARTIFACT_KIND_FILE,)),
+    )
+    assert child_node in searched
     detail = artifact_facade.artifact_show(index_path, str(child_path))
     assert detail.node == child_node
     assert detail.payloads == [payload]

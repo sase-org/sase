@@ -50,6 +50,74 @@ def _add_rebuild_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_query_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_index_argument(parser)
+    parser.add_argument(
+        "-k",
+        "--kind",
+        action="append",
+        default=[],
+        help="Filter by artifact kind; repeatable",
+    )
+    parser.add_argument(
+        "-F",
+        "--file-type",
+        action="append",
+        default=[],
+        help="Filter file artifacts by semantic type; repeatable",
+    )
+    parser.add_argument(
+        "-L",
+        "--link-type",
+        action="append",
+        default=[],
+        help="Filter by linked edge type; repeatable",
+    )
+    parser.add_argument("-P", "--provenance", help="Filter by provenance")
+    parser.add_argument(
+        "-s",
+        "--source-kind",
+        action="append",
+        default=[],
+        help="Filter by source kind; repeatable",
+    )
+    parser.add_argument(
+        "-S",
+        "--source-id",
+        action="append",
+        default=[],
+        help="Filter by source ID; repeatable",
+    )
+    parser.add_argument("-q", "--text", help="Text search filter")
+    parser.add_argument("-r", "--root-id", help="Restrict to artifacts under root")
+    parser.add_argument(
+        "-u",
+        "--include-tombstoned",
+        action="store_true",
+        help="Include tombstoned graph rows",
+    )
+    parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=200,
+        help="Maximum nodes to return (default: 200)",
+    )
+    parser.add_argument(
+        "-o",
+        "--offset",
+        type=int,
+        default=0,
+        help="Offset into query results (default: 0)",
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit stable JSON output",
+    )
+
+
 def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'artifact' subcommand parser."""
     artifact_parser = subparsers.add_parser(
@@ -122,71 +190,13 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List artifact nodes",
     )
-    _add_index_argument(list_parser)
-    list_parser.add_argument(
-        "-k",
-        "--kind",
-        action="append",
-        default=[],
-        help="Filter by artifact kind; repeatable",
+    _add_query_arguments(list_parser)
+
+    search_parser = artifact_sub.add_parser(
+        "search",
+        help="Search artifact nodes",
     )
-    list_parser.add_argument(
-        "-F",
-        "--file-type",
-        action="append",
-        default=[],
-        help="Filter file artifacts by semantic type; repeatable",
-    )
-    list_parser.add_argument(
-        "-L",
-        "--link-type",
-        action="append",
-        default=[],
-        help="Filter by linked edge type; repeatable",
-    )
-    list_parser.add_argument("-P", "--provenance", help="Filter by provenance")
-    list_parser.add_argument(
-        "-s",
-        "--source-kind",
-        action="append",
-        default=[],
-        help="Filter by source kind; repeatable",
-    )
-    list_parser.add_argument(
-        "-S",
-        "--source-id",
-        action="append",
-        default=[],
-        help="Filter by source ID; repeatable",
-    )
-    list_parser.add_argument("-q", "--text", help="Text search filter")
-    list_parser.add_argument("-r", "--root-id", help="Restrict to artifacts under root")
-    list_parser.add_argument(
-        "-u",
-        "--include-tombstoned",
-        action="store_true",
-        help="Include tombstoned graph rows",
-    )
-    list_parser.add_argument(
-        "-l",
-        "--limit",
-        type=int,
-        default=200,
-        help="Maximum nodes to return (default: 200)",
-    )
-    list_parser.add_argument(
-        "-o",
-        "--offset",
-        type=int,
-        default=0,
-        help="Offset into query results (default: 0)",
-    )
-    list_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit stable JSON output",
-    )
+    _add_query_arguments(search_parser)
 
     show_parser = artifact_sub.add_parser(
         "show",

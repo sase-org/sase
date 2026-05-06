@@ -31,6 +31,7 @@ def test_artifact_cli_real_extension_temp_index_e2e(
         "artifact_add",
         "artifact_remove",
         "artifact_list",
+        "artifact_search",
         "artifact_show",
         "artifact_graph",
         "artifact_doctor",
@@ -108,6 +109,23 @@ def test_artifact_cli_real_extension_temp_index_e2e(
     listed = json.loads(output)
     assert (code, error) == (0, "")
     assert [node["id"] for node in listed] == ["doc:child"]
+
+    code, output, error = run_entry(
+        monkeypatch,
+        capsys,
+        "artifact",
+        "search",
+        "-j",
+        "-i",
+        str(index_path),
+        "-q",
+        "child",
+        "-l",
+        "10",
+    )
+    searched = json.loads(output)
+    assert (code, error) == (0, "")
+    assert [node["id"] for node in searched] == ["doc:child"]
 
     code, output, error = run_entry(
         monkeypatch,
@@ -215,6 +233,7 @@ def test_artifact_cli_real_extension_migration_fixture_smoke(
     required = {
         "artifact_rebuild",
         "artifact_list",
+        "artifact_search",
         "artifact_show",
         "artifact_graph",
         "artifact_doctor",
