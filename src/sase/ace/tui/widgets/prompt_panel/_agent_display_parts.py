@@ -1,5 +1,6 @@
 """Rendering helpers and header building for agent display."""
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from rich.syntax import Syntax
@@ -16,6 +17,16 @@ from ._helpers import (
     format_embedded_workflows,
     load_embedded_workflows,
 )
+from ._file_path_hints import append_text_with_file_hints
+
+
+@dataclass
+class HeaderHintState:
+    """Mutable file-hint state shared with hint-mode header rendering."""
+
+    hint_counter: int
+    hint_mappings: dict[int, str]
+    workspace_dir: str | None
 
 
 def render_timestamp_divider(iso_timestamp: str) -> Text:
@@ -152,7 +163,7 @@ def render_agent_reply_content(agent: Agent) -> list:
 
 
 def build_header_text(
-    agent: Agent, *, cheap: bool = False
+    agent: Agent, *, cheap: bool = False, hint_state: HeaderHintState | None = None
 ) -> tuple[Text, Syntax | None]:
     """Build the AGENT DETAILS header section with trailing separator.
 
@@ -165,6 +176,8 @@ def build_header_text(
             workflow metadata loaded from disk). Used by the j/k immediate
             path so the header renders within one frame; the debounced full
             update fills in the omitted fields.
+        hint_state: Optional mutable file-hint state. When provided, path-like
+            timestamp details are rendered with selectable hint markers.
 
     Returns:
         Tuple of (header_text, error_traceback_syntax).
@@ -351,7 +364,17 @@ def build_header_text(
 
     # Timestamp(s)
     header_text.append("Timestamps: ", style="bold #87D7FF")
-    header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
+    if hint_state is None:
+        header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
+    else:
+        hint_state.hint_counter = append_text_with_file_hints(
+            header_text,
+            f"{agent.timestamps_display}\n",
+            hint_state.hint_counter,
+            hint_state.hint_mappings,
+            hint_state.workspace_dir,
+            style="#D7D7FF",
+        )
 
     # Meta fields from step output
     if agent.step_output and isinstance(agent.step_output, dict):

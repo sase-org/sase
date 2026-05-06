@@ -4,6 +4,7 @@ from rich.text import Text
 
 from ...models.agent import Agent, AgentType
 from ._agent_display_parts import (
+    HeaderHintState,
     build_header_text,
     get_phase_label,
     get_prompt_content,
@@ -104,7 +105,13 @@ class AgentHintsDisplayMixin:
         hint_mappings: dict[int, str] = {}
 
         # Build header (same structured fields as normal display)
-        header_text, _ = build_header_text(agent)
+        header_hint_state = HeaderHintState(
+            hint_counter=hint_counter,
+            hint_mappings=hint_mappings,
+            workspace_dir=workspace_dir,
+        )
+        header_text, _ = build_header_text(agent, hint_state=header_hint_state)
+        hint_counter = header_hint_state.hint_counter
 
         # Error traceback as text with hints (not Syntax)
         if agent.error_traceback:
