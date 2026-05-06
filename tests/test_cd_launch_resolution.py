@@ -192,11 +192,16 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
 ) -> None:
     _patch_cd_metadata(monkeypatch)
     from sase.agent.launcher import launch_agent_from_cwd
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
 
     workspace = tmp_path / "sase"
     workspace.mkdir()
+    allocated_workspace = tmp_path / "sase_101"
+    allocated_workspace.mkdir()
     project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
-    spawn_result = MagicMock(pid=123, workspace_dir=str(workspace), workspace_num=0)
+    spawn_result = MagicMock(
+        pid=123, workspace_dir=str(allocated_workspace), workspace_num=101
+    )
     monkeypatch.setattr(
         "sase.xprompt.loader.get_known_project_workspaces",
         lambda: {"sase": workspace},
@@ -216,6 +221,14 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
             "sase.agent.launcher.spawn_agent_subprocess",
             return_value=spawn_result,
         ) as spawn,
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            return_value=101,
+        ) as first_ws,
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=(str(allocated_workspace), None),
+        ) as ws_dir,
     ):
         result = launch_agent_from_cwd("#gh:sase #!sase/fix_just")
 
@@ -224,13 +237,15 @@ def test_launch_agent_from_cwd_known_project_ref_without_provider_is_not_home_wr
     assert kwargs["prompt"] == "#gh:sase #!sase/fix_just"
     assert kwargs["project_name"] == "sase"
     assert kwargs["project_file"] == project_file
-    assert kwargs["workspace_dir"] == str(workspace)
-    assert kwargs["workspace_num"] == 0
+    assert kwargs["workspace_dir"] == str(allocated_workspace)
+    assert kwargs["workspace_num"] == 101
     assert kwargs["is_home_mode"] is False
-    assert kwargs["update_target"] == ""
+    assert kwargs["update_target"] == VCS_DEFAULT_REVISION
     assert kwargs["cl_name"] == "sase"
     assert kwargs["history_sort_key"] == "sase"
     assert kwargs["vcs_ref"] == ("gh", "sase")
+    first_ws.assert_called_once_with(project_file)
+    ws_dir.assert_called_once_with(101, "sase")
 
 
 def test_resolve_vcs_cwd_uses_known_project_workspace_without_provider(
@@ -314,6 +329,7 @@ def test_launch_agent_from_cwd_bad_cd_path_fails(
 
 
 def test_spawn_cd_sets_resolved_directory_env_without_claim(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     from sase.agent.launcher import spawn_agent_subprocess
@@ -322,6 +338,12 @@ def test_spawn_cd_sets_resolved_directory_env_without_claim(
     target.mkdir()
     output = tmp_path / "agent.log"
     captured_env: dict[str, str] = {}
+    monkeypatch.setenv("SASE_CD_PRE_ALLOCATED", "1")
+    monkeypatch.setenv("SASE_CD_WORKSPACE_NUM", "999")
+    monkeypatch.setenv("SASE_CD_WORKSPACE_DIR", "/stale/cd")
+    monkeypatch.setenv("SASE_GIT_PRE_ALLOCATED", "1")
+    monkeypatch.setenv("SASE_GIT_WORKSPACE_NUM", "998")
+    monkeypatch.setenv("SASE_GIT_WORKSPACE_DIR", "/stale/git")
 
     def fake_spawn(
         _prepared: object,
@@ -361,6 +383,9 @@ def test_spawn_cd_sets_resolved_directory_env_without_claim(
     assert captured_env["SASE_CD_PRE_ALLOCATED"] == "1"
     assert captured_env["SASE_CD_WORKSPACE_NUM"] == "0"
     assert captured_env["SASE_CD_WORKSPACE_DIR"] == str(target)
+    assert "SASE_GIT_PRE_ALLOCATED" not in captured_env
+    assert "SASE_GIT_WORKSPACE_NUM" not in captured_env
+    assert "SASE_GIT_WORKSPACE_DIR" not in captured_env
     claim.assert_not_called()
     transfer.assert_not_called()
 

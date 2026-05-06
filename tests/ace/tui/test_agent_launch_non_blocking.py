@@ -411,10 +411,14 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
 def test_run_agent_launch_body_known_project_ref_without_provider_targets_project(
     tmp_path: Path,
 ) -> None:
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
     app = _LaunchBodyApp()
     app._prompt_context = _fake_context()
     workspace = tmp_path / "sase"
     workspace.mkdir()
+    allocated_workspace = tmp_path / "sase_101"
+    allocated_workspace.mkdir()
     project_file = str(Path.home() / ".sase" / "projects" / "sase" / "sase.gp")
 
     with ExitStack() as stack:
@@ -434,6 +438,18 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
             patch(
                 "sase.xprompt.loader.get_known_project_workspaces",
                 return_value={"sase": workspace},
+            )
+        )
+        first_ws = stack.enter_context(
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                return_value=101,
+            )
+        )
+        ws_dir = stack.enter_context(
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(allocated_workspace), None),
             )
         )
         stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
@@ -456,8 +472,10 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
     assert launch["prompt"] == "#gh:sase #!sase/fix_just"
     assert launch["project_name"] == "sase"
     assert launch["project_file"] == project_file
-    assert launch["workspace_dir"] == str(workspace)
-    assert launch["workspace_num"] == 0
+    assert launch["workspace_dir"] == str(allocated_workspace)
+    assert launch["workspace_num"] == 101
     assert launch["is_home_mode"] is False
-    assert launch["update_target"] == ""
+    assert launch["update_target"] == VCS_DEFAULT_REVISION
     assert launch["vcs_ref"] == ("gh", "sase")
+    first_ws.assert_called_once_with(project_file)
+    ws_dir.assert_called_once_with(101, "sase")

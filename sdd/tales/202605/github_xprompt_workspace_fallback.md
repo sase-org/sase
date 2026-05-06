@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 13:22:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/github_xprompt_workspace_fallback.md
 ---
 # Plan: Fix GitHub xprompt workspace fallback

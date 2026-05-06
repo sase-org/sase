@@ -45,6 +45,14 @@ def _remove_inherited_sase_codex_home(env: dict[str, str]) -> None:
         env.pop("CODEX_HOME", None)
 
 
+def _remove_inherited_workspace_preallocation_env(env: dict[str, str]) -> None:
+    """Drop stale workspace preallocation env inherited from a parent launch."""
+    suffixes = ("_PRE_ALLOCATED", "_WORKSPACE_NUM", "_WORKSPACE_DIR")
+    for key in list(env):
+        if key.startswith("SASE_") and key.endswith(suffixes):
+            env.pop(key, None)
+
+
 @lru_cache(maxsize=1)
 def _get_runner_script() -> str:
     import importlib.util
@@ -213,6 +221,7 @@ def spawn_agent_subprocess(
     with timer.stage("env_shape"):
         subprocess_env = dict(os.environ)
         _remove_inherited_sase_codex_home(subprocess_env)
+        _remove_inherited_workspace_preallocation_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
 
     resolved_project_name = project_name or (
@@ -496,7 +505,6 @@ def launch_agent_from_cwd(
 
     has_wait = has_wait_directive(query)
     vcs_ref: tuple[str, str] | None = None
-    known_project_vcs_fallback = False
     workspace_dir: str | None = None
 
     # Try full VCS ref resolution — this updates project_file, workspace_dir,
@@ -519,11 +527,10 @@ def launch_agent_from_cwd(
         if known_ref is not None:
             project_file = known_ref.project_file
             project_name = known_ref.ref
-            workspace_dir = known_ref.workspace_dir
+            workspace_dir = None if not has_wait else known_ref.workspace_dir
             workspace_num = 0
             vcs_ref = (known_ref.workflow_type, known_ref.ref)
             is_home_mode = False
-            known_project_vcs_fallback = True
 
     if vcs_ref is None and not is_home_mode:
         from sase.workspace_provider import get_ref_patterns
@@ -566,7 +573,7 @@ def launch_agent_from_cwd(
     if vcs_ref is not None:
         cl_name = vcs_ref[1]
         history_sort_key = vcs_ref[1]
-        if known_project_vcs_fallback or is_non_workspace_workflow(vcs_ref[0]):
+        if is_non_workspace_workflow(vcs_ref[0]):
             update_target = ""
         else:
             from sase.vcs_provider import VCS_DEFAULT_REVISION

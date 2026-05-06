@@ -263,13 +263,29 @@ class AgentLaunchMixin(
 
                     known_ref = resolve_known_project_vcs_launch_ref(_vcs_prompt)
                     if known_ref is not None:
+                        from sase.running_field import (
+                            get_first_available_axe_workspace,
+                            get_workspace_directory_for_num,
+                        )
+                        from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+                        workspace_num = 0
+                        workspace_dir = known_ref.workspace_dir
+                        if not has_wait:
+                            workspace_num = get_first_available_axe_workspace(
+                                known_ref.project_file
+                            )
+                            workspace_dir, _ = get_workspace_directory_for_num(
+                                workspace_num, known_ref.ref
+                            )
+
                         ctx.project_file = known_ref.project_file
                         ctx.project_name = known_ref.ref
-                        ctx.workspace_dir = known_ref.workspace_dir
-                        ctx.workspace_num = 0
+                        ctx.workspace_dir = workspace_dir
+                        ctx.workspace_num = workspace_num
                         ctx.display_name = known_ref.ref
                         ctx.history_sort_key = known_ref.ref
-                        ctx.update_target = ""
+                        ctx.update_target = VCS_DEFAULT_REVISION
                         ctx.is_home_mode = False
                         vcs_ref = (known_ref.workflow_type, known_ref.ref)
                         known_project_vcs_fallback = True
