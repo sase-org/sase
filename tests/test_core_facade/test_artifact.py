@@ -622,6 +622,80 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     assert removed.nodes_removed == 1
 
 
+def test_artifact_facade_real_extension_file_type_query_and_doctor_issue(
+    tmp_path: Path,
+) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    required = {"artifact_add", "artifact_list", "artifact_doctor"}
+    missing = sorted(name for name in required if not hasattr(rust_module, name))
+    if missing:
+        pytest.skip(f"sase_core_rs is too old: missing {missing}")
+
+    index_path = tmp_path / "artifacts.sqlite"
+    plan_path = tmp_path / "plan.md"
+    legacy_path = tmp_path / "legacy.log"
+    plan_node = ArtifactNodeWire(
+        id=str(plan_path),
+        kind=ARTIFACT_KIND_FILE,
+        display_title="plan.md",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+        search_text="typed plan",
+        metadata={ARTIFACT_FILE_TYPE_METADATA_KEY: ARTIFACT_FILE_TYPE_PLAN},
+    )
+    legacy_node = ArtifactNodeWire(
+        id=str(legacy_path),
+        kind=ARTIFACT_KIND_FILE,
+        display_title="legacy.log",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+        search_text="legacy file",
+    )
+    orphan_dir = ArtifactNodeWire(
+        id="manual-empty-dir",
+        kind="directory",
+        display_title="manual-empty-dir",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+    )
+
+    for node in (plan_node, legacy_node, orphan_dir):
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactNodeUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                node=node,
+            ),
+        )
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactLinkUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                link=ArtifactLinkWire(
+                    id=f"parent:{node.id}->/",
+                    link_type=ARTIFACT_LINK_PARENT,
+                    source_id=node.id,
+                    target_id=ARTIFACT_ROOT_ID,
+                    provenance=ARTIFACT_PROVENANCE_MANUAL,
+                ),
+            ),
+        )
+
+    assert artifact_facade.artifact_list(
+        index_path,
+        ArtifactQueryWire(file_types=(ARTIFACT_FILE_TYPE_PLAN,)),
+    ) == [plan_node]
+    assert artifact_facade.artifact_list(
+        index_path,
+        ArtifactQueryWire(file_types=(ARTIFACT_FILE_TYPE_MISC,)),
+    ) == [legacy_node]
+
+    doctor = artifact_facade.artifact_doctor(index_path)
+    assert doctor.ok is False
+    assert any(
+        issue.issue_type == "orphan_directory"
+        and issue.artifact_id == "manual-empty-dir"
+        for issue in doctor.issues
+    )
+
+
 def test_artifact_facade_real_extension_rejects_invalid_requests(
     tmp_path: Path,
 ) -> None:

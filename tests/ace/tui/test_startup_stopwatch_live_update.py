@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -105,6 +106,45 @@ def test_start_post_mount_background_loads_schedules_both_once() -> None:
     assert scheduled.count(app._run_agents_async_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert app._post_mount_background_loads_started is True
+
+
+def test_start_post_mount_background_loads_does_not_sync_artifact_graph(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Startup may watch artifact sources, but must not run broad graph sync."""
+
+    class FakeWatcher:
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            self.args = args
+            self.kwargs = kwargs
+
+        def start(self) -> bool:
+            return True
+
+    app = AceApp()
+    scheduled: list[object] = []
+    projects_dir = tmp_path / ".sase" / "projects" / "acme" / "artifacts"
+    projects_dir.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.startup.ArtifactWatcher",
+        FakeWatcher,
+    )
+
+    def fail_rebuild(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("sase ace startup must not sync artifact graph")
+
+    monkeypatch.setattr("sase.core.artifact_facade.artifact_rebuild", fail_rebuild)
+    with patch.object(
+        app,
+        "run_worker",
+        side_effect=lambda fn, **kwargs: scheduled.append(fn),
+    ):
+        app._start_post_mount_background_loads()
+
+    assert scheduled == [app._run_agents_async_refresh, app._run_axe_startup_init]
+    assert app._fs_watcher is not None
 
 
 @pytest.mark.asyncio
