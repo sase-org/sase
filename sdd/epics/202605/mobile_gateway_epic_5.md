@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-06 16:08:33
+bead_id: sase-26.5
+tier: epic
+legend_bead_id: sase-26
 status: wip
 prompt: sdd/prompts/202605/mobile_gateway_epic_5.md
 ---
