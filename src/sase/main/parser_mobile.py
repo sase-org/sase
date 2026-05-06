@@ -15,6 +15,22 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="mobile_subcommand", help="Mobile subcommands"
     )
 
+    agent_bridge_parser = mobile_subparsers.add_parser(
+        "agent-bridge",
+        help=argparse.SUPPRESS,
+    )
+    agent_bridge_subparsers = agent_bridge_parser.add_subparsers(
+        dest="mobile_agent_bridge_subcommand",
+    )
+    agent_bridge_subparsers.add_parser(
+        "list-agents",
+        help=argparse.SUPPRESS,
+    )
+    agent_bridge_subparsers.add_parser(
+        "resume-options",
+        help=argparse.SUPPRESS,
+    )
+
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",
         help="Manage the workstation-hosted mobile gateway",
@@ -60,4 +76,9 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "--startup-timeout",
         type=float,
         help="Seconds to wait for startup before exiting",
+    )
+    start_parser.add_argument(
+        "-A",
+        "--agent-bridge-command",
+        help=argparse.SUPPRESS,
     )

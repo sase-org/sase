@@ -48,6 +48,7 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
                 "state_dir": str(tmp_path / "state"),
                 "allow_non_loopback": True,
                 "command": "sase_gateway --extra",
+                "agent_bridge_command": "sase",
                 "startup_timeout_seconds": "2.5",
             }
         },
@@ -58,6 +59,7 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
             state_dir=tmp_path / "state",
             allow_non_loopback=True,
             command=("sase_gateway", "--extra"),
+            agent_bridge_command=("sase",),
             startup_timeout_seconds=2.5,
         )
 
@@ -137,6 +139,8 @@ def test_parser_accepts_mobile_gateway_start() -> None:
             "sase_gateway",
             "-T",
             "1",
+            "-A",
+            "sase",
         ]
     )
 
@@ -149,6 +153,7 @@ def test_parser_accepts_mobile_gateway_start() -> None:
     assert args.allow_non_loopback is True
     assert args.gateway_command == "sase_gateway"
     assert args.startup_timeout == 1
+    assert args.agent_bridge_command == "sase"
 
 
 class _FakeResponse:
