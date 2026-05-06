@@ -18,7 +18,6 @@ from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
     AgentWorkflowMixin,
-    ArtifactsMixin,
     AxeMixin,
     BaseActionsMixin,
     ChangeSpecMixin,
@@ -78,7 +77,6 @@ _MAX_AGENT_LIST_WIDTH = 130
 
 class AceApp(
     AgentWorkflowMixin,
-    ArtifactsMixin,
     AgentsMixin,
     AxeMixin,
     ChangeSpecMixin,

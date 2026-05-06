@@ -13,10 +13,6 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import derive_agent_bead_id
-from sase.ace.tui.models.artifact_indicator import (
-    artifact_indicator_from_summary,
-    render_artifact_indicator,
-)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
@@ -28,7 +24,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     render_phase_divider,
 )
 from sase.bead.model import BeadTier, Issue, IssueType
-from sase.core.artifact_wire import ArtifactSummaryWire, ArtifactTypeCountWire
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -42,21 +37,6 @@ def _make_agent(**overrides: object) -> Agent:
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
-
-
-def _artifact_summary() -> ArtifactSummaryWire:
-    return ArtifactSummaryWire(
-        artifact_id="agent-a",
-        state="ok",
-        total_linked_count=4,
-        file_type_counts=[
-            ArtifactTypeCountWire(artifact_type="chat", total_count=2),
-            ArtifactTypeCountWire(artifact_type="diff", total_count=1),
-        ],
-        kind_counts=[
-            ArtifactTypeCountWire(artifact_type="bead", total_count=1),
-        ],
-    )
 
 
 class _FakePromptPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
@@ -107,84 +87,6 @@ def _make_artifact_agent(
 
 
 # -- xprompt rendering --------------------------------------------------------
-
-
-def test_agent_row_renders_shared_artifact_indicator() -> None:
-    agent = _make_agent(agent_name="agent-a")
-    indicator = artifact_indicator_from_summary(_artifact_summary())
-    assert indicator is not None
-
-    left, _, _ = format_agent_option(
-        agent,
-        0,
-        is_selected=False,
-        artifact_indicator=indicator,
-    )
-
-    shared = render_artifact_indicator(indicator)
-    assert shared.plain == "art 4 diff1 chat2 bead1"
-    assert left.plain.endswith(f"  {shared.plain}")
-    row_tail = left.plain.rfind(shared.plain)
-    row_styles = {span.style for span in left.spans if span.end > row_tail}
-    assert {span.style for span in shared.spans}.issubset(row_styles)
-
-
-def test_workflow_parent_and_child_rows_render_artifact_indicators() -> None:
-    parent_indicator = artifact_indicator_from_summary(
-        ArtifactSummaryWire(
-            artifact_id="workflow-agent",
-            state="ok",
-            total_linked_count=1,
-            file_type_counts=[
-                ArtifactTypeCountWire(artifact_type="plan", total_count=1),
-            ],
-        )
-    )
-    child_indicator = artifact_indicator_from_summary(
-        ArtifactSummaryWire(
-            artifact_id="workflow-child",
-            state="ok",
-            total_linked_count=1,
-            file_type_counts=[
-                ArtifactTypeCountWire(artifact_type="diff", total_count=1),
-            ],
-        )
-    )
-    assert parent_indicator is not None
-    assert child_indicator is not None
-
-    parent = _make_agent(
-        agent_type=AgentType.WORKFLOW,
-        workflow="deploy",
-        cl_name="demo",
-        raw_suffix="20260506120000",
-    )
-    child = _make_agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="demo",
-        parent_workflow="deploy",
-        parent_timestamp="20260506120000",
-        step_type="agent",
-        step_index=0,
-        total_steps=2,
-    )
-
-    parent_left, _, _ = format_agent_option(
-        parent,
-        0,
-        is_selected=False,
-        artifact_indicator=parent_indicator,
-    )
-    child_left, _, _ = format_agent_option(
-        child,
-        1,
-        is_selected=False,
-        artifact_indicator=child_indicator,
-    )
-
-    assert "art 1 plan1" in parent_left.plain
-    assert "1/2" in child_left.plain
-    assert "art 1 diff1" in child_left.plain
 
 
 class TestAgentXPromptRendering:

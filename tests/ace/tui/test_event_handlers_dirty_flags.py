@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,7 +14,6 @@ from sase.ace.tui.actions.event_handlers import (
     PROMPT_INPUT_DEFER_SECONDS,
     EventHandlersMixin,
 )
-from sase.ace.tui.models.artifact_summary_cache import ArtifactSummaryCache
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -42,7 +42,6 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_agents = False
         self._dirty_axe = False
         self._artifact_change_defer_pending = False
-        self._artifact_summary_cache = ArtifactSummaryCache()
         self._last_full_sanity_refresh = time.monotonic()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
@@ -125,7 +124,6 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app._dirty_changespecs is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
-    assert app._artifact_summary_cache.version == 0
     # Existing scheduling behavior preserved.
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
@@ -186,6 +184,23 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     delay, callback = app.deferred_calls[0]
     assert delay == PROMPT_INPUT_DEFER_SECONDS
     assert callback == app._on_artifact_change_deferred
+
+
+def test_artifact_change_preserves_deferred_paths_during_prompt_input(
+    tmp_path: Path,
+) -> None:
+    app = _FakeApp(watcher_active=True)
+    app._plan_feedback_context = object()
+    changed = (tmp_path / "proj.gp",)
+
+    app._on_artifact_change(changed)
+
+    assert app._artifact_change_deferred_paths == changed
+
+    app._plan_feedback_context = None
+    app._on_artifact_change_deferred()
+
+    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
 
 def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:

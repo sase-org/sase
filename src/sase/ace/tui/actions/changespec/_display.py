@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
-    from ...models.artifact_indicator import ArtifactIndicator
     from ...models.fold_state import FoldLevel
     from ...util.debounce import DetailPanelDebouncer
 
@@ -163,16 +162,12 @@ class ChangeSpecDisplayMixin:
             if self._entry_jump_mode_active
             else None
         )
-        artifact_indicator = self._artifact_indicator_for_changespec(
-            self.changespecs[idx]
-        )
         return list_widget.patch_changespec_row(  # type: ignore[no-any-return]
             idx,
             self.changespecs[idx],
             selected=(idx == self.current_idx),
             marked=(idx in self.marked_indices),
             hint=hint,
-            artifact_indicator=artifact_indicator,
         )
 
     def _refresh_changespec_detail_only(self) -> None:
@@ -426,7 +421,6 @@ class ChangeSpecDisplayMixin:
             fold_registry=fold_registry,
             current_group_key=current_group_key,
             banner_jump_hints=banner_jump_hints,
-            artifact_indicators=self._artifact_indicators_for_changespecs(),
         )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
@@ -456,30 +450,6 @@ class ChangeSpecDisplayMixin:
             self._sibling_keys = {}
 
         self._update_info_panel()
-
-    def _artifact_indicator_for_changespec(
-        self,
-        changespec: ChangeSpec,
-    ) -> ArtifactIndicator | None:
-        """Return the cached row artifact indicator for one ChangeSpec."""
-        cache = getattr(self, "_artifact_summary_cache", None)
-        if cache is None:
-            return None
-        from ...models.artifact_indicator import artifact_indicator_from_summary
-
-        return artifact_indicator_from_summary(
-            cache.get(changespec.name),
-            changespec.name,
-        )
-
-    def _artifact_indicators_for_changespecs(self) -> dict[str, ArtifactIndicator]:
-        """Build ChangeSpec name -> indicator mapping without loading summaries."""
-        indicators: dict[str, ArtifactIndicator] = {}
-        for changespec in self.changespecs:
-            indicator = self._artifact_indicator_for_changespec(changespec)
-            if indicator is not None:
-                indicators[changespec.name] = indicator
-        return indicators
 
     def _update_info_panel(self) -> None:
         """Update the info panel with current position and countdown."""

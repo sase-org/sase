@@ -73,7 +73,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.show_diff), "Show diff"),
                 (d(a.edit_hooks), "Edit hooks"),
                 (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
-                (d(a.open_artifacts_panel), "Artifacts"),
+                (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.mail), "Mail CL"),
                 (d(a.toggle_mark), "Mark/unmark current CL"),
                 (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),
@@ -336,7 +336,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.toggle_mark), "Mark/unmark current agent"),
                 (d(a.clear_marks), "Clear all agent marks"),
                 (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
-                (d(a.open_artifacts_panel), "Artifacts"),
+                (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (
@@ -545,7 +545,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             "Background Commands",
             [
                 (d(a.start_custom_agent), "Run agent"),
-                (d(a.open_artifacts_panel), "Artifacts"),
+                (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),
                 (d(a.run_workflow), "Re-run selected done command"),
             ],

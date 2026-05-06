@@ -11,7 +11,6 @@ from ..models.changespec_groups import (
     ChangeSpecGroupingMode,
     ChangeSpecGroupRow,
 )
-from ..models.artifact_indicator import ArtifactIndicator
 from ..models.group_fold import GroupFoldRegistry, GroupKey
 from ..util.trace import tui_trace
 from ._changespec_list_helpers import (
@@ -99,7 +98,6 @@ class ChangeSpecList(OptionList):
         fold_registry: GroupFoldRegistry | None = None,
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
-        artifact_indicators: dict[str, ArtifactIndicator] | None = None,
         now: datetime | None = None,
     ) -> None:
         """Update the list with new changespecs.
@@ -123,8 +121,6 @@ class ChangeSpecList(OptionList):
             banner_jump_hints: Group key -> hint character for collapsed
                 banner rows (Phase 4 wires the producer side; the widget
                 only needs to render whatever it is given).
-            artifact_indicators: Optional ChangeSpec name -> row artifact
-                indicator mapping from the shared artifact summary cache.
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
                 ``datetime.now()`` inside the tree builder.
         """
@@ -140,7 +136,6 @@ class ChangeSpecList(OptionList):
                 fold_registry=fold_registry,
                 current_group_key=current_group_key,
                 banner_jump_hints=banner_jump_hints,
-                artifact_indicators=artifact_indicators,
                 now=now,
             )
 
@@ -156,7 +151,6 @@ class ChangeSpecList(OptionList):
         fold_registry: GroupFoldRegistry | None = None,
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
-        artifact_indicators: dict[str, ArtifactIndicator] | None = None,
         now: datetime | None = None,
     ) -> None:
         self._programmatic_update = True
@@ -186,7 +180,6 @@ class ChangeSpecList(OptionList):
             fold_registry=fold_registry,
             current_group_key=current_group_key,
             banner_jump_hints=banner_jump_hints,
-            artifact_indicators=artifact_indicators,
             now=now,
         )
 
@@ -265,7 +258,6 @@ class ChangeSpecList(OptionList):
         selected: bool,
         marked: bool,
         hint: str | None = None,
-        artifact_indicator: ArtifactIndicator | None = None,
     ) -> bool:
         """Replace one ChangeSpec's Option in place when shape didn't change.
 
@@ -281,7 +273,6 @@ class ChangeSpecList(OptionList):
                 selected=selected,
                 marked=marked,
                 hint=hint,
-                artifact_indicator=artifact_indicator,
             )
 
     def _patch_changespec_row_impl(
@@ -292,7 +283,6 @@ class ChangeSpecList(OptionList):
         selected: bool,
         marked: bool,
         hint: str | None,
-        artifact_indicator: ArtifactIndicator | None,
     ) -> bool:
         if not (0 <= idx < len(self._changespecs)):
             return False
@@ -323,7 +313,6 @@ class ChangeSpecList(OptionList):
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
         # Container width was posted at full-rebuild time as
         # ``_target_width = max_content_width + _PADDING``. A patched row
@@ -341,7 +330,6 @@ class ChangeSpecList(OptionList):
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
 
         self._programmatic_update = True
@@ -359,7 +347,6 @@ class ChangeSpecList(OptionList):
             self._marked_indices.discard(idx)
         self._row_widths_by_idx[idx] = new_width
         self._row_render_ctx[idx]["mentor_stats"] = stats
-        self._row_render_ctx[idx]["artifact_indicator"] = artifact_indicator
         self._last_row_signature_by_idx[idx] = row_signature(
             changespec,
             is_selected=selected,
@@ -368,7 +355,6 @@ class ChangeSpecList(OptionList):
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
         return True
 

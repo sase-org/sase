@@ -2,7 +2,6 @@
 
 from .agent_workflow import AgentWorkflowMixin
 from .agents import AgentMarkingMixin, AgentsMixin
-from .artifacts import ArtifactsMixin
 from .axe import AxeMixin
 from .base import BaseActionsMixin
 from .changespec import ChangeSpecMixin
@@ -25,7 +24,6 @@ __all__ = [
     "AgentMarkingMixin",
     "AgentsMixin",
     "AgentWorkflowMixin",
-    "ArtifactsMixin",
     "AxeMixin",
     "BaseActionsMixin",
     "ChangeSpecMixin",

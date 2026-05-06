@@ -11,7 +11,6 @@ import pytest
 from textual.app import App
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.artifact_indicator import ArtifactIndicator
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
     agent_render_key,
@@ -151,37 +150,6 @@ def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
     assert k1 != k2
 
 
-def test_render_key_changes_when_artifact_indicator_changes() -> None:
-    a = _agent()
-    before = ArtifactIndicator(artifact_id="agent-a", state="missing")
-    after = ArtifactIndicator(artifact_id="agent-a", state="ok", total_count=1)
-
-    k1 = agent_render_key(
-        a,
-        0,
-        is_selected=False,
-        fold_annotation="",
-        is_expanded=False,
-        is_marked=False,
-        hint_char=None,
-        now=None,
-        artifact_indicator=before,
-    )
-    k2 = agent_render_key(
-        a,
-        0,
-        is_selected=False,
-        fold_annotation="",
-        is_expanded=False,
-        is_marked=False,
-        hint_char=None,
-        now=None,
-        artifact_indicator=after,
-    )
-
-    assert k1 != k2
-
-
 # --- cache hit / miss --------------------------------------------------------
 
 
@@ -203,36 +171,6 @@ def test_cached_format_agent_option_invalidates_on_field_change() -> None:
     a.approve = True
     parts_after = cached_format_agent_option(cache, a, 0, is_selected=False, now=None)
     # Different cache key → different cached entry → different Text instance.
-    assert parts_before[0] is not parts_after[0]
-
-
-def test_cached_format_agent_option_invalidates_on_indicator_change() -> None:
-    cache = AgentRenderCache()
-    a = _agent()
-    parts_before = cached_format_agent_option(
-        cache,
-        a,
-        0,
-        is_selected=False,
-        now=None,
-        artifact_indicator=ArtifactIndicator(
-            artifact_id="agent-a",
-            state="missing",
-        ),
-    )
-    parts_after = cached_format_agent_option(
-        cache,
-        a,
-        0,
-        is_selected=False,
-        now=None,
-        artifact_indicator=ArtifactIndicator(
-            artifact_id="agent-a",
-            state="ok",
-            total_count=1,
-        ),
-    )
-
     assert parts_before[0] is not parts_after[0]
 
 
@@ -330,39 +268,3 @@ async def test_patch_agent_row_reflects_mark_change() -> None:
         # unmarked one — the cached path must not return the stale Text.
         assert "[✓]" in str(prompt_marked)
         assert "[✓]" not in str(prompt_unmarked)
-
-
-@pytest.mark.asyncio
-async def test_patch_agent_row_reflects_artifact_indicator_change() -> None:
-    app = _Harness()
-    async with app.run_test() as pilot:
-        widget = app.query_one(AgentList)
-        a = _agent()
-        widget.update_list(
-            [a],
-            current_idx=0,
-            artifact_indicators={
-                0: ArtifactIndicator(
-                    artifact_id="agent-a",
-                    state="missing",
-                )
-            },
-        )
-        await pilot.pause()
-        row = _agent_row_index(widget, 0)
-        prompt_missing = widget.get_option_at_index(row).prompt
-
-        ok = widget.patch_agent_row(
-            0,
-            artifact_indicator=ArtifactIndicator(
-                artifact_id="agent-a",
-                state="ok",
-                total_count=1,
-            ),
-        )
-        await pilot.pause()
-        prompt_ok = widget.get_option_at_index(row).prompt
-
-        assert ok
-        assert "art ?" in str(prompt_missing)
-        assert "art 1" in str(prompt_ok)

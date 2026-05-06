@@ -324,9 +324,7 @@ class AgentLoadingMixin:
         # dim ellipsis on tab label / info panel) on the first completed
         # load. Safe to call every refresh -- flag stays True and the
         # widget setters are idempotent.
-        first_agent_load = not self._agents_first_load_done
-        self._skip_next_agent_artifact_summary_load = first_agent_load
-        if first_agent_load:
+        if not self._agents_first_load_done:
             self._agents_first_load_done = True
             from ...widgets import AgentInfoPanel, AgentList
 

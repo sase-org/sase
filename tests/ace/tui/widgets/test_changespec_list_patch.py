@@ -17,8 +17,6 @@ from sase.ace.tui.widgets._changespec_list_helpers import (
     calculate_entry_display_width,
     format_changespec_option,
 )
-from sase.core.artifact_wire import ArtifactSummaryWire, ArtifactTypeCountWire
-from sase.ace.tui.models.artifact_indicator import ArtifactIndicator
 
 
 def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
@@ -31,19 +29,6 @@ def _wire_widget(monkeypatch: Any) -> tuple[ChangeSpecList, list[Message]]:
     monkeypatch.setattr(widget, "call_later", _call_later)
     monkeypatch.setattr(widget, "post_message", posted.append)
     return widget, posted
-
-
-def _indicator(total: int = 2) -> ArtifactIndicator:
-    return ArtifactIndicator.from_wire(
-        ArtifactSummaryWire(
-            artifact_id="alpha",
-            state="ok",
-            total_linked_count=total,
-            file_type_counts=[
-                ArtifactTypeCountWire(artifact_type="plan", total_count=total)
-            ],
-        )
-    )
 
 
 def _seed_flat_patch_state(widget: ChangeSpecList, cs: Any) -> None:
@@ -63,7 +48,6 @@ def _seed_flat_patch_state(widget: ChangeSpecList, cs: Any) -> None:
             "show_hideable": False,
             "show_submitted": False,
             "mentor_stats": None,
-            "artifact_indicator": None,
         }
     }
     widget._last_row_signature_by_idx = {}
@@ -128,45 +112,3 @@ def test_patch_records_optimal_target_width(monkeypatch: Any) -> None:
     assert widget._target_width > 0
     # Name index map populated.
     assert widget._option_idx_by_changespec_name == {"alpha": 0}
-
-
-def test_patch_renders_artifact_indicator_and_updates_signature(
-    monkeypatch: Any,
-) -> None:
-    widget, _ = _wire_widget(monkeypatch)
-    cs0 = make_changespec(name="alpha")
-    indicator = _indicator()
-    _seed_flat_patch_state(widget, cs0)
-    widget._target_width = 999
-
-    ok = widget.patch_changespec_row(
-        0,
-        cs0,
-        selected=True,
-        marked=False,
-        artifact_indicator=indicator,
-    )
-
-    assert ok is True
-    prompt = widget.get_option_at_index(0).prompt
-    assert "art 2 plan2" in prompt.plain  # type: ignore[union-attr]
-    assert widget._last_row_signature_by_idx[0][-1] == indicator.render_signature
-
-
-def test_patch_falls_back_when_artifact_indicator_exceeds_cached_width(
-    monkeypatch: Any,
-) -> None:
-    widget, _ = _wire_widget(monkeypatch)
-    cs0 = make_changespec(name="alpha")
-    _seed_flat_patch_state(widget, cs0)
-    widget._target_width = widget._row_widths_by_idx[0]
-
-    ok = widget.patch_changespec_row(
-        0,
-        cs0,
-        selected=True,
-        marked=False,
-        artifact_indicator=_indicator(total=20),
-    )
-
-    assert ok is False

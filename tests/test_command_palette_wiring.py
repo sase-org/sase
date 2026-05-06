@@ -417,7 +417,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             ids = {s.id for s in modal._all_specs}
             # All CLs-tab applicable specs are present:
             assert "app.refresh" in ids
-            assert "app.open_artifacts_panel" in ids
+            assert "app.show_agent_run_log" in ids
             # Specs that only apply to other tabs are excluded by tab scope:
             assert "app.toggle_attempt_view" not in ids
 

@@ -15,7 +15,6 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType
-from ..models.artifact_indicator import ArtifactIndicator
 from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
@@ -170,7 +169,6 @@ def build_list(
     current_group_key: tuple[str, ...] | None = None,
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
-    artifact_indicators: dict[int, ArtifactIndicator] | None = None,
 ) -> None:
     """Rebuild *widget*'s OptionList from scratch for ``agents``.
 
@@ -190,8 +188,6 @@ def build_list(
     widget._banner_row_by_key = {}
 
     marked = marked_agents or set()
-    indicators = artifact_indicators or {}
-
     parents_with_visible_children, fully_expanded_parents = _compute_visible_parents(
         agents
     )
@@ -228,7 +224,6 @@ def build_list(
         is_selected_agent = current_group_key is None and i == current_idx
         hint = (jump_hints or {}).get(i)
         tier_styles = agent_tier_styles.get(i, ())
-        artifact_indicator = indicators.get(i)
         left, suffix, option_id = cached_format_agent_option(
             widget._agent_render_cache,
             agent,
@@ -240,7 +235,6 @@ def build_list(
             hint_char=hint,
             now=now,
             tier_styles=tier_styles,
-            artifact_indicator=artifact_indicator,
         )
         agent_parts[i] = (left, suffix, option_id)
         widget._row_render_ctx[i] = {
@@ -249,7 +243,6 @@ def build_list(
             "is_marked": is_marked,
             "hint_char": hint,
             "is_selected": is_selected_agent,
-            "artifact_indicator": artifact_indicator,
         }
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)
@@ -475,7 +468,6 @@ def patch_row(
     marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
     is_selected: bool | None = None,
     now: datetime | None = None,
-    artifact_indicator: ArtifactIndicator | None = None,
 ) -> bool:
     """Replace one agent row's Option in place; return ``True`` on success.
 
@@ -498,12 +490,6 @@ def patch_row(
         ctx["is_marked"] if marked_agents is None else agent.identity in marked_agents
     )
     sel = ctx["is_selected"] if is_selected is None else is_selected
-    indicator = (
-        artifact_indicator
-        if artifact_indicator is not None
-        else ctx.get("artifact_indicator")
-    )
-
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of
     # mid-list mutations and must not return a stale cache hit.
@@ -520,7 +506,6 @@ def patch_row(
         hint_char=ctx["hint_char"],
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
-        artifact_indicator=indicator,
     )
 
     gap = 2 if suffix.cell_len else 0
@@ -533,7 +518,6 @@ def patch_row(
 
     ctx["is_marked"] = is_marked
     ctx["is_selected"] = sel
-    ctx["artifact_indicator"] = indicator
 
     widget._programmatic_update = True
     try:

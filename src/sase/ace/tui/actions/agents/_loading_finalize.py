@@ -236,8 +236,6 @@ def finalize_agent_list(
         enumerate_group_keys(app._agents, mode=grouping_mode)
     )
 
-    _load_agent_artifact_summaries(app)
-
     # Update the running agent counts on the tab bar.
     # Exclude workflow children -- they are sub-steps of a parent agent
     # and should not inflate the top-level running count.
@@ -300,16 +298,3 @@ def finalize_agent_list(
                 agent_detail = None
             if agent_detail is not None:
                 agent_detail.refresh_current_file(selected_agent)
-
-
-def _load_agent_artifact_summaries(app: AgentLoadingMixin) -> None:
-    """Load row artifact summaries for a full Agents list refresh."""
-    if getattr(app, "_skip_next_agent_artifact_summary_load", False):
-        app._skip_next_agent_artifact_summary_load = False  # type: ignore[attr-defined]
-        return
-    cache = getattr(app, "_artifact_summary_cache", None)
-    if cache is None:
-        return
-    from ..artifact_summaries import load_agent_artifact_summaries
-
-    load_agent_artifact_summaries(cache, app._agents)

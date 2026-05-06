@@ -15,7 +15,6 @@ from textual.widgets.option_list import Option
 
 from ..models.agent import Agent
 from ..models.agent_bead import derive_agent_bead_id
-from ..models.artifact_indicator import ArtifactIndicator
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import runtime_suffix_ticks
 
@@ -87,7 +86,6 @@ def agent_render_key(
     hint_char: str | None,
     now: datetime | None,
     tier_styles: tuple[str, ...] = (),
-    artifact_indicator: ArtifactIndicator | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -125,11 +123,6 @@ def agent_render_key(
         agent.display_name,
         agent.cl_name,
         tier_styles,
-        (
-            artifact_indicator.render_signature
-            if artifact_indicator is not None
-            else None
-        ),
         _runtime_signature(agent, now),
     )
 

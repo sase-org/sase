@@ -109,7 +109,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("focus_prev_agent_panel", "Prev Panel", False),
     ("cycle_grouping_mode", "Cycle Grouping", False),
     ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
-    ("open_artifacts_panel", "Artifacts", False),
+    ("show_agent_run_log", "Agent Run Log", False),
     ("open_command_palette", "Command Palette", False),
 ]
 
@@ -268,7 +268,7 @@ class AppKeymaps:
     start_agent_from_changespec: str
     jump_to_agent_changespec: str
     edit_panel: str
-    open_artifacts_panel: str
+    show_agent_run_log: str
     toggle_attempt_view: str
     add_agent_tag: str
     focus_next_agent_panel: str

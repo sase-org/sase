@@ -152,11 +152,11 @@ _APP_COMMAND_META: tuple[
     ),
     ("edit_panel", "Edit panel file", "Agents", _AGENTS_ONLY, ()),
     (
-        "open_artifacts_panel",
-        "Open artifacts panel",
-        "Display",
-        _ALL_TABS,
-        ("artifact", "graph"),
+        "show_agent_run_log",
+        "Show agent run log",
+        "Agents",
+        _CL_ONLY,
+        ("agent run log",),
     ),
     (
         "toggle_attempt_view",

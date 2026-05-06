@@ -323,10 +323,5 @@ class ChangeSpecLoadingMixin:
         self,
         changespecs: list[ChangeSpec],
     ) -> None:
-        """Load row artifact summaries for a full CL list refresh."""
-        cache = getattr(self, "_artifact_summary_cache", None)
-        if cache is None:
-            return
-        from ..artifact_summaries import load_changespec_artifact_summaries
-
-        load_changespec_artifact_summaries(cache, changespecs)
+        """Compatibility hook retained for callers during refresh."""
+        del changespecs

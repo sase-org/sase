@@ -21,7 +21,6 @@ from ..models.changespec_groups import (
     ChangeSpecGroupingMode,
     build_changespec_tree,
 )
-from ..models.artifact_indicator import ArtifactIndicator
 from ..models.group_fold import GroupFoldRegistry, GroupKey
 from ._changespec_list_banner import (
     CS_MIN_BANNER_WIDTH,
@@ -58,7 +57,6 @@ def render_grouped(
     fold_registry: GroupFoldRegistry | None,
     current_group_key: GroupKey | None,
     banner_jump_hints: dict[GroupKey, str] | None,
-    artifact_indicators: dict[str, ArtifactIndicator] | None,
     now: datetime | None,
 ) -> None:
     """Render banner rows + CL rows for the active grouping mode.
@@ -86,7 +84,6 @@ def render_grouped(
         is_marked = i in widget._marked_indices
         stats = compute_mentor_stats(cs)
         hint = (jump_hints or {}).get(i)
-        artifact_indicator = (artifact_indicators or {}).get(cs.name)
         cs_options[i] = format_changespec_option(
             cs,
             is_selected=(i == current_idx and current_group_key is None),
@@ -95,7 +92,6 @@ def render_grouped(
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
         cs_widths[i] = calculate_entry_display_width(
             cs,
@@ -104,7 +100,6 @@ def render_grouped(
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
         max_cs_width = max(max_cs_width, cs_widths[i])
         cs_signatures[i] = row_signature(
@@ -115,13 +110,11 @@ def render_grouped(
             show_submitted=show_submitted,
             mentor_stats=stats,
             hint_char=hint,
-            artifact_indicator=artifact_indicator,
         )
         cs_render_ctx[i] = {
             "show_hideable": show_hideable,
             "show_submitted": show_submitted,
             "mentor_stats": stats,
-            "artifact_indicator": artifact_indicator,
         }
 
     # Banner width: at least CS_MIN_BANNER_WIDTH and at least the

@@ -9,7 +9,6 @@ from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.changespec._core import ChangeSpecMixin
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals.agent_run_log_modal import AgentRunLogModal
-from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
 from sase.ace.tui.widgets import KeybindingFooter
 
 
@@ -46,19 +45,16 @@ def _make_cs(name: str) -> MagicMock:
     return cs
 
 
-def test_default_keymap_keeps_app_a_artifacts_and_leader_a_run_log() -> None:
+def test_default_keymap_binds_a_to_agent_run_log() -> None:
     registry = load_keymap_registry({})
 
-    assert registry.app.open_artifacts_panel == "A"
+    assert registry.app.show_agent_run_log == "A"
     assert registry.leader_mode.keys["agent_run_log"] == "A"
 
     bindings = build_app_bindings(registry.app)
     matches = [b for b in bindings if b.key == "A"]
     assert len(matches) == 1
-    assert matches[0].action == "open_artifacts_panel"
-    assert all(
-        binding[1] != "open_legacy_run_log" for binding in ArtifactPanelModal.BINDINGS
-    )
+    assert matches[0].action == "show_agent_run_log"
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:

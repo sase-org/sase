@@ -52,8 +52,8 @@ def test_edit_hooks_default_binding() -> None:
     assert reg.app.edit_hooks == "f"
 
 
-def test_help_modal_labels_capital_a_as_artifacts() -> None:
-    """Guard the ``A``/``,A`` help-label distinction."""
+def test_help_modal_labels_capital_a_as_agent_run_log() -> None:
+    """Guard the restored ``A`` Agent Run Log binding."""
     reg = load_keymap_registry({})
     cls_sections = cls_bindings(reg)
     agents_sections = agents_bindings(reg)
@@ -71,15 +71,7 @@ def test_help_modal_labels_capital_a_as_artifacts() -> None:
             for key, label in bindings
             if key == "A"
         }
-        assert "Artifacts" in action_labels
-        assert all("run log" not in label.lower() for label in action_labels)
-
-    for sections in (agents_sections, axe_sections):
-        assert all(
-            "run log" not in label.lower()
-            for _section, bindings in sections
-            for _key, label in bindings
-        )
+        assert "Agent run log" in action_labels
 
 
 def test_g_and_o_default_bindings_do_not_collide() -> None:
