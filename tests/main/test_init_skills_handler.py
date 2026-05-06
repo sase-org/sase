@@ -1,4 +1,4 @@
-"""Tests for ``sase init-skills`` command dispatch and target paths."""
+"""Tests for ``sase init-skills`` command dispatch."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.main import init_skills_handler
-from sase.main.init_skills_handler import _get_target_path, handle_init_skills_command
+from sase.main.init_skills_handler import handle_init_skills_command
 from tests.main.init_skills_handler_helpers import make_args, stub_skill_source
 
 
@@ -111,17 +111,3 @@ def test_handler_propagates_deploy_exit_code(
         handle_init_skills_command(make_args())
 
     assert exc.value.code == 1
-
-
-def test_get_target_path_claude_home(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Claude deploys to ~/.claude/skills/<name>/SKILL.md."""
-    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
-    target = _get_target_path("claude", "foo", use_chezmoi=False)
-    assert target == Path("/home/u/.claude/skills/foo/SKILL.md")
-
-
-def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Claude under chezmoi deploys to <CHEZMOI_HOME>/dot_claude/skills/..."""
-    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
-    target = _get_target_path("claude", "foo", use_chezmoi=True)
-    assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
