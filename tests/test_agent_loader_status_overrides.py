@@ -166,6 +166,101 @@ def test_apply_status_overrides_done_with_completed_feedback_becomes_planning() 
     assert parent.status == "PLANNING"
 
 
+def test_apply_status_overrides_deduplicates_feedback_child_feedback_time() -> None:
+    """Parent and feedback child holding the same feedback time render one event."""
+    feedback_time = datetime(2026, 5, 6, 0, 16, 35)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 12, 45),
+        raw_suffix="20260506001245",
+        role_suffix=".plan",
+        feedback_times=[feedback_time],
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 16, 35),
+        parent_timestamp="20260506001245",
+        role_suffix=".2",
+        feedback_times=[feedback_time],
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+
+    assert parent.feedback_times == [feedback_time]
+    assert parent.timestamps_display.count("FBACK") == 1
+
+
+def test_apply_status_overrides_propagates_new_feedback_child_plan_time() -> None:
+    """A feedback child plan submission still propagates when it is distinct."""
+    original_plan_time = datetime(2026, 5, 6, 0, 13, 0)
+    feedback_plan_time = datetime(2026, 5, 6, 0, 20, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 12, 45),
+        raw_suffix="20260506001245",
+        role_suffix=".plan",
+        plan_times=[original_plan_time],
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 16, 35),
+        parent_timestamp="20260506001245",
+        role_suffix=".2",
+        plan_times=[feedback_plan_time],
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+
+    assert parent.plan_times == [original_plan_time, feedback_plan_time]
+
+
+def test_apply_status_overrides_timestamp_propagation_is_idempotent() -> None:
+    """Reapplying overrides does not duplicate child timestamps on the parent."""
+    feedback_time = datetime(2026, 5, 6, 0, 16, 35)
+    question_time = datetime(2026, 5, 6, 0, 18, 0)
+    plan_time = datetime(2026, 5, 6, 0, 20, 0)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 12, 45),
+        raw_suffix="20260506001245",
+        role_suffix=".plan",
+    )
+    feedback_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 5, 6, 0, 16, 35),
+        parent_timestamp="20260506001245",
+        role_suffix=".2",
+        plan_times=[plan_time],
+        feedback_times=[feedback_time],
+        questions_times=[question_time],
+    )
+    agents = [parent, feedback_child]
+    _apply_status_overrides(agents)
+    _apply_status_overrides(agents)
+
+    assert parent.plan_times == [plan_time]
+    assert parent.feedback_times == [feedback_time]
+    assert parent.questions_times == [question_time]
+
+
 def test_apply_status_overrides_plan_rejected_stays_terminal() -> None:
     """A rejected plan is terminal, not another plan awaiting approval."""
     parent = Agent(

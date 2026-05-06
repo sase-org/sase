@@ -19,6 +19,15 @@ def is_coder_followup_suffix(suffix: str | None) -> bool:
     return suffix == PLAN_CHAIN_CODER_SUFFIX
 
 
+def _append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
+    """Append timestamps from source that are not already present in target."""
+    existing = set(target)
+    for timestamp in source:
+        if timestamp not in existing:
+            target.append(timestamp)
+            existing.add(timestamp)
+
+
 def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
     return (
@@ -68,11 +77,15 @@ def apply_status_overrides(agents: list[Agent]) -> None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 if agent.plan_times:
-                    parent.plan_times.extend(agent.plan_times)
+                    _append_unique_timestamps(parent.plan_times, agent.plan_times)
                 if agent.feedback_times:
-                    parent.feedback_times.extend(agent.feedback_times)
+                    _append_unique_timestamps(
+                        parent.feedback_times, agent.feedback_times
+                    )
                 if agent.questions_times:
-                    parent.questions_times.extend(agent.questions_times)
+                    _append_unique_timestamps(
+                        parent.questions_times, agent.questions_times
+                    )
                 # Active feedback round -> parent is processing feedback, not
                 # waiting for plan review.
                 if agent.status not in completed_statuses:
