@@ -264,13 +264,16 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         registry = self._group_fold_registry
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
             global_indices = [i for i, k in enumerate(keys_per_agent) if k == key]
-            panel_agents = agents_for_panel(self._agents, key)
+            panel_agents = agents_for_panel(
+                self._agents, key, merge_tag_panels=merge_tag_panels
+            )
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             for entry in tree:
                 if entry.kind == "group" and entry.group is not None:

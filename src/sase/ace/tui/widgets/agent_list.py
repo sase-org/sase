@@ -142,6 +142,7 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_registry: AgentGroupFoldRegistry | None = None,
         current_group_key: tuple[str, ...] | None = None,
         grouping_mode: GroupingMode = GroupingMode.STANDARD,
+        tag_labels: list[str | None] | None = None,
         now: datetime | None = None,
     ) -> None:
         """Update the list with new agents.
@@ -168,6 +169,9 @@ class AgentList(OptionList, inherit_bindings=False):
                 bucket and drop the ChangeSpec layer.  Phase 2 callers
                 hardcode ``STANDARD``; Phase 3 wires this to a cyclable
                 app-level setting.
+            tag_labels: Optional display-only effective tag labels aligned
+                to ``agents``. Used by merged-panel mode so rows retain their
+                tag context without mutating :attr:`Agent.tag`.
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
                 ``datetime.now()``; tests pass a fixed value so bucket
                 membership is deterministic.
@@ -188,6 +192,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 fold_registry=fold_registry,
                 current_group_key=current_group_key,
                 grouping_mode=grouping_mode,
+                tag_labels=tag_labels,
                 now=now,
             )
 

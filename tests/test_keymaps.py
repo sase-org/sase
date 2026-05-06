@@ -347,6 +347,12 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
+def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
+    """LeaderModeKeymaps default includes the ``,g`` panel grouping toggle."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["toggle_agent_panel_grouping"] == "g"
+
+
 def test_leader_mode_omits_legacy_kill_all() -> None:
     """The Agents cleanup panel replaces the old leader kill-all command."""
     reg = load_keymap_registry({})

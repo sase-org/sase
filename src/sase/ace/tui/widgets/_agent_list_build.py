@@ -168,6 +168,7 @@ def build_list(
     fold_registry: AgentGroupFoldRegistry | None = None,
     current_group_key: tuple[str, ...] | None = None,
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
+    tag_labels: list[str | None] | None = None,
     now: datetime | None = None,
 ) -> None:
     """Rebuild *widget*'s OptionList from scratch for ``agents``.
@@ -223,6 +224,9 @@ def build_list(
         )
         is_selected_agent = current_group_key is None and i == current_idx
         hint = (jump_hints or {}).get(i)
+        tag_label = (
+            tag_labels[i] if tag_labels is not None and i < len(tag_labels) else None
+        )
         tier_styles = agent_tier_styles.get(i, ())
         left, suffix, option_id = cached_format_agent_option(
             widget._agent_render_cache,
@@ -233,6 +237,7 @@ def build_list(
             is_expanded=is_expanded,
             is_marked=is_marked,
             hint_char=hint,
+            tag_label=tag_label,
             now=now,
             tier_styles=tier_styles,
         )
@@ -242,6 +247,7 @@ def build_list(
             "is_expanded": is_expanded,
             "is_marked": is_marked,
             "hint_char": hint,
+            "tag_label": tag_label,
             "is_selected": is_selected_agent,
         }
         widget._row_tier_styles[i] = tier_styles
@@ -504,6 +510,7 @@ def patch_row(
         is_expanded=ctx["is_expanded"],
         is_marked=is_marked,
         hint_char=ctx["hint_char"],
+        tag_label=ctx.get("tag_label"),
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
     )

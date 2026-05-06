@@ -375,6 +375,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'toggle_agent_panel_grouping'))}",
+                    "Toggle tag panels grouped/split",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_and_edit'))}",
                     "Kill agent & edit prompt",
                 ),

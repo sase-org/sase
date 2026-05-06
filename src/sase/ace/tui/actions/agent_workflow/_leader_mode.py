@@ -97,6 +97,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["toggle_agent_panel_grouping"]:
+            if self.current_tab == "agents":
+                self.action_toggle_agent_panel_grouping()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["kill_and_edit"]:
             if self.current_tab == "agents":
                 self._kill_and_edit_agent()  # type: ignore[attr-defined]

@@ -35,6 +35,7 @@ def format_agent_option(
     is_expanded: bool = False,
     is_marked: bool = False,
     hint_char: str | None = None,
+    tag_label: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
 ) -> tuple[Text, Text, str]:
@@ -126,6 +127,8 @@ def format_agent_option(
     # Agent display name (workflow name for top-level workflows, CL name otherwise)
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(agent.display_name, style=name_style)
+    if tag_label:
+        text.append(f" #{tag_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
     text.append(" (", style="dim")
@@ -248,6 +251,7 @@ def cached_format_agent_option(
     is_expanded: bool = False,
     is_marked: bool = False,
     hint_char: str | None = None,
+    tag_label: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
 ) -> tuple[Text, Text, str]:
@@ -266,6 +270,7 @@ def cached_format_agent_option(
         is_expanded=is_expanded,
         is_marked=is_marked,
         hint_char=hint_char,
+        tag_label=tag_label,
         now=now,
         tier_styles=tier_styles,
     )
@@ -280,6 +285,7 @@ def cached_format_agent_option(
         is_expanded=is_expanded,
         is_marked=is_marked,
         hint_char=hint_char,
+        tag_label=tag_label,
         now=now,
         tier_styles=tier_styles,
     )

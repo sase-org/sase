@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 19:49:02
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_group_ungroup_keymap.md
 ---
 # Plan: Agents Tab `,g` Group/Ungroup Toggle

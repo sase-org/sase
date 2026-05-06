@@ -23,6 +23,7 @@ class AgentPanelsMixin:
     current_attempt_number: int | None
     _panel_group: AgentPanelGroup
     _current_group_key: tuple[str, ...] | None
+    _agent_panels_grouped: bool
     _agents: list[Agent]
 
     def _first_agent_idx_for_focused_group(
@@ -35,7 +36,11 @@ class AgentPanelsMixin:
         focused_key = self._panel_group.focused_key
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
-        panel_agents = agents_for_panel(self._agents, focused_key)
+        panel_agents = agents_for_panel(
+            self._agents,
+            focused_key,
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+        )
         tree = build_agent_tree(
             panel_agents,
             fold_registry=getattr(self, "_group_fold_registry", None),
@@ -105,6 +110,18 @@ class AgentPanelsMixin:
     def action_focus_prev_agent_panel(self) -> None:
         """Move focus to the previous tag-driven side panel (with wrap)."""
         self._change_focused_agent_panel(forward=False)
+
+    def action_toggle_agent_panel_grouping(self) -> None:
+        """Toggle Agents tab panels between tag-split and merged layouts."""
+        if self.current_tab != "agents":
+            return
+        self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
+        self._current_group_key = None  # type: ignore[attr-defined]
+        self.current_attempt_number = None  # type: ignore[attr-defined]
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        label = "grouped" if self._agent_panels_grouped else "split"
+        self.notify(f"Agent panels: {label}", timeout=1.5)  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""

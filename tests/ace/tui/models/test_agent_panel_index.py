@@ -67,6 +67,25 @@ def test_groups_agents_into_panels_by_tag() -> None:
     assert alpha.global_to_local == {1: 0, 2: 1}
 
 
+def test_merged_index_places_every_agent_in_single_panel() -> None:
+    a0 = _agent(raw_suffix="A", tag=None)
+    a1 = _agent(raw_suffix="B", tag="alpha")
+    a2 = _agent(raw_suffix="C", tag="beta")
+
+    index = build_agent_panel_index(
+        [a0, a1, a2],
+        dismissable_statuses=_DISMISSABLE,
+        merge_tag_panels=True,
+    )
+
+    assert index.keys_per_agent == [None, None, None]
+    assert set(index.panels.keys()) == {None}
+    merged = index.slice_for(None)
+    assert merged.agents == [a0, a1, a2]
+    assert merged.global_indices == [0, 1, 2]
+    assert merged.global_to_local == {0: 0, 1: 1, 2: 2}
+
+
 def test_local_idx_for_returns_minus_one_for_other_panels() -> None:
     a0 = _agent(raw_suffix="A", tag=None)
     a1 = _agent(raw_suffix="B", tag="alpha")

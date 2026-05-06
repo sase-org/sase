@@ -32,9 +32,13 @@ class _ListWidget:
         self.border_title: str | None = None
         self._classes: set[str] = set()
         self.update_list_calls = 0
+        self.last_agents: list[Agent] = []
+        self.last_tag_labels: list[str | None] | None = None
 
-    def update_list(self, *_args: Any, **_kwargs: Any) -> None:
+    def update_list(self, agents: list[Agent], *_args: Any, **kwargs: Any) -> None:
         self.update_list_calls += 1
+        self.last_agents = agents
+        self.last_tag_labels = kwargs.get("tag_labels")
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
         return
@@ -69,6 +73,8 @@ class _FakeApp(AgentDisplayMixin):
         agents: list[Agent],
         option_counts: list[int],
         container_height: int,
+        *,
+        agent_panels_grouped: bool = False,
     ) -> None:
         self._agents = agents
         self._fold_counts = {}
@@ -84,7 +90,11 @@ class _FakeApp(AgentDisplayMixin):
         self._countdown_remaining = 0
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
-        self._panel_group = AgentPanelGroup.from_agents(agents)
+        self._agent_panels_grouped = agent_panels_grouped
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            merge_tag_panels=agent_panels_grouped,
+        )
 
         from sase.ace.tui.actions.agents._display import _panel_widget_id
 
@@ -223,6 +233,26 @@ def test_single_panel_fills_container() -> None:
     main = app._panel_widgets["agent-list-panel"]
     assert main.styles.height.unit is Unit.FRACTION
     assert main.styles.height.value == 1.0
+
+
+def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(
+        agents,
+        option_counts=[3],
+        container_height=40,
+        agent_panels_grouped=True,
+    )
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert app._panel_group.panel_keys == [None]
+    assert list(app._panel_widgets) == ["agent-list-panel"]
+    main = app._panel_widgets["agent-list-panel"]
+    assert main.border_title is not None
+    assert getattr(main.border_title, "plain", "") == "All agents · 3"
+    assert main.last_agents == agents
+    assert main.last_tag_labels == [None, "apple", "banana"]
 
 
 def test_pre_mount_zero_height_leaves_styles_alone() -> None:

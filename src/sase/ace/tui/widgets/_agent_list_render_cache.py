@@ -87,7 +87,8 @@ def agent_render_key(
     is_expanded: bool,
     is_marked: bool,
     hint_char: str | None,
-    now: datetime | None,
+    tag_label: str | None = None,
+    now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
@@ -105,6 +106,7 @@ def agent_render_key(
         is_expanded,
         is_marked,
         hint_char,
+        tag_label,
         agent.approve,
         agent.auto_approve_plan_action,
         agent.tag,

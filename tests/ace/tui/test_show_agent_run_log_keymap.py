@@ -30,6 +30,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self._keymap_registry = load_keymap_registry({})
         self.pushed_modals: list[Any] = []
         self.refresh_count = 0
+        self.toggle_panel_grouping_count = 0
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -37,6 +38,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
+
+    def action_toggle_agent_panel_grouping(self) -> None:
+        self.toggle_panel_grouping_count += 1
 
 
 def _make_cs(name: str) -> MagicMock:
@@ -96,6 +100,27 @@ def test_leader_a_noops_with_empty_cls_list() -> None:
     assert app.pushed_modals == []
 
 
+def test_leader_g_toggles_agent_panel_grouping_on_agents_tab() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    handled = app._handle_leader_key("g")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.toggle_panel_grouping_count == 1
+    assert app.refresh_count == 1
+
+
+def test_leader_g_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+
+    handled = app._handle_leader_key("g")
+
+    assert handled is True
+    assert app.toggle_panel_grouping_count == 0
+    assert app.refresh_count == 1
+
+
 def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
     footer = KeybindingFooter()
     captured: list[object] = []
@@ -111,3 +136,19 @@ def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
     for tab in ("agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "agent run log" not in str(captured[-1])
+
+
+def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
+    footer = KeybindingFooter()
+    captured: list[object] = []
+    footer._update_display = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda text: captured.append(text)
+    )
+
+    footer.update_leader_bindings(current_tab="agents")
+    rendered = str(captured[-1])
+    assert "g" in rendered
+    assert "group panels" in rendered
+
+    footer.update_leader_bindings(current_tab="changespecs")
+    assert "group panels" not in str(captured[-1])

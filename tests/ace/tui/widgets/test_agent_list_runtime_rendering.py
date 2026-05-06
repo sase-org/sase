@@ -144,6 +144,21 @@ def test_format_agent_option_no_start_has_empty_suffix() -> None:
     assert suffix.plain == ""
 
 
+def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
+    row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
+
+    left_without, _, _ = format_agent_option(row_agent, 0, is_selected=False)
+    left_with, _, _ = format_agent_option(
+        row_agent,
+        0,
+        is_selected=False,
+        tag_label="fix",
+    )
+
+    assert " #fix" not in left_without.plain
+    assert " #fix" in left_with.plain
+
+
 def test_format_agent_option_pure_waiting_has_empty_suffix() -> None:
     _, suffix, _ = format_agent_option(
         agent(status="WAITING", run_start=None),

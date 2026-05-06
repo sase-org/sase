@@ -68,6 +68,7 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
+    _agent_panels_grouped: bool
 
     # Countdown for refresh
     _countdown_remaining: int
@@ -78,7 +79,7 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
     # Phase 4 panel index cache: keyed on ``self._agents`` identity so a
     # single agents-list ref reuses the same panels / non-child indices /
     # completed count across every refresh path.
-    _agent_panel_index_cache: tuple[Any, AgentPanelIndex] | None
+    _agent_panel_index_cache: tuple[Any, bool, AgentPanelIndex] | None
 
     def _invalidate_agent_panel_cache(self) -> None:
         """Clear panel-derived caches after in-place agent mutations."""
@@ -142,16 +143,23 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
         from ...models.agent_panel_index import build_agent_panel_index
 
         cached = getattr(self, "_agent_panel_index_cache", None)
-        if cached is not None and cached[0] is self._agents:
-            return cached[1]
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        if (
+            cached is not None
+            and cached[0] is self._agents
+            and cached[1] == merge_tag_panels
+        ):
+            return cached[2]
         index = build_agent_panel_index(
-            self._agents, dismissable_statuses=DISMISSABLE_STATUSES
+            self._agents,
+            dismissable_statuses=DISMISSABLE_STATUSES,
+            merge_tag_panels=merge_tag_panels,
         )
-        self._agent_panel_index_cache = (self._agents, index)
+        self._agent_panel_index_cache = (self._agents, merge_tag_panels, index)
         # Keep the legacy ``_panel_keys_cache`` populated so callers that
         # still go through ``_panel_keys_per_agent`` (tree builder, banner
         # math) share the same per-agent key list as the panel index.
-        self._panel_keys_cache = (self._agents, index.keys_per_agent)
+        self._panel_keys_cache = (self._agents, merge_tag_panels, index.keys_per_agent)
         return index
 
     def _panel_keys_per_agent(self) -> list:

@@ -457,6 +457,8 @@ class KeybindingFooter(KeybindingBindingsMixin, Horizontal):
         bindings.append((k("agent_home"), "agent (home)"))
         if current_tab in ("changespecs", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
+        if current_tab == "agents":
+            bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
         bindings.append((k("prompt_history"), "prompt history"))
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":

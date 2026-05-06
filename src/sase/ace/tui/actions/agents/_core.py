@@ -81,6 +81,7 @@ class AgentsMixinCore(
     _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
+    _agent_panels_grouped: bool
 
     # Agent completion tracking for notifications
     _pending_attention_count: int
@@ -122,6 +123,7 @@ class AgentsMixinCore(
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
             tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
@@ -133,7 +135,9 @@ class AgentsMixinCore(
         focused_key = panel_group.focused_key
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
-        panel_agents = agents_for_panel(self._agents, focused_key)
+        panel_agents = agents_for_panel(
+            self._agents, focused_key, merge_tag_panels=merge_tag_panels
+        )
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         return [
             global_indices[entry.agent_idx]
@@ -164,6 +168,7 @@ class AgentsMixinCore(
 
         registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
 
         fold_version = registry.version if registry is not None else 0
@@ -176,8 +181,9 @@ class AgentsMixinCore(
             == (panel_group.focused_idx if panel_group is not None else None)
             and cached[3] == fold_version
             and cached[4] is mode
+            and cached[5] == merge_tag_panels
         ):
-            return cached[5]
+            return cached[6]
 
         if panel_group is None:
             tree = build_agent_tree(self._agents, fold_registry=registry, mode=mode)
@@ -194,7 +200,9 @@ class AgentsMixinCore(
             global_indices = [
                 i for i, k in enumerate(keys_per_agent) if k == focused_key
             ]
-            panel_agents = agents_for_panel(self._agents, focused_key)
+            panel_agents = agents_for_panel(
+                self._agents, focused_key, merge_tag_panels=merge_tag_panels
+            )
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             stops = []
             for entry in tree:
@@ -210,6 +218,7 @@ class AgentsMixinCore(
             panel_group.focused_idx if panel_group is not None else None,
             fold_version,
             mode,
+            merge_tag_panels,
             stops,
         )
         return stops
@@ -303,7 +312,11 @@ class AgentsMixinCore(
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
             return list(self._agents)
-        return agents_for_panel(self._agents, panel_group.focused_key)
+        return agents_for_panel(
+            self._agents,
+            panel_group.focused_key,
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+        )
 
     # --- Actions ---
 

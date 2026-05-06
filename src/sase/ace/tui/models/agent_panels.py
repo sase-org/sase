@@ -64,14 +64,32 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     return cast(list[PanelKey], sorted_tags)
 
 
-def panel_key_per_agent(agents: list[Agent]) -> list[PanelKey]:
+def effective_tag_per_agent(agents: list[Agent]) -> list[PanelKey]:
     """Return the panel key (with parent inheritance) for each agent in *agents*."""
     parent_lookup = _build_parent_lookup(agents)
     return [_panel_key_for_agent(a, parent_lookup) for a in agents]
 
 
-def agents_for_panel(agents: list[Agent], key: PanelKey) -> list[Agent]:
+def panel_key_per_agent(
+    agents: list[Agent], *, merge_tag_panels: bool = False
+) -> list[PanelKey]:
+    """Return the rendered panel key for each agent in *agents*.
+
+    In merged mode every agent belongs to the single rendered panel; callers
+    that need the tag bucket an agent would have had in split mode should use
+    :func:`effective_tag_per_agent`.
+    """
+    if merge_tag_panels:
+        return [None for _ in agents]
+    return effective_tag_per_agent(agents)
+
+
+def agents_for_panel(
+    agents: list[Agent], key: PanelKey, *, merge_tag_panels: bool = False
+) -> list[Agent]:
     """Return the agents whose effective panel key equals *key*."""
+    if merge_tag_panels:
+        return list(agents)
     parent_lookup = _build_parent_lookup(agents)
     return [a for a in agents if _panel_key_for_agent(a, parent_lookup) == key]
 
@@ -93,6 +111,8 @@ class AgentPanelGroup:
         cls,
         agents: list[Agent],
         focused_key: PanelKey = None,
+        *,
+        merge_tag_panels: bool = False,
     ) -> AgentPanelGroup:
         """Build a fresh panel group from *agents*, preserving focus when possible.
 
@@ -100,6 +120,9 @@ class AgentPanelGroup:
         (e.g. its tag's last agent was dismissed), focus falls back to
         the first available panel.
         """
+        if merge_tag_panels:
+            return cls(panel_keys=[None], focused_idx=0)
+
         keys = _panel_keys_for(agents)
         try:
             idx = keys.index(focused_key)

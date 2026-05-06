@@ -32,10 +32,14 @@ _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = "#AFAFAF"
 
 
-def _agent_panel_border_title(key: PanelKey, agent_count: int) -> Text:
+def _agent_panel_border_title(
+    key: PanelKey, agent_count: int, *, merge_tag_panels: bool = False
+) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
-    if key is None:
+    if merge_tag_panels:
+        title.append("All agents", style="bold #AFFFFF")
+    elif key is None:
         title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
     else:
         title.append(f"@{key}", style=_PANEL_TAG_STYLE)
@@ -60,6 +64,7 @@ class PanelsMixin:
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
+    _agent_panels_grouped: bool
     _agents_first_load_done: bool
 
     # ---------------------------------------------------------------------
@@ -77,7 +82,12 @@ class PanelsMixin:
         from ...models.agent_panels import AgentPanelGroup
 
         prev_focused = self._panel_group.focused_key
-        self._panel_group = AgentPanelGroup.from_agents(self._agents, prev_focused)
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        self._panel_group = AgentPanelGroup.from_agents(
+            self._agents,
+            prev_focused,
+            merge_tag_panels=merge_tag_panels,
+        )
 
         # Make sure current_idx points at an agent in the focused panel.
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
@@ -142,6 +152,12 @@ class PanelsMixin:
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        effective_tags: list[PanelKey] = []
+        if merge_tag_panels:
+            from ...models.agent_panels import effective_tag_per_agent
+
+            effective_tags = effective_tag_per_agent(self._agents)
         # Mount missing panels (skip index 0 — the first slot is composed
         # statically and lives at id ``agent-list-panel``).
         existing_ids = {w.id for w in container.children if isinstance(w, AgentList)}
@@ -181,7 +197,11 @@ class PanelsMixin:
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
 
-            widget.border_title = _agent_panel_border_title(key, len(panel_agents))
+            widget.border_title = _agent_panel_border_title(
+                key,
+                len(panel_agents),
+                merge_tag_panels=merge_tag_panels,
+            )
             if idx == 0:
                 widget.remove_class("agent-panel-separated")
             else:
@@ -208,6 +228,15 @@ class PanelsMixin:
                 if not local_banner_hints:
                     local_banner_hints = None
 
+            local_tag_labels: list[str | None] | None = None
+            if merge_tag_panels:
+                local_tag_labels = [
+                    effective_tags[gi]
+                    if 0 <= gi < len(effective_tags) and effective_tags[gi] is not None
+                    else None
+                    for gi in global_indices
+                ]
+
             widget.update_list(
                 panel_agents,
                 local_idx,
@@ -219,6 +248,7 @@ class PanelsMixin:
                 fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,
                 grouping_mode=grouping_mode,
+                tag_labels=local_tag_labels,
             )
 
             if idx == focused_idx:

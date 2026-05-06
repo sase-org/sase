@@ -385,6 +385,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "review_mentors": "m",
             "agent_home": "h",
             "agent_from_cl": "space",
+            "toggle_agent_panel_grouping": "g",
             "kill_and_edit": "x",
             "mark_inactive": "I",
             "retry_edit": "r",

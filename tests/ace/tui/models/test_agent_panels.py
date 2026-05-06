@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
+from sase.ace.tui.models.agent_panels import (
+    AgentPanelGroup,
+    effective_tag_per_agent,
+    panel_key_per_agent,
+)
 
 
 def _agent(
@@ -91,3 +95,26 @@ def test_missing_focused_key_falls_back_to_first_available_panel() -> None:
     assert group.panel_keys == ["alpha", "beta"]
     assert group.focused_idx == 0
     assert group.focused_key == "alpha"
+
+
+def test_merged_panels_use_one_panel_but_preserve_effective_tags() -> None:
+    parent = _agent(suffix="parent", tag="fix", name="parent")
+    child = _agent(
+        suffix="child",
+        name="child",
+        parent_timestamp="parent",
+        parent_workflow="wf",
+    )
+    review = _agent(suffix="review", tag="review", name="review")
+    agents = [parent, child, review]
+
+    group = AgentPanelGroup.from_agents(
+        agents,
+        focused_key="review",
+        merge_tag_panels=True,
+    )
+
+    assert group.panel_keys == [None]
+    assert group.focused_idx == 0
+    assert panel_key_per_agent(agents, merge_tag_panels=True) == [None, None, None]
+    assert effective_tag_per_agent(agents) == ["fix", "fix", "review"]
