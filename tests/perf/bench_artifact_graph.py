@@ -1,14 +1,14 @@
 """Benchmark the unified artifact graph integration path.
 
 The harness builds a deterministic mixed SASE fixture in a temp directory,
-then measures the Rust-backed Python facade operations that Epic 6 treats as
-the integrated artifact quality gate:
+then measures the Rust-backed Python facade operations and startup sentinel
+that Epic 6 treats as the integrated artifact quality gate:
 
     python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts.json
 
 The timings are intentionally descriptive rather than workstation-gating. The
-assertions only cover integration correctness, bounded modal behavior, and
-absence of broad scans in the fake TUI graph.
+assertions only cover integration correctness, bounded query behavior, bounded
+modal behavior, and absence of broad startup graph calls.
 """
 
 from __future__ import annotations
@@ -52,6 +52,27 @@ def test_artifact_graph_benchmark_smoke() -> None:
     ]
     assert modal_rows
     assert all(row["query_counts"]["calls"] == 1 for row in modal_rows)
+
+    startup_rows = [
+        row
+        for row in result["measurements"]
+        if row["operation"] == "startup_contract:no_broad_artifact_graph_calls"
+    ]
+    assert startup_rows
+    assert all(row["query_counts"]["calls"] == 0 for row in startup_rows)
+
+    by_operation = {row["operation"]: row for row in result["measurements"]}
+    assert (
+        by_operation["targeted_agent_artifact_burst"]["mutation_counts"]["calls"] == 1
+    )
+    assert (
+        by_operation["artifact_show_paged:high_degree_children"]["result_count"] == 10
+    )
+    assert by_operation["artifact_search:global_limited"]["result_count"] <= 12
+    assert (
+        by_operation["artifact_summary:visible_rows_batch"]["query_counts"]["calls"]
+        == 1
+    )
 
 
 def main() -> None:

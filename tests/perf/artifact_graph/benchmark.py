@@ -12,6 +12,7 @@ from sase.core.artifact_wire import (
 from .common import ensure_extension, summarize
 from .fixture_measurements import run_fixture_measurements
 from .modal_measurements import run_modal_measurements
+from .startup_measurements import measure_startup_contract_sentinel
 
 
 def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -40,6 +41,7 @@ def run_benchmark(
     ensure_extension()
     records: list[dict[str, Any]] = []
     for _ in range(runs):
+        records.append(measure_startup_contract_sentinel())
         records.extend(
             run_fixture_measurements(
                 project_count=project_count,

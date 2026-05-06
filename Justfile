@@ -346,7 +346,7 @@ bead-perf-smoke *args: _setup
 # rebuild, targeted upsert, common show, doctor, and fake modal-open metrics
 # without enforcing workstation-sensitive latency thresholds.
 artifact-perf-smoke *args: _setup
-    @printf "\n---------- Unified artifact graph performance smoke (sase-23.6.6) ----------\n"
+    @printf "\n---------- Unified artifact graph performance smoke (sase-24.2.6) ----------\n"
     mkdir -p sdd/tales/202605/perf_artifacts
     {{ venv_bin }}/python tests/perf/bench_artifact_graph.py \
         --runs 1 \

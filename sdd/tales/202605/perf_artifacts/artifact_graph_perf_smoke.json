@@ -1,8 +1,22 @@
 {
   "measurements": [
     {
-      "affected_links": 167,
-      "affected_nodes": 97,
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "watcher_starts": 1,
+        "workers": 2
+      },
+      "latency_ms": 0.2621500025270507,
+      "operation": "startup_contract:no_broad_artifact_graph_calls",
+      "query_counts": {
+        "calls": 0
+      },
+      "result_count": 2
+    },
+    {
+      "affected_links": 168,
+      "affected_nodes": 98,
       "bounded": false,
       "errors": [],
       "fixture": {
@@ -14,21 +28,21 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 104.76671799551696,
+      "latency_ms": 109.73978399124462,
       "mutation_counts": {
-        "links_added": 167,
+        "links_added": 168,
         "links_removed": 0,
-        "links_updated": 348,
-        "nodes_added": 96,
+        "links_updated": 395,
+        "nodes_added": 97,
         "nodes_removed": 0,
-        "nodes_updated": 490,
+        "nodes_updated": 482,
         "tombstones_added": 0
       },
       "operation": "full_graph_rebuild"
     },
     {
-      "affected_links": 18,
-      "affected_nodes": 8,
+      "affected_links": 19,
+      "affected_nodes": 9,
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -40,11 +54,11 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.071473001909908,
+      "latency_ms": 3.613016990129836,
       "mutation_counts": {
         "links_added": 0,
         "links_removed": 0,
-        "links_updated": 4,
+        "links_updated": 5,
         "nodes_added": 0,
         "nodes_removed": 0,
         "nodes_updated": 11,
@@ -66,21 +80,21 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.6903349973727018,
+      "latency_ms": 3.909503997419961,
       "mutation_counts": {
         "links_added": 0,
         "links_removed": 0,
         "links_updated": 2,
         "nodes_added": 0,
         "nodes_removed": 0,
-        "nodes_updated": 5,
+        "nodes_updated": 4,
         "tombstones_added": 0
       },
       "operation": "targeted_bead_store_upsert"
     },
     {
-      "affected_links": 30,
-      "affected_nodes": 14,
+      "affected_links": 31,
+      "affected_nodes": 15,
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -92,11 +106,11 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 11.281535000307485,
+      "latency_ms": 12.043241003993899,
       "mutation_counts": {
         "links_added": 1,
         "links_removed": 0,
-        "links_updated": 35,
+        "links_updated": 40,
         "nodes_added": 0,
         "nodes_removed": 0,
         "nodes_updated": 42,
@@ -105,6 +119,8 @@
       "operation": "targeted_agent_artifact_upsert"
     },
     {
+      "affected_links": 31,
+      "affected_nodes": 15,
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -116,7 +132,73 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.006431004498154,
+      "latency_ms": 12.434447999112308,
+      "mutation_counts": {
+        "calls": 1,
+        "links_added": 0,
+        "links_removed": 0,
+        "links_updated": 40,
+        "nodes_added": 0,
+        "nodes_removed": 0,
+        "nodes_updated": 42,
+        "tombstones_added": 0
+      },
+      "operation": "targeted_agent_artifact_burst"
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "limit": 10,
+        "linked_rows": 240
+      },
+      "latency_ms": 2.131930014002137,
+      "operation": "artifact_show_paged:high_degree_children",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 10
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "limit": 12,
+        "linked_rows": 240
+      },
+      "latency_ms": 1.6834240086609498,
+      "operation": "artifact_search:global_limited",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 12
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "visible_rows": 11
+      },
+      "latency_ms": 1.246469997568056,
+      "operation": "artifact_summary:visible_rows_batch",
+      "query_counts": {
+        "calls": 1
+      },
+      "result_count": 11
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency_ms": 1.543146005133167,
       "operation": "artifact_show:project",
       "query_counts": {
         "calls": 1
@@ -135,7 +217,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.0879670007852837,
+      "latency_ms": 1.139305008109659,
       "operation": "artifact_show:changespec",
       "query_counts": {
         "calls": 1
@@ -154,7 +236,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.0547129932092503,
+      "latency_ms": 1.7021590028889477,
       "operation": "artifact_show:commit",
       "query_counts": {
         "calls": 1
@@ -173,7 +255,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.221491998876445,
+      "latency_ms": 1.7062880069715902,
       "operation": "artifact_show:bead",
       "query_counts": {
         "calls": 1
@@ -192,7 +274,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.2465690015233122,
+      "latency_ms": 1.8169280083384365,
       "operation": "artifact_show:agent",
       "query_counts": {
         "calls": 1
@@ -211,7 +293,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 0.6055859994376078,
+      "latency_ms": 1.693162994342856,
       "operation": "artifact_show:file",
       "query_counts": {
         "calls": 1
@@ -230,7 +312,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.1771770004997961,
+      "latency_ms": 1.8777849909383804,
       "operation": "artifact_show:thought",
       "query_counts": {
         "calls": 1
@@ -262,7 +344,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 154.00837599736406,
+      "latency_ms": 157.54991500580218,
       "operation": "modal_open:/",
       "query_counts": {
         "calls": 1
@@ -275,7 +357,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 123.10004600294633,
+      "latency_ms": 140.66666401049588,
       "operation": "modal_open:changespec:current",
       "query_counts": {
         "calls": 1
@@ -288,7 +370,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 134.55334799800767,
+      "latency_ms": 151.82273199025076,
       "operation": "modal_open:agent:current",
       "query_counts": {
         "calls": 1
@@ -317,6 +399,21 @@
         "p95_ms": 0.0
       }
     },
+    "artifact_search:global_limited": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "limit": 12,
+        "linked_rows": 240
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.6834240086609498,
+        "median_ms": 1.6834240086609498,
+        "min_ms": 1.6834240086609498,
+        "p95_ms": 1.6834240086609498
+      }
+    },
     "artifact_show:agent": {
       "bounded": true,
       "errors": [],
@@ -331,10 +428,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.2465690015233122,
-        "median_ms": 1.2465690015233122,
-        "min_ms": 1.2465690015233122,
-        "p95_ms": 1.2465690015233122
+        "max_ms": 1.8169280083384365,
+        "median_ms": 1.8169280083384365,
+        "min_ms": 1.8169280083384365,
+        "p95_ms": 1.8169280083384365
       }
     },
     "artifact_show:bead": {
@@ -351,10 +448,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.221491998876445,
-        "median_ms": 1.221491998876445,
-        "min_ms": 1.221491998876445,
-        "p95_ms": 1.221491998876445
+        "max_ms": 1.7062880069715902,
+        "median_ms": 1.7062880069715902,
+        "min_ms": 1.7062880069715902,
+        "p95_ms": 1.7062880069715902
       }
     },
     "artifact_show:changespec": {
@@ -371,10 +468,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.0879670007852837,
-        "median_ms": 1.0879670007852837,
-        "min_ms": 1.0879670007852837,
-        "p95_ms": 1.0879670007852837
+        "max_ms": 1.139305008109659,
+        "median_ms": 1.139305008109659,
+        "min_ms": 1.139305008109659,
+        "p95_ms": 1.139305008109659
       }
     },
     "artifact_show:commit": {
@@ -391,10 +488,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.0547129932092503,
-        "median_ms": 1.0547129932092503,
-        "min_ms": 1.0547129932092503,
-        "p95_ms": 1.0547129932092503
+        "max_ms": 1.7021590028889477,
+        "median_ms": 1.7021590028889477,
+        "min_ms": 1.7021590028889477,
+        "p95_ms": 1.7021590028889477
       }
     },
     "artifact_show:file": {
@@ -411,10 +508,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 0.6055859994376078,
-        "median_ms": 0.6055859994376078,
-        "min_ms": 0.6055859994376078,
-        "p95_ms": 0.6055859994376078
+        "max_ms": 1.693162994342856,
+        "median_ms": 1.693162994342856,
+        "min_ms": 1.693162994342856,
+        "p95_ms": 1.693162994342856
       }
     },
     "artifact_show:project": {
@@ -431,10 +528,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.006431004498154,
-        "median_ms": 1.006431004498154,
-        "min_ms": 1.006431004498154,
-        "p95_ms": 1.006431004498154
+        "max_ms": 1.543146005133167,
+        "median_ms": 1.543146005133167,
+        "min_ms": 1.543146005133167,
+        "p95_ms": 1.543146005133167
       }
     },
     "artifact_show:thought": {
@@ -451,10 +548,39 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.1771770004997961,
-        "median_ms": 1.1771770004997961,
-        "min_ms": 1.1771770004997961,
-        "p95_ms": 1.1771770004997961
+        "max_ms": 1.8777849909383804,
+        "median_ms": 1.8777849909383804,
+        "min_ms": 1.8777849909383804,
+        "p95_ms": 1.8777849909383804
+      }
+    },
+    "artifact_show_paged:high_degree_children": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "limit": 10,
+        "linked_rows": 240
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 2.131930014002137,
+        "median_ms": 2.131930014002137,
+        "min_ms": 2.131930014002137,
+        "p95_ms": 2.131930014002137
+      }
+    },
+    "artifact_summary:visible_rows_batch": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "visible_rows": 11
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 1.246469997568056,
+        "median_ms": 1.246469997568056,
+        "min_ms": 1.246469997568056,
+        "p95_ms": 1.246469997568056
       }
     },
     "full_graph_rebuild": {
@@ -471,10 +597,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 104.76671799551696,
-        "median_ms": 104.76671799551696,
-        "min_ms": 104.76671799551696,
-        "p95_ms": 104.76671799551696
+        "max_ms": 109.73978399124462,
+        "median_ms": 109.73978399124462,
+        "min_ms": 109.73978399124462,
+        "p95_ms": 109.73978399124462
       }
     },
     "modal_open:/": {
@@ -485,10 +611,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 154.00837599736406,
-        "median_ms": 154.00837599736406,
-        "min_ms": 154.00837599736406,
-        "p95_ms": 154.00837599736406
+        "max_ms": 157.54991500580218,
+        "median_ms": 157.54991500580218,
+        "min_ms": 157.54991500580218,
+        "p95_ms": 157.54991500580218
       }
     },
     "modal_open:agent:current": {
@@ -499,10 +625,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 134.55334799800767,
-        "median_ms": 134.55334799800767,
-        "min_ms": 134.55334799800767,
-        "p95_ms": 134.55334799800767
+        "max_ms": 151.82273199025076,
+        "median_ms": 151.82273199025076,
+        "min_ms": 151.82273199025076,
+        "p95_ms": 151.82273199025076
       }
     },
     "modal_open:changespec:current": {
@@ -513,10 +639,45 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 123.10004600294633,
-        "median_ms": 123.10004600294633,
-        "min_ms": 123.10004600294633,
-        "p95_ms": 123.10004600294633
+        "max_ms": 140.66666401049588,
+        "median_ms": 140.66666401049588,
+        "min_ms": 140.66666401049588,
+        "p95_ms": 140.66666401049588
+      }
+    },
+    "startup_contract:no_broad_artifact_graph_calls": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "watcher_starts": 1,
+        "workers": 2
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 0.2621500025270507,
+        "median_ms": 0.2621500025270507,
+        "min_ms": 0.2621500025270507,
+        "p95_ms": 0.2621500025270507
+      }
+    },
+    "targeted_agent_artifact_burst": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "agents": 10,
+        "beads": 11,
+        "changespecs": 2,
+        "commits": 2,
+        "created_files": 10,
+        "project_files": 2,
+        "thoughts": 10
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 12.434447999112308,
+        "median_ms": 12.434447999112308,
+        "min_ms": 12.434447999112308,
+        "p95_ms": 12.434447999112308
       }
     },
     "targeted_agent_artifact_upsert": {
@@ -533,10 +694,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 11.281535000307485,
-        "median_ms": 11.281535000307485,
-        "min_ms": 11.281535000307485,
-        "p95_ms": 11.281535000307485
+        "max_ms": 12.043241003993899,
+        "median_ms": 12.043241003993899,
+        "min_ms": 12.043241003993899,
+        "p95_ms": 12.043241003993899
       }
     },
     "targeted_bead_store_upsert": {
@@ -553,10 +714,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.6903349973727018,
-        "median_ms": 3.6903349973727018,
-        "min_ms": 3.6903349973727018,
-        "p95_ms": 3.6903349973727018
+        "max_ms": 3.909503997419961,
+        "median_ms": 3.909503997419961,
+        "min_ms": 3.909503997419961,
+        "p95_ms": 3.909503997419961
       }
     },
     "targeted_project_file_upsert": {
@@ -573,10 +734,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.071473001909908,
-        "median_ms": 3.071473001909908,
-        "min_ms": 3.071473001909908,
-        "p95_ms": 3.071473001909908
+        "max_ms": 3.613016990129836,
+        "median_ms": 3.613016990129836,
+        "min_ms": 3.613016990129836,
+        "p95_ms": 3.613016990129836
       }
     }
   },

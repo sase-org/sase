@@ -53,7 +53,10 @@ def ensure_extension() -> None:
     required = {
         "artifact_rebuild",
         "artifact_list",
+        "artifact_search",
         "artifact_show",
+        "artifact_show_paged",
+        "artifact_summary",
         "artifact_doctor",
     }
     missing = sorted(name for name in required if not hasattr(module, name))
