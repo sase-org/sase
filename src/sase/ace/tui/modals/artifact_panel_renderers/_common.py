@@ -11,6 +11,9 @@ from typing import Any
 from rich.text import Text
 
 from sase.core.artifact_wire import (
+    ARTIFACT_FILE_TYPES,
+    ARTIFACT_FILE_TYPE_METADATA_KEY,
+    ARTIFACT_FILE_TYPE_MISC,
     ARTIFACT_KIND_FILE,
     ArtifactDetailWire,
     ArtifactNodeWire,
@@ -19,6 +22,17 @@ from sase.core.artifact_wire import (
 
 FILE_PREVIEW_LINE_LIMIT = 120
 FILE_PREVIEW_MAX_BYTES = 256_000
+
+
+def effective_file_type(metadata: Mapping[str, Any]) -> tuple[str, str | None]:
+    raw_value = metadata.get(ARTIFACT_FILE_TYPE_METADATA_KEY)
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return ARTIFACT_FILE_TYPE_MISC, None
+    file_type = raw_value.strip()
+    normalized = file_type.casefold()
+    if normalized in ARTIFACT_FILE_TYPES:
+        return normalized, file_type if file_type != normalized else None
+    return ARTIFACT_FILE_TYPE_MISC, file_type
 
 
 def render_header(detail: ArtifactDetailWire) -> Text:

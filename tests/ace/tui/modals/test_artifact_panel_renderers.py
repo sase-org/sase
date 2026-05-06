@@ -11,6 +11,13 @@ from rich.console import Console, RenderableType
 from sase.ace.tui.graphics import GraphicsCapability
 from sase.ace.tui.modals.artifact_panel_renderers import render_artifact_detail
 from sase.core.artifact_wire import (
+    ARTIFACT_FILE_TYPE_CHAT,
+    ARTIFACT_FILE_TYPE_DIFF,
+    ARTIFACT_FILE_TYPE_METADATA_KEY,
+    ARTIFACT_FILE_TYPE_MISC,
+    ARTIFACT_FILE_TYPE_PLAN,
+    ARTIFACT_FILE_TYPE_PROJECT,
+    ARTIFACT_FILE_TYPE_PROMPT,
     ARTIFACT_KIND_AGENT,
     ARTIFACT_KIND_BEAD,
     ARTIFACT_KIND_CHANGESPEC,
@@ -165,6 +172,118 @@ def test_file_renderer_handles_missing_file(tmp_path: Path) -> None:
 
     assert "Path:" in rendered
     assert "File is missing on disk" in rendered
+
+
+@pytest.mark.parametrize(
+    ("file_type", "filename", "content", "metadata", "expected"),
+    [
+        (
+            ARTIFACT_FILE_TYPE_PLAN,
+            "plan.md",
+            "# Plan\n\nImplement renderer taxonomy.\n",
+            {"source_agent": "planner-1", "bead_id": "sase-24.5.1"},
+            ("Plan file", "Source Agent: planner-1", "Bead Id: sase-24.5.1"),
+        ),
+        (
+            ARTIFACT_FILE_TYPE_DIFF,
+            "changes.diff",
+            "diff --git a/a.py b/a.py\n@@ -1 +1 @@\n-old\n+new\n",
+            {"changespec": "feature/renderers"},
+            ("Diff file", "Diff stats: files=1, +1, -1", "Changespec"),
+        ),
+        (
+            ARTIFACT_FILE_TYPE_CHAT,
+            "response.md",
+            "User: hello\nAssistant: hi\n",
+            {"conversation_id": "conv-1", "provider": "codex"},
+            ("Chat file", "Conversation Id: conv-1", "Provider: codex"),
+        ),
+        (
+            ARTIFACT_FILE_TYPE_PROJECT,
+            "project.gp",
+            "NAME\nsample\n",
+            {"project_name": "sample", "changespec_count": 2},
+            ("Project file", "Project Name: sample", "Changespec Count: 2"),
+        ),
+        (
+            ARTIFACT_FILE_TYPE_PROMPT,
+            "raw_xprompt.md",
+            "Run the workflow.\n",
+            {"xprompt_tag": "bd/work_phase_bead", "workflow": "phase"},
+            ("Prompt file", "Xprompt Tag: bd/work_phase_bead", "Workflow: phase"),
+        ),
+        (
+            ARTIFACT_FILE_TYPE_MISC,
+            "notes.txt",
+            "loose note\n",
+            {"description": "scratch file"},
+            ("File", "Description: scratch file", "loose note"),
+        ),
+    ],
+)
+def test_file_renderer_uses_canonical_file_type_sections(
+    tmp_path: Path,
+    file_type: str,
+    filename: str,
+    content: str,
+    metadata: dict[str, Any],
+    expected: tuple[str, str, str],
+) -> None:
+    path = tmp_path / filename
+    path.write_text(content, encoding="utf-8")
+    rendered = _render_text(
+        render_artifact_detail(
+            _detail(
+                filename,
+                ARTIFACT_KIND_FILE,
+                metadata={
+                    "path": str(path),
+                    ARTIFACT_FILE_TYPE_METADATA_KEY: file_type,
+                    **metadata,
+                },
+            )
+        )
+    )
+
+    assert f"File type: {file_type}" in rendered
+    for expected_text in expected:
+        assert expected_text in rendered
+
+
+def test_file_renderer_defaults_missing_file_type_to_misc(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.txt"
+    path.write_text("legacy file\n", encoding="utf-8")
+
+    rendered = _render_text(
+        render_artifact_detail(
+            _detail("legacy", ARTIFACT_KIND_FILE, metadata={"path": str(path)})
+        )
+    )
+
+    assert "File type: misc" in rendered
+    assert "legacy file" in rendered
+
+
+def test_file_renderer_surfaces_unknown_future_file_type(tmp_path: Path) -> None:
+    path = tmp_path / "notebook.ipynb"
+    path.write_text("{}", encoding="utf-8")
+
+    rendered = _render_text(
+        render_artifact_detail(
+            _detail(
+                "notebook",
+                ARTIFACT_KIND_FILE,
+                metadata={
+                    "path": str(path),
+                    ARTIFACT_FILE_TYPE_METADATA_KEY: "notebook",
+                },
+            )
+        )
+    )
+
+    assert "File type: misc" in rendered
+    assert "Unknown file type: notebook" in rendered
+    assert "{}" in rendered
 
 
 def test_file_renderer_handles_empty_file(tmp_path: Path) -> None:
