@@ -11,10 +11,12 @@ import re
 import sys
 import tempfile
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
+from collections.abc import Iterator
 
 from sase.agent.launcher import AgentLaunchResult, launch_agents_from_cwd
 from sase.agent.names import allocate_retry_name
@@ -34,6 +36,8 @@ MOBILE_AGENT_SCHEMA_VERSION = 1
 _PROMPT_SNIPPET_LIMIT = 200
 _SAFE_DIRECTIVE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _SAFE_DEVICE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+_SAFE_PROJECT_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SAFE_CONTEXT_COMPONENT_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
 _MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 _IMAGE_TYPES: dict[str, tuple[str, bytes | tuple[bytes, ...]]] = {
     ".png": ("image/png", b"\x89PNG\r\n\x1a\n"),
@@ -69,7 +73,18 @@ class _MobileAgentListRequest:
     include_recent: bool = False
     status: str | None = None
     project: str | None = None
+    device_id: str | None = None
     limit: int | None = None
+
+
+@dataclass(frozen=True)
+class _MobileProjectContext:
+    context_id: str
+    mode: str
+    project: str | None = None
+    project_file: str | None = None
+    workflow: str | None = None
+    ref: str | None = None
 
 
 def _list_mobile_agents(request: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -125,7 +140,12 @@ def _mobile_agent_resume_options() -> dict[str, Any]:
 def _launch_mobile_text_agents(request: dict[str, Any]) -> dict[str, Any]:
     """Launch text agents through the normal SASE launch path."""
     prompt = _mobile_launch_prompt(request)
-    return _launch_mobile_prompt(prompt, request, launch_kind="text")
+    return _launch_mobile_prompt(
+        prompt,
+        request,
+        launch_kind="text",
+        project_context=_project_context_from_request(request, prompt),
+    )
 
 
 def _launch_mobile_image_agents(request: dict[str, Any]) -> dict[str, Any]:
@@ -133,7 +153,11 @@ def _launch_mobile_image_agents(request: dict[str, Any]) -> dict[str, Any]:
     stored_path = _store_mobile_image_upload(request)
     prompt = _mobile_image_launch_prompt(request, stored_path)
     return _launch_mobile_prompt(
-        prompt, request, launch_kind="image", image_host_path=str(stored_path)
+        prompt,
+        request,
+        launch_kind="image",
+        image_host_path=str(stored_path),
+        project_context=_project_context_from_request(request, prompt),
     )
 
 
@@ -146,6 +170,10 @@ def _kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
         _raise_lifecycle_error(result)
 
     _persist_mobile_kill_context(name, request, before, result)
+    _persist_last_mobile_project_context(
+        _optional_str(request.get("device_id")),
+        _project_context_from_agent(before) if before is not None else None,
+    )
     return {
         "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
         "name": name,
@@ -178,6 +206,7 @@ def _retry_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
         launch_kind="retry",
         source_agent_name=context["agent_name"],
         retry_of_agent=context["agent_name"],
+        project_context=_project_context_from_context(context),
     )
     return {
         "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
@@ -194,13 +223,15 @@ def _launch_mobile_prompt(
     image_host_path: str | None = None,
     source_agent_name: str | None = None,
     retry_of_agent: str | None = None,
+    project_context: _MobileProjectContext | None = None,
 ) -> dict[str, Any]:
     planned_name = _planned_name_for_prompt(prompt)
     if request.get("dry_run") is True:
         return _dry_run_launch_response(prompt)
 
     try:
-        results = launch_agents_from_cwd(prompt)
+        with _mobile_launch_cwd(project_context):
+            results = launch_agents_from_cwd(prompt)
     except Exception as exc:
         raise _MobileAgentBridgeError(_safe_error_message(exc)) from exc
 
@@ -215,6 +246,10 @@ def _launch_mobile_prompt(
         image_host_path=image_host_path,
         source_agent_name=source_agent_name,
         retry_of_agent=retry_of_agent,
+        project_context=project_context,
+    )
+    _persist_last_mobile_project_context(
+        _optional_str(request.get("device_id")), project_context
     )
     return response
 
@@ -295,11 +330,23 @@ def _parse_list_request(payload: dict[str, Any]) -> _MobileAgentListRequest:
     project = payload.get("project")
     if project is not None and not isinstance(project, str):
         raise _MobileAgentBridgeError("project must be a string")
+    device_id = _optional_str(payload.get("device_id"))
+
+    project_context = _project_context_from_project_value(
+        project.strip() if isinstance(project, str) and project.strip() else None
+    )
+    if project_context is not None:
+        _persist_last_mobile_project_context(device_id, project_context)
 
     return _MobileAgentListRequest(
         include_recent=bool(payload.get("include_recent", False)),
         status=status.strip().upper() if status and status.strip() else None,
-        project=project.strip() if project and project.strip() else None,
+        project=project_context.project
+        if project_context is not None
+        else project.strip()
+        if project and project.strip()
+        else None,
+        device_id=device_id,
         limit=limit,
     )
 
@@ -388,8 +435,7 @@ def _matches_magic(
 
 
 def _mobile_image_upload_dir(device_id: str) -> Path:
-    sase_home = Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
-    return sase_home / "mobile_gateway" / "uploads" / "images" / device_id
+    return _sase_home() / "mobile_gateway" / "uploads" / "images" / device_id
 
 
 def _generated_image_filename(extension: str) -> str:
@@ -442,6 +488,140 @@ def _safe_device_id(device_id: str | None) -> str:
         return "unknown_device"
     safe = _SAFE_DEVICE_ID_RE.sub("-", device_id).strip(".-")
     return safe or "unknown_device"
+
+
+def _project_context_from_request(
+    request: dict[str, Any],
+    prompt: str,
+) -> _MobileProjectContext | None:
+    project_context = _project_context_from_project_value(
+        _optional_str(request.get("project"))
+    )
+    vcs_context = _project_context_from_prompt(prompt, project_context)
+    return vcs_context or project_context
+
+
+def _project_context_from_project_value(
+    raw_project: str | None,
+) -> _MobileProjectContext | None:
+    if raw_project is None:
+        return None
+    value = raw_project.strip()
+    if not value:
+        return None
+    if value.startswith("project:"):
+        value = value.split(":", 1)[1].strip()
+    if value in {"home", "home-mode"}:
+        return _MobileProjectContext(
+            context_id="home",
+            mode="home",
+            project="home",
+            project_file=str(_known_project_file("home")),
+        )
+    if (
+        "/" in value
+        or "\\" in value
+        or value in {".", ".."}
+        or not _SAFE_PROJECT_NAME_RE.fullmatch(value)
+    ):
+        raise _MobileAgentBridgeError(
+            "project must be a known SASE project name, not a path"
+        )
+    project_file = _known_project_file(value)
+    if not project_file.is_file():
+        raise _MobileAgentBridgeError(f"unknown mobile project context: {value}")
+    return _MobileProjectContext(
+        context_id=f"project:{value}",
+        mode="project",
+        project=value,
+        project_file=str(project_file),
+    )
+
+
+def _project_context_from_prompt(
+    prompt: str,
+    base: _MobileProjectContext | None,
+) -> _MobileProjectContext | None:
+    ref = _mobile_prompt_vcs_ref(prompt)
+    if ref is None:
+        return None
+    workflow, ref_value = ref
+    base_id = base.context_id if base is not None else "current"
+    context_id = _safe_context_id(f"{base_id}:{workflow}:{ref_value}")
+    return _MobileProjectContext(
+        context_id=context_id,
+        mode="vcs_ref",
+        project=base.project if base is not None else None,
+        project_file=base.project_file if base is not None else None,
+        workflow=workflow,
+        ref=ref_value,
+    )
+
+
+def _mobile_prompt_vcs_ref(prompt: str) -> tuple[str, str] | None:
+    try:
+        from sase.workspace_provider import get_ref_patterns
+
+        patterns = get_ref_patterns()
+    except Exception:
+        return None
+    for workflow, pattern in patterns.items():
+        match = pattern.search(prompt)
+        if match is None:
+            continue
+        ref_value = match.group(1) or match.group(2)
+        if ref_value:
+            return workflow, ref_value
+    return None
+
+
+def _known_project_file(project: str) -> Path:
+    return _sase_home() / "projects" / project / f"{project}.gp"
+
+
+def _safe_context_id(value: str) -> str:
+    safe = _SAFE_CONTEXT_COMPONENT_RE.sub("-", value).strip(".:-")
+    return safe or "current"
+
+
+@contextmanager
+def _mobile_launch_cwd(
+    project_context: _MobileProjectContext | None,
+) -> Iterator[None]:
+    cwd = _launch_cwd_for_project_context(project_context)
+    if cwd is None:
+        yield
+        return
+
+    previous = os.getcwd()
+    os.chdir(cwd)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
+def _launch_cwd_for_project_context(
+    project_context: _MobileProjectContext | None,
+) -> str | None:
+    if project_context is None or project_context.project_file is None:
+        return None
+    if project_context.project == "home":
+        return None
+
+    from sase.workspace_provider.utils import parse_workspace_dir
+
+    workspace_dir = parse_workspace_dir(project_context.project_file)
+    if not workspace_dir:
+        raise _MobileAgentBridgeError(
+            f"project context {project_context.project} has no workspace directory"
+        )
+    workspace_path = Path(workspace_dir).expanduser()
+    if not workspace_path.is_dir():
+        raise _MobileAgentBridgeError(
+            f"project context {project_context.project} workspace is unavailable"
+        )
+    return str(workspace_path)
 
 
 def _mobile_model_directive_value(
@@ -678,6 +858,9 @@ def _persist_mobile_kill_context(
 ) -> None:
     context_dir = _mobile_kill_context_dir()
     context_dir.mkdir(parents=True, exist_ok=True)
+    project_context = (
+        _project_context_from_agent(before) if before is not None else None
+    )
     context = {
         "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
         "agent_name": name,
@@ -686,6 +869,10 @@ def _persist_mobile_kill_context(
         "artifacts_timestamp": result.timestamp
         or _artifact_timestamp(before.artifacts_dir if before else None),
         "project": result.project or (before.project if before is not None else None),
+        "project_file": project_context.project_file
+        if project_context is not None
+        else None,
+        "project_context": _project_context_to_record(project_context),
         "raw_prompt": before.prompt if before is not None else None,
         "killed_pid": _optional_uint(result.pid),
         "device_id": _optional_str(request.get("device_id")),
@@ -708,6 +895,7 @@ def _persist_mobile_launch_contexts(
     image_host_path: str | None,
     source_agent_name: str | None,
     retry_of_agent: str | None,
+    project_context: _MobileProjectContext | None,
 ) -> None:
     slots = response.get("slots")
     if not isinstance(slots, list):
@@ -737,8 +925,13 @@ def _persist_mobile_launch_contexts(
             "retry_of_agent": retry_of_agent,
             "artifact_dir": artifact_dir,
             "artifacts_timestamp": _artifact_timestamp(artifact_dir),
-            "project": _optional_str(request.get("project"))
+            "project": (project_context.project if project_context else None)
+            or _optional_str(request.get("project"))
             or _project_from_artifact_dir(artifact_dir),
+            "project_file": project_context.project_file
+            if project_context is not None
+            else None,
+            "project_context": _project_context_to_record(project_context),
             "raw_prompt_path": str(Path(artifact_dir) / "raw_xprompt.md")
             if artifact_dir
             else None,
@@ -755,6 +948,92 @@ def _persist_mobile_launch_contexts(
     with store_path.open("a", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def _project_context_to_record(
+    context: _MobileProjectContext | None,
+) -> dict[str, Any] | None:
+    if context is None:
+        return None
+    return {
+        "context_id": context.context_id,
+        "mode": context.mode,
+        "project": context.project,
+        "project_file": context.project_file,
+        "workflow": context.workflow,
+        "ref": context.ref,
+    }
+
+
+def _project_context_from_context(
+    context: dict[str, Any],
+) -> _MobileProjectContext | None:
+    raw = context.get("project_context")
+    if isinstance(raw, dict):
+        context_id = _optional_str(raw.get("context_id"))
+        mode = _optional_str(raw.get("mode"))
+        if context_id and mode:
+            return _MobileProjectContext(
+                context_id=context_id,
+                mode=mode,
+                project=_optional_str(raw.get("project")),
+                project_file=_optional_str(raw.get("project_file")),
+                workflow=_optional_str(raw.get("workflow")),
+                ref=_optional_str(raw.get("ref")),
+            )
+    project = _optional_str(context.get("project"))
+    project_file = _optional_str(context.get("project_file"))
+    if project:
+        known_project_file = _known_project_file(project)
+        return _MobileProjectContext(
+            context_id="home" if project == "home" else f"project:{project}",
+            mode="home" if project == "home" else "project",
+            project=project,
+            project_file=project_file
+            or (str(known_project_file) if known_project_file.is_file() else None),
+        )
+    return None
+
+
+def _project_context_from_agent(
+    agent: RunningAgentInfo,
+) -> _MobileProjectContext | None:
+    if not agent.project:
+        return None
+    project_file = _known_project_file(agent.project)
+    return _MobileProjectContext(
+        context_id="home" if agent.project == "home" else f"project:{agent.project}",
+        mode="home" if agent.project == "home" else "project",
+        project=agent.project,
+        project_file=str(project_file),
+    )
+
+
+def _persist_last_mobile_project_context(
+    device_id: str | None,
+    context: _MobileProjectContext | None,
+) -> None:
+    if not device_id or context is None:
+        return
+    final_path = _device_project_context_path(device_id)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "device_id": device_id,
+        "project_context": _project_context_to_record(context),
+        "updated_at": datetime.now(UTC).isoformat(),
+    }
+    tmp_path = final_path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp_path, final_path)
+
+
+def _device_project_context_path(device_id: str) -> Path:
+    return (
+        _mobile_gateway_state_dir()
+        / "device_project_contexts"
+        / f"{_safe_device_id(device_id)}.json"
+    )
 
 
 def _resolve_mobile_retry_context(name: str) -> dict[str, Any]:
@@ -869,8 +1148,11 @@ def _mobile_kill_context_dir() -> Path:
 
 
 def _mobile_gateway_state_dir() -> Path:
-    sase_home = Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
-    return sase_home / "mobile_gateway"
+    return _sase_home() / "mobile_gateway"
+
+
+def _sase_home() -> Path:
+    return Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
 
 
 def _artifact_timestamp(artifacts_dir: str | None) -> str | None:

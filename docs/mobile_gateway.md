@@ -286,12 +286,109 @@ Mutating notification state and action routes audit device ID, endpoint, target 
 Duplicate, stale, ambiguous, already-handled, unsupported, and missing-target cases return typed `ApiErrorWire` records
 and do not overwrite existing response files.
 
+## Agents
+
+Agent lifecycle routes also require the paired device bearer token. They call fixed host bridge operations, not
+mobile-supplied commands, cwd values, or environment variables.
+
+List running agents:
+
+```bash
+curl -sS "$BASE_URL/api/v1/agents" \
+  -H "$AUTH_HEADER"
+```
+
+Include recent completed/failed agents, filter by status or known project, and cap the response:
+
+```bash
+curl -sS "$BASE_URL/api/v1/agents?include_recent=true&project=sase&status=running&limit=25" \
+  -H "$AUTH_HEADER"
+```
+
+Fetch copy/share/direct-launch resume and wait prompt options:
+
+```bash
+curl -sS "$BASE_URL/api/v1/agents/resume-options" \
+  -H "$AUTH_HEADER"
+```
+
+Launch a text agent:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"prompt":"Summarize the current failures","name":"mobile.summary"}'
+```
+
+Launch in a known SASE project context by passing the project name, not a path. The bridge resolves only
+`<sase_home>/projects/<project>/<project>.gp` and uses that file's `WORKSPACE_DIR` when it needs a project cwd:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"project":"sase","prompt":"Run the focused mobile gateway tests","name":"mobile.sase"}'
+```
+
+For home-mode launches, omit `project` or pass `"home"`. For VCS-ref launches, include the normal SASE prompt syntax
+such as `#gh:12345` or legacy `#gh@12345`; the bridge normalizes legacy `@` refs before launch and persists a
+product-shaped context ID such as `project:sase:gh:12345`. Android must never send host paths as project context.
+
+Launch an image agent with base64 image bytes. The host stores the image under SASE-owned gateway state and injects the
+absolute saved path into the agent prompt:
+
+```bash
+IMAGE_B64="$(base64 -w0 screenshot.png)"
+IMAGE_BYTES="$(wc -c < screenshot.png)"
+
+curl -sS -X POST "$BASE_URL/api/v1/agents/launch-image" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"schema_version\": 1,
+    \"prompt\": \"Review this screenshot\",
+    \"name\": \"mobile.image\",
+    \"original_filename\": \"screenshot.png\",
+    \"content_type\": \"image/png\",
+    \"byte_length\": $IMAGE_BYTES,
+    \"base64_image\": \"$IMAGE_B64\"
+  }"
+```
+
+Kill an agent by exact name:
+
+```bash
+AGENT_NAME="mobile.summary"
+
+curl -sS -X POST "$BASE_URL/api/v1/agents/$AGENT_NAME/kill" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"reason":"mobile"}'
+```
+
+Retry an agent by exact name, artifact timestamp, or durable mobile context:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/agents/$AGENT_NAME/retry" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1}'
+```
+
+Successful launch, image launch, kill, and retry routes audit the paired device and publish `agents_changed` SSE events
+with a reason and agent name when available. Mobile launch context is appended to
+`<sase_home>/mobile_gateway/agent_launch_contexts.jsonl`; mobile kill context is stored under
+`<sase_home>/mobile_gateway/agent_kill_contexts/`; and the last known product-shaped project context per device is
+stored under `<sase_home>/mobile_gateway/device_project_contexts/`.
+
 ## Storage And Revocation
 
 Gateway state is stored under `<sase_home>/mobile_gateway/`. With the default SASE home, that is
 `~/.sase/mobile_gateway/`.
 
 - Paired devices live in `devices.json`.
+- Mobile agent launch, kill, upload, and per-device project context state also lives under this directory.
 - Raw bearer tokens are not written to disk; only SHA-256 token hashes are stored.
 - Audit records append to `audit.jsonl` with device ID, endpoint, target ID when available, and outcome. Audit records
   avoid pairing codes and bearer tokens.
@@ -344,3 +441,5 @@ Keep the JSON snapshot, Rust wire tests, and this document aligned whenever the 
 - Telegram remains supported through the shared pending-action compatibility path. If an older Telegram install has only
   legacy pending-action JSON, mobile can read it, but Telegram is not yet required to use the shared store as its only
   source of truth.
+- Agent project context is intentionally an MVP metadata and known-project cwd selector. It does not expose arbitrary
+  host directory selection, and clients must use SASE prompt syntax for VCS refs rather than sending raw repo paths.

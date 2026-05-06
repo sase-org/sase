@@ -51,7 +51,7 @@ def _agent(
     project: str = "sase",
 ) -> RunningAgentInfo:
     artifacts_dir = tmp_path / (name or "unnamed")
-    artifacts_dir.mkdir()
+    artifacts_dir.mkdir(exist_ok=True)
     (artifacts_dir / "agent_meta.json").write_text(
         json.dumps(
             {
@@ -77,6 +77,16 @@ def _agent(
         duration_seconds=60,
         artifacts_dir=str(artifacts_dir),
     )
+
+
+def _known_project(tmp_path: Path, name: str = "sase") -> Path:
+    workspace = tmp_path / "workspaces" / name
+    workspace.mkdir(parents=True)
+    project_dir = tmp_path / "projects" / name
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / f"{name}.gp"
+    project_file.write_text(f"WORKSPACE_DIR: {workspace}\n", encoding="utf-8")
+    return workspace
 
 
 def test_list_mobile_agents_projects_running_agent(monkeypatch, tmp_path: Path) -> None:
@@ -108,6 +118,8 @@ def test_list_mobile_agents_projects_running_agent(monkeypatch, tmp_path: Path) 
 
 
 def test_list_mobile_agents_filters_and_limits(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    _known_project(tmp_path, "sase")
     monkeypatch.setattr(
         mobile_agents,
         "list_all_agents",
@@ -244,6 +256,75 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
         encoding="utf-8"
     )
     assert '"agent_name": "mobile.demo"' in contexts
+
+
+def test_launch_mobile_text_agents_persists_known_project_context(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    workspace = _known_project(tmp_path, "sase")
+    captured_cwds: list[str] = []
+
+    def fake_launch(_prompt: str) -> list[AgentLaunchResult]:
+        captured_cwds.append(str(Path.cwd()))
+        return [
+            AgentLaunchResult(
+                pid=111,
+                workspace_num=0,
+                workspace_dir=str(workspace),
+                output_path="/tmp/out",
+                project_name="sase",
+                timestamp="260506_143000",
+            )
+        ]
+
+    monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
+
+    _launch_mobile_text_agents(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "name": "mobile.project",
+            "project": "sase",
+            "device_id": "device/one",
+        }
+    )
+
+    assert captured_cwds == [str(workspace)]
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "mobile_gateway" / "agent_launch_contexts.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert rows[-1]["project"] == "sase"
+    assert rows[-1]["project_context"]["context_id"] == "project:sase"
+    assert rows[-1]["project_context"]["project_file"].endswith(
+        "/projects/sase/sase.gp"
+    )
+    device_context = json.loads(
+        (
+            tmp_path / "mobile_gateway" / "device_project_contexts" / "device-one.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert device_context["project_context"]["context_id"] == "project:sase"
+
+
+def test_launch_mobile_text_agents_rejects_path_project_context(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+
+    with pytest.raises(Exception, match="not a path"):
+        _launch_mobile_text_agents(
+            {
+                "schema_version": 1,
+                "prompt": "Do work",
+                "project": "../sase",
+            }
+        )
 
 
 def test_launch_mobile_text_agents_reports_validation_errors() -> None:
@@ -645,3 +726,82 @@ def test_retry_mobile_agent_missing_context_returns_not_found(
 
     assert code == 4
     assert "No retry context found" in stderr.getvalue()
+
+
+def test_mobile_agent_bridge_smoke_launch_list_kill_retry_and_image(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    monkeypatch.setattr(mobile_agents, "allocate_retry_name", lambda name: f"{name}.1")
+    launched_prompts: list[str] = []
+    running_names: list[str] = []
+
+    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+        launched_prompts.append(prompt)
+        name = (
+            mobile_agents._planned_name_for_prompt(prompt)
+            or f"agent-{len(running_names)}"
+        )
+        running_names.append(name)
+        return [
+            AgentLaunchResult(
+                pid=4000 + len(running_names),
+                workspace_num=0,
+                workspace_dir="/tmp/ws",
+                output_path="/tmp/out",
+                project_name="home",
+                timestamp=f"260506_16000{len(running_names)}",
+            )
+        ]
+
+    def fake_running() -> list[RunningAgentInfo]:
+        return [_agent(tmp_path, name=name, project="home") for name in running_names]
+
+    def fake_kill(name: str, *, exact_name: bool) -> _KillResult:
+        if name in running_names:
+            running_names.remove(name)
+        return _KillResult(
+            True,
+            f"Killed agent '{name}' (PID 4001)",
+            status="killed",
+            pid=4001,
+            changed=True,
+            artifacts_dir=str(tmp_path / name),
+            project="home",
+            timestamp="20260506160001",
+        )
+
+    monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
+    monkeypatch.setattr(mobile_agents, "list_running_agents", fake_running)
+    monkeypatch.setattr(mobile_agents, "list_all_agents", fake_running)
+    monkeypatch.setattr(mobile_agents, "kill_named_agent", fake_kill)
+
+    launch = _launch_mobile_text_agents(
+        {
+            "schema_version": 1,
+            "prompt": "Do smoke work",
+            "name": "smoke.text",
+            "device_id": "device-one",
+        }
+    )
+    listed = _list_mobile_agents({"schema_version": 1, "device_id": "device-one"})
+    killed = _kill_mobile_agent(
+        {"schema_version": 1, "name": "smoke.text", "device_id": "device-one"}
+    )
+    retry = _retry_mobile_agent(
+        {"schema_version": 1, "name": "smoke.text", "device_id": "device-one"}
+    )
+    image = _launch_mobile_image_agents(_image_request(name="smoke.image"))
+
+    assert launch["primary"]["name"] == "smoke.text"
+    assert [agent["name"] for agent in listed["agents"]] == ["smoke.text"]
+    assert killed["changed"] is True
+    assert retry["launch"]["primary"]["name"] == "smoke.text.1"
+    assert image["primary"]["name"] == "smoke.image"
+    assert "The image has been saved to:" in launched_prompts[-1]
+    assert list(
+        (tmp_path / "mobile_gateway" / "uploads" / "images" / "device-one").glob(
+            "*.png"
+        )
+    )
