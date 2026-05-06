@@ -27,6 +27,7 @@ from .artifact_panel_state import (
     ArtifactPanelRow,
     build_artifact_panel_rows,
     build_artifact_search_rows,
+    detail_render_context_from_paged_model,
 )
 
 
@@ -248,8 +249,12 @@ class ArtifactPanelRenderingMixin:
     def _build_detail_renderable(
         self: Any, detail: ArtifactDetailWire
     ) -> RenderableType:
-        renderer = self._detail_renderer or render_artifact_detail
-        return renderer(detail)
+        if self._detail_renderer is not None:
+            return self._detail_renderer(detail)
+        return render_artifact_detail(
+            detail,
+            render_context=detail_render_context_from_paged_model(self._paged_model),
+        )
 
     def _start_detail_render(self: Any, detail: ArtifactDetailWire) -> None:
         if self._render_worker is not None:

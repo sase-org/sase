@@ -8,6 +8,7 @@ from sase.core.artifact_wire import (
     ArtifactDetailPagedWire,
     ArtifactDetailWire,
     ArtifactRelationPageWire,
+    ArtifactTypeCountWire,
 )
 
 
@@ -65,6 +66,30 @@ class ArtifactPanelPagedModel:
     )
     group_offsets: dict[ArtifactPanelRelationPageKey, int] = field(default_factory=dict)
     group_totals: dict[ArtifactPanelRelationPageKey, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ArtifactRelationshipContext:
+    """Compact relationship summary for detail-pane rendering."""
+
+    link_type: str
+    loaded_count: int
+    total_count: int
+    peer_labels: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ArtifactDetailRenderContext:
+    """Already-loaded relationship context available to detail renderers."""
+
+    parent_label: str | None = None
+    path_labels: tuple[str, ...] = ()
+    children_loaded_count: int = 0
+    children_total_count: int = 0
+    child_labels: tuple[str, ...] = ()
+    outbound: tuple[ArtifactRelationshipContext, ...] = ()
+    inbound: tuple[ArtifactRelationshipContext, ...] = ()
+    type_counts: tuple[ArtifactTypeCountWire, ...] = ()
 
 
 @dataclass

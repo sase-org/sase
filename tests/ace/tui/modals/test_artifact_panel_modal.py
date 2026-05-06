@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import io
 from pathlib import Path
 import threading
 from time import perf_counter
 from typing import Any
 
 import pytest
+from rich.console import Console
 from rich.console import RenderableType
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList, Static
@@ -39,6 +41,17 @@ class _ModalTestApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+def _render_text(renderable: RenderableType) -> str:
+    console = Console(
+        file=io.StringIO(),
+        record=True,
+        width=140,
+        color_system=None,
+    )
+    console.print(renderable)
+    return console.export_text()
 
 
 def _node(
@@ -1005,6 +1018,153 @@ async def test_artifact_modal_renders_persistent_header_with_counts() -> None:
     assert "Path: / > Alpha CL" in path
     assert "children 1/12" in counts
     assert "agent 12" in counts
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_passes_paged_relationship_context_to_default_renderer() -> (
+    None
+):
+    show_calls: list[ArtifactPageRequestWire | None] = []
+    child = _node("agent:child", "agent", "Child agent")
+    created_link = ArtifactLinkWire(
+        id="created-1",
+        link_type="created",
+        source_id="changespec:alpha",
+        target_id="file:plan",
+        metadata={"target_title": "Plan file"},
+    )
+    worker_link = ArtifactLinkWire(
+        id="worker-1",
+        link_type="worker",
+        source_id="changespec:alpha",
+        target_id="agent:worker",
+        metadata={"target_title": "Worker agent"},
+    )
+    inbound_link = ArtifactLinkWire(
+        id="related-1",
+        link_type="related",
+        source_id="changespec:beta",
+        target_id="changespec:alpha",
+        metadata={"source_title": "Beta CL"},
+    )
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path
+        show_calls.append(request)
+        assert artifact_id == "changespec:alpha"
+        return ArtifactDetailPagedWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            node=_node(artifact_id, "changespec", "Alpha CL"),
+            path_to_root=[_node("/", "root", "/")],
+            children_page=ArtifactRelationPageWire(
+                summary=ArtifactGroupSummaryWire(
+                    group_key="children",
+                    direction="children",
+                    total_count=12,
+                    loaded_count=1,
+                ),
+                nodes=[child],
+            ),
+            outbound_pages=[
+                ArtifactRelationPageWire(
+                    summary=ArtifactGroupSummaryWire(
+                        group_key="outbound:created",
+                        direction="outbound",
+                        link_type="created",
+                        total_count=7,
+                        loaded_count=1,
+                    ),
+                    links=[created_link],
+                ),
+                ArtifactRelationPageWire(
+                    summary=ArtifactGroupSummaryWire(
+                        group_key="outbound:worker",
+                        direction="outbound",
+                        link_type="worker",
+                        total_count=1,
+                        loaded_count=1,
+                    ),
+                    links=[worker_link],
+                ),
+            ],
+            inbound_pages=[
+                ArtifactRelationPageWire(
+                    summary=ArtifactGroupSummaryWire(
+                        group_key="inbound:related",
+                        direction="inbound",
+                        link_type="related",
+                        total_count=4,
+                        loaded_count=1,
+                    ),
+                    links=[inbound_link],
+                )
+            ],
+            type_counts=[ArtifactTypeCountWire("agent", 12)],
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=fake_paged_show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert modal._render_worker is not None
+        assert modal._render_worker.result is not None
+        detail_text = _render_text(modal._render_worker.result)
+
+    assert len(show_calls) == 1
+    assert "Context" in detail_text
+    assert "Parent: /" in detail_text
+    assert "Children: 1/12 - Child agent (agent:child)" in detail_text
+    assert "Created: 1/7 - Plan file (file:plan)" in detail_text
+    assert "Worker: 1 - Worker agent (agent:worker)" in detail_text
+    assert "Related from: 1/4 - Beta CL (changespec:beta)" in detail_text
+    assert "Inbound: related=1/4" in detail_text
+    assert "Types: agent=12" in detail_text
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_keeps_one_argument_custom_detail_renderer_compatible() -> (
+    None
+):
+    renderer_calls: list[str] = []
+
+    def custom_renderer(detail: ArtifactDetailWire) -> RenderableType:
+        assert detail.node is not None
+        renderer_calls.append(detail.node.id)
+        return f"custom render for {detail.node.id}"
+
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=lambda index_path, artifact_id, request=None: _paged_detail(
+            artifact_id,
+            kind="changespec",
+            children=[_node("child:one", "agent")],
+            child_total=12,
+        ),
+        detail_renderer=custom_renderer,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+
+    assert renderer_calls == ["alpha"]
+    assert "custom render for alpha" in detail_text
 
 
 @pytest.mark.parametrize("start_id", ["/", "changespec:current", "agent:current"])

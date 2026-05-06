@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,10 @@ import pytest
 from rich.console import Console, RenderableType
 
 from sase.ace.tui.graphics import GraphicsCapability
+from sase.ace.tui.modals.artifact_panel_state import (
+    ArtifactDetailRenderContext,
+    ArtifactRelationshipContext,
+)
 from sase.ace.tui.modals.artifact_panel_renderers import render_artifact_detail
 from sase.core.artifact_wire import (
     ARTIFACT_FILE_TYPE_CHAT,
@@ -32,11 +37,17 @@ from sase.core.artifact_wire import (
     ArtifactLinkWire,
     ArtifactNodeWire,
     ArtifactPayloadWire,
+    ArtifactTypeCountWire,
 )
 
 
 def _render_text(renderable: RenderableType) -> str:
-    console = Console(record=True, width=140, color_system=None)
+    console = Console(
+        file=io.StringIO(),
+        record=True,
+        width=140,
+        color_system=None,
+    )
     console.print(renderable)
     return console.export_text()
 
@@ -172,6 +183,67 @@ def test_file_renderer_handles_missing_file(tmp_path: Path) -> None:
 
     assert "Path:" in rendered
     assert "File is missing on disk" in rendered
+
+
+def test_renderer_includes_relationship_context_strip_from_paged_totals() -> None:
+    detail = _detail(
+        "changespec:alpha",
+        ARTIFACT_KIND_CHANGESPEC,
+        title="Alpha CL",
+    )
+    context = ArtifactDetailRenderContext(
+        parent_label="Project (project:sase)",
+        children_loaded_count=2,
+        children_total_count=12,
+        child_labels=("Agent one (agent:one)", "Agent two (agent:two)"),
+        outbound=(
+            ArtifactRelationshipContext(
+                "created",
+                loaded_count=1,
+                total_count=5,
+                peer_labels=("Plan file (file:plan)",),
+            ),
+            ArtifactRelationshipContext(
+                "related",
+                loaded_count=1,
+                total_count=1,
+                peer_labels=("Related CL (changespec:related)",),
+            ),
+            ArtifactRelationshipContext(
+                "worker",
+                loaded_count=1,
+                total_count=1,
+                peer_labels=("Worker agent (agent:worker)",),
+            ),
+        ),
+        inbound=(
+            ArtifactRelationshipContext(
+                "created",
+                loaded_count=1,
+                total_count=1,
+                peer_labels=("Planner (agent:planner)",),
+            ),
+            ArtifactRelationshipContext(
+                "related",
+                loaded_count=2,
+                total_count=8,
+                peer_labels=("Inbound CL (changespec:inbound)",),
+            ),
+        ),
+        type_counts=(ArtifactTypeCountWire("agent", 12),),
+    )
+
+    rendered = _render_text(render_artifact_detail(detail, render_context=context))
+
+    assert "Context" in rendered
+    assert "Parent: Project (project:sase)" in rendered
+    assert "Children: 2/12 - Agent one (agent:one), Agent two (agent:two)" in rendered
+    assert "Created: 1/5 - Plan file (file:plan)" in rendered
+    assert "Created by: 1 - Planner (agent:planner)" in rendered
+    assert "Related: 1 - Related CL (changespec:related)" in rendered
+    assert "Worker: 1 - Worker agent (agent:worker)" in rendered
+    assert "Inbound: created=1, related=2/8" in rendered
+    assert "Types: agent=12" in rendered
 
 
 @pytest.mark.parametrize(

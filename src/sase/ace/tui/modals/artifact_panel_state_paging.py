@@ -15,8 +15,10 @@ from sase.core.artifact_wire import (
 
 from .artifact_panel_state_models import (
     ARTIFACT_PANEL_GROUP_PAGE_SIZE,
+    ArtifactDetailRenderContext,
     ArtifactPanelPagedModel,
     ArtifactPanelRelationPageKey,
+    ArtifactRelationshipContext,
 )
 
 
@@ -155,6 +157,39 @@ def parent_id_from_detail(detail: ArtifactDetailWire, current_id: str) -> str | 
     return candidates[-1]
 
 
+def detail_render_context_from_paged_model(
+    model: ArtifactPanelPagedModel | None,
+) -> ArtifactDetailRenderContext | None:
+    """Build detail render context from the already-loaded paged model."""
+    if model is None:
+        return None
+
+    paged = model.paged_detail
+    parent = paged.path_to_root[-1] if paged.path_to_root else None
+    children_page = paged.children_page
+    if children_page is None:
+        children_loaded = 0
+        children_total = 0
+        child_labels: tuple[str, ...] = ()
+    else:
+        children_loaded = children_page.summary.loaded_count
+        children_total = children_page.summary.total_count
+        child_labels = tuple(
+            _node_context_label(node) for node in children_page.nodes[:2]
+        )
+
+    return ArtifactDetailRenderContext(
+        parent_label=_node_context_label(parent) if parent is not None else None,
+        path_labels=tuple(_node_context_label(node) for node in paged.path_to_root),
+        children_loaded_count=children_loaded,
+        children_total_count=children_total,
+        child_labels=child_labels,
+        outbound=_relationship_contexts_from_pages(paged.outbound_pages, "outbound"),
+        inbound=_relationship_contexts_from_pages(paged.inbound_pages, "inbound"),
+        type_counts=tuple(paged.type_counts),
+    )
+
+
 def _legacy_detail_from_paged_detail(
     paged_detail: ArtifactDetailPagedWire,
 ) -> ArtifactDetailWire:
@@ -283,6 +318,58 @@ def _dedupe_links(links: list[ArtifactLinkWire]) -> list[ArtifactLinkWire]:
         seen.add(link.id)
         deduped.append(link)
     return deduped
+
+
+def _relationship_contexts_from_pages(
+    pages: list[ArtifactRelationPageWire],
+    direction: str,
+) -> tuple[ArtifactRelationshipContext, ...]:
+    by_type: dict[str, ArtifactRelationshipContext] = {}
+    peer_labels: dict[str, list[str]] = defaultdict(list)
+    loaded_counts: dict[str, int] = defaultdict(int)
+    total_counts: dict[str, int] = defaultdict(int)
+
+    for page in pages:
+        link_type = page.summary.link_type or "related"
+        loaded_counts[link_type] += page.summary.loaded_count
+        total_counts[link_type] += page.summary.total_count
+        for link in page.links:
+            if len(peer_labels[link_type]) >= 2:
+                break
+            peer_labels[link_type].append(_link_peer_context_label(link, direction))
+
+    for link_type in sorted(total_counts):
+        by_type[link_type] = ArtifactRelationshipContext(
+            link_type=link_type,
+            loaded_count=loaded_counts[link_type],
+            total_count=total_counts[link_type],
+            peer_labels=tuple(peer_labels[link_type]),
+        )
+    return tuple(by_type.values())
+
+
+def _node_context_label(node: ArtifactNodeWire) -> str:
+    title = node.display_title or node.id
+    if title == node.id:
+        return node.id
+    return f"{title} ({node.id})"
+
+
+def _link_peer_context_label(link: ArtifactLinkWire, direction: str) -> str:
+    if direction == "inbound":
+        artifact_id = link.source_id
+        title = _metadata_str(link.metadata, "source_title")
+    else:
+        artifact_id = link.target_id
+        title = _metadata_str(link.metadata, "target_title")
+    if title and title != artifact_id:
+        return f"{title} ({artifact_id})"
+    return artifact_id
+
+
+def _metadata_str(metadata: dict[str, object], key: str) -> str | None:
+    value = metadata.get(key)
+    return str(value) if value else None
 
 
 def _legacy_relation_page(

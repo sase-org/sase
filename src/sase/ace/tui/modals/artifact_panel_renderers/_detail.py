@@ -8,6 +8,7 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from sase.ace.tui.graphics import GraphicsCapability
+from sase.ace.tui.modals.artifact_panel_state import ArtifactDetailRenderContext
 from sase.core.artifact_wire import (
     ARTIFACT_KIND_AGENT,
     ARTIFACT_KIND_BEAD,
@@ -37,6 +38,7 @@ from ._summaries import (
     render_diagnostics,
     render_link_summary,
     render_payload_summary,
+    render_relationship_context,
 )
 
 ArtifactRenderer = Callable[..., RenderableType]
@@ -57,6 +59,7 @@ _RENDERERS: dict[str, ArtifactRenderer] = {
 def render_artifact_detail(
     detail: ArtifactDetailWire,
     *,
+    render_context: ArtifactDetailRenderContext | None = None,
     graphics_capability: GraphicsCapability | None = None,
     max_file_preview_lines: int = FILE_PREVIEW_LINE_LIMIT,
     preview_size_func: Callable[[], tuple[int, int]] | None = None,
@@ -70,6 +73,10 @@ def render_artifact_detail(
         "terminal graphics unavailable in this artifact detail context"
     )
     sections: list[RenderableType] = [render_header(detail)]
+
+    relationship_context = render_relationship_context(render_context)
+    if relationship_context is not None:
+        sections.append(relationship_context)
 
     renderer = _RENDERERS.get(node.kind, render_unknown)
     sections.append(
