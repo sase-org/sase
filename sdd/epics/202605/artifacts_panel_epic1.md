@@ -2,6 +2,9 @@
 create_time: 2026-05-05 20:04:15
 status: wip
 prompt: sdd/prompts/202605/artifacts_panel_epic1.md
+bead_id: sase-24.1
+tier: epic
+legend_bead_id: sase-24
 ---
 # Artifacts Panel Redesign Epic 1 Phase Plan
 
