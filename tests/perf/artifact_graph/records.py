@@ -23,6 +23,7 @@ def mutation_record(
         "fixture": fixture,
         "bounded": bounded,
         "mutation_counts": {
+            "calls": 1,
             "nodes_added": result.nodes_added,
             "nodes_updated": result.nodes_updated,
             "nodes_removed": result.nodes_removed,
@@ -46,16 +47,24 @@ def query_record(
     query_count: int,
     result_count: int,
     errors: list[str] | None = None,
+    query_counts: dict[str, int] | None = None,
+    mutation_counts: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    return {
+    counted_queries = {"calls": query_count}
+    if query_counts:
+        counted_queries.update(query_counts)
+    record = {
         "operation": operation,
         "latency_ms": latency_ms,
         "fixture": fixture,
         "bounded": bounded,
-        "query_counts": {"calls": query_count},
+        "query_counts": counted_queries,
         "result_count": result_count,
         "errors": errors or [],
     }
+    if mutation_counts is not None:
+        record["mutation_counts"] = mutation_counts
+    return record
 
 
 def time_mutation(

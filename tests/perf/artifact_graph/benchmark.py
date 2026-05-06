@@ -24,6 +24,27 @@ def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
             "latency": summarize([float(item["latency_ms"]) for item in items]),
             "bounded": items[0]["bounded"],
             "fixture": items[0]["fixture"],
+            "result_count": summarize(
+                [
+                    float(item["result_count"])
+                    for item in items
+                    if "result_count" in item
+                ]
+            ),
+            "query_calls": summarize(
+                [
+                    float(item["query_counts"]["calls"])
+                    for item in items
+                    if "query_counts" in item
+                ]
+            ),
+            "mutation_calls": summarize(
+                [
+                    float(item["mutation_counts"]["calls"])
+                    for item in items
+                    if "mutation_counts" in item and "calls" in item["mutation_counts"]
+                ]
+            ),
             "errors": [error for item in items for error in item.get("errors", [])],
         }
         for operation, items in grouped.items()
@@ -42,6 +63,12 @@ def run_benchmark(
     records: list[dict[str, Any]] = []
     for _ in range(runs):
         records.append(measure_startup_contract_sentinel())
+        records.append(
+            measure_startup_contract_sentinel(
+                operation="startup_contract:missing_index_no_broad_artifact_graph_calls",
+                fixture={"index_exists": 0},
+            )
+        )
         records.extend(
             run_fixture_measurements(
                 project_count=project_count,

@@ -33,7 +33,11 @@ class _StartupSentinelApp(StartupMixin):
         self.watcher_start_calls += 1
 
 
-def measure_startup_contract_sentinel() -> dict[str, Any]:
+def measure_startup_contract_sentinel(
+    *,
+    operation: str = "startup_contract:no_broad_artifact_graph_calls",
+    fixture: dict[str, int] | None = None,
+) -> dict[str, Any]:
     """Verify post-mount startup scheduling does not touch graph queries."""
 
     app = _StartupSentinelApp()
@@ -85,9 +89,13 @@ def measure_startup_contract_sentinel() -> dict[str, Any]:
         errors.append(f"unexpected watcher starts: {app.watcher_start_calls}")
 
     return query_record(
-        "startup_contract:no_broad_artifact_graph_calls",
+        operation,
         elapsed_ms,
-        fixture={"workers": len(app.worker_calls), "watcher_starts": 1},
+        fixture={
+            "workers": len(app.worker_calls),
+            "watcher_starts": 1,
+            **(fixture or {}),
+        },
         bounded=True,
         query_count=len(broad_calls),
         result_count=len(app.worker_calls),

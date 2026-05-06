@@ -48,17 +48,32 @@ def test_artifact_graph_benchmark_smoke() -> None:
     modal_rows = [
         row
         for row in result["measurements"]
-        if str(row["operation"]).startswith("modal_open:")
+        if str(row["operation"]).startswith("modal_open:paged:")
     ]
     assert modal_rows
-    assert all(row["query_counts"]["calls"] == 1 for row in modal_rows)
+    assert all(row["query_counts"]["artifact_show_paged"] == 1 for row in modal_rows)
+    assert all(row["query_counts"]["artifact_show"] == 0 for row in modal_rows)
+    assert all(row["result_count"] <= 40 for row in modal_rows)
+
+    missing_modal = [
+        row
+        for row in result["measurements"]
+        if row["operation"]
+        == "modal_open:missing_artifact_targeted_refresh:changespec:current"
+    ]
+    assert missing_modal
+    assert all(row["query_counts"]["artifact_show_paged"] == 2 for row in missing_modal)
+    assert all(row["mutation_counts"]["calls"] == 1 for row in missing_modal)
 
     startup_rows = [
         row
         for row in result["measurements"]
-        if row["operation"] == "startup_contract:no_broad_artifact_graph_calls"
+        if str(row["operation"]).startswith("startup_contract:")
     ]
-    assert startup_rows
+    assert {row["operation"] for row in startup_rows} == {
+        "startup_contract:no_broad_artifact_graph_calls",
+        "startup_contract:missing_index_no_broad_artifact_graph_calls",
+    }
     assert all(row["query_counts"]["calls"] == 0 for row in startup_rows)
 
     by_operation = {row["operation"]: row for row in result["measurements"]}
