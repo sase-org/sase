@@ -334,7 +334,7 @@ so a partial tick only reprocesses the undelivered tail.
 
 ## 10. Privacy Defaults
 
-The default should avoid quietly copying the user's mailbox into sase artifacts.
+The default should avoid quietly copying the user's mailbox into SASE artifact files.
 
 Recommended defaults:
 

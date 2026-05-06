@@ -10,33 +10,33 @@ prompt: sdd/prompts/202605/dotted_bead_tag_directives.md
 The `sase ace` snapshot shows repeated launch failures while processing an epic land-agent prompt:
 
 ```text
-%name:sase-24.3
-%tag:sase-24.3
-%w:sase-24.3.1,...
-#bd/land_epic:sase-24.3
+%name:sase-42.3
+%tag:sase-42.3
+%w:sase-42.3.1,...
+#bd/land_epic:sase-42.3
 ```
 
 The failure happens before the agent prompt is written:
 
 ```text
-DirectiveError: Invalid '%tag' value: tag name 'sase-24.3' must match ^[A-Za-z0-9_-]+$
+DirectiveError: Invalid '%tag' value: tag name 'sase-42.3' must match ^[A-Za-z0-9_-]+$
 ```
 
 Commit `1ab48ecfcb5c` is relevant because it moved epic work rendering toward bead-driven launch tags for legend-linked
 work. That commit, plus the matching `sase-core` change, is the right semantic direction: phase and land agents should
 remain named after the working bead, while `%tag` groups them by the controlling bead. The immediate failure is that the
 `%tag` directive and persisted agent-tag validation still reject dots, even though generated bead IDs commonly use
-dotted hierarchy such as `sase-24.3` and `sase-24.3.1`.
+dotted hierarchy such as `sase-42.3` and `sase-42.3.1`.
 
 ## Target Behavior
 
-- `%tag:sase-24.3` is accepted by directive extraction and persisted agent-tag storage.
-- Existing valid tags like `review`, `Release-Blocker_42`, and `sase-24` continue to work.
+- `%tag:sase-42.3` is accepted by directive extraction and persisted agent-tag storage.
+- Existing valid tags like `review`, `Release-Blocker_42`, and `sase-42` continue to work.
 - Invalid tags remain invalid:
   - empty strings
   - `@`-prefixed input
   - whitespace and other punctuation not intentionally supported
-- Agent search can match dotted tags naturally with `tag:sase-24.3`, not only with quoted `tag:"sase-24.3"`.
+- Agent search can match dotted tags naturally with `tag:sase-42.3`, not only with quoted `tag:"sase-42.3"`.
 - Bead work rendering keeps the `1ab48ecfcb5c` separation:
   - `%name` and `%w` stay agent/bead specific.
   - `#bd/work_phase_bead:<phase_id>` and `#bd/land_epic:<epic_id>` stay bead specific.
@@ -52,16 +52,16 @@ dotted hierarchy such as `sase-24.3` and `sase-24.3.1`.
 2. Update agent query tokenization for dotted property values.
    - The query evaluator already compares tag strings directly.
    - The tokenizer currently parses unquoted property values with the same restricted bare-word character set, so
-     `tag:sase-24.3` would stop at `sase-24`.
+     `tag:sase-42.3` would stop at `sase-42`.
    - Add or adjust the property-value character helper to accept dots for property values while preserving the existing
      bare-word grammar for free text if that is safer for query parsing.
 
 3. Add focused regression tests.
-   - `tests/test_agent_tags.py`: assert `validate_tag_name("sase-24.3")` succeeds and malformed dotted variants still
+   - `tests/test_agent_tags.py`: assert `validate_tag_name("sase-42.3")` succeeds and malformed dotted variants still
      fail when appropriate.
-   - `tests/test_directives_extract.py`: assert `%tag:sase-24.3` extracts cleanly and returns
-     `directives.tag == "sase-24.3"`.
-   - `tests/test_agent_query_tokenizer.py` and/or parser tests: assert `tag:sase-24.3` tokenizes/parses as one property
+   - `tests/test_directives_extract.py`: assert `%tag:sase-42.3` extracts cleanly and returns
+     `directives.tag == "sase-42.3"`.
+   - `tests/test_agent_query_tokenizer.py` and/or parser tests: assert `tag:sase-42.3` tokenizes/parses as one property
      value.
    - `tests/test_bead/test_work_rendering.py`: add a direct rendering regression for an `EpicWorkPlan` or seeded bead
      with a dotted `launch_tag_id`, then run each rendered segment through directive extraction so the snapshot failure

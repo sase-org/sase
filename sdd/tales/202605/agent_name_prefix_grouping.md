@@ -10,25 +10,25 @@ prompt: sdd/prompts/202605/agent_name_prefix_grouping.md
 Add an optional deeper Agents-tab grouping level for dotted agent-name prefixes. When multiple agents under the same
 existing name-root share the text before the second period, render a subgroup heading for that prefix.
 
-For the snapshot case in `group: by status`, agents named `sase-24.2.1`, `sase-24.2.2`, ... should render under:
+For the snapshot case in `group: by status`, agents named `sase-42.2.1`, `sase-42.2.2`, ... should render under:
 
 ```text
 Done
-  sase-24
-    sase-24.2
-      sase-24.2.1
-      sase-24.2.2
+  sase-42
+    sase-42.2
+      sase-42.2.1
+      sase-42.2.2
 ```
 
-The direct one-period agent `sase-24.2` does not itself have a "before second period" prefix; it should remain directly
-under `sase-24` unless we decide separately to include parent/phase marker rows in their child prefix group.
+The direct one-period agent `sase-42.2` does not itself have a "before second period" prefix; it should remain directly
+under `sase-42` unless we decide separately to include parent/phase marker rows in their child prefix group.
 
 ## Product Rules
 
 1. Keep the existing first-period `name_root` grouping rule.
 2. Add a `name_prefix` grouping key only when the chosen name has at least two periods.
-   - `sase-24.2.6` -> `sase-24.2`
-   - `sase-24.2` -> no prefix subgroup key
+   - `sase-42.2.6` -> `sase-42.2`
+   - `sase-42.2` -> no prefix subgroup key
    - `coder.claude` -> no prefix subgroup key
 3. Emit a prefix subgroup heading only when at least two agents share that prefix within the same parent grouping scope.
 4. Preserve workflow-child inheritance: workflow children should use their top-level parent agent's root/prefix
@@ -80,16 +80,16 @@ under `sase-24` unless we decide separately to include parent/phase marker rows 
 ## Test Plan
 
 1. Model tests:
-   - `BY_STATUS` snapshot-shaped case: `sase-24.1.*` and `sase-24.2.*` produce L2 prefix groups under L1 `sase-24`.
+   - `BY_STATUS` snapshot-shaped case: `sase-42.1.*` and `sase-42.2.*` produce L2 prefix groups under L1 `sase-42`.
    - Prefix groups are suppressed for singletons.
-   - Direct one-period agents like `sase-24.2` remain direct children of `sase-24`.
+   - Direct one-period agents like `sase-42.2` remain direct children of `sase-42`.
    - Workflow children inherit the parent's prefix.
    - `enumerate_group_keys()` includes emitted prefix subgroup keys.
    - Collapsing a prefix subgroup hides only that prefix's agents.
 
 2. Widget/render tests:
-   - `BY_STATUS` with three name levels renders `Running/Done` L0, `sase-24` as the middle-tier `▎` heading, and
-     `sase-24.2` as the deepest `▸` heading.
+   - `BY_STATUS` with three name levels renders `Running/Done` L0, `sase-42` as the middle-tier `▎` heading, and
+     `sase-42.2` as the deepest `▸` heading.
    - Agent rows under prefix groups carry the expected ancestor gutters.
    - Existing `STANDARD` and `BY_DATE` rendering tests continue to pass or are updated only where the intentional new
      prefix grouping changes row shape.
@@ -102,8 +102,8 @@ under `sase-24` unless we decide separately to include parent/phase marker rows 
 
 ## Risks and Decisions
 
-1. The main product decision is whether one-period parent rows such as `sase-24.2` should be pulled into the `sase-24.2`
-   prefix subgroup. The literal "before the second period" rule says no, so this plan keeps them direct under `sase-24`.
+1. The main product decision is whether one-period parent rows such as `sase-42.2` should be pulled into the `sase-42.2`
+   prefix subgroup. The literal "before the second period" rule says no, so this plan keeps them direct under `sase-42`.
 2. Supporting `STANDARD` with ChangeSpec plus prefix creates a fourth structural level. The fold registry already
    accepts arbitrary tuple keys, but renderer gutter logic needs to become depth-aware to avoid cramped or misleading
    output.

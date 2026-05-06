@@ -9,7 +9,7 @@ Each group key is an arbitrary-length ``tuple[str, ...]``. Common shapes:
 * ``(project, changespec, name_root)`` for an L2 name-root banner in
   3-level mode;
 * ``(*parent_key, name_root, name_prefix)`` for dotted-name prefix
-  subgroups such as ``("Done", "sase-24", "sase-24.2")``.
+  subgroups such as ``("Done", "sase-42", "sase-42.2")``.
 
 This module is a thin compatibility re-export of the neutral
 :mod:`sase.ace.tui.models.group_fold` types so existing Agent imports

@@ -246,10 +246,10 @@ def test_tag_directive_colon_arg() -> None:
 
 
 def test_tag_directive_accepts_dotted_bead_id() -> None:
-    prompt = "%tag:sase-24.3\nFix the bug"
+    prompt = "%tag:sase-42.3\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
-    assert directives.tag == "sase-24.3"
+    assert directives.tag == "sase-42.3"
 
 
 def test_tag_short_alias_t() -> None:

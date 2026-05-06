@@ -10,7 +10,7 @@ prompt: sdd/prompts/202605/bead_create_relative_plan_paths.md
 `sase bead create` currently parses plan beads with `--type plan(<plan_file>[,<parent_id>])`, validates that the plan
 file exists, resolves the file path, normalizes sibling workspace prefixes back to the primary workspace, and stores the
 result in the bead `design` field. Because the stored value is still absolute after `Path.resolve()`, new plan beads can
-persist paths like `/home/bryan/projects/github/sase-org/sase_100/sdd/legends/202605/unified_artifacts.md`.
+persist paths like `/home/bryan/projects/github/sase-org/sase_100/sdd/epics/202605/legend_bead_integration.md`.
 
 The attached Telegram screenshot shows this symptom in the bead plan display: the plan field carries a machine-local
 absolute path even though the plan file lives under the repository. That makes bead JSONL less portable across
@@ -28,11 +28,11 @@ workspace, while preserving existing behavior for valid external paths.
 
 Examples:
 
-- From primary workspace: `/home/bryan/projects/github/sase-org/sase_100/sdd/legends/202605/unified_artifacts.md`
-  becomes `sdd/legends/202605/unified_artifacts.md`.
+- From primary workspace: `/home/bryan/projects/github/sase-org/sase_100/sdd/epics/202605/legend_bead_integration.md`
+  becomes `sdd/epics/202605/legend_bead_integration.md`.
 - From an ephemeral sibling workspace:
-  `/home/bryan/projects/github/sase-org/sase_101/sdd/legends/202605/unified_artifacts.md` first maps to the primary
-  workspace, then stores as `sdd/legends/202605/unified_artifacts.md`.
+  `/home/bryan/projects/github/sase-org/sase_101/sdd/epics/202605/legend_bead_integration.md` first maps to the primary
+  workspace, then stores as `sdd/epics/202605/legend_bead_integration.md`.
 - A plan file outside the resolved workspace stays absolute after sibling-workspace normalization, since there is no
   trustworthy project-relative representation.
 

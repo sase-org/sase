@@ -10,18 +10,18 @@ prompt: sdd/prompts/202605/parent_prefix_group_membership.md
 Agents whose name is exactly `<foo>.<bar>` should participate in the same dotted-prefix subgroup as agents named
 `<foo>.<bar>.<anything>`.
 
-In the motivating `sase ace` snapshot, the `sase-24.3` agent currently renders directly under the `sase-24` root while
-`sase-24.3.1` through `sase-24.3.6` render under the `sase-24.3` prefix subgroup. After this fix, `sase-24.3` should be
-inside that `sase-24.3` subgroup too.
+In the motivating `sase ace` snapshot, the `sase-42.3` agent currently renders directly under the `sase-42` root while
+`sase-42.3.1` through `sase-42.3.6` render under the `sase-42.3` prefix subgroup. After this fix, `sase-42.3` should be
+inside that `sase-42.3` subgroup too.
 
 ## Product Rules
 
 1. Keep the existing name-root rule: the first segment before the first period is still the root group.
 2. Treat the first two name segments as the prefix-group identity whenever the selected grouping name contains at least
    one period.
-   - `sase-24.3` -> root `sase-24`, prefix `sase-24.3`
-   - `sase-24.3.1` -> root `sase-24`, prefix `sase-24.3`
-   - `sase-24` -> root `sase-24`, no prefix
+   - `sase-42.3` -> root `sase-42`, prefix `sase-42.3`
+   - `sase-42.3.1` -> root `sase-42`, prefix `sase-42.3`
+   - `sase-42` -> root `sase-42`, no prefix
 3. Prefix subgroup emission should be based on the full prefix membership, including exact parent-marker rows. This
    means `foo.bar` plus `foo.bar.1` is enough to show a `foo.bar` subgroup.
 4. Exact parent-marker rows should render before their dotted descendants inside the prefix subgroup when timestamps or
@@ -39,8 +39,8 @@ inside that `sase-24.3` subgroup too.
    - Change `_name_prefix()` so exact two-segment names return their full name instead of `""`.
    - Keep dotless names returning `""`.
    - Apply the same behavior to the `display_name` fallback so unnamed agents remain consistent with named agents.
-   - Add a small per-agent sort discriminator for prefix members, so an exact prefix marker such as `sase-24.3` sorts
-     before descendants such as `sase-24.3.1` inside the emitted prefix group. This can be a helper derived from the
+   - Add a small per-agent sort discriminator for prefix members, so an exact prefix marker such as `sase-42.3` sorts
+     before descendants such as `sase-42.3.1` inside the emitted prefix group. This can be a helper derived from the
      selected grouping name rather than a renderer concern.
 
 2. Reuse existing tree emission in `src/sase/ace/tui/models/agent_groups/_tree.py`.
@@ -50,7 +50,7 @@ inside that `sase-24.3` subgroup too.
    - Review the tree builder after the key change to confirm no special case still assumes prefix groups require at
      least two periods.
    - Keep fold keys unchanged: the prefix subgroup key remains `(*parent_key, name_root, name_prefix)`, for example
-     `("Done", "sase-24", "sase-24.3")`.
+     `("Done", "sase-42", "sase-42.3")`.
 
 3. Update documentation and comments only where they now state the old rule.
    - The previous tale explicitly said one-period parent markers remain direct children; replace that understanding in
@@ -60,8 +60,8 @@ inside that `sase-24.3` subgroup too.
 ## Test Plan
 
 1. Model tree shape:
-   - Add or update a `BY_STATUS` test shaped like the snapshot: `sase-24.3`, `sase-24.3.1`, and `sase-24.3.2` should
-     render under a `("Done", "sase-24", "sase-24.3")` group.
+   - Add or update a `BY_STATUS` test shaped like the snapshot: `sase-42.3`, `sase-42.3.1`, and `sase-42.3.2` should
+     render under a `("Done", "sase-42", "sase-42.3")` group.
    - Update the existing shared-prefix test that currently asserts the one-period parent remains direct under the root.
    - Add a minimal direct-plus-one-child case (`foo.bar`, `foo.bar.1`) to lock in that parent membership contributes to
      subgroup emission.
@@ -69,12 +69,12 @@ inside that `sase-24.3` subgroup too.
 2. Ordering:
    - Assert the parent marker appears before its descendants inside its prefix group when all other ordering inputs are
      equivalent.
-   - Preserve existing singleton suppression for unrelated prefixes: `sase-24.1.1` and `sase-24.2.1` without matching
+   - Preserve existing singleton suppression for unrelated prefixes: `sase-42.1.1` and `sase-42.2.1` without matching
      parent markers should not emit prefix subgroup banners.
 
 3. Fold and enumeration:
-   - Update prefix-collapse coverage so collapsing `("proj", "demo", "sase-24", "sase-24.2")` hides the exact
-     `sase-24.2` marker as well as `sase-24.2.*` descendants.
+   - Update prefix-collapse coverage so collapsing `("proj", "demo", "sase-42", "sase-42.2")` hides the exact
+     `sase-42.2` marker as well as `sase-42.2.*` descendants.
    - Add or adjust `enumerate_group_keys()` coverage for a direct-plus-child pair to ensure the prefix key is
      enumerable.
 

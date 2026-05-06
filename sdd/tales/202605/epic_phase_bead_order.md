@@ -13,7 +13,7 @@ allocated from the current maximum persisted child counter for the parent, so th
 phase number. If an agent parallelizes the phase creation commands, or simply creates them out of order, titles like
 `Phase 1` can be assigned IDs like `<epic>.5`.
 
-The example epic confirms this pattern: `sase-24.4.5` is titled `Phase 1`, while `sase-24.4.2` is titled `Phase 2`.
+The example epic confirms this pattern: `sase-42.4.5` is titled `Phase 1`, while `sase-42.4.2` is titled `Phase 2`.
 `sase bead work` only consumes existing phase children and pre-claims them; it is not the source of the mismatched IDs.
 
 ## Approach

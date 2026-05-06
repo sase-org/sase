@@ -97,33 +97,33 @@ def test_collapsed_name_root_at_level_two_hides_only_its_agents() -> None:
 def test_collapsed_name_prefix_hides_only_its_agents() -> None:
     """A collapsed prefix subgroup suppresses only that prefix's members."""
     registry = AgentGroupFoldRegistry()
-    registry.collapse(("proj", "demo", "sase-24", "sase-24.2"))
+    registry.collapse(("proj", "demo", "sase-42", "sase-42.2"))
     entries = build_agent_tree(
         [
             _agent(
                 cl_name="demo",
                 project_file="/r/proj/proj.gp",
-                agent_name="sase-24.2",
+                agent_name="sase-42.2",
             ),
             _agent(
                 cl_name="demo",
                 project_file="/r/proj/proj.gp",
-                agent_name="sase-24.1.1",
+                agent_name="sase-42.1.1",
             ),
             _agent(
                 cl_name="demo",
                 project_file="/r/proj/proj.gp",
-                agent_name="sase-24.1.2",
+                agent_name="sase-42.1.2",
             ),
             _agent(
                 cl_name="demo",
                 project_file="/r/proj/proj.gp",
-                agent_name="sase-24.2.1",
+                agent_name="sase-42.2.1",
             ),
             _agent(
                 cl_name="demo",
                 project_file="/r/proj/proj.gp",
-                agent_name="sase-24.2.2",
+                agent_name="sase-42.2.2",
             ),
         ],
         fold_registry=registry,
@@ -133,7 +133,7 @@ def test_collapsed_name_prefix_hides_only_its_agents() -> None:
         for e in entries
         if e.kind == "group"
         and e.group is not None
-        and e.group.group_key == ("proj", "demo", "sase-24", "sase-24.2")
+        and e.group.group_key == ("proj", "demo", "sase-42", "sase-42.2")
     ]
     assert len(collapsed) == 1
     assert collapsed[0].is_collapsed is True
@@ -218,12 +218,12 @@ def test_enumerate_group_keys_two_level_mode() -> None:
 def test_enumerate_group_keys_includes_prefix_subgroups() -> None:
     keys = enumerate_group_keys(
         [
-            _agent(cl_name="demo", agent_name="sase-24.2.1", status="DONE"),
-            _agent(cl_name="demo", agent_name="sase-24.2.2", status="DONE"),
+            _agent(cl_name="demo", agent_name="sase-42.2.1", status="DONE"),
+            _agent(cl_name="demo", agent_name="sase-42.2.2", status="DONE"),
         ]
     )
-    assert ("repo", "demo", "sase-24") in keys
-    assert ("repo", "demo", "sase-24", "sase-24.2") in keys
+    assert ("repo", "demo", "sase-42") in keys
+    assert ("repo", "demo", "sase-42", "sase-42.2") in keys
 
 
 def test_enumerate_group_keys_includes_direct_plus_child_prefix_group() -> None:

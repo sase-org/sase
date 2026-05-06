@@ -172,9 +172,9 @@ def test_by_status_parent_marker_renders_inside_prefix_group() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="", agent_name="sase-24.3.1", status="DONE"),
-            make_agent(cl_name="", agent_name="sase-24.3", status="DONE"),
-            make_agent(cl_name="", agent_name="sase-24.3.2", status="DONE"),
+            make_agent(cl_name="", agent_name="sase-42.3.1", status="DONE"),
+            make_agent(cl_name="", agent_name="sase-42.3", status="DONE"),
+            make_agent(cl_name="", agent_name="sase-42.3.2", status="DONE"),
         ],
         current_idx=0,
         grouping_mode=GroupingMode.BY_STATUS,
@@ -191,5 +191,5 @@ def test_by_status_parent_marker_renders_inside_prefix_group() -> None:
     options = list(widget._options)
     prefix_plain = options[2].prompt.plain  # type: ignore[union-attr]
     first_agent_plain = options[3].prompt.plain  # type: ignore[union-attr]
-    assert "sase-24.3 " in prefix_plain
-    assert "sase-24.3" in first_agent_plain
+    assert "sase-42.3 " in prefix_plain
+    assert "sase-42.3" in first_agent_plain

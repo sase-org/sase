@@ -16,7 +16,7 @@ WorkflowExecutionError: Step 'main' failed: Error: [Errno 2] No such file or dir
 The attached report for notification `63ebe299-e731-410e-ac4d-944a6a1356a4` traces the failure to
 `src/sase/llm_provider/codex.py`: SASE selects the Codex provider and reaches
 `subprocess.Popen(["codex", "exec", ...])`, but process creation fails before Codex starts. The workflow artifacts
-confirm this affected the `sase-23.1.*` bead-work agents and not their source logic.
+confirm this affected the `recent bead-work` bead-work agents and not their source logic.
 
 The current axe process has a usable PATH, but older/background launch paths can still have a weaker environment, and
 Codex is currently the only built-in Node-style provider without an explicit `SASE_*_PATH` executable override. Gemini

@@ -10,10 +10,10 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
     """Test that a WAITING INPUT workflow with dead PID is marked as FAILED."""
     with tempfile.TemporaryDirectory() as tmpdir:
         sase_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
-        sase_artifacts = (
+        workflow_artifacts = (
             sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
         )
-        sase_artifacts.mkdir(parents=True)
+        workflow_artifacts.mkdir(parents=True)
         (sase_projects / "myproject.gp").touch()
 
         state = {
@@ -23,7 +23,7 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
             "context": {"cl_name": "test_cl"},
             "steps": [],
         }
-        (sase_artifacts / "workflow_state.json").write_text(json.dumps(state))
+        (workflow_artifacts / "workflow_state.json").write_text(json.dumps(state))
 
         with (
             patch(

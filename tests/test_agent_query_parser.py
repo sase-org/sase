@@ -39,8 +39,8 @@ def test_parses_property_match() -> None:
 
 
 def test_parses_dotted_tag_property_match() -> None:
-    assert parse_agent_query("tag:sase-24.3") == PropertyMatch(
-        key="tag", value="sase-24.3"
+    assert parse_agent_query("tag:sase-42.3") == PropertyMatch(
+        key="tag", value="sase-42.3"
     )
 
 

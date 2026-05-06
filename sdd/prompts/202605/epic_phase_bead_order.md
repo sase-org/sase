@@ -6,16 +6,16 @@ output below for an example). Can you help me diagnose the root cause of this is
 
 
 ```
-❯ sase bead show sase-24.4.5
-◐ sase-24.4.5 · Phase 1: Shared Indicator Model And Renderer   [IN_PROGRESS]
+❯ sase bead show sase-42.4.5
+◐ sase-42.4.5 · Phase 1: Shared Indicator Model And Renderer   [IN_PROGRESS]
 Type: phase · Owner: bryanbugyi34@gmail.com
-Assignee: sase-24.4.5
+Assignee: sase-42.4.5
 
 PARENT
-  ↑ sase-24.4 · Artifacts Panel Redesign Epic 4 - CLs And Agents Artifact Indicators   [OPEN]
+  ↑ sase-42.4 · Artifacts Panel Redesign Epic 4 - CLs And Agents Artifact Indicators   [OPEN]
 
 BLOCKS
-  ← ◐ sase-24.4.2: Phase 2: Batched Summary Loading And Cache Semantics   [IN_PROGRESS]
+  ← ◐ sase-42.4.2: Phase 2: Batched Summary Loading And Cache Semantics   [IN_PROGRESS]
 
 DESCRIPTION
   Add the shared TUI-side artifact indicator value object, ArtifactSummaryWire conversion, deterministic Rich Text renderer, canonical count ordering, and focused unit coverage. No CL/Agent integration or artifact facade calls in this phase.

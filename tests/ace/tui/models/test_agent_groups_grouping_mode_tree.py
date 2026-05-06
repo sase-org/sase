@@ -149,11 +149,11 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
 
 def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> None:
     """Shared dotted prefixes form subgroups under the existing name-root."""
-    direct = _agent(cl_name="x", agent_name="sase-24.2", status="DONE")
-    p1a = _agent(cl_name="x", agent_name="sase-24.1.1", status="DONE")
-    p1b = _agent(cl_name="x", agent_name="sase-24.1.2", status="DONE")
-    p2a = _agent(cl_name="x", agent_name="sase-24.2.1", status="DONE")
-    p2b = _agent(cl_name="x", agent_name="sase-24.2.2", status="DONE")
+    direct = _agent(cl_name="x", agent_name="sase-42.2", status="DONE")
+    p1a = _agent(cl_name="x", agent_name="sase-42.1.1", status="DONE")
+    p1b = _agent(cl_name="x", agent_name="sase-42.1.2", status="DONE")
+    p2a = _agent(cl_name="x", agent_name="sase-42.2.1", status="DONE")
+    p2b = _agent(cl_name="x", agent_name="sase-42.2.2", status="DONE")
     entries = build_agent_tree(
         [p2b, direct, p1b, p2a, p1a], mode=GroupingMode.BY_STATUS, now=_NOW
     )
@@ -164,9 +164,9 @@ def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> No
     ]
     assert groups == [
         (0, ("Done",)),
-        (1, ("Done", "sase-24")),
-        (2, ("Done", "sase-24", "sase-24.1")),
-        (2, ("Done", "sase-24", "sase-24.2")),
+        (1, ("Done", "sase-42")),
+        (2, ("Done", "sase-42", "sase-42.1")),
+        (2, ("Done", "sase-42", "sase-42.2")),
     ]
     # The exact parent marker participates in its same-prefix subgroup
     # and sorts before dotted descendants there.
@@ -184,9 +184,9 @@ def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> No
 
 
 def test_build_agent_tree_by_status_groups_parent_marker_with_children() -> None:
-    direct = _agent(cl_name="x", agent_name="sase-24.3", status="DONE")
-    child_a = _agent(cl_name="x", agent_name="sase-24.3.1", status="DONE")
-    child_b = _agent(cl_name="x", agent_name="sase-24.3.2", status="DONE")
+    direct = _agent(cl_name="x", agent_name="sase-42.3", status="DONE")
+    child_a = _agent(cl_name="x", agent_name="sase-42.3.1", status="DONE")
+    child_b = _agent(cl_name="x", agent_name="sase-42.3.2", status="DONE")
     entries = build_agent_tree(
         [child_a, direct, child_b], mode=GroupingMode.BY_STATUS, now=_NOW
     )
@@ -197,8 +197,8 @@ def test_build_agent_tree_by_status_groups_parent_marker_with_children() -> None
     ]
     assert groups == [
         (0, ("Done",)),
-        (1, ("Done", "sase-24")),
-        (2, ("Done", "sase-24", "sase-24.3")),
+        (1, ("Done", "sase-42")),
+        (2, ("Done", "sase-42", "sase-42.3")),
     ]
     assert _kinds(entries) == [
         ("group", 0),
@@ -224,8 +224,8 @@ def test_build_agent_tree_by_status_direct_plus_one_child_emits_prefix_group() -
 
 
 def test_build_agent_tree_by_status_suppresses_singleton_prefix_groups() -> None:
-    a = _agent(cl_name="x", agent_name="sase-24.1.1", status="DONE")
-    b = _agent(cl_name="x", agent_name="sase-24.2.1", status="DONE")
+    a = _agent(cl_name="x", agent_name="sase-42.1.1", status="DONE")
+    b = _agent(cl_name="x", agent_name="sase-42.2.1", status="DONE")
     entries = build_agent_tree([a, b], mode=GroupingMode.BY_STATUS, now=_NOW)
     assert _kinds(entries) == [
         ("group", 0),
@@ -238,14 +238,14 @@ def test_build_agent_tree_by_status_suppresses_singleton_prefix_groups() -> None
 def test_build_agent_tree_by_status_workflow_child_inherits_parent_prefix() -> None:
     parent = _agent(
         cl_name="x",
-        agent_name="sase-24.2.1",
+        agent_name="sase-42.2.1",
         raw_suffix="ts-parent",
         status="DONE",
     )
     child = _agent(
         cl_name="x",
         agent_name="step.bash",
-        parent_workflow="sase-24",
+        parent_workflow="sase-42",
         parent_timestamp="ts-parent",
         status="RUNNING",
     )
@@ -262,7 +262,7 @@ def test_build_agent_tree_by_status_workflow_child_inherits_parent_prefix() -> N
         for e in entries
         if e.kind == "group" and e.group is not None
     ]
-    assert ("Done", "sase-24", "sase-24.2") in groups
+    assert ("Done", "sase-42", "sase-42.2") in groups
 
 
 def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:

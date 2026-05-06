@@ -128,7 +128,7 @@ def test_validate_tag_name_rejects_invalid_chars() -> None:
     with pytest.raises(InvalidTagError, match="must match"):
         validate_tag_name("has space")
     with pytest.raises(InvalidTagError, match="must match"):
-        validate_tag_name("sase-24/3")
+        validate_tag_name("sase-42/3")
 
 
 def test_validate_tag_name_rejects_empty() -> None:
@@ -138,7 +138,7 @@ def test_validate_tag_name_rejects_empty() -> None:
 
 def test_validate_tag_name_accepts_allowed_chars() -> None:
     assert validate_tag_name("Release-Blocker_42") == "Release-Blocker_42"
-    assert validate_tag_name("sase-24.3") == "sase-24.3"
+    assert validate_tag_name("sase-42.3") == "sase-42.3"
 
 
 def test_set_tag_replaces_previous_value() -> None:
