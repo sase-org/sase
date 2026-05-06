@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 19:25:13
-status: wip
+status: done
 prompt: sdd/prompts/202605/wait_requires_success_1.md
 ---
 # Plan: Make `%wait` Dependencies Require Successful Completion
