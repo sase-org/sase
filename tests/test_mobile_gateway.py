@@ -170,6 +170,22 @@ def test_parser_accepts_mobile_helper_bridge_changespec_tags() -> None:
     assert args.mobile_helper_bridge_subcommand == "changespec-tags"
 
 
+def test_parser_accepts_mobile_helper_bridge_update_start() -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", "update-start"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == "update-start"
+
+
+def test_parser_accepts_mobile_helper_bridge_update_status() -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", "update-status"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == "update-status"
+
+
 def test_parser_accepts_mobile_agent_bridge_launch_text() -> None:
     args = create_parser().parse_args(["mobile", "agent-bridge", "launch-text"])
 

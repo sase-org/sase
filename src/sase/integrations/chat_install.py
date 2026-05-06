@@ -22,6 +22,7 @@ from sase.vcs_provider import get_vcs_provider
 _STATE_DIR = Path.home() / ".sase" / "chat_install"
 _LOG_DIR = _STATE_DIR / "logs"
 _COMPLETIONS_DIR = _STATE_DIR / "completions"
+_JOBS_DIR = _STATE_DIR / "jobs"
 _LOCK_PATH = _STATE_DIR / "install.lock"
 _LOCK_FD_ENV = "SASE_CHAT_INSTALL_LOCK_FD"
 
@@ -32,6 +33,7 @@ LaunchStatus = Literal[
     "launched",
     "launch_failed",
 ]
+JobStatus = Literal["running", "succeeded", "failed", "not_found"]
 
 
 @dataclass(frozen=True)
@@ -42,7 +44,6 @@ class ChatInstallConfig:
     restart_attempts: int = 3
 
 
-# pyvision: public_api_methods.txt
 @dataclass(frozen=True)
 class ChatInstallLaunchResult:
     status: LaunchStatus
@@ -52,6 +53,20 @@ class ChatInstallLaunchResult:
     pid: int | None = None
     job_id: str | None = None
     status_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class ChatInstallStatusResult:
+    status: JobStatus
+    message: str
+    job_id: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    log_path: Path | None = None
+    completion_path: Path | None = None
+    workspace: Path | None = None
+    exit_code: int | None = None
+    restart_succeeded: bool | None = None
 
 
 def load_chat_install_config() -> ChatInstallConfig:
@@ -155,6 +170,17 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
                     env=env,
                 )
         except Exception as exc:
+            _write_job_state(
+                job_id,
+                status="failed",
+                message=f"Failed to launch chat update worker: {exc}",
+                log_path=log_path,
+                workspace=workspace,
+                status_path=status_path,
+                pid=None,
+                started_at=_utc_now(),
+                finished_at=_utc_now(),
+            )
             return ChatInstallLaunchResult(
                 status="launch_failed",
                 message=f"Failed to launch chat update worker: {exc}",
@@ -164,6 +190,17 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
                 status_path=status_path,
             )
 
+        _write_job_state(
+            job_id,
+            status="running",
+            message="Update worker started.",
+            log_path=log_path,
+            workspace=workspace,
+            status_path=status_path,
+            pid=proc.pid,
+            started_at=_utc_now(),
+            finished_at=None,
+        )
         return ChatInstallLaunchResult(
             status="launched",
             message=f"Update worker started; log: {_shorten_home(log_path)}",
@@ -175,6 +212,67 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         )
     finally:
         os.close(lock_fd)
+
+
+def read_chat_install_status(job_id: str) -> ChatInstallStatusResult:
+    """Read structured status for a chat install/update job."""
+    if not _valid_job_id(job_id):
+        return ChatInstallStatusResult(
+            status="not_found",
+            message="Update job was not found.",
+            job_id=job_id,
+        )
+
+    completion_path = _completion_path(job_id)
+    if completion_path.is_file():
+        return _read_completion_status(job_id, completion_path)
+
+    state = _read_job_state(job_id)
+    if state is None:
+        return ChatInstallStatusResult(
+            status="not_found",
+            message="Update job was not found.",
+            job_id=job_id,
+        )
+
+    log_path = _optional_path(state.get("log_path"))
+    workspace = _optional_path(state.get("workspace"))
+    state_completion = _optional_path(state.get("status_path"))
+    if state.get("status") == "running" and _lock_is_held():
+        return ChatInstallStatusResult(
+            status="running",
+            message=_string_or_default(state.get("message"), "Update is running."),
+            job_id=job_id,
+            started_at=_optional_string_value(state.get("started_at")),
+            finished_at=None,
+            log_path=log_path,
+            completion_path=state_completion or completion_path,
+            workspace=workspace,
+        )
+
+    state_status = state.get("status")
+    if state_status == "failed":
+        return ChatInstallStatusResult(
+            status="failed",
+            message=_string_or_default(state.get("message"), "Update failed."),
+            job_id=job_id,
+            started_at=_optional_string_value(state.get("started_at")),
+            finished_at=_optional_string_value(state.get("finished_at")),
+            log_path=log_path,
+            completion_path=state_completion or completion_path,
+            workspace=workspace,
+        )
+
+    return ChatInstallStatusResult(
+        status="failed",
+        message="Update job ended before writing a completion record.",
+        job_id=job_id,
+        started_at=_optional_string_value(state.get("started_at")),
+        finished_at=_optional_string_value(state.get("finished_at")),
+        log_path=log_path,
+        completion_path=state_completion or completion_path,
+        workspace=workspace,
+    )
 
 
 def run_worker(
@@ -344,10 +442,154 @@ def _completion_path(job_id: str) -> Path:
     return _COMPLETIONS_DIR / f"{job_id}.json"
 
 
+def _job_state_path(job_id: str) -> Path:
+    _JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    return _JOBS_DIR / f"{job_id}.json"
+
+
+def _valid_job_id(job_id: str) -> bool:
+    return (
+        0 < len(job_id) <= 128
+        and job_id not in {".", ".."}
+        and all(
+            char.isascii() and (char.isalnum() or char in {"_", "-", "."})
+            for char in job_id
+        )
+    )
+
+
 def _shorten_home(path: Path) -> str:
     home = str(Path.home())
     text = str(path)
     return "~" + text[len(home) :] if text.startswith(home + os.sep) else text
+
+
+def _read_completion_status(
+    job_id: str, completion_path: Path
+) -> ChatInstallStatusResult:
+    try:
+        raw = json.loads(completion_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ChatInstallStatusResult(
+            status="failed",
+            message=f"Update completion record is malformed: {type(exc).__name__}.",
+            job_id=job_id,
+            completion_path=completion_path,
+        )
+    if not isinstance(raw, dict):
+        return ChatInstallStatusResult(
+            status="failed",
+            message="Update completion record is malformed: expected object.",
+            job_id=job_id,
+            completion_path=completion_path,
+        )
+
+    raw_status = raw.get("status")
+    status: JobStatus = "succeeded" if raw_status == "success" else "failed"
+    return ChatInstallStatusResult(
+        status=status,
+        message=_string_or_default(
+            raw.get("message"),
+            "Update completed successfully."
+            if status == "succeeded"
+            else "Update failed.",
+        ),
+        job_id=_string_or_default(raw.get("job_id"), job_id),
+        started_at=_optional_string_value(raw.get("started_at")),
+        finished_at=_optional_string_value(raw.get("completed_at")),
+        log_path=_optional_path(raw.get("log_path")),
+        completion_path=completion_path,
+        workspace=_optional_path(raw.get("workspace")),
+        exit_code=_optional_int(raw.get("exit_code")),
+        restart_succeeded=(
+            raw.get("restart_succeeded")
+            if isinstance(raw.get("restart_succeeded"), bool)
+            else None
+        ),
+    )
+
+
+def _read_job_state(job_id: str) -> dict[str, object] | None:
+    path = _job_state_path(job_id)
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "status": "failed",
+            "message": "Update job state is malformed.",
+            "status_path": str(_completion_path(job_id)),
+        }
+    if not isinstance(raw, dict):
+        return {
+            "status": "failed",
+            "message": "Update job state is malformed.",
+            "status_path": str(_completion_path(job_id)),
+        }
+    return raw
+
+
+def _write_job_state(
+    job_id: str,
+    *,
+    status: str,
+    message: str,
+    log_path: Path | None,
+    workspace: Path | None,
+    status_path: Path | None,
+    pid: int | None,
+    started_at: str,
+    finished_at: str | None,
+) -> None:
+    path = _job_state_path(job_id)
+    record = {
+        "job_id": job_id,
+        "status": status,
+        "message": message,
+        "log_path": str(log_path) if log_path is not None else None,
+        "workspace": str(workspace) if workspace is not None else None,
+        "status_path": str(status_path) if status_path is not None else None,
+        "pid": pid,
+        "started_at": started_at,
+        "finished_at": finished_at,
+    }
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(path)
+
+
+def _lock_is_held() -> bool:
+    _STATE_DIR.mkdir(parents=True, exist_ok=True)
+    fd = os.open(_LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
+
+
+def _optional_path(value: object) -> Path | None:
+    return Path(value) if isinstance(value, str) and value else None
+
+
+def _optional_string_value(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _string_or_default(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
+
+def _optional_int(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _run_install_command(config: ChatInstallConfig, workspace: Path) -> int:

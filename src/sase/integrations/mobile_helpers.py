@@ -8,6 +8,12 @@ import sys
 from typing import Any, TextIO
 
 from sase.integrations.changespec_tags import list_changespec_xprompt_tags
+from sase.integrations.chat_install import (
+    ChatInstallLaunchResult,
+    ChatInstallStatusResult,
+    read_chat_install_status,
+    start_chat_install_worker,
+)
 from sase.xprompt.catalog import build_structured_xprompts_catalog
 
 GATEWAY_WIRE_SCHEMA_VERSION = 1
@@ -15,6 +21,14 @@ GATEWAY_WIRE_SCHEMA_VERSION = 1
 
 class _MobileHelperBridgeError(RuntimeError):
     """Deterministic bridge error for invalid mobile helper requests."""
+
+
+class _MobileUpdateAlreadyRunning(RuntimeError):
+    """Bridge sentinel mapped to update_already_running by the gateway."""
+
+
+class _MobileUpdateJobNotFound(RuntimeError):
+    """Bridge sentinel mapped to update_job_not_found by the gateway."""
 
 
 def handle_mobile_helper_bridge(
@@ -32,8 +46,18 @@ def handle_mobile_helper_bridge(
             response = _changespec_tags_response(request)
         elif operation == "xprompt-catalog":
             response = _xprompt_catalog_response(request)
+        elif operation == "update-start":
+            response = _update_start_response(request)
+        elif operation == "update-status":
+            response = _update_status_response(request)
         else:
             raise _MobileHelperBridgeError("unknown mobile helper bridge operation")
+    except _MobileUpdateAlreadyRunning as exc:
+        print(f"mobile helper bridge error: {exc}", file=stderr)
+        return 4
+    except _MobileUpdateJobNotFound as exc:
+        print(f"mobile helper bridge error: {exc}", file=stderr)
+        return 4
     except (_MobileHelperBridgeError, ValueError, TypeError) as exc:
         print(f"mobile helper bridge error: {exc}", file=stderr)
         return 2
@@ -160,6 +184,48 @@ def _xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _update_start_response(request: dict[str, Any]) -> dict[str, Any]:
+    _reject_unexpected_fields(request, {"schema_version", "request_id", "device_id"})
+    _optional_string(request.get("request_id"), "request_id")
+    _optional_string(request.get("device_id"), "device_id")
+
+    result = start_chat_install_worker()
+    if result.status == "already_running":
+        raise _MobileUpdateAlreadyRunning(result.message)
+    if result.status in {"config_missing_command", "workspace_resolution_failed"}:
+        raise _MobileHelperBridgeError(result.message)
+
+    if result.status == "launch_failed":
+        return {
+            "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+            "result": _helper_result("failed", result.message),
+            "job": _launch_job_wire(result, "failed"),
+        }
+
+    return {
+        "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+        "result": _helper_result("success", result.message),
+        "job": _launch_job_wire(result, "running"),
+    }
+
+
+def _update_status_response(request: dict[str, Any]) -> dict[str, Any]:
+    _reject_unexpected_fields(request, {"schema_version", "job_id", "device_id"})
+    job_id = _required_string(request.get("job_id"), "job_id")
+    _optional_string(request.get("device_id"), "device_id")
+
+    result = read_chat_install_status(job_id)
+    if result.status == "not_found":
+        raise _MobileUpdateJobNotFound(result.message)
+
+    helper_status = "failed" if result.status == "failed" else "success"
+    return {
+        "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+        "result": _helper_result(helper_status, result.message),
+        "job": _status_job_wire(result),
+    }
+
+
 def _optional_string(value: object, field: str) -> str | None:
     if value is None:
         return None
@@ -187,6 +253,20 @@ def _optional_bool(value: object, field: str) -> bool:
     return value
 
 
+def _required_string(value: object, field: str) -> str:
+    parsed = _optional_string(value, field)
+    if parsed is None:
+        raise _MobileHelperBridgeError(f"{field} is required")
+    return parsed
+
+
+def _reject_unexpected_fields(request: dict[str, Any], allowed: set[str]) -> None:
+    unexpected = sorted(set(request) - allowed)
+    if unexpected:
+        fields = ", ".join(unexpected)
+        raise _MobileHelperBridgeError(f"unexpected request field(s): {fields}")
+
+
 def _skipped_wire(row: str) -> dict[str, str | None]:
     target, sep, reason = row.partition(": ")
     if not sep:
@@ -204,3 +284,43 @@ def _xprompt_catalog_message(count: int, skipped_count: int) -> str:
     if skipped_count:
         return f"loaded {count} xprompt(s), skipped {skipped_count}"
     return f"loaded {count} xprompt(s)"
+
+
+def _helper_result(status: str, message: str) -> dict[str, object]:
+    return {
+        "status": status,
+        "message": message,
+        "warnings": [],
+        "skipped": [],
+        "partial_failure_count": None,
+    }
+
+
+def _launch_job_wire(result: ChatInstallLaunchResult, status: str) -> dict[str, object]:
+    return {
+        "job_id": result.job_id or "",
+        "status": status,
+        "started_at": None,
+        "finished_at": None,
+        "message": result.message,
+        "log_path_display": _path_display(result.log_path),
+        "completion_path_display": _path_display(result.status_path),
+    }
+
+
+def _status_job_wire(result: ChatInstallStatusResult) -> dict[str, object]:
+    return {
+        "job_id": result.job_id,
+        "status": result.status,
+        "started_at": result.started_at,
+        "finished_at": result.finished_at,
+        "message": result.message,
+        "log_path_display": _path_display(result.log_path),
+        "completion_path_display": _path_display(result.completion_path),
+    }
+
+
+def _path_display(path: object) -> str | None:
+    if path is None:
+        return None
+    return str(path)

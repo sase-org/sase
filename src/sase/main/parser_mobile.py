@@ -62,6 +62,14 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "xprompt-catalog",
         help=argparse.SUPPRESS,
     )
+    helper_bridge_subparsers.add_parser(
+        "update-start",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
+        "update-status",
+        help=argparse.SUPPRESS,
+    )
 
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",

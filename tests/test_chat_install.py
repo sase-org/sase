@@ -13,6 +13,7 @@ from sase.integrations import chat_install
 from sase.integrations.chat_install import (
     ChatInstallConfig,
     load_chat_install_config,
+    read_chat_install_status,
     resolve_primary_workspace_for_chat_install,
     run_worker,
     start_chat_install_worker,
@@ -176,6 +177,8 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
     state_dir = tmp_path / ".sase" / "chat_install"
     lock_path = state_dir / "install.lock"
     log_dir = state_dir / "logs"
+    completions_dir = state_dir / "completions"
+    jobs_dir = state_dir / "jobs"
     workspace = tmp_path / "repo"
     workspace.mkdir()
 
@@ -183,6 +186,8 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
         patch.object(chat_install, "_STATE_DIR", state_dir),
         patch.object(chat_install, "_LOCK_PATH", lock_path),
         patch.object(chat_install, "_LOG_DIR", log_dir),
+        patch.object(chat_install, "_COMPLETIONS_DIR", completions_dir),
+        patch.object(chat_install, "_JOBS_DIR", jobs_dir),
         patch(
             "sase.integrations.chat_install.load_chat_install_config",
             return_value=ChatInstallConfig(command="true"),
@@ -195,8 +200,10 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
             "sase.integrations.chat_install.subprocess.Popen",
             return_value=SimpleNamespace(pid=1234),
         ) as popen,
+        patch("sase.integrations.chat_install._lock_is_held", return_value=True),
     ):
         result = start_chat_install_worker()
+        status = read_chat_install_status(result.job_id)
 
     assert result.status == "launched"
     assert result.workspace == workspace
@@ -205,6 +212,10 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
     assert result.status_path is not None
     assert result.message.startswith("Update worker started; log: ")
     assert result.pid == 1234
+    assert status.status == "running"
+    assert status.job_id == result.job_id
+    assert status.log_path == result.log_path
+    assert status.completion_path == result.status_path
     args, kwargs = popen.call_args
     cmd = args[0]
     assert "--job-id" in cmd
@@ -217,6 +228,117 @@ def test_start_worker_launches_detached_process(tmp_path: Path) -> None:
     assert kwargs["start_new_session"] is True
     assert kwargs["pass_fds"]
     assert kwargs["env"][chat_install._LOCK_FD_ENV] == str(kwargs["pass_fds"][0])
+
+
+def test_status_reader_returns_completion_success(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".sase" / "chat_install"
+    completions_dir = state_dir / "completions"
+    completions_dir.mkdir(parents=True)
+    completion_path = completions_dir / "job_1.json"
+    log_path = tmp_path / "worker.log"
+    completion_path.write_text(
+        json.dumps(
+            {
+                "job_id": "job_1",
+                "status": "success",
+                "exit_code": 0,
+                "log_path": str(log_path),
+                "workspace": str(tmp_path),
+                "started_at": "2026-05-06T15:00:00+00:00",
+                "completed_at": "2026-05-06T15:01:00+00:00",
+                "restart_succeeded": True,
+                "message": "Update completed successfully.",
+            }
+        )
+    )
+
+    with (
+        patch.object(chat_install, "_STATE_DIR", state_dir),
+        patch.object(chat_install, "_COMPLETIONS_DIR", completions_dir),
+        patch.object(chat_install, "_LOCK_PATH", state_dir / "install.lock"),
+    ):
+        result = read_chat_install_status("job_1")
+
+    assert result.status == "succeeded"
+    assert result.message == "Update completed successfully."
+    assert result.log_path == log_path
+    assert result.completion_path == completion_path
+    assert result.exit_code == 0
+    assert result.restart_succeeded is True
+
+
+def test_status_reader_returns_failure_for_malformed_completion(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / ".sase" / "chat_install"
+    completions_dir = state_dir / "completions"
+    completions_dir.mkdir(parents=True)
+    (completions_dir / "job_bad.json").write_text("{invalid")
+
+    with (
+        patch.object(chat_install, "_STATE_DIR", state_dir),
+        patch.object(chat_install, "_COMPLETIONS_DIR", completions_dir),
+        patch.object(chat_install, "_LOCK_PATH", state_dir / "install.lock"),
+    ):
+        result = read_chat_install_status("job_bad")
+
+    assert result.status == "failed"
+    assert "malformed" in result.message
+
+
+def test_status_reader_returns_not_found_for_unknown_job(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".sase" / "chat_install"
+
+    with (
+        patch.object(chat_install, "_STATE_DIR", state_dir),
+        patch.object(chat_install, "_COMPLETIONS_DIR", state_dir / "completions"),
+        patch.object(chat_install, "_JOBS_DIR", state_dir / "jobs"),
+        patch.object(chat_install, "_LOCK_PATH", state_dir / "install.lock"),
+    ):
+        result = read_chat_install_status("missing")
+
+    assert result.status == "not_found"
+
+
+def test_status_reader_returns_running_when_known_job_holds_lock(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / ".sase" / "chat_install"
+    jobs_dir = state_dir / "jobs"
+    jobs_dir.mkdir(parents=True)
+    lock_path = state_dir / "install.lock"
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    (jobs_dir / "job_running.json").write_text(
+        json.dumps(
+            {
+                "job_id": "job_running",
+                "status": "running",
+                "message": "Update worker started.",
+                "log_path": str(tmp_path / "worker.log"),
+                "workspace": str(tmp_path),
+                "status_path": str(state_dir / "completions" / "job_running.json"),
+                "pid": 1234,
+                "started_at": "2026-05-06T15:00:00+00:00",
+                "finished_at": None,
+            }
+        )
+    )
+
+    try:
+        with (
+            patch.object(chat_install, "_STATE_DIR", state_dir),
+            patch.object(chat_install, "_COMPLETIONS_DIR", state_dir / "completions"),
+            patch.object(chat_install, "_JOBS_DIR", jobs_dir),
+            patch.object(chat_install, "_LOCK_PATH", lock_path),
+        ):
+            result = read_chat_install_status("job_running")
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+    assert result.status == "running"
+    assert result.message == "Update worker started."
 
 
 def test_run_worker_skips_install_when_sync_fails(tmp_path: Path) -> None:

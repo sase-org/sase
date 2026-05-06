@@ -35,7 +35,9 @@ load_store
 enter_maintenance
 ChatInstallConfig
 ChatInstallLaunchResult
+ChatInstallStatusResult
 load_chat_install_config
+read_chat_install_status
 resolve_primary_workspace_for_chat_install
 run_worker
 start_chat_install_worker
