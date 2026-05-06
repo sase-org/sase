@@ -28,11 +28,21 @@ from sase.core.time import get_timezone
 
 
 @dataclass
-class _KillResult:
+class KillResult:
     """Result of a kill_named_agent() attempt."""
 
     success: bool
     message: str
+    reason: str | None = None
+    status: str | None = None
+    pid: int | None = None
+    changed: bool = False
+    artifacts_dir: str | None = None
+    project: str | None = None
+    timestamp: str | None = None
+
+
+_KillResult = KillResult
 
 
 @dataclass
@@ -331,7 +341,7 @@ def list_all_agents(
     return running + done
 
 
-def kill_named_agent(name: str) -> _KillResult:
+def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
     """Kill a running agent by its assigned name.
 
     Locates the agent via find_named_agent(), derives the project context
@@ -340,17 +350,38 @@ def kill_named_agent(name: str) -> _KillResult:
 
     Args:
         name: The agent name to kill.
+        exact_name: When true, reject workflow-name matches and only kill an
+            artifact whose ``agent_meta.json`` name exactly matches ``name``.
 
     Returns:
-        A _KillResult with success status and a human-readable message.
+        A KillResult with success status and a human-readable message.
     """
     agent = find_named_agent(name)
     if agent is None:
-        return _KillResult(False, f"No agent found with name '{name}'")
+        return _KillResult(
+            False,
+            f"No agent found with name '{name}'",
+            reason="not_found",
+            status="not_found",
+        )
+
+    if exact_name and not _agent_meta_name_matches(agent.artifacts_dir, name):
+        return _KillResult(
+            False,
+            f"No agent found with name '{name}'",
+            reason="not_found",
+            status="not_found",
+        )
 
     if agent.is_done:
         outcome_str = f" ({agent.outcome})" if agent.outcome else ""
-        return _KillResult(False, f"Agent '{name}' already completed{outcome_str}")
+        return _KillResult(
+            False,
+            f"Agent '{name}' already completed{outcome_str}",
+            reason="already_completed",
+            status="already_completed",
+            artifacts_dir=agent.artifacts_dir,
+        )
 
     # Derive project context from artifacts_dir
     # Format: ~/.sase/projects/{project}/artifacts/ace-run/{timestamp}/
@@ -384,17 +415,33 @@ def kill_named_agent(name: str) -> _KillResult:
                 break
 
     if pid is None:
-        return _KillResult(False, f"Could not find PID for agent '{name}'")
+        return _KillResult(
+            False,
+            f"Could not find PID for agent '{name}'",
+            reason="missing_pid",
+            status="not_running",
+            artifacts_dir=agent.artifacts_dir,
+            project=project_name,
+            timestamp=timestamp,
+        )
 
     # Kill the process group
+    status = "killed"
     try:
         os.killpg(pid, signal.SIGTERM)
     except ProcessLookupError:
+        status = "already_stopped"
         pass  # Already dead — continue with cleanup
     except PermissionError:
         return _KillResult(
             False,
             f"Permission denied killing agent '{name}' (PID {pid})",
+            reason="permission_denied",
+            status="permission_denied",
+            pid=pid,
+            artifacts_dir=agent.artifacts_dir,
+            project=project_name,
+            timestamp=timestamp,
         )
 
     # Cleanup
@@ -416,4 +463,22 @@ def kill_named_agent(name: str) -> _KillResult:
                 )
                 break
 
-    return _KillResult(True, f"Killed agent '{name}' (PID {pid})")
+    return _KillResult(
+        True,
+        f"Killed agent '{name}' (PID {pid})",
+        status=status,
+        pid=pid,
+        changed=True,
+        artifacts_dir=agent.artifacts_dir,
+        project=project_name,
+        timestamp=timestamp,
+    )
+
+
+def _agent_meta_name_matches(artifacts_dir: str, expected_name: str) -> bool:
+    try:
+        with open(Path(artifacts_dir) / "agent_meta.json", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+    return isinstance(data, dict) and data.get("name") == expected_name

@@ -18,7 +18,9 @@ from typing import Any, TextIO
 
 from sase.agent.launcher import AgentLaunchResult, launch_agents_from_cwd
 from sase.agent.running import (
+    KillResult,
     RunningAgentInfo,
+    kill_named_agent,
     list_all_agents,
     list_running_agents,
 )
@@ -46,6 +48,18 @@ class _MobileAgentBridgeError(RuntimeError):
 
 class _MobileAgentInvalidUploadError(_MobileAgentBridgeError):
     """Deterministic bridge error for rejected mobile image uploads."""
+
+
+class _MobileAgentNotFoundError(_MobileAgentBridgeError):
+    """Deterministic bridge error for missing mobile agent lifecycle targets."""
+
+
+class _MobileAgentNotRunningError(_MobileAgentBridgeError):
+    """Deterministic bridge error for non-running mobile lifecycle targets."""
+
+
+class _MobileAgentPermissionDeniedError(_MobileAgentBridgeError):
+    """Deterministic bridge error for denied host lifecycle mutations."""
 
 
 @dataclass(frozen=True)
@@ -119,6 +133,25 @@ def _launch_mobile_image_agents(request: dict[str, Any]) -> dict[str, Any]:
     return _launch_mobile_prompt(prompt, request)
 
 
+def _kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
+    """Kill a named agent and persist retry context for mobile follow-up."""
+    name = _required_bridge_str(request.get("name"), "name")
+    before = _find_mobile_agent_summary(name)
+    result = kill_named_agent(name, exact_name=True)
+    if not result.success:
+        _raise_lifecycle_error(result)
+
+    _persist_mobile_kill_context(name, request, before, result)
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "name": name,
+        "status": result.status or "killed",
+        "pid": _optional_uint(result.pid),
+        "changed": bool(result.changed),
+        "message": result.message,
+    }
+
+
 def _launch_mobile_prompt(prompt: str, request: dict[str, Any]) -> dict[str, Any]:
     if request.get("dry_run") is True:
         return _dry_run_launch_response(prompt)
@@ -152,11 +185,22 @@ def handle_mobile_agent_bridge(
             response = _launch_mobile_text_agents(request)
         elif operation == "launch-image":
             response = _launch_mobile_image_agents(request)
+        elif operation == "kill-agent":
+            response = _kill_mobile_agent(request)
         else:
             raise _MobileAgentBridgeError("unknown mobile agent bridge operation")
     except _MobileAgentInvalidUploadError as exc:
         print(f"mobile agent bridge error: {exc}", file=stderr)
         return 3
+    except _MobileAgentNotFoundError as exc:
+        print(f"mobile agent bridge error: {exc}", file=stderr)
+        return 4
+    except _MobileAgentNotRunningError as exc:
+        print(f"mobile agent bridge error: {exc}", file=stderr)
+        return 5
+    except _MobileAgentPermissionDeniedError as exc:
+        print(f"mobile agent bridge error: {exc}", file=stderr)
+        return 6
     except (_MobileAgentBridgeError, ValueError, TypeError) as exc:
         print(f"mobile agent bridge error: {exc}", file=stderr)
         return 2
@@ -319,6 +363,12 @@ def _atomic_write_bytes(upload_dir: Path, final_path: Path, image_bytes: bytes) 
 def _required_str(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise _MobileAgentInvalidUploadError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def _required_bridge_str(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise _MobileAgentBridgeError(f"{field} must be a non-empty string")
     return value.strip()
 
 
@@ -526,6 +576,63 @@ def _optional_uint(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return number if number >= 0 else None
+
+
+def _find_mobile_agent_summary(name: str) -> RunningAgentInfo | None:
+    for agent in list_all_agents():
+        if agent.name == name:
+            return agent
+    return None
+
+
+def _raise_lifecycle_error(result: KillResult) -> None:
+    if result.reason == "not_found":
+        raise _MobileAgentNotFoundError(result.message)
+    if result.reason in {"already_completed", "missing_pid"}:
+        raise _MobileAgentNotRunningError(result.message)
+    if result.reason == "permission_denied":
+        raise _MobileAgentPermissionDeniedError(result.message)
+    raise _MobileAgentBridgeError(result.message)
+
+
+def _persist_mobile_kill_context(
+    name: str,
+    request: dict[str, Any],
+    before: RunningAgentInfo | None,
+    result: KillResult,
+) -> None:
+    context_dir = _mobile_kill_context_dir()
+    context_dir.mkdir(parents=True, exist_ok=True)
+    context = {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "agent_name": name,
+        "artifact_dir": result.artifacts_dir
+        or (before.artifacts_dir if before is not None else None),
+        "artifacts_timestamp": result.timestamp
+        or _artifact_timestamp(before.artifacts_dir if before else None),
+        "project": result.project or (before.project if before is not None else None),
+        "raw_prompt": before.prompt if before is not None else None,
+        "killed_pid": _optional_uint(result.pid),
+        "device_id": _optional_str(request.get("device_id")),
+        "reason": _optional_str(request.get("reason")),
+        "status": result.status or "killed",
+        "killed_at": datetime.now(UTC).isoformat(),
+    }
+    final_path = context_dir / f"{_option_id(name)}.json"
+    tmp_path = final_path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(context, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp_path, final_path)
+
+
+def _mobile_kill_context_dir() -> Path:
+    sase_home = Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
+    return sase_home / "mobile_gateway" / "agent_kill_contexts"
+
+
+def _artifact_timestamp(artifacts_dir: str | None) -> str | None:
+    if not artifacts_dir:
+        return None
+    return Path(artifacts_dir).name
 
 
 def _directive_name(name: str) -> str:

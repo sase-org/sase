@@ -38,6 +38,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "launch-image",
         help=argparse.SUPPRESS,
     )
+    agent_bridge_subparsers.add_parser(
+        "kill-agent",
+        help=argparse.SUPPRESS,
+    )
 
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",

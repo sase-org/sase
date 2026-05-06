@@ -11,9 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.running import RunningAgentInfo
+from sase.agent.running import RunningAgentInfo, _KillResult
 from sase.integrations import mobile_agents
 from sase.integrations.mobile_agents import (
+    _kill_mobile_agent,
     _launch_mobile_image_agents,
     _launch_mobile_text_agents,
     _list_mobile_agents,
@@ -414,3 +415,111 @@ def test_launch_mobile_image_keeps_stored_file_when_launch_fails(
         )
     )
     assert len(stored_files) == 1
+
+
+def test_kill_mobile_agent_returns_result_and_persists_context(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    agent = _agent(tmp_path, name="alpha")
+    monkeypatch.setattr(mobile_agents, "list_all_agents", lambda: [agent])
+    monkeypatch.setattr(
+        mobile_agents,
+        "kill_named_agent",
+        lambda name, *, exact_name: _KillResult(
+            True,
+            f"Killed agent '{name}' (PID 1234)",
+            status="killed",
+            pid=1234,
+            changed=True,
+            artifacts_dir=agent.artifacts_dir,
+            project="sase",
+            timestamp="20260506143000",
+        ),
+    )
+
+    payload = _kill_mobile_agent(
+        {
+            "schema_version": 1,
+            "name": "alpha",
+            "reason": "mobile",
+            "device_id": "device_123",
+        }
+    )
+
+    assert payload == {
+        "schema_version": 1,
+        "name": "alpha",
+        "status": "killed",
+        "pid": 1234,
+        "changed": True,
+        "message": "Killed agent 'alpha' (PID 1234)",
+    }
+    context_path = tmp_path / "mobile_gateway" / "agent_kill_contexts" / "alpha.json"
+    context = json.loads(context_path.read_text(encoding="utf-8"))
+    assert context["agent_name"] == "alpha"
+    assert context["artifact_dir"] == agent.artifacts_dir
+    assert context["project"] == "sase"
+    assert context["raw_prompt"] == "Line one\nLine two"
+    assert context["killed_pid"] == 1234
+    assert context["device_id"] == "device_123"
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_code", "expected_message"),
+    [
+        (
+            _KillResult(
+                False,
+                "No agent found with name 'missing'",
+                reason="not_found",
+            ),
+            4,
+            "No agent found",
+        ),
+        (
+            _KillResult(
+                False,
+                "Agent 'done' already completed",
+                reason="already_completed",
+            ),
+            5,
+            "already completed",
+        ),
+        (
+            _KillResult(
+                False,
+                "Could not find PID for agent 'stale'",
+                reason="missing_pid",
+            ),
+            5,
+            "Could not find PID",
+        ),
+        (
+            _KillResult(
+                False,
+                "Permission denied killing agent 'alpha' (PID 1234)",
+                reason="permission_denied",
+            ),
+            6,
+            "Permission denied",
+        ),
+    ],
+)
+def test_kill_mobile_agent_maps_lifecycle_errors(
+    monkeypatch,
+    result: _KillResult,
+    expected_code: int,
+    expected_message: str,
+) -> None:
+    monkeypatch.setattr(mobile_agents, "kill_named_agent", lambda *_a, **_k: result)
+    stderr = io.StringIO()
+
+    code = handle_mobile_agent_bridge(
+        argparse.Namespace(mobile_agent_bridge_subcommand="kill-agent"),
+        stdin=io.StringIO('{"schema_version":1,"name":"alpha"}'),
+        stderr=stderr,
+    )
+
+    assert code == expected_code
+    assert expected_message in stderr.getvalue()
