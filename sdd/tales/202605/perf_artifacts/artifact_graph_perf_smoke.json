@@ -7,8 +7,23 @@
         "watcher_starts": 1,
         "workers": 2
       },
-      "latency_ms": 0.2621500025270507,
+      "latency_ms": 0.2483040007064119,
       "operation": "startup_contract:no_broad_artifact_graph_calls",
+      "query_counts": {
+        "calls": 0
+      },
+      "result_count": 2
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "index_exists": 0,
+        "watcher_starts": 1,
+        "workers": 2
+      },
+      "latency_ms": 0.0563770008739084,
+      "operation": "startup_contract:missing_index_no_broad_artifact_graph_calls",
       "query_counts": {
         "calls": 0
       },
@@ -28,8 +43,9 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 109.73978399124462,
+      "latency_ms": 108.63903000426944,
       "mutation_counts": {
+        "calls": 1,
         "links_added": 168,
         "links_removed": 0,
         "links_updated": 395,
@@ -54,8 +70,9 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.613016990129836,
+      "latency_ms": 3.6545280017890036,
       "mutation_counts": {
+        "calls": 1,
         "links_added": 0,
         "links_removed": 0,
         "links_updated": 5,
@@ -80,8 +97,9 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.909503997419961,
+      "latency_ms": 3.9619439921807498,
       "mutation_counts": {
+        "calls": 1,
         "links_added": 0,
         "links_removed": 0,
         "links_updated": 2,
@@ -106,8 +124,9 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 12.043241003993899,
+      "latency_ms": 12.808144994778559,
       "mutation_counts": {
+        "calls": 1,
         "links_added": 1,
         "links_removed": 0,
         "links_updated": 40,
@@ -132,7 +151,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 12.434447999112308,
+      "latency_ms": 13.307508008438163,
       "mutation_counts": {
         "calls": 1,
         "links_added": 0,
@@ -152,7 +171,7 @@
         "limit": 10,
         "linked_rows": 240
       },
-      "latency_ms": 2.131930014002137,
+      "latency_ms": 2.182146010454744,
       "operation": "artifact_show_paged:high_degree_children",
       "query_counts": {
         "calls": 1
@@ -166,7 +185,7 @@
         "limit": 12,
         "linked_rows": 240
       },
-      "latency_ms": 1.6834240086609498,
+      "latency_ms": 1.6607309953542426,
       "operation": "artifact_search:global_limited",
       "query_counts": {
         "calls": 1
@@ -179,7 +198,7 @@
       "fixture": {
         "visible_rows": 11
       },
-      "latency_ms": 1.246469997568056,
+      "latency_ms": 1.2600670015672222,
       "operation": "artifact_summary:visible_rows_batch",
       "query_counts": {
         "calls": 1
@@ -198,7 +217,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.543146005133167,
+      "latency_ms": 1.5341190010076389,
       "operation": "artifact_show:project",
       "query_counts": {
         "calls": 1
@@ -217,7 +236,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.139305008109659,
+      "latency_ms": 1.1870760063175112,
       "operation": "artifact_show:changespec",
       "query_counts": {
         "calls": 1
@@ -236,7 +255,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.7021590028889477,
+      "latency_ms": 1.6397709987359121,
       "operation": "artifact_show:commit",
       "query_counts": {
         "calls": 1
@@ -255,7 +274,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.7062880069715902,
+      "latency_ms": 1.7137710092356429,
       "operation": "artifact_show:bead",
       "query_counts": {
         "calls": 1
@@ -274,7 +293,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.8169280083384365,
+      "latency_ms": 1.8156770092900842,
       "operation": "artifact_show:agent",
       "query_counts": {
         "calls": 1
@@ -293,7 +312,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.693162994342856,
+      "latency_ms": 1.6579060029471293,
       "operation": "artifact_show:file",
       "query_counts": {
         "calls": 1
@@ -312,7 +331,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.8777849909383804,
+      "latency_ms": 1.807150008971803,
       "operation": "artifact_show:thought",
       "query_counts": {
         "calls": 1
@@ -344,12 +363,16 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 157.54991500580218,
-      "operation": "modal_open:/",
+      "latency_ms": 176.17671200423501,
+      "operation": "modal_open:paged:/",
       "query_counts": {
+        "artifact_export": 0,
+        "artifact_graph": 0,
+        "artifact_show": 0,
+        "artifact_show_paged": 1,
         "calls": 1
       },
-      "result_count": 102
+      "result_count": 12
     },
     {
       "bounded": true,
@@ -357,12 +380,16 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 140.66666401049588,
-      "operation": "modal_open:changespec:current",
+      "latency_ms": 144.12931399419904,
+      "operation": "modal_open:paged:changespec:current",
       "query_counts": {
+        "artifact_export": 0,
+        "artifact_graph": 0,
+        "artifact_show": 0,
+        "artifact_show_paged": 1,
         "calls": 1
       },
-      "result_count": 105
+      "result_count": 38
     },
     {
       "bounded": true,
@@ -370,12 +397,51 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 151.82273199025076,
-      "operation": "modal_open:agent:current",
+      "latency_ms": 148.9727409934858,
+      "operation": "modal_open:paged:agent:current",
       "query_counts": {
+        "artifact_export": 0,
+        "artifact_graph": 0,
+        "artifact_show": 0,
+        "artifact_show_paged": 1,
         "calls": 1
       },
-      "result_count": 103
+      "result_count": 15
+    },
+    {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120,
+        "targeted_refreshes": 1
+      },
+      "latency_ms": 189.93442099599633,
+      "mutation_counts": {
+        "calls": 1,
+        "targeted_refreshes": 1
+      },
+      "operation": "modal_open:missing_artifact_targeted_refresh:changespec:current",
+      "query_counts": {
+        "artifact_show": 0,
+        "artifact_show_paged": 2,
+        "calls": 2
+      },
+      "result_count": 38
+    },
+    {
+      "bounded": false,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency_ms": 129.14878100855276,
+      "operation": "modal_open_legacy_compat:/",
+      "query_counts": {
+        "artifact_show": 1,
+        "artifact_show_paged": 0,
+        "calls": 1
+      },
+      "result_count": 121
     }
   ],
   "operations": {
@@ -397,6 +463,23 @@
         "median_ms": 0.0,
         "min_ms": 0.0,
         "p95_ms": 0.0
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 0.0,
+        "median_ms": 0.0,
+        "min_ms": 0.0,
+        "p95_ms": 0.0
       }
     },
     "artifact_search:global_limited": {
@@ -408,10 +491,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.6834240086609498,
-        "median_ms": 1.6834240086609498,
-        "min_ms": 1.6834240086609498,
-        "p95_ms": 1.6834240086609498
+        "max_ms": 1.6607309953542426,
+        "median_ms": 1.6607309953542426,
+        "min_ms": 1.6607309953542426,
+        "p95_ms": 1.6607309953542426
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 12.0,
+        "median_ms": 12.0,
+        "min_ms": 12.0,
+        "p95_ms": 12.0
       }
     },
     "artifact_show:agent": {
@@ -428,10 +528,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.8169280083384365,
-        "median_ms": 1.8169280083384365,
-        "min_ms": 1.8169280083384365,
-        "p95_ms": 1.8169280083384365
+        "max_ms": 1.8156770092900842,
+        "median_ms": 1.8156770092900842,
+        "min_ms": 1.8156770092900842,
+        "p95_ms": 1.8156770092900842
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:bead": {
@@ -448,10 +565,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.7062880069715902,
-        "median_ms": 1.7062880069715902,
-        "min_ms": 1.7062880069715902,
-        "p95_ms": 1.7062880069715902
+        "max_ms": 1.7137710092356429,
+        "median_ms": 1.7137710092356429,
+        "min_ms": 1.7137710092356429,
+        "p95_ms": 1.7137710092356429
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:changespec": {
@@ -468,10 +602,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.139305008109659,
-        "median_ms": 1.139305008109659,
-        "min_ms": 1.139305008109659,
-        "p95_ms": 1.139305008109659
+        "max_ms": 1.1870760063175112,
+        "median_ms": 1.1870760063175112,
+        "min_ms": 1.1870760063175112,
+        "p95_ms": 1.1870760063175112
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:commit": {
@@ -488,10 +639,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.7021590028889477,
-        "median_ms": 1.7021590028889477,
-        "min_ms": 1.7021590028889477,
-        "p95_ms": 1.7021590028889477
+        "max_ms": 1.6397709987359121,
+        "median_ms": 1.6397709987359121,
+        "min_ms": 1.6397709987359121,
+        "p95_ms": 1.6397709987359121
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:file": {
@@ -508,10 +676,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.693162994342856,
-        "median_ms": 1.693162994342856,
-        "min_ms": 1.693162994342856,
-        "p95_ms": 1.693162994342856
+        "max_ms": 1.6579060029471293,
+        "median_ms": 1.6579060029471293,
+        "min_ms": 1.6579060029471293,
+        "p95_ms": 1.6579060029471293
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:project": {
@@ -528,10 +713,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.543146005133167,
-        "median_ms": 1.543146005133167,
-        "min_ms": 1.543146005133167,
-        "p95_ms": 1.543146005133167
+        "max_ms": 1.5341190010076389,
+        "median_ms": 1.5341190010076389,
+        "min_ms": 1.5341190010076389,
+        "p95_ms": 1.5341190010076389
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show:thought": {
@@ -548,10 +750,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.8777849909383804,
-        "median_ms": 1.8777849909383804,
-        "min_ms": 1.8777849909383804,
-        "p95_ms": 1.8777849909383804
+        "max_ms": 1.807150008971803,
+        "median_ms": 1.807150008971803,
+        "min_ms": 1.807150008971803,
+        "p95_ms": 1.807150008971803
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
       }
     },
     "artifact_show_paged:high_degree_children": {
@@ -563,10 +782,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 2.131930014002137,
-        "median_ms": 2.131930014002137,
-        "min_ms": 2.131930014002137,
-        "p95_ms": 2.131930014002137
+        "max_ms": 2.182146010454744,
+        "median_ms": 2.182146010454744,
+        "min_ms": 2.182146010454744,
+        "p95_ms": 2.182146010454744
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 10.0,
+        "median_ms": 10.0,
+        "min_ms": 10.0,
+        "p95_ms": 10.0
       }
     },
     "artifact_summary:visible_rows_batch": {
@@ -577,10 +813,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.246469997568056,
-        "median_ms": 1.246469997568056,
-        "min_ms": 1.246469997568056,
-        "p95_ms": 1.246469997568056
+        "max_ms": 1.2600670015672222,
+        "median_ms": 1.2600670015672222,
+        "min_ms": 1.2600670015672222,
+        "p95_ms": 1.2600670015672222
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 11.0,
+        "median_ms": 11.0,
+        "min_ms": 11.0,
+        "p95_ms": 11.0
       }
     },
     "full_graph_rebuild": {
@@ -597,13 +850,62 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 109.73978399124462,
-        "median_ms": 109.73978399124462,
-        "min_ms": 109.73978399124462,
-        "p95_ms": 109.73978399124462
+        "max_ms": 108.63903000426944,
+        "median_ms": 108.63903000426944,
+        "min_ms": 108.63903000426944,
+        "p95_ms": 108.63903000426944
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 0.0
+      },
+      "result_count": {
+        "count": 0.0
       }
     },
-    "modal_open:/": {
+    "modal_open:missing_artifact_targeted_refresh:changespec:current": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120,
+        "targeted_refreshes": 1
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 189.93442099599633,
+        "median_ms": 189.93442099599633,
+        "min_ms": 189.93442099599633,
+        "p95_ms": 189.93442099599633
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 2.0,
+        "median_ms": 2.0,
+        "min_ms": 2.0,
+        "p95_ms": 2.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 38.0,
+        "median_ms": 38.0,
+        "min_ms": 38.0,
+        "p95_ms": 38.0
+      }
+    },
+    "modal_open:paged:/": {
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -611,13 +913,30 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 157.54991500580218,
-        "median_ms": 157.54991500580218,
-        "min_ms": 157.54991500580218,
-        "p95_ms": 157.54991500580218
+        "max_ms": 176.17671200423501,
+        "median_ms": 176.17671200423501,
+        "min_ms": 176.17671200423501,
+        "p95_ms": 176.17671200423501
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 12.0,
+        "median_ms": 12.0,
+        "min_ms": 12.0,
+        "p95_ms": 12.0
       }
     },
-    "modal_open:agent:current": {
+    "modal_open:paged:agent:current": {
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -625,13 +944,30 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 151.82273199025076,
-        "median_ms": 151.82273199025076,
-        "min_ms": 151.82273199025076,
-        "p95_ms": 151.82273199025076
+        "max_ms": 148.9727409934858,
+        "median_ms": 148.9727409934858,
+        "min_ms": 148.9727409934858,
+        "p95_ms": 148.9727409934858
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 15.0,
+        "median_ms": 15.0,
+        "min_ms": 15.0,
+        "p95_ms": 15.0
       }
     },
-    "modal_open:changespec:current": {
+    "modal_open:paged:changespec:current": {
       "bounded": true,
       "errors": [],
       "fixture": {
@@ -639,10 +975,91 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 140.66666401049588,
-        "median_ms": 140.66666401049588,
-        "min_ms": 140.66666401049588,
-        "p95_ms": 140.66666401049588
+        "max_ms": 144.12931399419904,
+        "median_ms": 144.12931399419904,
+        "min_ms": 144.12931399419904,
+        "p95_ms": 144.12931399419904
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 38.0,
+        "median_ms": 38.0,
+        "min_ms": 38.0,
+        "p95_ms": 38.0
+      }
+    },
+    "modal_open_legacy_compat:/": {
+      "bounded": false,
+      "errors": [],
+      "fixture": {
+        "linked_rows": 120
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 129.14878100855276,
+        "median_ms": 129.14878100855276,
+        "min_ms": 129.14878100855276,
+        "p95_ms": 129.14878100855276
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 121.0,
+        "median_ms": 121.0,
+        "min_ms": 121.0,
+        "p95_ms": 121.0
+      }
+    },
+    "startup_contract:missing_index_no_broad_artifact_graph_calls": {
+      "bounded": true,
+      "errors": [],
+      "fixture": {
+        "index_exists": 0,
+        "watcher_starts": 1,
+        "workers": 2
+      },
+      "latency": {
+        "count": 1.0,
+        "max_ms": 0.0563770008739084,
+        "median_ms": 0.0563770008739084,
+        "min_ms": 0.0563770008739084,
+        "p95_ms": 0.0563770008739084
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 0.0,
+        "median_ms": 0.0,
+        "min_ms": 0.0,
+        "p95_ms": 0.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 2.0,
+        "median_ms": 2.0,
+        "min_ms": 2.0,
+        "p95_ms": 2.0
       }
     },
     "startup_contract:no_broad_artifact_graph_calls": {
@@ -654,10 +1071,27 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 0.2621500025270507,
-        "median_ms": 0.2621500025270507,
-        "min_ms": 0.2621500025270507,
-        "p95_ms": 0.2621500025270507
+        "max_ms": 0.2483040007064119,
+        "median_ms": 0.2483040007064119,
+        "min_ms": 0.2483040007064119,
+        "p95_ms": 0.2483040007064119
+      },
+      "mutation_calls": {
+        "count": 0.0
+      },
+      "query_calls": {
+        "count": 1.0,
+        "max_ms": 0.0,
+        "median_ms": 0.0,
+        "min_ms": 0.0,
+        "p95_ms": 0.0
+      },
+      "result_count": {
+        "count": 1.0,
+        "max_ms": 2.0,
+        "median_ms": 2.0,
+        "min_ms": 2.0,
+        "p95_ms": 2.0
       }
     },
     "targeted_agent_artifact_burst": {
@@ -674,10 +1108,23 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 12.434447999112308,
-        "median_ms": 12.434447999112308,
-        "min_ms": 12.434447999112308,
-        "p95_ms": 12.434447999112308
+        "max_ms": 13.307508008438163,
+        "median_ms": 13.307508008438163,
+        "min_ms": 13.307508008438163,
+        "p95_ms": 13.307508008438163
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 0.0
+      },
+      "result_count": {
+        "count": 0.0
       }
     },
     "targeted_agent_artifact_upsert": {
@@ -694,10 +1141,23 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 12.043241003993899,
-        "median_ms": 12.043241003993899,
-        "min_ms": 12.043241003993899,
-        "p95_ms": 12.043241003993899
+        "max_ms": 12.808144994778559,
+        "median_ms": 12.808144994778559,
+        "min_ms": 12.808144994778559,
+        "p95_ms": 12.808144994778559
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 0.0
+      },
+      "result_count": {
+        "count": 0.0
       }
     },
     "targeted_bead_store_upsert": {
@@ -714,10 +1174,23 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.909503997419961,
-        "median_ms": 3.909503997419961,
-        "min_ms": 3.909503997419961,
-        "p95_ms": 3.909503997419961
+        "max_ms": 3.9619439921807498,
+        "median_ms": 3.9619439921807498,
+        "min_ms": 3.9619439921807498,
+        "p95_ms": 3.9619439921807498
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 0.0
+      },
+      "result_count": {
+        "count": 0.0
       }
     },
     "targeted_project_file_upsert": {
@@ -734,10 +1207,23 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.613016990129836,
-        "median_ms": 3.613016990129836,
-        "min_ms": 3.613016990129836,
-        "p95_ms": 3.613016990129836
+        "max_ms": 3.6545280017890036,
+        "median_ms": 3.6545280017890036,
+        "min_ms": 3.6545280017890036,
+        "p95_ms": 3.6545280017890036
+      },
+      "mutation_calls": {
+        "count": 1.0,
+        "max_ms": 1.0,
+        "median_ms": 1.0,
+        "min_ms": 1.0,
+        "p95_ms": 1.0
+      },
+      "query_calls": {
+        "count": 0.0
+      },
+      "result_count": {
+        "count": 0.0
       }
     }
   },

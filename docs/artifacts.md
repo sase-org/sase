@@ -11,6 +11,10 @@ Use JSON output for automation and agent workflows. Human output is intended for
 The graph is an index over existing SASE state. It does not own project files, beads, agent marker files, chat logs,
 diffs, plans, questions, images, or generated PDFs, and rebuilds must not delete those source files.
 
+`sase ace` startup reads the existing index only through bounded startup compatibility paths and does not run broad
+unified artifact sync, rebuild, list, show, search, or summary operations before first paint. Historical discovery and
+repair are explicit operator actions.
+
 Artifact IDs are stable identifiers for graph nodes:
 
 - `/` is the root artifact.
@@ -74,6 +78,30 @@ sase artifact show -j -a <artifact_id>
 `show` returns the node, payloads, inbound and outbound links, direct children, path to root, and diagnostics. A missing
 artifact returns a detail object with `node: null`.
 
+## TUI Artifact Panel
+
+In `sase ace`, `A` opens the unified artifact panel for the selected ChangeSpec, Agent, file, bead, or other indexed
+context. The panel uses paged artifact detail by default, so high-degree nodes load one bounded relationship page at a
+time instead of reading and rendering the full neighborhood.
+
+Inside the panel:
+
+- `j`/`k` move through one-line relationship, path, search, and `show more` rows.
+- `enter` opens the selected artifact row; `show more` rows request the next page for that group.
+- `/` filters the currently-loaded rows locally and must not call global artifact search.
+- `S` runs bounded global search through `sase artifact search`.
+- Apostrophe starts row-jump mode for relationship rows, search rows, and `show more` rows.
+- `b`/`f` navigate panel history; `p` opens the current node's parent; `r` opens `/`.
+- `g` previews a bounded graph and `G` exports the graph view.
+
+If a current selection is missing from the index, the panel performs only the configured targeted refresh for that
+context. When the artifact is still missing, it reports manual repair commands rather than running a broad sync or
+rebuild from the modal.
+
+CL and Agent rows show compact artifact indicators from one batched summary query per visible-list refresh. The counts
+summarize linked artifacts by semantic file type and non-file kind; a missing marker means the row has no indexed node
+or summary yet. Repeated `j`/`k` navigation uses the cached rendered rows and should not issue artifact summary queries.
+
 ## Graph Output
 
 Use graph output when relationships matter:
@@ -112,9 +140,9 @@ response file, or any other source artifact. To inspect suppressed rows while de
 ## Rebuild Behavior
 
 `sase artifact rebuild` mutates the index by refreshing derived graph rows from configured sources. `sase artifact sync`
-is the friendlier alias for the same explicit historical sync/backfill operation; it is not run automatically at startup
-or when opening the artifact panel. Both commands can rebuild from project files, workspaces, bead stores, and agent
-artifact directories depending on the request options:
+is the friendlier alias for the same explicit historical sync/backfill operation; it is not run automatically at
+`sase ace` startup or when opening the artifact panel. Both commands can rebuild from project files, workspaces, bead
+stores, and agent artifact directories depending on the request options:
 
 ```bash
 sase artifact rebuild -j
@@ -254,6 +282,7 @@ Use the performance smoke when changing rebuild, targeted upsert, artifact detai
 
 ```bash
 just artifact-perf-smoke
+python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
 ```
 
 The smoke writes `sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json` and records fixture size, operation
