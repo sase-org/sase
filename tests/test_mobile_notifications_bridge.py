@@ -8,7 +8,9 @@ from unittest.mock import patch
 
 from sase.integrations.mobile_notifications import (
     MobilePlanActionError,
+    execute_mobile_hitl_action,
     execute_mobile_plan_action,
+    execute_mobile_question_action,
     read_mobile_notification_snapshot,
     resolve_mobile_notification_detail,
 )
@@ -197,3 +199,149 @@ def test_execute_mobile_plan_action_rejects_duplicate_response(
             assert exc.code == "conflict_already_handled"
         else:
             raise AssertionError("expected duplicate response conflict")
+
+
+def test_execute_mobile_hitl_action_writes_response_and_dismisses(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "agent" / "artifacts"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "hitl_request.json").write_text("{}", encoding="utf-8")
+    row = _notification(
+        "hitl0001-row",
+        "2026-05-06T13:00:00+00:00",
+        action="HITL",
+        action_data={"artifacts_dir": str(artifacts_dir)},
+    )
+
+    with (
+        patch(
+            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed") as mark_dismissed,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="hitl0001-row",
+            prefix="hitl0001",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_hitl_action(
+            "hitl0001", "feedback", feedback="Try again"
+        )
+
+    assert result.response_file == "hitl_response.json"
+    assert result.response_json == {
+        "action": "feedback",
+        "approved": False,
+        "feedback": "Try again",
+    }
+    assert (artifacts_dir / "hitl_response.json").read_text(encoding="utf-8") == (
+        "{\n"
+        '  "action": "feedback",\n'
+        '  "approved": false,\n'
+        '  "feedback": "Try again"\n'
+        "}\n"
+    )
+    mark_dismissed.assert_called_once_with("hitl0001-row")
+
+
+def test_execute_mobile_question_action_writes_option_response(
+    tmp_path: Path,
+) -> None:
+    response_dir = tmp_path / "agent" / "question"
+    response_dir.mkdir(parents=True)
+    (response_dir / "question_request.json").write_text(
+        (
+            "{\n"
+            '  "questions": [{\n'
+            '    "question": "Which path?",\n'
+            '    "options": [{"id": "fast", "label": "Fast"}, {"id": "safe", "label": "Safe"}]\n'
+            "  }]\n"
+            "}\n"
+        ),
+        encoding="utf-8",
+    )
+    row = _notification(
+        "quest001-row",
+        "2026-05-06T13:00:00+00:00",
+        action="UserQuestion",
+        action_data={"response_dir": str(response_dir)},
+    )
+
+    with (
+        patch(
+            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed") as mark_dismissed,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="quest001-row",
+            prefix="quest001",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_question_action(
+            "quest001",
+            "answer",
+            selected_option_id="safe",
+            global_note="Use durable path",
+        )
+
+    assert result.response_file == "question_response.json"
+    assert result.response_json == {
+        "answers": [
+            {
+                "question": "Which path?",
+                "selected": ["Safe"],
+                "custom_feedback": None,
+            }
+        ],
+        "global_note": "Use durable path",
+    }
+    mark_dismissed.assert_called_once_with("quest001-row")
+
+
+def test_execute_mobile_question_action_rejects_invalid_option_without_write(
+    tmp_path: Path,
+) -> None:
+    response_dir = tmp_path / "agent" / "question"
+    response_dir.mkdir(parents=True)
+    (response_dir / "question_request.json").write_text(
+        '{"questions":[{"question":"Q?","options":[]}]}',
+        encoding="utf-8",
+    )
+    row = _notification(
+        "quest002-row",
+        "2026-05-06T13:00:00+00:00",
+        action="UserQuestion",
+        action_data={"response_dir": str(response_dir)},
+    )
+
+    with (
+        patch(
+            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="quest002-row",
+            prefix="quest002",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        try:
+            execute_mobile_question_action(
+                "quest002", "answer", selected_option_index=0
+            )
+        except MobilePlanActionError as exc:
+            assert exc.code == "invalid_request"
+        else:
+            raise AssertionError("expected invalid option error")
+
+    assert not (response_dir / "question_response.json").exists()
