@@ -132,7 +132,8 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
     app = _FakeApp(agents)
     app._refresh_panel_widgets(jump_hints=None)
 
-    assert app._panel_widgets["agent-list-panel"].border_title == "(untagged) · 0"
-    assert app._panel_widgets["agent-list-panel-1"].border_title == "@alpha · 1"
-    assert app._panel_widgets["agent-list-panel-2"].border_title == "@mike · 1"
-    assert app._panel_widgets["agent-list-panel-3"].border_title == "@zulu · 1"
+    assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
+    assert app._panel_widgets["agent-list-panel"].border_title == "@alpha · 1"
+    assert app._panel_widgets["agent-list-panel-1"].border_title == "@mike · 1"
+    assert app._panel_widgets["agent-list-panel-2"].border_title == "@zulu · 1"
+    assert "agent-list-panel-3" not in app._panel_widgets

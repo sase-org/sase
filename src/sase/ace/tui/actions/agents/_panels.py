@@ -28,7 +28,7 @@ class AgentPanelsMixin:
 
         Snaps ``current_idx`` to the first agent of the new focused
         panel and clears any pending banner-row focus.  No-ops when
-        only the untagged main pane exists.
+        only one panel exists.
         """
         if self.current_tab != "agents":
             return

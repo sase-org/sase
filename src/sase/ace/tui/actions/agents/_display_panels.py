@@ -51,7 +51,7 @@ class PanelsMixin:
         """Recompute :attr:`_panel_group` from the current :attr:`_agents`.
 
         Preserves the previously focused panel key when possible; falls
-        back to the untagged main pane when its tag's panel disappears.
+        back to the first available panel when its tag's panel disappears.
         Also re-anchors :attr:`current_idx` into the focused panel when
         the previous focus is no longer in it.
         """
@@ -74,8 +74,8 @@ class PanelsMixin:
     ) -> None:
         """Set ``current_idx`` to the first agent in the focused panel.
 
-        When the focused panel is empty (e.g. the untagged main when
-        every loaded agent is tagged) leaves ``current_idx`` at ``0``.
+        When the focused panel is empty (the no-agent fallback) leaves
+        ``current_idx`` at ``0``.
         """
         for i, k in enumerate(keys_per_agent):
             if k == focused_key:
@@ -123,7 +123,7 @@ class PanelsMixin:
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
-        # Mount missing panels (skip index 0 — the main pane is composed
+        # Mount missing panels (skip index 0 — the first slot is composed
         # statically and lives at id ``agent-list-panel``).
         existing_ids = {w.id for w in container.children if isinstance(w, AgentList)}
         for idx in range(len(panel_keys)):
@@ -216,10 +216,10 @@ class PanelsMixin:
 
         Two regimes:
 
-        - **Fits** (Σ natural ≤ container): the first panel (the untagged
-          main pane) grows to fill leftover space via a fractional unit, so
-          no dead zone is left beneath the column; later tag panels are
-          pinned to their exact natural cell heights.
+        - **Fits** (Σ natural ≤ container): the first panel grows to fill
+          leftover space via a fractional unit, so no dead zone is left
+          beneath the column; later panels are pinned to their exact
+          natural cell heights.
         - **Overflow** (Σ natural > container): weight each panel by
           ``option_count + 1`` (border allowance keeps tiny panels from
           collapsing to nothing) using fractional units.

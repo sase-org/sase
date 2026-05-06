@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 21:38:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_untagged_panel.md
 ---
 # Plan: Hide Empty Untagged Agents Panel

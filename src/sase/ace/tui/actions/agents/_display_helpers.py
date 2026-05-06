@@ -7,16 +7,16 @@ from typing import Literal
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
-#: id of the untagged "main" panel — kept stable across panel set changes
-#: so existing callers (loading shim, prompt-bar mount, tests) continue to
-#: work without knowing about the dynamic side panels.
+#: id of panel slot 0 — kept stable across panel set changes so existing
+#: callers (loading shim, prompt-bar mount, tests) continue to work without
+#: knowing which panel key currently occupies the first slot.
 _MAIN_PANEL_ID = "agent-list-panel"
 
 
 def panel_widget_id(panel_idx: int) -> str:
     """Return the AgentList widget id for the panel at *panel_idx*.
 
-    Index 0 is the untagged main pane; tag panels follow.
+    Index 0 uses the stable main id even when it displays a tag panel.
     """
     if panel_idx == 0:
         return _MAIN_PANEL_ID

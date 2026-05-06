@@ -2,11 +2,11 @@
 
 Each Agents-tab panel renders a tag-bucket of agents:
 
-* The first panel (``focused_idx`` 0, key ``None``) is the "untagged" main
-  pane.
-* Subsequent panels are keyed by tag, sorted alphabetically (case-
-  insensitive).  Their order matches the order the user used to see as
-  tag-level banners in the old three-level tree.
+* The untagged panel (key ``None``) appears first only when at least one
+  visible agent is effectively untagged, or when the agent list is empty.
+* Tag panels are keyed by tag, sorted alphabetically (case-insensitive).
+  Their order matches the order the user used to see as tag-level banners
+  in the old three-level tree.
 
 Workflow children inherit their parent's tag so they appear in the
 parent's panel even if the child has no tag of its own.
@@ -15,11 +15,11 @@ parent's panel even if the child has no tag of its own.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import cast
 
 from .agent import Agent
 
-#: Panel key type — ``None`` for the untagged main panel; a tag string
-#: otherwise.
+#: Panel key type — ``None`` for the untagged panel; a tag string otherwise.
 PanelKey = str | None
 
 
@@ -37,20 +37,31 @@ def _panel_key_for_agent(agent: Agent, parent_lookup: dict[str, Agent]) -> Panel
 
 
 def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
-    """Return the ordered panel keys for *agents*: ``[None, tag1, tag2, ...]``.
+    """Return the ordered panel keys for *agents*.
 
-    Tag panels follow the untagged main panel and are sorted
-    alphabetically by tag (case-insensitive).  The untagged panel always
-    appears first, even when every loaded agent is tagged — it is the
-    fallback focus target when a tag's panel disappears mid-session.
+    The empty Agents tab still gets ``[None]`` as a deterministic
+    empty-state focus target.  Otherwise the untagged panel appears only
+    when at least one visible agent maps to ``None`` after workflow-parent
+    inheritance; all tag panels are sorted alphabetically by tag
+    (case-insensitive).
     """
+    if not agents:
+        return [None]
+
     parent_lookup = _build_parent_lookup(agents)
     distinct_tags: set[str] = set()
+    has_untagged = False
     for a in agents:
         key = _panel_key_for_agent(a, parent_lookup)
-        if key is not None:
+        if key is None:
+            has_untagged = True
+        else:
             distinct_tags.add(key)
-    return [None, *sorted(distinct_tags, key=str.lower)]
+
+    sorted_tags = sorted(distinct_tags, key=str.lower)
+    if has_untagged:
+        return [None, *sorted_tags]
+    return cast(list[PanelKey], sorted_tags)
 
 
 def panel_key_per_agent(agents: list[Agent]) -> list[PanelKey]:
@@ -87,7 +98,7 @@ class AgentPanelGroup:
 
         If ``focused_key`` is no longer present in the new panel set
         (e.g. its tag's last agent was dismissed), focus falls back to
-        the untagged main pane.
+        the first available panel.
         """
         keys = _panel_keys_for(agents)
         try:

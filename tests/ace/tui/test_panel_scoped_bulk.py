@@ -138,32 +138,32 @@ def test_workflow_child_inherits_parent_panel_for_bulk_dismiss() -> None:
     app_focus_fix._dismiss_all_done_agents()
     assert set(_names_in_modal(app_focus_fix)) == {"parent", "child"}
 
-    app_focus_untagged = _FakeApp([parent, child], focused_key=None)
-    app_focus_untagged._dismiss_all_done_agents()
-    assert app_focus_untagged._notifications == [
-        ("No agents to dismiss", "warning"),
-    ]
-    assert app_focus_untagged._pushed == []
+    app_default_focus = _FakeApp([parent, child], focused_key=None)
+    assert app_default_focus._panel_group.focused_key == "fix"
+    app_default_focus._dismiss_all_done_agents()
+    assert set(_names_in_modal(app_default_focus)) == {"parent", "child"}
 
 
-def test_empty_focused_panel_short_circuits_dismiss() -> None:
+def test_missing_focused_key_falls_back_to_first_tag_for_dismiss() -> None:
     fix = _agent(name="f1", suffix="t1", tag="fix")
     app = _FakeApp([fix], focused_key=None)
 
     app._dismiss_all_done_agents()
 
-    assert app._pushed == []
-    assert app._notifications == [("No agents to dismiss", "warning")]
+    assert app._panel_group.focused_key == "fix"
+    assert _names_in_modal(app) == ["f1"]
+    assert app._notifications == []
 
 
-def test_empty_focused_panel_short_circuits_kill_and_dismiss() -> None:
+def test_missing_focused_key_falls_back_to_first_tag_for_kill_and_dismiss() -> None:
     fix_run = _agent(name="f_run", suffix="t1", status="RUNNING", pid=42, tag="fix")
     app = _FakeApp([fix_run], focused_key=None)
 
     app._kill_and_dismiss_all_agents()
 
-    assert app._pushed == []
-    assert app._notifications == [("No agents to kill or dismiss", "warning")]
+    assert app._panel_group.focused_key == "fix"
+    assert _names_in_modal(app) == ["f_run"]
+    assert app._notifications == []
 
 
 def test_panel_group_none_falls_back_to_all_agents() -> None:
