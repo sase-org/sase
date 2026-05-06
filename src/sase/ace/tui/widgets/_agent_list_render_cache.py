@@ -117,7 +117,6 @@ def agent_render_key(
         agent.parent_step_index,
         agent.parent_total_steps,
         agent.step_type,
-        agent.parent_appears_as_agent,
         agent.embedded_workflow_name,
         agent.is_pre_prompt_step,
         agent.agent_type,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 12:48:21
-status: wip
+status: done
 prompt: sdd/prompts/202605/runtime_suffix_row_ownership.md
 ---
 # Plan: Runtime Suffix Row Ownership Correction

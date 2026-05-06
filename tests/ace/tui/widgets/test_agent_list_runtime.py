@@ -205,20 +205,25 @@ def test_compute_row_runtime_linked_followup_workflow_returns_elapsed() -> None:
     assert elapsed == "2m05s"
 
 
-def test_compute_row_runtime_appears_as_agent_prompt_step_returns_nones() -> None:
+def test_compute_row_runtime_prompt_step_done_has_static_suffix() -> None:
     start = datetime(2026, 4, 25, 14, 0, 0)
-    now = datetime(2026, 4, 25, 14, 2, 5)
+    run_start = datetime(2026, 4, 25, 14, 1, 0)
+    stop = datetime(2026, 4, 25, 14, 2, 30)
+    now = datetime(2026, 4, 25, 14, 3, 0)
     ts, elapsed = compute_row_runtime(
         _workflow_child(
             step_type="agent",
+            status="DONE",
             start=start,
+            run_start=run_start,
+            stop=stop,
             cl_name="main",
             parent_appears_as_agent=True,
         ),
         now=now,
     )
-    assert ts is None
-    assert elapsed is None
+    assert ts == ("", "14:02:30")
+    assert elapsed == "1m30s"
 
 
 @pytest.mark.parametrize("step_type", ["python", "bash"])
@@ -237,8 +242,9 @@ def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
 # --- runtime_suffix_ticks ----------------------------------------------------
 
 
-def test_runtime_suffix_ticks_active_parent_status() -> None:
-    agent = _agent(status="PLAN APPROVED")
+@pytest.mark.parametrize("status", ["PLAN APPROVED", "LEGEND APPROVED"])
+def test_runtime_suffix_ticks_active_parent_status(status: str) -> None:
+    agent = _agent(status=status)
     assert runtime_suffix_ticks(agent) is True
 
 
@@ -271,10 +277,11 @@ def test_runtime_suffix_ticks_linked_followup_workflow_ticks() -> None:
     assert runtime_suffix_ticks(agent) is True
 
 
-def test_runtime_suffix_ticks_appears_as_agent_prompt_step_does_not_tick() -> None:
+def test_runtime_suffix_ticks_appears_as_agent_prompt_step_done_is_static() -> None:
     agent = _workflow_child(
         step_type="agent",
-        status="RUNNING",
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 2, 30),
         cl_name="main",
         parent_appears_as_agent=True,
     )
@@ -356,6 +363,28 @@ def test_format_agent_option_finished_yesterday_suffix_human_readable() -> None:
         now=now,
     )
     assert suffix.plain == "Apr 24 20:17 · 38m45s"
+
+
+def test_format_agent_option_appears_as_agent_prompt_step_done_suffix() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    run_start = datetime(2026, 4, 25, 14, 1, 0)
+    stop = datetime(2026, 4, 25, 14, 2, 30)
+    now = datetime(2026, 4, 25, 14, 3, 0)
+    _, suffix, _ = format_agent_option(
+        _workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            stop=stop,
+            cl_name="main",
+            parent_appears_as_agent=True,
+        ),
+        0,
+        is_selected=False,
+        now=now,
+    )
+    assert suffix.plain == "14:02:30 · 1m30s"
 
 
 def test_format_agent_option_no_start_has_empty_suffix() -> None:
