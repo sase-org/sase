@@ -36,6 +36,7 @@ class _MobileGatewayConfig:
     allow_non_loopback: bool = False
     command: tuple[str, ...] = ()
     agent_bridge_command: tuple[str, ...] = ()
+    helper_bridge_command: tuple[str, ...] = ()
     startup_timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS
 
 
@@ -65,6 +66,7 @@ def _load_mobile_gateway_config() -> _MobileGatewayConfig:
         allow_non_loopback=bool(raw.get("allow_non_loopback", False)),
         command=_command_value(raw.get("command")),
         agent_bridge_command=_command_value(raw.get("agent_bridge_command")),
+        helper_bridge_command=_command_value(raw.get("helper_bridge_command")),
         startup_timeout_seconds=_positive_float(
             raw.get("startup_timeout_seconds"), DEFAULT_STARTUP_TIMEOUT_SECONDS
         ),
@@ -91,6 +93,10 @@ def _prepare_mobile_gateway_launch(
         _command_value(getattr(args, "agent_bridge_command", None))
         or config.agent_bridge_command
     )
+    helper_bridge_command = (
+        _command_value(getattr(args, "helper_bridge_command", None))
+        or config.helper_bridge_command
+    )
     if not command:
         command = _resolve_gateway_command()
     if not command:
@@ -110,6 +116,8 @@ def _prepare_mobile_gateway_launch(
         argv.extend(["--sase-home", str(state_dir)])
     if agent_bridge_command:
         argv.extend(["--agent-bridge-command", shlex.join(agent_bridge_command)])
+    if helper_bridge_command:
+        argv.extend(["--helper-bridge-command", shlex.join(helper_bridge_command)])
     if allow_non_loopback:
         argv.append("--allow-non-loopback")
 

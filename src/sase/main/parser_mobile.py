@@ -47,6 +47,18 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
 
+    helper_bridge_parser = mobile_subparsers.add_parser(
+        "helper-bridge",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers = helper_bridge_parser.add_subparsers(
+        dest="mobile_helper_bridge_subcommand",
+    )
+    helper_bridge_subparsers.add_parser(
+        "changespec-tags",
+        help=argparse.SUPPRESS,
+    )
+
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",
         help="Manage the workstation-hosted mobile gateway",
@@ -96,5 +108,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
     start_parser.add_argument(
         "-A",
         "--agent-bridge-command",
+        help=argparse.SUPPRESS,
+    )
+    start_parser.add_argument(
+        "-J",
+        "--helper-bridge-command",
         help=argparse.SUPPRESS,
     )

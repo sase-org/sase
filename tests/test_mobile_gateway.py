@@ -27,6 +27,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "state_dir": None,
         "allow_non_loopback": False,
         "gateway_command": None,
+        "helper_bridge_command": None,
         "startup_timeout": None,
     }
     values.update(overrides)
@@ -49,6 +50,7 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
                 "allow_non_loopback": True,
                 "command": "sase_gateway --extra",
                 "agent_bridge_command": "sase",
+                "helper_bridge_command": "sase-helper",
                 "startup_timeout_seconds": "2.5",
             }
         },
@@ -60,6 +62,7 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
             allow_non_loopback=True,
             command=("sase_gateway", "--extra"),
             agent_bridge_command=("sase",),
+            helper_bridge_command=("sase-helper",),
             startup_timeout_seconds=2.5,
         )
 
@@ -141,6 +144,8 @@ def test_parser_accepts_mobile_gateway_start() -> None:
             "1",
             "-A",
             "sase",
+            "-J",
+            "sase-helper",
         ]
     )
 
@@ -154,6 +159,15 @@ def test_parser_accepts_mobile_gateway_start() -> None:
     assert args.gateway_command == "sase_gateway"
     assert args.startup_timeout == 1
     assert args.agent_bridge_command == "sase"
+    assert args.helper_bridge_command == "sase-helper"
+
+
+def test_parser_accepts_mobile_helper_bridge_changespec_tags() -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", "changespec-tags"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == "changespec-tags"
 
 
 def test_parser_accepts_mobile_agent_bridge_launch_text() -> None:
