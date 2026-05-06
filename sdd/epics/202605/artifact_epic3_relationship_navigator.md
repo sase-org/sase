@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-05 22:25:43
+bead_id: sase-24.3
+tier: epic
+legend_bead_id: sase-24
 status: wip
 prompt: sdd/prompts/202605/artifact_epic3_relationship_navigator.md
 ---
