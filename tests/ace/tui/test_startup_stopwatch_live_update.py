@@ -112,7 +112,8 @@ def test_start_post_mount_background_loads_does_not_sync_artifact_graph(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Startup may watch artifact sources, but must not run broad graph sync."""
+    """Startup may watch artifact sources, but must not run broad graph reads."""
+    from sase.core import artifact_facade
 
     class FakeWatcher:
         def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
@@ -133,9 +134,17 @@ def test_start_post_mount_background_loads_does_not_sync_artifact_graph(
     )
 
     def fail_rebuild(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("sase ace startup must not sync artifact graph")
+        del args, kwargs
+        raise AssertionError("sase ace startup must not use broad artifact graph APIs")
 
-    monkeypatch.setattr("sase.core.artifact_facade.artifact_rebuild", fail_rebuild)
+    monkeypatch.setattr(artifact_facade, "artifact_rebuild", fail_rebuild)
+    monkeypatch.setattr(artifact_facade, "artifact_list", fail_rebuild)
+    monkeypatch.setattr(artifact_facade, "artifact_show", fail_rebuild)
+    monkeypatch.setattr(artifact_facade, "artifact_search", fail_rebuild, raising=False)
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+        fail_rebuild,
+    )
     with patch.object(
         app,
         "run_worker",

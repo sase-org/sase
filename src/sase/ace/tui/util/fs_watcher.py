@@ -136,7 +136,7 @@ class ArtifactWatcher:
             return False
         installed = 0
         for path in self._paths:
-            installed += self._add_watch_tree(libc, fd, path)
+            installed += self._add_watch_path(libc, fd, path)
         if installed == 0:
             try:
                 os.close(fd)
@@ -203,31 +203,39 @@ class ArtifactWatcher:
                 self._pending_paths.update(changed_paths)
             self._maybe_flush()
 
-    def _add_watch_tree(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
-        """Install watches for ``path`` and existing descendants."""
-
+    def _add_watch_path(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
+        """Install one watch without walking existing descendants."""
         try:
             if not path.exists():
                 return 0
         except OSError:
             return 0
 
-        paths = [path]
-        if path.is_dir():
-            try:
-                paths.extend(child for child in path.rglob("*") if child.is_dir())
-            except OSError:
-                pass
+        wd = libc.inotify_add_watch(fd, str(path).encode("utf-8"), self._mask)
+        if wd < 0:
+            err = ctypes.get_errno()
+            log.debug("inotify_add_watch(%s) failed: errno=%d", path, err)
+            return 0
+        self._watch_paths_by_wd[wd] = path
+        return 1
 
-        installed = 0
-        for watch_path in paths:
-            wd = libc.inotify_add_watch(fd, str(watch_path).encode("utf-8"), self._mask)
-            if wd < 0:
-                err = ctypes.get_errno()
-                log.debug("inotify_add_watch(%s) failed: errno=%d", watch_path, err)
-                continue
-            self._watch_paths_by_wd[wd] = watch_path
-            installed += 1
+    def _add_watch_tree(self, libc: ctypes.CDLL, fd: int, path: Path) -> int:
+        """Install watches for a newly-created or moved directory tree.
+
+        Startup uses shallow watches only so it never walks historical
+        artifact trees. Recursive installation is reserved for directories
+        that appear after the watcher is already running, which keeps normal
+        startup cheap while still following freshly-created agent artifact
+        directories.
+        """
+
+        installed = self._add_watch_path(libc, fd, path)
+        try:
+            children = tuple(child for child in path.rglob("*") if child.is_dir())
+        except OSError:
+            return installed
+        for child in children:
+            installed += self._add_watch_path(libc, fd, child)
         return installed
 
     def _collect_relevant_events(self, data: bytes) -> set[Path]:

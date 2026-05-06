@@ -58,12 +58,39 @@ def test_watcher_dispatches_on_file_create(tmp_path: Path) -> None:
 
 
 @_LINUX_ONLY
-def test_watcher_dispatches_on_nested_marker_write(tmp_path: Path) -> None:
-    """Existing agent marker directories are watched recursively."""
+def test_watcher_start_does_not_walk_existing_descendants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup installs shallow watches without scanning historical trees."""
+    marker_dir = tmp_path / "proj" / "artifacts" / "ace-run" / "20260505120000"
+    marker_dir.mkdir(parents=True)
+
+    def fail_rglob(self: Path, pattern: str):  # type: ignore[no-untyped-def]
+        del self, pattern
+        raise AssertionError("watcher startup must not recursively scan")
+
+    monkeypatch.setattr(Path, "rglob", fail_rglob)
+
+    def schedule(cb: Callable[[], None]) -> None:
+        cb()
+
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=schedule,
+        coalesce_s=0.02,
+    )
+    assert watcher.start() is True
+    watcher.stop()
+
+
+@_LINUX_ONLY
+def test_watcher_dispatches_on_new_nested_marker_write(tmp_path: Path) -> None:
+    """New nested agent marker directories are watched after startup."""
     fired = threading.Event()
     changed: list[tuple[Path, ...]] = []
     marker_dir = tmp_path / "proj" / "artifacts" / "ace-run" / "20260505120000"
-    marker_dir.mkdir(parents=True)
     marker_path = marker_dir / "agent_meta.json"
 
     def schedule(cb: Callable[[], None]) -> None:
@@ -81,6 +108,11 @@ def test_watcher_dispatches_on_nested_marker_write(tmp_path: Path) -> None:
     )
     assert watcher.start() is True
     try:
+        marker_dir.mkdir(parents=True)
+        assert _wait(
+            lambda: marker_dir in set(watcher._watch_paths_by_wd.values()),  # noqa: SLF001
+            timeout=3.0,
+        )
         marker_path.write_text("{}")
         assert _wait(fired.is_set, timeout=3.0)
         assert any(marker_path in paths for paths in changed)
