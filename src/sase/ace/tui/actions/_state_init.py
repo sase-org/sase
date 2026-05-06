@@ -93,6 +93,7 @@ class StateInitMixin:
         from ..models.artifact_summary_cache import ArtifactSummaryCache
 
         self._artifact_summary_cache = ArtifactSummaryCache()
+        self._skip_next_agent_artifact_summary_load = False
 
         # Hint mode state
         self._hint_mode_active: bool = False

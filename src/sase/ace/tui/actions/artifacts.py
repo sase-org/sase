@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-def _agent_artifact_id(agent: Agent) -> str | None:
+def agent_artifact_id(agent: Agent) -> str | None:
     """Return the unified graph artifact ID for a TUI agent row."""
     if agent.agent_name:
         return agent.agent_name
@@ -62,7 +62,7 @@ class ArtifactsMixin:
             agents = getattr(self, "_agents", [])
             if not 0 <= self.current_idx < len(agents):
                 return None
-            return _agent_artifact_id(agents[self.current_idx])
+            return agent_artifact_id(agents[self.current_idx])
 
         return None
 

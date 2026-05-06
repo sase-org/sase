@@ -76,11 +76,7 @@ _lint-pyscripts: _setup
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/executable_pyvision-260501 \
         src/sase \
-        --epic-symbol 'sase-24.4(ArtifactIndicator)' \
-        --epic-symbol 'sase-24.4(ArtifactIndicatorCount)' \
-        --epic-symbol 'sase-24.4(artifact_indicator_from_summary)' \
-        --epic-symbol 'sase-24.4(artifact_indicator_width)' \
-        --epic-symbol 'sase-24.4(render_artifact_indicator)'
+        --epic-symbol 'sase-24.4(ArtifactIndicatorCount)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

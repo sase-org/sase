@@ -54,6 +54,8 @@ class ChangeSpecLoadingMixin:
         """
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
         self.changespecs = self._filter_changespecs(all_changespecs)
+        if not getattr(self, "_mounting", False):
+            self._load_changespec_artifact_summaries(self.changespecs)
 
         # Clear marks on reload (indices may shift)
         self.marked_indices = set()  # type: ignore[assignment]
@@ -269,6 +271,7 @@ class ChangeSpecLoadingMixin:
         )
 
         self.changespecs = new_changespecs  # type: ignore[assignment]
+        self._load_changespec_artifact_summaries(new_changespecs)
         if on_changespecs_tab:
             self.current_idx = new_idx
         else:
@@ -315,3 +318,15 @@ class ChangeSpecLoadingMixin:
             if self._changespecs_refresh_pending:
                 self._changespecs_refresh_pending = False
                 self.call_later(self._run_changespecs_async_refresh)  # type: ignore[attr-defined]
+
+    def _load_changespec_artifact_summaries(
+        self,
+        changespecs: list[ChangeSpec],
+    ) -> None:
+        """Load row artifact summaries for a full CL list refresh."""
+        cache = getattr(self, "_artifact_summary_cache", None)
+        if cache is None:
+            return
+        from ..artifact_summaries import load_changespec_artifact_summaries
+
+        load_changespec_artifact_summaries(cache, changespecs)

@@ -21,9 +21,28 @@ class ArtifactSummaryCache:
     def get(self, artifact_id: str) -> ArtifactSummaryWire | None:
         return self._summaries.get(artifact_id)
 
+    def has(self, artifact_id: str) -> bool:
+        return artifact_id in self._summaries
+
     def update(self, summaries: Iterable[ArtifactSummaryWire]) -> None:
         for summary in summaries:
             self._summaries[summary.artifact_id] = summary
+
+    def mark_missing(self, artifact_ids: Iterable[str]) -> None:
+        self.update(
+            ArtifactSummaryWire(artifact_id=artifact_id, state="missing")
+            for artifact_id in artifact_ids
+        )
+
+    def mark_error(self, artifact_ids: Iterable[str], error: str) -> None:
+        self.update(
+            ArtifactSummaryWire(
+                artifact_id=artifact_id,
+                state="error",
+                error=error,
+            )
+            for artifact_id in artifact_ids
+        )
 
     def invalidate(self, artifact_ids: Iterable[str] | None = None) -> None:
         if artifact_ids is None:
