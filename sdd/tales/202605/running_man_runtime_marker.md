@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 13:08:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/running_man_runtime_marker.md
 ---
 # Running Man Runtime Marker Plan

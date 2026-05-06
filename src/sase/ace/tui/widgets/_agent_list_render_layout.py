@@ -35,7 +35,7 @@ _RUNTIME_DATE_STYLE = "dim #8787AF"
 _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
 # Live marker: soft gold so active second-by-second runtimes are scannable
 # without competing with the row's status color.
-_RUNTIME_LIVE_MARKER = "🕒 "
+_RUNTIME_LIVE_MARKER = "🏃‍♂️ "
 _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
 
 
