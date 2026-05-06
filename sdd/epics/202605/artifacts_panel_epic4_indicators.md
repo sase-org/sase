@@ -2,6 +2,9 @@
 create_time: 2026-05-05 23:52:18
 status: wip
 prompt: sdd/prompts/202605/artifacts_panel_epic4_indicators.md
+bead_id: sase-24.4
+tier: epic
+legend_bead_id: sase-24
 ---
 # Plan: Artifacts Panel Redesign Epic 4 - CLs And Agents Artifact Indicators
 
