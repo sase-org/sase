@@ -2,6 +2,9 @@
 create_time: 2026-05-06 13:14:53
 status: wip
 prompt: sdd/prompts/202605/mobile_gateway_epic_3.md
+bead_id: sase-26.3
+tier: epic
+legend_bead_id: sase-26
 ---
 # Plan: Mobile MVP Epic 3 - Agent Lifecycle, Launch, Retry, And Image Input
 
