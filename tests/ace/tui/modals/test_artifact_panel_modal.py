@@ -397,6 +397,33 @@ def test_rich_row_model_includes_semantic_fields_and_group_counts() -> None:
     assert "file:/tmp/plan.md" in rendered
 
 
+def test_row_label_uses_stable_type_and_edge_colors() -> None:
+    child = _node(
+        "file:/tmp/plan.md",
+        "file",
+        "plan.md",
+        {"artifact_type": "plan"},
+    )
+    link = ArtifactLinkWire(
+        id="out-1",
+        link_type="related",
+        source_id="alpha",
+        target_id="agent:related",
+        metadata={"target_kind": "agent", "target_title": "Related agent"},
+    )
+    rows = build_artifact_panel_rows(
+        _detail("alpha", children=[child], outbound_links=[link])
+    ).rows
+
+    child_label = _row_label(rows[1])
+    link_label = _row_label(rows[3])
+
+    assert any("#7DD3FC" in str(span.style) for span in child_label.spans)
+    assert any("#22D3EE" in str(span.style) for span in child_label.spans)
+    assert any("#60A5FA" in str(span.style) for span in link_label.spans)
+    assert any("#FBBF24" in str(span.style) for span in link_label.spans)
+
+
 def test_per_group_paging_keeps_other_groups_visible_after_large_group() -> None:
     children = [_node(f"child:{idx}", "agent") for idx in range(10)]
     link = ArtifactLinkWire(
@@ -1100,6 +1127,62 @@ async def test_missing_start_artifact_rebuilds_context_and_retries_once(
     ]
     assert modal._detail is not None
     assert modal._detail.node is not None
+
+
+@pytest.mark.asyncio
+async def test_missing_artifact_state_mentions_indexing_after_targeted_refresh(
+    tmp_path: Path,
+) -> None:
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path, artifact_id
+        return _missing_detail()
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:missing",
+        show_func=fake_show,
+        refresh_missing_func=lambda *args: None,
+        context_path=tmp_path / "project.gp",
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        option = option_list.get_option_at_index(0)
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+        path_text = str(modal.query_one("#artifact-panel-header-path", Static).render())
+
+    assert option.id == "__missing__"
+    assert "Artifact not found" in str(option.prompt)
+    assert "Indexing may still be pending" in detail_text
+    assert "Indexing needed" in path_text
+
+
+@pytest.mark.asyncio
+async def test_empty_relationship_state_is_polished() -> None:
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=lambda index_path, artifact_id, request=None: _paged_detail(
+            artifact_id,
+            kind="changespec",
+            title="Alpha",
+        ),
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        option = option_list.get_option_at_index(0)
+
+    assert option.id == "__relationships_empty__"
+    assert "No linked artifacts" in str(option.prompt)
+    assert "no loaded path, child, outbound, or inbound rows" in str(option.prompt)
 
 
 @pytest.mark.asyncio

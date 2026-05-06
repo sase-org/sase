@@ -22,6 +22,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     build_jump_hint_maps,
     normalize_jump_key,
 )
+from sase.core.artifact_wire.constants import ARTIFACT_FILE_TYPE_METADATA_KEY
 from sase.core.artifact_wire import (
     ArtifactDetailPagedWire,
     ArtifactDetailWire,
@@ -67,6 +68,37 @@ _ARTIFACT_PANEL_NORMAL_HINTS = (
     "j/k: move  ': jump  enter: open  b/f: history  p/r: parent/root  "
     "/: local filter  S: global search  y: copy  e: edit  g/G: graph  q/Esc: close"
 )
+
+_ARTIFACT_BADGE_STYLES = {
+    "plan": "#7DD3FC",
+    "diff": "#FBBF24",
+    "chat": "#A78BFA",
+    "project": "#34D399",
+    "prompt": "#F472B6",
+    "misc": "#CBD5E1",
+    "agent": "#60A5FA",
+    "bead": "#FB7185",
+    "changespec": "#2DD4BF",
+    "cl": "#2DD4BF",
+    "commit": "#F97316",
+    "directory": "#94A3B8",
+    "dir": "#94A3B8",
+    "file": "#E2E8F0",
+    "root": "#FACC15",
+    "thought": "#C084FC",
+}
+
+_ARTIFACT_EDGE_STYLES = {
+    "path": "#A78BFA",
+    "parent": "#A78BFA",
+    "children": "#22D3EE",
+    "created": "#34D399",
+    "worker": "#60A5FA",
+    "related": "#FBBF24",
+    "inbound": "#F472B6",
+    "outbound": "#2DD4BF",
+    "search": "#F97316",
+}
 
 
 class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
@@ -347,9 +379,25 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._clear_entry_jump_hints()
         self._update_header_loading()
         self._replace_options(
-            [Option("Loading artifact...", id="__loading__", disabled=True)]
+            [
+                Option(
+                    _state_message(
+                        "Loading artifact",
+                        "Fetching relationship pages for the navigator.",
+                        style="cyan",
+                    ),
+                    id="__loading__",
+                    disabled=True,
+                )
+            ]
         )
-        self._update_detail("Loading artifact...")
+        self._update_detail(
+            _state_message(
+                "Loading artifact",
+                "Preparing the relationship navigator and preview.",
+                style="cyan",
+            )
+        )
 
     def _render_error(self) -> None:
         message = self._error_message or "Artifact could not be loaded."
@@ -358,19 +406,48 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         if self._render_worker is not None:
             self._render_worker.cancel()
         self._update_header_error(message)
-        self._replace_options([Option("Load failed", id="__error__", disabled=True)])
-        text = Text()
-        text.append("Artifact load failed\n", style="bold red")
-        text.append(message, style="red")
-        self._update_detail(text)
+        self._replace_options(
+            [
+                Option(
+                    _state_message(
+                        "Load failed",
+                        "The artifact backend returned an error.",
+                        style="red",
+                    ),
+                    id="__error__",
+                    disabled=True,
+                )
+            ]
+        )
+        self._update_detail(
+            _state_message("Artifact load failed", message, style="red")
+        )
 
     def _render_detail(self, *, update_preview: bool = True) -> None:
         detail = self._detail
         if detail is None or detail.node is None:
             self._clear_entry_jump_hints()
             self._update_header_missing(self._artifact_id)
-            self._replace_options([Option("Artifact not found", disabled=True)])
-            self._update_detail(f"Artifact not found: {self._artifact_id}")
+            self._replace_options(
+                [
+                    Option(
+                        _state_message(
+                            "Artifact not found",
+                            "Targeted refresh found no indexed node.",
+                            style="yellow",
+                        ),
+                        id="__missing__",
+                        disabled=True,
+                    )
+                ]
+            )
+            self._update_detail(
+                _state_message(
+                    "Artifact not found",
+                    f"{self._artifact_id}\nIndexing may still be pending for this source.",
+                    style="yellow",
+                )
+            )
             return
 
         self._update_header(detail, self._paged_model)
@@ -385,13 +462,35 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._row_by_option_id = {}
         self._clear_entry_jump_hints()
         self._replace_options(
-            [Option("Type a global artifact search query", disabled=True)]
+            [
+                Option(
+                    _state_message(
+                        "Global artifact search",
+                        "Type a query to search the artifact index.",
+                        style="cyan",
+                    ),
+                    id="__search_prompt__",
+                    disabled=True,
+                )
+            ]
         )
 
     def _render_search_loading(self, query: str) -> None:
         self._row_by_option_id = {}
         self._clear_entry_jump_hints()
-        self._replace_options([Option(f"Searching for {query!r}...", disabled=True)])
+        self._replace_options(
+            [
+                Option(
+                    _state_message(
+                        f"Searching for {query!r}",
+                        "Checking the artifact index.",
+                        style="cyan",
+                    ),
+                    id="__search_loading__",
+                    disabled=True,
+                )
+            ]
+        )
 
     def _render_search_options(self) -> None:
         query = self._search_text
@@ -403,7 +502,17 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         if self._search_error is not None:
             self._clear_entry_jump_hints()
             self._replace_options(
-                [Option(f"Search failed: {self._search_error}", disabled=True)]
+                [
+                    Option(
+                        _state_message(
+                            f"Search failed: {self._search_error}",
+                            "Edit the query to try again.",
+                            style="red",
+                        ),
+                        id="__search_error__",
+                        disabled=True,
+                    )
+                ]
             )
             return
 
@@ -414,7 +523,17 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         if not results:
             self._clear_entry_jump_hints()
             self._replace_options(
-                [Option(f"No global results for {query!r}", disabled=True)]
+                [
+                    Option(
+                        _state_message(
+                            f"No global results for {query!r}",
+                            "Try another query or return to local navigation.",
+                            style="yellow",
+                        ),
+                        id="__search_empty__",
+                        disabled=True,
+                    )
+                ]
             )
             return
 
@@ -454,12 +573,21 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                 self._row_by_option_id[row.id] = row
         if not options:
             self._clear_entry_jump_hints()
-            message = (
-                "No rows match the current filter"
-                if self._state.filter_text
-                else "No linked artifacts"
-            )
-            options.append(Option(message, disabled=True))
+            if self._state.filter_text:
+                message = _state_message(
+                    "No rows match the current filter",
+                    "Local filter only checks loaded relationship rows.",
+                    style="yellow",
+                )
+                option_id = "__filter_empty__"
+            else:
+                message = _state_message(
+                    "No linked artifacts",
+                    "This artifact has no loaded path, child, outbound, or inbound rows.",
+                    style="dim",
+                )
+                option_id = "__relationships_empty__"
+            options.append(Option(message, id=option_id, disabled=True))
         return options
 
     def _build_detail_renderable(self, detail: ArtifactDetailWire) -> RenderableType:
@@ -503,7 +631,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _update_header_error(self, message: str) -> None:
         primary = Text()
-        primary.append("[ARTIFACT] ", style="bold")
+        primary.append("[ARTIFACT] ", style=f"bold {_ARTIFACT_BADGE_STYLES['file']}")
         primary.append(self._state.current_id)
         primary.append("  load failed", style="red")
         self.query_one("#artifact-panel-header-primary", Static).update(primary)
@@ -512,11 +640,13 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _update_header_missing(self, artifact_id: str) -> None:
         primary = Text()
-        primary.append("[ARTIFACT] ", style="bold")
+        primary.append("[ARTIFACT] ", style=f"bold {_ARTIFACT_BADGE_STYLES['file']}")
         primary.append(artifact_id)
         primary.append("  not found", style="yellow")
         self.query_one("#artifact-panel-header-primary", Static).update(primary)
-        self.query_one("#artifact-panel-header-path", Static).update("")
+        self.query_one("#artifact-panel-header-path", Static).update(
+            "Indexing needed or source no longer exists"
+        )
         self.query_one("#artifact-panel-header-counts", Static).update("")
 
     def _update_header(
@@ -637,13 +767,53 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             query = self._search_text
             results = self._search_results
             if not query:
-                return [Option("Type a global artifact search query", disabled=True)]
+                return [
+                    Option(
+                        _state_message(
+                            "Global artifact search",
+                            "Type a query to search the artifact index.",
+                            style="cyan",
+                        ),
+                        id="__search_prompt__",
+                        disabled=True,
+                    )
+                ]
             if self._search_error is not None:
-                return [Option(f"Search failed: {self._search_error}", disabled=True)]
+                return [
+                    Option(
+                        _state_message(
+                            f"Search failed: {self._search_error}",
+                            "Edit the query to try again.",
+                            style="red",
+                        ),
+                        id="__search_error__",
+                        disabled=True,
+                    )
+                ]
             if results is None:
-                return [Option(f"Searching for {query!r}...", disabled=True)]
+                return [
+                    Option(
+                        _state_message(
+                            f"Searching for {query!r}",
+                            "Checking the artifact index.",
+                            style="cyan",
+                        ),
+                        id="__search_loading__",
+                        disabled=True,
+                    )
+                ]
             if not results:
-                return [Option(f"No global results for {query!r}", disabled=True)]
+                return [
+                    Option(
+                        _state_message(
+                            f"No global results for {query!r}",
+                            "Try another query or return to local navigation.",
+                            style="yellow",
+                        ),
+                        id="__search_empty__",
+                        disabled=True,
+                    )
+                ]
             self._row_by_option_id = {}
             options: list[Option] = []
             panel_rows = build_artifact_search_rows(
@@ -953,7 +1123,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 def _row_label(row: ArtifactPanelRow, *, hint_char: str | None = None) -> Text:
     if not row.selectable:
         text = Text(row.label)
-        text.stylize("bold cyan" if row.row_type == "group" else "yellow")
+        text.stylize(_disabled_row_style(row))
         return text
     prefix = Text()
     if hint_char is not None:
@@ -967,8 +1137,9 @@ def _row_label(row: ArtifactPanelRow, *, hint_char: str | None = None) -> Text:
         return prefix
 
     badge = _semantic_badge(row.artifact_kind, row.file_type)
+    badge_style = _semantic_badge_style(row.artifact_kind, row.file_type)
     text = Text()
-    text.append(f"[{badge}] ", style="bold")
+    text.append(f"[{badge}] ", style=f"bold {badge_style}")
     text.append(row.title or row.label)
     compact_subtitle = " · ".join(
         part for part in (row.subtitle, row.updated_label) if part
@@ -981,20 +1152,73 @@ def _row_label(row: ArtifactPanelRow, *, hint_char: str | None = None) -> Text:
     if right_side:
         text.append(f"  {right_side}", style="dim")
     if row.row_type == "path":
-        text.stylize("dim")
-    elif row.row_type in {"outbound", "inbound"}:
-        text.stylize("bold", 0, len(f"[{badge}]"))
-        if row.edge_direction:
-            text.append(f"  {row.edge_direction}", style="dim")
+        text.stylize(_edge_style(row.edge_direction, row.link_type))
+    elif row.row_type in {"child", "outbound", "inbound", "search"}:
+        edge_label = _edge_label(row)
+        if edge_label:
+            text.append(
+                f"  {edge_label}",
+                style=f"bold {_edge_style(row.edge_direction, row.link_type)}",
+            )
     if hint_char is not None:
         prefix.append_text(text)
         return prefix
     return text
 
 
+def _state_message(title: str, detail: str = "", *, style: str = "dim") -> Text:
+    text = Text()
+    text.append(title, style=f"bold {style}")
+    if detail:
+        text.append("\n")
+        text.append(detail, style=style)
+    return text
+
+
+def _disabled_row_style(row: ArtifactPanelRow) -> str:
+    if row.row_type == "group":
+        return f"bold {_group_style(row.group_key)}"
+    return "yellow"
+
+
+def _group_style(group_key: str | None) -> str:
+    if not group_key:
+        return "cyan"
+    if group_key == "path":
+        return _ARTIFACT_EDGE_STYLES["path"]
+    if group_key == "children":
+        return _ARTIFACT_EDGE_STYLES["children"]
+    if group_key.startswith("inbound"):
+        return _ARTIFACT_EDGE_STYLES["inbound"]
+    if group_key.startswith("outbound"):
+        link_type = group_key.split(":", 1)[1] if ":" in group_key else None
+        return _edge_style("outbound", link_type)
+    if group_key == "search":
+        return _ARTIFACT_EDGE_STYLES["search"]
+    return "cyan"
+
+
+def _edge_label(row: ArtifactPanelRow) -> str:
+    if row.row_type == "child":
+        return "children"
+    if row.row_type == "search":
+        return "search"
+    if row.row_type in {"outbound", "inbound"}:
+        return row.link_type or row.edge_direction or ""
+    return row.edge_direction or ""
+
+
+def _edge_style(edge_direction: str | None, link_type: str | None = None) -> str:
+    if link_type and link_type in _ARTIFACT_EDGE_STYLES:
+        return _ARTIFACT_EDGE_STYLES[link_type]
+    if edge_direction and edge_direction in _ARTIFACT_EDGE_STYLES:
+        return _ARTIFACT_EDGE_STYLES[edge_direction]
+    return "cyan"
+
+
 def _header_loading_primary(artifact_id: str) -> Text:
     text = Text()
-    text.append("[ARTIFACT] ", style="bold")
+    text.append("[ARTIFACT] ", style=f"bold {_ARTIFACT_BADGE_STYLES['file']}")
     text.append(artifact_id)
     return text
 
@@ -1002,8 +1226,9 @@ def _header_loading_primary(artifact_id: str) -> Text:
 def _header_primary(node: object) -> Text:
     kind = str(getattr(node, "kind", "") or "")
     metadata = getattr(node, "metadata", {}) or {}
-    file_type = metadata.get("artifact_type")
+    file_type = metadata.get(ARTIFACT_FILE_TYPE_METADATA_KEY)
     badge = _semantic_badge(kind, str(file_type) if file_type else None)
+    badge_style = _semantic_badge_style(kind, str(file_type) if file_type else None)
     title = str(getattr(node, "display_title", "") or getattr(node, "id", ""))
     provenance = str(getattr(node, "provenance", "") or "")
     source = _join_compact(
@@ -1019,7 +1244,7 @@ def _header_primary(node: object) -> Text:
         source,
     ]
     text = Text()
-    text.append(f"[{badge}] ", style="bold")
+    text.append(f"[{badge}] ", style=f"bold {badge_style}")
     text.append(title or str(getattr(node, "id", "")), style="bold")
     marker_text = _join_compact(markers)
     if marker_text:
@@ -1094,6 +1319,12 @@ def _semantic_badge(kind: str | None, file_type: str | None = None) -> str:
         "root": "ROOT",
         "thought": "THOUGHT",
     }.get(kind or "", (kind or "artifact").upper())
+
+
+def _semantic_badge_style(kind: str | None, file_type: str | None = None) -> str:
+    if file_type:
+        return _ARTIFACT_BADGE_STYLES.get(file_type, _ARTIFACT_BADGE_STYLES["file"])
+    return _ARTIFACT_BADGE_STYLES.get(kind or "", _ARTIFACT_BADGE_STYLES["file"])
 
 
 def _compressed_breadcrumb(parts: list[str]) -> str:
