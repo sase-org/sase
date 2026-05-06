@@ -173,6 +173,20 @@ Detail responses include full notes, action state, and attachment manifests. Dow
 responses, are bound to the authenticated device, expire after a short TTL, and must still pass path and size checks at
 download time.
 
+Mark a notification read or dismiss it without taking its pending action:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID/mark-read" \
+  -H "$AUTH_HEADER"
+
+curl -sS -X POST "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID/dismiss" \
+  -H "$AUTH_HEADER"
+```
+
+Both routes mutate only notification state and return `notification_id`, `read`, `dismissed`, and `changed`. Repeating a
+route is idempotent: `changed` is `false` when the requested state was already set. Successful state mutations audit the
+device and publish `notifications_changed` so clients can refresh list/detail state.
+
 Plan approval actions use the notification ID or any unique pending-action prefix:
 
 ```bash
@@ -265,9 +279,9 @@ curl -sS "$BASE_URL/api/v1/attachments/$ATTACHMENT_TOKEN" \
   -o attachment.bin
 ```
 
-Mutating action routes audit device ID, endpoint, target notification/prefix, and outcome. Duplicate, stale, ambiguous,
-already-handled, unsupported, and missing-target cases return typed `ApiErrorWire` records and do not overwrite existing
-response files.
+Mutating notification state and action routes audit device ID, endpoint, target notification/prefix, and outcome.
+Duplicate, stale, ambiguous, already-handled, unsupported, and missing-target cases return typed `ApiErrorWire` records
+and do not overwrite existing response files.
 
 ## Storage And Revocation
 
@@ -320,8 +334,8 @@ Keep the JSON snapshot, Rust wire tests, and this document aligned whenever the 
 
 ## Known MVP Limitations
 
-- Notification reads are authoritative REST reads from the host JSONL store. Successful gateway mutations publish
-  `notifications_changed` SSE events, but passive file watching is intentionally out of the MVP.
+- Notification reads are authoritative REST reads from the host JSONL store. Successful gateway state/action mutations
+  publish `notifications_changed` SSE events, but passive file watching is intentionally out of the MVP.
 - Attachment downloads are capped by the gateway's configured max attachment bytes. Oversized, missing, directory,
   traversal, symlinked, or unknown-risk files appear in manifests without download tokens.
 - Telegram remains supported through the shared pending-action compatibility path. If an older Telegram install has only
