@@ -126,6 +126,22 @@ without VCS" behavior through an explicit user-facing workflow tag.
 Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
 and must be a directory.
 
+## Known-Project VCS Fallback
+
+SASE also recognizes provider-prefixed VCS refs that target registered project names even when the corresponding
+workspace plugin is not available in the current process. Known projects are discovered from `~/.sase/projects/*/*.gp`
+by reading each `WORKSPACE_DIR:` entry. For example, if the `sase` project is registered, `#gh:sase #!some/workflow` and
+the underscore shorthand `#gh_sase #!some/workflow` are treated as VCS workspace launches rather than ordinary xprompt
+references.
+
+Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
+provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
+`<PREFIX>_PRE_ALLOCATED`, `<PREFIX>_WORKSPACE_NUM`, and `<PREFIX>_WORKSPACE_DIR` values into the child process. Launches
+that start with a wait directive keep workspace number `0` until the dependency is ready, then resolve the real
+workspace during normal runner setup. Before applying the current launch context, SASE removes inherited
+`SASE_*_PRE_ALLOCATED`, `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up launches do
+not accidentally reuse a stale parent workspace.
+
 ## Relationship to VCS Provider
 
 The workspace provider and VCS provider are complementary plugin systems:

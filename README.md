@@ -237,6 +237,15 @@ expansion and the prompt steps within workflows. The `sase xprompt` CLI provides
 (`expand --trace`), listing all available xprompts (`list`), visualizing workflow execution plans (`explain`), and
 generating workflow DAGs (`graph`).
 
+### Workspace References
+
+Workspace references such as `#cd:<path>`, `#git:<ref>`, `#gh:<repo>`, and `#hg:<ref>` choose where an agent or workflow
+runs before prompt execution. `#cd` runs directly in a directory with no workspace reservation; VCS references use the
+workspace provider layer to allocate numbered workspaces, prepare the checkout, and release the slot after the run.
+Known project names from `~/.sase/projects/` can still be launched with provider-prefixed refs even when the matching
+workspace plugin is not loaded in the current process. See [`docs/workspace.md`](docs/workspace.md) for provider
+contracts and [`docs/xprompt.md`](docs/xprompt.md#vcs-workspace-references) for prompt syntax.
+
 ### Spec-Driven Development
 
 SDD keeps durable planning context close to the code. Prompt snapshots live under `prompts/`, ordinary approved plans
@@ -260,7 +269,7 @@ location.
 src/sase/
 ├── main/                  # CLI entry point and argument parsing
 │   ├── parser*.py         # Argument parsing (ace, bead, commit subcommands)
-│   ├── *_handler.py       # Subcommand handlers (ace, axe, cl, config, etc.)
+│   ├── *_handler.py       # Subcommand handlers (ace, axe, changespec, config, etc.)
 │   ├── plugin_discovery.py # Entry-point-based plugin discovery
 │   └── query_handler/     # Query execution handler
 ├── ace/                   # Interactive TUI and ChangeSpec engine

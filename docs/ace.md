@@ -425,16 +425,20 @@ bead ID. Legacy `<epic_id>.land` land agents keep the same badge. Dismissed agen
 date-prefix used for dismissal.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
-panel. For finished agents, the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit
-the existing 15-cell slot:
+panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; pre-run
+`WAITING` rows with no `BEGIN` time hide the suffix so queued waits do not look like live runtime. For finished agents,
+the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
 - **Same day**: `HH:MM:SS`
 - **Prior day, same year**: `Mon DD HH:MM` (drops seconds — they're noise once a row finished hours ago)
 - **Different year**: `Mon DD 'YY` (date only)
 
-The date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal
-hierarchy without inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards
-compatibility.
+The elapsed duration starts at `BEGIN` when a row recorded wait-before-run metadata, otherwise at the row start time.
+Completed `DONE` / `PLAN DONE` workflow rows use the terminal agent stop time when one exists; plan-step rows that
+finish without a subprocess stop time anchor to the latest recorded plan submission time so completed planning rows do
+not keep ticking. The date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving
+the column internal hierarchy without inflating the palette. Statuses not in the table fall back to `(STATUS)` text for
+forwards compatibility.
 
 ### Agent Search
 

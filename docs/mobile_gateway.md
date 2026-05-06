@@ -7,6 +7,9 @@ gateway never exposes a generic file, shell, or RPC surface.
 The implementation is split across repos:
 
 - `sase` owns user configuration, CLI startup, and lifecycle glue through `sase mobile gateway start`.
+- `sase.integrations.mobile_notifications` is the stable Python facade used by the gateway host bridge to project local
+  notifications, build attachment manifests, and execute plan/HITL/question actions. The sibling
+  `_mobile_notification_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records, pairing/token storage, audit log, SSE
   event stream, and committed API contract snapshot.
 

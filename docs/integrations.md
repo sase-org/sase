@@ -68,6 +68,42 @@ Buckets are emitted in ACE display order and empty buckets are omitted:
 
 Source: `src/sase/integrations/agent_status_groups.py`, `src/sase/agent/status_buckets.py`
 
+## Mobile Notification Bridge
+
+`sase.integrations.mobile_notifications` is the stable host-side facade used by the Rust mobile gateway to expose the
+local notification inbox to mobile clients. External callers should import from this facade only; the
+`sase.integrations._mobile_notification_*` modules hold the split implementation and are internal.
+
+```python
+from sase.integrations.mobile_notifications import (
+    build_mobile_attachment_manifests,
+    execute_mobile_plan_action,
+    read_mobile_notification_snapshot,
+    resolve_mobile_notification_detail,
+)
+
+snapshot = read_mobile_notification_snapshot(unread_only=True, limit=25)
+if snapshot.rows:
+    detail = resolve_mobile_notification_detail(snapshot.rows[0].id)
+else:
+    detail = None
+
+if detail:
+    attachments = build_mobile_attachment_manifests(detail)
+    print(detail.action, detail.action_state, [item.display_name for item in attachments])
+
+result = execute_mobile_plan_action("abcdef12", "approve", commit_plan=True, run_coder=False)
+print(result.notification_id, result.response_file)
+```
+
+Snapshot reads project notifications into mobile-safe rows with display paths, host paths, action state, read/dismissed
+state, mute/snooze state, and priority counts. Detail reads include dismissed and silent rows so clients can rebuild
+local state after an event-stream resync. Action helpers resolve exact IDs or unique prefixes, write the corresponding
+response JSON once, run best-effort host side effects, and raise `MobilePlanActionError` with deterministic `code` and
+`target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
+
+Source: `src/sase/integrations/mobile_notifications.py`
+
 ## Chat Update Worker
 
 Chat integrations that need to update a SASE install can call

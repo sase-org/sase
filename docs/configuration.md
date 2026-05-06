@@ -710,17 +710,20 @@ user-managed Codex config while preserving auth, hooks, skills, logs, and caches
 
 ### Workspace Management (Internal)
 
-These are set automatically by sase when launching agent subprocesses and are not intended for manual use.
+These are set automatically by sase when launching agent subprocesses and are not intended for manual use. Workspace
+plugins declare an env-var prefix, then SASE passes `<PREFIX>_PRE_ALLOCATED`, `<PREFIX>_WORKSPACE_NUM`, and
+`<PREFIX>_WORKSPACE_DIR` into the child process. Built-in prefixes include `SASE_CD` for `#cd` and `SASE_GIT` for
+`#git`; plugin packages may add prefixes such as `SASE_GH` for GitHub. The launcher clears inherited
+`SASE_*_PRE_ALLOCATED`, `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables before applying the current
+launch's values so follow-up agents cannot inherit stale workspace claims.
 
-| Variable                 | Description                                            |
-| ------------------------ | ------------------------------------------------------ |
-| `SASE_SYNC_CWD`          | Working directory override for sync operations.        |
-| `SASE_GH_PRE_ALLOCATED`  | Set to `"1"` when a GitHub workspace is pre-allocated. |
-| `SASE_GH_WORKSPACE_NUM`  | Pre-allocated GitHub workspace number.                 |
-| `SASE_GH_WORKSPACE_DIR`  | Pre-allocated GitHub workspace directory path.         |
-| `SASE_GIT_PRE_ALLOCATED` | Set to `"1"` when a Git workspace is pre-allocated.    |
-| `SASE_GIT_WORKSPACE_NUM` | Pre-allocated Git workspace number.                    |
-| `SASE_GIT_WORKSPACE_DIR` | Pre-allocated Git workspace directory path.            |
+| Variable                       | Description                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `SASE_SYNC_CWD`                | Working directory override for sync operations.                             |
+| `<PREFIX>_PRE_ALLOCATED`       | Set to `"1"` when a workspace provider has pre-allocated a launch context.  |
+| `<PREFIX>_WORKSPACE_NUM`       | Pre-allocated workspace number, or `0` for non-claiming directory contexts. |
+| `<PREFIX>_WORKSPACE_DIR`       | Pre-allocated workspace directory path.                                     |
+| `SASE_CD_*`, `SASE_GIT_*`, ... | Concrete forms for built-in and plugin-provided workspace prefixes.         |
 
 ## CLI Flags
 

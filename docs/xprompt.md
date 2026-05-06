@@ -237,6 +237,11 @@ Prompts that do not contain a workspace reference are normalized to `#cd:~`, so 
 directory with no VCS workspace management. Use `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, `#cd:~`, or
 `#cd(.)` to choose a directory explicitly.
 
+Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
+workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.gp`. A launch such
+as `#gh:sase #!fix_just` therefore targets the registered `sase` project, allocates a numbered workspace for non-wait
+runs, and lets dispatch surfaces strip the wrapper ref when identifying an embedded workflow body.
+
 The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
 `#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path
 matching is intentionally conservative; prefer paths without spaces for embedded workspace tags.
