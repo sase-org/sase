@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 19:59:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifacts_panel_redesign.md
 legend_bead_id: sase-24
 tier: legend
