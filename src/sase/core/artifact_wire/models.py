@@ -144,6 +144,22 @@ class ArtifactTypeCountWire:
 
 
 @dataclass(frozen=True)
+class ArtifactSummaryRequestWire:
+    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
+    artifact_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ArtifactSummaryWire:
+    artifact_id: str
+    state: str
+    total_linked_count: int = 0
+    file_type_counts: list[ArtifactTypeCountWire] = field(default_factory=list)
+    kind_counts: list[ArtifactTypeCountWire] = field(default_factory=list)
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class ArtifactDetailPagedWire:
     schema_version: int
     node: ArtifactNodeWire | None = None
@@ -300,6 +316,8 @@ __all__ = [
     "ArtifactQueryWire",
     "ArtifactRelationPageWire",
     "ArtifactRebuildRequestWire",
+    "ArtifactSummaryRequestWire",
+    "ArtifactSummaryWire",
     "ArtifactTypeCountWire",
     "artifact_root_node",
 ]

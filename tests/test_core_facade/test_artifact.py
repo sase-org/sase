@@ -20,8 +20,13 @@ from sase.core.artifact_wire import (
     ARTIFACT_FILE_TYPE_PLAN,
     ARTIFACT_FILE_TYPE_PROJECT,
     ARTIFACT_FILE_TYPE_PROMPT,
+    ARTIFACT_KIND_AGENT,
+    ARTIFACT_KIND_CHANGESPEC,
     ARTIFACT_KIND_FILE,
+    ARTIFACT_LINK_CREATED,
     ARTIFACT_LINK_PARENT,
+    ARTIFACT_LINK_RELATED,
+    ARTIFACT_LINK_WORKER,
     ARTIFACT_PROVENANCE_DERIVED,
     ARTIFACT_PROVENANCE_MANUAL,
     ARTIFACT_ROOT_ID,
@@ -33,8 +38,10 @@ from sase.core.artifact_wire import (
     ArtifactLinkWire,
     ArtifactPayloadWire,
     ArtifactPageRequestWire,
+    ArtifactSummaryRequestWire,
     artifact_doctor_from_dict,
     artifact_detail_paged_from_dict,
+    artifact_summary_request_to_dict,
     artifact_graph_from_dict,
     artifact_mutation_result_from_dict,
     ArtifactNodeRemoveWire,
@@ -507,6 +514,19 @@ def test_artifact_facade_calls_expected_bindings(
             "type_counts": [],
         }
 
+    def artifact_summary(*args: Any) -> list[dict[str, Any]]:
+        calls.append(("artifact_summary", args))
+        return [
+            {
+                "artifact_id": "/tmp/example.md",
+                "state": "ok",
+                "total_linked_count": 0,
+                "file_type_counts": [],
+                "kind_counts": [],
+                "error": None,
+            }
+        ]
+
     def artifact_graph(*args: Any) -> dict[str, Any]:
         calls.append(("artifact_graph", args))
         return {
@@ -542,6 +562,7 @@ def test_artifact_facade_calls_expected_bindings(
     fake.artifact_search = artifact_search  # type: ignore[attr-defined]
     fake.artifact_show = artifact_show  # type: ignore[attr-defined]
     fake.artifact_show_paged = artifact_show_paged  # type: ignore[attr-defined]
+    fake.artifact_summary = artifact_summary  # type: ignore[attr-defined]
     fake.artifact_graph = artifact_graph  # type: ignore[attr-defined]
     fake.artifact_export = artifact_export  # type: ignore[attr-defined]
     fake.artifact_doctor = artifact_doctor  # type: ignore[attr-defined]
@@ -569,6 +590,13 @@ def test_artifact_facade_calls_expected_bindings(
     assert (
         artifact_facade.artifact_show_paged(index_path, "/tmp/example.md").node
         == _node()
+    )
+    assert (
+        artifact_facade.artifact_summary(
+            index_path,
+            ArtifactSummaryRequestWire(artifact_ids=("/tmp/example.md",)),
+        )[0].artifact_id
+        == "/tmp/example.md"
     )
     assert artifact_facade.artifact_graph(index_path).node_count == 1
     assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
@@ -624,6 +652,15 @@ def test_artifact_facade_calls_expected_bindings(
             ),
         ),
         (
+            "artifact_summary",
+            (
+                "/tmp/artifacts.sqlite",
+                artifact_summary_request_to_dict(
+                    ArtifactSummaryRequestWire(artifact_ids=("/tmp/example.md",))
+                ),
+            ),
+        ),
+        (
             "artifact_graph",
             (
                 "/tmp/artifacts.sqlite",
@@ -663,6 +700,50 @@ def test_artifact_facade_calls_expected_bindings(
     ]
 
 
+def test_artifact_summary_facade_does_not_call_show_per_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    calls: list[str] = []
+
+    def artifact_summary(*args: Any) -> list[dict[str, Any]]:
+        calls.append("artifact_summary")
+        return [
+            {
+                "artifact_id": "agent-1",
+                "state": "ok",
+                "total_linked_count": 0,
+                "file_type_counts": [],
+                "kind_counts": [],
+                "error": None,
+            },
+            {
+                "artifact_id": "agent-2",
+                "state": "missing",
+                "total_linked_count": 0,
+                "file_type_counts": [],
+                "kind_counts": [],
+                "error": None,
+            },
+        ]
+
+    def artifact_show(*args: Any) -> dict[str, Any]:
+        calls.append("artifact_show")
+        raise AssertionError("artifact_summary must not call artifact_show")
+
+    fake.artifact_summary = artifact_summary  # type: ignore[attr-defined]
+    fake.artifact_show = artifact_show  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    summaries = artifact_facade.artifact_summary(
+        "/tmp/artifacts.sqlite",
+        ArtifactSummaryRequestWire(artifact_ids=("agent-1", "agent-2")),
+    )
+
+    assert [summary.artifact_id for summary in summaries] == ["agent-1", "agent-2"]
+    assert calls == ["artifact_summary"]
+
+
 def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     required = {
@@ -674,6 +755,7 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
         "artifact_search",
         "artifact_show",
         "artifact_show_paged",
+        "artifact_summary",
         "artifact_graph",
         "artifact_export",
         "artifact_doctor",
@@ -940,6 +1022,76 @@ def test_artifact_facade_real_extension_paged_detail_high_degree(
         "child-14",
     ]
     assert len(artifact_facade.artifact_show(index_path, "parent").children) == 25
+
+
+def test_artifact_facade_real_extension_batched_summary(tmp_path: Path) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    required = {"artifact_add", "artifact_summary"}
+    missing = sorted(name for name in required if not hasattr(rust_module, name))
+    if missing:
+        pytest.skip(f"sase_core_rs is too old: missing {missing}")
+
+    index_path = tmp_path / "artifacts.sqlite"
+    agent = ArtifactNodeWire(
+        id="agent-1",
+        kind=ARTIFACT_KIND_AGENT,
+        display_title="agent one",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+    )
+    changespec = ArtifactNodeWire(
+        id="cl-one",
+        kind=ARTIFACT_KIND_CHANGESPEC,
+        display_title="cl one",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+    )
+    chat = ArtifactNodeWire(
+        id=str(tmp_path / "chat.json"),
+        kind=ARTIFACT_KIND_FILE,
+        display_title="chat.json",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+        metadata={ARTIFACT_FILE_TYPE_METADATA_KEY: ARTIFACT_FILE_TYPE_CHAT},
+    )
+    for node in (agent, changespec, chat):
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactNodeUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                node=node,
+            ),
+        )
+
+    for link_type, source_id, target_id in (
+        (ARTIFACT_LINK_CREATED, agent.id, chat.id),
+        (ARTIFACT_LINK_PARENT, chat.id, agent.id),
+        (ARTIFACT_LINK_RELATED, agent.id, changespec.id),
+        (ARTIFACT_LINK_WORKER, changespec.id, agent.id),
+    ):
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactLinkUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                link=ArtifactLinkWire(
+                    id=f"{link_type}:{source_id}->{target_id}",
+                    link_type=link_type,
+                    source_id=source_id,
+                    target_id=target_id,
+                    provenance=ARTIFACT_PROVENANCE_MANUAL,
+                ),
+            ),
+        )
+
+    summaries = artifact_facade.artifact_summary(
+        index_path,
+        ArtifactSummaryRequestWire(artifact_ids=(agent.id, "missing")),
+    )
+
+    assert summaries[0].artifact_id == agent.id
+    assert summaries[0].state == "ok"
+    assert summaries[0].total_linked_count == 2
+    assert summaries[0].file_type_counts[0].artifact_type == ARTIFACT_FILE_TYPE_CHAT
+    assert summaries[0].kind_counts[0].artifact_type == ARTIFACT_KIND_CHANGESPEC
+    assert summaries[1].state == "missing"
+    assert summaries[1].total_linked_count == 0
 
 
 def test_artifact_facade_real_extension_rejects_invalid_requests(

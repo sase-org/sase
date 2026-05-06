@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from textual.widgets import Input
 
     from ...changespec import ChangeSpec
+    from ..models.artifact_summary_cache import ArtifactSummaryCache
     from ..models import Agent
 
 # Type alias for tab names
@@ -76,6 +77,7 @@ class EventHandlersMixin:
     _artifact_change_defer_pending: bool
     _artifact_graph_refresh_running: bool
     _artifact_graph_refresh_pending_paths: tuple[Path, ...]
+    _artifact_summary_cache: ArtifactSummaryCache
     _last_full_sanity_refresh: float
 
     def _refresh_current_tab(self) -> None:
@@ -148,6 +150,7 @@ class EventHandlersMixin:
         self._dirty_changespecs = True
         self._dirty_agents = True
         self._dirty_axe = True
+        self._invalidate_artifact_summary_cache()
         if self._prompt_input_active():
             pending = set(getattr(self, "_artifact_change_deferred_paths", ()))
             pending.update(changed_paths or ())
@@ -225,6 +228,12 @@ class EventHandlersMixin:
             run_worker(_refresh, thread=True, exclusive=False, group="artifact-graph")
         else:
             _refresh()
+
+    def _invalidate_artifact_summary_cache(self) -> None:
+        cache = getattr(self, "_artifact_summary_cache", None)
+        invalidate = getattr(cache, "invalidate", None)
+        if callable(invalidate):
+            invalidate()
 
     def _on_artifact_change_deferred(self) -> None:
         """Timer-fired wrapper that clears the dedup flag before reentering.

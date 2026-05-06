@@ -14,6 +14,7 @@ from sase.ace.tui.actions.event_handlers import (
     PROMPT_INPUT_DEFER_SECONDS,
     EventHandlersMixin,
 )
+from sase.ace.tui.models.artifact_summary_cache import ArtifactSummaryCache
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -44,6 +45,7 @@ class _FakeApp(EventHandlersMixin):
         self._artifact_change_defer_pending = False
         self._artifact_graph_refresh_running = False
         self._artifact_graph_refresh_pending_paths: tuple[Path, ...] = ()
+        self._artifact_summary_cache = ArtifactSummaryCache()
         self._last_full_sanity_refresh = time.monotonic()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
@@ -138,6 +140,7 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app._dirty_changespecs is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
+    assert app._artifact_summary_cache.version == 1
     # Existing scheduling behavior preserved.
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 

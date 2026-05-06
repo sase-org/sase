@@ -33,6 +33,8 @@ from sase.core.artifact_wire.models import (
     ArtifactQueryWire,
     ArtifactRelationPageWire,
     ArtifactRebuildRequestWire,
+    ArtifactSummaryRequestWire,
+    ArtifactSummaryWire,
     ArtifactTypeCountWire,
 )
 
@@ -85,6 +87,12 @@ def artifact_path_upsert_request_to_dict(
 
 def artifact_page_request_to_dict(
     request: ArtifactPageRequestWire,
+) -> dict[str, Any]:
+    return artifact_wire_to_json_dict(request)
+
+
+def artifact_summary_request_to_dict(
+    request: ArtifactSummaryRequestWire,
 ) -> dict[str, Any]:
     return artifact_wire_to_json_dict(request)
 
@@ -329,6 +337,42 @@ def artifact_type_count_from_dict(data: dict[str, Any]) -> ArtifactTypeCountWire
     return ArtifactTypeCountWire(
         artifact_type=str(data["artifact_type"]),
         total_count=int(data.get("total_count", 0)),
+    )
+
+
+def artifact_summary_request_from_dict(
+    data: dict[str, Any],
+) -> ArtifactSummaryRequestWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactSummaryRequestWire)},
+        "ArtifactSummaryRequestWire",
+    )
+    return ArtifactSummaryRequestWire(
+        schema_version=_schema_version(data, "ArtifactSummaryRequestWire"),
+        artifact_ids=_tuple_strs(data.get("artifact_ids")),
+    )
+
+
+def artifact_summary_from_dict(data: dict[str, Any]) -> ArtifactSummaryWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactSummaryWire)},
+        "ArtifactSummaryWire",
+    )
+    return ArtifactSummaryWire(
+        artifact_id=str(data["artifact_id"]),
+        state=str(data["state"]),
+        total_linked_count=int(data.get("total_linked_count", 0)),
+        file_type_counts=[
+            artifact_type_count_from_dict(count)
+            for count in data.get("file_type_counts") or []
+        ],
+        kind_counts=[
+            artifact_type_count_from_dict(count)
+            for count in data.get("kind_counts") or []
+        ],
+        error=data.get("error"),
     )
 
 
@@ -580,6 +624,9 @@ __all__ = [
     "artifact_relation_page_from_dict",
     "artifact_rebuild_request_from_dict",
     "artifact_rebuild_request_to_dict",
+    "artifact_summary_from_dict",
+    "artifact_summary_request_from_dict",
+    "artifact_summary_request_to_dict",
     "artifact_type_count_from_dict",
     "artifact_wire_to_json_dict",
 ]

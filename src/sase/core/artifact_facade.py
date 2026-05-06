@@ -31,6 +31,8 @@ from sase.core.artifact_wire import (
     ArtifactPayloadWire,
     ArtifactQueryWire,
     ArtifactRebuildRequestWire,
+    ArtifactSummaryRequestWire,
+    ArtifactSummaryWire,
     artifact_detail_paged_from_dict,
     artifact_detail_from_dict,
     artifact_doctor_from_dict,
@@ -43,6 +45,8 @@ from sase.core.artifact_wire import (
     artifact_path_upsert_request_to_dict,
     artifact_query_to_dict,
     artifact_rebuild_request_to_dict,
+    artifact_summary_from_dict,
+    artifact_summary_request_to_dict,
     artifact_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
@@ -136,6 +140,20 @@ def artifact_show_paged(
         artifact_page_request_to_dict(request_wire),
     )
     return artifact_detail_paged_from_dict(payload)
+
+
+def artifact_summary(
+    index_path: Path | str,
+    request: ArtifactSummaryRequestWire | None = None,
+) -> list[ArtifactSummaryWire]:
+    """Return batched immediate-neighbor artifact summaries."""
+    binding = require_rust_binding("artifact_summary")
+    request_wire = request or ArtifactSummaryRequestWire()
+    payload: list[dict[str, Any]] = binding(
+        _path_str(index_path),
+        artifact_summary_request_to_dict(request_wire),
+    )
+    return [artifact_summary_from_dict(summary) for summary in payload]
 
 
 def artifact_graph(
