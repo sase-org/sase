@@ -149,14 +149,14 @@ class TestDiamond:
             "---\n"
             "%name:e1\n"
             "%tag:e1\n"
+            "%approve\n"
             "%w:p1,p2,p3,p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
         assert all("%tag:e1" in segment for segment in segments)
-        assert all("%approve" in segment for segment in segments[:-1])
-        assert "%approve" not in segments[-1]
+        assert all("%approve" in segment for segment in segments)
 
 
 class TestMixedDAG:

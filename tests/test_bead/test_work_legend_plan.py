@@ -121,6 +121,7 @@ class TestLegendRendering:
             "---\n"
             "%name:l1\n"
             "%tag:l1\n"
+            "%approve\n"
             "%w:l1.2\n"
             "#bd/land_legend:l1"
         )
@@ -128,7 +129,8 @@ class TestLegendRendering:
         segments = rendered.split("\n---\n")
         assert all("%tag:l1" in segment for segment in segments)
         assert all("%epic" in segment for segment in segments[:-1])
-        assert all("%approve" not in segment for segment in segments)
+        assert all("%approve" not in segment for segment in segments[:-1])
+        assert "%approve" in segments[-1]
 
     def test_vcs_context_prefixes_every_legend_segment(
         self, conn: sqlite3.Connection
@@ -146,7 +148,7 @@ class TestLegendRendering:
         assert len(segments) == 3
         assert all(segment.startswith("#git:sase\n") for segment in segments)
         assert "#git:sase\n%name:l1.1.0\n%tag:l1\n%epic" in rendered
-        assert "#git:sase\n%name:l1\n%tag:l1\n%w:l1.2" in rendered
+        assert "#git:sase\n%name:l1\n%tag:l1\n%approve\n%w:l1.2" in rendered
         assert "%name:l1.1.0" in rendered
         assert "%name:l1.2.0" in rendered
         assert "%name:l1" in rendered
@@ -158,7 +160,7 @@ class TestLegendRendering:
         assert "%w:l1.2" in rendered
         assert "#bd/land_legend:l1" in rendered
         assert "%epic" not in segments[-1]
-        assert "%approve" not in segments[-1]
+        assert "%approve" in segments[-1]
 
     def test_user_override_land_legend_xprompt_name_propagates(
         self, conn: sqlite3.Connection

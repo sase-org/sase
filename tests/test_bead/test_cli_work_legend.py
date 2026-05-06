@@ -56,7 +56,7 @@ def test_legend_work_dry_run_never_mutates_or_launches(
         assert "%approve" not in segment
     assert f"%tag:{legend_id}" in segments[2]
     assert "%epic" not in segments[2]
-    assert "%approve" not in segments[2]
+    assert "%approve" in segments[2]
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is False
@@ -96,7 +96,7 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     assert f"%w:{legend_id}.3" in segments[3]
     assert f"#bd/land_legend:{legend_id}" in segments[3]
     assert "%epic" not in segments[3]
-    assert "%approve" not in segments[3]
+    assert "%approve" in segments[3]
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is False
@@ -125,7 +125,7 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     assert len(launch_calls) == 1
     query = captured["query"]
     assert query.count("%epic") == 3
-    assert query.count("%approve") == 0
+    assert query.count("%approve") == 1
     assert query.count(f"%tag:{legend_id}") == 4
     assert query.count("#epic") == 3
     assert query.count("---") == 3

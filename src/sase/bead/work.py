@@ -335,6 +335,7 @@ def render_multi_prompt(
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:{plan.land_agent_name}")
     land_lines.append(_tag_directive(plan.launch_tag_id))
+    land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
@@ -378,6 +379,7 @@ def render_legend_multi_prompt(
     land_lines = _segment_prefix(vcs_context, is_first_phase=True)
     land_lines.append(f"%name:{plan.land_agent_name}")
     land_lines.append(_tag_directive(plan.legend_id))
+    land_lines.append("%approve")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_legend_xprompt.name}:{plan.legend_id}")
