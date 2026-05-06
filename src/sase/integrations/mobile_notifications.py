@@ -31,6 +31,7 @@ class MobileNotificationBridgeRow:
     display_files: list[str] = field(default_factory=list)
     host_files: list[str] = field(default_factory=list)
     action: str | None = None
+    action_state: str = "unsupported"
     display_action_data: dict[str, str] = field(default_factory=dict)
     host_action_data: dict[str, str] = field(default_factory=dict)
     read: bool = False
@@ -50,7 +51,6 @@ class MobileNotificationBridgeSnapshot:
     expired_ids: list[str] = field(default_factory=list)
 
 
-# pyvision: public_api_methods.txt
 def read_mobile_notification_snapshot(
     *,
     unread_only: bool = False,
@@ -89,7 +89,6 @@ def read_mobile_notification_snapshot(
     )
 
 
-# pyvision: public_api_methods.txt
 def resolve_mobile_notification_detail(
     notification_id: str,
 ) -> MobileNotificationBridgeRow | None:
@@ -102,6 +101,8 @@ def resolve_mobile_notification_detail(
 
 
 def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
+    from sase.notifications.pending_actions import action_state_for_notification
+
     return MobileNotificationBridgeRow(
         id=notification.id,
         timestamp=notification.timestamp,
@@ -111,6 +112,7 @@ def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
         display_files=[_normalize_home_path(path) for path in notification.files],
         host_files=[str(Path(path).expanduser()) for path in notification.files],
         action=notification.action,
+        action_state=action_state_for_notification(notification),
         display_action_data={
             key: _normalize_home_path(value)
             for key, value in notification.action_data.items()

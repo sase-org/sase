@@ -82,6 +82,7 @@ def test_mobile_bridge_keeps_raw_host_paths_and_safe_display_paths(
         _notification(
             "detail",
             "2026-05-06T13:00:00+00:00",
+            action="PlanApproval",
             files=[home_file, str(tmp_path / "note.md")],
             action_data={"response_dir": home_file, "session_id": "s1"},
         )
@@ -99,3 +100,4 @@ def test_mobile_bridge_keeps_raw_host_paths_and_safe_display_paths(
     assert detail.display_action_data["response_dir"] == "~/.sase/digest.txt"
     assert detail.host_action_data["response_dir"] == home_file
     assert detail.host_action_data["session_id"] == "s1"
+    assert detail.action_state == "available"

@@ -1,6 +1,7 @@
 """Rust-backed JSONL notification storage."""
 
 import dataclasses
+import logging
 import os
 from collections.abc import Iterable
 from datetime import datetime
@@ -8,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.notifications.models import Notification
+
+log = logging.getLogger(__name__)
 
 NOTIFICATIONS_DIR = os.path.expanduser("~/.sase/notifications")
 NOTIFICATIONS_FILE = os.path.join(NOTIFICATIONS_DIR, "notifications.jsonl")
@@ -92,6 +95,12 @@ def append_notification(n: Notification) -> None:
     """Append a notification as a JSON line through the Rust store."""
     _ensure_notifications_dir()
     _rust_append_notification(_notifications_path(), n)
+    try:
+        from sase.notifications.pending_actions import register_notification
+
+        register_notification(n)
+    except Exception:
+        log.warning("Failed to register pending notification action", exc_info=True)
     _invalidate_load_cache()
 
 

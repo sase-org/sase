@@ -26,6 +26,10 @@ MobileNotificationBridgeRow
 MobileNotificationBridgeSnapshot
 read_mobile_notification_snapshot
 resolve_mobile_notification_detail
+PrefixResolution
+resolve_prefix
+cleanup_stale
+load_store
 enter_maintenance
 ChatInstallConfig
 ChatInstallLaunchResult
