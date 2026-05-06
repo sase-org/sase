@@ -36,7 +36,7 @@ steps:
               seen[stem] = count + 1
               agent_name = f"pysplit.{stem}{suffix}"
               per_file_prompts.append(
-                  f"%name:{agent_name}\n#gh:sase #sase/pysplit:{path} %approve"
+                  f"%name:{agent_name}\n#gh:sase %tag:chop %approve #sase/pysplit:{path}"
               )
           multi_prompt = build_wait_chained_multi_prompt(per_file_prompts)
           launch_agent_from_cwd(multi_prompt)
