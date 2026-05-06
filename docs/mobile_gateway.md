@@ -382,6 +382,66 @@ with a reason and agent name when available. Mobile launch context is appended t
 `<sase_home>/mobile_gateway/agent_kill_contexts/`; and the last known product-shaped project context per device is
 stored under `<sase_home>/mobile_gateway/device_project_contexts/`.
 
+## Workflow Helpers
+
+Workflow helper routes require the paired device bearer token. They return direct JSON records with a common `result`
+object containing `status`, `message`, `warnings`, `skipped`, and `partial_failure_count`. Android should render
+`partial_success` by showing the primary payload and surfacing the structured skipped rows; it should not parse the
+human message text for control flow.
+
+List active ChangeSpec tags for a known project:
+
+```bash
+curl -sS "$BASE_URL/api/v1/changespec-tags?project=sase&limit=25" \
+  -H "$AUTH_HEADER"
+```
+
+Fetch the structured xprompt catalog for a native picker. Optional PDF generation is best-effort and requested
+explicitly:
+
+```bash
+curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&tag=changespec&limit=50" \
+  -H "$AUTH_HEADER"
+
+curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&include_pdf=true" \
+  -H "$AUTH_HEADER"
+```
+
+List open/in-progress beads in a project and inspect one bead:
+
+```bash
+curl -sS "$BASE_URL/api/v1/beads?project=sase&status=in_progress&limit=25" \
+  -H "$AUTH_HEADER"
+
+BEAD_ID="sase-26.4.6"
+
+curl -sS "$BASE_URL/api/v1/beads/$BEAD_ID?project=sase" \
+  -H "$AUTH_HEADER"
+```
+
+Omit `project` to use the paired device's remembered project context when present. Pass `all_projects=true` to force a
+cross-project bead lookup across known SASE projects.
+
+Start the fixed SASE update worker and poll structured job status:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/update/start" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"request_id":"mobile-update-1"}'
+
+JOB_ID="job_123"
+
+curl -sS "$BASE_URL/api/v1/update/$JOB_ID" \
+  -H "$AUTH_HEADER"
+```
+
+The helper endpoints are read-only except `POST /api/v1/update/start`. Mobile cannot provide a shell command, cwd,
+environment, workspace path, project file path, or arbitrary bridge argv. The gateway invokes fixed
+`sase mobile helper-bridge <operation>` commands; the update worker itself runs only the configured
+`chat_install.command`. Successful update start/status checks publish `helpers_changed` events, but polling
+`GET /api/v1/update/{job_id}` is the authoritative completion path for the MVP.
+
 ## Storage And Revocation
 
 Gateway state is stored under `<sase_home>/mobile_gateway/`. With the default SASE home, that is
@@ -443,3 +503,6 @@ Keep the JSON snapshot, Rust wire tests, and this document aligned whenever the 
   source of truth.
 - Agent project context is intentionally an MVP metadata and known-project cwd selector. It does not expose arbitrary
   host directory selection, and clients must use SASE prompt syntax for VCS refs rather than sending raw repo paths.
+- Workflow helper routes are native helper APIs, not generic command execution. ChangeSpec, xprompt, and bead helpers
+  are read-only; xprompt PDF generation is optional; and update completion events are opportunistic while status polling
+  remains authoritative.

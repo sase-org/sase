@@ -170,6 +170,14 @@ def test_parser_accepts_mobile_helper_bridge_changespec_tags() -> None:
     assert args.mobile_helper_bridge_subcommand == "changespec-tags"
 
 
+def test_parser_accepts_mobile_helper_bridge_xprompt_catalog() -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", "xprompt-catalog"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == "xprompt-catalog"
+
+
 def test_parser_accepts_mobile_helper_bridge_update_start() -> None:
     args = create_parser().parse_args(["mobile", "helper-bridge", "update-start"])
 
