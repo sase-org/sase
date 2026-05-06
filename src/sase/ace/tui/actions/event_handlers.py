@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -26,13 +25,11 @@ from ..widgets import (
 # net for missed events (NFS, container bind-mount edge cases, etc.).
 FULL_SANITY_REFRESH_SECONDS = 60.0
 PROMPT_INPUT_DEFER_SECONDS = 0.25
-log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from textual.widgets import Input
 
     from ...changespec import ChangeSpec
-    from ..models.artifact_summary_cache import ArtifactSummaryCache
     from ..models import Agent
 
 # Type alias for tab names
@@ -75,9 +72,6 @@ class EventHandlersMixin:
     _dirty_agents: bool
     _dirty_axe: bool
     _artifact_change_defer_pending: bool
-    _artifact_graph_refresh_running: bool
-    _artifact_graph_refresh_pending_paths: tuple[Path, ...]
-    _artifact_summary_cache: ArtifactSummaryCache
     _last_full_sanity_refresh: float
 
     def _refresh_current_tab(self) -> None:
@@ -150,7 +144,6 @@ class EventHandlersMixin:
         self._dirty_changespecs = True
         self._dirty_agents = True
         self._dirty_axe = True
-        self._invalidate_artifact_summary_cache()
         if self._prompt_input_active():
             pending = set(getattr(self, "_artifact_change_deferred_paths", ()))
             pending.update(changed_paths or ())
@@ -162,78 +155,12 @@ class EventHandlersMixin:
                     self._on_artifact_change_deferred,
                 )
             return
-        self._schedule_artifact_graph_refresh(changed_paths)
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
         # inotify wakeups still triggers at most one in-flight reload plus
         # one follow-up.
         self._schedule_agents_async_refresh()  # type: ignore[attr-defined]
         self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
-
-    def _schedule_artifact_graph_refresh(
-        self, changed_paths: tuple[Path, ...] | None
-    ) -> None:
-        """Refresh unified graph rows for explicit source changes.
-
-        The compatibility agent list index remains an implementation detail for
-        startup, while source-change events update the unified graph directly.
-        Pure selection/highlight movement never calls this path.
-        """
-
-        if not changed_paths:
-            return
-
-        paths = tuple(changed_paths)
-        if getattr(self, "_artifact_graph_refresh_running", False):
-            pending = set(getattr(self, "_artifact_graph_refresh_pending_paths", ()))
-            pending.update(paths)
-            self._artifact_graph_refresh_pending_paths = tuple(sorted(pending))
-            return
-
-        self._artifact_graph_refresh_running = True
-        self._artifact_graph_refresh_pending_paths = ()
-
-        def _finish() -> None:
-            self._artifact_graph_refresh_running = False
-            pending = getattr(self, "_artifact_graph_refresh_pending_paths", ())
-            self._artifact_graph_refresh_pending_paths = ()
-            if pending:
-                self._schedule_artifact_graph_refresh(pending)
-
-        def _finish_from_worker() -> None:
-            call_from_thread = getattr(self, "call_from_thread", None)
-            if callable(call_from_thread):
-                try:
-                    call_from_thread(_finish)
-                    return
-                except RuntimeError:
-                    pass
-            _finish()
-
-        def _refresh() -> None:
-            from ..artifact_graph_refresh import (
-                default_artifact_index_path,
-                refresh_artifact_graph_for_paths,
-            )
-
-            try:
-                refresh_artifact_graph_for_paths(default_artifact_index_path(), paths)
-            except Exception:
-                log.debug("targeted artifact graph refresh failed", exc_info=True)
-            finally:
-                _finish_from_worker()
-
-        run_worker = getattr(self, "run_worker", None)
-        if callable(run_worker):
-            run_worker(_refresh, thread=True, exclusive=False, group="artifact-graph")
-        else:
-            _refresh()
-
-    def _invalidate_artifact_summary_cache(self) -> None:
-        cache = getattr(self, "_artifact_summary_cache", None)
-        invalidate = getattr(cache, "invalidate", None)
-        if callable(invalidate):
-            invalidate()
 
     def _on_artifact_change_deferred(self) -> None:
         """Timer-fired wrapper that clears the dedup flag before reentering.

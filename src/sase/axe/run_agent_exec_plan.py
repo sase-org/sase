@@ -42,7 +42,6 @@ from sase.plan_chain import (
     plan_chain_agent_name,
     plan_chain_feedback_suffix,
 )
-from sase.axe.artifact_metadata import update_agent_artifact_metadata
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -104,10 +103,18 @@ def _record_workflow_metadata(
     artifacts_dir: str,
     relationships: dict[str, Any],
 ) -> None:
+    retained_fields = {
+        "plan_submitted_at",
+        "plan_path",
+        "changespec_name",
+        "feedback_submitted_at",
+        "sdd_prompt_path",
+        "sdd_plan_path",
+        "questions_submitted_at",
+    }
     for key, value in relationships.items():
-        if value is not None and value != "":
+        if key in retained_fields and value is not None and value != "":
             update_meta_field(artifacts_dir, key, value)
-    update_agent_artifact_metadata(artifacts_dir, relationships)
 
 
 def handle_plan_marker(

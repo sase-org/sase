@@ -163,9 +163,7 @@ class TestExtractDirectivesAutoDismiss:
         assert result["meta"]["workspace_dir"] == expected
         assert "vcs_provider" not in result["meta"]
 
-    def test_named_agent_writes_artifact_metadata_contract(
-        self, tmp_path: Path
-    ) -> None:
+    def test_named_agent_writes_agent_metadata(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(
                 tmp_path,
@@ -174,13 +172,11 @@ class TestExtractDirectivesAutoDismiss:
             )
 
         meta = result["meta"]
-        assert meta["artifact_schema_version"] == 1
-        assert meta["artifact_agent_id"] == "alpha"
-        assert meta["artifact_source_dir"] == result["artifacts"]
+        assert meta["name"] == "alpha"
         assert meta["changespec_name"] == "feature-branch"
         assert meta["cl_name"] == "feature-branch"
 
-    def test_unnamed_auto_dismiss_agent_writes_fallback_artifact_id(
+    def test_unnamed_auto_dismiss_agent_writes_basic_metadata(
         self, tmp_path: Path
     ) -> None:
         artifacts_dir = (
@@ -226,8 +222,8 @@ class TestExtractDirectivesAutoDismiss:
         meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
         assert info.name is None
         assert "name" not in meta
-        assert meta["artifact_agent_id"] == "agent:proj:ace-run:20260505120000"
-        assert meta["artifact_source_dir"] == str(artifacts_dir)
+        assert meta["workspace_dir"] == str(workspace)
+        assert meta["changespec_name"] == "feature-branch"
 
 
 def test_epic_directive_writes_plan_auto_action(tmp_path: Path) -> None:

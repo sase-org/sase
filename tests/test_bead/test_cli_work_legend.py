@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sase.axe.artifact_metadata import SASE_AGENT_WORKFLOW_LINKS_ENV
 from sase.bead import cli as bead_cli
 from sase.bead.cli_work import (
     _expected_legend_agent_names,
@@ -137,10 +135,7 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     assert f"%w:{legend_id}.2" in query
     assert f"%w:{legend_id}.3" in query
     assert f"#bd/land_legend:{legend_id}" in query
-    links = json.loads(captured["extra_env"][SASE_AGENT_WORKFLOW_LINKS_ENV])
-    assert links["*"]["legend_bead_id"] == legend_id
-    assert links[f"{legend_id}.1.0"]["legend_bead_id"] == legend_id
-    assert links[legend_id]["bead_id"] == legend_id
+    assert captured["extra_env"] is None
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is True

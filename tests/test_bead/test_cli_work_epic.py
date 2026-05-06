@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import signal
 import subprocess
 import sys
@@ -15,7 +14,6 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
-from sase.axe.artifact_metadata import SASE_AGENT_WORKFLOW_LINKS_ENV
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -51,12 +49,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     for pid in phase_ids:
         assert f"#bd/work_phase_bead:{pid}" in query
     assert f"#bd/land_epic:{epic_id}" in query
-    links = json.loads(captured["extra_env"][SASE_AGENT_WORKFLOW_LINKS_ENV])
-    assert links["*"]["epic_bead_id"] == epic_id
-    for pid in phase_ids:
-        assert links[pid]["phase_bead_id"] == pid
-        assert links[pid]["epic_bead_id"] == epic_id
-    assert links[epic_id]["bead_id"] == epic_id
+    assert captured["extra_env"] is None
 
     # Each phase was pre-claimed.
     with BeadProject(project_dir) as proj:
@@ -106,16 +99,7 @@ def test_work_linked_legend_epic_uses_legend_tag_and_links(
     assert f"#bd/work_phase_bead:{p2.id}" in query
     assert f"#bd/land_epic:{epic.id}" in query
 
-    links = json.loads(captured["extra_env"][SASE_AGENT_WORKFLOW_LINKS_ENV])
-    assert links["*"]["legend_bead_id"] == legend.id
-    assert links["*"]["epic_bead_id"] == epic.id
-    for phase_id in (p1.id, p2.id):
-        assert links[phase_id]["legend_bead_id"] == legend.id
-        assert links[phase_id]["epic_bead_id"] == epic.id
-        assert links[phase_id]["phase_bead_id"] == phase_id
-    assert links[epic.id]["legend_bead_id"] == legend.id
-    assert links[epic.id]["epic_bead_id"] == epic.id
-    assert links[epic.id]["bead_id"] == epic.id
+    assert captured["extra_env"] is None
 
 
 def test_work_dry_run_never_mutates_or_launches(

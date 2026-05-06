@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -43,8 +42,6 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_agents = False
         self._dirty_axe = False
         self._artifact_change_defer_pending = False
-        self._artifact_graph_refresh_running = False
-        self._artifact_graph_refresh_pending_paths: tuple[Path, ...] = ()
         self._artifact_summary_cache = ArtifactSummaryCache()
         self._last_full_sanity_refresh = time.monotonic()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -75,18 +72,6 @@ class _FakeApp(EventHandlersMixin):
 
     def _schedule_changespecs_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_changespecs")
-
-
-class _WorkerFakeApp(_FakeApp):
-    def __init__(self) -> None:
-        super().__init__(watcher_active=True)
-        self.workers: list[Callable[[], None]] = []
-        self.worker_kwargs: list[dict[str, Any]] = []
-
-    def run_worker(self, fn: Callable[[], None], **kwargs: Any) -> object:
-        self.workers.append(fn)
-        self.worker_kwargs.append(kwargs)
-        return object()
 
 
 @pytest.mark.asyncio
@@ -140,77 +125,12 @@ def test_artifact_change_marks_all_surfaces_dirty() -> None:
     assert app._dirty_changespecs is True
     assert app._dirty_agents is True
     assert app._dirty_axe is True
-    assert app._artifact_summary_cache.version == 1
+    assert app._artifact_summary_cache.version == 0
     # Existing scheduling behavior preserved.
     assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
 
 
-def test_artifact_change_runs_targeted_graph_refresh(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Source-change events update the unified graph before UI reloads."""
-    app = _FakeApp(watcher_active=True)
-    changed = (tmp_path / "proj.gp",)
-    refresh_calls: list[tuple[str, tuple[Path, ...]]] = []
-
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.default_artifact_index_path",
-        lambda: Path("/tmp/artifacts.sqlite"),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.refresh_artifact_graph_for_paths",
-        lambda index_path, paths: refresh_calls.append((str(index_path), paths)),
-    )
-
-    app._on_artifact_change(changed)
-
-    assert refresh_calls == [("/tmp/artifacts.sqlite", changed)]
-    assert app.refresh_calls == ["schedule_agents", "schedule_changespecs"]
-
-
-def test_artifact_graph_refresh_worker_coalesces_in_flight_requests(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    app = _WorkerFakeApp()
-    first = tmp_path / "a.gp"
-    second = tmp_path / "b.gp"
-    refresh_calls: list[tuple[Path, ...]] = []
-
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.default_artifact_index_path",
-        lambda: Path("/tmp/artifacts.sqlite"),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.refresh_artifact_graph_for_paths",
-        lambda _index_path, paths: refresh_calls.append(paths),
-    )
-
-    app._on_artifact_change((first,))
-    app._on_artifact_change((second,))
-    app._on_artifact_change((second,))
-
-    assert len(app.workers) == 1
-    assert app.worker_kwargs == [
-        {"thread": True, "exclusive": False, "group": "artifact-graph"}
-    ]
-    assert app._artifact_graph_refresh_running is True
-    assert app._artifact_graph_refresh_pending_paths == (second,)
-
-    app.workers.pop(0)()
-
-    assert refresh_calls == [(first,)]
-    assert len(app.workers) == 1
-    assert app._artifact_graph_refresh_running is True
-    assert app._artifact_graph_refresh_pending_paths == ()
-
-    app.workers.pop(0)()
-
-    assert refresh_calls == [(first,), (second,)]
-    assert app._artifact_graph_refresh_running is False
-    assert app._artifact_graph_refresh_pending_paths == ()
-
-
-def test_selection_navigation_does_not_schedule_targeted_graph_refresh() -> None:
+def test_selection_navigation_does_not_trigger_refresh_work() -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "changespecs"
     app.changespecs = [object()]
@@ -219,8 +139,7 @@ def test_selection_navigation_does_not_schedule_targeted_graph_refresh() -> None
 
     app.on_change_spec_list_selection_changed(event)
 
-    assert app._artifact_graph_refresh_running is False
-    assert app._artifact_graph_refresh_pending_paths == ()
+    assert app.refresh_calls == []
 
 
 @pytest.mark.asyncio
@@ -267,34 +186,6 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     delay, callback = app.deferred_calls[0]
     assert delay == PROMPT_INPUT_DEFER_SECONDS
     assert callback == app._on_artifact_change_deferred
-
-
-def test_artifact_change_defers_targeted_graph_refresh_during_prompt_input(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    app = _FakeApp(watcher_active=True)
-    app._plan_feedback_context = object()
-    changed = (tmp_path / "proj.gp",)
-    refresh_calls: list[tuple[Path, ...]] = []
-
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.default_artifact_index_path",
-        lambda: Path("/tmp/artifacts.sqlite"),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.artifact_graph_refresh.refresh_artifact_graph_for_paths",
-        lambda _index_path, paths: refresh_calls.append(paths),
-    )
-
-    app._on_artifact_change(changed)
-
-    assert refresh_calls == []
-    assert app._artifact_change_deferred_paths == changed
-
-    app._plan_feedback_context = None
-    app._on_artifact_change_deferred()
-
-    assert refresh_calls == [changed]
 
 
 def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:

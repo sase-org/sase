@@ -357,17 +357,6 @@ def mark_parent_retried(
         data["name"] = agent_name
 
     try:
-        from sase.axe.artifact_metadata import write_agent_artifact_metadata
-
-        write_agent_artifact_metadata(
-            artifacts_dir,
-            data,
-            agent_name=agent_name or data.get("name"),
-            cl_name=data.get("changespec_name") or data.get("cl_name"),
-            bead_id=data.get("bead_id"),
-            parent_agent_timestamp=data.get("parent_agent_timestamp")
-            or data.get("parent_timestamp"),
-            parent_agent_name=data.get("parent_agent_name"),
-        )
+        meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except OSError:
         pass

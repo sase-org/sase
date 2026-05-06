@@ -81,7 +81,7 @@ class TestWriteResultMarker:
             assert data["entry_id"] == "entry_42"
             assert data["commit_entry_id"] == "entry_42"
 
-    def test_updates_agent_meta_with_commit_relationships(self) -> None:
+    def test_does_not_update_agent_meta_with_graph_relationships(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"
             meta_path.write_text(json.dumps({"name": "agent-alpha"}))
@@ -98,11 +98,7 @@ class TestWriteResultMarker:
                 )
 
             meta = json.loads(meta_path.read_text())
-            assert meta["commit_changespec_name"] == "proj_feat_1"
-            assert meta["commit_entry_id"] == "7"
-            assert meta["commit_diff_path"] == diff_path
-            assert meta["bead_id"] == "sase-1.2"
-            assert meta["changespec_name"] == "proj_feat_1"
+            assert meta == {"name": "agent-alpha"}
 
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}

@@ -11,7 +11,6 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from sase.axe.artifact_metadata import write_agent_artifact_metadata
 from sase.axe.runner_utils import was_killed
 from sase.artifacts import create_artifacts_directory
 from sase.plan_chain import (
@@ -382,18 +381,25 @@ def create_followup_artifacts(
         followup_meta["workspace_num"] = workspace_num
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
     if relationships:
-        followup_meta.update(relationships)
+        for key, value in relationships.items():
+            if (
+                key
+                in {
+                    "plan_path",
+                    "sdd_prompt_path",
+                    "sdd_plan_path",
+                    "feedback_submitted_at",
+                    "questions_submitted_at",
+                    "changespec_name",
+                }
+                and value
+            ):
+                followup_meta[key] = value
 
-    followup_meta = write_agent_artifact_metadata(
-        new_artifacts_dir,
-        followup_meta,
-        agent_name=followup_meta.get("name"),
-        cl_name=followup_meta.get("changespec_name") or followup_meta.get("cl_name"),
-        bead_id=followup_meta.get("bead_id"),
-        parent_agent_timestamp=prev_artifacts_timestamp,
-        parent_agent_name=base_meta.get("name"),
-        relationships=relationships,
-    )
+    with open(
+        os.path.join(new_artifacts_dir, "agent_meta.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(followup_meta, f, indent=2)
 
     # Write initial workflow_state.json so the TUI can merge follow-up agents
     # as WORKFLOW entries immediately, before WorkflowExecutor overwrites it.
