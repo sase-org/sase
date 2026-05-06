@@ -287,11 +287,11 @@ async def test_artifact_modal_keeps_one_argument_custom_detail_renderer_compatib
 
 @pytest.mark.parametrize("start_id", ["/", "changespec:current", "agent:current"])
 @pytest.mark.asyncio
-async def test_large_graph_open_smoke_documents_latency_and_query_counts(
+async def test_large_graph_paged_open_smoke_documents_latency_and_query_counts(
     start_id: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     graph = _LargeFakeArtifactGraph()
-    modal = ArtifactPanelModal(artifact_id=start_id, show_func=graph.show)
+    modal = ArtifactPanelModal(artifact_id=start_id, show_paged_func=graph.show_paged)
     app = _ModalTestApp()
 
     start = perf_counter()
@@ -300,29 +300,49 @@ async def test_large_graph_open_smoke_documents_latency_and_query_counts(
         await pilot.pause()
         await pilot.pause()
         option_list = modal.query_one("#artifact-panel-list", OptionList)
-        assert option_list.option_count > 100
+        assert 1 <= option_list.option_count <= 40
     elapsed_ms = (perf_counter() - start) * 1000
 
-    query_counts = Counter(graph.show_calls)
+    query_counts = Counter(artifact_id for artifact_id, _ in graph.show_paged_calls)
     print(
-        "artifact_panel_large_open "
+        "artifact_panel_large_paged_open "
         f"start={start_id} latency_ms={elapsed_ms:.2f} "
+        f"show_paged_calls={len(graph.show_paged_calls)} "
         f"show_calls={len(graph.show_calls)} "
         f"graph_calls={len(graph.graph_calls)} export_calls={len(graph.export_calls)}"
     )
     captured = capsys.readouterr()
 
     assert query_counts == Counter({start_id: 1})
+    assert graph.show_paged_calls[0][1].limit == 10
+    assert graph.show_calls == []
     assert graph.graph_calls == []
     assert graph.export_calls == []
     assert f"start={start_id}" in captured.out
-    assert "show_calls=1 graph_calls=0 export_calls=0" in captured.out
+    assert "show_paged_calls=1 show_calls=0 graph_calls=0 export_calls=0" in (
+        captured.out
+    )
 
 
 @pytest.mark.asyncio
-async def test_row_navigation_does_not_requery_and_open_selected_queries_once() -> None:
+async def test_paged_row_navigation_does_not_requery_or_call_broad_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     graph = _LargeFakeArtifactGraph()
-    modal = ArtifactPanelModal(artifact_id="changespec:current", show_func=graph.show)
+    broad_calls: list[str] = []
+
+    def fail_broad_call(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        broad_calls.append("called")
+        raise AssertionError("hot row navigation must not call broad artifact APIs")
+
+    for name in ("artifact_rebuild", "artifact_list", "artifact_summary"):
+        monkeypatch.setattr(f"sase.core.artifact_facade.{name}", fail_broad_call)
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:current",
+        show_paged_func=graph.show_paged,
+    )
     app = _ModalTestApp()
 
     async with app.run_test() as pilot:
@@ -334,7 +354,7 @@ async def test_row_navigation_does_not_requery_and_open_selected_queries_once() 
         modal.action_next_option()
         modal.action_prev_option()
         await pilot.pause()
-        assert graph.show_calls == ["changespec:current"]
+        assert [call[0] for call in graph.show_paged_calls] == ["changespec:current"]
 
         option_list = modal.query_one("#artifact-panel-list", OptionList)
         for index in range(option_list.option_count):
@@ -348,4 +368,31 @@ async def test_row_navigation_does_not_requery_and_open_selected_queries_once() 
         await pilot.pause()
         await pilot.pause()
 
-    assert graph.show_calls == ["changespec:current", "agent:0"]
+    assert [call[0] for call in graph.show_paged_calls] == [
+        "changespec:current",
+        "agent:0",
+    ]
+    assert graph.show_calls == []
+    assert graph.graph_calls == []
+    assert graph.export_calls == []
+    assert broad_calls == []
+
+
+@pytest.mark.asyncio
+async def test_legacy_show_func_compatibility_remains_single_detail_call() -> None:
+    graph = _LargeFakeArtifactGraph(linked_count=8)
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:current",
+        show_func=graph.show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        assert option_list.option_count > 8
+
+    assert graph.show_calls == ["changespec:current"]
+    assert graph.show_paged_calls == []

@@ -17,6 +17,7 @@ from sase.core.artifact_wire import (
     ArtifactGroupSummaryWire,
     ArtifactLinkWire,
     ArtifactNodeWire,
+    ArtifactPageRequestWire,
     ArtifactRelationPageWire,
     ArtifactTypeCountWire,
 )
@@ -157,6 +158,7 @@ class _LargeFakeArtifactGraph:
 
     def __init__(self, *, linked_count: int = 240) -> None:
         self.show_calls: list[str] = []
+        self.show_paged_calls: list[tuple[str, ArtifactPageRequestWire]] = []
         self.graph_calls: list[ArtifactGraphOptionsWire] = []
         self.export_calls: list[tuple[ArtifactGraphOptionsWire, str]] = []
         self.details = self._build_details(linked_count)
@@ -165,6 +167,57 @@ class _LargeFakeArtifactGraph:
         del index_path
         self.show_calls.append(artifact_id)
         return self.details[artifact_id]
+
+    def show_paged(
+        self,
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path
+        request = request or ArtifactPageRequestWire()
+        self.show_paged_calls.append((artifact_id, request))
+        detail = self.details[artifact_id]
+
+        children_page = None
+        if request.relation in (None, "children"):
+            children = _slice(detail.children, request)
+            if detail.children or request.relation == "children":
+                children_page = ArtifactRelationPageWire(
+                    summary=ArtifactGroupSummaryWire(
+                        group_key="children",
+                        direction="children",
+                        total_count=len(detail.children),
+                        loaded_count=len(children),
+                    ),
+                    nodes=children,
+                )
+
+        outbound_pages = []
+        if request.relation in (None, "outbound"):
+            outbound_pages = _paged_link_groups(
+                detail.outbound_links,
+                direction="outbound",
+                request=request,
+            )
+        inbound_pages = []
+        if request.relation in (None, "inbound"):
+            inbound_pages = _paged_link_groups(
+                detail.inbound_links,
+                direction="inbound",
+                request=request,
+            )
+
+        return ArtifactDetailPagedWire(
+            schema_version=detail.schema_version,
+            node=detail.node,
+            payloads=list(detail.payloads),
+            path_to_root=list(detail.path_to_root),
+            diagnostics=list(detail.diagnostics),
+            children_page=children_page,
+            outbound_pages=outbound_pages,
+            inbound_pages=inbound_pages,
+        )
 
     def graph(
         self, index_path: str | Any, options: ArtifactGraphOptionsWire
@@ -251,3 +304,40 @@ class _LargeFakeArtifactGraph:
             for node in nodes:
                 details[node.id] = _detail(node.id, kind=node.kind)
         return details
+
+
+def _slice[T](values: list[T], request: ArtifactPageRequestWire) -> list[T]:
+    return values[request.offset : request.offset + request.limit]
+
+
+def _paged_link_groups(
+    links: list[ArtifactLinkWire],
+    *,
+    direction: str,
+    request: ArtifactPageRequestWire,
+) -> list[ArtifactRelationPageWire]:
+    grouped: dict[str, list[ArtifactLinkWire]] = {}
+    for link in links:
+        grouped.setdefault(link.link_type, []).append(link)
+
+    pages: list[ArtifactRelationPageWire] = []
+    for link_type, group_links in sorted(grouped.items()):
+        group_key = f"{direction}:{link_type}"
+        if request.group_key is not None and request.group_key != group_key:
+            continue
+        if request.link_type is not None and request.link_type != link_type:
+            continue
+        page_links = _slice(group_links, request)
+        pages.append(
+            ArtifactRelationPageWire(
+                summary=ArtifactGroupSummaryWire(
+                    group_key=group_key,
+                    direction=direction,
+                    link_type=link_type,
+                    total_count=len(group_links),
+                    loaded_count=len(page_links),
+                ),
+                links=page_links,
+            )
+        )
+    return pages

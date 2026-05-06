@@ -30,7 +30,7 @@ async def test_graph_preview_and_export_are_bounded_and_explicit() -> None:
     graph = _LargeFakeArtifactGraph()
     modal = ArtifactPanelModal(
         artifact_id="agent:current",
-        show_func=graph.show,
+        show_paged_func=graph.show_paged,
         graph_func=graph.graph,
         export_func=graph.export,
     )
@@ -55,6 +55,7 @@ async def test_graph_preview_and_export_are_bounded_and_explicit() -> None:
     assert [(call.root_id, call.limit, fmt) for call, fmt in graph.export_calls] == [
         ("agent:current", 100, "mermaid")
     ]
+    assert graph.show_calls == []
 
 
 @pytest.mark.asyncio
@@ -69,7 +70,7 @@ async def test_filter_updates_do_not_rerender_file_preview() -> None:
     graph = _LargeFakeArtifactGraph()
     modal = ArtifactPanelModal(
         artifact_id="agent:current",
-        show_func=graph.show,
+        show_paged_func=graph.show_paged,
         detail_renderer=render_detail,
     )
     app = _ModalTestApp()
@@ -86,7 +87,10 @@ async def test_filter_updates_do_not_rerender_file_preview() -> None:
         await pilot.pause()
 
     assert render_calls == ["agent:current"]
-    assert graph.show_calls == ["agent:current"]
+    assert [artifact_id for artifact_id, _ in graph.show_paged_calls] == [
+        "agent:current"
+    ]
+    assert graph.show_calls == []
 
 
 @pytest.mark.asyncio
@@ -219,7 +223,7 @@ async def test_stale_detail_preview_worker_is_ignored_after_navigation() -> None
 
     modal = ArtifactPanelModal(
         artifact_id="changespec:current",
-        show_func=graph.show,
+        show_paged_func=graph.show_paged,
         detail_renderer=render_detail,
     )
     app = _ModalTestApp()
@@ -255,7 +259,11 @@ async def test_stale_detail_preview_worker_is_ignored_after_navigation() -> None
 
         detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
 
-    assert graph.show_calls == ["changespec:current", "agent:0"]
+    assert [artifact_id for artifact_id, _ in graph.show_paged_calls] == [
+        "changespec:current",
+        "agent:0",
+    ]
+    assert graph.show_calls == []
     assert render_calls[:2] == ["changespec:current", "agent:0"]
     assert "fresh preview for agent:0" in detail_text
     assert "stale changespec preview" not in detail_text
