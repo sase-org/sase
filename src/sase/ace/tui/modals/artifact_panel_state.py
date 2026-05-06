@@ -17,6 +17,7 @@ from sase.core.artifact_wire import (
 
 
 ARTIFACT_PANEL_GROUP_PAGE_SIZE = 10
+ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT = 25
 ARTIFACT_PANEL_SHOW_MORE_ACTION = "show_more"
 
 
@@ -402,6 +403,40 @@ def build_artifact_panel_rows(
         rows=rows,
         total_selectable=selectable_count,
         truncated=False,
+    )
+
+
+def build_artifact_search_rows(
+    nodes: list[ArtifactNodeWire],
+    *,
+    query: str,
+    limit: int = ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+) -> _ArtifactPanelRows:
+    """Build modal-global search result rows."""
+    rows: list[ArtifactPanelRow] = [
+        ArtifactPanelRow(
+            id="group:search-results",
+            label=f"Search results for {query!r} ({len(nodes)})",
+            row_type="group",
+            group="Search results",
+            group_key="search",
+            selectable=False,
+        )
+    ]
+    for node in nodes:
+        rows.append(
+            _node_row(
+                "search",
+                node,
+                group="Search results",
+                group_key="search",
+                edge_direction="search",
+            )
+        )
+    return _ArtifactPanelRows(
+        rows=rows,
+        total_selectable=len(nodes),
+        truncated=len(nodes) >= limit,
     )
 
 

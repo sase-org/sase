@@ -22,15 +22,19 @@ from sase.core.artifact_wire import (
     ArtifactDetailWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
+    ArtifactNodeWire,
     ArtifactPageRequestWire,
+    ArtifactQueryWire,
 )
 
 from .artifact_panel_state import (
+    ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
     ARTIFACT_PANEL_SHOW_MORE_ACTION,
     ArtifactPanelPagedModel,
     ArtifactPanelNavigationState,
     ArtifactPanelRow,
     build_artifact_panel_rows,
+    build_artifact_search_rows,
     merge_relation_page_into_model,
     page_request_for_group,
     paged_model_from_legacy_detail,
@@ -52,6 +56,7 @@ ArtifactDetailRenderer = Callable[[ArtifactDetailWire], RenderableType]
 ArtifactRefreshFunc = Callable[
     [Path | str, str, Path | str | None, Path | str | None], None
 ]
+ArtifactSearchFunc = Callable[[Path | str, ArtifactQueryWire], list[ArtifactNodeWire]]
 
 
 class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
@@ -66,6 +71,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         ("p", "parent", "Parent"),
         ("r", "root", "Root"),
         ("/", "focus_filter", "Filter"),
+        ("S", "focus_global_search", "Search"),
         ("y", "copy_artifact_id", "Copy ID"),
         ("e", "open_file_in_editor", "Edit"),
         ("g", "preview_graph", "Graph"),
@@ -83,6 +89,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         show_func: ArtifactShowFunc | None = None,
         graph_func: ArtifactGraphFunc | None = None,
         export_func: ArtifactExportFunc | None = None,
+        search_func: ArtifactSearchFunc | None = None,
         detail_renderer: ArtifactDetailRenderer | None = None,
         refresh_missing_func: ArtifactRefreshFunc | None = None,
         context_path: Path | str | None = None,
@@ -100,6 +107,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._show_func = show_func
         self._graph_func = graph_func
         self._export_func = export_func
+        self._search_func = search_func
         self._detail_renderer = detail_renderer
         self._refresh_missing_func = refresh_missing_func
         self._context_path = context_path
@@ -112,8 +120,13 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._page_worker: Worker[tuple[str, str, ArtifactDetailPagedWire]] | None = (
             None
         )
+        self._search_worker: Worker[tuple[str, list[ArtifactNodeWire]]] | None = None
         self._render_worker: Worker[RenderableType] | None = None
         self._row_by_option_id: dict[str, ArtifactPanelRow] = {}
+        self._search_text = ""
+        self._search_results: list[ArtifactNodeWire] | None = None
+        self._search_error: str | None = None
+        self._suppress_search_input = False
 
     def compose(self) -> ComposeResult:
         with Container(id="artifact-panel-container"):
@@ -128,6 +141,10 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                 placeholder="Filter current artifact rows",
                 id="artifact-panel-filter",
             )
+            yield FilterInput(
+                placeholder="Search all artifacts",
+                id="artifact-panel-search",
+            )
             with Horizontal(id="artifact-panel-body"):
                 with Vertical(id="artifact-panel-left"):
                     yield OptionList(
@@ -138,7 +155,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="artifact-panel-detail-scroll"):
                         yield Static("Loading artifact...", id="artifact-panel-detail")
             yield Static(
-                "j/k: move  enter: open  b/f: history  p/r: parent/root  /: filter  y: copy  e: edit  g/G: graph  q/Esc: close",
+                "j/k: move  enter: open  b/f: history  p/r: parent/root  /: local filter  S: global search  y: copy  e: edit  g/G: graph  q/Esc: close",
                 id="artifact-panel-hints",
             )
 
@@ -156,6 +173,9 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._render_worker.cancel()
         if self._page_worker is not None:
             self._page_worker.cancel()
+        if self._search_worker is not None:
+            self._search_worker.cancel()
+        self._clear_search_state(render=False)
         self._load_worker = self.run_worker(
             lambda: self._load_detail(artifact_id),
             exit_on_error=False,
@@ -223,6 +243,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._handle_load_worker_state(event)
         elif event.worker == self._page_worker:
             self._handle_page_worker_state(event)
+        elif event.worker == self._search_worker:
+            self._handle_search_worker_state(event)
         elif event.worker == self._render_worker:
             self._handle_render_worker_state(event)
 
@@ -285,6 +307,26 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                 f"Failed to load more artifacts: {message}", severity="error"
             )
 
+    def _handle_search_worker_state(self, event: Worker.StateChanged) -> None:
+        if event.worker != self._search_worker:
+            return
+
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            assert result is not None
+            query, nodes = result
+            if query != self._search_text:
+                return
+            self._search_results = nodes
+            self._search_error = None
+            self._render_search_options()
+        elif event.state == WorkerState.ERROR:
+            self._search_results = None
+            self._search_error = str(
+                event.worker.error or "Unknown artifact search error"
+            )
+            self._render_search_options()
+
     def _render_loading(self) -> None:
         self._row_by_option_id = {}
         self._update_header_loading()
@@ -320,6 +362,56 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         )
         if update_preview:
             self._start_detail_render(detail)
+
+    def _render_search_prompt(self) -> None:
+        self._row_by_option_id = {}
+        self._replace_options(
+            [Option("Type a global artifact search query", disabled=True)]
+        )
+
+    def _render_search_loading(self, query: str) -> None:
+        self._row_by_option_id = {}
+        self._replace_options([Option(f"Searching for {query!r}...", disabled=True)])
+
+    def _render_search_options(self) -> None:
+        query = self._search_text
+        if not query:
+            self._render_search_prompt()
+            return
+
+        self._row_by_option_id = {}
+        if self._search_error is not None:
+            self._replace_options(
+                [Option(f"Search failed: {self._search_error}", disabled=True)]
+            )
+            return
+
+        results = self._search_results
+        if results is None:
+            self._render_search_loading(query)
+            return
+        if not results:
+            self._replace_options(
+                [Option(f"No global results for {query!r}", disabled=True)]
+            )
+            return
+
+        options: list[Option] = []
+        panel_rows = build_artifact_search_rows(
+            results,
+            query=query,
+            limit=ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+        )
+        for row in panel_rows.rows:
+            option = Option(
+                _row_label(row),
+                id=row.id,
+                disabled=not row.selectable,
+            )
+            options.append(option)
+            if row.selectable:
+                self._row_by_option_id[row.id] = row
+        self._replace_options(options, prefer_row_id=self._state.selected_row_id)
 
     def _build_options(self, detail: ArtifactDetailWire) -> list[Option]:
         options: list[Option] = []
@@ -448,10 +540,58 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         return self._row_by_option_id.get(option.id)
 
     def _navigate_to(self, artifact_id: str) -> None:
+        self._clear_search_state(render=False)
         if self._state.navigate_to(artifact_id):
             self._start_load(artifact_id)
         elif self._detail is not None:
             self._render_detail()
+
+    def _clear_search_state(self, *, render: bool = True) -> None:
+        self._search_text = ""
+        self._search_results = None
+        self._search_error = None
+        self._state.selected_row_id = None
+        try:
+            search_input = self.query_one("#artifact-panel-search", Input)
+        except Exception:
+            search_input = None
+        if search_input is not None and search_input.value:
+            self._suppress_search_input = True
+            try:
+                search_input.value = ""
+            finally:
+                self._suppress_search_input = False
+        if render and self._detail is not None:
+            self._render_detail(update_preview=False)
+
+    def _start_search(self, query: str) -> None:
+        self._search_text = query
+        self._search_results = None
+        self._search_error = None
+        self._state.selected_row_id = None
+        self._render_search_loading(query)
+        if self._search_worker is not None:
+            self._search_worker.cancel()
+        self._search_worker = self.run_worker(
+            lambda: (query, self._search_artifacts(query)),
+            exit_on_error=False,
+            thread=True,
+        )
+
+    def _search_artifacts(self, query: str) -> list[ArtifactNodeWire]:
+        search_func = self._search_func
+        if search_func is None:
+            from sase.core.artifact_facade import artifact_search
+
+            search_func = artifact_search
+        return search_func(
+            self._index_path,
+            ArtifactQueryWire(
+                text=query,
+                limit=ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+                offset=0,
+            ),
+        )
 
     def _start_page_load(self, row: ArtifactPanelRow) -> None:
         if self._paged_model is None or row.group_key is None:
@@ -520,14 +660,28 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._state.selected_row_id = option_id
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "artifact-panel-search":
+            if self._suppress_search_input:
+                return
+            query = event.value.strip()
+            if query:
+                self._start_search(query)
+            else:
+                self._clear_search_state()
+            return
         if event.input.id != "artifact-panel-filter":
             return
         self._state.set_filter(event.value)
-        if self._detail is not None:
+        if self._detail is not None and not self._search_text:
             self._render_detail(update_preview=False)
 
     def action_focus_filter(self) -> None:
         self.query_one("#artifact-panel-filter", Input).focus()
+
+    def action_focus_global_search(self) -> None:
+        self.query_one("#artifact-panel-search", Input).focus()
+        if not self._search_text:
+            self._render_search_prompt()
 
     def action_back(self) -> None:
         artifact_id = self._state.back()
