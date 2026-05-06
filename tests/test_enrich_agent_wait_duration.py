@@ -253,6 +253,53 @@ def test_manual_plan_after_submission_becomes_planning(tmp_path: Path) -> None:
     assert len(agent.plan_times) == 1
 
 
+def test_feedback_plan_path_from_agent_meta(tmp_path: Path) -> None:
+    """feedback_submitted_at plus plan_path records rejected plan paths."""
+    timestamp = "2026-04-27T15:05:00Z"
+    plan_path = str(Path.home() / ".sase" / "plans" / "foo.md")
+    meta = {
+        "pid": 1234,
+        "feedback_submitted_at": timestamp,
+        "plan_path": plan_path,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    expected = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        .astimezone(get_timezone())
+        .replace(tzinfo=None)
+    )
+    assert agent.feedback_times == [expected]
+    assert agent.feedback_plan_paths == {expected: plan_path}
+
+
+def test_feedback_plan_path_from_agent_meta_wire() -> None:
+    """Wire metadata mirrors filesystem feedback plan path enrichment."""
+    timestamp = "2026-04-27T15:05:00Z"
+    plan_path = str(Path.home() / ".sase" / "plans" / "foo.md")
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            feedback_submitted_at=[timestamp],
+            plan_path=plan_path,
+        ),
+        None,
+    )
+
+    expected = (
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        .astimezone(get_timezone())
+        .replace(tzinfo=None)
+    )
+    assert agent.feedback_times == [expected]
+    assert agent.feedback_plan_paths == {expected: plan_path}
+
+
 def test_auto_epic_plan_after_submission_stays_running(tmp_path: Path) -> None:
     """Auto-epic plans do not require manual review after submission."""
     meta = {

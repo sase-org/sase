@@ -89,6 +89,72 @@ def test_timestamps_display_feedback_only() -> None:
     assert tags == ["BEGIN", "PLAN", "FBACK", "END"]
 
 
+def test_timestamps_display_feedback_includes_rejected_plan_path() -> None:
+    """FBACK rows include the rejected plan path when known."""
+    feedback_time = datetime(2025, 6, 15, 10, 6, 0)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        feedback_times=[feedback_time],
+        feedback_plan_paths={
+            feedback_time: str(Path.home() / ".sase" / "plans" / "foo.md")
+        },
+    )
+
+    assert (
+        "FBACK | 2025-06-15 10:06:00 | ~/.sase/plans/foo.md" in agent.timestamps_display
+    )
+
+
+def test_timestamps_display_feedback_without_plan_path_stays_bare() -> None:
+    """FBACK rows stay unchanged when no rejected plan path is known."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
+    )
+
+    feedback_lines = [
+        line.strip()
+        for line in agent.timestamps_display.split("\n")
+        if line.strip().startswith("FBACK")
+    ]
+    assert feedback_lines == ["FBACK | 2025-06-15 10:06:00"]
+
+
+def test_timestamps_display_multiple_feedback_paths_match_by_timestamp() -> None:
+    """Chronological feedback rows keep their own path metadata."""
+    first = datetime(2025, 6, 15, 10, 6, 0)
+    second = datetime(2025, 6, 15, 10, 9, 0)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
+        feedback_times=[second, first],
+        feedback_plan_paths={second: "/tmp/second.md"},
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+    )
+
+    feedback_lines = [
+        line.strip()
+        for line in agent.timestamps_display.split("\n")
+        if line.strip().startswith("FBACK")
+    ]
+    assert feedback_lines == [
+        "FBACK | 2025-06-15 10:06:00",
+        "FBACK | 2025-06-15 10:09:00 | /tmp/second.md",
+    ]
+
+
 def test_timestamps_display_questions_only() -> None:
     """Test timestamps_display shows QUEST without FBACK."""
     agent = Agent(

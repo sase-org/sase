@@ -30,6 +30,11 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             value = value.isoformat()
         elif isinstance(value, list) and value and isinstance(value[0], datetime):
             value = [v.isoformat() for v in value]
+        elif isinstance(value, dict) and value:
+            value = {
+                k.isoformat() if isinstance(k, datetime) else k: v
+                for k, v in value.items()
+            }
         result[f.name] = value
     return result
 
@@ -98,6 +103,20 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
             value = [
                 datetime.fromisoformat(v) if isinstance(v, str) else v for v in value
             ]
+        elif f.name == "feedback_plan_paths" and isinstance(value, dict):
+            parsed_paths: dict[datetime, str] = {}
+            for k, v in value.items():
+                if not isinstance(v, str):
+                    continue
+                if isinstance(k, datetime):
+                    parsed_paths[k] = v
+                    continue
+                if isinstance(k, str):
+                    try:
+                        parsed_paths[datetime.fromisoformat(k)] = v
+                    except ValueError:
+                        continue
+            value = parsed_paths
         kwargs[f.name] = value
 
     agent = Agent(**kwargs)

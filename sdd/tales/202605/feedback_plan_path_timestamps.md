@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 19:28:17
-status: wip
+status: done
 prompt: sdd/prompts/202605/feedback_plan_path_timestamps.md
 ---
 # Append Rejected Plan Paths to FBACK Timestamps

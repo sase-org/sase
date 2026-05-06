@@ -164,6 +164,45 @@ def test_bundle_round_trip_feedback_and_questions_times() -> None:
     assert restored.questions_times == [datetime(2025, 6, 15, 10, 7, 0)]
 
 
+def test_bundle_round_trip_feedback_plan_paths() -> None:
+    """feedback_plan_paths survives bundle serialization with ISO keys."""
+    feedback_time = datetime(2025, 6, 15, 10, 6, 0)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        feedback_times=[feedback_time],
+        feedback_plan_paths={feedback_time: "/tmp/rejected-plan.md"},
+    )
+
+    bundle = agent.to_bundle_dict()
+    assert bundle["feedback_plan_paths"] == {
+        "2025-06-15T10:06:00": "/tmp/rejected-plan.md"
+    }
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.feedback_plan_paths == {feedback_time: "/tmp/rejected-plan.md"}
+
+
+def test_bundle_backward_compat_missing_feedback_plan_paths() -> None:
+    """Older bundles without feedback_plan_paths still load with an empty map."""
+    bundle = {
+        "agent_type": "run",
+        "cl_name": "test",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": "2025-06-15T10:00:00",
+        "feedback_times": ["2025-06-15T10:06:00"],
+    }
+
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.feedback_times == [datetime(2025, 6, 15, 10, 6, 0)]
+    assert restored.feedback_plan_paths == {}
+
+
 def test_bundle_backward_compat_feedback_time_to_feedback_times() -> None:
     """Test that old bundles with feedback_time/questions_time are migrated."""
     bundle = {

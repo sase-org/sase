@@ -28,6 +28,14 @@ def _append_unique_timestamps(target: list[datetime], source: list[datetime]) ->
             existing.add(timestamp)
 
 
+def _merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
+    """Copy child feedback path metadata without replacing existing paths."""
+    for timestamp in child.feedback_times:
+        path = child.feedback_plan_paths.get(timestamp)
+        if path and not parent.feedback_plan_paths.get(timestamp):
+            parent.feedback_plan_paths[timestamp] = path
+
+
 def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
     return (
@@ -82,6 +90,7 @@ def apply_status_overrides(agents: list[Agent]) -> None:
                     _append_unique_timestamps(
                         parent.feedback_times, agent.feedback_times
                     )
+                    _merge_feedback_plan_paths(parent, agent)
                 if agent.questions_times:
                     _append_unique_timestamps(
                         parent.questions_times, agent.questions_times

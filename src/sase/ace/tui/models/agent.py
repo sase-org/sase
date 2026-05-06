@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from sase.core.paths import shorten_path
+
 from .agent_attempt import AttemptRecord, load_attempt_history
 from .agent_source import agent_source
 from .agent_time import (
@@ -227,6 +229,8 @@ class Agent:
     epic_time: datetime | None = None
     # When feedback was submitted on the plan (one per feedback round)
     feedback_times: list[datetime] = field(default_factory=list)
+    # Rejected plan path for each feedback timestamp, when known.
+    feedback_plan_paths: dict[datetime, str] = field(default_factory=dict)
     # When the agent submitted questions for user review (one per round)
     questions_times: list[datetime] = field(default_factory=list)
     # When retry attempts started (one per retry/fallback)
@@ -328,8 +332,11 @@ class Agent:
         # Pad tag to 5 chars so timestamps align (longest tag is 5: BEGIN)
         tag_width = 5
 
-        def _fmt(tag: str, ts: str) -> str:
-            return f"{tag.ljust(tag_width)} | {ts}"
+        def _fmt(tag: str, ts: str, extra: str | None = None) -> str:
+            line = f"{tag.ljust(tag_width)} | {ts}"
+            if extra:
+                line += f" | {extra}"
+            return line
 
         # If the agent waited, show WAIT (original start_time) then BEGIN (run_start_time)
         if self.run_start_time is not None and self.start_time is not None:
@@ -358,7 +365,12 @@ class Agent:
             middle.append((self.epic_time, "EPIC"))
         middle.sort(key=lambda t: t[0])
         for ts, tag in middle:
-            parts.append(_fmt(tag, ts.strftime(fmt)))
+            extra = None
+            if tag == "FBACK":
+                path = self.feedback_plan_paths.get(ts)
+                if path:
+                    extra = shorten_path(path)
+            parts.append(_fmt(tag, ts.strftime(fmt), extra))
 
         if self.stop_time is not None:
             parts.append(_fmt("END", self.stop_time.strftime(fmt)))

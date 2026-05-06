@@ -143,20 +143,27 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     if data.get("retry_error_category"):
         agent.retry_error_category = data["retry_error_category"]
 
-    def _append_timestamp_field(
-        raw_value: object,
-        target: list[datetime],
-    ) -> None:
+    def _parse_timestamp_field(raw_value: object) -> list[datetime]:
         values: list[str] = []
         if isinstance(raw_value, str):
             values = [raw_value]
         elif isinstance(raw_value, list):
             values = [v for v in raw_value if isinstance(v, str)]
+        parsed: list[datetime] = []
         for value in values:
             try:
-                target.append(_parse_utc_to_eastern(value))
+                parsed.append(_parse_utc_to_eastern(value))
             except ValueError:
                 continue
+        return parsed
+
+    def _append_timestamp_field(
+        raw_value: object,
+        target: list[datetime],
+    ) -> list[datetime]:
+        parsed = _parse_timestamp_field(raw_value)
+        target.extend(parsed)
+        return parsed
 
     # Parse plan_submitted_at (when plan was submitted for review)
     _append_timestamp_field(data.get("plan_submitted_at"), agent.plan_times)
@@ -170,7 +177,13 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
             pass
 
     # Parse feedback_submitted_at (when feedback was given on the plan)
-    _append_timestamp_field(data.get("feedback_submitted_at"), agent.feedback_times)
+    feedback_times = _append_timestamp_field(
+        data.get("feedback_submitted_at"), agent.feedback_times
+    )
+    plan_path = data.get("plan_path")
+    if isinstance(plan_path, str) and plan_path:
+        for timestamp in feedback_times:
+            agent.feedback_plan_paths[timestamp] = plan_path
 
     # Parse questions_submitted_at (when agent submitted questions)
     _append_timestamp_field(data.get("questions_submitted_at"), agent.questions_times)
@@ -341,12 +354,19 @@ def enrich_agent_from_meta_wire(
     if meta.retry_error_category:
         agent.retry_error_category = meta.retry_error_category
 
-    def _append(values: list[str], target: list[datetime]) -> None:
+    def _parse(values: list[str]) -> list[datetime]:
+        parsed: list[datetime] = []
         for value in values:
             try:
-                target.append(_parse_utc_to_eastern(value))
+                parsed.append(_parse_utc_to_eastern(value))
             except ValueError:
                 continue
+        return parsed
+
+    def _append(values: list[str], target: list[datetime]) -> list[datetime]:
+        parsed = _parse(values)
+        target.extend(parsed)
+        return parsed
 
     _append(meta.plan_submitted_at, agent.plan_times)
     if meta.epic_started_at:
@@ -354,7 +374,10 @@ def enrich_agent_from_meta_wire(
             agent.epic_time = _parse_utc_to_eastern(meta.epic_started_at)
         except ValueError:
             pass
-    _append(meta.feedback_submitted_at, agent.feedback_times)
+    feedback_times = _append(meta.feedback_submitted_at, agent.feedback_times)
+    if meta.plan_path:
+        for timestamp in feedback_times:
+            agent.feedback_plan_paths[timestamp] = meta.plan_path
     _append(meta.questions_submitted_at, agent.questions_times)
     for ts in meta.retry_started_at:
         try:
