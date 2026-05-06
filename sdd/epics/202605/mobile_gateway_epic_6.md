@@ -1,4 +1,5 @@
 ---
+bead_id: sase-26.6
 legend_bead_id: sase-26
 tier: epic
 create_time: 2026-05-06 18:04:55
