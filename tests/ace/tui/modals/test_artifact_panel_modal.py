@@ -354,9 +354,10 @@ async def test_paged_modal_open_does_not_render_hundreds_of_initial_rows(
         ]
 
     assert paged_calls == ["alpha"]
-    assert option_list.option_count == 11
+    assert option_list.option_count == 12
     assert "child:child:0" in visible_ids
     assert "child:child:9" in visible_ids
+    assert "show-more:children" in visible_ids
 
 
 def test_rich_row_model_includes_semantic_fields_and_group_counts() -> None:
@@ -393,6 +394,154 @@ def test_rich_row_model_includes_semantic_fields_and_group_counts() -> None:
     assert "[PLAN]" in rendered
     assert "plan.md" in rendered
     assert "file:/tmp/plan.md" in rendered
+
+
+def test_per_group_paging_keeps_other_groups_visible_after_large_group() -> None:
+    children = [_node(f"child:{idx}", "agent") for idx in range(10)]
+    link = ArtifactLinkWire(
+        id="out-1",
+        link_type="related",
+        source_id="alpha",
+        target_id="agent:related",
+    )
+    paged = _paged_detail(
+        "alpha",
+        children=children,
+        child_total=240,
+        outbound_links=[link],
+    )
+
+    model = paged_model_from_paged_detail(paged)
+    rows = build_artifact_panel_rows(model.detail, paged_model=model).rows
+    row_ids = [row.id for row in rows]
+
+    assert "child:child:0" in row_ids
+    assert "child:child:9" in row_ids
+    assert "show-more:children" in row_ids
+    assert "outbound:out-1" in row_ids
+    assert "__truncated__" not in row_ids
+
+
+@pytest.mark.asyncio
+async def test_show_more_fetches_and_merges_only_the_selected_group_page() -> None:
+    paged_calls: list[ArtifactPageRequestWire | None] = []
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path
+        paged_calls.append(request)
+        offset = request.offset if request is not None else 0
+        children = [
+            _node(f"child:{idx}", "agent") for idx in range(offset, offset + 10)
+        ]
+        return _paged_detail(
+            artifact_id,
+            kind="changespec",
+            children=children,
+            child_total=25,
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=fake_paged_show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        for index in range(option_list.option_count):
+            if option_list.get_option_at_index(index).id == "show-more:children":
+                option_list.highlighted = index
+                break
+        else:
+            raise AssertionError("show more row was not rendered")
+
+        modal.action_open_selected()
+        for _ in range(10):
+            await pilot.pause()
+            if len(paged_calls) == 2:
+                break
+
+        visible_ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+
+    assert len(paged_calls) == 2
+    assert paged_calls[0] is not None
+    assert paged_calls[0].offset == 0
+    assert paged_calls[0].limit == 10
+    assert paged_calls[1] is not None
+    assert paged_calls[1].relation == "children"
+    assert paged_calls[1].group_key == "children"
+    assert paged_calls[1].offset == 10
+    assert paged_calls[1].limit == 10
+    assert "child:child:0" in visible_ids
+    assert "child:child:19" in visible_ids
+    assert "show-more:children" in visible_ids
+
+
+@pytest.mark.asyncio
+async def test_local_filter_uses_loaded_rows_without_fetching_more_pages() -> None:
+    paged_calls: list[ArtifactPageRequestWire | None] = []
+    loaded_children = [
+        _node(f"child:{idx}", "agent", f"Child {idx}") for idx in range(10)
+    ]
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path
+        paged_calls.append(request)
+        return _paged_detail(
+            artifact_id,
+            kind="changespec",
+            children=loaded_children,
+            child_total=25,
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=fake_paged_show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        for _ in range(10):
+            await pilot.pause()
+            if paged_calls:
+                break
+
+        filter_input = modal.query_one("#artifact-panel-filter", Input)
+        filter_input.value = "Child 9"
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        filtered_ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+
+        filter_input.value = ""
+        await pilot.pause()
+        restored_ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+
+    assert len(paged_calls) == 1
+    assert filtered_ids == ["group:children", "child:child:9"]
+    assert "show-more:children" in restored_ids
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,8 @@ from sase.core.artifact_wire import (
 )
 
 
-ARTIFACT_PANEL_ROW_LIMIT = 100
+ARTIFACT_PANEL_GROUP_PAGE_SIZE = 10
+ARTIFACT_PANEL_SHOW_MORE_ACTION = "show_more"
 
 
 @dataclass(frozen=True)
@@ -159,6 +160,61 @@ def paged_model_from_paged_detail(
     )
 
 
+def merge_relation_page_into_model(
+    model: ArtifactPanelPagedModel,
+    page_detail: ArtifactDetailPagedWire,
+) -> ArtifactPanelPagedModel:
+    """Return *model* with the requested relationship page merged in."""
+    pages = _relation_pages_from_detail(page_detail)
+    requested_pages = [page for page in pages if page.summary.loaded_count > 0]
+    if not requested_pages:
+        return model
+
+    relation_pages = dict(model.relation_pages)
+    group_offsets = dict(model.group_offsets)
+    group_totals = dict(model.group_totals)
+
+    for page in requested_pages:
+        key = _relation_page_key(page.summary)
+        existing = relation_pages.get(key)
+        if existing is None:
+            merged_page = page
+        elif page.summary.direction == "children":
+            merged_nodes = _dedupe_nodes([*existing.nodes, *page.nodes])
+            merged_page = _replace_page(page, nodes=merged_nodes)
+        else:
+            merged_links = _dedupe_links([*existing.links, *page.links])
+            merged_page = _replace_page(page, links=merged_links)
+        relation_pages[key] = merged_page
+        group_offsets[key] = _page_loaded_count(merged_page)
+        group_totals[key] = page.summary.total_count
+
+    paged_detail = _paged_detail_from_relation_pages(
+        model.paged_detail,
+        relation_pages,
+    )
+    return ArtifactPanelPagedModel(
+        paged_detail=paged_detail,
+        detail=_legacy_detail_from_paged_detail(paged_detail),
+        relation_pages=relation_pages,
+        group_offsets=group_offsets,
+        group_totals=group_totals,
+    )
+
+
+def page_request_for_group(
+    model: ArtifactPanelPagedModel,
+    *,
+    group_key: str,
+    limit: int = ARTIFACT_PANEL_GROUP_PAGE_SIZE,
+) -> tuple[str, str | None, int, int] | None:
+    """Return relation/link_type/offset/limit for the next page in *group_key*."""
+    for key, offset in model.group_offsets.items():
+        if key.group_key == group_key:
+            return key.relation, key.link_type, offset, limit
+    return None
+
+
 def paged_model_from_legacy_detail(
     detail: ArtifactDetailWire,
 ) -> ArtifactPanelPagedModel:
@@ -232,12 +288,10 @@ def build_artifact_panel_rows(
     *,
     paged_model: ArtifactPanelPagedModel | None = None,
     filter_text: str = "",
-    row_limit: int = ARTIFACT_PANEL_ROW_LIMIT,
 ) -> _ArtifactPanelRows:
     """Build grouped, locally filtered modal rows from one detail record."""
     rows: list[ArtifactPanelRow] = []
     selectable_count = 0
-    truncated = False
     normalized_filter = filter_text.casefold().strip()
 
     def add_group(
@@ -246,7 +300,7 @@ def build_artifact_panel_rows(
         *,
         group_key: str,
     ) -> None:
-        nonlocal selectable_count, truncated
+        nonlocal selectable_count
         visible = [
             row
             for row in candidates
@@ -255,10 +309,14 @@ def build_artifact_panel_rows(
         if not visible:
             return
         loaded_count = len(visible) if normalized_filter else len(candidates)
-        total_count = _group_total_count(
-            paged_model,
-            group_key=group_key,
-            fallback=loaded_count,
+        total_count = (
+            len(candidates)
+            if normalized_filter
+            else _group_total_count(
+                paged_model,
+                group_key=group_key,
+                fallback=loaded_count,
+            )
         )
         group_label = _group_label(
             label, loaded_count=loaded_count, total_count=total_count
@@ -275,10 +333,20 @@ def build_artifact_panel_rows(
         )
         for row in visible:
             selectable_count += 1
-            if selectable_count > row_limit:
-                truncated = True
-                continue
             rows.append(row)
+        if not normalized_filter and _group_has_more(
+            paged_model,
+            group_key=group_key,
+            loaded_count=len(candidates),
+        ):
+            rows.append(
+                _show_more_row(
+                    label,
+                    group_key=group_key,
+                    paged_model=paged_model,
+                )
+            )
+            selectable_count += 1
 
     path_rows = [
         _node_row(
@@ -330,23 +398,10 @@ def build_artifact_panel_rows(
         ]
         add_group(f"Inbound: {link_type}", link_rows, group_key=group_key)
 
-    if truncated:
-        rows.append(
-            ArtifactPanelRow(
-                id="__truncated__",
-                label=(
-                    f"Showing first {row_limit} linked rows. "
-                    "Use a filter to narrow this artifact locally."
-                ),
-                row_type="notice",
-                selectable=False,
-            )
-        )
-
     return _ArtifactPanelRows(
         rows=rows,
         total_selectable=selectable_count,
-        truncated=truncated,
+        truncated=False,
     )
 
 
@@ -436,6 +491,92 @@ def _relation_page_key(
     )
 
 
+def _relation_pages_from_detail(
+    paged_detail: ArtifactDetailPagedWire,
+) -> list[ArtifactRelationPageWire]:
+    pages: list[ArtifactRelationPageWire] = []
+    if paged_detail.children_page is not None:
+        pages.append(paged_detail.children_page)
+    pages.extend(paged_detail.outbound_pages)
+    pages.extend(paged_detail.inbound_pages)
+    return pages
+
+
+def _paged_detail_from_relation_pages(
+    base: ArtifactDetailPagedWire,
+    relation_pages: dict[_ArtifactPanelRelationPageKey, ArtifactRelationPageWire],
+) -> ArtifactDetailPagedWire:
+    children_page = None
+    outbound_pages: list[ArtifactRelationPageWire] = []
+    inbound_pages: list[ArtifactRelationPageWire] = []
+    for key, page in relation_pages.items():
+        if key.relation == "children":
+            children_page = page
+        elif key.relation == "outbound":
+            outbound_pages.append(page)
+        elif key.relation == "inbound":
+            inbound_pages.append(page)
+    outbound_pages.sort(key=lambda page: page.summary.link_type or "")
+    inbound_pages.sort(key=lambda page: page.summary.link_type or "")
+    return ArtifactDetailPagedWire(
+        schema_version=base.schema_version,
+        node=base.node,
+        payloads=list(base.payloads),
+        path_to_root=list(base.path_to_root),
+        diagnostics=list(base.diagnostics),
+        children_page=children_page,
+        outbound_pages=outbound_pages,
+        inbound_pages=inbound_pages,
+        type_counts=list(base.type_counts),
+    )
+
+
+def _replace_page(
+    page: ArtifactRelationPageWire,
+    *,
+    nodes: list[ArtifactNodeWire] | None = None,
+    links: list[ArtifactLinkWire] | None = None,
+) -> ArtifactRelationPageWire:
+    loaded_count = len(nodes) if nodes is not None else len(links or [])
+    return ArtifactRelationPageWire(
+        summary=ArtifactGroupSummaryWire(
+            group_key=page.summary.group_key,
+            direction=page.summary.direction,
+            link_type=page.summary.link_type,
+            total_count=page.summary.total_count,
+            loaded_count=loaded_count,
+        ),
+        nodes=list(nodes or []),
+        links=list(links or []),
+    )
+
+
+def _page_loaded_count(page: ArtifactRelationPageWire) -> int:
+    return len(page.nodes) if page.summary.direction == "children" else len(page.links)
+
+
+def _dedupe_nodes(nodes: list[ArtifactNodeWire]) -> list[ArtifactNodeWire]:
+    seen: set[str] = set()
+    deduped: list[ArtifactNodeWire] = []
+    for node in nodes:
+        if node.id in seen:
+            continue
+        seen.add(node.id)
+        deduped.append(node)
+    return deduped
+
+
+def _dedupe_links(links: list[ArtifactLinkWire]) -> list[ArtifactLinkWire]:
+    seen: set[str] = set()
+    deduped: list[ArtifactLinkWire] = []
+    for link in links:
+        if link.id in seen:
+            continue
+        seen.add(link.id)
+        deduped.append(link)
+    return deduped
+
+
 def _legacy_relation_page(
     *,
     group_key: str,
@@ -494,6 +635,60 @@ def _group_total_count(
         if key.group_key == group_key:
             return total
     return fallback
+
+
+def _group_loaded_count(
+    paged_model: ArtifactPanelPagedModel | None,
+    *,
+    group_key: str,
+    fallback: int,
+) -> int:
+    if paged_model is None:
+        return fallback
+    for key, offset in paged_model.group_offsets.items():
+        if key.group_key == group_key:
+            return offset
+    return fallback
+
+
+def _group_has_more(
+    paged_model: ArtifactPanelPagedModel | None,
+    *,
+    group_key: str,
+    loaded_count: int,
+) -> bool:
+    loaded = _group_loaded_count(
+        paged_model,
+        group_key=group_key,
+        fallback=loaded_count,
+    )
+    total = _group_total_count(
+        paged_model,
+        group_key=group_key,
+        fallback=loaded_count,
+    )
+    return loaded < total
+
+
+def _show_more_row(
+    label: str,
+    *,
+    group_key: str,
+    paged_model: ArtifactPanelPagedModel | None,
+) -> ArtifactPanelRow:
+    loaded = _group_loaded_count(paged_model, group_key=group_key, fallback=0)
+    total = _group_total_count(paged_model, group_key=group_key, fallback=loaded)
+    remaining = max(total - loaded, 0)
+    next_count = min(ARTIFACT_PANEL_GROUP_PAGE_SIZE, remaining)
+    return ArtifactPanelRow(
+        id=f"show-more:{group_key}",
+        label=f"Show {next_count} more {label.lower()} ({loaded}/{total})",
+        group_key=group_key,
+        page_action=ARTIFACT_PANEL_SHOW_MORE_ACTION,
+        row_type="show_more",
+        group=label,
+        selectable=True,
+    )
 
 
 def _group_label(label: str, *, loaded_count: int, total_count: int) -> str:

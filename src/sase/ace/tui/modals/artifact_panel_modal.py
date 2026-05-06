@@ -26,10 +26,13 @@ from sase.core.artifact_wire import (
 )
 
 from .artifact_panel_state import (
+    ARTIFACT_PANEL_SHOW_MORE_ACTION,
     ArtifactPanelPagedModel,
     ArtifactPanelNavigationState,
     ArtifactPanelRow,
     build_artifact_panel_rows,
+    merge_relation_page_into_model,
+    page_request_for_group,
     paged_model_from_legacy_detail,
     paged_model_from_paged_detail,
     parent_id_from_detail,
@@ -106,6 +109,9 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._detail: ArtifactDetailWire | None = None
         self._error_message: str | None = None
         self._load_worker: Worker[ArtifactPanelPagedModel] | None = None
+        self._page_worker: Worker[tuple[str, str, ArtifactDetailPagedWire]] | None = (
+            None
+        )
         self._render_worker: Worker[RenderableType] | None = None
         self._row_by_option_id: dict[str, ArtifactPanelRow] = {}
 
@@ -148,6 +154,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._load_worker.cancel()
         if self._render_worker is not None:
             self._render_worker.cancel()
+        if self._page_worker is not None:
+            self._page_worker.cancel()
         self._load_worker = self.run_worker(
             lambda: self._load_detail(artifact_id),
             exit_on_error=False,
@@ -213,6 +221,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         """Render the artifact load result."""
         if event.worker == self._load_worker:
             self._handle_load_worker_state(event)
+        elif event.worker == self._page_worker:
+            self._handle_page_worker_state(event)
         elif event.worker == self._render_worker:
             self._handle_render_worker_state(event)
 
@@ -250,6 +260,30 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append("Artifact preview failed\n", style="bold yellow")
             text.append(message, style="yellow")
             self._update_detail(text)
+
+    def _handle_page_worker_state(self, event: Worker.StateChanged) -> None:
+        if event.worker != self._page_worker:
+            return
+
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            assert result is not None
+            artifact_id, prefer_row_id, page_detail = result
+            if artifact_id != self._state.current_id or self._paged_model is None:
+                return
+            self._paged_model = merge_relation_page_into_model(
+                self._paged_model,
+                page_detail,
+            )
+            self._detail = self._paged_model.detail
+            self._state.set_paged_model(self._paged_model)
+            self._state.selected_row_id = prefer_row_id
+            self._render_detail(update_preview=False)
+        elif event.state == WorkerState.ERROR:
+            message = str(event.worker.error or "Unknown artifact page error")
+            self.app.notify(
+                f"Failed to load more artifacts: {message}", severity="error"
+            )
 
     def _render_loading(self) -> None:
         self._row_by_option_id = {}
@@ -419,9 +453,57 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         elif self._detail is not None:
             self._render_detail()
 
+    def _start_page_load(self, row: ArtifactPanelRow) -> None:
+        if self._paged_model is None or row.group_key is None:
+            return
+        if self._page_worker is not None:
+            self._page_worker.cancel()
+        artifact_id = self._state.current_id
+        prefer_row_id = row.id
+        self._page_worker = self.run_worker(
+            lambda: (
+                artifact_id,
+                prefer_row_id,
+                self._load_relation_page(row),
+            ),
+            exit_on_error=False,
+            thread=True,
+        )
+
+    def _load_relation_page(self, row: ArtifactPanelRow) -> ArtifactDetailPagedWire:
+        model = self._paged_model
+        if model is None or row.group_key is None:
+            raise RuntimeError("artifact page model is not loaded")
+        request_parts = page_request_for_group(model, group_key=row.group_key)
+        if request_parts is None:
+            raise RuntimeError(f"unknown artifact relationship group {row.group_key}")
+        relation, link_type, offset, limit = request_parts
+        show_paged_func = self._show_paged_func
+        if show_paged_func is None:
+            from sase.core.artifact_facade import artifact_show_paged
+
+            show_paged_func = artifact_show_paged
+        return show_paged_func(
+            self._index_path,
+            self._state.current_id,
+            ArtifactPageRequestWire(
+                group_key=row.group_key,
+                relation=relation,
+                link_type=link_type,
+                offset=offset,
+                limit=limit,
+            ),
+        )
+
     def action_open_selected(self) -> None:
         row = self._highlighted_row()
-        if row is None or row.artifact_id is None:
+        if row is None:
+            return
+        if row.page_action == ARTIFACT_PANEL_SHOW_MORE_ACTION:
+            self._state.selected_row_id = row.id
+            self._start_page_load(row)
+            return
+        if row.artifact_id is None:
             return
         self._state.selected_row_id = row.id
         self._navigate_to(row.artifact_id)
@@ -526,6 +608,10 @@ def _row_label(row: ArtifactPanelRow) -> Text:
     if not row.selectable:
         text = Text(row.label)
         text.stylize("bold cyan" if row.row_type == "group" else "yellow")
+        return text
+    if row.page_action == ARTIFACT_PANEL_SHOW_MORE_ACTION:
+        text = Text(row.label)
+        text.stylize("bold cyan")
         return text
 
     badge = _semantic_badge(row.artifact_kind, row.file_type)
