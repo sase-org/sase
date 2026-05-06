@@ -87,6 +87,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
 - **Agent Artifacts** — Completion notifications can include chat, diff, error logs, generated Markdown PDFs, and
   generated image files touched by agents so downstream notification plugins can deliver the full result
+- **Mobile Gateway** — Workstation-hosted HTTP/SSE gateway for paired mobile clients to inspect notifications, launch
+  agents, and use fixed workflow helper APIs without exposing shell or filesystem access
 - **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini bundled; Jetski via sase-google plugin) with
   pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
@@ -258,10 +260,10 @@ epic phases.
 
 ### Mobile Gateway
 
-`sase mobile gateway start` launches the workstation-hosted gateway used by future mobile clients. It binds to
-`127.0.0.1` by default, supports local pairing, and exposes authenticated session and SSE event endpoints. See
-[`docs/mobile_gateway.md`](docs/mobile_gateway.md) for setup, pairing, Tailscale guidance, and the API contract
-location.
+`sase mobile gateway start` launches the workstation-hosted gateway used by paired mobile clients. It binds to
+`127.0.0.1` by default, supports local pairing, and exposes authenticated session, SSE event, notification, agent, and
+fixed workflow-helper endpoints. See [`docs/mobile_gateway.md`](docs/mobile_gateway.md) for setup, pairing, Tailscale
+guidance, bridge boundaries, and the API contract location.
 
 ## Project Structure
 
@@ -358,7 +360,7 @@ src/sase/
 ├── xprompts/              # Built-in xprompt workflows and schema
 ├── xprompt/               # Prompt templates and workflow execution
 │   ├── processor.py       # XPrompt expansion engine
-│   ├── directives.py      # %name directive parsing (%model, %name, %wait)
+│   ├── directives.py      # % directive parsing (%model, %name, %wait, %tag, etc.)
 │   ├── loader.py          # XPrompt discovery and loading
 │   ├── explain.py         # Dry-run workflow visualization (xprompt explain)
 │   ├── graph.py           # DAG visualization (xprompt graph)

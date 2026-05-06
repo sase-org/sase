@@ -104,6 +104,28 @@ response JSON once, run best-effort host side effects, and raise `MobilePlanActi
 
 Source: `src/sase/integrations/mobile_notifications.py`
 
+## Mobile Agent And Helper Bridges
+
+`sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are stable facades for the workstation-hosted
+mobile gateway bridge commands. The Rust gateway invokes them through fixed JSON-over-stdin operations rather than
+exposing a generic shell, cwd, environment, or filesystem API to mobile clients.
+
+Agent bridge operations cover `list-agents`, `resume-options`, `launch-text`, `launch-image`, `kill-agent`, and
+`retry-agent`. Launch requests may name a known SASE project or use normal SASE prompt refs for VCS context; Android and
+other mobile clients must not send host paths. Image launches store uploads under SASE-owned gateway state, then inject
+the saved path into the agent prompt. Launch, kill, retry, upload, and per-device project context metadata lives under
+`<sase_home>/mobile_gateway/`.
+
+Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`, `beads-show`, `update-start`, and
+`update-status`. ChangeSpec, xprompt, and bead helpers are read-only. The only mutating helper operation is
+`update-start`, which starts the configured `chat_install.command` worker and reports status through structured polling.
+
+External callers should import from these facade modules only. The `_mobile_agent_*` and `_mobile_helper_*` modules are
+private split implementations kept small for testability and should not be imported by plugins or clients. The public
+HTTP route contract is documented in [`docs/mobile_gateway.md`](mobile_gateway.md).
+
+Source: `src/sase/integrations/mobile_agents.py`, `src/sase/integrations/mobile_helpers.py`
+
 ## Chat Update Worker
 
 Chat integrations that need to update a SASE install can call

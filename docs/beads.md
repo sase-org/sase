@@ -256,7 +256,9 @@ For epic-tier plans, the command:
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
    `<epic_id>` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w` waits on
-   blocker phase-agent names, and the land agent waits on every launched phase agent.
+   blocker phase-agent names, and the land agent waits on every launched phase agent. Because `%w` requires a successful
+   `done.json` outcome, a failed or killed phase keeps dependent phases and the land agent parked until the phase name
+   is retried successfully.
 
 For legend-tier plans, the command:
 

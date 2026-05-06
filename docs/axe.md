@@ -99,9 +99,14 @@ High-frequency hook lifecycle management:
 
 Fast-polling agent dependency resolution:
 
-| Chop          | Description                                                           |
-| ------------- | --------------------------------------------------------------------- |
-| `wait_checks` | Resolve agent wait dependencies and write `ready.json` when satisfied |
+| Chop          | Description                                                       |
+| ------------- | ----------------------------------------------------------------- |
+| `wait_checks` | Resolve successful agent wait dependencies and write `ready.json` |
+
+`wait_checks` only unblocks a named dependency when the newest matching agent, or the newest matching workflow root and
+all of its children, has a `done.json` outcome of `"completed"`. Failed, killed, crashed, still-running, malformed, or
+missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked until a later successful run of
+the same dependency name appears.
 
 ### checks (5-minute interval)
 

@@ -794,7 +794,7 @@ the prompt before further processing.
 | ---------- | ----- | --------------------------------------------------------- |
 | `%model`   | `%m`  | Override the LLM model for this prompt                    |
 | `%name`    | `%n`  | Assign a name to the agent                                |
-| `%wait`    | `%w`  | Wait for another agent or a duration (can repeat)         |
+| `%wait`    | `%w`  | Wait for another agent to succeed, or for a duration      |
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display        |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)          |
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)               |
@@ -852,10 +852,15 @@ The `%model` directive also supports automatic provider resolution: known model 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
 agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
+Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
+For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.
+Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the
+dependent agent stays parked until a later successful run of the same dependency name appears.
+
 The `%wait` directive also accepts duration arguments in `XhYmZs` format (e.g., `%wait:5m`, `%wait:1h30m`, `%wait:90s`).
 Duration waits delay the agent's start by the specified amount. When a prompt contains both agent-name waits and
-duration waits, the agent waits for all named agents to complete and then waits for the remaining duration (the maximum
-duration is used if multiple are specified).
+duration waits, the agent waits for all named agents to complete successfully and then waits for the remaining duration
+(the maximum duration is used if multiple are specified).
 
 The `%wait` directive additionally accepts absolute time arguments:
 
@@ -884,7 +889,7 @@ Review the code changes and provide feedback.
 ```
 
 The directives are stripped from the prompt text. The agent will use the specified model, be named "code-reviewer", and
-will wait for the "planner" agent to complete before running.
+will wait for the "planner" agent to complete successfully before running.
 
 ### Hide Directive
 
@@ -1231,7 +1236,7 @@ Implement the new feature.
 Write tests for the new feature.
 ```
 
-This launches two agents: `step1` runs first, then `step2` starts after `step1` completes (via `%wait`). Both agents
+This launches two agents: `step1` runs first, then `step2` starts after `step1` succeeds (via `%wait`). Both agents
 share the `_common` local xprompt.
 
 ### Rules

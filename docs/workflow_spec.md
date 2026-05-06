@@ -749,7 +749,7 @@ When a multi-step workflow finishes, a `done.json` marker is written to track co
 workflows (workflows that spawn follow-up agents), `done.json` is written to both the current step's artifacts directory
 and the root artifacts directory. The root copy ensures that:
 
-- `%wait` dependencies resolve correctly (the workflow name is recognized as done)
+- `%wait` dependencies resolve correctly (the workflow name is recognized as successful)
 - Agent name allocation preserves the workflow's reserved name
 - `find_named_agent()` can discover the completed workflow from the root
 
@@ -773,20 +773,23 @@ and the root artifacts directory. The root copy ensures that:
 The `outcome` field is either `"completed"` or `"failed"`. Failed markers additionally include `"error"` and
 `"traceback"` fields.
 
-### Workflow-Aware Wait Completion
+### Workflow-Aware Wait Success
 
-The `%wait` directive uses a two-tier check for multi-agent workflows:
+The `%wait` directive treats a workflow dependency as satisfied only when the newest matching workflow run completed
+successfully:
 
 1. Find all agents belonging to the workflow (matching `workflow_name`)
-2. Check that the root agent (no `parent_timestamp`) has `done.json`
-3. Check that no child agents are alive without `done.json`
+2. Select the newest root agent (no `parent_timestamp`) when one exists
+3. Require the root `done.json` outcome to be `"completed"`
+4. Require every child agent for that root to have a `done.json` outcome of `"completed"`
 
-If the root agent dies without writing `done.json` (e.g., crash or kill), the check falls through to examine child
-agents. If all children are done or dead, the workflow is considered complete. If some children are still alive, the
-workflow remains incomplete. This prevents `%wait` from deadlocking when the root agent terminates abnormally.
+If older artifacts only retained `workflow_name` on children and no root can be identified, the newest matching artifact
+is used as a compatibility fallback, but it still must have outcome `"completed"`. Failed, killed, crashed,
+still-running, malformed, or missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains waiting
+until a later successful run of the same workflow name appears.
 
 If a workflow name is not recognized (no agents with that `workflow_name`), the system falls back to single-agent
-completion checking.
+success checking with the same `"completed"` outcome requirement.
 
 ## Examples
 

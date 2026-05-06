@@ -1,6 +1,6 @@
 # Mobile Gateway
 
-The SASE mobile gateway is a workstation-hosted HTTP gateway for future mobile clients. The phone is only a client: it
+The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients. The phone is only a client: it
 pairs with the host, stores a bearer token, calls product-shaped SASE APIs, and subscribes to server-sent events. The
 gateway never exposes a generic file, shell, or RPC surface.
 
@@ -10,6 +10,9 @@ The implementation is split across repos:
 - `sase.integrations.mobile_notifications` is the stable Python facade used by the gateway host bridge to project local
   notifications, build attachment manifests, and execute plan/HITL/question actions. The sibling
   `_mobile_notification_*` modules are internal implementation details.
+- `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are the fixed-operation bridge facades used
+  by the Rust gateway to list/launch/kill/retry agents and to expose ChangeSpec, xprompt, bead, and update helpers. The
+  sibling `_mobile_agent_*` and `_mobile_helper_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records, pairing/token storage, audit log, SSE
   event stream, and committed API contract snapshot.
 

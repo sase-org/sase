@@ -313,13 +313,16 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 
 The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tag**. Untagged agents live in
 their own `(untagged)` panel; each tagged group renders as `@<tag>` with an agent count in the panel title. Panel
-heights are sized to their content (subject to a configurable floor and cap), and the last panel in a column expands to
-fill any leftover vertical space so empty rows don't drift to the bottom.
+heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
+leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
+weighted by each panel's rendered row count.
 
-Use `J` / `K` to move focus across panels (forward / reverse). Per-panel actions (kill, dismiss, expand, etc.) operate
-on whichever panel currently holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
-focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the focused panel, `K` cleans all loaded
-panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a tag, and `c` opens the custom selector.
+Use `J` / `K` to move focus across panels (forward / reverse). `J` lands on the first selectable row in the new panel;
+`K` lands on the last selectable row, including collapsed group banners when those are visible. Per-panel actions (kill,
+dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the cleanup panel: `d`
+dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the
+focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a tag,
+and `c` opens the custom selector.
 
 Tags are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an untagged agent the
 input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that default
@@ -889,7 +892,7 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | Status             | Color        | Description                                                        |
 | ------------------ | ------------ | ------------------------------------------------------------------ |
 | **RUNNING**        | Gold         | Agent subprocess is executing                                      |
-| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to complete (`%wait`)   |
+| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)    |
 | **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step              |
 | **PLANNING**       | Pink/magenta | Agent has produced a plan and is waiting for user approval         |
 | **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                |

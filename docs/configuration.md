@@ -272,7 +272,7 @@ axe:
       interval: 2
       chops:
         - name: wait_checks
-          description: Resolve agent wait dependencies and write ready.json when satisfied
+          description: Resolve successful agent wait dependencies and write ready.json
     checks:
       interval: 300
       chops:
@@ -323,6 +323,9 @@ axe:
 On a scheduled lumberjack tick, script chops remain concurrent, but configured agent chops launch sequentially in config
 order. This prevents same-tick `run_every` agent chops from racing while they allocate workspaces. A manual
 `sase axe chop run <agent-chop>` still launches only that one agent chop.
+
+The built-in `wait_checks` chop writes `ready.json` only after named `%wait` dependencies complete successfully. Failed,
+killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the dependency.
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 
