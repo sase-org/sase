@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
+import os
 import re
 import sys
+import tempfile
+import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -23,10 +29,23 @@ MOBILE_AGENT_SCHEMA_VERSION = 1
 
 _PROMPT_SNIPPET_LIMIT = 200
 _SAFE_DIRECTIVE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SAFE_DEVICE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+_MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+_IMAGE_TYPES: dict[str, tuple[str, bytes | tuple[bytes, ...]]] = {
+    ".png": ("image/png", b"\x89PNG\r\n\x1a\n"),
+    ".jpg": ("image/jpeg", b"\xff\xd8\xff"),
+    ".jpeg": ("image/jpeg", b"\xff\xd8\xff"),
+    ".webp": ("image/webp", b"RIFF"),
+    ".gif": ("image/gif", (b"GIF87a", b"GIF89a")),
+}
 
 
 class _MobileAgentBridgeError(RuntimeError):
     """Deterministic bridge error for JSON command failures."""
+
+
+class _MobileAgentInvalidUploadError(_MobileAgentBridgeError):
+    """Deterministic bridge error for rejected mobile image uploads."""
 
 
 @dataclass(frozen=True)
@@ -90,6 +109,17 @@ def _mobile_agent_resume_options() -> dict[str, Any]:
 def _launch_mobile_text_agents(request: dict[str, Any]) -> dict[str, Any]:
     """Launch text agents through the normal SASE launch path."""
     prompt = _mobile_launch_prompt(request)
+    return _launch_mobile_prompt(prompt, request)
+
+
+def _launch_mobile_image_agents(request: dict[str, Any]) -> dict[str, Any]:
+    """Store an uploaded image and launch agents with a local image path prompt."""
+    stored_path = _store_mobile_image_upload(request)
+    prompt = _mobile_image_launch_prompt(request, stored_path)
+    return _launch_mobile_prompt(prompt, request)
+
+
+def _launch_mobile_prompt(prompt: str, request: dict[str, Any]) -> dict[str, Any]:
     if request.get("dry_run") is True:
         return _dry_run_launch_response(prompt)
 
@@ -120,8 +150,13 @@ def handle_mobile_agent_bridge(
             response = _mobile_agent_resume_options()
         elif operation == "launch-text":
             response = _launch_mobile_text_agents(request)
+        elif operation == "launch-image":
+            response = _launch_mobile_image_agents(request)
         else:
             raise _MobileAgentBridgeError("unknown mobile agent bridge operation")
+    except _MobileAgentInvalidUploadError as exc:
+        print(f"mobile agent bridge error: {exc}", file=stderr)
+        return 3
     except (_MobileAgentBridgeError, ValueError, TypeError) as exc:
         print(f"mobile agent bridge error: {exc}", file=stderr)
         return 2
@@ -195,6 +230,113 @@ def _mobile_launch_prompt(payload: dict[str, Any]) -> str:
     if directives:
         prompt = "\n".join([*directives, prompt])
     return prompt
+
+
+def _mobile_image_launch_prompt(payload: dict[str, Any], image_path: Path) -> str:
+    prompt = _mobile_launch_prompt(payload)
+    return f"The image has been saved to: {image_path}\n\n{prompt}"
+
+
+def _store_mobile_image_upload(payload: dict[str, Any]) -> Path:
+    filename = _required_str(payload.get("original_filename"), "original_filename")
+    content_type = _required_str(payload.get("content_type"), "content_type").lower()
+    byte_length = _required_byte_length(payload.get("byte_length"))
+    raw_base64 = _required_str(payload.get("base64_image"), "base64_image")
+
+    extension = Path(filename).suffix.lower()
+    if not extension or extension not in _IMAGE_TYPES:
+        raise _MobileAgentInvalidUploadError("unsupported image extension")
+    expected_content_type, magic = _IMAGE_TYPES[extension]
+    if content_type != expected_content_type:
+        raise _MobileAgentInvalidUploadError(
+            "image extension does not match content type"
+        )
+    if byte_length > _MAX_IMAGE_UPLOAD_BYTES:
+        raise _MobileAgentInvalidUploadError("image upload exceeds maximum size")
+
+    try:
+        image_bytes = base64.b64decode(raw_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise _MobileAgentInvalidUploadError("invalid base64 image data") from exc
+    if len(image_bytes) != byte_length:
+        raise _MobileAgentInvalidUploadError(
+            "byte_length does not match decoded image size"
+        )
+    if len(image_bytes) > _MAX_IMAGE_UPLOAD_BYTES:
+        raise _MobileAgentInvalidUploadError("image upload exceeds maximum size")
+    if not _matches_magic(image_bytes, magic, extension):
+        raise _MobileAgentInvalidUploadError("image bytes do not match content type")
+
+    device_id = _safe_device_id(_optional_str(payload.get("device_id")))
+    upload_dir = _mobile_image_upload_dir(device_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    final_path = upload_dir / _generated_image_filename(extension)
+    return _atomic_write_bytes(upload_dir, final_path, image_bytes)
+
+
+def _matches_magic(
+    image_bytes: bytes, magic: bytes | tuple[bytes, ...], extension: str
+) -> bool:
+    if extension == ".webp":
+        return (
+            len(image_bytes) >= 12
+            and image_bytes.startswith(b"RIFF")
+            and image_bytes[8:12] == b"WEBP"
+        )
+    if isinstance(magic, tuple):
+        return any(image_bytes.startswith(prefix) for prefix in magic)
+    return image_bytes.startswith(magic)
+
+
+def _mobile_image_upload_dir(device_id: str) -> Path:
+    sase_home = Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
+    return sase_home / "mobile_gateway" / "uploads" / "images" / device_id
+
+
+def _generated_image_filename(extension: str) -> str:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{timestamp}_{uuid.uuid4().hex}{extension}"
+
+
+def _atomic_write_bytes(upload_dir: Path, final_path: Path, image_bytes: bytes) -> Path:
+    tmp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "wb", dir=upload_dir, prefix=".upload-", suffix=".tmp", delete=False
+        ) as tmp:
+            tmp.write(image_bytes)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            tmp_name = tmp.name
+        os.replace(tmp_name, final_path)
+        return final_path
+    except OSError as exc:
+        if tmp_name is not None:
+            Path(tmp_name).unlink(missing_ok=True)
+        raise _MobileAgentInvalidUploadError("failed to store image upload") from exc
+
+
+def _required_str(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise _MobileAgentInvalidUploadError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def _required_byte_length(value: Any) -> int:
+    try:
+        byte_length = int(value)
+    except (TypeError, ValueError) as exc:
+        raise _MobileAgentInvalidUploadError("byte_length must be an integer") from exc
+    if byte_length < 0:
+        raise _MobileAgentInvalidUploadError("byte_length must be non-negative")
+    return byte_length
+
+
+def _safe_device_id(device_id: str | None) -> str:
+    if not device_id:
+        return "unknown_device"
+    safe = _SAFE_DEVICE_ID_RE.sub("-", device_id).strip(".-")
+    return safe or "unknown_device"
 
 
 def _mobile_model_directive_value(

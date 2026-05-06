@@ -164,6 +164,14 @@ def test_parser_accepts_mobile_agent_bridge_launch_text() -> None:
     assert args.mobile_agent_bridge_subcommand == "launch-text"
 
 
+def test_parser_accepts_mobile_agent_bridge_launch_image() -> None:
+    args = create_parser().parse_args(["mobile", "agent-bridge", "launch-image"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "agent-bridge"
+    assert args.mobile_agent_bridge_subcommand == "launch-image"
+
+
 class _FakeResponse:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload
