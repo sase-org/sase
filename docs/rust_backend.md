@@ -128,6 +128,16 @@ The facade lives at `src/sase/core/`:
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace with a PyO3 crate at
 `crates/sase_core_py/`.
 
+## Mobile Gateway
+
+The mobile gateway is also built from the sibling `../sase-core/` workspace, but it is a standalone Rust HTTP server
+rather than a PyO3 binding. The `crates/sase_gateway` crate owns the host gateway's wire records, pairing/token store,
+bind policy, authenticated session route, SSE event stream, audit log, and committed mobile API contract snapshot.
+
+The Python repo owns user-facing startup through `sase mobile gateway start`, configuration defaults, and lifecycle
+glue. See [`docs/mobile_gateway.md`](mobile_gateway.md) for local setup, pairing, Tailscale Serve guidance, security
+notes, and the contract snapshot path used by future Android work.
+
 ## Bead Backend
 
 The `sase bead` migration is tracked by `sdd/epics/202605/bead_rust_backend_migration.md`. The shipped path is now

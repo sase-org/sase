@@ -185,6 +185,7 @@ sase
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
+| `sase mobile gateway start`    | Start the workstation-hosted mobile gateway in the foreground                                                  |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
 | `sase notify create`           | Explicit notification-create subcommand (alias of legacy `sase notify` create behavior)                        |
 | `sase notify list`             | List recent notifications (pretty table or stable JSON)                                                        |
@@ -245,6 +246,13 @@ project-local SDD README, directory map, and short README files for the generate
 prompt/artifact pair is linked through frontmatter so validation and repair commands can keep the history navigable. See
 [`docs/sdd.md`](docs/sdd.md) for storage modes and [`docs/beads.md`](docs/beads.md) for the issue tracker that executes
 epic phases.
+
+### Mobile Gateway
+
+`sase mobile gateway start` launches the workstation-hosted gateway used by future mobile clients. It binds to
+`127.0.0.1` by default, supports local pairing, and exposes authenticated session and SSE event endpoints. See
+[`docs/mobile_gateway.md`](docs/mobile_gateway.md) for setup, pairing, Tailscale guidance, and the API contract
+location.
 
 ## Project Structure
 
@@ -438,6 +446,7 @@ extension APIs:
 - [`docs/integrations.md`](docs/integrations.md) — Public integration-facing Python helpers
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system
+- [`docs/mobile_gateway.md`](docs/mobile_gateway.md) — Mobile gateway setup, pairing, and security notes
 - [`docs/notifications.md`](docs/notifications.md) — Notification system
 - [`docs/perf_runbook.md`](docs/perf_runbook.md) — `sase ace` performance runbook (`SASE_TUI_TRACE` and benchmark
   harness)
