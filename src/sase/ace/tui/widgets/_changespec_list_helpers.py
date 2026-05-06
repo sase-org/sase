@@ -25,6 +25,11 @@ from ...mentor_output import (
     load_mentor_outputs_for_commit,
     load_read_state,
 )
+from ..models.artifact_indicator import (
+    ArtifactIndicator,
+    artifact_indicator_width,
+    render_artifact_indicator,
+)
 
 log = logging.getLogger(__name__)
 
@@ -156,6 +161,7 @@ def calculate_entry_display_width(
     show_submitted: bool = False,
     mentor_stats: _MentorCommentStats | None = None,
     hint_char: str | None = None,
+    artifact_indicator: ArtifactIndicator | None = None,
 ) -> int:
     """Calculate display width of a ChangeSpec entry in terminal cells.
 
@@ -187,6 +193,10 @@ def calculate_entry_display_width(
         parts.append(f" ({changespec.cl})")
     if mentor_stats:
         parts.append(_mentor_stats_plain_text(mentor_stats))
+    indicator_width = artifact_indicator_width(artifact_indicator)
+    if indicator_width:
+        parts.append("  ")
+        parts.append(render_artifact_indicator(artifact_indicator).plain)
     text = Text("".join(parts))
     return text.cell_len
 
@@ -247,6 +257,7 @@ def row_signature(
     show_submitted: bool,
     mentor_stats: _MentorCommentStats | None,
     hint_char: str | None,
+    artifact_indicator: ArtifactIndicator | None = None,
 ) -> tuple[Any, ...]:
     """Compact key encoding everything that affects a row's rendered prompt."""
     indicator, _ = get_status_indicator(changespec)
@@ -266,6 +277,7 @@ def row_signature(
         show_submitted,
         stats_tuple,
         hint_char,
+        artifact_indicator.render_signature if artifact_indicator is not None else None,
     )
 
 
@@ -278,6 +290,7 @@ def format_changespec_option(
     show_submitted: bool = False,
     mentor_stats: _MentorCommentStats | None = None,
     hint_char: str | None = None,
+    artifact_indicator: ArtifactIndicator | None = None,
 ) -> Option:
     """Format a ChangeSpec as an option for display.
 
@@ -326,5 +339,10 @@ def format_changespec_option(
     # Mentor comment stats (latest commit)
     if mentor_stats:
         _append_mentor_stats(text, mentor_stats)
+
+    artifact_text = render_artifact_indicator(artifact_indicator)
+    if artifact_text.cell_len:
+        text.append("  ", style="")
+        text.append_text(artifact_text)
 
     return Option(text, id=changespec.name)

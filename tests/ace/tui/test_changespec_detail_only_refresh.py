@@ -7,14 +7,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from unittest.mock import MagicMock
 
 from textual.css.query import NoMatches as _NoMatches
 
 from sase.ace.testing import make_changespec
 from sase.ace.tui.actions.changespec import ChangeSpecMixin
 from sase.ace.tui.actions.marking import MarkingMixin
+from sase.ace.tui.models.artifact_summary_cache import ArtifactSummaryCache
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.core.artifact_wire import ArtifactSummaryWire, ArtifactTypeCountWire
 
 
 class _Timer:
@@ -27,14 +30,16 @@ class _RecordingList:
 
     def __init__(self) -> None:
         self.update_list_calls = 0
+        self.update_list_kwargs: list[dict[str, Any]] = []
         self.update_highlight_calls: list[int] = []
         self.clear_options_calls = 0
         self.patch_calls: list[tuple[int, str, bool, bool]] = []
         self.patch_returns: bool = True
 
     def update_list(self, *args: Any, **kwargs: Any) -> None:
-        del args, kwargs
+        del args
         self.update_list_calls += 1
+        self.update_list_kwargs.append(kwargs)
         self.clear_options_calls += 1
 
     def update_highlight(self, idx: int) -> None:
@@ -51,8 +56,9 @@ class _RecordingList:
         selected: bool,
         marked: bool,
         hint: str | None = None,
+        artifact_indicator: Any = None,
     ) -> bool:
-        del hint
+        del hint, artifact_indicator
         self.patch_calls.append((idx, cs.name, selected, marked))
         return self.patch_returns
 
@@ -153,6 +159,7 @@ class _FakeApp(ChangeSpecMixin, MarkingMixin):
         self._ancestor_keys: dict[str, str] = {}
         self._children_keys: dict[str, str] = {}
         self._sibling_keys: dict[str, str] = {}
+        self._artifact_summary_cache = ArtifactSummaryCache()
 
         self.hooks_collapsed = FoldLevel.COLLAPSED
         self.commits_collapsed = FoldLevel.COLLAPSED
@@ -232,6 +239,44 @@ def test_full_refresh_still_calls_update_list() -> None:
     assert app.detail_widget.update_display_calls == 1
     assert app.ancestors_panel.update_relationships_calls == 1
     assert app.footer_widget.update_bindings_calls == 1
+
+
+def test_full_refresh_threads_cached_artifact_indicators() -> None:
+    app = _FakeApp(count=1)
+    app._artifact_summary_cache.update(
+        [
+            ArtifactSummaryWire(
+                artifact_id="feat_0",
+                state="ok",
+                total_linked_count=2,
+                file_type_counts=[
+                    ArtifactTypeCountWire(artifact_type="plan", total_count=1),
+                    ArtifactTypeCountWire(artifact_type="chat", total_count=1),
+                ],
+            )
+        ]
+    )
+
+    app._refresh_display()
+
+    indicators = app.list_widget.update_list_kwargs[0]["artifact_indicators"]
+    assert set(indicators) == {"feat_0"}
+    assert indicators["feat_0"].render_signature[0] == "feat_0"
+
+
+def test_detail_only_refresh_does_not_load_artifact_summaries(
+    monkeypatch: Any,
+) -> None:
+    summary = MagicMock(return_value=[])
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifact_summaries.artifact_facade.artifact_summary",
+        summary,
+    )
+    app = _FakeApp()
+
+    app._refresh_changespec_detail_only()
+
+    summary.assert_not_called()
 
 
 def test_mark_toggle_calls_patch_changespec_row_once_no_clear_options() -> None:

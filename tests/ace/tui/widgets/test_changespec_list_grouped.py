@@ -16,6 +16,7 @@ from sase.ace.tui.models.changespec_groups import (
     ChangeSpecGroupingMode,
     ChangeSpecGroupRow,
 )
+from sase.ace.tui.models.artifact_indicator import ArtifactIndicator
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets import ChangeSpecList
 from sase.ace.tui.widgets._agent_list_styling import (
@@ -24,6 +25,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
 )
 from sase.ace.tui.widgets._changespec_list_banner import banner_natural_width
 from sase.ace.tui.widgets.changespec_list import _BANNER_ROW
+from sase.core.artifact_wire import ArtifactSummaryWire, ArtifactTypeCountWire
 
 from ..models._changespec_groups_helpers import _NOW
 
@@ -62,6 +64,42 @@ def _cs(
         file_path=f"/sase/projects/{project}/{project}.gp",
         line_number=1,
         timestamps=timestamps,
+    )
+
+
+def _artifact_indicator(artifact_id: str) -> ArtifactIndicator:
+    return ArtifactIndicator.from_wire(
+        ArtifactSummaryWire(
+            artifact_id=artifact_id,
+            state="ok",
+            total_linked_count=3,
+            file_type_counts=[
+                ArtifactTypeCountWire(artifact_type="diff", total_count=1),
+                ArtifactTypeCountWire(artifact_type="chat", total_count=2),
+            ],
+        )
+    )
+
+
+def _wide_artifact_indicator(artifact_id: str) -> ArtifactIndicator:
+    return ArtifactIndicator.from_wire(
+        ArtifactSummaryWire(
+            artifact_id=artifact_id,
+            state="ok",
+            total_linked_count=1234,
+            file_type_counts=[
+                ArtifactTypeCountWire(artifact_type="plan", total_count=123),
+                ArtifactTypeCountWire(artifact_type="diff", total_count=123),
+                ArtifactTypeCountWire(artifact_type="chat", total_count=123),
+                ArtifactTypeCountWire(artifact_type="project", total_count=123),
+                ArtifactTypeCountWire(artifact_type="prompt", total_count=123),
+                ArtifactTypeCountWire(artifact_type="misc", total_count=123),
+            ],
+            kind_counts=[
+                ArtifactTypeCountWire(artifact_type="agent", total_count=123),
+                ArtifactTypeCountWire(artifact_type="changespec", total_count=123),
+            ],
+        )
     )
 
 
@@ -271,6 +309,46 @@ def test_by_project_singleton_root_skips_l1_banner(monkeypatch: Any) -> None:
     assert widget.option_count == 2
     assert widget._row_entries[0] == _BANNER_ROW
     assert widget._row_entries[1] == 0
+
+
+def test_grouped_render_keeps_banners_and_adds_cl_artifact_indicator(
+    monkeypatch: Any,
+) -> None:
+    widget, _ = _wire_widget(monkeypatch)
+    css = [_cs("alpha", project="proj")]
+
+    widget.update_list(
+        css,
+        current_idx=0,
+        grouping_mode=ChangeSpecGroupingMode.BY_PROJECT,
+        artifact_indicators={"alpha": _artifact_indicator("alpha")},
+    )
+
+    assert widget._row_entries == [_BANNER_ROW, 0]
+    banner_prompt = widget.get_option_at_index(0).prompt
+    cl_prompt = widget.get_option_at_index(1).prompt
+    assert "art " not in banner_prompt.plain  # type: ignore[union-attr]
+    assert cl_prompt.plain.endswith("  art 3 diff1 chat2")  # type: ignore[union-attr]
+
+
+def test_artifact_indicator_contributes_to_width_and_signature(
+    monkeypatch: Any,
+) -> None:
+    widget, posted = _wire_widget(monkeypatch)
+    css = [_cs("alpha", project="proj")]
+    indicator = _wide_artifact_indicator("alpha")
+
+    widget.update_list(css, current_idx=0)
+    base_width = widget._target_width
+    widget.update_list(
+        css,
+        current_idx=0,
+        artifact_indicators={"alpha": indicator},
+    )
+
+    assert widget._target_width > base_width
+    assert posted[-1].width == widget._target_width  # type: ignore[attr-defined]
+    assert widget._last_row_signature_by_idx[0][-1] == indicator.render_signature
 
 
 # ── current_group_key takes precedence over current_idx ────────────────
