@@ -1,13 +1,15 @@
 """Per-group fold registry for the Agents-tab grouping tree.
 
-Each group key is an arbitrary-length ``tuple[str, ...]`` —
+Each group key is an arbitrary-length ``tuple[str, ...]``. Common shapes:
 
 * ``(project,)`` for an L0 project banner;
 * ``(project, changespec)`` for an L1 ChangeSpec banner (3-level mode)
   or ``(project, name_root)`` for an L1 name-root banner (2-level
   fallback);
 * ``(project, changespec, name_root)`` for an L2 name-root banner in
-  3-level mode.
+  3-level mode;
+* ``(*parent_key, name_root, name_prefix)`` for dotted-name prefix
+  subgroups such as ``("Done", "sase-24", "sase-24.2")``.
 
 This module is a thin compatibility re-export of the neutral
 :mod:`sase.ace.tui.models.group_fold` types so existing Agent imports

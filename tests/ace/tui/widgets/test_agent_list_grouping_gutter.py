@@ -124,6 +124,26 @@ def test_agent_row_under_by_status_carries_one_bucket_gutter_segment() -> None:
     assert not agent_plain.startswith("│  │  ")
 
 
+def test_by_status_prefix_group_promotes_name_root_to_middle_tier() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [
+            make_agent(cl_name="", agent_name="sase-24.2.1", status="RUNNING"),
+            make_agent(cl_name="", agent_name="sase-24.2.2", status="RUNNING"),
+        ],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    root_plain = options[1].prompt.plain  # type: ignore[union-attr]
+    prefix_plain = options[2].prompt.plain  # type: ignore[union-attr]
+    agent_plain = options[3].prompt.plain  # type: ignore[union-attr]
+
+    assert root_plain.startswith("│  ▎ sase-24 ")
+    assert prefix_plain.startswith("│  │  ▸ sase-24.2 ")
+    assert agent_plain.startswith("│  │  ")
+
+
 def test_by_date_subgroup_banner_uses_level2_visual_style() -> None:
     """BY_DATE subgroup headings use the promoted L1/ChangeSpec register."""
     widget = AgentList()

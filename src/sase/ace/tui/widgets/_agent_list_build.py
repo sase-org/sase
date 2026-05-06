@@ -32,7 +32,6 @@ from ._agent_list_rendering import (
 from ._agent_list_styling import (
     _BANNER_ROW,
     _CHANGESPEC_BANNER_RULE_STYLE,
-    _NAME_ROOT_BANNER_BRANCH_STYLE,
     _MIN_BANNER_WIDTH,
     _PROJECT_BANNER_RULE_STYLE,
 )
@@ -73,46 +72,53 @@ def compute_tier_styles(
     * ``banner_tier_styles[seq]`` — the gutter for the ``seq``-th
       banner emitted, in tree order.
 
-    The gutter for a row is the list of ancestor tier styles that
-    contribute a ``│  `` segment.  L0 (project / bucket) and level-2
-    visual banners contribute: STANDARD L1 ChangeSpec banners and real
-    BY_DATE L1 subgroup banners both use the cooler ChangeSpec rule
-    style.  Name-root banners and synthetic ``(no time)`` buckets do not
+    The gutter for a row is the list of visible ancestor tier styles that
+    contribute a ``│  `` segment.  L0 (project / bucket) banners always
+    contribute.  Middle-tier banners contribute the cooler ChangeSpec
+    rule style: STANDARD L1 ChangeSpec banners, real BY_DATE L1 subgroup
+    banners, and name-root banners that own dotted-name prefix subgroups.
+    Terminal branch banners and synthetic ``(no time)`` buckets do not
     add a descendant tier.  Order is outermost first.
     """
     agent_styles: dict[int, tuple[str, ...]] = {}
     banner_styles: list[tuple[str, ...]] = []
-    cur_l0: str | None = None
-    cur_l1: str | None = None
+
+    def is_stack_ancestor(
+        parent_key: tuple[str, ...], child_key: tuple[str, ...]
+    ) -> bool:
+        return (
+            len(parent_key) < len(child_key)
+            and child_key[: len(parent_key)] == parent_key
+        )
+
+    def descendant_style_for(group: GroupRow) -> str | None:
+        if group.level == 0:
+            return _PROJECT_BANNER_RULE_STYLE
+        if group.level == 1 and panel_uses_cs and len(group.group_key) == 2:
+            return _CHANGESPEC_BANNER_RULE_STYLE
+        if (
+            group.level == 1
+            and mode is GroupingMode.BY_DATE
+            and group.group_key[-1] != NO_HOUR_LABEL
+        ):
+            return _CHANGESPEC_BANNER_RULE_STYLE
+        if group.has_child_groups:
+            return _CHANGESPEC_BANNER_RULE_STYLE
+        return None
+
+    active: list[tuple[tuple[str, ...], str]] = []
     for entry in tree:
         if entry.kind == "group" and entry.group is not None:
             g = entry.group
-            if g.level == 0:
-                banner_styles.append(())
-                cur_l0 = _PROJECT_BANNER_RULE_STYLE
-                cur_l1 = None
-            elif g.level == 1 and panel_uses_cs and len(g.group_key) == 2:
-                banner_styles.append((cur_l0,) if cur_l0 is not None else ())
-                cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
-            elif (
-                g.level == 1
-                and mode is GroupingMode.BY_DATE
-                and g.group_key[-1] != NO_HOUR_LABEL
-            ):
-                banner_styles.append((cur_l0,) if cur_l0 is not None else ())
-                cur_l1 = _CHANGESPEC_BANNER_RULE_STYLE
-            elif g.level == 1 and mode is GroupingMode.BY_DATE:
-                banner_styles.append((cur_l0,) if cur_l0 is not None else ())
-                cur_l1 = None
-            else:
-                banner_styles.append(
-                    tuple(s for s in (cur_l0, cur_l1) if s is not None)
-                )
+            while active and not is_stack_ancestor(active[-1][0], g.group_key):
+                active.pop()
+            banner_styles.append(tuple(style for _, style in active))
+            descendant_style = descendant_style_for(g)
+            if descendant_style is not None:
+                active.append((g.group_key, descendant_style))
             continue
         if entry.agent_idx is not None:
-            agent_styles[entry.agent_idx] = tuple(
-                s for s in (cur_l0, cur_l1) if s is not None
-            )
+            agent_styles[entry.agent_idx] = tuple(style for _, style in active)
     return agent_styles, banner_styles
 
 

@@ -54,9 +54,10 @@ def format_banner_option(
 
     - STANDARD L0 (project): bold sky-blue ``▌`` bar + label, dim sky-blue
       heavy rule ``━`` and chip.
-    - STANDARD L1 (ChangeSpec, 3-level mode) and BY_DATE L1 subgroup
-      banners (1-hour ``HH:00``, calendar day, week range): cooler accent
-      + ``▎`` bar, light rule ``─``.
+    - STANDARD L1 (ChangeSpec, 3-level mode), BY_DATE L1 subgroup
+      banners (1-hour ``HH:00``, calendar day, week range), and
+      name-root banners that own dotted-name prefix subgroups: cooler
+      accent + ``▎`` bar, light rule ``─``.
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
@@ -82,6 +83,11 @@ def format_banner_option(
     is_changespec_banner = (
         group.level == 1 and panel_uses_changespec and len(group.group_key) == 2
     )
+    is_middle_tier_banner = (
+        is_changespec_banner
+        or (group.level == 1 and mode is GroupingMode.BY_DATE)
+        or (group.level > 0 and group.has_child_groups)
+    )
     if group.level == 0 and mode is GroupingMode.STANDARD:
         prefix = f"{_PROJECT_BAR_GLYPH} "
         rule_char = _PROJECT_RULE
@@ -100,7 +106,7 @@ def format_banner_option(
         prefix_style = _PROJECT_BANNER_BAR_STYLE
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
-    elif is_changespec_banner or (group.level == 1 and mode is GroupingMode.BY_DATE):
+    elif is_middle_tier_banner:
         prefix = f"{_CHANGESPEC_BAR_GLYPH} "
         rule_char = _CHANGESPEC_RULE
         prefix_style = _CHANGESPEC_BANNER_BAR_STYLE

@@ -153,6 +153,7 @@ def banner_render_key(
         group.group_key,
         group.level,
         bool(group.is_collapsed),
+        bool(group.has_child_groups),
         width,
         sequence,
         selectable,

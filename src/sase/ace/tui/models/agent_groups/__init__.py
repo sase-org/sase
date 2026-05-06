@@ -1,4 +1,4 @@
-"""Two- or three-level grouping tree for an Agents-tab panel.
+"""Grouping tree for an Agents-tab panel.
 
 Builds a flat sequence of banner + agent entries from a list of agents.
 Each panel decides independently between two layouts based on whether
@@ -8,6 +8,8 @@ any of its non-project-scoped agents targets a ChangeSpec
 * **2-level layout** (no ChangeSpec anywhere in the panel):
     1. **Project** — derived from ``Agent.project_file``.
     2. **Name root** — the part of the agent's name before the first ``.``.
+       When at least two agents under that root share text before the
+       second ``.``, an optional child **name prefix** subgroup is emitted.
 
 * **3-level layout** (at least one non-project agent has a ChangeSpec):
     1. **Project**
@@ -15,6 +17,13 @@ any of its non-project-scoped agents targets a ChangeSpec
        agents lacking one fall into a synthetic ``"(no ChangeSpec)"``
        bucket sorted last under their project.
     3. **Name root**
+       May contain optional child **name prefix** subgroups, producing a
+       fourth structural level.
+
+``BY_STATUS`` replaces the project level with a status bucket, then uses
+the same name-root and optional name-prefix levels. ``BY_DATE`` replaces
+the tree with date bucket → time subgroup and intentionally suppresses
+name-root/name-prefix grouping.
 
 Tag-level grouping is not part of this tree — tags drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
@@ -35,13 +44,13 @@ ChangeSpec bucket so they render directly under the ChangeSpec banner,
 before any name-root banner.  Within each group, members keep their
 original input order via a stable sort.
 
-Name-root banners are only emitted when the name-root group contains
-two or more entries; a singleton root renders its lone agent directly
-under the parent banner without an extra header.  In ``BY_DATE`` mode,
-the L1 subgroup banner uses 1-hour windows under Today/Yesterday,
-calendar days under This Week, and Monday-start weeks under Earlier;
-real labels always emit a banner, while the synthetic ``(no time)``
-label only emits when 2+ agents share it.
+Name-root and name-prefix banners are only emitted when the group
+contains two or more entries; singleton groups render their agents
+directly under the parent/root banner without an extra header.  In
+``BY_DATE`` mode, the L1 subgroup banner uses 1-hour windows under
+Today/Yesterday, calendar days under This Week, and Monday-start weeks
+under Earlier; real labels always emit a banner, while the synthetic
+``(no time)`` label only emits when 2+ agents share it.
 """
 
 from ._buckets import (

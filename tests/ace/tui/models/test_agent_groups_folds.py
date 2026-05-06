@@ -94,6 +94,52 @@ def test_collapsed_name_root_at_level_two_hides_only_its_agents() -> None:
     assert agent_indices == [2, 3]
 
 
+def test_collapsed_name_prefix_hides_only_its_agents() -> None:
+    """A collapsed prefix subgroup suppresses only that prefix's members."""
+    registry = AgentGroupFoldRegistry()
+    registry.collapse(("proj", "demo", "sase-24", "sase-24.2"))
+    entries = build_agent_tree(
+        [
+            _agent(
+                cl_name="demo",
+                project_file="/r/proj/proj.gp",
+                agent_name="sase-24.2",
+            ),
+            _agent(
+                cl_name="demo",
+                project_file="/r/proj/proj.gp",
+                agent_name="sase-24.1.1",
+            ),
+            _agent(
+                cl_name="demo",
+                project_file="/r/proj/proj.gp",
+                agent_name="sase-24.1.2",
+            ),
+            _agent(
+                cl_name="demo",
+                project_file="/r/proj/proj.gp",
+                agent_name="sase-24.2.1",
+            ),
+            _agent(
+                cl_name="demo",
+                project_file="/r/proj/proj.gp",
+                agent_name="sase-24.2.2",
+            ),
+        ],
+        fold_registry=registry,
+    )
+    collapsed = [
+        e.group  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group"
+        and e.group is not None
+        and e.group.group_key == ("proj", "demo", "sase-24", "sase-24.2")
+    ]
+    assert len(collapsed) == 1
+    assert collapsed[0].is_collapsed is True
+    assert [e.agent_idx for e in entries if e.kind == "agent"] == [0, 1, 2]
+
+
 def test_singleton_name_root_still_suppresses_banner_in_three_level_mode() -> None:
     registry = AgentGroupFoldRegistry()
     registry.collapse(("proj", "demo", "solo"))
@@ -167,6 +213,17 @@ def test_enumerate_group_keys_two_level_mode() -> None:
     assert ("proj", "coder") in keys
     # No ChangeSpec key since panel is in 2-level mode.
     assert all(len(k) <= 2 for k in keys)
+
+
+def test_enumerate_group_keys_includes_prefix_subgroups() -> None:
+    keys = enumerate_group_keys(
+        [
+            _agent(cl_name="demo", agent_name="sase-24.2.1", status="DONE"),
+            _agent(cl_name="demo", agent_name="sase-24.2.2", status="DONE"),
+        ]
+    )
+    assert ("repo", "demo", "sase-24") in keys
+    assert ("repo", "demo", "sase-24", "sase-24.2") in keys
 
 
 def test_enumerate_group_keys_per_panel_mode() -> None:

@@ -27,12 +27,14 @@ from ._keys import (
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
-    # 0 = project/date/status bucket; 1 = ChangeSpec/name-root/BY_DATE
-    # subgroup; 2 = name-root in STANDARD 3-level mode.
+    # 0 = project/date/status bucket. Deeper levels are structural
+    # descendants: ChangeSpec, BY_DATE subgroup, name-root, or dotted
+    # name-prefix subgroup depending on the active layout.
     level: int
     group_key: tuple[str, ...]
     agent_indices: tuple[int, ...]
     is_collapsed: bool = False
+    has_child_groups: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,9 +78,9 @@ def enumerate_group_keys(
 
     Partitions *agents* by panel key so each panel's mode (2- vs 3-level)
     is decided independently, mirroring :func:`build_agent_tree`.  The
-    name-root banner is only included when its group has 2+ entries;
-    BY_DATE subgroup keys mirror the visible banner predicate (synthetic
-    ``(no time)`` only emits with 2+ agents).
+    name-root and name-prefix banners are only included when their group
+    has 2+ entries; BY_DATE subgroup keys mirror the visible banner
+    predicate (synthetic ``(no time)`` only emits with 2+ agents).
     """
     if not agents:
         return []
@@ -107,6 +109,7 @@ def enumerate_group_keys(
             mode=mode,
         )
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
+        prefix_counts: dict[tuple[tuple[str, ...], str, str], int] = {}
         subgroup_counts: dict[tuple[str, str], int] = {}
         for k in keys_per_agent:
             parent: tuple[str, ...] = (
@@ -115,6 +118,10 @@ def enumerate_group_keys(
             if k.name_root:
                 root_counts[(parent, k.name_root)] = (
                     root_counts.get((parent, k.name_root), 0) + 1
+                )
+            if k.name_root and k.name_prefix:
+                prefix_counts[(parent, k.name_root, k.name_prefix)] = (
+                    prefix_counts.get((parent, k.name_root, k.name_prefix), 0) + 1
                 )
             if mode is GroupingMode.BY_DATE and k.date_subgroup:
                 subgroup_counts[(k.project, k.date_subgroup)] = (
@@ -147,6 +154,14 @@ def enumerate_group_keys(
                 if deep not in seen:
                     seen.add(deep)
                     out.append(deep)
+                if (
+                    k.name_prefix
+                    and prefix_counts.get((parent, k.name_root, k.name_prefix), 0) >= 2
+                ):
+                    prefix_key: GroupKey = (*parent, k.name_root, k.name_prefix)
+                    if prefix_key not in seen:
+                        seen.add(prefix_key)
+                        out.append(prefix_key)
     return out
 
 
@@ -170,7 +185,8 @@ def build_agent_tree(
             the bucket.  ``BY_DATE`` uses date-aware subgroup banners under
             the bucket (1-hour under Today/Yesterday, calendar day under
             This Week, Monday-start week under Earlier); ``BY_STATUS``
-            uses the name-root layer.
+            uses the name-root layer and optional dotted-name prefix
+            subgroups.
         now: Reference time for ``BY_DATE`` bucketing.  Defaults to
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
 
@@ -194,6 +210,7 @@ def build_agent_tree(
     cs_indices: dict[tuple[str, str], list[int]] = {}
     subgroup_indices: dict[tuple[str, str], list[int]] = {}
     root_indices: dict[tuple[tuple[str, ...], str], list[int]] = {}
+    prefix_indices: dict[tuple[tuple[str, ...], str, str], list[int]] = {}
     for i in walk:
         k = keys_per_agent[i]
         proj_indices.setdefault(k.project, []).append(i)
@@ -206,16 +223,28 @@ def build_agent_tree(
             subgroup_indices.setdefault((k.project, k.date_subgroup), []).append(i)
         if k.name_root:
             root_indices.setdefault((parent, k.name_root), []).append(i)
+        if k.name_root and k.name_prefix:
+            prefix_indices.setdefault((parent, k.name_root, k.name_prefix), []).append(
+                i
+            )
 
     entries: list[TreeEntry] = []
     cur_proj: str | None = None
     cur_cs: str | None = None  # only meaningful when use_cs
     cur_subgroup: str = ""  # only meaningful under BY_DATE
     cur_root: str = ""
+    cur_prefix: str = ""
     cur_proj_collapsed = False
     cur_cs_collapsed = False
     cur_subgroup_collapsed = False
     cur_root_collapsed = False
+    cur_prefix_collapsed = False
+
+    def root_has_prefix_groups(parent_key: tuple[str, ...], name_root: str) -> bool:
+        return any(
+            p_parent == parent_key and p_root == name_root and len(indices) >= 2
+            for (p_parent, p_root, _prefix), indices in prefix_indices.items()
+        )
 
     for i in walk:
         k = keys_per_agent[i]
@@ -230,6 +259,7 @@ def build_agent_tree(
                         group_key=l0_key,
                         agent_indices=tuple(proj_indices[k.project]),
                         is_collapsed=cur_proj_collapsed,
+                        has_child_groups=True,
                     ),
                 )
             )
@@ -237,9 +267,11 @@ def build_agent_tree(
             cur_cs = None
             cur_subgroup = ""
             cur_root = ""
+            cur_prefix = ""
             cur_cs_collapsed = False
             cur_subgroup_collapsed = False
             cur_root_collapsed = False
+            cur_prefix_collapsed = False
         if cur_proj_collapsed:
             continue
 
@@ -255,12 +287,15 @@ def build_agent_tree(
                             group_key=l1_key,
                             agent_indices=tuple(cs_indices[(k.project, k.changespec)]),
                             is_collapsed=cur_cs_collapsed,
+                            has_child_groups=True,
                         ),
                     )
                 )
                 cur_cs = k.changespec
                 cur_root = ""
+                cur_prefix = ""
                 cur_root_collapsed = False
+                cur_prefix_collapsed = False
             if cur_cs_collapsed:
                 continue
             parent_key: tuple[str, ...] = (k.project, k.changespec)
@@ -273,7 +308,9 @@ def build_agent_tree(
             cur_subgroup = k.date_subgroup
             cur_subgroup_collapsed = False
             cur_root = ""
+            cur_prefix = ""
             cur_root_collapsed = False
+            cur_prefix_collapsed = False
             subgroup_count = len(subgroup_indices.get((k.project, k.date_subgroup), []))
             if _should_emit_date_subgroup_banner(k.date_subgroup, subgroup_count):
                 subgroup_key: GroupKey = (k.project, k.date_subgroup)
@@ -288,6 +325,7 @@ def build_agent_tree(
                                 subgroup_indices[(k.project, k.date_subgroup)]
                             ),
                             is_collapsed=cur_subgroup_collapsed,
+                            has_child_groups=False,
                         ),
                     )
                 )
@@ -296,7 +334,9 @@ def build_agent_tree(
 
         if k.name_root != cur_root:
             cur_root = k.name_root
+            cur_prefix = ""
             cur_root_collapsed = False
+            cur_prefix_collapsed = False
             if k.name_root and len(root_indices[(parent_key, k.name_root)]) >= 2:
                 deep_key: GroupKey = (*parent_key, k.name_root)
                 cur_root_collapsed = registry.is_collapsed(deep_key)
@@ -310,10 +350,40 @@ def build_agent_tree(
                                 root_indices[(parent_key, k.name_root)]
                             ),
                             is_collapsed=cur_root_collapsed,
+                            has_child_groups=root_has_prefix_groups(
+                                parent_key, k.name_root
+                            ),
                         ),
                     )
                 )
         if cur_root_collapsed:
+            continue
+
+        if k.name_prefix != cur_prefix:
+            cur_prefix = k.name_prefix
+            cur_prefix_collapsed = False
+            if (
+                k.name_root
+                and k.name_prefix
+                and len(prefix_indices[(parent_key, k.name_root, k.name_prefix)]) >= 2
+            ):
+                prefix_key: GroupKey = (*parent_key, k.name_root, k.name_prefix)
+                cur_prefix_collapsed = registry.is_collapsed(prefix_key)
+                entries.append(
+                    TreeEntry(
+                        kind="group",
+                        group=GroupRow(
+                            level=deep_level + 1,
+                            group_key=prefix_key,
+                            agent_indices=tuple(
+                                prefix_indices[(parent_key, k.name_root, k.name_prefix)]
+                            ),
+                            is_collapsed=cur_prefix_collapsed,
+                            has_child_groups=False,
+                        ),
+                    )
+                )
+        if cur_prefix_collapsed:
             continue
         entries.append(TreeEntry(kind="agent", agent_idx=i))
 
@@ -361,8 +431,8 @@ def banner_label(group: GroupRow) -> str:
       bare name-root (always non-empty for a real banner).
     * Level 1, BY_DATE mode (2-tuple ``(date_bucket, subgroup)``) → the
       bare subgroup label (1-hour ``HH:00``, calendar day, or week range).
-    * Level 2 (3-tuple ``(project, changespec, name_root)``) → the bare
-      name-root suffix.
+    * Level 2+ dotted-name prefix or name-root descendants use their
+      bare suffix.
 
     All non-L0 banners use the ``group_key[-1]`` suffix as their label.
     """

@@ -147,6 +147,84 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
     ]
 
 
+def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> None:
+    """Shared dotted prefixes form subgroups under the existing name-root."""
+    direct = _agent(cl_name="x", agent_name="sase-24.2", status="DONE")
+    p1a = _agent(cl_name="x", agent_name="sase-24.1.1", status="DONE")
+    p1b = _agent(cl_name="x", agent_name="sase-24.1.2", status="DONE")
+    p2a = _agent(cl_name="x", agent_name="sase-24.2.1", status="DONE")
+    p2b = _agent(cl_name="x", agent_name="sase-24.2.2", status="DONE")
+    entries = build_agent_tree(
+        [p2b, direct, p1b, p2a, p1a], mode=GroupingMode.BY_STATUS, now=_NOW
+    )
+    groups = [
+        (e.group.level, e.group.group_key)  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None
+    ]
+    assert groups == [
+        (0, ("Done",)),
+        (1, ("Done", "sase-24")),
+        (2, ("Done", "sase-24", "sase-24.1")),
+        (2, ("Done", "sase-24", "sase-24.2")),
+    ]
+    # The one-period parent marker stays directly under the root group;
+    # it is not pulled into the same-prefix subgroup.
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 1),
+        ("group", 2),
+        ("agent", 2),
+        ("agent", 4),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 3),
+    ]
+
+
+def test_build_agent_tree_by_status_suppresses_singleton_prefix_groups() -> None:
+    a = _agent(cl_name="x", agent_name="sase-24.1.1", status="DONE")
+    b = _agent(cl_name="x", agent_name="sase-24.2.1", status="DONE")
+    entries = build_agent_tree([a, b], mode=GroupingMode.BY_STATUS, now=_NOW)
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 0),
+        ("agent", 1),
+    ]
+
+
+def test_build_agent_tree_by_status_workflow_child_inherits_parent_prefix() -> None:
+    parent = _agent(
+        cl_name="x",
+        agent_name="sase-24.2.1",
+        raw_suffix="ts-parent",
+        status="DONE",
+    )
+    child = _agent(
+        cl_name="x",
+        agent_name="step.bash",
+        parent_workflow="sase-24",
+        parent_timestamp="ts-parent",
+        status="RUNNING",
+    )
+    entries = build_agent_tree([parent, child], mode=GroupingMode.BY_STATUS, now=_NOW)
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 1),
+    ]
+    groups = [
+        e.group.group_key  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None
+    ]
+    assert ("Done", "sase-24", "sase-24.2") in groups
+
+
 def test_build_agent_tree_by_date_emits_no_name_root_banner() -> None:
     """Under BY_DATE the name-root banner is suppressed entirely.
 

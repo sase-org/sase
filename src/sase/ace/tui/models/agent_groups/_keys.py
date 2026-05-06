@@ -24,6 +24,7 @@ class _GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
+    name_prefix: str
     date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
     anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
 
@@ -44,6 +45,21 @@ def _name_root(agent: Agent) -> str:
     name = agent.display_name or ""
     if "." in name:
         return name.split(".", 1)[0]
+    return ""
+
+
+def _name_prefix(agent: Agent) -> str:
+    """Return the grouping prefix before the second period, if any."""
+    if agent.agent_name:
+        parts = agent.agent_name.split(".", 2)
+        if len(parts) >= 3:
+            return ".".join(parts[:2])
+        return ""
+
+    name = agent.display_name or ""
+    parts = name.split(".", 2)
+    if len(parts) >= 3:
+        return ".".join(parts[:2])
     return ""
 
 
@@ -117,16 +133,17 @@ def grouping_keys_for(
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
 ) -> _GroupingKeys:
-    """Compute (L0, changespec, name_root) for *agent* under *mode*.
+    """Compute (L0, changespec, name_root, name_prefix) for *agent*.
 
     Workflow children inherit grouping from their parent so a banner is
     never inserted between a parent and its workflow steps.  ``now`` is
     only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
     ``changespec`` is always empty in non-STANDARD modes since the
-    ChangeSpec level disappears from the hierarchy.  ``name_root`` is
-    additionally suppressed under ``BY_DATE`` — within a date bucket,
-    same-base-name agents are not a meaningful sub-unit, so the bucket
-    renders as a flat list sorted by ``start_time``.
+    ChangeSpec level disappears from the hierarchy.  ``name_root`` and
+    ``name_prefix`` are additionally suppressed under ``BY_DATE`` —
+    within a date bucket, same-base-name agents are not a meaningful
+    sub-unit, so the bucket renders as a flat list sorted by
+    ``start_time``.
     """
     target = agent
     if agent.is_workflow_child and agent.parent_timestamp:
@@ -143,6 +160,7 @@ def grouping_keys_for(
             else ""
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
+        name_prefix="" if mode is GroupingMode.BY_DATE else _name_prefix(target),
         date_subgroup=(
             date_subgroup_bucket_for(target, l0) if mode is GroupingMode.BY_DATE else ""
         ),
@@ -242,10 +260,15 @@ def walk_order(
         for k in keys_per_agent
     ]
     root_counts: dict[tuple[tuple[str, str], str], int] = {}
+    prefix_counts: dict[tuple[tuple[str, str], str, str], int] = {}
     for parent, k in zip(parent_keys, keys_per_agent, strict=True):
         if k.name_root:
             root_counts[(parent, k.name_root)] = (
                 root_counts.get((parent, k.name_root), 0) + 1
+            )
+        if k.name_root and k.name_prefix:
+            prefix_counts[(parent, k.name_root, k.name_prefix)] = (
+                prefix_counts.get((parent, k.name_root, k.name_prefix), 0) + 1
             )
     return sorted(
         range(len(keys_per_agent)),
@@ -265,6 +288,19 @@ def walk_order(
                 keys_per_agent[i].name_root,
                 in_group=bool(keys_per_agent[i].name_root)
                 and root_counts.get((parent_keys[i], keys_per_agent[i].name_root), 0)
+                >= 2,
+            ),
+            _name_root_sort_key(
+                keys_per_agent[i].name_prefix,
+                in_group=bool(keys_per_agent[i].name_prefix)
+                and prefix_counts.get(
+                    (
+                        parent_keys[i],
+                        keys_per_agent[i].name_root,
+                        keys_per_agent[i].name_prefix,
+                    ),
+                    0,
+                )
                 >= 2,
             ),
             anchors[i][0],

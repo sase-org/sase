@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 22:32:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_name_prefix_grouping.md
 ---
 # Plan: Agent Name Prefix Subgroups
