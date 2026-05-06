@@ -91,6 +91,41 @@ The constraints are not fatal, but they explain where a native app can create re
 
 Sources: [Telegram Bot API](https://core.telegram.org/bots/api), [Telegram FAQ](https://telegram.org/faq).
 
+## Concrete Telegram Limits Worth Naming
+
+Beyond the table, several specific Telegram numbers shape SASE behavior and should inform the "is Telegram enough?" question:
+
+- **Text message size: 4096 UTF-8 characters** per `sendMessage`. Long plans, diffs, and prompts must be split, paginated, or sent as documents — every split is a chance for MarkdownV2 escaping or fenced-block reflow to break.
+- **`callback_data`: 1-64 bytes** per inline button — already covered above; restated here because it is the single most distorting Telegram constraint on SASE's action design.
+- **Inline keyboards:** practical layout limits of roughly 8 buttons per row and a small number of rows before the keyboard becomes unusable on phones. SASE plan/HITL/question keyboards already feel that ceiling.
+- **Bot API file download: 20 MB** through the public Bot API (already in table). A self-hosted Bot API server can lift this to 2 GB but is operational work the SASE Telegram path avoids.
+- **Bot API send:** ~50 MB documents, ~10 MB photos via the public Bot API. Larger artifacts (long PDFs, big screenshots, log bundles) must be summarized, truncated, or shipped through a non-Telegram path.
+- **Rate limits:** ~30 messages/second to different users globally, ~1 message/second to the same chat, ~20 messages/minute to the same group. Wave-based epics where many phases finish near-simultaneously can hit per-chat limits and cause delivery skew.
+- **MarkdownV2 reserved characters:** `_*[]()~\`>#+-=|{}.!` all require exact escaping. Mistakes manifest as failed sends, not soft fallbacks.
+
+The combined effect: Telegram is fine for compact, structured, button-driven interactions; it is awkward for content-rich review (long plans, big diffs, dense logs) and for keyboards that have outgrown their button budget. The gateway can simply not have those limits.
+
+Sources: [Telegram Bot API limits](https://core.telegram.org/bots/api#sendmessage), [Telegram Bots FAQ rate limits](https://core.telegram.org/bots/faq#how-can-i-message-all-of-my-bot-39s-subscribers-at-once), [MarkdownV2 style](https://core.telegram.org/bots/api#markdownv2-style).
+
+## Telegram Reliability, Outages, and Jurisdiction
+
+The original analysis assumed Telegram is "always there." In practice, three failure modes affect SASE directly:
+
+- **Outages happen.** Telegram has had multi-hour partial outages and regional incidents over the years. Whenever SASE's only mobile path is Telegram, those outages stall HITL/plan/question loops and there is no in-band fallback.
+- **Government blocking is real.** Russia blocked Telegram 2018-2020; Iran, Pakistan, China, and Belarus have blocked or restricted it at various times. A SASE user traveling to or living in those jurisdictions loses Telegram entirely. A tailnet-mediated mobile app is more resilient: tailnet traffic uses ordinary internet routing or DERP relays and is not specifically targeted by Telegram blocks.
+- **Bot/account continuity risk.** If a Telegram account is suspended, banned, rate-limited at BotFather, or the bot token is revoked, the SASE bot becomes unreachable until restored.
+- **Server-side data residency.** Bot conversations are cloud chats stored in Telegram's infrastructure (DCs in Amsterdam, Miami, Singapore, depending on user). Bots cannot use Secret Chats, so messages are not E2E encrypted and Telegram operators can in principle read content. For SASE prompts, diffs, and paths, this is a real (if low-likelihood) confidentiality cost.
+
+Self-hosted gateway shifts the failure modes rather than removing them:
+
+- It depends on the workstation being on, the tailnet being healthy, and the phone having any network path. None is 100%.
+- A silent gateway crash can be worse than a noisy Telegram outage because the user has no chat history to confirm what was actually sent or handled.
+- Tailnet-only access means the gateway is unreachable from networks where Tailscale itself is blocked (some restrictive corporate or hotel networks).
+
+Practical implication: even after the app exists, Telegram or another always-on transport is worth keeping as a notification-only fallback for "your workstation or tailnet is down" alerting.
+
+Sources: [Telegram Privacy Policy](https://telegram.org/privacy), [Russia ends ban on Telegram (BBC, 2020)](https://www.bbc.com/news/technology-53077202), [Tailscale architecture](https://tailscale.com/kb/1151/what-is-tailscale).
+
 ## Native App Value Proposition
 
 ### 1. Private Host Control Plane
@@ -179,6 +214,20 @@ The host gateway is useful even if the Android app is not immediately a daily dr
 
 The gateway should be treated as the durable investment; Android is the first consumer.
 
+### 6. Mobile-Native Affordances Telegram Cannot Match
+
+Several phone-OS capabilities are unavailable or awkward inside a Telegram bot conversation:
+
+- **Biometric guard for high-impact actions.** Fingerprint or face unlock can confirm "kill all running agents", "force-merge", or "run coder on a dirty workspace". Telegram has no per-action biometric step.
+- **OS share sheet integration.** A user can share a stack trace, screenshot, photo, or URL from any app directly into "Launch SASE agent with this prompt", which is much smoother than copying into Telegram.
+- **Voice input.** Phone keyboards already dictate; a native UI can additionally record audio for a Whisper-style transcription pipeline if the gateway exposes it.
+- **Widgets, Quick Settings tiles, and Live Activities.** Android home-screen widgets and Quick Settings tiles can show pending action count and one-tap "answer top question". iOS Live Activities and Lock Screen widgets are the analog. Telegram has chat shortcuts but nothing SASE-shaped.
+- **Local Do Not Disturb integration.** Notifications respect device focus modes natively; Telegram has its own DND that can drift from system state.
+- **Per-device, per-action revocation.** A lost phone revokes one device token without affecting Telegram or other devices.
+- **OS-managed credential storage.** Android Keystore and iOS Keychain hold device keys; Telegram bot tokens currently live in user-readable config files.
+
+These features are also the ones most likely to make the user actively prefer the app over Telegram once both work.
+
 ## Native App Costs and Risks
 
 ### Background Delivery Is Harder Than Telegram
@@ -231,6 +280,39 @@ Minimum non-negotiables:
 
 The existing gateway docs already align with this. Do not weaken that architecture to chase convenience.
 
+### Connectivity Reality on Mobile Networks
+
+A subtle but important question the previous analysis under-emphasized: from where can the user actually reach the gateway?
+
+- **Loopback bind:** unreachable from any phone, ever.
+- **LAN bind:** reachable only when the phone is on the same WiFi as the workstation. Public WiFi, cellular, and most office/guest networks fail.
+- **Tailscale Serve over MagicDNS:** reachable from anywhere the phone has a network and Tailscale is running, including cellular. This is the realistic remote-access path.
+- **Tailscale Funnel:** publicly reachable but a broader-than-necessary attack surface for a personal control plane; SASE should not default to it.
+
+Practical consequences:
+
+- The gateway is not "always reachable like Telegram." It is reachable when the workstation, tailnet, and phone Tailscale agent are all healthy.
+- Tailscale on Android/iOS has measurable but acceptable battery cost (idle DERP keepalives), which is fine for users who already run Tailscale, but is a real install for users who do not.
+- During gateway unreachability the app should degrade gracefully: show stale state with timestamps, queue actions, retry on reconnect, and never present "this might have happened" as fact.
+- This is the strongest argument for a hybrid model: native app over tailnet for control-plane work, Telegram (or another always-on transport) as a notification-only fallback for "the workstation/tailnet is down" alerting.
+
+Sources: [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve), [Tailscale on mobile](https://tailscale.com/kb/1023/troubleshooting), [DERP relays](https://tailscale.com/kb/1232/derp-servers).
+
+### iOS-Specific Considerations
+
+The current MVP plan is Android-only, but several iOS realities should be named so the gateway design does not paint itself into a corner:
+
+- **APNs is not FCM.** Apple Push Notification service does not support reliable silent data-only wake-ups equivalent to FCM high-priority data messages. iOS background fetch is opportunistic and the OS can throttle it heavily.
+- **No UnifiedPush equivalent on iOS.** Independent open-source iOS apps cannot bypass APNs.
+- **TestFlight is the only side-loading-equivalent path.** Builds expire every 90 days and tester counts are bounded — awkward for a personal tool that should "just work".
+- **Apple Developer Program is $99/year** versus Google Play's one-time $25. Over three years iOS membership is roughly 12× the cost.
+- **App Review can be judgmental.** A "control plane for arbitrary code execution on the user's other device" can hit guideline ambiguity and require careful framing.
+- **Background networking is more constrained on iOS** than on Android. A persistent SSE channel is less viable; "push hint plus foreground fetch" is essentially mandatory.
+
+This makes a Telegram Mini App or a tailnet-served PWA disproportionately attractive for iOS even if Android gets a native client.
+
+Sources: [APNs overview](https://developer.apple.com/documentation/usernotifications), [Background tasks on iOS](https://developer.apple.com/documentation/backgroundtasks), [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), [TestFlight](https://developer.apple.com/testflight/).
+
 ## Telegram Mini App as an Intermediate Option
 
 Telegram Mini Apps are worth considering before over-investing in native UI. They are web apps launched inside Telegram,
@@ -253,6 +335,68 @@ Limitations:
 
 Source: [Telegram Mini Apps](https://core.telegram.org/bots/webapps).
 
+## Alternative Notification Transports
+
+The choice is not binary between "Telegram" and "custom native app." Several transports sit between those poles and may shift the value calculation:
+
+- **ntfy.sh (open source, self-hostable).** HTTP POST publishes a message; mobile apps subscribe to topics. Topic name is a shared secret; optional E2E encryption. Excellent for "notification only, no in-band actions"; trades simplicity for absent action UI.
+- **Gotify.** Self-hosted with an Android client (no first-party iOS); token-based. Similar profile to ntfy with a heavier server.
+- **UnifiedPush.** Distributor model, Android-focused; lets a SASE app receive push without Google Play Services. Useful for FCM-free distribution but not a Telegram replacement on its own.
+- **Matrix bot (Element / Beeper / Cinny).** Federated chat with E2E encryption available in private rooms and a real bot SDK. Better privacy story than Telegram, more setup cost.
+- **Signal.** No real public bot API. Not a viable SASE channel today.
+- **Discord/Slack webhooks.** Action UI is limited; team-chat aesthetic is wrong for a personal tool, but trivial to wire up as an additional channel.
+- **Email + IMAP push.** Universal, works on every device; reply-by-email is plausible for HITL but interaction round-trip is slow.
+- **Tasker / iOS Shortcuts + generic webhook.** Can build very custom flows on top of ntfy/Gotify/email for power users who do not want a SASE-specific app.
+
+For SASE specifically, a self-hosted ntfy.sh (or even public ntfy with per-user random topic names) is worth keeping in mind as a Telegram alternative for notification-only delivery. It pairs cleanly with the gateway: gateway emits a content-free push hint, the app or any other client fetches state from the gateway when the user opens it.
+
+Sources: [ntfy.sh](https://ntfy.sh/), [Gotify](https://gotify.net/), [UnifiedPush](https://unifiedpush.org/), [Matrix Bot SDK](https://github.com/turt2live/matrix-bot-sdk).
+
+## Onboarding and Setup Cost
+
+Setup friction is a hidden but decisive variable; it tends to dominate "do I keep using this?" for personal tools.
+
+| Path | First-time setup | Per-device add | Recovery if device lost |
+|---|---|---|---|
+| Telegram bot | BotFather to create bot, copy token. SASE: install plugin, paste token, message bot, capture chat ID, restart chops. | Sign in to Telegram on the new device. | Sign in elsewhere; revoke old session in Telegram. |
+| Native app + gateway | Install gateway, run `sase mobile gateway start`, install APK or Play app, scan pairing QR; optionally enable Tailscale on phone for cellular reach. | Re-pair from gateway, scan a fresh QR. | Revoke the device token from gateway; re-pair on replacement. |
+| Telegram Mini App | If the bot already exists, tap "Open App" in chat. Otherwise BotFather setup as above. | Sign in to Telegram on the new device. | Sign in elsewhere. |
+| ntfy.sh / Gotify | Install app, paste server URL or use public host, subscribe to a topic. SASE: configure HTTP push of notifications. | Repeat install + subscribe. | None; the topic name is the secret, so rotate it. |
+
+Telegram has the lowest per-device friction because it inherits Telegram's account model. Gateway-based paths are heavier on first setup but offer per-device tokens, which is meaningfully better for revocation and audit. Mini App is the lowest-friction non-Telegram-replacing UI upgrade.
+
+## Multi-Device and Offline Semantics
+
+Telegram solves a problem for SASE almost incidentally: multi-device read-state sync, offline queueing, and reconnection semantics. The mobile gateway must reproduce this explicitly:
+
+- **Read state across devices.** When the user dismisses a question on the phone, the TUI and any other paired device must reflect that. The gateway needs an authoritative server-side notion of "handled" with per-device dismissal and timestamps.
+- **Stale-action detection in real multi-client use.** A pending action can be handled by Telegram, the TUI, or another phone. The existing gateway design has stale-action types; they must be exercised in real multi-client traffic, not left as a single-client assumption.
+- **Offline action queuing.** The app must queue user actions while disconnected and replay them with idempotency keys. Replaying "kill agent X" twice should be safe.
+- **Event replay on reconnect.** SSE drops happen. The app should track the last-seen event ID and request a replay window from the gateway, not silently re-fetch everything (which masks gaps).
+- **Push catch-up.** A push that arrives while the app is offline should still be reconciled when the app next opens, not lost.
+
+These semantics are not glamorous and are not where mobile dev attention naturally flows, but they are the difference between "feels like Telegram" and "feels broken."
+
+## Prior Art: Mobile Companion Apps
+
+Several existing products almost exactly match the SASE gateway-plus-mobile shape and are worth treating as design references:
+
+- **Home Assistant Companion.** Self-hosted Home Assistant server on the user's network plus iOS/Android companion apps that pair via QR or URL, talk over LAN or Nabu Casa cloud relay, and use FCM/APNs for hint-style push. The action surface is a structured dashboard. SASE's gateway+app shape is essentially the same architecture.
+- **Tailscale mobile.** The mobile app's primary job is to manage and join a tailnet. The SASE app naturally inherits its pairing-via-QR + per-device key + revocation pattern.
+- **GitHub Mobile.** Pure cloud-backed, but a strong UX reference for "approve/review/comment from the phone." Notification inbox, PR detail, review-and-merge flow are directly relevant to plan/HITL UI.
+- **Linear, Sentry, Vercel mobile apps.** Same dashboard-and-action archetype, generally well-received by power users for triage, weak for deep work.
+- **Codespaces and Replit mobile.** Closer to SASE's "real work happens elsewhere; the phone is a thin viewer" model. Both struggle with the gap between phone-friendly tasks and full sessions, which is precisely the constraint SASE should plan for.
+
+Lessons from prior art that should be load-bearing for SASE:
+
+- Pair via QR; never assume LAN-only is sufficient.
+- Treat push as hint-only; fetch on open.
+- Build the inbox/triage surface first; full-session UX is rarely the right phone target.
+- Multi-device read-state sync is a feature, not a polish item.
+- A cloud relay (Nabu Casa for HA, tailnet for SASE) is what makes the app actually usable on cellular.
+
+Sources: [Home Assistant Companion architecture](https://companion.home-assistant.io/docs/getting_started/), [Tailscale on mobile](https://tailscale.com/kb/1023/troubleshooting), [GitHub Mobile](https://github.com/mobile).
+
 ## Decision Framework
 
 Build or continue the native app if at least three of these are true:
@@ -262,7 +406,9 @@ Build or continue the native app if at least three of these are true:
 - You need a dashboard/inbox more than a chat notification stream.
 - You expect mobile launch/agent management to become a daily workflow, not occasional emergency control.
 - You want the host gateway API as a strategic platform for web/editor/desktop clients.
-- You are willing to maintain mobile release, auth, connectivity, and background-delivery code.
+- You will already have Tailscale (or equivalent) installed on your phone, so cellular reach is realistic.
+- You want mobile-native affordances (biometric guard, share-sheet launch, widgets) that Telegram cannot provide.
+- You are willing to maintain mobile release, auth, connectivity, multi-device sync, and background-delivery code.
 
 Prefer improving Telegram if most of these are true:
 
@@ -277,6 +423,13 @@ Use a Telegram Mini App or lightweight web dashboard if:
 - You want to test dashboard UX before committing to native.
 - You can accept Telegram as the shell for another quarter.
 - You want one UI implementation that can also become a standalone web client later.
+- iOS support matters and you are not ready to pay the App Store and APNs cost.
+
+Consider an additional non-Telegram notification transport (ntfy.sh, Gotify, UnifiedPush, or email) if:
+
+- You want privacy-preserving notifications without committing to a full native app yet.
+- You need a fallback alert path for "the workstation or tailnet is down" that does not depend on Telegram.
+- You want to decouple "where notifications arrive" from "what UI handles them" so the app, TUI, and Telegram can each consume the same gateway state.
 
 ## Suggested Path
 
@@ -287,8 +440,14 @@ Use a Telegram Mini App or lightweight web dashboard if:
    notification inbox, open detail, and complete plan/HITL/question actions.
 4. **Add the agent dashboard before push.** Agent list/kill/retry/resume/launch is the clearest "better than Telegram"
    app surface.
-5. **Use push hints later.** FCM or UnifiedPush should wake/open the app, not carry SASE content.
-6. **Reassess after two weeks of personal use.** If you still approve from Telegram and rarely open the app dashboard,
+5. **Use push hints later.** FCM or UnifiedPush should wake/open the app, not carry SASE content. Treat ntfy.sh as a
+   credible alternative if you want to avoid Google Play Services entirely.
+6. **Validate cellular reach early.** Test the gateway from cellular over Tailscale Serve before committing to push
+   work. If tailnet reach is unreliable in your daily environment, the app's value drops sharply and the project plan
+   should react before push effort lands.
+7. **Plan multi-device read-state sync from the start.** Even a single user runs the TUI plus Telegram plus the app;
+   "handled" must be authoritative on the gateway, not per-client.
+8. **Reassess after two weeks of personal use.** If you still approve from Telegram and rarely open the app dashboard,
    the app should pause and the gateway/web/Mini-App path should get priority.
 
 ## Bottom Line
