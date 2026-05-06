@@ -25,6 +25,7 @@ class _GroupingKeys:
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
     name_prefix: str
+    name_prefix_member_rank: int = 1  # exact prefix marker before descendants
     date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
     anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
 
@@ -49,18 +50,27 @@ def _name_root(agent: Agent) -> str:
 
 
 def _name_prefix(agent: Agent) -> str:
-    """Return the grouping prefix before the second period, if any."""
+    """Return the first two name segments when the grouping name is dotted."""
     if agent.agent_name:
         parts = agent.agent_name.split(".", 2)
-        if len(parts) >= 3:
+        if len(parts) >= 2:
             return ".".join(parts[:2])
         return ""
 
     name = agent.display_name or ""
     parts = name.split(".", 2)
-    if len(parts) >= 3:
+    if len(parts) >= 2:
         return ".".join(parts[:2])
     return ""
+
+
+def _name_prefix_member_rank(agent: Agent) -> int:
+    """Sort exact parent-marker names before their dotted descendants."""
+    name = agent.agent_name or agent.display_name or ""
+    prefix = _name_prefix(agent)
+    if prefix and name == prefix:
+        return 0
+    return 1
 
 
 def _changespec_name_for_grouping(agent: Agent) -> str:
@@ -161,6 +171,9 @@ def grouping_keys_for(
         ),
         name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
         name_prefix="" if mode is GroupingMode.BY_DATE else _name_prefix(target),
+        name_prefix_member_rank=(
+            1 if mode is GroupingMode.BY_DATE else _name_prefix_member_rank(target)
+        ),
         date_subgroup=(
             date_subgroup_bucket_for(target, l0) if mode is GroupingMode.BY_DATE else ""
         ),
@@ -302,6 +315,20 @@ def walk_order(
                     0,
                 )
                 >= 2,
+            ),
+            (
+                keys_per_agent[i].name_prefix_member_rank
+                if keys_per_agent[i].name_prefix
+                and prefix_counts.get(
+                    (
+                        parent_keys[i],
+                        keys_per_agent[i].name_root,
+                        keys_per_agent[i].name_prefix,
+                    ),
+                    0,
+                )
+                >= 2
+                else 0
             ),
             anchors[i][0],
             anchors[i][1],

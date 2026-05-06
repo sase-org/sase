@@ -137,7 +137,7 @@ def test_collapsed_name_prefix_hides_only_its_agents() -> None:
     ]
     assert len(collapsed) == 1
     assert collapsed[0].is_collapsed is True
-    assert [e.agent_idx for e in entries if e.kind == "agent"] == [0, 1, 2]
+    assert [e.agent_idx for e in entries if e.kind == "agent"] == [1, 2]
 
 
 def test_singleton_name_root_still_suppresses_banner_in_three_level_mode() -> None:
@@ -224,6 +224,17 @@ def test_enumerate_group_keys_includes_prefix_subgroups() -> None:
     )
     assert ("repo", "demo", "sase-24") in keys
     assert ("repo", "demo", "sase-24", "sase-24.2") in keys
+
+
+def test_enumerate_group_keys_includes_direct_plus_child_prefix_group() -> None:
+    keys = enumerate_group_keys(
+        [
+            _agent(cl_name="demo", agent_name="foo.bar", status="DONE"),
+            _agent(cl_name="demo", agent_name="foo.bar.1", status="DONE"),
+        ]
+    )
+    assert ("repo", "demo", "foo") in keys
+    assert ("repo", "demo", "foo", "foo.bar") in keys
 
 
 def test_enumerate_group_keys_per_panel_mode() -> None:

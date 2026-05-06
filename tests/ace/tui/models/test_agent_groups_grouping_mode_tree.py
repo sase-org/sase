@@ -168,18 +168,58 @@ def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> No
         (2, ("Done", "sase-24", "sase-24.1")),
         (2, ("Done", "sase-24", "sase-24.2")),
     ]
-    # The one-period parent marker stays directly under the root group;
-    # it is not pulled into the same-prefix subgroup.
+    # The exact parent marker participates in its same-prefix subgroup
+    # and sorts before dotted descendants there.
     assert _kinds(entries) == [
         ("group", 0),
         ("group", 1),
-        ("agent", 1),
         ("group", 2),
         ("agent", 2),
         ("agent", 4),
         ("group", 2),
+        ("agent", 1),
         ("agent", 0),
         ("agent", 3),
+    ]
+
+
+def test_build_agent_tree_by_status_groups_parent_marker_with_children() -> None:
+    direct = _agent(cl_name="x", agent_name="sase-24.3", status="DONE")
+    child_a = _agent(cl_name="x", agent_name="sase-24.3.1", status="DONE")
+    child_b = _agent(cl_name="x", agent_name="sase-24.3.2", status="DONE")
+    entries = build_agent_tree(
+        [child_a, direct, child_b], mode=GroupingMode.BY_STATUS, now=_NOW
+    )
+    groups = [
+        (e.group.level, e.group.group_key)  # type: ignore[union-attr]
+        for e in entries
+        if e.kind == "group" and e.group is not None
+    ]
+    assert groups == [
+        (0, ("Done",)),
+        (1, ("Done", "sase-24")),
+        (2, ("Done", "sase-24", "sase-24.3")),
+    ]
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 1),
+        ("agent", 0),
+        ("agent", 2),
+    ]
+
+
+def test_build_agent_tree_by_status_direct_plus_one_child_emits_prefix_group() -> None:
+    direct = _agent(cl_name="x", agent_name="foo.bar", status="DONE")
+    child = _agent(cl_name="x", agent_name="foo.bar.1", status="DONE")
+    entries = build_agent_tree([child, direct], mode=GroupingMode.BY_STATUS, now=_NOW)
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 1),
+        ("agent", 0),
     ]
 
 

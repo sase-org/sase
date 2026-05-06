@@ -8,8 +8,10 @@ any of its non-project-scoped agents targets a ChangeSpec
 * **2-level layout** (no ChangeSpec anywhere in the panel):
     1. **Project** — derived from ``Agent.project_file``.
     2. **Name root** — the part of the agent's name before the first ``.``.
-       When at least two agents under that root share text before the
-       second ``.``, an optional child **name prefix** subgroup is emitted.
+       When at least two agents under that root share the first two dotted
+       name segments, an optional child **name prefix** subgroup is emitted.
+       An exact two-segment parent marker such as ``foo.bar`` participates
+       in the same prefix subgroup as descendants such as ``foo.bar.1``.
 
 * **3-level layout** (at least one non-project agent has a ChangeSpec):
     1. **Project**

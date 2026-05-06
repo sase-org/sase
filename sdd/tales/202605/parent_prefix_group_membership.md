@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 22:51:00
-status: wip
+status: done
 prompt: sdd/prompts/202605/parent_prefix_group_membership.md
 ---
 # Plan: Include Parent Marker Agents In Their Prefix Group

@@ -88,6 +88,7 @@ def test_workflow_child_inherits_parent_grouping() -> None:
         ("group", 0),
         ("group", 1),
         ("group", 2),
+        ("group", 3),
         ("agent", 0),
         ("agent", 1),
     ]
@@ -213,7 +214,13 @@ def test_project_scoped_workflow_child_does_not_force_changespec_level() -> None
         parent_timestamp="ts1",
     )
     entries = build_agent_tree([parent, child])
-    assert _kinds(entries) == [("group", 0), ("group", 1), ("agent", 0), ("agent", 1)]
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("group", 2),
+        ("agent", 0),
+        ("agent", 1),
+    ]
     assert _group_keys(entries, level=1) == [("home", "coder")]
 
 
