@@ -23,7 +23,6 @@ from ._agent_list_styling import (
     _APPROVE_ICON,
     _BEAD_GLYPH,
     _BEAD_GLYPH_STYLE,
-    _BEAD_TEXT_STYLE,
     _CHILD_INDENT,
     _HIDDEN_ICON,
     _STEP_TYPE_COLORS,
@@ -225,7 +224,6 @@ def format_agent_option(
     if bead_id:
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
-        text.append(f" {bead_id}", style=_BEAD_TEXT_STYLE)
 
     # User-managed tag badge.
     if agent.tag:

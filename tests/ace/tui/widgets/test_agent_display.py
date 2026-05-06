@@ -485,28 +485,28 @@ class TestAgentListBeadBadge:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ sase-x.3 @sase-x.3" in left.plain
+        assert " ◆ @sase-x.3" in left.plain
 
     def test_land_agent_row_renders_epic_bead_badge(self) -> None:
         agent = _make_agent(agent_name="sase-x.land")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ sase-x @sase-x.land" in left.plain
+        assert " ◆ @sase-x.land" in left.plain
 
     def test_exact_land_agent_row_renders_epic_bead_badge(self) -> None:
         agent = _make_agent(agent_name="sase-x")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ sase-x @sase-x" in left.plain
+        assert " ◆ @sase-x" in left.plain
 
     def test_dismissed_phase_agent_row_renders_underlying_bead_badge(self) -> None:
         agent = _make_agent(agent_name="260428.sase-x.3")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert " ◆ sase-x.3 @260428.sase-x.3" in left.plain
+        assert " ◆ @260428.sase-x.3" in left.plain
 
     def test_ordinary_agent_row_omits_bead_badge(self) -> None:
         agent = _make_agent(agent_name="reviewer")
@@ -522,7 +522,7 @@ class TestAgentListBeadBadge:
             agent, 0, is_selected=False, fold_annotation="×3"
         )
 
-        assert "(RUNNING)×3 ◆ sase-x.3 @pinned @sase-x.3" in left.plain
+        assert "(RUNNING)×3 ◆ @pinned @sase-x.3" in left.plain
 
 
 class TestAwareWaitUntilRendering:
