@@ -3,6 +3,7 @@ create_time: 2026-05-06 12:59:31
 status: done
 prompt: sdd/prompts/202605/mobile_gateway_notification_state_routes.md
 ---
+
 # Plan: Complete Mobile Gateway Notification State Routes
 
 ## Context

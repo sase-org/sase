@@ -65,7 +65,7 @@ def test_mobile_bridge_filters_orders_and_preserves_counts() -> None:
     ]
 
     with patch(
-        "sase.integrations.mobile_notifications.read_notification_snapshot",
+        "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
         return_value=_snapshot(rows),
     ) as read_snapshot:
         snapshot = read_mobile_notification_snapshot(unread_only=True, limit=1)
@@ -95,7 +95,7 @@ def test_mobile_bridge_keeps_raw_host_paths_and_safe_display_paths(
     ]
 
     with patch(
-        "sase.integrations.mobile_notifications.read_notification_snapshot",
+        "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
         return_value=_snapshot(rows),
     ):
         detail = resolve_mobile_notification_detail("detail")
@@ -241,7 +241,7 @@ def test_execute_mobile_plan_action_writes_response_and_side_effects(
 
     with (
         patch(
-            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
             return_value=_snapshot([row]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -298,7 +298,7 @@ def test_execute_mobile_plan_action_rejects_duplicate_response(
 
     with (
         patch(
-            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
             return_value=_snapshot([row]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -332,7 +332,7 @@ def test_execute_mobile_hitl_action_writes_response_and_dismisses(
 
     with (
         patch(
-            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
             return_value=_snapshot([row]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -389,7 +389,7 @@ def test_execute_mobile_question_action_writes_option_response(
 
     with (
         patch(
-            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
             return_value=_snapshot([row]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
@@ -440,7 +440,7 @@ def test_execute_mobile_question_action_rejects_invalid_option_without_write(
 
     with (
         patch(
-            "sase.integrations.mobile_notifications.read_notification_snapshot",
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
             return_value=_snapshot([row]),
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
