@@ -14,6 +14,13 @@ _ACTIVE_PARENT_STATUSES = {
 }
 
 
+def should_display_runtime_suffix(agent: "Agent") -> bool:
+    """Return True when an Agents-tab row should show a runtime suffix."""
+    if not agent.is_workflow_child:
+        return True
+    return agent.step_type == "agent"
+
+
 def wait_until_target_and_reference(
     iso_str: str, now: datetime | None = None
 ) -> tuple[datetime, datetime]:
@@ -99,6 +106,8 @@ def compute_row_runtime(
     Elapsed uses ``run_start_time`` when set so a long WAIT period doesn't
     inflate what reads as runtime; falls back to ``start_time``.
     """
+    if not should_display_runtime_suffix(agent):
+        return (None, None)
     if agent.start_time is None:
         return (None, None)
     effective_start = agent.run_start_time or agent.start_time
@@ -124,6 +133,8 @@ def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
         return False
     _seen.add(agent_id)
 
+    if not should_display_runtime_suffix(agent):
+        return False
     if agent.start_time is None or agent.stop_time is not None:
         return False
     if agent.status in ("RUNNING", "RETRYING"):

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 03:42:44
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_tab_non_agent_step_runtimes.md
 ---
 # Plan: Hide Agents-Tab Runtimes For Non-Agent Workflow Steps

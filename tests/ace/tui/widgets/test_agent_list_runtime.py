@@ -42,6 +42,32 @@ def _agent(
     )
 
 
+def _workflow_child(
+    *,
+    step_type: str,
+    status: str = "RUNNING",
+    start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
+    run_start: datetime | None = None,
+    stop: datetime | None = None,
+    raw_suffix: str = "20260425143000",
+    cl_name: str | None = None,
+) -> Agent:
+    agent = _agent(
+        agent_type=AgentType.WORKFLOW,
+        status=status,
+        start=start,
+        run_start=run_start,
+        stop=stop,
+        raw_suffix=raw_suffix,
+        cl_name=cl_name or f"{step_type}-step",
+    )
+    agent.parent_workflow = "demo-workflow"
+    agent.parent_timestamp = "20260425140000"
+    agent.step_name = agent.cl_name
+    agent.step_type = step_type
+    return agent
+
+
 class _Harness(App):
     """Mount a single AgentList for row-patching tests."""
 
@@ -135,6 +161,29 @@ def test_compute_row_runtime_pure_waiting_returns_nones() -> None:
     assert elapsed is None
 
 
+def test_compute_row_runtime_workflow_agent_step_returns_elapsed() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(
+        _workflow_child(step_type="agent", start=start), now=now
+    )
+    assert ts is None
+    assert elapsed == "2m05s"
+
+
+@pytest.mark.parametrize("step_type", ["python", "bash"])
+def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
+    step_type: str,
+) -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(
+        _workflow_child(step_type=step_type, start=start), now=now
+    )
+    assert ts is None
+    assert elapsed is None
+
+
 # --- runtime_suffix_ticks ----------------------------------------------------
 
 
@@ -160,6 +209,19 @@ def test_runtime_suffix_ticks_stopped_parent_with_active_followup_is_stable() ->
     parent.followup_agents.append(child)
 
     assert runtime_suffix_ticks(parent) is False
+
+
+def test_runtime_suffix_ticks_workflow_child_agent_step_ticks() -> None:
+    agent = _workflow_child(step_type="agent", status="RUNNING")
+    assert runtime_suffix_ticks(agent) is True
+
+
+@pytest.mark.parametrize("step_type", ["python", "bash"])
+def test_runtime_suffix_ticks_non_agent_workflow_child_does_not_tick(
+    step_type: str,
+) -> None:
+    agent = _workflow_child(step_type=step_type, status="RUNNING")
+    assert runtime_suffix_ticks(agent) is False
 
 
 # --- row rendering / batch alignment ----------------------------------------
@@ -213,6 +275,18 @@ def test_format_agent_option_pure_waiting_has_empty_suffix() -> None:
         0,
         is_selected=False,
         now=datetime.now(),
+    )
+    assert suffix.plain == ""
+
+
+def test_format_agent_option_non_agent_workflow_child_has_empty_suffix() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    stop = datetime(2026, 4, 25, 14, 1, 30)
+    _, suffix, _ = format_agent_option(
+        _workflow_child(step_type="python", status="DONE", start=start, stop=stop),
+        0,
+        is_selected=False,
+        now=datetime(2026, 4, 25, 14, 2, 0),
     )
     assert suffix.plain == ""
 
