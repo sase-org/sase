@@ -52,11 +52,29 @@ class AgentPanelsMixin:
             return None
         return None
 
+    def _focus_panel_navigation_stop(
+        self, stop: tuple[str, int | tuple[str, ...]]
+    ) -> None:
+        """Move focus to a selectable row in the current panel."""
+        kind, payload = stop
+        if kind == "banner":
+            assert isinstance(payload, tuple)
+            self._current_group_key = payload  # type: ignore[attr-defined]
+            anchor_idx = self._first_agent_idx_for_focused_group(payload)
+            if anchor_idx is not None:
+                self.current_idx = anchor_idx  # type: ignore[attr-defined]
+            return
+
+        assert isinstance(payload, int)
+        self._current_group_key = None  # type: ignore[attr-defined]
+        self.current_idx = payload  # type: ignore[attr-defined]
+
     def _change_focused_agent_panel(self, *, forward: bool) -> None:
         """Cycle focus between tag-driven side panels with wrap.
 
-        Snaps focus to the first selectable row in the new panel's
-        rendered order.  No-ops when only one panel exists.
+        Next-panel focus lands on the first selectable row in the new
+        panel's rendered order; previous-panel focus lands on the last.
+        No-ops when only one panel exists.
         """
         if self.current_tab != "agents":
             return
@@ -70,17 +88,7 @@ class AgentPanelsMixin:
         self.current_attempt_number = None  # type: ignore[attr-defined]
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if stops:
-            kind, payload = stops[0]
-            if kind == "banner":
-                assert isinstance(payload, tuple)
-                self._current_group_key = payload  # type: ignore[attr-defined]
-                anchor_idx = self._first_agent_idx_for_focused_group(payload)
-                if anchor_idx is not None:
-                    self.current_idx = anchor_idx  # type: ignore[attr-defined]
-            else:
-                assert isinstance(payload, int)
-                self._current_group_key = None  # type: ignore[attr-defined]
-                self.current_idx = payload  # type: ignore[attr-defined]
+            self._focus_panel_navigation_stop(stops[0] if forward else stops[-1])
         else:
             self._current_group_key = None  # type: ignore[attr-defined]
             keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]

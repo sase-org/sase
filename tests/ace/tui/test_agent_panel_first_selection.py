@@ -79,7 +79,7 @@ def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
     assert app.refresh_calls == [True]
 
 
-def test_focus_prev_agent_panel_selects_first_rendered_agent_not_first_raw() -> None:
+def test_focus_prev_agent_panel_selects_last_rendered_agent_not_last_raw() -> None:
     agents = [
         _agent(tag=None, project="home", cl="home", name="untagged"),
         _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
@@ -93,8 +93,8 @@ def test_focus_prev_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
     app.action_focus_prev_agent_panel()
 
     assert app._panel_group.focused_key == "alpha"
-    assert app.current_idx == 2
-    assert app._agents[app.current_idx].agent_name == "render-first"
+    assert app.current_idx == 1
+    assert app._agents[app.current_idx].agent_name == "raw-first"
     assert app._current_group_key is None
     assert app.current_attempt_number is None
 
@@ -114,5 +114,26 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     assert app._panel_group.focused_key == "alpha"
     assert app._current_group_key == ("alpha",)
     assert app.current_idx == 2
+    assert app._agents[app.current_idx].agent_name == "banner-agent"
+    assert app.current_attempt_number is None
+
+
+def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
+    agents = [
+        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tag="alpha", project="zeta", cl="z", name="banner-agent"),
+        _agent(tag="alpha", project="alpha", cl="a", name="render-first"),
+        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tag="beta", project="omega", cl="o", name="other-panel"),
+    ]
+    app = _StubApp(agents, focused_key="beta")
+    app.current_idx = 4
+    app._group_fold_registry.collapse(("zeta",))
+
+    app.action_focus_prev_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app._current_group_key == ("zeta",)
+    assert app.current_idx == 1
     assert app._agents[app.current_idx].agent_name == "banner-agent"
     assert app.current_attempt_number is None
