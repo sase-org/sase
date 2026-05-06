@@ -41,6 +41,7 @@ read_chat_install_status
 resolve_primary_workspace_for_chat_install
 run_worker
 start_chat_install_worker
+mobile_device_project_context_path
 show
 ready
 blocked

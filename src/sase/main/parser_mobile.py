@@ -63,6 +63,14 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
     helper_bridge_subparsers.add_parser(
+        "beads-list",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
+        "beads-show",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
         "update-start",
         help=argparse.SUPPRESS,
     )

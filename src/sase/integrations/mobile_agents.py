@@ -1036,6 +1036,11 @@ def _device_project_context_path(device_id: str) -> Path:
     )
 
 
+def mobile_device_project_context_path(device_id: str) -> Path:
+    """Return the durable project-context path for a paired mobile device."""
+    return _device_project_context_path(device_id)
+
+
 def _resolve_mobile_retry_context(name: str) -> dict[str, Any]:
     live_agent = _find_mobile_agent_summary(name)
     if live_agent is not None:

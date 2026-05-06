@@ -4,10 +4,13 @@ import argparse
 import io
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
 from sase.ace.changespec import ChangeSpec
+from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.project import BeadProject
 from sase.integrations.chat_install import (
     ChatInstallLaunchResult,
     ChatInstallStatusResult,
@@ -308,6 +311,164 @@ def test_xprompt_catalog_bridge_rejects_invalid_include_pdf() -> None:
     assert "include_pdf must be a boolean" in stderr
 
 
+def test_beads_list_bridge_lists_known_project_beads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_root = tmp_path / "workspaces" / "alpha"
+    beta_root = tmp_path / "workspaces" / "beta"
+    alpha_dir, alpha_epic, alpha_phase, alpha_closed = _seed_bead_project(alpha_root)
+    beta_dir, beta_epic, _, _ = _seed_bead_project(beta_root)
+    _seed_known_projects(tmp_path, {"alpha": alpha_dir, "beta": beta_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = _run_bridge({"schema_version": 1}, "beads-list")
+
+    assert code == 0
+    assert stderr == ""
+    assert data["context"] == {"project": None, "scope": "all_known"}
+    assert data["result"]["status"] == "success"  # type: ignore[index]
+    ids = {row["id"] for row in data["beads"]}  # type: ignore[index]
+    assert alpha_epic.id in ids
+    assert alpha_phase.id in ids
+    assert beta_epic.id in ids
+    assert alpha_closed.id not in ids
+    alpha_summary = next(
+        row
+        for row in data["beads"]  # type: ignore[index]
+        if row["id"] == alpha_epic.id
+    )
+    assert alpha_summary["project"] == "alpha"
+    assert alpha_summary["bead_type"] == "plan"
+    assert alpha_summary["tier"] == "epic"
+    assert alpha_summary["child_count"] == 1
+    assert alpha_summary["block_count"] == 1
+    assert alpha_summary["plan_path_display"] == "plans/alpha.md"
+    assert alpha_summary["changespec_name"] == "alpha_changespec"
+
+
+def test_beads_list_bridge_filters_explicit_project_status_type_and_tier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, alpha_epic, _, _ = _seed_bead_project(tmp_path / "alpha")
+    beta_dir, _, _, _ = _seed_bead_project(tmp_path / "beta")
+    _seed_known_projects(tmp_path, {"alpha": alpha_dir, "beta": beta_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = _run_bridge(
+        {
+            "schema_version": 1,
+            "project": "alpha",
+            "status": "in_progress",
+            "bead_type": "plan",
+            "tier": "epic",
+        },
+        "beads-list",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["context"] == {"project": "alpha", "scope": "explicit"}
+    assert [row["id"] for row in data["beads"]] == [alpha_epic.id]  # type: ignore[index]
+
+
+def test_beads_list_bridge_uses_remembered_device_project_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, alpha_epic, _, _ = _seed_bead_project(tmp_path / "alpha")
+    beta_dir, _, _, _ = _seed_bead_project(tmp_path / "beta")
+    _seed_known_projects(tmp_path, {"alpha": alpha_dir, "beta": beta_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    context_dir = tmp_path / ".sase/mobile_gateway/device_project_contexts"
+    context_dir.mkdir(parents=True)
+    (context_dir / "dev-123.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "device_id": "dev-123",
+                "project_context": {
+                    "context_id": "project:alpha",
+                    "mode": "project",
+                    "project": "alpha",
+                    "project_file": str(tmp_path / ".sase/projects/alpha/alpha.gp"),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    code, data, stderr = _run_bridge(
+        {"schema_version": 1, "device_id": "dev-123"}, "beads-list"
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["context"] == {"project": "alpha", "scope": "device_default"}
+    assert {
+        row["id"]
+        for row in data["beads"]  # type: ignore[index]
+    } == {alpha_epic.id, f"{alpha_epic.id}.1"}
+
+
+def test_beads_show_bridge_returns_detail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, alpha_epic, alpha_phase, _ = _seed_bead_project(tmp_path / "alpha")
+    _seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = _run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": alpha_epic.id},
+        "beads-show",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["bead"]["summary"]["id"] == alpha_epic.id  # type: ignore[index]
+    assert data["bead"]["description"] == "Alpha description"  # type: ignore[index]
+    assert data["bead"]["notes"] == "Alpha note"  # type: ignore[index]
+    assert data["bead"]["design_path_display"] == "plans/alpha.md"  # type: ignore[index]
+    assert data["bead"]["children"] == [alpha_phase.id]  # type: ignore[index]
+    assert data["bead"]["blocks"] == [alpha_phase.id]  # type: ignore[index]
+    assert data["bead"]["workspace_display"] == str(tmp_path / "alpha")  # type: ignore[index]
+
+
+def test_beads_show_bridge_returns_not_found_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_dir, _, _, _ = _seed_bead_project(tmp_path / "alpha")
+    _seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = _run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": "missing"},
+        "beads-show",
+    )
+
+    assert code == 4
+    assert data == {}
+    assert "missing" in stderr
+
+
+def test_beads_list_bridge_reports_partial_project_read_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing_dir = tmp_path / "missing/sdd/beads"
+    monkeypatch.setattr(
+        "sase.integrations.mobile_helpers.get_project_beads_dirs_for_project",
+        lambda project: [missing_dir],
+    )
+
+    code, data, stderr = _run_bridge(
+        {"schema_version": 1, "project": "alpha"}, "beads-list"
+    )
+
+    assert code == 0
+    assert stderr == ""
+    assert data["result"]["status"] == "partial_success"  # type: ignore[index]
+    assert data["result"]["partial_failure_count"] == 1  # type: ignore[index]
+    assert data["result"]["skipped"][0]["target"] == str(missing_dir)  # type: ignore[index]
+
+
 def test_update_start_bridge_returns_running_job(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -427,3 +588,34 @@ def test_update_status_bridge_maps_not_found(
     assert code == 4
     assert data == {}
     assert "not found" in stderr
+
+
+def _seed_bead_project(root: Path) -> tuple[Path, Issue, Issue, Issue]:
+    with BeadProject.init(root) as project:
+        epic = project.create(
+            "Alpha Epic",
+            IssueType.PLAN,
+            description="Alpha description",
+            notes="Alpha note",
+            design="plans/alpha.md",
+            tier=BeadTier.EPIC,
+            changespec_name="alpha_changespec",
+        )
+        epic = project.update(epic.id, status=Status.IN_PROGRESS.value)
+        phase = project.create("Alpha Phase", IssueType.PHASE, parent_id=epic.id)
+        project.add_dependency(phase.id, epic.id)
+        closed = project.create("Closed Epic", IssueType.PLAN)
+        project.close([closed.id], reason="done")
+    return root / "sdd/beads", epic, phase, closed
+
+
+def _seed_known_projects(tmp_path: Path, project_dirs: dict[str, Path]) -> None:
+    projects_root = tmp_path / ".sase/projects"
+    for project_name, beads_dir in project_dirs.items():
+        project_dir = projects_root / project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+        workspace = beads_dir.parents[1]
+        (project_dir / f"{project_name}.gp").write_text(
+            f"WORKSPACE_DIR: {workspace}\n",
+            encoding="utf-8",
+        )

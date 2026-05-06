@@ -186,6 +186,15 @@ def test_parser_accepts_mobile_helper_bridge_update_status() -> None:
     assert args.mobile_helper_bridge_subcommand == "update-status"
 
 
+@pytest.mark.parametrize("operation", ["beads-list", "beads-show"])
+def test_parser_accepts_mobile_helper_bridge_bead_operations(operation: str) -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", operation])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == operation
+
+
 def test_parser_accepts_mobile_agent_bridge_launch_text() -> None:
     args = create_parser().parse_args(["mobile", "agent-bridge", "launch-text"])
 

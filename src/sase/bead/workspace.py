@@ -45,7 +45,7 @@ def get_project_beads_dirs_for_project(project_name: str) -> list[Path] | None:
 
 def get_all_project_beads_dirs() -> list[Path]:
     """Find bead store directories for every known project under ``~/.sase``."""
-    projects_dir = Path.home() / ".sase" / "projects"
+    projects_dir = _sase_projects_dir()
     if not projects_dir.is_dir():
         return []
 
@@ -96,9 +96,7 @@ def resolve_primary_workspace() -> Path | None:
 
 def _resolve_from_project_file(project_name: str) -> Path | None:
     """Look up WORKSPACE_DIR from ``~/.sase/projects/<name>/<name>.gp``."""
-    project_file = (
-        Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
-    )
+    project_file = _sase_projects_dir() / project_name / f"{project_name}.gp"
     if not project_file.exists():
         return None
 
@@ -124,9 +122,7 @@ def _resolve_from_workspace_provider(project_name: str) -> Path | None:
         )
         from sase.workspace_provider.utils import parse_workspace_dir
 
-        project_file = (
-            Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
-        )
+        project_file = _sase_projects_dir() / project_name / f"{project_name}.gp"
         workflow_type = detect_workflow_type(str(project_file))
         primary_workspace_dir = parse_workspace_dir(str(project_file)) or ""
         workspace = ws_get_workspace_directory(
@@ -204,6 +200,13 @@ def _dedupe_existing_dirs(paths: list[Path]) -> list[Path]:
         seen.add(key)
         result.append(path)
     return result
+
+
+def _sase_projects_dir() -> Path:
+    root = os.environ.get("SASE_HOME")
+    if root:
+        return Path(root).expanduser() / "projects"
+    return Path.home() / ".sase" / "projects"
 
 
 class MergedBeadView:
