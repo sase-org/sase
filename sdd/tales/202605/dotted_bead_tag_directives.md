@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 22:38:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/dotted_bead_tag_directives.md
 ---
 # Plan: Accept Dotted Bead IDs In `%tag` Directives

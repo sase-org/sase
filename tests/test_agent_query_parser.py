@@ -38,6 +38,12 @@ def test_parses_property_match() -> None:
     )
 
 
+def test_parses_dotted_tag_property_match() -> None:
+    assert parse_agent_query("tag:sase-24.3") == PropertyMatch(
+        key="tag", value="sase-24.3"
+    )
+
+
 def test_parses_age_comparisons() -> None:
     assert parse_agent_query("age>2h") == DurationCompare(
         key="age", op=">", seconds=7200

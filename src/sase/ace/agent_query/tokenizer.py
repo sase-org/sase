@@ -127,6 +127,10 @@ def _is_bare_word_char(ch: str) -> bool:
     return ch.isalnum() or ch in "_-"
 
 
+def _is_property_value_char(ch: str) -> bool:
+    return _is_bare_word_char(ch) or ch == "."
+
+
 def _parse_property_value(query: str, pos: int) -> tuple[str, int]:
     """Parse a property value (bare word or quoted string)."""
     if pos >= len(query):
@@ -134,7 +138,7 @@ def _parse_property_value(query: str, pos: int) -> tuple[str, int]:
     if query[pos] == '"':
         return _parse_quoted_string(query, pos)
     start = pos
-    while pos < len(query) and _is_bare_word_char(query[pos]):
+    while pos < len(query) and _is_property_value_char(query[pos]):
         pos += 1
     if pos == start:
         raise TokenizerError("Expected property value", pos)

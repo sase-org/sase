@@ -5,7 +5,7 @@ Tags are stored under ``~/.sase/agent_tags.json`` as a JSON list of
 Each agent has at most one tag — the tag drives Agents-tab grouping and
 (in Phase 3) the dynamic side-panel split.
 
-Tag names match ``^[A-Za-z0-9_-]+$`` and are stored *without* the ``@``
+Tag names match ``^[A-Za-z0-9_.-]+$`` and are stored *without* the ``@``
 prefix; the prefix is purely a display affordance added by the TUI.
 
 Legacy multi-tag entries (``"tags": [...]``) are silently migrated on
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 _AGENT_TAGS_FILE = Path.home() / ".sase" / "agent_tags.json"
 
-TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 class InvalidTagError(ValueError):
@@ -37,7 +37,7 @@ def validate_tag_name(tag: str) -> str:
     """Return *tag* if valid, otherwise raise :class:`InvalidTagError`.
 
     Rejects empty strings, ``@``-prefixed values (with a hint to drop the
-    prefix), and any character outside ``^[A-Za-z0-9_-]+$``.
+    prefix), and any character outside ``^[A-Za-z0-9_.-]+$``.
     """
     if not isinstance(tag, str) or not tag:
         raise InvalidTagError("tag name must be a non-empty string")
@@ -48,8 +48,8 @@ def validate_tag_name(tag: str) -> str:
         )
     if not TAG_NAME_RE.match(tag):
         raise InvalidTagError(
-            f"tag name {tag!r} must match ^[A-Za-z0-9_-]+$ "
-            "(letters, digits, underscore, dash)"
+            f"tag name {tag!r} must match ^[A-Za-z0-9_.-]+$ "
+            "(letters, digits, underscore, dot, dash)"
         )
     return tag
 

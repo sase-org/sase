@@ -116,6 +116,14 @@ def test_property_value_can_be_quoted() -> None:
     assert tokens[0].value == "hello world"
 
 
+def test_property_value_can_be_dotted() -> None:
+    tokens = list(tokenize("tag:sase-24.3"))
+    assert tokens[0].type == TokenType.PROPERTY
+    assert tokens[0].property_key == "tag"
+    assert tokens[0].value == "sase-24.3"
+    assert tokens[1].type == TokenType.EOF
+
+
 # --- Duration / age ---------------------------------------------------------
 
 
