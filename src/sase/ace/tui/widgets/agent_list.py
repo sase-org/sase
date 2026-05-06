@@ -325,6 +325,29 @@ class AgentList(OptionList, inherit_bindings=False):
                 now=now,
             )
 
+    def patch_active_runtime_rows(self, now: datetime) -> int:
+        """Patch visible active rows whose runtime suffix advances with time.
+
+        This is a cosmetic clock-tick path: failed row patches are ignored
+        because the next normal agent refresh will rebuild stale rows.
+        """
+        patched = 0
+        for local_idx, agent in enumerate(self._agents):
+            if not self._runtime_suffix_ticks(agent):
+                continue
+            if self.patch_agent_row(local_idx, now=now):
+                patched += 1
+        return patched
+
+    @staticmethod
+    def _runtime_suffix_ticks(agent: Agent) -> bool:
+        """Return True when *agent* renders a suffix that can change each tick."""
+        if agent.start_time is None:
+            return False
+        if agent.status in ("RUNNING", "RETRYING"):
+            return True
+        return agent.status == "WAITING" and agent.run_start_time is not None
+
     def _format_agent_option(
         self,
         agent: Agent,

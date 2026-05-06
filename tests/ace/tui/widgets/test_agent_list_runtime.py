@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+from textual.app import App
+
 from sase.ace.tui.models.agent import (
     Agent,
     AgentType,
@@ -33,6 +36,17 @@ def _agent(
         stop_time=stop,
         raw_suffix=raw_suffix,
     )
+
+
+class _Harness(App):
+    """Mount a single AgentList for row-patching tests."""
+
+    def compose(self):
+        yield AgentList(id="agent-list")
+
+
+def _agent_row_index(widget: AgentList, agent_idx: int) -> int:
+    return widget._row_index_for_agent(agent_idx)  # type: ignore[return-value]
 
 
 # --- _format_finish_timestamp ------------------------------------------------
@@ -204,3 +218,81 @@ def test_update_list_right_aligns_suffixes_across_batch() -> None:
     # Both rows render at the same total cell width (right-aligned column).
     assert len(rows[0]) == len(rows[1])
     assert widget._requested_width == widget._target_width + 8
+
+
+# --- active runtime row patching ---------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_patch_active_runtime_rows_advances_running_row() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        start = datetime(2026, 4, 25, 14, 0, 0)
+        agent = _agent(status="RUNNING", start=start)
+        widget.update_list(
+            [agent],
+            current_idx=0,
+            marked_agents={agent.identity},
+            now=datetime(2026, 4, 25, 14, 0, 59),
+        )
+        await pilot.pause()
+
+        row = _agent_row_index(widget, 0)
+        before_count = widget.option_count
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "[✓]" in before
+        assert before.rstrip().endswith("59s")
+
+        patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched == 1
+        assert widget.option_count == before_count
+        assert "[✓]" in after
+        assert after.rstrip().endswith("1m")
+
+
+def test_patch_active_runtime_rows_skips_terminal_done_row() -> None:
+    widget = AgentList()
+    agent = _agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 1, 0),
+    )
+    widget._agents = [agent]
+    calls: list[int] = []
+
+    def patch_agent_row(agent_idx: int, **_: object) -> bool:
+        calls.append(agent_idx)
+        return True
+
+    widget.patch_agent_row = patch_agent_row  # type: ignore[method-assign]
+
+    patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 2, 0))
+
+    assert patched == 0
+    assert calls == []
+
+
+def test_patch_active_runtime_rows_skips_waiting_without_run_start() -> None:
+    widget = AgentList()
+    agent = _agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        run_start=None,
+    )
+    widget._agents = [agent]
+    calls: list[int] = []
+
+    def patch_agent_row(agent_idx: int, **_: object) -> bool:
+        calls.append(agent_idx)
+        return True
+
+    widget.patch_agent_row = patch_agent_row  # type: ignore[method-assign]
+
+    patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 2, 0))
+
+    assert patched == 0
+    assert calls == []

@@ -481,8 +481,9 @@ def patch_row(
         return False
 
     agent = widget._agents[agent_idx]
-    marked = marked_agents if marked_agents is not None else set()
-    is_marked = agent.identity in marked
+    is_marked = (
+        ctx["is_marked"] if marked_agents is None else agent.identity in marked_agents
+    )
     sel = ctx["is_selected"] if is_selected is None else is_selected
 
     # Bust the cached entry for this agent so we re-render from

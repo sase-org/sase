@@ -9,6 +9,7 @@ when an in-place mutation doesn't need a full rebuild.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ class PanelsMixin:
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
+    _agents_first_load_done: bool
 
     # ---------------------------------------------------------------------
     # Panel-collection helpers
@@ -420,6 +422,29 @@ class PanelsMixin:
     # ---------------------------------------------------------------------
     # Single-row patch
     # ---------------------------------------------------------------------
+
+    def _patch_agent_runtime_rows(self) -> int:
+        """Patch visible Agents-tab rows with active runtime suffixes."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentList
+
+        if self.current_tab != "agents":
+            return 0
+        if not getattr(self, "_agents_first_load_done", False):
+            return 0
+
+        try:
+            container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
+        except NoMatches:
+            return 0
+
+        now = datetime.now()
+        patched = 0
+        for widget in container.children:
+            if isinstance(widget, AgentList):
+                patched += widget.patch_active_runtime_rows(now)
+        return patched
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
         """Patch a single agent's row in place when no group membership changed.

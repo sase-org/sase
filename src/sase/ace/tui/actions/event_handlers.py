@@ -354,6 +354,7 @@ class EventHandlersMixin:
             self._update_info_panel()  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._update_agents_info_panel()  # type: ignore[attr-defined]
+            self._patch_agent_runtime_rows()  # type: ignore[attr-defined]
         else:  # axe
             self._update_axe_info_panel()  # type: ignore[attr-defined]
 
