@@ -48,6 +48,7 @@ from .artifact_panel_state import (
     ArtifactPanelNavigationState,
     ArtifactPanelPagedModel,
     ArtifactPanelRow,
+    classify_artifact_panel_error,
     merge_relation_page_into_model,
     paged_model_from_legacy_detail,
     paged_model_from_paged_detail,
@@ -128,12 +129,18 @@ class ArtifactPanelModal(
         self._paged_model: ArtifactPanelPagedModel | None = None
         self._detail: ArtifactDetailWire | None = None
         self._error_message: str | None = None
+        self._error_title: str | None = None
+        self._error_style = "red"
         self._load_worker: Worker[ArtifactPanelPagedModel] | None = None
+        self._load_worker_artifact_id: str | None = None
         self._page_worker: Worker[tuple[str, str, ArtifactDetailPagedWire]] | None = (
             None
         )
+        self._page_worker_artifact_id = ""
         self._search_worker: Worker[tuple[str, list[ArtifactNodeWire]]] | None = None
+        self._search_worker_query = ""
         self._render_worker: Worker[RenderableType] | None = None
+        self._render_worker_artifact_id = ""
         self._row_by_option_id: dict[str, ArtifactPanelRow] = {}
         self._search_text = ""
         self._search_results: list[ArtifactNodeWire] | None = None
@@ -187,11 +194,18 @@ class ArtifactPanelModal(
             self._load_worker.cancel()
         if self._render_worker is not None:
             self._render_worker.cancel()
+            self._render_worker = None
+            self._render_worker_artifact_id = ""
         if self._page_worker is not None:
             self._page_worker.cancel()
+            self._page_worker = None
+            self._page_worker_artifact_id = ""
         if self._search_worker is not None:
             self._search_worker.cancel()
+            self._search_worker = None
+            self._search_worker_query = ""
         self._clear_search_state(render=False)
+        self._load_worker_artifact_id = artifact_id
         self._load_worker = self.run_worker(
             lambda: self._load_detail(artifact_id),
             exit_on_error=False,
@@ -267,6 +281,9 @@ class ArtifactPanelModal(
     def _handle_load_worker_state(self, event: Worker.StateChanged) -> None:
         if event.worker != self._load_worker:
             return
+        worker_artifact_id = self._load_worker_artifact_id
+        if worker_artifact_id != self._state.current_id:
+            return
 
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
@@ -275,17 +292,27 @@ class ArtifactPanelModal(
             self._detail = result.detail
             self._state.set_paged_model(result)
             self._error_message = None
+            self._error_title = None
+            self._error_style = "red"
             self._render_detail()
         elif event.state == WorkerState.ERROR:
             self._paged_model = None
             self._detail = None
             self._state.detail = None
             self._state.paged_model = None
-            self._error_message = str(event.worker.error or "Unknown artifact error")
+            summary = classify_artifact_panel_error(
+                event.worker.error,
+                operation="load",
+            )
+            self._error_message = summary.message
+            self._error_title = summary.title
+            self._error_style = summary.style
             self._render_error()
 
     def _handle_render_worker_state(self, event: Worker.StateChanged) -> None:
         if event.worker != self._render_worker:
+            return
+        if self._render_worker_artifact_id != self._state.current_id:
             return
 
         if event.state == WorkerState.SUCCESS:
@@ -293,14 +320,19 @@ class ArtifactPanelModal(
             assert result is not None
             self._update_detail(result)
         elif event.state == WorkerState.ERROR:
-            message = str(event.worker.error or "Unknown artifact render error")
+            summary = classify_artifact_panel_error(
+                event.worker.error,
+                operation="render",
+            )
             text = Text()
-            text.append("Artifact preview failed\n", style="bold yellow")
-            text.append(message, style="yellow")
+            text.append(f"{summary.title}\n", style=f"bold {summary.style}")
+            text.append(summary.message, style=summary.style)
             self._update_detail(text)
 
     def _handle_page_worker_state(self, event: Worker.StateChanged) -> None:
         if event.worker != self._page_worker:
+            return
+        if self._page_worker_artifact_id != self._state.current_id:
             return
 
         if event.state == WorkerState.SUCCESS:
@@ -318,13 +350,18 @@ class ArtifactPanelModal(
             self._state.selected_row_id = prefer_row_id
             self._render_detail(update_preview=False)
         elif event.state == WorkerState.ERROR:
-            message = str(event.worker.error or "Unknown artifact page error")
+            summary = classify_artifact_panel_error(
+                event.worker.error,
+                operation="page",
+            )
             self.app.notify(
-                f"Failed to load more artifacts: {message}", severity="error"
+                f"Failed to load more artifacts: {summary.message}", severity="error"
             )
 
     def _handle_search_worker_state(self, event: Worker.StateChanged) -> None:
         if event.worker != self._search_worker:
+            return
+        if self._search_worker_query != self._search_text:
             return
 
         if event.state == WorkerState.SUCCESS:
@@ -338,7 +375,8 @@ class ArtifactPanelModal(
             self._render_search_options()
         elif event.state == WorkerState.ERROR:
             self._search_results = None
-            self._search_error = str(
-                event.worker.error or "Unknown artifact search error"
-            )
+            self._search_error = classify_artifact_panel_error(
+                event.worker.error,
+                operation="search",
+            ).message
             self._render_search_options()

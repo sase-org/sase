@@ -15,6 +15,7 @@ from sase.core.artifact_wire import (
 
 from .artifact_panel_state import (
     ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+    ArtifactPanelPagedModel,
     ArtifactPanelRow,
     page_request_for_group,
 )
@@ -33,6 +34,9 @@ class ArtifactPanelDataMixin:
         self._search_results: list[ArtifactNodeWire] | None = None
         self._search_error: str | None = None
         self._state.selected_row_id = None
+        if self._search_worker is not None:
+            self._search_worker.cancel()
+            self._search_worker_query = "<cancelled>"
         try:
             search_input = self.query_one("#artifact-panel-search", Input)
         except Exception:
@@ -54,6 +58,7 @@ class ArtifactPanelDataMixin:
         self._render_search_loading(query)
         if self._search_worker is not None:
             self._search_worker.cancel()
+        self._search_worker_query = query
         self._search_worker = self.run_worker(
             lambda: (query, self._search_artifacts(query)),
             exit_on_error=False,
@@ -82,20 +87,25 @@ class ArtifactPanelDataMixin:
             self._page_worker.cancel()
         artifact_id = self._state.current_id
         prefer_row_id = row.id
+        model = self._paged_model
+        self._page_worker_artifact_id = artifact_id
         self._page_worker = self.run_worker(
             lambda: (
                 artifact_id,
                 prefer_row_id,
-                self._load_relation_page(row),
+                self._load_relation_page(row, artifact_id=artifact_id, model=model),
             ),
             exit_on_error=False,
             thread=True,
         )
 
     def _load_relation_page(
-        self: Any, row: ArtifactPanelRow
+        self: Any,
+        row: ArtifactPanelRow,
+        *,
+        artifact_id: str,
+        model: ArtifactPanelPagedModel,
     ) -> ArtifactDetailPagedWire:
-        model = self._paged_model
         if model is None or row.group_key is None:
             raise RuntimeError("artifact page model is not loaded")
         request_parts = page_request_for_group(model, group_key=row.group_key)
@@ -109,7 +119,7 @@ class ArtifactPanelDataMixin:
             show_paged_func = artifact_show_paged
         return show_paged_func(
             self._index_path,
-            self._state.current_id,
+            artifact_id,
             ArtifactPageRequestWire(
                 group_key=row.group_key,
                 relation=relation,

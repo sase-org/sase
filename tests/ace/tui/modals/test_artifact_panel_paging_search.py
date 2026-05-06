@@ -347,3 +347,44 @@ async def test_global_search_empty_and_error_states_are_recoverable() -> None:
     assert search_calls == ["boom", "missing"]
     assert "Search failed: synthetic search failure" in error_text
     assert "No global results for 'missing'" in empty_text
+
+
+@pytest.mark.asyncio
+async def test_sqlite_busy_search_error_is_recoverable() -> None:
+    def fake_search(
+        index_path: str | Any,
+        query: ArtifactQueryWire,
+    ) -> list[ArtifactNodeWire]:
+        del index_path, query
+        raise RuntimeError("SQLITE_BUSY: database is busy")
+
+    modal = ArtifactPanelModal(
+        artifact_id="agent:alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=lambda index_path, artifact_id, request=None: _paged_detail(
+            artifact_id,
+            kind="agent",
+        ),
+        search_func=fake_search,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        search_input = modal.query_one("#artifact-panel-search", Input)
+        search_input.value = "busy"
+        for _ in range(10):
+            await pilot.pause()
+            option_list = modal.query_one("#artifact-panel-list", OptionList)
+            search_text = str(option_list.get_option_at_index(0).prompt)
+            if "artifact index is busy or locked" in search_text:
+                break
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        search_text = str(option_list.get_option_at_index(0).prompt)
+
+    assert "Search failed:" in search_text
+    assert "artifact index is busy or locked" in search_text
+    assert "Try again shortly" in search_text

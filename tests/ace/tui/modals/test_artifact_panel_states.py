@@ -11,14 +11,17 @@ from textual.widgets import OptionList, Static
 from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
 from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
+    ArtifactDetailPagedWire,
     ArtifactDetailWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
+    ArtifactPageRequestWire,
 )
 from tests.ace.tui.modals._artifact_panel_modal_helpers import (
     _ModalTestApp,
     _detail,
     _missing_detail,
+    _node,
     _paged_detail,
 )
 
@@ -274,3 +277,63 @@ async def test_artifact_load_error_renders_error_without_broad_queries() -> None
     assert export_calls == []
     assert "Artifact load failed" in detail_text
     assert "synthetic artifact backend failure" in detail_text
+
+
+@pytest.mark.asyncio
+async def test_sqlite_busy_load_error_is_recoverable_and_keeps_history() -> None:
+    show_calls: list[str] = []
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path, request
+        show_calls.append(artifact_id)
+        if artifact_id == "agent:beta":
+            raise RuntimeError("sqlite error: database is locked")
+        return _paged_detail(
+            "agent:alpha",
+            kind="agent",
+            children=[_node("agent:beta", "agent", "Beta agent")],
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="agent:alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=fake_paged_show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        for index in range(option_list.option_count):
+            if option_list.get_option_at_index(index).id == "child:agent:beta":
+                option_list.highlighted = index
+                break
+        else:
+            raise AssertionError("agent:beta row was not rendered")
+
+        modal.action_open_selected()
+        for _ in range(10):
+            await pilot.pause()
+            detail_text = str(
+                modal.query_one("#artifact-panel-detail", Static).render()
+            )
+            if "Artifact index busy" in detail_text:
+                break
+
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+
+    assert show_calls == ["agent:alpha", "agent:beta"]
+    assert modal._state.current_id == "agent:beta"
+    assert modal._state.back_stack == ["agent:alpha"]
+    assert modal._state.forward_stack == []
+    assert modal._detail is None
+    assert "Artifact index busy" in detail_text
+    assert "Try again shortly" in detail_text
+    assert "database is locked" in detail_text

@@ -24,6 +24,7 @@ from .artifact_panel_modal_formatting import (
 from .artifact_panel_renderers import render_artifact_detail
 from .artifact_panel_state import (
     ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+    ArtifactDetailRenderContext,
     ArtifactPanelPagedModel,
     ArtifactPanelRow,
     build_artifact_panel_rows,
@@ -64,21 +65,24 @@ class ArtifactPanelRenderingMixin:
         self._clear_entry_jump_hints()
         if self._render_worker is not None:
             self._render_worker.cancel()
+            self._render_worker_artifact_id = "<cancelled>"
+        title = self._error_title or "Artifact load failed"
+        style = self._error_style or "red"
         self._update_header_error(message)
         self._replace_options(
             [
                 Option(
                     state_message(
-                        "Load failed",
+                        title,
                         "The artifact backend returned an error.",
-                        style="red",
+                        style=style,
                     ),
                     id="__error__",
                     disabled=True,
                 )
             ]
         )
-        self._update_detail(state_message("Artifact load failed", message, style="red"))
+        self._update_detail(state_message(title, message, style=style))
 
     def _render_detail(self: Any, *, update_preview: bool = True) -> None:
         detail = self._detail
@@ -239,21 +243,33 @@ class ArtifactPanelRenderingMixin:
         return options
 
     def _build_detail_renderable(
-        self: Any, detail: ArtifactDetailWire
+        self: Any,
+        detail: ArtifactDetailWire,
+        *,
+        render_context: ArtifactDetailRenderContext | None = None,
     ) -> RenderableType:
         if self._detail_renderer is not None:
             return self._detail_renderer(detail)
         return render_artifact_detail(
             detail,
-            render_context=detail_render_context_from_paged_model(self._paged_model),
+            render_context=render_context,
         )
 
     def _start_detail_render(self: Any, detail: ArtifactDetailWire) -> None:
         if self._render_worker is not None:
             self._render_worker.cancel()
+            self._render_worker_artifact_id = "<cancelled>"
         self._update_detail("Rendering artifact preview...")
+        artifact_id = (
+            detail.node.id if detail.node is not None else self._state.current_id
+        )
+        render_context = detail_render_context_from_paged_model(self._paged_model)
+        self._render_worker_artifact_id = artifact_id
         self._render_worker = self.run_worker(
-            lambda: self._build_detail_renderable(detail),
+            lambda: self._build_detail_renderable(
+                detail,
+                render_context=render_context,
+            ),
             exit_on_error=False,
             thread=True,
         )

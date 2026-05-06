@@ -112,6 +112,9 @@ class ArtifactPanelActionsMixin:
             subprocess.run(editor_args, check=False)
 
     def action_preview_graph(self: Any) -> None:
+        if self._render_worker is not None:
+            self._render_worker.cancel()
+            self._render_worker_artifact_id = "<cancelled>"
         options = ArtifactGraphOptionsWire(root_id=self._state.current_id, limit=100)
         if self._graph_func is None:
             from sase.core.artifact_facade import artifact_graph
@@ -122,6 +125,9 @@ class ArtifactPanelActionsMixin:
         self._update_detail(graph_preview_text(graph))
 
     def action_export_graph(self: Any) -> None:
+        if self._render_worker is not None:
+            self._render_worker.cancel()
+            self._render_worker_artifact_id = "<cancelled>"
         options = ArtifactGraphOptionsWire(root_id=self._state.current_id, limit=100)
         if self._export_func is None:
             from sase.core.artifact_facade import artifact_export
