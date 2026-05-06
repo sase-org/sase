@@ -2,6 +2,9 @@
 create_time: 2026-05-06 09:56:05
 status: wip
 prompt: sdd/prompts/202605/sase_mobile_mvp_legend.md
+legend_bead_id: sase-26
+tier: legend
+epic_count: 7
 ---
 # SASE Mobile MVP Legend Plan
 
