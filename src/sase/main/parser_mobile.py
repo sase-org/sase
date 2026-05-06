@@ -42,6 +42,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "kill-agent",
         help=argparse.SUPPRESS,
     )
+    agent_bridge_subparsers.add_parser(
+        "retry-agent",
+        help=argparse.SUPPRESS,
+    )
 
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",

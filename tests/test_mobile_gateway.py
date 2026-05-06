@@ -180,6 +180,14 @@ def test_parser_accepts_mobile_agent_bridge_kill_agent() -> None:
     assert args.mobile_agent_bridge_subcommand == "kill-agent"
 
 
+def test_parser_accepts_mobile_agent_bridge_retry_agent() -> None:
+    args = create_parser().parse_args(["mobile", "agent-bridge", "retry-agent"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "agent-bridge"
+    assert args.mobile_agent_bridge_subcommand == "retry-agent"
+
+
 class _FakeResponse:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload

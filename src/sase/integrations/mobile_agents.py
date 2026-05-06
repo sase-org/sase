@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from sase.agent.launcher import AgentLaunchResult, launch_agents_from_cwd
+from sase.agent.names import allocate_retry_name
+from sase.agent.retry_prompt import rewrite_retry_prompt_name
 from sase.agent.running import (
     KillResult,
     RunningAgentInfo,
@@ -123,14 +125,16 @@ def _mobile_agent_resume_options() -> dict[str, Any]:
 def _launch_mobile_text_agents(request: dict[str, Any]) -> dict[str, Any]:
     """Launch text agents through the normal SASE launch path."""
     prompt = _mobile_launch_prompt(request)
-    return _launch_mobile_prompt(prompt, request)
+    return _launch_mobile_prompt(prompt, request, launch_kind="text")
 
 
 def _launch_mobile_image_agents(request: dict[str, Any]) -> dict[str, Any]:
     """Store an uploaded image and launch agents with a local image path prompt."""
     stored_path = _store_mobile_image_upload(request)
     prompt = _mobile_image_launch_prompt(request, stored_path)
-    return _launch_mobile_prompt(prompt, request)
+    return _launch_mobile_prompt(
+        prompt, request, launch_kind="image", image_host_path=str(stored_path)
+    )
 
 
 def _kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
@@ -152,7 +156,46 @@ def _kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _launch_mobile_prompt(prompt: str, request: dict[str, Any]) -> dict[str, Any]:
+def _retry_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
+    """Retry an agent from artifacts or durable mobile launch context."""
+    source_name = _required_bridge_str(request.get("name"), "name")
+    context = _resolve_mobile_retry_context(source_name)
+    prompt = _retry_prompt_from_context(context, request)
+
+    if request.get("kill_source_first") is True:
+        result = kill_named_agent(source_name, exact_name=True)
+        if not result.success and result.reason == "permission_denied":
+            _raise_lifecycle_error(result)
+
+    retry_name = allocate_retry_name(context["agent_name"])
+    retry_prompt = rewrite_retry_prompt_name(prompt, retry_name)
+    launch = _launch_mobile_prompt(
+        retry_prompt,
+        {
+            **request,
+            "name": None,
+        },
+        launch_kind="retry",
+        source_agent_name=context["agent_name"],
+        retry_of_agent=context["agent_name"],
+    )
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "source_agent": context["agent_name"],
+        "launch": launch,
+    }
+
+
+def _launch_mobile_prompt(
+    prompt: str,
+    request: dict[str, Any],
+    *,
+    launch_kind: str,
+    image_host_path: str | None = None,
+    source_agent_name: str | None = None,
+    retry_of_agent: str | None = None,
+) -> dict[str, Any]:
+    planned_name = _planned_name_for_prompt(prompt)
     if request.get("dry_run") is True:
         return _dry_run_launch_response(prompt)
 
@@ -163,7 +206,17 @@ def _launch_mobile_prompt(prompt: str, request: dict[str, Any]) -> dict[str, Any
 
     if not results:
         raise _MobileAgentBridgeError("agent launch produced no results")
-    return _mobile_launch_response(results)
+    response = _mobile_launch_response(results, planned_name=planned_name)
+    _persist_mobile_launch_contexts(
+        response,
+        prompt,
+        request,
+        launch_kind=launch_kind,
+        image_host_path=image_host_path,
+        source_agent_name=source_agent_name,
+        retry_of_agent=retry_of_agent,
+    )
+    return response
 
 
 def handle_mobile_agent_bridge(
@@ -187,6 +240,8 @@ def handle_mobile_agent_bridge(
             response = _launch_mobile_image_agents(request)
         elif operation == "kill-agent":
             response = _kill_mobile_agent(request)
+        elif operation == "retry-agent":
+            response = _retry_mobile_agent(request)
         else:
             raise _MobileAgentBridgeError("unknown mobile agent bridge operation")
     except _MobileAgentInvalidUploadError as exc:
@@ -427,9 +482,18 @@ def _dry_run_launch_response(prompt: str) -> dict[str, Any]:
     }
 
 
-def _mobile_launch_response(results: list[AgentLaunchResult]) -> dict[str, Any]:
+def _mobile_launch_response(
+    results: list[AgentLaunchResult],
+    *,
+    planned_name: str | None = None,
+) -> dict[str, Any]:
     slots = [
-        _result_to_slot(str(index), result) for index, result in enumerate(results)
+        _result_to_slot(
+            str(index),
+            result,
+            planned_name=planned_name if index == 0 else None,
+        )
+        for index, result in enumerate(results)
     ]
     return {
         "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
@@ -438,10 +502,15 @@ def _mobile_launch_response(results: list[AgentLaunchResult]) -> dict[str, Any]:
     }
 
 
-def _result_to_slot(slot_id: str, result: AgentLaunchResult) -> dict[str, Any]:
+def _result_to_slot(
+    slot_id: str,
+    result: AgentLaunchResult,
+    *,
+    planned_name: str | None,
+) -> dict[str, Any]:
     return {
         "slot_id": slot_id,
-        "name": None,
+        "name": planned_name,
         "status": "launched",
         "artifact_dir": _artifact_dir_for_launch(result),
         "message": f"started pid {result.pid}",
@@ -492,7 +561,8 @@ def _agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
     name = agent.name or "(unnamed)"
     has_name = bool(agent.name)
     has_artifact_dir = bool(agent.artifacts_dir and Path(agent.artifacts_dir).is_dir())
-    retry_lineage = _retry_lineage(agent.artifacts_dir)
+    context = _latest_mobile_launch_context(name) if has_name else None
+    retry_lineage = _retry_lineage(agent.artifacts_dir, context)
     prompt = _prompt_snippet(agent.prompt)
 
     return {
@@ -512,7 +582,7 @@ def _agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
             "can_resume": has_name,
             "can_wait": has_name,
             "can_kill": has_name and agent.status.upper() == "RUNNING",
-            "can_retry": has_name and has_artifact_dir,
+            "can_retry": has_name and (has_artifact_dir or context is not None),
         },
         "display": {
             "title": name,
@@ -522,13 +592,18 @@ def _agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
     }
 
 
-def _retry_lineage(artifacts_dir: str | None) -> dict[str, Any]:
+def _retry_lineage(
+    artifacts_dir: str | None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     empty = {
         "retry_of_timestamp": None,
         "retried_as_timestamp": None,
         "retry_chain_root_timestamp": None,
         "retry_attempt": None,
-        "parent_agent_name": None,
+        "parent_agent_name": _optional_str(context.get("source_agent_name"))
+        if context is not None
+        else None,
     }
     if not artifacts_dir:
         return empty
@@ -624,15 +699,218 @@ def _persist_mobile_kill_context(
     os.replace(tmp_path, final_path)
 
 
+def _persist_mobile_launch_contexts(
+    response: dict[str, Any],
+    prompt: str,
+    request: dict[str, Any],
+    *,
+    launch_kind: str,
+    image_host_path: str | None,
+    source_agent_name: str | None,
+    retry_of_agent: str | None,
+) -> None:
+    slots = response.get("slots")
+    if not isinstance(slots, list):
+        return
+
+    store_path = _mobile_launch_context_store_path()
+    store_path.parent.mkdir(parents=True, exist_ok=True)
+    launched_at = datetime.now(UTC).isoformat()
+    request_id = _optional_str(request.get("request_id"))
+    device_id = _optional_str(request.get("device_id"))
+    rows: list[dict[str, Any]] = []
+
+    for slot in slots:
+        if not isinstance(slot, dict) or slot.get("status") != "launched":
+            continue
+        agent_name = _optional_str(slot.get("name"))
+        artifact_dir = _optional_str(slot.get("artifact_dir"))
+        if not agent_name and artifact_dir:
+            agent_name = _agent_name_from_artifact_meta(artifact_dir)
+        if not agent_name:
+            continue
+        row = {
+            "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+            "launch_kind": launch_kind,
+            "agent_name": agent_name,
+            "source_agent_name": source_agent_name,
+            "retry_of_agent": retry_of_agent,
+            "artifact_dir": artifact_dir,
+            "artifacts_timestamp": _artifact_timestamp(artifact_dir),
+            "project": _optional_str(request.get("project"))
+            or _project_from_artifact_dir(artifact_dir),
+            "raw_prompt_path": str(Path(artifact_dir) / "raw_xprompt.md")
+            if artifact_dir
+            else None,
+            "prompt_snapshot": prompt,
+            "image_host_path": image_host_path,
+            "request_id": request_id,
+            "device_id": device_id,
+            "launched_at": launched_at,
+        }
+        rows.append(row)
+
+    if not rows:
+        return
+    with store_path.open("a", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def _resolve_mobile_retry_context(name: str) -> dict[str, Any]:
+    live_agent = _find_mobile_agent_summary(name)
+    if live_agent is not None:
+        context = _context_from_agent(live_agent)
+        stored = _latest_mobile_launch_context(name)
+        if stored is not None:
+            context = {**stored, **{k: v for k, v in context.items() if v is not None}}
+        return context
+
+    stored = _latest_mobile_launch_context(name)
+    if stored is not None:
+        return stored
+
+    killed = _mobile_kill_context(name)
+    if killed is not None:
+        return killed
+
+    raise _MobileAgentNotFoundError(f"No retry context found for agent '{name}'")
+
+
+def _retry_prompt_from_context(context: dict[str, Any], request: dict[str, Any]) -> str:
+    override = _optional_str(request.get("prompt_override"))
+    if override and override.strip():
+        return override.strip()
+
+    raw_prompt_path = _optional_str(context.get("raw_prompt_path"))
+    artifact_dir = _optional_str(context.get("artifact_dir"))
+    prompt = _read_prompt_file(raw_prompt_path)
+    if prompt is None and artifact_dir:
+        prompt = _read_prompt_file(str(Path(artifact_dir) / "raw_xprompt.md"))
+    if prompt is None:
+        prompt = _optional_str(context.get("prompt_snapshot")) or _optional_str(
+            context.get("raw_prompt")
+        )
+    if prompt is None or not prompt.strip():
+        raise _MobileAgentNotFoundError(
+            f"No prompt context found for agent '{context['agent_name']}'"
+        )
+    return prompt.strip()
+
+
+def _context_from_agent(agent: RunningAgentInfo) -> dict[str, Any]:
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "agent_name": agent.name or "(unnamed)",
+        "artifact_dir": agent.artifacts_dir,
+        "artifacts_timestamp": _artifact_timestamp(agent.artifacts_dir),
+        "project": agent.project,
+        "raw_prompt_path": str(Path(agent.artifacts_dir) / "raw_xprompt.md")
+        if agent.artifacts_dir
+        else None,
+        "prompt_snapshot": agent.prompt,
+        "source_agent_name": None,
+    }
+
+
+def _latest_mobile_launch_context(name: str) -> dict[str, Any] | None:
+    latest: dict[str, Any] | None = None
+    for row in _iter_mobile_launch_contexts():
+        agent_name = _optional_str(row.get("agent_name"))
+        artifact_dir = _optional_str(row.get("artifact_dir"))
+        artifacts_timestamp = _optional_str(row.get("artifacts_timestamp"))
+        if (
+            agent_name == name
+            or artifacts_timestamp == name
+            or (artifact_dir and Path(artifact_dir).name == name)
+        ):
+            latest = row
+    return latest
+
+
+def _iter_mobile_launch_contexts() -> list[dict[str, Any]]:
+    path = _mobile_launch_context_store_path()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            rows.append(data)
+    return rows
+
+
+def _mobile_kill_context(name: str) -> dict[str, Any] | None:
+    path = _mobile_kill_context_dir() / f"{_option_id(name)}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data.setdefault("agent_name", name)
+    data.setdefault("prompt_snapshot", data.get("raw_prompt"))
+    return data
+
+
+def _mobile_launch_context_store_path() -> Path:
+    return _mobile_gateway_state_dir() / "agent_launch_contexts.jsonl"
+
+
 def _mobile_kill_context_dir() -> Path:
+    return _mobile_gateway_state_dir() / "agent_kill_contexts"
+
+
+def _mobile_gateway_state_dir() -> Path:
     sase_home = Path(os.environ.get("SASE_HOME") or Path.home() / ".sase")
-    return sase_home / "mobile_gateway" / "agent_kill_contexts"
+    return sase_home / "mobile_gateway"
 
 
 def _artifact_timestamp(artifacts_dir: str | None) -> str | None:
     if not artifacts_dir:
         return None
     return Path(artifacts_dir).name
+
+
+def _read_prompt_file(path: str | None) -> str | None:
+    if not path:
+        return None
+    try:
+        prompt = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    prompt = prompt.strip()
+    return prompt or None
+
+
+def _agent_name_from_artifact_meta(artifact_dir: str) -> str | None:
+    try:
+        data = json.loads((Path(artifact_dir) / "agent_meta.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return _optional_str(data.get("name"))
+
+
+def _project_from_artifact_dir(artifact_dir: str | None) -> str | None:
+    if not artifact_dir:
+        return None
+    parts = Path(artifact_dir).parts
+    try:
+        index = parts.index("projects")
+    except ValueError:
+        return None
+    if index + 1 >= len(parts):
+        return None
+    return parts[index + 1]
 
 
 def _directive_name(name: str) -> str:
