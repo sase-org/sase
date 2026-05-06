@@ -2,6 +2,9 @@
 create_time: 2026-05-06 10:02:06
 status: wip
 prompt: sdd/prompts/202605/mobile_gateway_epic_1.md
+bead_id: sase-26.1
+tier: epic
+legend_bead_id: sase-26
 ---
 # Plan: Mobile MVP Epic 1 - Host Gateway Foundation And Pairing
 
