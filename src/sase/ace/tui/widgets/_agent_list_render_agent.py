@@ -11,6 +11,10 @@ from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import derive_agent_bead_id
+from ..models.artifact_indicator import (
+    ArtifactIndicator,
+    render_artifact_indicator,
+)
 from ._agent_list_helpers import short_model_name, step_role_suffix
 from ._agent_list_render_cache import AgentRenderCache, agent_render_key
 from ._agent_list_render_layout import build_runtime_suffix, render_tier_gutter
@@ -38,6 +42,7 @@ def format_agent_option(
     hint_char: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
+    artifact_indicator: ArtifactIndicator | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = render_tier_gutter(tier_styles)
@@ -239,6 +244,11 @@ def format_agent_option(
             text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
+    artifact_text = render_artifact_indicator(artifact_indicator)
+    if artifact_text.cell_len:
+        text.append("  ", style="")
+        text.append_text(artifact_text)
+
     suffix = build_runtime_suffix(agent, now=now)
     option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
     return text, suffix, option_id
@@ -256,6 +266,7 @@ def cached_format_agent_option(
     hint_char: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
+    artifact_indicator: ArtifactIndicator | None = None,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -274,6 +285,7 @@ def cached_format_agent_option(
         hint_char=hint_char,
         now=now,
         tier_styles=tier_styles,
+        artifact_indicator=artifact_indicator,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -288,6 +300,7 @@ def cached_format_agent_option(
         hint_char=hint_char,
         now=now,
         tier_styles=tier_styles,
+        artifact_indicator=artifact_indicator,
     )
     cache.put_agent(key, parts)
     return parts

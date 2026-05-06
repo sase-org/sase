@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ...models.artifact_indicator import ArtifactIndicator
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentList
 
@@ -188,6 +189,10 @@ class PanelsMixin:
                 if not local_banner_hints:
                     local_banner_hints = None
 
+            local_artifact_indicators = self._local_artifact_indicators(
+                panel_agents,
+            )
+
             widget.update_list(
                 panel_agents,
                 local_idx,
@@ -199,6 +204,7 @@ class PanelsMixin:
                 fold_registry=fold_registry,
                 current_group_key=current_group_key if idx == focused_idx else None,
                 grouping_mode=grouping_mode,
+                artifact_indicators=local_artifact_indicators,
             )
 
             if idx == focused_idx:
@@ -208,6 +214,28 @@ class PanelsMixin:
 
         self._apply_panel_heights(container, ordered_widgets)
         self._focus_focused_panel_widget()
+
+    def _local_artifact_indicators(
+        self,
+        panel_agents: list[Agent],
+    ) -> dict[int, ArtifactIndicator] | None:
+        """Return cached row indicators for one panel's local agent slice."""
+        cache = getattr(self, "_artifact_summary_cache", None)
+        if cache is None:
+            return None
+
+        from ..artifacts import agent_artifact_id
+        from ...models.artifact_indicator import artifact_indicator_from_summary
+
+        indicators: dict[int, ArtifactIndicator] = {}
+        for local_idx, agent in enumerate(panel_agents):
+            artifact_id = agent_artifact_id(agent)
+            if artifact_id is None:
+                continue
+            indicator = artifact_indicator_from_summary(cache.get(artifact_id))
+            if indicator is not None:
+                indicators[local_idx] = indicator
+        return indicators or None
 
     # ---------------------------------------------------------------------
     # Per-panel dynamic heights
@@ -525,9 +553,24 @@ class PanelsMixin:
             marked_agents=self._marked_agents,
             is_selected=is_selected,
             now=None,
+            artifact_indicator=self._agent_artifact_indicator(agent),
         )
         if not ok:
             return False
 
         self._update_agents_info_panel()  # type: ignore[attr-defined]
         return True
+
+    def _agent_artifact_indicator(self, agent: Agent) -> ArtifactIndicator | None:
+        """Return the current cached artifact indicator for an agent row."""
+        cache = getattr(self, "_artifact_summary_cache", None)
+        if cache is None:
+            return None
+
+        from ..artifacts import agent_artifact_id
+        from ...models.artifact_indicator import artifact_indicator_from_summary
+
+        artifact_id = agent_artifact_id(agent)
+        if artifact_id is None:
+            return None
+        return artifact_indicator_from_summary(cache.get(artifact_id))

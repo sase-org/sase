@@ -9,6 +9,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType, AttemptRecord
+from ..models.artifact_indicator import ArtifactIndicator
 from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
@@ -143,6 +144,7 @@ class AgentList(OptionList, inherit_bindings=False):
         current_group_key: tuple[str, ...] | None = None,
         grouping_mode: GroupingMode = GroupingMode.STANDARD,
         now: datetime | None = None,
+        artifact_indicators: dict[int, ArtifactIndicator] | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -171,6 +173,9 @@ class AgentList(OptionList, inherit_bindings=False):
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
                 ``datetime.now()``; tests pass a fixed value so bucket
                 membership is deterministic.
+            artifact_indicators: Optional local agent index -> cached artifact
+                row indicator. Formatting consumes these values only; it never
+                loads summaries.
         """
         # ``current_attempt_number`` is accepted for API compatibility with
         # the pinned-attempt detail state but no longer affects rebuild
@@ -189,6 +194,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 current_group_key=current_group_key,
                 grouping_mode=grouping_mode,
                 now=now,
+                artifact_indicators=artifact_indicators,
             )
 
     def _compute_tier_styles(
@@ -308,6 +314,7 @@ class AgentList(OptionList, inherit_bindings=False):
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         is_selected: bool | None = None,
         now: datetime | None = None,
+        artifact_indicator: ArtifactIndicator | None = None,
     ) -> bool:
         """Replace one agent's Option in place when nothing structural changed.
 
@@ -324,6 +331,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 marked_agents=marked_agents,
                 is_selected=is_selected,
                 now=now,
+                artifact_indicator=artifact_indicator,
             )
 
     def patch_active_runtime_rows(self, now: datetime) -> int:
@@ -354,6 +362,7 @@ class AgentList(OptionList, inherit_bindings=False):
         is_expanded: bool = False,
         is_marked: bool = False,
         hint_char: str | None = None,
+        artifact_indicator: ArtifactIndicator | None = None,
     ) -> Option:
         """Format an agent as an option for display (single-row, no alignment)."""
         left, suffix, option_id = format_agent_option(
@@ -364,6 +373,7 @@ class AgentList(OptionList, inherit_bindings=False):
             is_expanded=is_expanded,
             is_marked=is_marked,
             hint_char=hint_char,
+            artifact_indicator=artifact_indicator,
         )
         natural_width = left.cell_len + (2 if suffix.cell_len else 0) + suffix.cell_len
         return assemble_padded_option(
