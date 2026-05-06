@@ -57,7 +57,7 @@ _ERROR_STYLE = "dim #D75F5F"
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactIndicatorCount:
+class _ArtifactIndicatorCount:
     artifact_type: str
     total_count: int
 
@@ -67,8 +67,8 @@ class ArtifactIndicator:
     artifact_id: str
     state: ArtifactIndicatorState
     total_count: int = 0
-    file_type_counts: tuple[ArtifactIndicatorCount, ...] = ()
-    kind_counts: tuple[ArtifactIndicatorCount, ...] = ()
+    file_type_counts: tuple[_ArtifactIndicatorCount, ...] = ()
+    kind_counts: tuple[_ArtifactIndicatorCount, ...] = ()
     error: str | None = None
 
     @classmethod
@@ -168,7 +168,7 @@ def _normalize_state(state: str) -> ArtifactIndicatorState:
 def _ordered_counts(
     counts: list[ArtifactTypeCountWire],
     preferred_order: tuple[str, ...],
-) -> tuple[ArtifactIndicatorCount, ...]:
+) -> tuple[_ArtifactIndicatorCount, ...]:
     totals: dict[str, int] = {}
     for count in counts:
         artifact_type = count.artifact_type.strip()
@@ -189,14 +189,13 @@ def _ordered_counts(
         return (1, artifact_type)
 
     return tuple(
-        ArtifactIndicatorCount(artifact_type=artifact_type, total_count=total_count)
+        _ArtifactIndicatorCount(artifact_type=artifact_type, total_count=total_count)
         for artifact_type, total_count in sorted(totals.items(), key=sort_key)
     )
 
 
 __all__ = [
     "ArtifactIndicator",
-    "ArtifactIndicatorCount",
     "ArtifactIndicatorState",
     "FILE_TYPE_COUNT_ORDER",
     "KIND_COUNT_ORDER",
