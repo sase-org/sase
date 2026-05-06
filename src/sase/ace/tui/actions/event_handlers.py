@@ -74,6 +74,8 @@ class EventHandlersMixin:
     _dirty_agents: bool
     _dirty_axe: bool
     _artifact_change_defer_pending: bool
+    _artifact_graph_refresh_running: bool
+    _artifact_graph_refresh_pending_paths: tuple[Path, ...]
     _last_full_sanity_refresh: float
 
     def _refresh_current_tab(self) -> None:
@@ -139,7 +141,6 @@ class EventHandlersMixin:
                 callback,
             )
             return
-        self._schedule_artifact_graph_refresh(changed_paths)
         # The watcher cannot currently distinguish per-surface events
         # (artifacts vs project files vs axe state) without a deeper
         # rework of ``ArtifactWatcher``; mark every surface dirty so the
@@ -158,6 +159,7 @@ class EventHandlersMixin:
                     self._on_artifact_change_deferred,
                 )
             return
+        self._schedule_artifact_graph_refresh(changed_paths)
         # Existing schedulers already coalesce stampedes via the
         # ``_*_loading`` / ``_*_refresh_pending`` machinery so a flurry of
         # inotify wakeups still triggers at most one in-flight reload plus
@@ -178,6 +180,33 @@ class EventHandlersMixin:
         if not changed_paths:
             return
 
+        paths = tuple(changed_paths)
+        if getattr(self, "_artifact_graph_refresh_running", False):
+            pending = set(getattr(self, "_artifact_graph_refresh_pending_paths", ()))
+            pending.update(paths)
+            self._artifact_graph_refresh_pending_paths = tuple(sorted(pending))
+            return
+
+        self._artifact_graph_refresh_running = True
+        self._artifact_graph_refresh_pending_paths = ()
+
+        def _finish() -> None:
+            self._artifact_graph_refresh_running = False
+            pending = getattr(self, "_artifact_graph_refresh_pending_paths", ())
+            self._artifact_graph_refresh_pending_paths = ()
+            if pending:
+                self._schedule_artifact_graph_refresh(pending)
+
+        def _finish_from_worker() -> None:
+            call_from_thread = getattr(self, "call_from_thread", None)
+            if callable(call_from_thread):
+                try:
+                    call_from_thread(_finish)
+                    return
+                except RuntimeError:
+                    pass
+            _finish()
+
         def _refresh() -> None:
             from ..artifact_graph_refresh import (
                 default_artifact_index_path,
@@ -185,11 +214,11 @@ class EventHandlersMixin:
             )
 
             try:
-                refresh_artifact_graph_for_paths(
-                    default_artifact_index_path(), changed_paths
-                )
+                refresh_artifact_graph_for_paths(default_artifact_index_path(), paths)
             except Exception:
                 log.debug("targeted artifact graph refresh failed", exc_info=True)
+            finally:
+                _finish_from_worker()
 
         run_worker = getattr(self, "run_worker", None)
         if callable(run_worker):

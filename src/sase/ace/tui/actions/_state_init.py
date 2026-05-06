@@ -87,6 +87,8 @@ class StateInitMixin:
         self._dirty_agents: bool = True
         self._dirty_axe: bool = True
         self._artifact_change_defer_pending: bool = False
+        self._artifact_graph_refresh_running: bool = False
+        self._artifact_graph_refresh_pending_paths: tuple[Any, ...] = ()
         self._last_full_sanity_refresh: float = 0.0
 
         # Hint mode state

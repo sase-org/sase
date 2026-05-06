@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core import artifact_facade
@@ -29,6 +30,17 @@ _PROJECT_SOURCES = (
     ARTIFACT_SOURCE_COMMIT,
 )
 _MAX_TARGETED_REFRESH_PATHS = 64
+
+
+@dataclass(frozen=True)
+class _ArtifactGraphRefreshTarget:
+    """Normalized, dedupable rebuild target for one changed source path."""
+
+    key: tuple[str, str]
+    target_path: Path | None = None
+    artifact_dir: Path | None = None
+    include_sources: tuple[str, ...] = ()
+    beads_dir: Path | None = None
 
 
 def default_artifact_index_path() -> Path:
@@ -91,66 +103,77 @@ def refresh_artifact_graph_for_paths(
     """Refresh derived graph rows for a bounded set of changed source paths."""
 
     results: list[ArtifactMutationResultWire] = []
-    seen: set[tuple[str, str]] = set()
-
-    for raw_path in list(changed_paths)[:_MAX_TARGETED_REFRESH_PATHS]:
-        path = Path(raw_path).expanduser()
-
-        artifact_dir = _artifact_dir_for_path(path)
-        if artifact_dir is not None:
-            key = ("agent", str(artifact_dir))
-            if key not in seen:
-                seen.add(key)
-                results.append(
-                    _refresh_artifact_graph_context(
-                        index_path,
-                        artifact_dir=artifact_dir,
-                        include_sources=_AGENT_SOURCES,
-                    )
-                )
-            continue
-
-        beads_dir = _beads_dir_for_path(path)
-        if beads_dir is not None:
-            key = ("beads", str(beads_dir))
-            if key not in seen:
-                seen.add(key)
-                results.append(
-                    _refresh_artifact_graph_context(
-                        index_path,
-                        target_path=path,
-                        beads_dir=beads_dir,
-                        include_sources=(ARTIFACT_SOURCE_BEAD_STORE,),
-                    )
-                )
-            continue
-
-        if path.suffix == ".gp":
-            key = ("project", str(path))
-            if key not in seen:
-                seen.add(key)
-                results.append(
-                    _refresh_artifact_graph_context(
-                        index_path,
-                        target_path=path,
-                        include_sources=_PROJECT_SOURCES,
-                    )
-                )
-            continue
-
-        if path.exists():
-            key = ("path", str(path))
-            if key not in seen:
-                seen.add(key)
-                results.append(
-                    _refresh_artifact_graph_context(
-                        index_path,
-                        target_path=path,
-                        include_sources=(ARTIFACT_SOURCE_DIRECTORY,),
-                    )
-                )
+    for target in _iter_artifact_graph_refresh_targets(changed_paths):
+        results.append(
+            _refresh_artifact_graph_context(
+                index_path,
+                target_path=target.target_path,
+                artifact_dir=target.artifact_dir,
+                include_sources=target.include_sources,
+                beads_dir=target.beads_dir,
+            )
+        )
 
     return results
+
+
+def _iter_artifact_graph_refresh_targets(
+    changed_paths: Iterable[Path | str],
+) -> list[_ArtifactGraphRefreshTarget]:
+    """Classify changed paths into normalized, deduped rebuild targets."""
+
+    targets: list[_ArtifactGraphRefreshTarget] = []
+    seen: set[tuple[str, str]] = set()
+    for raw_path in list(changed_paths)[:_MAX_TARGETED_REFRESH_PATHS]:
+        target = classify_artifact_graph_refresh_path(raw_path)
+        if target is None or target.key in seen:
+            continue
+        seen.add(target.key)
+        targets.append(target)
+    return targets
+
+
+def classify_artifact_graph_refresh_path(
+    raw_path: Path | str,
+) -> _ArtifactGraphRefreshTarget | None:
+    """Return the bounded graph refresh target for one changed path."""
+
+    path = _normalize_path(raw_path)
+
+    artifact_dir = _artifact_dir_for_path(path)
+    if artifact_dir is not None:
+        artifact_dir = _normalize_path(artifact_dir)
+        return _ArtifactGraphRefreshTarget(
+            key=("agent", str(artifact_dir)),
+            artifact_dir=artifact_dir,
+            include_sources=_AGENT_SOURCES,
+        )
+
+    beads_dir = _beads_dir_for_path(path)
+    if beads_dir is not None:
+        beads_dir = _normalize_path(beads_dir)
+        return _ArtifactGraphRefreshTarget(
+            key=("beads", str(beads_dir)),
+            target_path=path,
+            include_sources=(ARTIFACT_SOURCE_BEAD_STORE,),
+            beads_dir=beads_dir,
+        )
+
+    if path.suffix == ".gp":
+        return _ArtifactGraphRefreshTarget(
+            key=("project", str(path)),
+            target_path=path,
+            include_sources=_PROJECT_SOURCES,
+        )
+
+    if path.exists():
+        return _ArtifactGraphRefreshTarget(
+            key=("directory", str(path)),
+            target_path=path,
+            include_sources=(ARTIFACT_SOURCE_DIRECTORY,),
+        )
+
+    return None
 
 
 def _artifact_dir_from_agent_artifact_id(artifact_id: str) -> Path | None:
@@ -198,3 +221,11 @@ def _beads_dir_for_path(path: Path) -> Path | None:
         if parent.name == "beads":
             return parent
     return None
+
+
+def _normalize_path(raw_path: Path | str) -> Path:
+    path = Path(raw_path).expanduser()
+    try:
+        return path.resolve(strict=False)
+    except OSError:
+        return path.absolute()

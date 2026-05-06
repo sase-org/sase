@@ -14,6 +14,7 @@ from sase.core.artifact_wire import (
     ARTIFACT_SOURCE_BEAD_STORE,
     ARTIFACT_SOURCE_CHANGESPEC,
     ARTIFACT_SOURCE_COMMIT,
+    ARTIFACT_SOURCE_DIRECTORY,
     ARTIFACT_SOURCE_PROJECT_FILE,
     ArtifactMutationResultWire,
     ArtifactRebuildRequestWire,
@@ -75,6 +76,88 @@ def test_refresh_paths_targets_agent_marker_directory(
     )
 
 
+def test_refresh_paths_dedupes_by_normalized_agent_context(
+    monkeypatch, tmp_path: Path
+) -> None:
+    artifact_dir = (
+        tmp_path
+        / "home"
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "codex"
+        / "20260505120000"
+    )
+    artifact_dir.mkdir(parents=True)
+    first = artifact_dir / "agent_meta.json"
+    second = artifact_dir / "done.json"
+    first.write_text("{}")
+    second.write_text("{}")
+    monkeypatch.chdir(tmp_path)
+    mock_builder = Mock(return_value=ArtifactRebuildRequestWire())
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild_request",
+        mock_builder,
+    )
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild",
+        Mock(return_value=_mutation()),
+    )
+
+    artifact_graph_refresh.refresh_artifact_graph_for_paths(
+        "/tmp/artifacts.sqlite",
+        [
+            Path("home/.sase/projects/proj/artifacts/codex/20260505120000")
+            / "agent_meta.json",
+            second,
+        ],
+    )
+
+    mock_builder.assert_called_once_with(
+        target_path=None,
+        artifact_dir=artifact_dir,
+        include_sources=(
+            ARTIFACT_SOURCE_AGENT_ARTIFACT,
+            ARTIFACT_SOURCE_AGENT_CREATED_FILE,
+            ARTIFACT_SOURCE_AGENT_THOUGHT,
+        ),
+        beads_dir=None,
+    )
+
+
+def test_agent_created_file_classifies_to_artifact_dir(tmp_path: Path) -> None:
+    created_file = (
+        tmp_path
+        / "home"
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "codex"
+        / "20260505120000"
+        / "created_files"
+        / "src"
+        / "main.py"
+    )
+    created_file.parent.mkdir(parents=True)
+    created_file.write_text("print('ok')\n")
+
+    target = artifact_graph_refresh.classify_artifact_graph_refresh_path(created_file)
+
+    assert target is not None
+    assert target.key == ("agent", str(created_file.parents[2]))
+    assert target.artifact_dir == created_file.parents[2]
+    assert target.target_path is None
+    assert target.include_sources == (
+        ARTIFACT_SOURCE_AGENT_ARTIFACT,
+        ARTIFACT_SOURCE_AGENT_CREATED_FILE,
+        ARTIFACT_SOURCE_AGENT_THOUGHT,
+    )
+
+
 def test_refresh_paths_targets_project_file(monkeypatch, tmp_path: Path) -> None:
     project_file = tmp_path / "proj.gp"
     project_file.write_text("NAME: alpha\n")
@@ -131,6 +214,33 @@ def test_refresh_paths_targets_bead_store(monkeypatch, tmp_path: Path) -> None:
         artifact_dir=None,
         include_sources=(ARTIFACT_SOURCE_BEAD_STORE,),
         beads_dir=issues.parent,
+    )
+
+
+def test_refresh_paths_targets_direct_directory(monkeypatch, tmp_path: Path) -> None:
+    directory = tmp_path / "docs"
+    directory.mkdir()
+    mock_builder = Mock(return_value=ArtifactRebuildRequestWire())
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild_request",
+        mock_builder,
+    )
+    monkeypatch.setattr(
+        artifact_graph_refresh.artifact_facade,
+        "artifact_rebuild",
+        Mock(return_value=_mutation()),
+    )
+
+    artifact_graph_refresh.refresh_artifact_graph_for_paths(
+        "/tmp/artifacts.sqlite", [directory]
+    )
+
+    mock_builder.assert_called_once_with(
+        target_path=directory,
+        artifact_dir=None,
+        include_sources=(ARTIFACT_SOURCE_DIRECTORY,),
+        beads_dir=None,
     )
 
 
