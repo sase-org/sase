@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import signal
 import subprocess
 import sys
 import time
-import json
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +69,53 @@ def test_work_launches_and_passes_rendered_multi_prompt(
 
     out = capsys.readouterr().out
     assert "Launched" in out
+
+
+def test_work_linked_legend_epic_uses_legend_tag_and_links(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as proj:
+        legend = proj.create(
+            "Legend roadmap",
+            IssueType.PLAN,
+            tier=BeadTier.LEGEND,
+            design="sdd/legends/202605/roadmap.md",
+            epic_count=1,
+        )
+        epic = proj.create("Legend child epic", IssueType.PLAN, parent_id=legend.id)
+        p1 = proj.create("P1", IssueType.PHASE, parent_id=epic.id)
+        p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
+        proj.add_dependency(p2.id, p1.id)
+
+    captured: dict[str, Any] = {}
+
+    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+        captured["query"] = query
+        captured["extra_env"] = extra_env
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(make_args(epic.id, yes=True))
+
+    query = captured["query"]
+    assert query.count(f"%tag:{legend.id}") == 3
+    assert f"%tag:{epic.id}" not in query
+    assert f"#bd/work_phase_bead:{p1.id}" in query
+    assert f"#bd/work_phase_bead:{p2.id}" in query
+    assert f"#bd/land_epic:{epic.id}" in query
+
+    links = json.loads(captured["extra_env"][SASE_AGENT_WORKFLOW_LINKS_ENV])
+    assert links["*"]["legend_bead_id"] == legend.id
+    assert links["*"]["epic_bead_id"] == epic.id
+    for phase_id in (p1.id, p2.id):
+        assert links[phase_id]["legend_bead_id"] == legend.id
+        assert links[phase_id]["epic_bead_id"] == epic.id
+        assert links[phase_id]["phase_bead_id"] == phase_id
+    assert links[epic.id]["legend_bead_id"] == legend.id
+    assert links[epic.id]["epic_bead_id"] == epic.id
+    assert links[epic.id]["bead_id"] == epic.id
 
 
 def test_work_dry_run_never_mutates_or_launches(

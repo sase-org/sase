@@ -12,7 +12,7 @@ from sase.bead.work import (
 )
 from sase.xprompt.workflow_models import Workflow
 
-from .work_test_helpers import depends, epic, phase, seed
+from .work_test_helpers import depends, epic, legend, phase, seed
 
 
 class TestRenderEdgeCases:
@@ -62,6 +62,31 @@ class TestRenderEdgeCases:
         plan = build_epic_work_plan(conn, "sase-r")
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r"
+
+    def test_legend_child_epic_uses_legend_tag_only(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(
+            conn,
+            [
+                legend("l1"),
+                epic("e1", parent_id="l1"),
+                phase("p1", parent_id="e1"),
+            ],
+        )
+        plan = build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert plan.launch_tag_id == "l1"
+        assert rendered.count("%tag:l1") == 2
+        assert "%tag:e1" not in rendered
+        assert "#bd/work_phase_bead:p1" in rendered
+        assert "#bd/land_epic:e1" in rendered
 
 
 class TestChangeSpecRendering:

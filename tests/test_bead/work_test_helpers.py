@@ -11,12 +11,12 @@ from sase.bead.work import EpicWorkPlan, PhaseAssignment
 NOW = "2026-04-25T00:00:00Z"
 
 
-def epic(epic_id: str = "e1") -> Issue:
+def epic(epic_id: str = "e1", *, parent_id: str | None = None) -> Issue:
     return Issue(
         id=epic_id,
         title=f"Epic {epic_id}",
         issue_type=IssueType.PLAN,
-        parent_id=None,
+        parent_id=parent_id,
         created_at=NOW,
         updated_at=NOW,
     )

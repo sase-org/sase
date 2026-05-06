@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from sase.bead.model import Status
+from sase.bead.model import BeadTier, Status
 from sase.bead.work import (
     CrossEpicBlockerError,
     CycleError,
@@ -16,7 +16,7 @@ from sase.bead.work import (
 )
 from sase.xprompt.workflow_models import Workflow
 
-from .work_test_helpers import depends, epic, phase, seed, wave_bead_ids
+from .work_test_helpers import depends, epic, legend, phase, seed, wave_bead_ids
 
 
 class TestLinearChain:
@@ -45,6 +45,42 @@ class TestLinearChain:
         assert plan.waves[2][0].waits_on == ("p2",)
         assert plan.land_waits_on == ("p1", "p2", "p3")
         assert plan.land_agent_name == "e1"
+        assert plan.launch_tag_id == "e1"
+
+    def test_legend_child_epic_uses_legend_launch_tag(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(
+            conn,
+            [
+                legend("l1"),
+                epic("e1", parent_id="l1"),
+                phase("p1", parent_id="e1"),
+            ],
+        )
+
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert plan.epic_id == "e1"
+        assert plan.launch_tag_id == "l1"
+
+    def test_non_legend_parent_falls_back_to_epic_launch_tag(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        parent = epic("p0")
+        parent.tier = BeadTier.PLAN
+        seed(
+            conn,
+            [
+                parent,
+                epic("e1", parent_id="p0"),
+                phase("p1", parent_id="e1"),
+            ],
+        )
+
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert plan.launch_tag_id == "e1"
 
 
 class TestDiamond:

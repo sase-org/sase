@@ -435,6 +435,9 @@ def _epic_workflow_link_env(
 ) -> dict[str, str]:
     links: dict[str, dict[str, str]] = {}
     common: dict[str, str] = {"epic_bead_id": plan.epic_id}
+    legend_bead_id = plan.launch_tag_id if plan.launch_tag_id != plan.epic_id else None
+    if legend_bead_id is not None:
+        common["legend_bead_id"] = legend_bead_id
     if changespec_context is not None:
         common["changespec_name"] = changespec_context.changespec_name
     links["*"] = common
@@ -445,6 +448,8 @@ def _epic_workflow_link_env(
                 "phase_bead_id": assignment.bead_id,
                 "bead_id": assignment.bead_id,
             }
+            if legend_bead_id is not None:
+                links[assignment.agent_name]["legend_bead_id"] = legend_bead_id
             if changespec_context is not None:
                 links[assignment.agent_name]["changespec_name"] = (
                     changespec_context.changespec_name
@@ -453,6 +458,8 @@ def _epic_workflow_link_env(
         "epic_bead_id": plan.epic_id,
         "bead_id": plan.epic_id,
     }
+    if legend_bead_id is not None:
+        links[plan.land_agent_name]["legend_bead_id"] = legend_bead_id
     if changespec_context is not None:
         links[plan.land_agent_name]["changespec_name"] = (
             changespec_context.changespec_name

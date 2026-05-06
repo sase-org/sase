@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 22:14:50
-status: wip
+status: done
 prompt: sdd/prompts/202605/legend_epic_agent_tags.md
 ---
 # Plan: Legend-Aware Epic Work Agent Tags

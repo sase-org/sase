@@ -36,6 +36,7 @@ class EpicWorkPlan:
     """Wave-partitioned plan to work an epic plus its final land agent."""
 
     epic_id: str
+    launch_tag_id: str
     waves: tuple[tuple[PhaseAssignment, ...], ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
@@ -185,8 +186,10 @@ def _build_legend_work_plan_from_issues(
 
 
 def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
+    epic_id = str(payload["epic_id"])
     return EpicWorkPlan(
-        epic_id=str(payload["epic_id"]),
+        epic_id=epic_id,
+        launch_tag_id=str(payload.get("launch_tag_id", epic_id)),
         waves=tuple(
             tuple(
                 PhaseAssignment(
@@ -320,7 +323,7 @@ def render_multi_prompt(
             lines.extend(
                 [
                     f"%name:{assignment.agent_name}",
-                    _tag_directive(plan.epic_id),
+                    _tag_directive(plan.launch_tag_id),
                     "%approve",
                 ]
             )
@@ -331,7 +334,7 @@ def render_multi_prompt(
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:{plan.land_agent_name}")
-    land_lines.append(_tag_directive(plan.epic_id))
+    land_lines.append(_tag_directive(plan.launch_tag_id))
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
