@@ -58,6 +58,9 @@ File artifacts keep `kind = "file"` and expose their semantic type in `metadata.
 are `plan`, `diff`, `chat`, `project`, `prompt`, and `misc`; missing or unknown metadata is treated as `misc`. Use
 `-F/--file-type` only with file-artifact queries.
 
+Directory artifacts are intentionally sparse. `/` is always present, and non-root directory artifacts are containers for
+visible non-directory artifacts rather than a complete mirror of every empty directory on disk.
+
 Inspect one artifact exactly before summarizing its relationships or payloads:
 
 ```bash
@@ -120,6 +123,9 @@ sase artifact sync -j
 Use rebuild for stale or missing derived data, not for routine read-only discovery. The default stale cleanup mode is
 `none`; `-c mark` lets Rust mark stale derived rows when that behavior is needed.
 
+Newly-created artifacts are indexed by existing targeted refresh paths when SASE writes or watches the changed source.
+Use `sync` or broad `rebuild` for historical backfill and stale-index repair, not as a startup requirement.
+
 Default rebuilds are the migration path for existing user state. With no source filters, rebuild discovers the standard
 projects root, current workspace context, the current workspace bead store when supplied by the caller, and agent
 artifact directories under supported layouts. It backfills graph rows for current and archived ChangeSpecs, commits,
@@ -164,6 +170,8 @@ Migration-specific issue types include:
   indexed agent.
 - `unresolved_changespec_reference`: a marker or bead references a ChangeSpec that is not in the rebuilt project set.
 - `unresolved_bead_reference`: metadata references a bead missing from the rebuilt bead store.
+- `orphan_directory`: a non-root directory artifact has no visible non-directory descendants. This usually indicates an
+  old broad directory-only row that can be diagnosed without deleting source files.
 - `stale_derived`: `rebuild -c mark` found previously-derived rows whose source is no longer present.
 
 A typical stale-index refresh is:

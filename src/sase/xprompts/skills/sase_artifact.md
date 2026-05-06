@@ -44,6 +44,9 @@ Useful filters:
 File artifacts keep `kind = "file"` and store the semantic type in `metadata.artifact_type`. Canonical file types are
 `plan`, `diff`, `chat`, `project`, `prompt`, and `misc`; missing or unknown metadata reads as `misc`.
 
+Directory artifacts are sparse: `/` is always present, and non-root directories exist only as containers for visible
+non-directory artifacts.
+
 If the list is empty, say "no matching artifacts found" plainly. Do not infer artifact details from names alone.
 
 ## Exact Inspection
@@ -102,6 +105,9 @@ sase artifact doctor -j
 `sync` is an explicit historical sync/backfill alias for `rebuild`; it mutates derived graph rows in the artifact index
 and is not run on startup. Use it for stale-index troubleshooting, not for routine read-only discovery.
 
+New artifact writes are indexed by existing targeted refresh paths where SASE knows the changed source. Historical
+backfill still requires explicit `sync` or `rebuild`.
+
 Common doctor issues:
 
 - `fallback_agent_id` - a legacy unnamed agent was indexed with a deterministic fallback ID.
@@ -109,6 +115,7 @@ Common doctor issues:
   indexed.
 - `unresolved_changespec_reference` - metadata or a bead references a missing ChangeSpec.
 - `unresolved_bead_reference` - metadata references a missing bead.
+- `orphan_directory` - a non-root directory artifact has no visible non-directory descendants.
 - `stale_derived` - stale cleanup marked a derived row whose source disappeared.
 
 For missing current context, prefer targeted rebuilds over full rebuilds:
