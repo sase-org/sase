@@ -212,6 +212,23 @@ def test_debounced_refresh_50_idx_changes_zero_update_list() -> None:
     assert len(app.list_widget.update_highlight_calls) == 50
 
 
+def test_debounced_refresh_50_idx_changes_zero_artifact_summary_calls(
+    monkeypatch: Any,
+) -> None:
+    """50 j/k navigations must not load CL artifact summaries."""
+    summary = MagicMock(return_value=[])
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifact_summaries.artifact_facade.artifact_summary",
+        summary,
+    )
+    app = _FakeApp(count=10)
+
+    for _ in range(50):
+        app._refresh_changespecs_display_debounced()
+
+    summary.assert_not_called()
+
+
 def test_debounced_refresh_does_not_call_clear_options() -> None:
     """Pure j/k navigation must never clear the OptionList."""
     app = _FakeApp()

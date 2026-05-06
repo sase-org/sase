@@ -10,6 +10,8 @@ so debounced workers can drop stale results.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
+from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -189,6 +191,24 @@ def test_jk_burst_only_full_updates_final_selection() -> None:
 
     assert len(app.detail_widget.full_calls) == 1
     assert app.detail_widget.full_calls[0] == ("agent_49", None)
+
+
+def test_jk_burst_makes_zero_artifact_summary_calls(monkeypatch: Any) -> None:
+    """50-agent j/k burst must not load Agent row artifact summaries."""
+    summary = MagicMock(return_value=[])
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifact_summaries.artifact_facade.artifact_summary",
+        summary,
+    )
+    agents = [_make_agent(f"agent_{i}") for i in range(50)]
+    app = _FakeApp(agents=agents)
+    app._panel_group = type(app._panel_group).from_agents(agents)
+
+    for i in range(50):
+        app.current_idx = i
+        app._refresh_agents_display_debounced()
+
+    summary.assert_not_called()
 
 
 def test_generation_token_increments_per_phase() -> None:
