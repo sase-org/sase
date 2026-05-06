@@ -21,6 +21,11 @@ agent_status_bucket
 agent_status_bucket_glyph
 group_agent_statuses
 status_bucket_header
+MobileNotificationBridgeCounts
+MobileNotificationBridgeRow
+MobileNotificationBridgeSnapshot
+read_mobile_notification_snapshot
+resolve_mobile_notification_detail
 enter_maintenance
 ChatInstallConfig
 ChatInstallLaunchResult
