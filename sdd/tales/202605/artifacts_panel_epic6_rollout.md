@@ -31,7 +31,7 @@ Across Epics 1-6, the unified artifact graph is the default artifact discovery m
 The Epic 6 benchmark command is:
 
 ```bash
-python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
+.venv/bin/python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
 ```
 
 The checked-in smoke target is:
@@ -41,28 +41,57 @@ just artifact-perf-smoke
 ```
 
 Current local smoke evidence is stored at
-`sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json`. The captured run used `--runs 1 --projects 2 --beads
-10 --agents 10 --modal-linked 120` and reported no benchmark errors. Representative timings from that run:
+`sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json`. The final Phase 6.6 run used `just
+artifact-perf-smoke`, which expands to `--runs 1 --projects 2 --beads 10 --agents 10 --modal-linked 120`, and reported
+no benchmark errors. Representative timings from that run:
 
 | Operation | Latency ms | Calls/counts |
 | --- | ---: | --- |
-| `startup_contract:no_broad_artifact_graph_calls` | 0.25 | 0 broad graph calls |
+| `startup_contract:no_broad_artifact_graph_calls` | 0.28 | 0 broad graph calls |
 | `startup_contract:missing_index_no_broad_artifact_graph_calls` | 0.06 | 0 broad graph calls |
-| `full_graph_rebuild` | 108.64 | 97 nodes added, 482 nodes updated, 168 links added, 395 links updated |
-| `targeted_agent_artifact_burst` | 13.31 | 1 targeted mutation call |
-| `artifact_show_paged:high_degree_children` | 2.18 | 1 query, 10 rows returned |
-| `artifact_search:global_limited` | 1.66 | 1 query, 12 rows returned |
-| `artifact_summary:visible_rows_batch` | 1.26 | 1 query, 11 summaries |
-| `modal_open:paged:/` | 176.18 | 1 `artifact_show_paged`, 0 `artifact_show`, 12 rows |
-| `modal_open:paged:changespec:current` | 144.13 | 1 `artifact_show_paged`, 0 `artifact_show`, 38 rows |
-| `modal_open:paged:agent:current` | 148.97 | 1 `artifact_show_paged`, 0 `artifact_show`, 15 rows |
-| `modal_open:missing_artifact_targeted_refresh:changespec:current` | 189.93 | 2 paged queries, 1 targeted refresh |
-| `modal_open_legacy_compat:/` | 129.15 | 1 legacy `artifact_show` compatibility query |
+| `full_graph_rebuild` | 114.36 | 97 nodes added, 482 nodes updated, 168 links added, 395 links updated |
+| `targeted_agent_artifact_burst` | 12.67 | 1 targeted mutation call |
+| `artifact_show_paged:high_degree_children` | 2.30 | 1 query, 10 rows returned |
+| `artifact_search:global_limited` | 1.69 | 1 query, 12 rows returned |
+| `artifact_summary:visible_rows_batch` | 1.28 | 1 query, 11 summaries |
+| `modal_open:paged:/` | 175.30 | 1 `artifact_show_paged`, 0 `artifact_show`, 12 rows |
+| `modal_open:paged:changespec:current` | 143.86 | 1 `artifact_show_paged`, 0 `artifact_show`, 38 rows |
+| `modal_open:paged:agent:current` | 156.43 | 1 `artifact_show_paged`, 0 `artifact_show`, 15 rows |
+| `modal_open:missing_artifact_targeted_refresh:changespec:current` | 183.55 | 2 paged queries, 1 targeted refresh |
+| `modal_open_legacy_compat:/` | 145.25 | 1 legacy `artifact_show` compatibility query |
 
 These numbers are descriptive local evidence, not a workstation-sensitive latency gate. The gate is boundedness: no
 broad startup graph calls, one paged modal detail query per open, explicit limits on search and high-degree navigation,
 one targeted refresh for the missing-artifact modal case, legacy all-detail behavior isolated to the compatibility
 measurement, and no benchmark errors.
+
+## Final Phase 6.6 Gate
+
+Traceability from the Epic 6 acceptance criteria to final evidence:
+
+| Acceptance criterion | Final evidence |
+| --- | --- |
+| `sase ace` startup does not run broad artifact graph rebuild/list/show/search/summary calls | Startup contract tests and benchmark rows `startup_contract:*` report 0 broad graph calls. |
+| Newly-created artifacts use bounded targeted refresh | `tests/ace/tui/test_artifact_graph_refresh.py` and benchmark targeted upsert rows report one targeted mutation call per scenario. |
+| Existing users have explicit manual sync/rebuild paths | CLI parser/docs tests, `docs/artifacts.md`, and `/sase_artifact` skill text document `sync`/`rebuild` as manual historical backfill. |
+| Directory invariant and file type taxonomy remain stable | Rust artifact tests plus Python real-extension and wire tests cover sparse directories and `plan`, `diff`, `chat`, `project`, `prompt`, `misc`. |
+| Artifact panel uses paged rows, counted groups, local filter, global search, and apostrophe navigation | Modal tests cover paged loading, local `/`, bounded `S`, show-more rows, persistent header, recoverable errors, and jump mode. |
+| CL/Agent indicators avoid startup and hot-navigation summary queries | Indicator/action/widget tests cover shared rendering, batched summary loading, cache signatures, startup skip, and j/k navigation skip. |
+| Benchmark harness measures the rollout scenarios without touching live indexes | `just artifact-perf-smoke` writes the checked-in smoke JSON from temporary indexes and deterministic fixtures. |
+
+Phase 6.6 validation commands run from this workspace:
+
+```bash
+just install
+.venv/bin/pytest -m slow tests/perf/bench_artifact_graph.py -q
+.venv/bin/pytest tests/test_core_facade/test_artifact.py tests/test_core_facade/test_artifact_wire.py tests/test_core_facade/test_artifact_facade_bindings.py tests/test_core_facade/test_artifact_real_extension.py tests/main/test_artifact_cli_parser.py tests/main/test_artifact_cli_read_commands.py tests/main/test_artifact_cli_maintenance_commands.py tests/main/test_artifact_cli_real_extension.py tests/main/test_artifact_cli_real_extension_sync.py -q
+.venv/bin/pytest tests/ace/tui/modals/test_artifact_panel_modal.py tests/ace/tui/modals/test_artifact_panel_paging_search.py tests/ace/tui/modals/test_artifact_panel_jump.py tests/ace/tui/modals/test_artifact_panel_renderers.py tests/ace/tui/modals/test_artifact_panel_rows.py tests/ace/tui/modals/test_artifact_panel_states.py tests/ace/tui/test_artifact_panel_launch.py tests/ace/tui/test_artifact_graph_refresh.py tests/ace/tui/test_agent_artifact_indicators.py tests/ace/tui/actions/test_agent_artifact_startup_contracts.py tests/ace/tui/actions/test_artifact_summary_loading.py tests/ace/tui/widgets/test_agent_display.py tests/ace/tui/widgets/test_changespec_list_grouped.py -q
+just artifact-perf-smoke
+just check
+```
+
+No sibling Rust files were changed during Phase 6.6. The residual operational risk is stale historical user indexes; the
+mitigation remains the explicit manual `sync`, `rebuild`, and `doctor` workflow below.
 
 ## Operational Caveats
 

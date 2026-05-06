@@ -41,8 +41,8 @@ The unified artifact graph rollout harness is descriptive: it records timings, q
 sizes, and errors, while tests assert bounded behavior instead of workstation-specific latency thresholds.
 
 ```bash
-pytest tests/perf/bench_artifact_graph.py -q
-python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
+.venv/bin/pytest -m slow tests/perf/bench_artifact_graph.py -q
+.venv/bin/python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
 ```
 
 The harness uses temporary indexes and deterministic fixtures. It covers startup scheduling with and without an existing

@@ -7,7 +7,7 @@
         "watcher_starts": 1,
         "workers": 2
       },
-      "latency_ms": 0.2483040007064119,
+      "latency_ms": 0.27771000168286264,
       "operation": "startup_contract:no_broad_artifact_graph_calls",
       "query_counts": {
         "calls": 0
@@ -22,7 +22,7 @@
         "watcher_starts": 1,
         "workers": 2
       },
-      "latency_ms": 0.0563770008739084,
+      "latency_ms": 0.05654800042975694,
       "operation": "startup_contract:missing_index_no_broad_artifact_graph_calls",
       "query_counts": {
         "calls": 0
@@ -43,7 +43,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 108.63903000426944,
+      "latency_ms": 114.36069400224369,
       "mutation_counts": {
         "calls": 1,
         "links_added": 168,
@@ -70,7 +70,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.6545280017890036,
+      "latency_ms": 3.587100000004284,
       "mutation_counts": {
         "calls": 1,
         "links_added": 0,
@@ -97,7 +97,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 3.9619439921807498,
+      "latency_ms": 3.863707010168582,
       "mutation_counts": {
         "calls": 1,
         "links_added": 0,
@@ -124,7 +124,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 12.808144994778559,
+      "latency_ms": 12.150130001828074,
       "mutation_counts": {
         "calls": 1,
         "links_added": 1,
@@ -151,7 +151,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 13.307508008438163,
+      "latency_ms": 12.665202011703514,
       "mutation_counts": {
         "calls": 1,
         "links_added": 0,
@@ -171,7 +171,7 @@
         "limit": 10,
         "linked_rows": 240
       },
-      "latency_ms": 2.182146010454744,
+      "latency_ms": 2.304170004208572,
       "operation": "artifact_show_paged:high_degree_children",
       "query_counts": {
         "calls": 1
@@ -185,7 +185,7 @@
         "limit": 12,
         "linked_rows": 240
       },
-      "latency_ms": 1.6607309953542426,
+      "latency_ms": 1.6907889948925003,
       "operation": "artifact_search:global_limited",
       "query_counts": {
         "calls": 1
@@ -198,7 +198,7 @@
       "fixture": {
         "visible_rows": 11
       },
-      "latency_ms": 1.2600670015672222,
+      "latency_ms": 1.2793830101145431,
       "operation": "artifact_summary:visible_rows_batch",
       "query_counts": {
         "calls": 1
@@ -217,7 +217,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.5341190010076389,
+      "latency_ms": 1.5434670058311895,
       "operation": "artifact_show:project",
       "query_counts": {
         "calls": 1
@@ -236,7 +236,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.1870760063175112,
+      "latency_ms": 1.1509480100357905,
       "operation": "artifact_show:changespec",
       "query_counts": {
         "calls": 1
@@ -255,7 +255,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.6397709987359121,
+      "latency_ms": 1.6509829874848947,
       "operation": "artifact_show:commit",
       "query_counts": {
         "calls": 1
@@ -274,7 +274,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.7137710092356429,
+      "latency_ms": 1.716837999993004,
       "operation": "artifact_show:bead",
       "query_counts": {
         "calls": 1
@@ -293,7 +293,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.8156770092900842,
+      "latency_ms": 2.024265006184578,
       "operation": "artifact_show:agent",
       "query_counts": {
         "calls": 1
@@ -312,7 +312,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.6579060029471293,
+      "latency_ms": 1.7132109933299944,
       "operation": "artifact_show:file",
       "query_counts": {
         "calls": 1
@@ -331,7 +331,7 @@
         "project_files": 2,
         "thoughts": 10
       },
-      "latency_ms": 1.807150008971803,
+      "latency_ms": 1.7607409972697496,
       "operation": "artifact_show:thought",
       "query_counts": {
         "calls": 1
@@ -363,7 +363,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 176.17671200423501,
+      "latency_ms": 175.29505999118555,
       "operation": "modal_open:paged:/",
       "query_counts": {
         "artifact_export": 0,
@@ -380,7 +380,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 144.12931399419904,
+      "latency_ms": 143.8625450100517,
       "operation": "modal_open:paged:changespec:current",
       "query_counts": {
         "artifact_export": 0,
@@ -397,7 +397,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 148.9727409934858,
+      "latency_ms": 156.43049000937026,
       "operation": "modal_open:paged:agent:current",
       "query_counts": {
         "artifact_export": 0,
@@ -415,7 +415,7 @@
         "linked_rows": 120,
         "targeted_refreshes": 1
       },
-      "latency_ms": 189.93442099599633,
+      "latency_ms": 183.5526960057905,
       "mutation_counts": {
         "calls": 1,
         "targeted_refreshes": 1
@@ -434,7 +434,7 @@
       "fixture": {
         "linked_rows": 120
       },
-      "latency_ms": 129.14878100855276,
+      "latency_ms": 145.24835100746714,
       "operation": "modal_open_legacy_compat:/",
       "query_counts": {
         "artifact_show": 1,
@@ -491,10 +491,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.6607309953542426,
-        "median_ms": 1.6607309953542426,
-        "min_ms": 1.6607309953542426,
-        "p95_ms": 1.6607309953542426
+        "max_ms": 1.6907889948925003,
+        "median_ms": 1.6907889948925003,
+        "min_ms": 1.6907889948925003,
+        "p95_ms": 1.6907889948925003
       },
       "mutation_calls": {
         "count": 0.0
@@ -528,10 +528,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.8156770092900842,
-        "median_ms": 1.8156770092900842,
-        "min_ms": 1.8156770092900842,
-        "p95_ms": 1.8156770092900842
+        "max_ms": 2.024265006184578,
+        "median_ms": 2.024265006184578,
+        "min_ms": 2.024265006184578,
+        "p95_ms": 2.024265006184578
       },
       "mutation_calls": {
         "count": 0.0
@@ -565,10 +565,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.7137710092356429,
-        "median_ms": 1.7137710092356429,
-        "min_ms": 1.7137710092356429,
-        "p95_ms": 1.7137710092356429
+        "max_ms": 1.716837999993004,
+        "median_ms": 1.716837999993004,
+        "min_ms": 1.716837999993004,
+        "p95_ms": 1.716837999993004
       },
       "mutation_calls": {
         "count": 0.0
@@ -602,10 +602,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.1870760063175112,
-        "median_ms": 1.1870760063175112,
-        "min_ms": 1.1870760063175112,
-        "p95_ms": 1.1870760063175112
+        "max_ms": 1.1509480100357905,
+        "median_ms": 1.1509480100357905,
+        "min_ms": 1.1509480100357905,
+        "p95_ms": 1.1509480100357905
       },
       "mutation_calls": {
         "count": 0.0
@@ -639,10 +639,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.6397709987359121,
-        "median_ms": 1.6397709987359121,
-        "min_ms": 1.6397709987359121,
-        "p95_ms": 1.6397709987359121
+        "max_ms": 1.6509829874848947,
+        "median_ms": 1.6509829874848947,
+        "min_ms": 1.6509829874848947,
+        "p95_ms": 1.6509829874848947
       },
       "mutation_calls": {
         "count": 0.0
@@ -676,10 +676,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.6579060029471293,
-        "median_ms": 1.6579060029471293,
-        "min_ms": 1.6579060029471293,
-        "p95_ms": 1.6579060029471293
+        "max_ms": 1.7132109933299944,
+        "median_ms": 1.7132109933299944,
+        "min_ms": 1.7132109933299944,
+        "p95_ms": 1.7132109933299944
       },
       "mutation_calls": {
         "count": 0.0
@@ -713,10 +713,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.5341190010076389,
-        "median_ms": 1.5341190010076389,
-        "min_ms": 1.5341190010076389,
-        "p95_ms": 1.5341190010076389
+        "max_ms": 1.5434670058311895,
+        "median_ms": 1.5434670058311895,
+        "min_ms": 1.5434670058311895,
+        "p95_ms": 1.5434670058311895
       },
       "mutation_calls": {
         "count": 0.0
@@ -750,10 +750,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.807150008971803,
-        "median_ms": 1.807150008971803,
-        "min_ms": 1.807150008971803,
-        "p95_ms": 1.807150008971803
+        "max_ms": 1.7607409972697496,
+        "median_ms": 1.7607409972697496,
+        "min_ms": 1.7607409972697496,
+        "p95_ms": 1.7607409972697496
       },
       "mutation_calls": {
         "count": 0.0
@@ -782,10 +782,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 2.182146010454744,
-        "median_ms": 2.182146010454744,
-        "min_ms": 2.182146010454744,
-        "p95_ms": 2.182146010454744
+        "max_ms": 2.304170004208572,
+        "median_ms": 2.304170004208572,
+        "min_ms": 2.304170004208572,
+        "p95_ms": 2.304170004208572
       },
       "mutation_calls": {
         "count": 0.0
@@ -813,10 +813,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 1.2600670015672222,
-        "median_ms": 1.2600670015672222,
-        "min_ms": 1.2600670015672222,
-        "p95_ms": 1.2600670015672222
+        "max_ms": 1.2793830101145431,
+        "median_ms": 1.2793830101145431,
+        "min_ms": 1.2793830101145431,
+        "p95_ms": 1.2793830101145431
       },
       "mutation_calls": {
         "count": 0.0
@@ -850,10 +850,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 108.63903000426944,
-        "median_ms": 108.63903000426944,
-        "min_ms": 108.63903000426944,
-        "p95_ms": 108.63903000426944
+        "max_ms": 114.36069400224369,
+        "median_ms": 114.36069400224369,
+        "min_ms": 114.36069400224369,
+        "p95_ms": 114.36069400224369
       },
       "mutation_calls": {
         "count": 1.0,
@@ -878,10 +878,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 189.93442099599633,
-        "median_ms": 189.93442099599633,
-        "min_ms": 189.93442099599633,
-        "p95_ms": 189.93442099599633
+        "max_ms": 183.5526960057905,
+        "median_ms": 183.5526960057905,
+        "min_ms": 183.5526960057905,
+        "p95_ms": 183.5526960057905
       },
       "mutation_calls": {
         "count": 1.0,
@@ -913,10 +913,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 176.17671200423501,
-        "median_ms": 176.17671200423501,
-        "min_ms": 176.17671200423501,
-        "p95_ms": 176.17671200423501
+        "max_ms": 175.29505999118555,
+        "median_ms": 175.29505999118555,
+        "min_ms": 175.29505999118555,
+        "p95_ms": 175.29505999118555
       },
       "mutation_calls": {
         "count": 0.0
@@ -944,10 +944,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 148.9727409934858,
-        "median_ms": 148.9727409934858,
-        "min_ms": 148.9727409934858,
-        "p95_ms": 148.9727409934858
+        "max_ms": 156.43049000937026,
+        "median_ms": 156.43049000937026,
+        "min_ms": 156.43049000937026,
+        "p95_ms": 156.43049000937026
       },
       "mutation_calls": {
         "count": 0.0
@@ -975,10 +975,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 144.12931399419904,
-        "median_ms": 144.12931399419904,
-        "min_ms": 144.12931399419904,
-        "p95_ms": 144.12931399419904
+        "max_ms": 143.8625450100517,
+        "median_ms": 143.8625450100517,
+        "min_ms": 143.8625450100517,
+        "p95_ms": 143.8625450100517
       },
       "mutation_calls": {
         "count": 0.0
@@ -1006,10 +1006,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 129.14878100855276,
-        "median_ms": 129.14878100855276,
-        "min_ms": 129.14878100855276,
-        "p95_ms": 129.14878100855276
+        "max_ms": 145.24835100746714,
+        "median_ms": 145.24835100746714,
+        "min_ms": 145.24835100746714,
+        "p95_ms": 145.24835100746714
       },
       "mutation_calls": {
         "count": 0.0
@@ -1039,10 +1039,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 0.0563770008739084,
-        "median_ms": 0.0563770008739084,
-        "min_ms": 0.0563770008739084,
-        "p95_ms": 0.0563770008739084
+        "max_ms": 0.05654800042975694,
+        "median_ms": 0.05654800042975694,
+        "min_ms": 0.05654800042975694,
+        "p95_ms": 0.05654800042975694
       },
       "mutation_calls": {
         "count": 0.0
@@ -1071,10 +1071,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 0.2483040007064119,
-        "median_ms": 0.2483040007064119,
-        "min_ms": 0.2483040007064119,
-        "p95_ms": 0.2483040007064119
+        "max_ms": 0.27771000168286264,
+        "median_ms": 0.27771000168286264,
+        "min_ms": 0.27771000168286264,
+        "p95_ms": 0.27771000168286264
       },
       "mutation_calls": {
         "count": 0.0
@@ -1108,10 +1108,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 13.307508008438163,
-        "median_ms": 13.307508008438163,
-        "min_ms": 13.307508008438163,
-        "p95_ms": 13.307508008438163
+        "max_ms": 12.665202011703514,
+        "median_ms": 12.665202011703514,
+        "min_ms": 12.665202011703514,
+        "p95_ms": 12.665202011703514
       },
       "mutation_calls": {
         "count": 1.0,
@@ -1141,10 +1141,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 12.808144994778559,
-        "median_ms": 12.808144994778559,
-        "min_ms": 12.808144994778559,
-        "p95_ms": 12.808144994778559
+        "max_ms": 12.150130001828074,
+        "median_ms": 12.150130001828074,
+        "min_ms": 12.150130001828074,
+        "p95_ms": 12.150130001828074
       },
       "mutation_calls": {
         "count": 1.0,
@@ -1174,10 +1174,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.9619439921807498,
-        "median_ms": 3.9619439921807498,
-        "min_ms": 3.9619439921807498,
-        "p95_ms": 3.9619439921807498
+        "max_ms": 3.863707010168582,
+        "median_ms": 3.863707010168582,
+        "min_ms": 3.863707010168582,
+        "p95_ms": 3.863707010168582
       },
       "mutation_calls": {
         "count": 1.0,
@@ -1207,10 +1207,10 @@
       },
       "latency": {
         "count": 1.0,
-        "max_ms": 3.6545280017890036,
-        "median_ms": 3.6545280017890036,
-        "min_ms": 3.6545280017890036,
-        "p95_ms": 3.6545280017890036
+        "max_ms": 3.587100000004284,
+        "median_ms": 3.587100000004284,
+        "min_ms": 3.587100000004284,
+        "p95_ms": 3.587100000004284
       },
       "mutation_calls": {
         "count": 1.0,

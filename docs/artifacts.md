@@ -282,7 +282,7 @@ Use the performance smoke when changing rebuild, targeted upsert, artifact detai
 
 ```bash
 just artifact-perf-smoke
-python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
+.venv/bin/python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
 ```
 
 The smoke writes `sdd/tales/202605/perf_artifacts/artifact_graph_perf_smoke.json` and records fixture size, operation
