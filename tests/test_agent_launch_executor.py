@@ -11,6 +11,7 @@ from sase.agent.launch_executor import (
     execute_launch_plan,
 )
 from sase.agent.launcher import AgentLaunchResult
+from sase.axe.chop_agents import ENV_CHOP_LUMBERJACK, ENV_CHOP_NAME, ENV_CHOP_RUN_ID
 from sase.core.agent_launch_facade import plan_fake_fanout
 
 
@@ -115,3 +116,67 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         {"BASE": "1", "SLOT": "1"},
     ]
     assert executed == ["260501_120000", "260501_120001"]
+
+
+def test_execute_fanout_plan_tags_each_chop_prompt() -> None:
+    plan = plan_fake_fanout("model", ["%model:a p", "%model:b p"])
+    requests: list[LaunchSpawnRequest] = []
+
+    with (
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            side_effect=[10, 11],
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            side_effect=[("/workspace/10", None), ("/workspace/11", None)],
+        ),
+    ):
+        execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.gp",
+                project_name="project",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            extra_env={
+                ENV_CHOP_LUMBERJACK: "hooks",
+                ENV_CHOP_NAME: "split",
+                ENV_CHOP_RUN_ID: "run-1",
+            },
+        )
+
+    assert [request.prompt for request in requests] == [
+        "%tag:chop\n%model:a p",
+        "%tag:chop\n%model:b p",
+    ]
+
+
+def test_execute_fanout_plan_preserves_explicit_tag_under_chop_env() -> None:
+    plan = plan_fake_fanout("model", ["%tag:custom\n%model:a p"])
+    requests: list[LaunchSpawnRequest] = []
+
+    with (
+        patch("sase.running_field.get_first_available_axe_workspace", return_value=10),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/workspace/10", None),
+        ),
+    ):
+        execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.gp",
+                project_name="project",
+            ),
+            spawn=lambda request: requests.append(request) or _result_for(request),
+            extra_env={
+                ENV_CHOP_LUMBERJACK: "hooks",
+                ENV_CHOP_NAME: "split",
+                ENV_CHOP_RUN_ID: "run-1",
+            },
+        )
+
+    assert requests[0].prompt == "%tag:custom\n%model:a p"

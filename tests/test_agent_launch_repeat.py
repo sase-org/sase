@@ -11,6 +11,7 @@ import pytest
 from sase.ace.tui.actions.agent_workflow import _launch_repeat
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.axe.chop_agents import ENV_CHOP_LUMBERJACK, ENV_CHOP_NAME, ENV_CHOP_RUN_ID
 
 
 @pytest.fixture(autouse=True)
@@ -147,6 +148,27 @@ class TestLaunchRepeatAgents:
             assert "%r:2" not in prompt  # type: ignore[operator]
             assert f"%n:bar.{idx}" in prompt  # type: ignore[operator]
             assert "do Y" in prompt  # type: ignore[operator]
+
+    def test_repeat_agents_inherit_chop_tag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        app = _FakeApp()
+        monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
+        monkeypatch.setenv(ENV_CHOP_NAME, "split")
+        monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            app._launch_repeat_agents(
+                prompt="%r:2 %n:bar do Y",
+                ctx=_fake_context(),
+                vcs_ref=None,
+                has_wait=False,
+            )
+
+        for idx, call in enumerate(app.launched, start=1):
+            prompt = call["prompt"]
+            assert prompt.startswith("%tag:chop\n")  # type: ignore[union-attr]
+            assert f"%n:bar.{idx}" in prompt  # type: ignore[operator]
 
     def test_single_iteration_falls_through(self, tmp_path: Path) -> None:
         """%r:1 should be a no-op — _launch_repeat_agents only runs when >1,

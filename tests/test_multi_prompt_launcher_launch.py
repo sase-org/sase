@@ -203,7 +203,11 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     """Chop metadata env is forwarded to every child agent."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
-    extra_env = {"SASE_CHOP_LUMBERJACK": "hooks", "SASE_CHOP_NAME": "split"}
+    extra_env = {
+        "SASE_CHOP_LUMBERJACK": "hooks",
+        "SASE_CHOP_NAME": "split",
+        "SASE_CHOP_RUN_ID": "run-1",
+    }
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2"],
@@ -218,3 +222,51 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
 
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env
+    assert mock_spawn.call_args_list[0].kwargs["prompt"] == "%tag:chop\nseg1"
+    assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%tag:chop\nseg2"
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws1", None),
+)
+@patch("sase.running_field.get_workspace_directory", return_value="/ws1")
+def test_launch_multi_prompt_chop_tags_wait_chained_segments(
+    mock_wait_ws_dir: MagicMock,
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Chop tagging applies after bare wait rewrites."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "first"
+    extra_env = {
+        "SASE_CHOP_LUMBERJACK": "hooks",
+        "SASE_CHOP_NAME": "split",
+        "SASE_CHOP_RUN_ID": "run-1",
+    }
+
+    launch_multi_prompt_agents(
+        segments=["%name:first\nseg1", "%wait\nseg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        extra_env=extra_env,
+    )
+
+    prompts = [call.kwargs["prompt"] for call in mock_spawn.call_args_list]
+    assert prompts == [
+        "%tag:chop\n%name:first\nseg1",
+        "%tag:chop\n%wait:first\nseg2",
+    ]

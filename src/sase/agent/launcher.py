@@ -148,7 +148,10 @@ def spawn_agent_subprocess(
     from sase.running_field import claim_workspace, transfer_workspace_claim
     from sase.core.paths import sharded_path
     from sase.artifacts import convert_timestamp_to_artifacts_format
-    from sase.axe.chop_agents import record_chop_agent_launch_from_env
+    from sase.axe.chop_agents import (
+        prompt_with_chop_tag,
+        record_chop_agent_launch_from_env,
+    )
     from sase.core.paths import get_sase_tmpdir
 
     timer = LaunchTimingRecorder(
@@ -173,6 +176,12 @@ def spawn_agent_subprocess(
         output_filename = f"{safe_launch_name(cl_name)}_ace-run-{timestamp}.txt"
         output_path_hint = sharded_path("workflows", output_filename)
         output_root = os.path.dirname(output_path_hint)
+
+    with timer.stage("prompt_chop_tag"):
+        prompt_env = dict(os.environ)
+        if extra_env:
+            prompt_env.update(extra_env)
+        prompt = prompt_with_chop_tag(prompt, env=prompt_env)
 
     request = AgentLaunchRequestWire(
         schema_version=AGENT_LAUNCH_WIRE_SCHEMA_VERSION,

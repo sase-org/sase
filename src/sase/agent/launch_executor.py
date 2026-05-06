@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from sase.agent.launcher import AgentLaunchResult
+from sase.axe.chop_agents import prompt_with_chop_tag
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
 
@@ -160,6 +161,9 @@ def execute_launch_plan(
         env = dict(extra_env or {})
         if slot_extra_env is not None:
             env.update(slot_extra_env(slot))
+        prompt_env = dict(os.environ)
+        prompt_env.update(env)
+        prompt = prompt_with_chop_tag(slot.prompt, env=prompt_env)
         local_xprompts_file = (
             None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
         )
@@ -170,7 +174,7 @@ def execute_launch_plan(
             workspace_dir=workspace_dir,
             workspace_num=workspace_num,
             workflow_name=workflow_name,
-            prompt=slot.prompt,
+            prompt=prompt,
             timestamp=timestamp,
             update_target=slot_ctx.update_target,
             project_name=slot_ctx.project_name,
