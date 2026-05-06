@@ -52,17 +52,17 @@ def test_mark_prefix_absent_when_unmarked() -> None:
     assert "[✓]" not in option.prompt.plain  # type: ignore[union-attr]
 
 
-def test_tag_badge_renders_tag() -> None:
-    """A tagged agent shows ``@tag`` after the status."""
+def test_tag_badge_omitted_for_tagged_agent_row() -> None:
+    """A tagged agent keeps tag text out of the row prompt."""
     agent = _make_plain_agent()
     agent.tag = "release-blockers"
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)
     plain = option.prompt.plain  # type: ignore[union-attr]
-    assert " @release-blockers" in plain
+    assert "@release-blockers" not in plain
 
 
-def test_tag_badge_omitted_when_untagged() -> None:
+def test_plain_untagged_agent_omits_at_annotation() -> None:
     agent = _make_plain_agent()
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)

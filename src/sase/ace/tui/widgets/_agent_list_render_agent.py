@@ -225,10 +225,6 @@ def format_agent_option(
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
-    # User-managed tag badge.
-    if agent.tag:
-        text.append(f" @{agent.tag}", style="bold #5FAFFF")  # Sky blue
-
     # Agent name annotation
     if agent.agent_name:
         text.append(f" @{agent.agent_name}", style="#FFD700")  # Gold

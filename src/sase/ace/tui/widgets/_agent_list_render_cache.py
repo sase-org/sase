@@ -91,11 +91,10 @@ def agent_render_key(
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
-    Captures every input that affects ``format_agent_option``'s output —
-    if any of these values changes, the cached entry is no longer valid
-    and the row must be re-rendered. The key is intentionally explicit
-    (no ``vars(agent)``) so adding a new visible field is a deliberate
-    edit here rather than a silent cache desync.
+    Captures every input that affects ``format_agent_option``'s output,
+    plus conservative grouping inputs such as ``agent.tag``. The key is
+    intentionally explicit (no ``vars(agent)``) so adding a new visible
+    field is a deliberate edit here rather than a silent cache desync.
     """
     return (
         agent.identity,

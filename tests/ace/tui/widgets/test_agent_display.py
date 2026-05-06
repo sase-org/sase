@@ -515,14 +515,15 @@ class TestAgentListBeadBadge:
 
         assert "◆" not in left.plain
 
-    def test_bead_badge_renders_between_fold_annotation_and_tag(self) -> None:
+    def test_bead_badge_flows_from_fold_annotation_to_agent_name(self) -> None:
         agent = _make_agent(agent_name="sase-x.3", tag="pinned")
 
         left, _, _ = format_agent_option(
             agent, 0, is_selected=False, fold_annotation="×3"
         )
 
-        assert "(RUNNING)×3 ◆ @pinned @sase-x.3" in left.plain
+        assert "(RUNNING)×3 ◆ @sase-x.3" in left.plain
+        assert "@pinned" not in left.plain
 
 
 class TestAwareWaitUntilRendering:
