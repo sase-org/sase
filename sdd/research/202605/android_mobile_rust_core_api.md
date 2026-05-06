@@ -195,6 +195,20 @@ Implication for SASE:
   batch operations or JSON blobs where that is simpler.
 - Do not expose the whole existing PyO3-shaped binding one function at a time. Design a mobile-specific facade.
 
+### Kotlin Multiplatform and Compose Multiplatform
+
+Stock UniFFI emits Android-JVM-only Kotlin. If iOS parity ever becomes a goal, two community generators target Kotlin
+Multiplatform (KMP) and Compose Multiplatform (CMP) directly so a single Kotlin module can run on JVM, Android, iOS,
+and Native:
+
+- **Gobley** — actively maintained KMP fork after the original UniFFI-KMP crate stalled. Embeds Rust into KMP
+  projects; supports JVM and Native targets out of the box. https://github.com/gobley/gobley
+- **uniffi-kotlin-multiplatform-bindings** (Ubique fork) — published as `uniffi_bindgen_kotlin_multiplatform`.
+  https://github.com/UbiqueInnovation/uniffi-kotlin-multiplatform-bindings
+
+Implication for SASE: stock UniFFI is enough for an Android-first MVP. Pick Gobley only when iOS is a committed second
+client. Compose Multiplatform on top of either generator works but is unnecessary for a Kotlin/Compose-Android MVP.
+
 ### Android Rust Build
 
 Rust supports Android targets through the Android NDK. The Rust 1.68 update moved Android platform support to NDK r25,
@@ -214,6 +228,13 @@ Implication for SASE:
   support matters.
 - Keep Android-linked dependencies conservative. `sase_core` currently depends on filesystem, SQLite, regex, chrono,
   and serde. That is plausible, but the mobile facade should avoid pulling host-only behavior into the APK.
+- **Avoid OpenSSL.** The NDK's bundled OpenSSL is stuck on EOL 1.1.1, and `openssl-sys` cross-compilation is a
+  recurring source of CI pain. Prefer `rustls` for any TLS-touching code. https://ospfranco.com/compiling-openssl-in-rust-for-android/
+- **Encrypted SQLite:** if the mobile facade needs encrypted local storage, use `sqlcipher-android` (Guardian Project).
+  The older `android-database-sqlcipher` is deprecated. https://github.com/sqlcipher/android-database-sqlcipher
+- **Gradle integration:** Mozilla's `rust-android-gradle` still works but is Python-based and broke after Python 3.13
+  removed `pipes`; the `cargo-ndk-android-gradle` (willir fork) is a more Gradle-native alternative.
+  https://github.com/willir/cargo-ndk-android-gradle
 
 ### Android Background Delivery
 
@@ -224,6 +245,28 @@ for user-noticeable work and have restrictions. Firebase Cloud Messaging is the 
 Firebase's Android docs describe `FirebaseMessagingService` for receiving messages and note that notification messages
 in the background go to the system tray.
 
+Modern Android specifics that affect this MVP:
+
+- **POST_NOTIFICATIONS (API 33+).** Notifications are off by default on fresh installs; the app must request the
+  runtime permission and handle `shouldShowRequestPermissionRationale`.
+  https://developer.android.com/develop/ui/views/notifications/notification-permission
+- **Foreground service types are required (API 34, Android 14).** Each `<service>` must declare a
+  `foregroundServiceType` and the app must hold the matching `FOREGROUND_SERVICE_<TYPE>` permission. The new
+  `remoteMessaging` type is the right fit for a "stay connected to my SASE host" service. The `dataSync` type is being
+  soft-deprecated and on Android 15 has a hard 6-hour daily cap.
+  https://developer.android.com/about/versions/14/changes/fgs-types-required and
+  https://developer.android.com/develop/background-work/services/fgs/service-types
+- **Starting an FGS from background is forbidden (API 31+)** except for narrow exemptions like `BOOT_COMPLETED`,
+  high-priority FCM, or user-visible notification interaction; otherwise the system throws
+  `ForegroundServiceStartNotAllowedException`. https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
+- **FCM data-only vs notification messages.** Notification messages default to high priority and bypass Doze; data-only
+  messages default to **normal priority** and get batched in Doze. Even high-priority data messages have documented
+  delivery delays. https://firebase.google.com/docs/cloud-messaging/android-message-priority
+- **Self-hosted push without Google Play Services.** UnifiedPush is the de-facto standard; ntfy.sh is the most popular
+  distributor and is fully self-hostable; Gotify and NextPush exist as alternatives. This is interesting for SASE
+  because the host already has push-shaped event semantics and we may want to ship via F-Droid alongside Play Store.
+  https://unifiedpush.org/users/distributors/ and https://docs.ntfy.sh/subscribe/phone/
+
 Sources:
 
 - https://developer.android.com/develop/background-work
@@ -233,9 +276,13 @@ Sources:
 
 Implication for SASE:
 
-- Foreground app: maintain a WebSocket/SSE connection to the host gateway.
-- Background app: receive FCM notification/data payloads as wake-up hints, then fetch current state when opened.
+- Foreground app: maintain a WebSocket/SSE connection to the host gateway, run as a `remoteMessaging` foreground
+  service while connected, request `POST_NOTIFICATIONS` early.
+- Background app: receive FCM (or UnifiedPush) data payloads as wake-up hints, then fetch current state when the user
+  opens the app. Avoid relying on data-only message timing for anything urgent.
 - Do not build the MVP around phone-side periodic polling.
+- Pick a push transport early. FCM is the default, but if F-Droid distribution or Google-free devices are part of the
+  audience, design the gateway to support UnifiedPush from day one.
 
 ## API Shape
 
@@ -295,6 +342,23 @@ The gateway can implement these endpoints using a mix of:
 This mirrors the web-client research recommendation: a Rust `axum` server is the long-term backbone, but command-shaped
 side effects can bridge to Python host logic until the Rust port earns its way in.
 
+### Wire Format Choice
+
+REST + JSON is the right MVP default, but worth grounding the trade-off:
+
+- **gRPC** is roughly 5–7× more compact and noticeably faster on the wire, but adds ~3–4 MB of APK weight, requires
+  generated stubs on both sides, and on mobile **gRPC-Web does not support bidirectional streaming**. Debuggability is
+  worse: opaque proto frames in tcpdump vs. readable JSON in any HTTP client.
+  https://grpc.io/blog/mobile-benchmarks/
+- **Cap'n Proto / MessagePack** are interesting for binary sizes but lose the "any HTTP client can debug it" property
+  and add codegen complexity for marginal gain on a personal-MVP scale.
+- **REST + JSON** keeps OkHttp/Retrofit caching, browser/curl debuggability, and matches the wire shape `sase_core`
+  already produces via `serde_json`.
+
+For SASE, REST + JSON for commands plus SSE/WebSocket for events. If a future endpoint needs to stream large per-row
+data (e.g. live agent stdout), revisit gRPC server-streaming or NDJSON over a single HTTP/2 stream rather than
+re-encoding every endpoint.
+
 ## Connectivity Options
 
 ### Option A: Android Embeds `sase_core` Only
@@ -331,6 +395,21 @@ Cons:
 
 Assessment: best MVP if this is a personal/internal SASE app.
 
+Concrete remote-access options for this option, in increasing order of exposure:
+
+1. **Tailscale Serve** — auto-provisioned HTTPS exposed only to the user's tailnet; ideal for a private SASE host
+   accessed from a paired phone also on the tailnet. https://tailscale.com/docs/features/tailscale-serve
+2. **Tailscale Funnel** — same auto-HTTPS but reachable from the public internet on fixed ports (443/8443/10000); free
+   for personal use. Picks up the "remote anywhere without a VPN" use case at the cost of a publicly addressable
+   endpoint. https://tailscale.com/docs/features/tailscale-funnel
+3. **Cloudflare Tunnel** — outbound-only connection to Cloudflare with auto-HTTPS and Zero Trust integration; no port
+   forwarding, no VPN client on the phone. Good if the user already has Cloudflare DNS for a domain.
+4. **headscale** — self-hosted Tailscale control plane in Go, paired with the official Tailscale clients. Useful if
+   we want a fully self-hosted control plane without depending on Tailscale Inc.
+
+Recommendation for the MVP: Tailscale Serve. Funnel and Cloudflare Tunnel become reasonable upgrades when a user
+demands phone access from a network where the tailnet is unreachable.
+
 ### Option C: Hosted Relay
 
 Pros:
@@ -361,6 +440,29 @@ Cons:
 
 Assessment: good fallback or stepping stone, but it does not satisfy the stated Android-app direction.
 
+## Reference Architectures
+
+Three shipping projects already pair a Rust core with an Android client. Useful as templates and as proofs that the
+boundary works in production:
+
+- **Bitwarden.** Rust `bitwarden_core`, UniFFI Kotlin bindings published as a separate artifact, Android app uses
+  Retrofit alongside SDK calls in a multi-module Gradle setup. Closest analog to the proposed SASE shape.
+  https://contributing.bitwarden.com/architecture/sdk/ and https://github.com/bitwarden/sdk-internal
+- **Matrix Rust SDK / Element X Android.** Three-layer pattern: pure-Kotlin façade → Rust-backed implementation with
+  mappers → `org.matrix.rustcomponents.sdk` UniFFI bindings from `matrix-sdk-ffi`. Strong template if the SASE Android
+  app eventually grows a Kotlin façade interface for offline/online swapping.
+  https://deepwiki.com/element-hq/element-x-android/3-matrix-integration
+- **Signal libsignal.** Pure-Rust core but a hand-tuned JNI bridge instead of UniFFI; codegens Java declarations from
+  Rust. Worth knowing as evidence that UniFFI is not the only option, but its hand-tuning is overkill for a SASE-sized
+  surface. https://github.com/signalapp/libsignal
+- **Tauri 2.0 mobile.** Stable since late 2024. Android plugins are Kotlin classes whose `@Command`-annotated methods
+  are callable from Rust/JS. Interesting if we ever decide to share the gateway client UI with a desktop Tauri build.
+  https://v2.tauri.app/blog/tauri-20/
+
+Implication for SASE: the Bitwarden pattern (Rust core + UniFFI Kotlin bindings + REST/JSON network layer) is the
+closest reference. Adopt it as the default and revisit the Element X façade pattern only if/when an offline-first
+mobile mode is on the roadmap.
+
 ## Host Gateway Design
 
 Recommended first host component:
@@ -386,6 +488,22 @@ Core properties:
 - Validate `Origin`/`Host` for browser clients, and use token auth for mobile clients.
 - Expose event stream by SSE or WebSocket.
 - Keep attachments behind authenticated URLs with short TTLs.
+
+#### SSE vs WebSocket for the event stream
+
+The event stream from gateway to Android is mostly host→phone. SSE is the better default:
+
+- SSE has **built-in reconnection with `Last-Event-ID`** at the protocol level; `axum` exposes this directly via
+  `axum::response::sse::Event::id()`. WebSocket clients must reimplement reconnection and resume-from-id themselves.
+  https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+- SSE is plain HTTP/1.1 chunked text, so corporate proxies, Tailscale Funnel, and Cloudflare Tunnel all pass it
+  through without special configuration; WebSocket upgrades occasionally get blocked or buffered by middleboxes.
+- OkHttp ships an SSE module (`okhttp-sse`) and a WebSocket module; both are fine on Android.
+- WebSocket only wins if SASE later needs phone→host realtime payloads (e.g., live agent stdin, voice). For
+  command-shaped phone→host calls, plain authenticated POSTs are simpler than reusing the socket.
+
+Recommendation: SSE for events with `Last-Event-ID`-driven resume; bare HTTP POST for commands; revisit WebSocket only
+when a true bidirectional stream is needed.
 
 Implementation order:
 
@@ -461,6 +579,48 @@ support remote host access directly. Add SASE-level authorization before exposin
   details from the host after app open.
 - Do not expose arbitrary filesystem paths except as display text or short-lived attachment downloads.
 
+### Concrete crypto/auth crates and APIs
+
+- **Pairing handshake.** SPAKE2 over a QR code is the cleanest fit: phone scans a QR with the host's public key
+  fingerprint and a one-time code, both sides derive a shared key and exchange long-term device public keys. Rust
+  crate: `spake2`. https://github.com/warner/spake2.rs
+- **Long-term device identity.** Ed25519/X25519 device keypair stored in the **Android Keystore** with hardware
+  attestation. Curve25519 algorithms are supported in Keystore since Android 13 (KeyMint v2); StrongBox is available
+  on devices with a discrete secure element. Hardware-backed key attestation roots back to a Google certificate.
+  https://source.android.com/docs/security/features/keystore/attestation
+- **Channel security.** For LAN/Tailnet binds, mTLS via `axum_mtls` is straightforward. For Tailscale Serve/Funnel
+  binds, Tailscale's auto-provisioned Let's Encrypt cert handles TLS and we add bearer/device-token auth on top.
+  https://crates.io/crates/axum_mtls
+- **Optional: Noise protocol.** If we ever want a session protocol independent of TLS (e.g., over UnifiedPush data
+  channels), `snow` is the canonical Rust implementation. https://github.com/mcginty/snow
+
+### Lightweight threat model
+
+- **LAN attacker on the same Wi-Fi.** Mitigated by binding to loopback by default and requiring TLS + bearer token
+  even on LAN binds. Pairing must happen out-of-band (QR), not over open HTTP.
+- **Lost/stolen phone.** Mitigated by keystore-bound device keys (cannot be exfiltrated), per-device tokens that the
+  host can revoke, and a remote-revoke endpoint reachable from the desktop TUI.
+- **Compromised mobile app/store.** Mitigated by F-Droid reproducible builds where possible, and by limiting the
+  gateway surface to product-shaped commands rather than arbitrary shell.
+- **Public Tailscale Funnel exposure.** Mitigated by token auth on every endpoint, short attachment TTLs, and audit
+  logging. Funnel should be opt-in, not the default.
+
+## Distribution
+
+For a personal/internal MVP this is unimportant; for any wider rollout it becomes a forcing function on the FCM vs
+UnifiedPush question above:
+
+- **Play Store.** Standard channel. Self-hosted-server companion apps are common and not policy-hostile, but Play
+  requires Google services and pushes you toward FCM for push.
+- **F-Droid.** ~4,000 apps, including many self-hosted-server clients. Reproducible builds are encouraged. F-Droid
+  apps typically ship UnifiedPush/ntfy instead of FCM. https://f-droid.org/en/2026/01/23/fdroid-in-2025-strengthening-our-foundations-in-a-changing-mobile-landscape.html
+- **Sideload / direct APK.** Easiest for an internal MVP. Google's September 2025 Developer Registration Decree
+  threatens the sideload path on certified devices over time, which is worth watching.
+  https://f-droid.org/en/2025/09/29/google-developer-registration-decree.html
+
+Recommendation: ship as a sideloaded APK during the MVP. Keep the gateway's push transport pluggable (FCM and
+UnifiedPush) so neither store nor F-Droid distribution is gated on later refactors.
+
 ## Open Questions
 
 - Does the first MVP need to work away from the home LAN without Tailscale/WireGuard? If yes, a relay becomes part of
@@ -501,13 +661,40 @@ External sources:
 - UniFFI bindings guide: https://mozilla.github.io/uniffi-rs/latest/bindings.html
 - UniFFI Kotlin configuration: https://mozilla.github.io/uniffi-rs/latest/kotlin/configuration.html
 - UniFFI Gradle integration: https://mozilla.github.io/uniffi-rs/latest/kotlin/gradle.html
+- Gobley (UniFFI for Kotlin Multiplatform): https://github.com/gobley/gobley
+- Ubique uniffi-kotlin-multiplatform-bindings: https://github.com/UbiqueInnovation/uniffi-kotlin-multiplatform-bindings
 - Rust Android NDK update: https://blog.rust-lang.org/2023/01/09/android-ndk-update-r25/
 - Rust Android platform support: https://doc.rust-lang.org/rustc/platform-support/android.html
 - cargo-ndk: https://github.com/bbqsrc/cargo-ndk
+- cargo-ndk-android-gradle (willir fork): https://github.com/willir/cargo-ndk-android-gradle
+- Compiling OpenSSL in Rust for Android (NDK pitfalls): https://ospfranco.com/compiling-openssl-in-rust-for-android/
+- sqlcipher-android: https://github.com/sqlcipher/android-database-sqlcipher
 - Android background work: https://developer.android.com/develop/background-work
 - Android foreground services: https://developer.android.com/develop/background-work/services/fgs
+- Android 14 FGS types required: https://developer.android.com/about/versions/14/changes/fgs-types-required
+- Android FGS service types: https://developer.android.com/develop/background-work/services/fgs/service-types
+- Android FGS background-start restrictions: https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
+- Android POST_NOTIFICATIONS permission: https://developer.android.com/develop/ui/views/notifications/notification-permission
 - Firebase Cloud Messaging Android setup: https://firebase.google.com/docs/cloud-messaging/android/client
 - Firebase Cloud Messaging receive messages: https://firebase.google.com/docs/cloud-messaging/android/receive-messages
+- FCM message priority: https://firebase.google.com/docs/cloud-messaging/android-message-priority
+- UnifiedPush distributors: https://unifiedpush.org/users/distributors/
+- ntfy.sh Android docs: https://docs.ntfy.sh/subscribe/phone/
+- Tailscale Serve: https://tailscale.com/docs/features/tailscale-serve
+- Tailscale Funnel: https://tailscale.com/docs/features/tailscale-funnel
+- Bitwarden SDK architecture: https://contributing.bitwarden.com/architecture/sdk/
+- Bitwarden sdk-internal: https://github.com/bitwarden/sdk-internal
+- Element X / Matrix Rust SDK integration: https://deepwiki.com/element-hq/element-x-android/3-matrix-integration
+- Signal libsignal: https://github.com/signalapp/libsignal
+- Tauri 2.0 (mobile stable): https://v2.tauri.app/blog/tauri-20/
+- gRPC mobile benchmarks: https://grpc.io/blog/mobile-benchmarks/
+- Server-Sent Events (Last-Event-ID): https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+- SPAKE2 (Rust): https://github.com/warner/spake2.rs
+- Snow (Noise protocol, Rust): https://github.com/mcginty/snow
+- axum_mtls: https://crates.io/crates/axum_mtls
+- Android Keystore attestation: https://source.android.com/docs/security/features/keystore/attestation
+- F-Droid 2025 retrospective: https://f-droid.org/en/2026/01/23/fdroid-in-2025-strengthening-our-foundations-in-a-changing-mobile-landscape.html
+- Google Developer Registration Decree (F-Droid response): https://f-droid.org/en/2025/09/29/google-developer-registration-decree.html
 
 ## Recommended Solution
 
@@ -525,7 +712,14 @@ artifact scans/indexes, status/query helpers, and launch planning. Add shared Ru
 mobile action response planning before duplicating Telegram callback semantics in Android. Add a small UniFFI
 `sase_mobile_core` only after the gateway contract stabilizes, and keep it limited to pure helper logic and typed DTOs.
 
-For delivery, use WebSocket/SSE while the app is foregrounded and FCM as a background wake-up/notification hint. Do not
-poll from Android every few seconds. For the first private MVP, require phone-to-host reachability through LAN or
-Tailscale/WireGuard rather than building a hosted relay. Add a relay only if remote-anywhere access without a private
-network is a product requirement.
+For delivery, use SSE (with `Last-Event-ID` resume) while the app is foregrounded inside a `remoteMessaging`-typed
+foreground service, and FCM data messages as a background wake-up hint with state fetched on app open. Avoid
+polling. Keep the push transport pluggable so UnifiedPush/ntfy can replace FCM later for F-Droid distribution or
+Google-free devices. For the first private MVP, require phone-to-host reachability through Tailscale Serve (private
+tailnet auto-HTTPS) rather than building a hosted relay. Promote to Tailscale Funnel or Cloudflare Tunnel only when
+remote-anywhere access without a tailnet becomes a real requirement.
+
+Anchor the security boundary at pairing: SPAKE2 over QR for the initial handshake, Ed25519/X25519 device keys held in
+the Android Keystore (StrongBox where available) for long-term identity, per-device tokens revocable from the desktop
+TUI, and TLS on every bind beyond loopback. Prefer `rustls` over OpenSSL in any Android-linked Rust crate to avoid the
+NDK's EOL OpenSSL trap.
