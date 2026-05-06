@@ -344,6 +344,21 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._current_group_key = group_key
         return True
 
+    def _panel_idx_for_agent_jump_target(self, agent_idx: int) -> int | None:
+        """Return the current panel index that contains ``agent_idx``."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None or not (0 <= agent_idx < len(self._agents)):
+            return None
+
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        if not (0 <= agent_idx < len(keys_per_agent)):
+            return None
+        panel_key = keys_per_agent[agent_idx]
+        try:
+            return panel_group.panel_keys.index(panel_key)
+        except ValueError:
+            return None
+
     def _handle_entry_jump_key(self, key: str) -> bool:
         """Handle one keypress while jump mode is active."""
         if not self._entry_jump_mode_active:
@@ -383,6 +398,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 self._current_group_key = group_key
             else:
                 assert agent_target is not None
+                agent_panel_idx = self._panel_idx_for_agent_jump_target(agent_target)
+                if (
+                    agent_panel_idx is not None
+                    and agent_panel_idx != self._panel_group.focused_idx
+                ):
+                    self._panel_group.focused_idx = agent_panel_idx
                 self._current_group_key = None
                 self.current_idx = agent_target
             self._exit_entry_jump_mode()

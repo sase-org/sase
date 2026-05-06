@@ -152,6 +152,29 @@ def test_jump_dispatch_banner_switches_focused_panel() -> None:
     assert app._current_group_key == target[2]
 
 
+def test_jump_dispatch_agent_switches_focused_panel() -> None:
+    """Agent targets in a non-focused panel move panel focus with the cursor."""
+    agents = [
+        _agent(project="alpha", cl="a1", name="a1"),
+        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+    ]
+    app = _StubApp(agents)
+    app.current_idx = 0
+    assert app._panel_group.panel_keys == [None, "ws"]
+    assert app._panel_group.focused_idx == 0
+
+    app._begin_agents_jump_mode()
+    hint = app._entry_jump_index_to_hint[1]
+
+    handled = app._handle_entry_jump_key(hint)
+
+    assert handled is True
+    assert app.current_idx == 1
+    assert app._panel_group.focused_idx == 1
+    assert app._current_group_key is None
+    assert app._entry_jump_last_agents_anchor == ("agent", 0, 0)
+
+
 def test_back_jump_restores_agent_anchor() -> None:
     """``'`` after an agent→banner jump returns to the original agent."""
     agents = [

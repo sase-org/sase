@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 00:10:05
-status: wip
+status: done
 prompt: sdd/prompts/202605/cross_panel_agent_jump.md
 ---
 # Cross-panel agent jump hint fix
