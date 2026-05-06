@@ -1,5 +1,8 @@
 ---
 create_time: 2026-05-05 21:07:13
+bead_id: sase-24.2
+tier: epic
+legend_bead_id: sase-24
 status: wip
 prompt: sdd/prompts/202605/artifact_epic2_fast_indexing_query_contracts.md
 ---
