@@ -65,6 +65,9 @@ def _runtime_signature(agent: Agent, now: datetime | None) -> tuple[Any, ...]:
     return (
         agent.status,
         agent.start_time,
+        agent.run_start_time,
+        agent.stop_time,
+        tuple(agent.plan_times),
         getattr(agent, "wait_until", None),
         getattr(agent, "wait_duration", None),
         getattr(agent, "retry_next_at_epoch", None),

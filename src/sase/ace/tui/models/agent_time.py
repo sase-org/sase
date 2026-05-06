@@ -12,6 +12,7 @@ _ACTIVE_PARENT_STATUSES = {
     "LEGEND APPROVED",
     "PLAN COMMITTED",
 }
+_PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE"}
 
 
 def should_display_runtime_suffix(agent: "Agent") -> bool:
@@ -90,6 +91,15 @@ def _format_finish_timestamp(
     return (stop.strftime("%b %-d '%y"), "")
 
 
+def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
+    """Return the terminal timestamp to anchor a completed row runtime."""
+    if agent.stop_time is not None:
+        return agent.stop_time
+    if agent.status in _PLAN_RUNTIME_TERMINAL_STATUSES and agent.plan_times:
+        return max(agent.plan_times)
+    return None
+
+
 def compute_row_runtime(
     agent: "Agent",
     now: datetime | None = None,
@@ -111,10 +121,11 @@ def compute_row_runtime(
     if agent.start_time is None:
         return (None, None)
     effective_start = agent.run_start_time or agent.start_time
-    if agent.stop_time is not None:
-        elapsed_secs = (agent.stop_time - effective_start).total_seconds()
+    terminal_time = _row_runtime_terminal_time(agent)
+    if terminal_time is not None:
+        elapsed_secs = (terminal_time - effective_start).total_seconds()
         return (
-            _format_finish_timestamp(agent.stop_time, now=now),
+            _format_finish_timestamp(terminal_time, now=now),
             format_compact_duration(elapsed_secs),
         )
     if agent.status == "WAITING" and agent.run_start_time is None:

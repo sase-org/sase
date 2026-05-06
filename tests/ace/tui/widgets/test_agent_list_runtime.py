@@ -33,10 +33,11 @@ def _agent(
     start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
     run_start: datetime | None = None,
     stop: datetime | None = None,
+    plan_times: list[datetime] | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str = "demo",
 ) -> Agent:
-    return Agent(
+    agent = Agent(
         agent_type=agent_type,
         cl_name=cl_name,
         project_file="/tmp/p.gp",
@@ -46,6 +47,9 @@ def _agent(
         stop_time=stop,
         raw_suffix=raw_suffix,
     )
+    if plan_times is not None:
+        agent.plan_times = plan_times
+    return agent
 
 
 def _workflow_child(
@@ -55,6 +59,7 @@ def _workflow_child(
     start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
     run_start: datetime | None = None,
     stop: datetime | None = None,
+    plan_times: list[datetime] | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str | None = None,
     parent_appears_as_agent: bool = False,
@@ -65,6 +70,7 @@ def _workflow_child(
         start=start,
         run_start=run_start,
         stop=stop,
+        plan_times=plan_times,
         raw_suffix=raw_suffix,
         cl_name=cl_name or f"{step_type}-step",
     )
@@ -225,6 +231,47 @@ def test_compute_row_runtime_prompt_step_done_has_static_suffix() -> None:
     )
     assert ts == ("", "14:02:30")
     assert elapsed == "1m30s"
+
+
+def test_compute_row_runtime_done_plan_step_uses_latest_plan_time() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    now = datetime(2026, 5, 6, 13, 15, 27)
+    ts, elapsed = compute_row_runtime(
+        _workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            plan_times=[datetime(2026, 5, 6, 13, 12, 0), plan],
+            cl_name="plan",
+            parent_appears_as_agent=True,
+        ),
+        now=now,
+    )
+    assert ts == ("", "13:14:53")
+    assert elapsed == "4m46s"
+
+
+def test_compute_row_runtime_stop_time_wins_over_plan_time() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    stop = datetime(2026, 5, 6, 13, 13, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    now = datetime(2026, 5, 6, 13, 15, 27)
+    ts, elapsed = compute_row_runtime(
+        _agent(
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            stop=stop,
+            plan_times=[plan],
+        ),
+        now=now,
+    )
+    assert ts == ("", "13:13:07")
+    assert elapsed == "3m"
 
 
 @pytest.mark.parametrize("step_type", ["python", "bash"])
@@ -430,6 +477,28 @@ def test_format_agent_option_appears_as_agent_prompt_step_done_suffix() -> None:
         now=now,
     )
     assert suffix.plain == "14:02:30 · 1m30s"
+
+
+def test_format_agent_option_done_plan_step_uses_plan_time_suffix() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    now = datetime(2026, 5, 6, 13, 15, 27)
+    _, suffix, _ = format_agent_option(
+        _workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            plan_times=[plan],
+            cl_name="plan",
+            parent_appears_as_agent=True,
+        ),
+        0,
+        is_selected=False,
+        now=now,
+    )
+    assert suffix.plain == "13:14:53 · 4m46s"
 
 
 def test_format_agent_option_no_start_has_empty_suffix() -> None:
