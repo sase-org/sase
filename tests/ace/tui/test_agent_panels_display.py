@@ -132,7 +132,8 @@ def _three_panel_agents() -> list[Agent]:
 
 
 def test_fits_regime_main_panel_absorbs_leftover() -> None:
-    # 3 panels with option counts 2 / 4 / 6 → naturals 4 / 6 / 8 = 18 ≤ 30.
+    # 3 panels with option counts 2 / 4 / 6 -> naturals 4 / 6 / 8 plus
+    # two separator rows = 20 <= 30.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
 
@@ -152,8 +153,47 @@ def test_fits_regime_main_panel_absorbs_leftover() -> None:
     assert banana.styles.height.value == 8.0
 
 
+def test_panel_separator_class_tracks_panel_position() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
+
+    # Simulate a reused slot carrying stale position state before refresh.
+    app._panel_widgets["agent-list-panel"]._classes.add("agent-panel-separated")
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+
+    assert "agent-panel-separated" not in main._classes
+    assert "agent-panel-separated" in apple._classes
+    assert "agent-panel-separated" in banana._classes
+
+
+def test_separator_rows_are_included_in_fit_boundary() -> None:
+    # Naturals are 4 / 6 / 8. Without separators this would fit in 19 rows,
+    # but the two separator rows make the stack cost 20 and force overflow.
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=19)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+
+    assert main.styles.height.unit is Unit.FRACTION
+    assert main.styles.height.value == 3.0
+    assert apple.styles.height.unit is Unit.FRACTION
+    assert apple.styles.height.value == 5.0
+    assert banana.styles.height.unit is Unit.FRACTION
+    assert banana.styles.height.value == 7.0
+
+
 def test_overflow_regime_assigns_proportional_fr_weights() -> None:
-    # 3 panels with option counts 1 / 5 / 25 → naturals 3 / 7 / 27 = 37 > 12.
+    # 3 panels with option counts 1 / 5 / 25 -> naturals 3 / 7 / 27 plus
+    # two separator rows = 39 > 12.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[1, 5, 25], container_height=12)
 

@@ -876,6 +876,10 @@ HintInputBar #hint-escape-hint {
     padding: 0 1;
 }
 
+#agent-list-container AgentList.agent-panel-separated {
+    margin-top: 1;
+}
+
 #agent-list-container AgentList.-focused-panel {
     border: solid $accent;
 }

@@ -182,6 +182,10 @@ class PanelsMixin:
             global_to_local = slot.global_to_local
 
             widget.border_title = _agent_panel_border_title(key, len(panel_agents))
+            if idx == 0:
+                widget.remove_class("agent-panel-separated")
+            else:
+                widget.add_class("agent-panel-separated")
 
             local_idx = -1
             if idx == focused_idx and 0 <= global_idx < len(self._agents):
@@ -237,7 +241,9 @@ class PanelsMixin:
         - **Fits** (Σ natural ≤ container): the first panel grows to fill
           leftover space via a fractional unit, so no dead zone is left
           beneath the column; later panels are pinned to their exact
-          natural cell heights.
+          natural cell heights. Separator margins between panels count
+          against the available container height but are not included in
+          per-widget cell heights.
         - **Overflow** (Σ natural > container): weight each panel by
           ``option_count + 1`` (border allowance keeps tiny panels from
           collapsing to nothing) using fractional units.
@@ -256,7 +262,8 @@ class PanelsMixin:
         # Border allowance: ``solid`` borders contribute 2 rows (top + bottom).
         border_rows = 2
         natural_heights = [getattr(w, "option_count", 0) + border_rows for w in widgets]
-        total_natural = sum(natural_heights)
+        separator_rows = max(0, len(widgets) - 1)
+        total_natural = sum(natural_heights) + separator_rows
 
         from textual.css.scalar import Scalar, Unit
 

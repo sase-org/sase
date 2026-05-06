@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 17:22:18
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_panel_separation.md
 ---
 # Agent Panel Separation Plan
