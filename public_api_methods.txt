@@ -52,3 +52,4 @@ sync_is_clean
 delete_agent_artifact_index_row
 query_agent_artifact_index
 upsert_agent_artifact_index_row
+with_options

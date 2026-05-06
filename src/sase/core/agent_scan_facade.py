@@ -236,6 +236,7 @@ def verify_agent_artifact_index(
     )
 
 
+# pyvision: public_api_methods.txt
 def with_options(
     base: AgentArtifactScanOptionsWire,
     **overrides: Any,
