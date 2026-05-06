@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from sase.core.artifact_wire.constants import ARTIFACT_FILE_TYPE_METADATA_KEY
 from sase.core.artifact_wire import (
     ArtifactDetailPagedWire,
     ArtifactDetailWire,
@@ -25,9 +26,18 @@ class ArtifactPanelRow:
     id: str
     label: str
     artifact_id: str | None = None
+    artifact_kind: str | None = None
+    file_type: str | None = None
+    edge_direction: str | None = None
+    link_type: str | None = None
+    title: str = ""
+    subtitle: str = ""
+    updated_label: str = ""
+    group_key: str | None = None
+    page_action: str | None = None
     row_type: str = "artifact"
     group: str | None = None
-    link_type: str | None = None
+    status_label: str = ""
     selectable: bool = True
 
 
@@ -220,6 +230,7 @@ def _legacy_detail_from_paged_detail(
 def build_artifact_panel_rows(
     detail: ArtifactDetailWire,
     *,
+    paged_model: ArtifactPanelPagedModel | None = None,
     filter_text: str = "",
     row_limit: int = ARTIFACT_PANEL_ROW_LIMIT,
 ) -> _ArtifactPanelRows:
@@ -229,7 +240,12 @@ def build_artifact_panel_rows(
     truncated = False
     normalized_filter = filter_text.casefold().strip()
 
-    def add_group(label: str, candidates: list[ArtifactPanelRow]) -> None:
+    def add_group(
+        label: str,
+        candidates: list[ArtifactPanelRow],
+        *,
+        group_key: str,
+    ) -> None:
         nonlocal selectable_count, truncated
         visible = [
             row
@@ -238,11 +254,22 @@ def build_artifact_panel_rows(
         ]
         if not visible:
             return
+        loaded_count = len(visible) if normalized_filter else len(candidates)
+        total_count = _group_total_count(
+            paged_model,
+            group_key=group_key,
+            fallback=loaded_count,
+        )
+        group_label = _group_label(
+            label, loaded_count=loaded_count, total_count=total_count
+        )
         rows.append(
             ArtifactPanelRow(
-                id=f"group:{label.casefold().replace(' ', '_')}",
-                label=label,
+                id=f"group:{group_key}",
+                label=group_label,
                 row_type="group",
+                group=label,
+                group_key=group_key,
                 selectable=False,
             )
         )
@@ -254,27 +281,54 @@ def build_artifact_panel_rows(
             rows.append(row)
 
     path_rows = [
-        _node_row("path", node, group="Path to root") for node in detail.path_to_root
+        _node_row(
+            "path",
+            node,
+            group="Path to root",
+            group_key="path",
+            edge_direction="path",
+        )
+        for node in detail.path_to_root
     ]
-    add_group("Path to root", path_rows)
+    add_group("Path to root", path_rows, group_key="path")
 
     child_rows = [
-        _node_row("child", node, group="Children") for node in detail.children
+        _node_row(
+            "child",
+            node,
+            group="Children",
+            group_key="children",
+            edge_direction="children",
+        )
+        for node in detail.children
     ]
-    add_group("Children", child_rows)
+    add_group("Children", child_rows, group_key="children")
 
     for link_type, links in _group_links(detail.outbound_links).items():
+        group_key = f"outbound:{link_type}"
         link_rows = [
-            _link_row("outbound", link, group=f"Outbound: {link_type}")
+            _link_row(
+                "outbound",
+                link,
+                group=f"Outbound: {link_type}",
+                group_key=group_key,
+            )
             for link in links
         ]
-        add_group(f"Outbound: {link_type}", link_rows)
+        add_group(f"Outbound: {link_type}", link_rows, group_key=group_key)
 
     for link_type, links in _group_links(detail.inbound_links).items():
+        group_key = f"inbound:{link_type}"
         link_rows = [
-            _link_row("inbound", link, group=f"Inbound: {link_type}") for link in links
+            _link_row(
+                "inbound",
+                link,
+                group=f"Inbound: {link_type}",
+                group_key=group_key,
+            )
+            for link in links
         ]
-        add_group(f"Inbound: {link_type}", link_rows)
+        add_group(f"Inbound: {link_type}", link_rows, group_key=group_key)
 
     if truncated:
         rows.append(
@@ -304,29 +358,64 @@ def parent_id_from_detail(detail: ArtifactDetailWire, current_id: str) -> str | 
     return candidates[-1]
 
 
-def _node_row(prefix: str, node: ArtifactNodeWire, *, group: str) -> ArtifactPanelRow:
+def _node_row(
+    prefix: str,
+    node: ArtifactNodeWire,
+    *,
+    group: str,
+    group_key: str,
+    edge_direction: str,
+) -> ArtifactPanelRow:
+    file_type = _file_type_from_node(node)
+    title = node.display_title or node.id
+    subtitle = _compact_subtitle(node.subtitle, _status_from_metadata(node.metadata))
     return ArtifactPanelRow(
         id=f"{prefix}:{node.id}",
-        label=f"{node.kind} {node.display_title}  {node.id}",
+        label=f"{node.kind} {title}  {node.id}",
         artifact_id=node.id,
+        artifact_kind=node.kind,
+        file_type=file_type,
+        edge_direction=edge_direction,
+        title=title,
+        subtitle=subtitle,
+        updated_label=_compact_timestamp(node.updated_at),
+        group_key=group_key,
         row_type=prefix,
         group=group,
+        status_label=_status_from_metadata(node.metadata),
     )
 
 
 def _link_row(
-    direction: str, link: ArtifactLinkWire, *, group: str
+    direction: str, link: ArtifactLinkWire, *, group: str, group_key: str
 ) -> ArtifactPanelRow:
     artifact_id = link.target_id if direction == "outbound" else link.source_id
     direction_label = "to" if direction == "outbound" else "from"
     other_id = link.target_id if direction == "outbound" else link.source_id
+    metadata_prefix = "target" if direction == "outbound" else "source"
+    title = _metadata_str(link.metadata, f"{metadata_prefix}_title") or other_id
+    subtitle = _compact_subtitle(
+        f"{link.link_type} {direction_label}",
+        _status_from_metadata(link.metadata),
+    )
     return ArtifactPanelRow(
         id=f"{direction}:{link.id}",
         label=f"{link.link_type} {direction_label} {other_id}",
         artifact_id=artifact_id,
+        artifact_kind=(
+            _metadata_str(link.metadata, f"{metadata_prefix}_kind")
+            or _artifact_kind_from_id(artifact_id)
+        ),
+        file_type=_metadata_str(link.metadata, f"{metadata_prefix}_file_type"),
+        edge_direction=direction,
         row_type=direction,
         group=group,
+        group_key=group_key,
         link_type=link.link_type,
+        title=title,
+        subtitle=subtitle,
+        updated_label=_compact_timestamp(link.updated_at),
+        status_label=_status_from_metadata(link.metadata),
     )
 
 
@@ -377,9 +466,86 @@ def _row_search_text(row: ArtifactPanelRow) -> str:
         for part in (
             row.label,
             row.artifact_id,
+            row.artifact_kind,
+            row.file_type,
+            row.edge_direction,
+            row.title,
+            row.subtitle,
+            row.updated_label,
             row.row_type,
             row.group,
+            row.group_key,
             row.link_type,
+            row.status_label,
         )
         if part
     ).casefold()
+
+
+def _group_total_count(
+    paged_model: ArtifactPanelPagedModel | None,
+    *,
+    group_key: str,
+    fallback: int,
+) -> int:
+    if paged_model is None:
+        return fallback
+    for key, total in paged_model.group_totals.items():
+        if key.group_key == group_key:
+            return total
+    return fallback
+
+
+def _group_label(label: str, *, loaded_count: int, total_count: int) -> str:
+    if total_count > loaded_count:
+        return f"{label} ({loaded_count}/{total_count})"
+    return f"{label} ({loaded_count})"
+
+
+def _file_type_from_node(node: ArtifactNodeWire) -> str | None:
+    value = node.metadata.get(ARTIFACT_FILE_TYPE_METADATA_KEY)
+    return str(value) if value else None
+
+
+def _metadata_str(metadata: dict[str, object], key: str) -> str | None:
+    value = metadata.get(key)
+    return str(value) if value else None
+
+
+def _status_from_metadata(metadata: dict[str, object]) -> str:
+    for key in ("status", "state"):
+        value = metadata.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def _compact_subtitle(*parts: str | None) -> str:
+    return " · ".join(part for part in parts if part)
+
+
+def _compact_timestamp(value: str | None) -> str:
+    if not value:
+        return ""
+    if "T" in value:
+        return value.split("T", 1)[0]
+    return value[:10]
+
+
+def _artifact_kind_from_id(artifact_id: str) -> str | None:
+    if artifact_id == "/":
+        return "root"
+    prefix = artifact_id.split(":", 1)[0]
+    return {
+        "agent": "agent",
+        "bead": "bead",
+        "changespec": "changespec",
+        "cl": "changespec",
+        "commit": "commit",
+        "dir": "directory",
+        "directory": "directory",
+        "file": "file",
+        "project": "project",
+        "prompt": "file",
+        "thought": "thought",
+    }.get(prefix)

@@ -394,8 +394,8 @@ def test_artifact_panel_groups_inbound_and_outbound_link_targets() -> None:
     rows = build_artifact_panel_rows(detail).rows
 
     assert [row.label for row in rows if row.row_type == "group"] == [
-        "Outbound: created",
-        "Inbound: related",
+        "Outbound: created (1)",
+        "Inbound: related (1)",
     ]
     assert {row.id: row.artifact_id for row in rows if row.selectable} == {
         "outbound:out-1": "file-a",

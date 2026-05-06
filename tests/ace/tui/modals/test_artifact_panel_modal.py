@@ -13,7 +13,11 @@ from rich.console import RenderableType
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList, Static
 
-from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
+from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal, _row_label
+from sase.ace.tui.modals.artifact_panel_state import (
+    build_artifact_panel_rows,
+    paged_model_from_paged_detail,
+)
 from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
     ArtifactDetailPagedWire,
@@ -25,6 +29,7 @@ from sase.core.artifact_wire import (
     ArtifactNodeWire,
     ArtifactPageRequestWire,
     ArtifactRelationPageWire,
+    ArtifactTypeCountWire,
 )
 
 
@@ -40,13 +45,17 @@ def _node(
     kind: str = "file",
     title: str | None = None,
     metadata: dict[str, Any] | None = None,
+    subtitle: str | None = None,
+    updated_at: str | None = None,
 ) -> ArtifactNodeWire:
     return ArtifactNodeWire(
         id=artifact_id,
         kind=kind,
         display_title=title or artifact_id,
+        subtitle=subtitle,
         provenance="derived",
         metadata=metadata or {},
+        updated_at=updated_at,
     )
 
 
@@ -86,6 +95,7 @@ def _paged_detail(
     outbound_links: list[ArtifactLinkWire] | None = None,
     inbound_links: list[ArtifactLinkWire] | None = None,
     path_to_root: list[ArtifactNodeWire] | None = None,
+    type_counts: list[ArtifactTypeCountWire] | None = None,
 ) -> ArtifactDetailPagedWire:
     loaded_children = children or []
     loaded_outbound = outbound_links or []
@@ -138,6 +148,7 @@ def _paged_detail(
         outbound_pages=outbound_pages,
         inbound_pages=inbound_pages,
         path_to_root=path_to_root or [],
+        type_counts=type_counts or [],
     )
 
 
@@ -346,6 +357,89 @@ async def test_paged_modal_open_does_not_render_hundreds_of_initial_rows(
     assert option_list.option_count == 11
     assert "child:child:0" in visible_ids
     assert "child:child:9" in visible_ids
+
+
+def test_rich_row_model_includes_semantic_fields_and_group_counts() -> None:
+    child = _node(
+        "file:/tmp/plan.md",
+        "file",
+        "plan.md",
+        {"artifact_type": "plan", "status": "fresh"},
+        subtitle="Epic plan",
+        updated_at="2026-05-06T02:45:00Z",
+    )
+    paged = _paged_detail(
+        "changespec:alpha",
+        kind="changespec",
+        children=[child],
+        child_total=12,
+    )
+
+    model = paged_model_from_paged_detail(paged)
+    rows = build_artifact_panel_rows(model.detail, paged_model=model).rows
+
+    assert rows[0].label == "Children (1/12)"
+    assert rows[0].selectable is False
+    assert rows[1].artifact_id == "file:/tmp/plan.md"
+    assert rows[1].artifact_kind == "file"
+    assert rows[1].file_type == "plan"
+    assert rows[1].edge_direction == "children"
+    assert rows[1].title == "plan.md"
+    assert rows[1].subtitle == "Epic plan · fresh"
+    assert rows[1].updated_label == "2026-05-06"
+    assert rows[1].group_key == "children"
+
+    rendered = str(_row_label(rows[1]))
+    assert "[PLAN]" in rendered
+    assert "plan.md" in rendered
+    assert "file:/tmp/plan.md" in rendered
+
+
+@pytest.mark.asyncio
+async def test_artifact_modal_renders_persistent_header_with_counts() -> None:
+    child = _node("agent:child", "agent", "Child agent")
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path, request
+        return _paged_detail(
+            artifact_id,
+            kind="changespec",
+            title="Alpha CL",
+            metadata={"status": "WIP"},
+            children=[child],
+            child_total=12,
+            path_to_root=[_node("/", "root", "/")],
+            type_counts=[ArtifactTypeCountWire("agent", 12)],
+        )
+
+    modal = ArtifactPanelModal(
+        artifact_id="changespec:alpha",
+        index_path="/tmp/fake.sqlite",
+        show_paged_func=fake_paged_show,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        primary = str(
+            modal.query_one("#artifact-panel-header-primary", Static).render()
+        )
+        path = str(modal.query_one("#artifact-panel-header-path", Static).render())
+        counts = str(modal.query_one("#artifact-panel-header-counts", Static).render())
+
+    assert "[CL]" in primary
+    assert "Alpha CL" in primary
+    assert "WIP" in primary
+    assert "derived" in primary
+    assert "Path: / > Alpha CL" in path
+    assert "children 1/12" in counts
+    assert "agent 12" in counts
 
 
 @pytest.mark.parametrize("start_id", ["/", "changespec:current", "agent:current"])

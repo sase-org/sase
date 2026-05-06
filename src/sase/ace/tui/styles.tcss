@@ -2087,9 +2087,25 @@ ArtifactPanelModal > Container {
     padding: 1;
 }
 
-ArtifactPanelModal #artifact-panel-title {
-    text-style: bold;
+ArtifactPanelModal #artifact-panel-header {
+    height: auto;
+    max-height: 3;
     margin-bottom: 1;
+}
+
+ArtifactPanelModal #artifact-panel-header-primary {
+    text-style: bold;
+    height: 1;
+}
+
+ArtifactPanelModal #artifact-panel-header-path {
+    height: 1;
+    color: $text-muted;
+}
+
+ArtifactPanelModal #artifact-panel-header-counts {
+    height: 1;
+    color: $text-muted;
 }
 
 ArtifactPanelModal #artifact-panel-body {
@@ -2098,9 +2114,9 @@ ArtifactPanelModal #artifact-panel-body {
 }
 
 ArtifactPanelModal #artifact-panel-left {
-    width: 34%;
-    min-width: 18;
-    max-width: 44;
+    width: 44%;
+    min-width: 24;
+    max-width: 50%;
     height: 100%;
 }
 
