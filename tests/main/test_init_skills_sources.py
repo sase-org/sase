@@ -18,15 +18,6 @@ from tests.main.init_skills_handler_helpers import make_args
     [
         ("sase_chats", ("sase chats list -j", "sase chats show")),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
-        (
-            "sase_artifact",
-            (
-                "sase artifact list -j",
-                "sase artifact show -j",
-                "sase artifact graph -j",
-                "sase artifact doctor -j",
-            ),
-        ),
     ],
 )
 def test_shipped_skill_source_is_discoverable_for_all_providers(

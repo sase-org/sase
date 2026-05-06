@@ -10,17 +10,10 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from typing import Any
 
 import pytest
 
 from sase.ace.changespec.parser import parse_project_file_python
-from sase.core.artifact_wire import (
-    ARTIFACT_KIND_FILE,
-    ARTIFACT_PROVENANCE_DERIVED,
-    ARTIFACT_WIRE_SCHEMA_VERSION,
-    ArtifactNodeWire,
-)
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.wire_conversion import changespec_to_wire
 
@@ -140,41 +133,6 @@ def force_no_rust_extension(monkeypatch: pytest.MonkeyPatch) -> None:
         return real_import_module(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", fail)
-
-
-def artifact_node(node_id: str = "/tmp/example.md") -> ArtifactNodeWire:
-    return ArtifactNodeWire(
-        id=node_id,
-        kind=ARTIFACT_KIND_FILE,
-        display_title="example.md",
-        subtitle=None,
-        provenance=ARTIFACT_PROVENANCE_DERIVED,
-        source_kind="agent",
-        source_id="writer",
-        source_version=None,
-        search_text="example markdown",
-        metadata={},
-        created_at=None,
-        updated_at="2026-05-05T12:00:00Z",
-    )
-
-
-def artifact_mutation_result(operation: str = "upsert_node") -> dict[str, Any]:
-    return {
-        "schema_version": ARTIFACT_WIRE_SCHEMA_VERSION,
-        "operation": operation,
-        "nodes_added": 1,
-        "nodes_updated": 0,
-        "nodes_removed": 0,
-        "links_added": 0,
-        "links_updated": 0,
-        "links_removed": 0,
-        "tombstones_added": 0,
-        "affected_node_ids": ["/tmp/example.md"],
-        "affected_link_ids": [],
-        "tombstone_ids": [],
-        "errors": [],
-    }
 
 
 def python_wire_records_as_dicts(file_path: str, _data: bytes) -> list[dict]:

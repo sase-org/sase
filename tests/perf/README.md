@@ -34,17 +34,3 @@ PY
 For revive modal checks, run the same process and time `load_dismissed_bundles({raw_suffix})` for a parent workflow
 suffix with known `__c{idx}` child bundles. For index work, capture full rebuild wall time and a second query
 immediately after rebuild so the cold rebuild and warm lookup costs are visible separately.
-
-## Artifacts Panel Epic 6
-
-The unified artifact graph rollout harness is descriptive: it records timings, query counts, mutation counts, fixture
-sizes, and errors, while tests assert bounded behavior instead of workstation-specific latency thresholds.
-
-```bash
-.venv/bin/pytest -m slow tests/perf/bench_artifact_graph.py -q
-.venv/bin/python tests/perf/bench_artifact_graph.py --runs 3 --output /tmp/artifacts-panel-epic6.json
-```
-
-The harness uses temporary indexes and deterministic fixtures. It covers startup scheduling with and without an existing
-unified index, targeted artifact refreshes, paged modal open, missing-artifact retry, high-degree relationship paging,
-limited global search, and visible-row summary batching.
