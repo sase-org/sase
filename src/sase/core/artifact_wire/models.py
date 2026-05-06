@@ -112,6 +112,51 @@ class ArtifactDetailWire:
 
 
 @dataclass(frozen=True)
+class ArtifactPageRequestWire:
+    schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
+    group_key: str | None = None
+    relation: str | None = None
+    link_type: str | None = None
+    offset: int = 0
+    limit: int = 10
+
+
+@dataclass(frozen=True)
+class ArtifactGroupSummaryWire:
+    group_key: str
+    direction: str
+    link_type: str | None = None
+    total_count: int = 0
+    loaded_count: int = 0
+
+
+@dataclass(frozen=True)
+class ArtifactRelationPageWire:
+    summary: ArtifactGroupSummaryWire
+    nodes: list[ArtifactNodeWire] = field(default_factory=list)
+    links: list[ArtifactLinkWire] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ArtifactTypeCountWire:
+    artifact_type: str
+    total_count: int
+
+
+@dataclass(frozen=True)
+class ArtifactDetailPagedWire:
+    schema_version: int
+    node: ArtifactNodeWire | None = None
+    payloads: list[ArtifactPayloadWire] = field(default_factory=list)
+    path_to_root: list[ArtifactNodeWire] = field(default_factory=list)
+    diagnostics: list[ArtifactDoctorIssueWire] = field(default_factory=list)
+    children_page: ArtifactRelationPageWire | None = None
+    outbound_pages: list[ArtifactRelationPageWire] = field(default_factory=list)
+    inbound_pages: list[ArtifactRelationPageWire] = field(default_factory=list)
+    type_counts: list[ArtifactTypeCountWire] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class ArtifactQueryWire:
     schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
     text: str | None = None
@@ -234,12 +279,14 @@ def artifact_root_node() -> ArtifactNodeWire:
 
 
 __all__ = [
+    "ArtifactDetailPagedWire",
     "ArtifactDetailWire",
     "ArtifactDoctorIssueWire",
     "ArtifactDoctorOptionsWire",
     "ArtifactDoctorWire",
     "ArtifactGraphOptionsWire",
     "ArtifactGraphWire",
+    "ArtifactGroupSummaryWire",
     "ArtifactLinkRemoveWire",
     "ArtifactLinkUpsertWire",
     "ArtifactLinkWire",
@@ -247,9 +294,12 @@ __all__ = [
     "ArtifactNodeRemoveWire",
     "ArtifactNodeUpsertWire",
     "ArtifactNodeWire",
+    "ArtifactPageRequestWire",
     "ArtifactPathUpsertRequestWire",
     "ArtifactPayloadWire",
     "ArtifactQueryWire",
+    "ArtifactRelationPageWire",
     "ArtifactRebuildRequestWire",
+    "ArtifactTypeCountWire",
     "artifact_root_node",
 ]

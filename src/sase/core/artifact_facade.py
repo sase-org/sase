@@ -16,6 +16,7 @@ from sase.core.artifact_wire import (
     ARTIFACT_STALE_CLEANUP_NONE,
     ArtifactDoctorOptionsWire,
     ArtifactDoctorWire,
+    ArtifactDetailPagedWire,
     ArtifactDetailWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
@@ -25,10 +26,12 @@ from sase.core.artifact_wire import (
     ArtifactNodeRemoveWire,
     ArtifactNodeUpsertWire,
     ArtifactNodeWire,
+    ArtifactPageRequestWire,
     ArtifactPathUpsertRequestWire,
     ArtifactPayloadWire,
     ArtifactQueryWire,
     ArtifactRebuildRequestWire,
+    artifact_detail_paged_from_dict,
     artifact_detail_from_dict,
     artifact_doctor_from_dict,
     artifact_doctor_options_to_dict,
@@ -36,6 +39,7 @@ from sase.core.artifact_wire import (
     artifact_graph_options_to_dict,
     artifact_mutation_result_from_dict,
     artifact_node_from_dict,
+    artifact_page_request_to_dict,
     artifact_path_upsert_request_to_dict,
     artifact_query_to_dict,
     artifact_rebuild_request_to_dict,
@@ -102,6 +106,22 @@ def artifact_show(index_path: Path | str, artifact_id: str) -> ArtifactDetailWir
     binding = require_rust_binding("artifact_show")
     payload: dict[str, Any] = binding(_path_str(index_path), artifact_id)
     return artifact_detail_from_dict(payload)
+
+
+def artifact_show_paged(
+    index_path: Path | str,
+    artifact_id: str,
+    request: ArtifactPageRequestWire | None = None,
+) -> ArtifactDetailPagedWire:
+    """Return one artifact detail record with paged relationship groups."""
+    binding = require_rust_binding("artifact_show_paged")
+    request_wire = request or ArtifactPageRequestWire()
+    payload: dict[str, Any] = binding(
+        _path_str(index_path),
+        artifact_id,
+        artifact_page_request_to_dict(request_wire),
+    )
+    return artifact_detail_paged_from_dict(payload)
 
 
 def artifact_graph(
@@ -241,6 +261,25 @@ def artifact_path_upsert_request(
         source_version=source_version,
         search_text=search_text,
         metadata=metadata,
+    )
+
+
+def artifact_page_request(
+    *,
+    group_key: str | None = None,
+    relation: str | None = None,
+    link_type: str | None = None,
+    offset: int = 0,
+    limit: int = 10,
+) -> ArtifactPageRequestWire:
+    """Build a schema-versioned artifact relationship page request."""
+    return ArtifactPageRequestWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        group_key=group_key,
+        relation=relation,
+        link_type=link_type,
+        offset=offset,
+        limit=limit,
     )
 
 

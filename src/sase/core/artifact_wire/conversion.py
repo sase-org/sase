@@ -12,12 +12,14 @@ from sase.core.artifact_wire.constants import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
 )
 from sase.core.artifact_wire.models import (
+    ArtifactDetailPagedWire,
     ArtifactDetailWire,
     ArtifactDoctorIssueWire,
     ArtifactDoctorOptionsWire,
     ArtifactDoctorWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
+    ArtifactGroupSummaryWire,
     ArtifactLinkRemoveWire,
     ArtifactLinkUpsertWire,
     ArtifactLinkWire,
@@ -25,10 +27,13 @@ from sase.core.artifact_wire.models import (
     ArtifactNodeRemoveWire,
     ArtifactNodeUpsertWire,
     ArtifactNodeWire,
+    ArtifactPageRequestWire,
     ArtifactPathUpsertRequestWire,
     ArtifactPayloadWire,
     ArtifactQueryWire,
+    ArtifactRelationPageWire,
     ArtifactRebuildRequestWire,
+    ArtifactTypeCountWire,
 )
 
 
@@ -74,6 +79,12 @@ def artifact_rebuild_request_to_dict(
 
 def artifact_path_upsert_request_to_dict(
     request: ArtifactPathUpsertRequestWire,
+) -> dict[str, Any]:
+    return artifact_wire_to_json_dict(request)
+
+
+def artifact_page_request_to_dict(
+    request: ArtifactPageRequestWire,
 ) -> dict[str, Any]:
     return artifact_wire_to_json_dict(request)
 
@@ -259,6 +270,110 @@ def artifact_detail_from_dict(data: dict[str, Any]) -> ArtifactDetailWire:
     )
 
 
+def artifact_page_request_from_dict(
+    data: dict[str, Any],
+) -> ArtifactPageRequestWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactPageRequestWire)},
+        "ArtifactPageRequestWire",
+    )
+    return ArtifactPageRequestWire(
+        schema_version=_schema_version(data, "ArtifactPageRequestWire"),
+        group_key=data.get("group_key"),
+        relation=data.get("relation"),
+        link_type=data.get("link_type"),
+        offset=int(data.get("offset", 0)),
+        limit=int(data.get("limit", 10)),
+    )
+
+
+def artifact_group_summary_from_dict(
+    data: dict[str, Any],
+) -> ArtifactGroupSummaryWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactGroupSummaryWire)},
+        "ArtifactGroupSummaryWire",
+    )
+    return ArtifactGroupSummaryWire(
+        group_key=str(data["group_key"]),
+        direction=str(data["direction"]),
+        link_type=data.get("link_type"),
+        total_count=int(data.get("total_count", 0)),
+        loaded_count=int(data.get("loaded_count", 0)),
+    )
+
+
+def artifact_relation_page_from_dict(
+    data: dict[str, Any],
+) -> ArtifactRelationPageWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactRelationPageWire)},
+        "ArtifactRelationPageWire",
+    )
+    return ArtifactRelationPageWire(
+        summary=artifact_group_summary_from_dict(data["summary"]),
+        nodes=[artifact_node_from_dict(node) for node in data.get("nodes") or []],
+        links=[artifact_link_from_dict(link) for link in data.get("links") or []],
+    )
+
+
+def artifact_type_count_from_dict(data: dict[str, Any]) -> ArtifactTypeCountWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactTypeCountWire)},
+        "ArtifactTypeCountWire",
+    )
+    return ArtifactTypeCountWire(
+        artifact_type=str(data["artifact_type"]),
+        total_count=int(data.get("total_count", 0)),
+    )
+
+
+def artifact_detail_paged_from_dict(data: dict[str, Any]) -> ArtifactDetailPagedWire:
+    _check_keys(
+        data,
+        {field_info.name for field_info in fields(ArtifactDetailPagedWire)},
+        "ArtifactDetailPagedWire",
+    )
+    node = data.get("node")
+    children_page = data.get("children_page")
+    return ArtifactDetailPagedWire(
+        schema_version=_schema_version(data, "ArtifactDetailPagedWire"),
+        node=artifact_node_from_dict(node) if isinstance(node, dict) else None,
+        payloads=[
+            artifact_payload_from_dict(payload)
+            for payload in data.get("payloads") or []
+        ],
+        path_to_root=[
+            artifact_node_from_dict(node) for node in data.get("path_to_root") or []
+        ],
+        diagnostics=[
+            artifact_doctor_issue_from_dict(issue)
+            for issue in data.get("diagnostics") or []
+        ],
+        children_page=(
+            artifact_relation_page_from_dict(children_page)
+            if isinstance(children_page, dict)
+            else None
+        ),
+        outbound_pages=[
+            artifact_relation_page_from_dict(page)
+            for page in data.get("outbound_pages") or []
+        ],
+        inbound_pages=[
+            artifact_relation_page_from_dict(page)
+            for page in data.get("inbound_pages") or []
+        ],
+        type_counts=[
+            artifact_type_count_from_dict(count)
+            for count in data.get("type_counts") or []
+        ],
+    )
+
+
 def artifact_query_from_dict(data: dict[str, Any]) -> ArtifactQueryWire:
     _check_keys(
         data,
@@ -438,6 +553,7 @@ def artifact_doctor_from_dict(data: dict[str, Any]) -> ArtifactDoctorWire:
 
 
 __all__ = [
+    "artifact_detail_paged_from_dict",
     "artifact_detail_from_dict",
     "artifact_doctor_from_dict",
     "artifact_doctor_issue_from_dict",
@@ -446,6 +562,7 @@ __all__ = [
     "artifact_graph_from_dict",
     "artifact_graph_options_from_dict",
     "artifact_graph_options_to_dict",
+    "artifact_group_summary_from_dict",
     "artifact_link_from_dict",
     "artifact_link_remove_from_dict",
     "artifact_link_upsert_from_dict",
@@ -453,12 +570,16 @@ __all__ = [
     "artifact_node_from_dict",
     "artifact_node_remove_from_dict",
     "artifact_node_upsert_from_dict",
+    "artifact_page_request_from_dict",
+    "artifact_page_request_to_dict",
     "artifact_path_upsert_request_from_dict",
     "artifact_path_upsert_request_to_dict",
     "artifact_payload_from_dict",
     "artifact_query_from_dict",
     "artifact_query_to_dict",
+    "artifact_relation_page_from_dict",
     "artifact_rebuild_request_from_dict",
     "artifact_rebuild_request_to_dict",
+    "artifact_type_count_from_dict",
     "artifact_wire_to_json_dict",
 ]

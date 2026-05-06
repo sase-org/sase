@@ -32,7 +32,9 @@ from sase.core.artifact_wire import (
     ArtifactLinkUpsertWire,
     ArtifactLinkWire,
     ArtifactPayloadWire,
+    ArtifactPageRequestWire,
     artifact_doctor_from_dict,
+    artifact_detail_paged_from_dict,
     artifact_graph_from_dict,
     artifact_mutation_result_from_dict,
     ArtifactNodeRemoveWire,
@@ -43,6 +45,8 @@ from sase.core.artifact_wire import (
     ArtifactRebuildRequestWire,
     artifact_path_upsert_request_to_dict,
     artifact_detail_from_dict,
+    artifact_page_request_from_dict,
+    artifact_page_request_to_dict,
     artifact_query_from_dict,
     artifact_query_to_dict,
     artifact_rebuild_request_to_dict,
@@ -178,6 +182,47 @@ def test_query_options_and_detail_shapes_keep_nulls_and_lists() -> None:
         "diagnostics": [],
     }
 
+    page_request = ArtifactPageRequestWire()
+    assert artifact_page_request_to_dict(page_request) == {
+        "schema_version": 1,
+        "group_key": None,
+        "relation": None,
+        "link_type": None,
+        "offset": 0,
+        "limit": 10,
+    }
+    assert (
+        artifact_page_request_from_dict(artifact_page_request_to_dict(page_request))
+        == page_request
+    )
+
+    paged = artifact_detail_paged_from_dict(
+        {
+            "schema_version": 1,
+            "node": None,
+            "payloads": [],
+            "path_to_root": [],
+            "diagnostics": [],
+            "children_page": {
+                "summary": {
+                    "group_key": "children",
+                    "direction": "children",
+                    "link_type": None,
+                    "total_count": 42,
+                    "loaded_count": 10,
+                },
+                "nodes": [],
+                "links": [],
+            },
+            "outbound_pages": [],
+            "inbound_pages": [],
+            "type_counts": [{"artifact_type": "file", "total_count": 42}],
+        }
+    )
+    assert paged.children_page is not None
+    assert paged.children_page.summary.total_count == 42
+    assert paged.type_counts[0].artifact_type == "file"
+
 
 def test_rebuild_and_path_upsert_request_shapes_keep_defaults() -> None:
     rebuild = ArtifactRebuildRequestWire()
@@ -232,6 +277,31 @@ def test_rebuild_and_path_upsert_request_shapes_keep_defaults() -> None:
                 "children": [],
                 "path_to_root": [],
                 "diagnostics": [],
+            },
+        ),
+        (
+            "ArtifactDetailPagedWire",
+            artifact_detail_paged_from_dict,
+            {
+                "schema_version": 999,
+                "node": None,
+                "payloads": [],
+                "path_to_root": [],
+                "diagnostics": [],
+                "children_page": {
+                    "summary": {
+                        "group_key": "children",
+                        "direction": "children",
+                        "link_type": None,
+                        "total_count": 0,
+                        "loaded_count": 0,
+                    },
+                    "nodes": [],
+                    "links": [],
+                },
+                "outbound_pages": [],
+                "inbound_pages": [],
+                "type_counts": [],
             },
         ),
         (
@@ -297,6 +367,36 @@ def test_facade_request_helpers_surface_typed_incremental_fields() -> None:
     assert artifact_path_upsert_request_to_dict(path_request)["metadata"] == {
         "reason": "watcher"
     }
+
+    page_request = artifact_facade.artifact_page_request(
+        relation="outbound",
+        link_type="related",
+        offset=10,
+        limit=5,
+    )
+    assert artifact_page_request_to_dict(page_request) == {
+        "schema_version": 1,
+        "group_key": None,
+        "relation": "outbound",
+        "link_type": "related",
+        "offset": 10,
+        "limit": 5,
+    }
+
+
+def test_paged_wire_converters_reject_unknown_fields() -> None:
+    with pytest.raises(TypeError, match="unknown ArtifactPageRequestWire field"):
+        artifact_page_request_from_dict(
+            {
+                "schema_version": 1,
+                "group_key": None,
+                "relation": None,
+                "link_type": None,
+                "offset": 0,
+                "limit": 10,
+                "unexpected": True,
+            }
+        )
 
 
 def test_root_node_shape_matches_rust_helper() -> None:
@@ -379,6 +479,30 @@ def test_artifact_facade_calls_expected_bindings(
             "diagnostics": [],
         }
 
+    def artifact_show_paged(*args: Any) -> dict[str, Any]:
+        calls.append(("artifact_show_paged", args))
+        return {
+            "schema_version": 1,
+            "node": artifact_wire_to_json_dict(_node()),
+            "payloads": [],
+            "path_to_root": [artifact_wire_to_json_dict(artifact_root_node())],
+            "diagnostics": [],
+            "children_page": {
+                "summary": {
+                    "group_key": "children",
+                    "direction": "children",
+                    "link_type": None,
+                    "total_count": 0,
+                    "loaded_count": 0,
+                },
+                "nodes": [],
+                "links": [],
+            },
+            "outbound_pages": [],
+            "inbound_pages": [],
+            "type_counts": [],
+        }
+
     def artifact_graph(*args: Any) -> dict[str, Any]:
         calls.append(("artifact_graph", args))
         return {
@@ -412,6 +536,7 @@ def test_artifact_facade_calls_expected_bindings(
     fake.artifact_remove = artifact_remove  # type: ignore[attr-defined]
     fake.artifact_list = artifact_list  # type: ignore[attr-defined]
     fake.artifact_show = artifact_show  # type: ignore[attr-defined]
+    fake.artifact_show_paged = artifact_show_paged  # type: ignore[attr-defined]
     fake.artifact_graph = artifact_graph  # type: ignore[attr-defined]
     fake.artifact_export = artifact_export  # type: ignore[attr-defined]
     fake.artifact_doctor = artifact_doctor  # type: ignore[attr-defined]
@@ -435,6 +560,10 @@ def test_artifact_facade_calls_expected_bindings(
     )
     assert artifact_facade.artifact_list(index_path)[0] == _node()
     assert artifact_facade.artifact_show(index_path, "/tmp/example.md").node == _node()
+    assert (
+        artifact_facade.artifact_show_paged(index_path, "/tmp/example.md").node
+        == _node()
+    )
     assert artifact_facade.artifact_graph(index_path).node_count == 1
     assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
         "digraph"
@@ -471,6 +600,14 @@ def test_artifact_facade_calls_expected_bindings(
             ),
         ),
         ("artifact_show", ("/tmp/artifacts.sqlite", "/tmp/example.md")),
+        (
+            "artifact_show_paged",
+            (
+                "/tmp/artifacts.sqlite",
+                "/tmp/example.md",
+                artifact_wire_to_json_dict(ArtifactPageRequestWire()),
+            ),
+        ),
         (
             "artifact_graph",
             (
@@ -520,6 +657,7 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
         "artifact_upsert_path",
         "artifact_list",
         "artifact_show",
+        "artifact_show_paged",
         "artifact_graph",
         "artifact_export",
         "artifact_doctor",
@@ -579,6 +717,10 @@ def test_artifact_facade_real_extension_smoke(tmp_path: Path) -> None:
     detail = artifact_facade.artifact_show(index_path, str(child_path))
     assert detail.node == child_node
     assert detail.payloads == [payload]
+    paged = artifact_facade.artifact_show_paged(index_path, str(child_path))
+    assert paged.node == child_node
+    assert paged.children_page is not None
+    assert paged.children_page.summary.group_key == "children"
     assert artifact_facade.artifact_graph(index_path).node_count >= 1
     assert artifact_facade.artifact_export(index_path, output_format="dot").startswith(
         "digraph artifact_graph"
@@ -694,6 +836,89 @@ def test_artifact_facade_real_extension_file_type_query_and_doctor_issue(
         and issue.artifact_id == "manual-empty-dir"
         for issue in doctor.issues
     )
+
+
+def test_artifact_facade_real_extension_paged_detail_high_degree(
+    tmp_path: Path,
+) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    required = {"artifact_add", "artifact_show", "artifact_show_paged"}
+    missing = sorted(name for name in required if not hasattr(rust_module, name))
+    if missing:
+        pytest.skip(f"sase_core_rs is too old: missing {missing}")
+
+    index_path = tmp_path / "artifacts.sqlite"
+    parent = ArtifactNodeWire(
+        id="parent",
+        kind="directory",
+        display_title="parent",
+        provenance=ARTIFACT_PROVENANCE_MANUAL,
+    )
+    artifact_facade.artifact_add(
+        index_path,
+        ArtifactNodeUpsertWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            node=parent,
+        ),
+    )
+    artifact_facade.artifact_add(
+        index_path,
+        ArtifactLinkUpsertWire(
+            schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+            link=ArtifactLinkWire(
+                id="parent:parent->/",
+                link_type=ARTIFACT_LINK_PARENT,
+                source_id="parent",
+                target_id=ARTIFACT_ROOT_ID,
+                provenance=ARTIFACT_PROVENANCE_MANUAL,
+            ),
+        ),
+    )
+
+    for index in range(25):
+        child = ArtifactNodeWire(
+            id=f"child-{index:02}",
+            kind=ARTIFACT_KIND_FILE,
+            display_title=f"child-{index:02}",
+            provenance=ARTIFACT_PROVENANCE_MANUAL,
+        )
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactNodeUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                node=child,
+            ),
+        )
+        artifact_facade.artifact_add(
+            index_path,
+            ArtifactLinkUpsertWire(
+                schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+                link=ArtifactLinkWire(
+                    id=f"parent:{child.id}->parent",
+                    link_type=ARTIFACT_LINK_PARENT,
+                    source_id=child.id,
+                    target_id="parent",
+                    provenance=ARTIFACT_PROVENANCE_MANUAL,
+                ),
+            ),
+        )
+
+    paged = artifact_facade.artifact_show_paged(
+        index_path,
+        "parent",
+        ArtifactPageRequestWire(relation="children", offset=10, limit=5),
+    )
+    assert paged.children_page is not None
+    assert paged.children_page.summary.total_count == 25
+    assert paged.children_page.summary.loaded_count == 5
+    assert [node.id for node in paged.children_page.nodes] == [
+        "child-10",
+        "child-11",
+        "child-12",
+        "child-13",
+        "child-14",
+    ]
+    assert len(artifact_facade.artifact_show(index_path, "parent").children) == 25
 
 
 def test_artifact_facade_real_extension_rejects_invalid_requests(
