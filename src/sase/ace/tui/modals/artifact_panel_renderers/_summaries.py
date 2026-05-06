@@ -109,6 +109,20 @@ def render_diagnostics(detail: ArtifactDetailWire) -> Text | None:
     return text
 
 
+def has_relationship_summary(context: ArtifactDetailRenderContext | None) -> bool:
+    """Return whether the context strip already covers graph relationships."""
+    if context is None:
+        return False
+    return bool(
+        context.parent_label
+        or context.path_labels
+        or context.children_loaded_count
+        or context.children_total_count
+        or context.outbound
+        or context.inbound
+    )
+
+
 def _append_link_counts(text: Text, label: str, links: list[ArtifactLinkWire]) -> None:
     if not links:
         append_kv(text, label, "0")

@@ -246,6 +246,84 @@ def test_renderer_includes_relationship_context_strip_from_paged_totals() -> Non
     assert "Types: agent=12" in rendered
 
 
+def test_renderer_avoids_duplicate_graph_links_when_context_has_relationships() -> None:
+    detail = _detail(
+        "changespec:alpha",
+        ARTIFACT_KIND_CHANGESPEC,
+        title="Alpha CL",
+        children=[_node("agent:child", "agent", title="Child agent")],
+        outbound_links=[
+            ArtifactLinkWire(
+                id="created-1",
+                link_type="created",
+                source_id="changespec:alpha",
+                target_id="file:plan",
+            )
+        ],
+        inbound_links=[
+            ArtifactLinkWire(
+                id="related-1",
+                link_type="related",
+                source_id="changespec:beta",
+                target_id="changespec:alpha",
+            )
+        ],
+    )
+    context = ArtifactDetailRenderContext(
+        parent_label="Project (project:sase)",
+        children_loaded_count=1,
+        children_total_count=1,
+        outbound=(
+            ArtifactRelationshipContext(
+                "created",
+                loaded_count=1,
+                total_count=1,
+            ),
+        ),
+        inbound=(
+            ArtifactRelationshipContext(
+                "related",
+                loaded_count=1,
+                total_count=1,
+            ),
+        ),
+    )
+
+    rendered = _render_text(render_artifact_detail(detail, render_context=context))
+
+    assert "Context" in rendered
+    assert "Children: 1" in rendered
+    assert "Outbound: created=1" in rendered
+    assert "Inbound: related=1" in rendered
+    assert "Graph links" not in rendered
+
+
+def test_renderer_keeps_graph_links_without_relationship_context() -> None:
+    detail = _detail(
+        "changespec:alpha",
+        ARTIFACT_KIND_CHANGESPEC,
+        children=[_node("agent:child", "agent", title="Child agent")],
+        outbound_links=[
+            ArtifactLinkWire(
+                id="created-1",
+                link_type="created",
+                source_id="changespec:alpha",
+                target_id="file:plan",
+            )
+        ],
+    )
+    context = ArtifactDetailRenderContext(
+        type_counts=(ArtifactTypeCountWire("agent", 1),)
+    )
+
+    rendered = _render_text(render_artifact_detail(detail, render_context=context))
+
+    assert "Context" in rendered
+    assert "Types: agent=1" in rendered
+    assert "Graph links" in rendered
+    assert "Outbound: created=1" in rendered
+
+
 @pytest.mark.parametrize(
     ("file_type", "filename", "content", "metadata", "expected"),
     [

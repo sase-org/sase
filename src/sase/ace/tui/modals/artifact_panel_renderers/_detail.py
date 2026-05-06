@@ -35,6 +35,7 @@ from ._kinds import (
     render_unknown,
 )
 from ._summaries import (
+    has_relationship_summary,
     render_diagnostics,
     render_link_summary,
     render_payload_summary,
@@ -92,7 +93,11 @@ def render_artifact_detail(
     if payloads is not None:
         sections.append(payloads)
 
-    links = render_link_summary(detail)
+    links = (
+        None
+        if has_relationship_summary(render_context)
+        else render_link_summary(detail)
+    )
     if links is not None:
         sections.append(links)
 
