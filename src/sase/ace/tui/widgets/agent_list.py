@@ -14,6 +14,7 @@ from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
 )
+from ..models.agent_time import runtime_suffix_ticks
 from ._agent_list_build import (
     build_list,
     compute_tier_styles,
@@ -342,11 +343,7 @@ class AgentList(OptionList, inherit_bindings=False):
     @staticmethod
     def _runtime_suffix_ticks(agent: Agent) -> bool:
         """Return True when *agent* renders a suffix that can change each tick."""
-        if agent.start_time is None:
-            return False
-        if agent.status in ("RUNNING", "RETRYING"):
-            return True
-        return agent.status == "WAITING" and agent.run_start_time is not None
+        return runtime_suffix_ticks(agent)
 
     def _format_agent_option(
         self,

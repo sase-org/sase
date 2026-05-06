@@ -16,6 +16,7 @@ from textual.widgets.option_list import Option
 from ..models.agent import Agent
 from ..models.agent_bead import derive_agent_bead_id
 from ..models.agent_groups import GroupingMode, GroupRow
+from ..models.agent_time import runtime_suffix_ticks
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
@@ -56,12 +57,11 @@ def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] |
 def _runtime_signature(agent: Agent, now: datetime | None) -> tuple[Any, ...]:
     """Return a tuple of agent fields that drive the runtime suffix.
 
-    ``RUNNING`` / ``WAITING`` / ``RETRYING`` agents have a status display
-    that depends on time-of-day; their signature folds in the quantized
-    *now* so a cache hit only happens within the same wall-clock second.
-    Terminal agents have a stable signature regardless of *now*.
+    Runtime-ticking rows fold in quantized *now* so a cache hit only
+    happens within the same wall-clock second. Terminal rows have a
+    stable signature regardless of *now*.
     """
-    time_sensitive = agent.status in ("RUNNING", "WAITING", "RETRYING")
+    time_sensitive = runtime_suffix_ticks(agent)
     return (
         agent.status,
         agent.start_time,

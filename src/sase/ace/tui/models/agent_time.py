@@ -6,6 +6,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
+_ACTIVE_PARENT_STATUSES = {
+    "PLAN APPROVED",
+    "EPIC APPROVED",
+    "LEGEND APPROVED",
+    "PLAN COMMITTED",
+}
+
 
 def wait_until_target_and_reference(
     iso_str: str, now: datetime | None = None
@@ -106,3 +113,26 @@ def compute_row_runtime(
     reference = now if now is not None else datetime.now()
     elapsed_secs = (reference - effective_start).total_seconds()
     return (None, format_compact_duration(elapsed_secs))
+
+
+def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
+    """Return True when *agent* renders a runtime suffix that can tick."""
+    if _seen is None:
+        _seen = set()
+    agent_id = id(agent)
+    if agent_id in _seen:
+        return False
+    _seen.add(agent_id)
+
+    if agent.start_time is None or agent.stop_time is not None:
+        return False
+    if agent.status in ("RUNNING", "RETRYING"):
+        return True
+    if agent.status == "WAITING" and agent.run_start_time is not None:
+        return True
+    if agent.status in _ACTIVE_PARENT_STATUSES:
+        return True
+    return any(
+        runtime_suffix_ticks(followup, _seen)
+        for followup in getattr(agent, "followup_agents", ())
+    )

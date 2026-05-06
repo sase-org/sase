@@ -123,6 +123,32 @@ def test_render_key_changes_when_bead_agent_name_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
+    a = _agent(status="PLAN APPROVED")
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 30, 1),
+    )
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 30, 2),
+    )
+
+    assert k1 != k2
+
+
 # --- cache hit / miss --------------------------------------------------------
 
 

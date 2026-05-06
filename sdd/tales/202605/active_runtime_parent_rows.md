@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 00:19:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/active_runtime_parent_rows.md
 ---
 # Plan: Tick Runtime Suffixes For Active Parent Agent Rows

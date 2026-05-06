@@ -12,13 +12,17 @@ from sase.ace.tui.models.agent import (
     AgentType,
     compute_row_runtime,
 )
-from sase.ace.tui.models.agent_time import _format_finish_timestamp
+from sase.ace.tui.models.agent_time import (
+    _format_finish_timestamp,
+    runtime_suffix_ticks,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import AgentList
 
 
 def _agent(
     *,
+    agent_type: AgentType = AgentType.RUNNING,
     status: str = "RUNNING",
     start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
     run_start: datetime | None = None,
@@ -27,7 +31,7 @@ def _agent(
     cl_name: str = "demo",
 ) -> Agent:
     return Agent(
-        agent_type=AgentType.RUNNING,
+        agent_type=agent_type,
         cl_name=cl_name,
         project_file="/tmp/p.gp",
         status=status,
@@ -129,6 +133,33 @@ def test_compute_row_runtime_pure_waiting_returns_nones() -> None:
     )
     assert ts is None
     assert elapsed is None
+
+
+# --- runtime_suffix_ticks ----------------------------------------------------
+
+
+def test_runtime_suffix_ticks_active_parent_status() -> None:
+    agent = _agent(status="PLAN APPROVED")
+    assert runtime_suffix_ticks(agent) is True
+
+
+def test_runtime_suffix_ticks_parent_with_active_followup() -> None:
+    parent = _agent(status="PLANNING")
+    child = _agent(status="RUNNING", raw_suffix="20260425143100", cl_name="child")
+    parent.followup_agents.append(child)
+
+    assert runtime_suffix_ticks(parent) is True
+
+
+def test_runtime_suffix_ticks_stopped_parent_with_active_followup_is_stable() -> None:
+    parent = _agent(
+        status="PLAN APPROVED",
+        stop=datetime(2026, 4, 25, 14, 31, 0),
+    )
+    child = _agent(status="RUNNING", raw_suffix="20260425143100", cl_name="child")
+    parent.followup_agents.append(child)
+
+    assert runtime_suffix_ticks(parent) is False
 
 
 # --- row rendering / batch alignment ----------------------------------------
@@ -251,6 +282,91 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
         assert patched == 1
         assert widget.option_count == before_count
         assert "[✓]" in after
+        assert after.rstrip().endswith("1m")
+
+
+@pytest.mark.asyncio
+async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        start = datetime(2026, 4, 25, 14, 0, 0)
+        parent = _agent(
+            agent_type=AgentType.WORKFLOW,
+            status="PLAN APPROVED",
+            start=start,
+            raw_suffix="20260425140000",
+        )
+        parent.followup_agents.append(
+            _agent(
+                status="RUNNING",
+                start=start,
+                raw_suffix="20260425140100",
+                cl_name="demo.code",
+            )
+        )
+        widget.update_list(
+            [parent],
+            current_idx=0,
+            marked_agents={parent.identity},
+            now=datetime(2026, 4, 25, 14, 0, 59),
+        )
+        await pilot.pause()
+
+        row = _agent_row_index(widget, 0)
+        before_count = widget.option_count
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "[✓]" in before
+        assert before.rstrip().endswith("59s")
+
+        patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched == 1
+        assert widget.option_count == before_count
+        assert "[✓]" in after
+        assert after.rstrip().endswith("1m")
+
+
+@pytest.mark.asyncio
+async def test_patch_active_runtime_rows_advances_epic_approved_parent() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        start = datetime(2026, 4, 25, 14, 0, 0)
+        parent = _agent(
+            agent_type=AgentType.WORKFLOW,
+            status="EPIC APPROVED",
+            start=start,
+            raw_suffix="20260425140000",
+        )
+        parent.followup_agents.append(
+            _agent(
+                status="RUNNING",
+                start=start,
+                raw_suffix="20260425140100",
+                cl_name="demo.epic",
+            )
+        )
+        widget.update_list(
+            [parent],
+            current_idx=0,
+            now=datetime(2026, 4, 25, 14, 0, 59),
+        )
+        await pilot.pause()
+
+        row = _agent_row_index(widget, 0)
+        before_count = widget.option_count
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert before.rstrip().endswith("59s")
+
+        patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched == 1
+        assert widget.option_count == before_count
         assert after.rstrip().endswith("1m")
 
 
