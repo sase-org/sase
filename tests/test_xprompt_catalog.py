@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.xprompt.catalog import (
+    MAX_MOBILE_CONTENT_PREVIEW_CHARS,
     NoXpromptsFound,
     PdfEngineUnavailable,
     _classify,
@@ -16,6 +17,7 @@ from sase.xprompt.catalog import (
     _format_inputs,
     _render_html,
     _truncate_content,
+    build_structured_xprompts_catalog,
     build_xprompts_catalog,
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
@@ -261,6 +263,126 @@ def test_format_inputs_required_optional() -> None:
 
 def test_format_inputs_empty() -> None:
     assert _format_inputs([]) == ""
+
+
+# ---------------------------------------------------------------------------
+# build_structured_xprompts_catalog
+# ---------------------------------------------------------------------------
+
+
+def test_structured_catalog_projects_filters_and_caps_preview(
+    tmp_path: Path,
+) -> None:
+    ws = tmp_path / "sase"
+    ws.mkdir()
+    local_source = ws / ".sase" / "xprompts" / "local.md"
+    local_source.parent.mkdir(parents=True)
+    local_source.write_text("local")
+    long_body = "a" * (MAX_MOBILE_CONTENT_PREVIEW_CHARS + 25)
+    global_xp = _make_xprompt(
+        "review",
+        source_path="config",
+        tags=frozenset({XPromptTag.mentor}),
+        description="Review code",
+    )
+    local_xp = _make_xprompt(
+        "local_fix",
+        source_path=str(local_source),
+        tags=frozenset({XPromptTag.fix_hook}),
+        inputs=[InputArg(name="path", type=InputType.PATH)],
+        skill=True,
+        content=long_body,
+    )
+    other_xp = _make_xprompt("other", source_path=str(tmp_path / "other.md"))
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts", return_value={"review": global_xp}
+        ),
+        patch(
+            "sase.xprompt.catalog.get_known_project_workspaces",
+            return_value={"sase": ws, "other": tmp_path / "other"},
+        ),
+        patch(
+            "sase.xprompt.catalog.load_project_local_xprompts",
+            side_effect=[
+                {"local_fix": local_xp},
+                {"other": other_xp},
+            ],
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=tmp_path / "pkg",
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+            return_value=tmp_path / "default",
+        ),
+    ):
+        projection = build_structured_xprompts_catalog(
+            project="sase",
+            tag="fix_hook",
+            query="local",
+        )
+
+    assert [entry.name for entry in projection.entries] == ["local_fix"]
+    entry = projection.entries[0]
+    assert entry.project == "sase"
+    assert entry.input_signature == "(path: path)"
+    assert entry.is_skill is True
+    assert entry.source_path_display == ".sase/xprompts/local.md"
+    assert entry.content_preview is not None
+    assert len(entry.content_preview) <= MAX_MOBILE_CONTENT_PREVIEW_CHARS + 3
+    assert projection.stats.total_count == 1
+    assert projection.stats.project_count == 1
+    assert projection.stats.skill_count == 1
+
+
+def test_structured_catalog_source_filter_keeps_global_entries(
+    tmp_path: Path,
+) -> None:
+    config_xp = _make_xprompt("global", source_path="config")
+    project_xp = _make_xprompt("project", source_path=str(tmp_path / "p.md"))
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts", return_value={"global": config_xp}
+        ),
+        patch(
+            "sase.xprompt.catalog.get_known_project_workspaces",
+            return_value={"sase": tmp_path},
+        ),
+        patch(
+            "sase.xprompt.catalog.load_project_local_xprompts",
+            return_value={"project": project_xp},
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=tmp_path / "pkg",
+        ),
+    ):
+        projection = build_structured_xprompts_catalog(project="sase", source="config")
+
+    assert [entry.name for entry in projection.entries] == ["global"]
+    assert projection.entries[0].source_bucket == "config"
+
+
+def test_structured_catalog_pdf_engine_warning_does_not_block_records(
+    tmp_path: Path,
+) -> None:
+    xp = _make_xprompt("hello", source_path="config")
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.xprompt.catalog.shutil.which", return_value=None),
+    ):
+        projection = build_structured_xprompts_catalog(include_pdf=True)
+
+    assert [entry.name for entry in projection.entries] == ["hello"]
+    assert projection.stats.pdf_requested is True
+    assert projection.catalog_attachment is None
+    assert projection.warnings == ["PDF catalog was not generated"]
+    assert projection.skipped[0].target == "xprompt-catalog.pdf"
 
 
 # ---------------------------------------------------------------------------

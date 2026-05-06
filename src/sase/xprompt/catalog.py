@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 
 
 MAX_CONTENT_LINES = 40
+MAX_MOBILE_CONTENT_PREVIEW_CHARS = 800
 
 
 class PdfEngineUnavailable(RuntimeError):
@@ -60,6 +61,62 @@ class CatalogArtifact:
 
     pdf_path: Path
     stats: CatalogStats
+
+
+@dataclass(frozen=True)
+class StructuredCatalogEntry:
+    """Mobile-safe structured xprompt catalog entry."""
+
+    name: str
+    display_label: str
+    description: str | None
+    source_bucket: str
+    project: str | None
+    tags: list[str]
+    input_signature: str | None
+    is_skill: bool
+    content_preview: str | None
+    source_path_display: str | None
+
+
+@dataclass(frozen=True)
+class StructuredCatalogStats:
+    """Stats needed by the mobile xprompt catalog picker."""
+
+    total_count: int
+    project_count: int
+    skill_count: int
+    pdf_requested: bool
+
+
+@dataclass(frozen=True)
+class StructuredCatalogAttachment:
+    """Safe metadata for an optional generated xprompt PDF catalog."""
+
+    display_name: str
+    content_type: str | None
+    byte_size: int | None
+    path_display: str | None
+    generated: bool
+
+
+@dataclass(frozen=True)
+class StructuredCatalogSkipped:
+    """Structured best-effort catalog skip/warning item."""
+
+    target: str | None
+    reason: str
+
+
+@dataclass(frozen=True)
+class StructuredCatalogProjection:
+    """Pure structured xprompt catalog plus optional PDF metadata."""
+
+    entries: list[StructuredCatalogEntry]
+    stats: StructuredCatalogStats
+    warnings: list[str]
+    skipped: list[StructuredCatalogSkipped]
+    catalog_attachment: StructuredCatalogAttachment | None
 
 
 @dataclass
@@ -121,6 +178,204 @@ def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     return CatalogArtifact(pdf_path=pdf_path, stats=stats)
 
 
+def build_structured_xprompts_catalog(
+    *,
+    project: str | None = None,
+    source: str | None = None,
+    tag: str | None = None,
+    query: str | None = None,
+    include_pdf: bool = False,
+    limit: int | None = None,
+) -> StructuredCatalogProjection:
+    """Return a mobile-safe structured xprompt catalog projection.
+
+    This path intentionally gathers and filters xprompt metadata without
+    requiring an HTML/PDF renderer. PDF generation is best-effort and only runs
+    when explicitly requested.
+    """
+    filtered_entries = _filter_catalog_entries(
+        _gather_entries(),
+        project=project,
+        source=source,
+        tag=tag,
+        query=query,
+    )
+    total_count = len(filtered_entries)
+    entries = filtered_entries
+    if limit is not None:
+        entries = entries[:limit]
+
+    structured_entries = [_structured_entry(entry) for entry in entries]
+    warnings: list[str] = []
+    skipped: list[StructuredCatalogSkipped] = []
+    attachment: StructuredCatalogAttachment | None = None
+
+    if include_pdf:
+        try:
+            artifact = build_xprompts_catalog()
+        except NoXpromptsFound as exc:
+            warnings.append("PDF catalog was not generated")
+            skipped.append(
+                StructuredCatalogSkipped(target="xprompt-catalog.pdf", reason=str(exc))
+            )
+        except PdfEngineUnavailable as exc:
+            warnings.append("PDF catalog was not generated")
+            skipped.append(
+                StructuredCatalogSkipped(target="xprompt-catalog.pdf", reason=str(exc))
+            )
+        else:
+            attachment = StructuredCatalogAttachment(
+                display_name=artifact.pdf_path.name,
+                content_type="application/pdf",
+                byte_size=_safe_file_size(artifact.pdf_path),
+                path_display=_safe_path_display(artifact.pdf_path),
+                generated=True,
+            )
+
+    return StructuredCatalogProjection(
+        entries=structured_entries,
+        stats=StructuredCatalogStats(
+            total_count=total_count,
+            project_count=len(
+                {entry.project for entry in filtered_entries if entry.project}
+            ),
+            skill_count=sum(1 for entry in filtered_entries if entry.xprompt.skill),
+            pdf_requested=include_pdf,
+        ),
+        warnings=warnings,
+        skipped=skipped,
+        catalog_attachment=attachment,
+    )
+
+
+def _filter_catalog_entries(
+    entries: list[_CatalogEntry],
+    *,
+    project: str | None,
+    source: str | None,
+    tag: str | None,
+    query: str | None,
+) -> list[_CatalogEntry]:
+    normalized_query = query.casefold() if query else None
+    filtered: list[_CatalogEntry] = []
+    for entry in entries:
+        if project is not None and entry.project not in (None, project):
+            continue
+        if source is not None and entry.bucket != source:
+            continue
+        tag_values = [tag.value for tag in entry.xprompt.tags]
+        if tag is not None and tag not in tag_values:
+            continue
+        if normalized_query is not None and not _entry_matches_query(
+            entry, tag_values, normalized_query
+        ):
+            continue
+        filtered.append(entry)
+    return filtered
+
+
+def _entry_matches_query(
+    entry: _CatalogEntry, tag_values: list[str], query: str
+) -> bool:
+    haystack = "\n".join(
+        part
+        for part in (
+            entry.xprompt.name,
+            entry.xprompt.description or "",
+            entry.xprompt.content,
+            " ".join(tag_values),
+        )
+        if part
+    )
+    return query in haystack.casefold()
+
+
+def _structured_entry(entry: _CatalogEntry) -> StructuredCatalogEntry:
+    input_signature = _format_inputs(entry.xprompt.inputs) or None
+    return StructuredCatalogEntry(
+        name=entry.xprompt.name,
+        display_label=_display_label(entry.xprompt.name),
+        description=entry.xprompt.description,
+        source_bucket=entry.bucket,
+        project=entry.project,
+        tags=sorted(tag.value for tag in entry.xprompt.tags),
+        input_signature=input_signature,
+        is_skill=bool(entry.xprompt.skill),
+        content_preview=_content_preview(entry.xprompt.content),
+        source_path_display=_source_path_display(entry),
+    )
+
+
+def _display_label(name: str) -> str:
+    label = name.replace("_", " ").replace("-", " ").strip()
+    return label or name
+
+
+def _content_preview(content: str) -> str | None:
+    text = content.strip()
+    if not text:
+        return None
+    if len(text) <= MAX_MOBILE_CONTENT_PREVIEW_CHARS:
+        return text
+    return text[:MAX_MOBILE_CONTENT_PREVIEW_CHARS].rstrip() + "..."
+
+
+def _source_path_display(entry: _CatalogEntry) -> str | None:
+    source = entry.xprompt.source_path
+    if not source:
+        return None
+    if source == "config" or source.startswith(
+        ("config:", "plugin:", "plugin_config:")
+    ):
+        return source
+
+    path = Path(source)
+    if not path.is_absolute():
+        return source
+
+    for project, workspace in get_known_project_workspaces().items():
+        try:
+            rel = path.resolve().relative_to(workspace.resolve())
+        except (ValueError, OSError):
+            continue
+        if entry.project is None or project == entry.project:
+            return rel.as_posix()
+
+    for package_dir in _package_xprompt_dirs():
+        try:
+            rel = path.resolve().relative_to(package_dir.resolve())
+        except (ValueError, OSError):
+            continue
+        return f"{package_dir.name}/{rel.as_posix()}"
+
+    config_dir = Path.home() / ".config" / "sase"
+    try:
+        rel = path.resolve().relative_to(config_dir.resolve())
+    except (ValueError, OSError):
+        return None
+    return f"~/.config/sase/{rel.as_posix()}"
+
+
+def _safe_path_display(path: Path) -> str | None:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    home = Path.home()
+    try:
+        rel = resolved.relative_to(home.resolve())
+    except (ValueError, OSError):
+        return None
+    return f"~/{rel.as_posix()}"
+
+
+def _safe_file_size(path: Path) -> int | None:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Gathering
 # ---------------------------------------------------------------------------
@@ -167,18 +422,8 @@ def _classify(xp: XPrompt, project: str | None) -> _CatalogEntry:
 
     source_path = Path(source) if source else None
 
-    package_dirs: list[Path] = []
-    for get_package_dir in (
-        get_sase_package_xprompts_dir,
-        get_sase_package_default_xprompts_dir,
-    ):
-        try:
-            package_dirs.append(get_package_dir())
-        except Exception:
-            pass
-
     if source_path is not None:
-        for package_dir in package_dirs:
+        for package_dir in _package_xprompt_dirs():
             try:
                 source_path.resolve().relative_to(package_dir.resolve())
                 return _CatalogEntry(xp, bucket="built-in", project=None)
@@ -210,6 +455,19 @@ def _classify(xp: XPrompt, project: str | None) -> _CatalogEntry:
 
     # Unknown source → treat as config (user-scoped config-like).
     return _CatalogEntry(xp, bucket="config", project=None)
+
+
+def _package_xprompt_dirs() -> list[Path]:
+    package_dirs: list[Path] = []
+    for get_package_dir in (
+        get_sase_package_xprompts_dir,
+        get_sase_package_default_xprompts_dir,
+    ):
+        try:
+            package_dirs.append(get_package_dir())
+        except Exception:
+            pass
+    return package_dirs
 
 
 # ---------------------------------------------------------------------------
