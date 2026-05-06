@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
+from rich.text import Text
 from textual.app import App
 
 from sase.ace.tui.models._loaders._workflow_step_loaders import (
@@ -336,7 +337,51 @@ def test_format_agent_option_active_suffix_contains_only_elapsed() -> None:
     _, suffix, _ = format_agent_option(
         _agent(start=start), 0, is_selected=False, now=now
     )
-    assert suffix.plain == "38m45s"
+    assert suffix.plain == "🕒 38m45s"
+
+
+@pytest.mark.parametrize(
+    ("agent", "expected"),
+    [
+        (
+            _agent(
+                status="WAITING",
+                start=datetime(2026, 4, 25, 13, 0, 0),
+                run_start=datetime(2026, 4, 25, 14, 0, 0),
+            ),
+            "🕒 5m",
+        ),
+        (
+            _agent(
+                status="RETRYING",
+                start=datetime(2026, 4, 25, 14, 4, 48),
+            ),
+            "🕒 12s",
+        ),
+        (
+            _agent(
+                agent_type=AgentType.WORKFLOW,
+                status="PLAN APPROVED",
+                start=datetime(2026, 4, 25, 14, 4, 0),
+            ),
+            "🕒 1m",
+        ),
+        (
+            _workflow_child(
+                step_type="agent",
+                status="RUNNING",
+                start=datetime(2026, 4, 25, 14, 2, 55),
+            ),
+            "🕒 2m05s",
+        ),
+    ],
+)
+def test_format_agent_option_live_suffix_has_clock_marker(
+    agent: Agent, expected: str
+) -> None:
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    _, suffix, _ = format_agent_option(agent, 0, is_selected=False, now=now)
+    assert suffix.plain == expected
 
 
 def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None:
@@ -438,15 +483,16 @@ def test_update_list_right_aligns_suffixes_across_batch() -> None:
         now=datetime(2026, 4, 25, 21, 0, 0),
     )
     # Pull the rendered rows for the two agent options (skip banners).
-    rows: list[str] = []
+    rows: list[Text] = []
     for opt in list(widget._options):  # type: ignore[attr-defined]
         if opt.id and (opt.id.startswith("0:") or opt.id.startswith("1:")):
-            rows.append(opt.prompt.plain)  # type: ignore[union-attr]
+            rows.append(opt.prompt)  # type: ignore[arg-type]
     assert len(rows) == 2
+    assert rows[0].plain.rstrip().endswith("🕒 7h")
     # The DONE row's suffix ends in the formatted finish-timestamp + elapsed.
-    assert rows[1].rstrip().endswith("20:17:03 · 6h17m")
+    assert rows[1].plain.rstrip().endswith("20:17:03 · 6h17m")
     # Both rows render at the same total cell width (right-aligned column).
-    assert len(rows[0]) == len(rows[1])
+    assert rows[0].cell_len == rows[1].cell_len
     assert widget._requested_width == widget._target_width + 8
 
 
@@ -472,7 +518,7 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
         before_count = widget.option_count
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert "[✓]" in before
-        assert before.rstrip().endswith("59s")
+        assert before.rstrip().endswith("🕒 59s")
 
         patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
         await pilot.pause()
@@ -481,7 +527,7 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
         assert patched == 1
         assert widget.option_count == before_count
         assert "[✓]" in after
-        assert after.rstrip().endswith("1m")
+        assert after.rstrip().endswith("🕒 1m")
 
 
 @pytest.mark.asyncio
@@ -516,7 +562,7 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None
         before_count = widget.option_count
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert "[✓]" in before
-        assert before.rstrip().endswith("59s")
+        assert before.rstrip().endswith("🕒 59s")
 
         patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
         await pilot.pause()
@@ -525,7 +571,7 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None
         assert patched == 1
         assert widget.option_count == before_count
         assert "[✓]" in after
-        assert after.rstrip().endswith("1m")
+        assert after.rstrip().endswith("🕒 1m")
 
 
 @pytest.mark.asyncio
@@ -558,7 +604,7 @@ async def test_patch_active_runtime_rows_advances_epic_approved_parent() -> None
         row = _agent_row_index(widget, 0)
         before_count = widget.option_count
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
-        assert before.rstrip().endswith("59s")
+        assert before.rstrip().endswith("🕒 59s")
 
         patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 1, 0))
         await pilot.pause()
@@ -566,7 +612,7 @@ async def test_patch_active_runtime_rows_advances_epic_approved_parent() -> None
         after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert patched == 1
         assert widget.option_count == before_count
-        assert after.rstrip().endswith("1m")
+        assert after.rstrip().endswith("🕒 1m")
 
 
 def test_patch_active_runtime_rows_skips_terminal_done_row() -> None:

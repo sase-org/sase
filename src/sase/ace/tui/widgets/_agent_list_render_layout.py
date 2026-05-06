@@ -16,6 +16,7 @@ from ..models.agent import (
     compute_row_runtime,
     format_compact_duration,
 )
+from ..models.agent_time import runtime_suffix_ticks
 from ._agent_list_styling import _TIER_GUIDE_SEGMENT
 
 # Timestamp half: muted lavender-steel.  No `dim` attribute so the color
@@ -32,6 +33,10 @@ _RUNTIME_DATE_STYLE = "dim #8787AF"
 # ("how long?") a little more weight than the timestamp without using
 # a saturated color.  Readable on dark and light themes alike.
 _RUNTIME_ELAPSED_STYLE = "bold #BCBCBC"
+# Live marker: soft gold so active second-by-second runtimes are scannable
+# without competing with the row's status color.
+_RUNTIME_LIVE_MARKER = "🕒 "
+_RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
 
 
 def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
@@ -61,6 +66,8 @@ def build_runtime_suffix(agent: Agent, now: datetime | None = None) -> Text:
             suffix.append(time_part, style=_RUNTIME_TS_STYLE)
         suffix.append(" · ", style=_RUNTIME_TS_STYLE)
     if elapsed is not None:
+        if runtime_suffix_ticks(agent):
+            suffix.append(_RUNTIME_LIVE_MARKER, style=_RUNTIME_LIVE_MARKER_STYLE)
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
     return suffix
 
