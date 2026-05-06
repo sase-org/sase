@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 00:15:46
-status: wip
+status: done
 prompt: sdd/prompts/202605/epic_phase_bead_order.md
 ---
 # Plan: Epic Phase Bead Ordering

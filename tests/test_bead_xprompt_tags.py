@@ -117,6 +117,16 @@ def test_new_epic_changespec_guidance() -> None:
     assert "--type plan(<plan_file>,<legend_bead_id>)" in body
 
 
+def test_new_epic_requires_serial_phase_creation() -> None:
+    body = get_all_prompts()["bd/new_epic"].steps[0].prompt_part
+
+    assert "Create the epic plan bead first." in body
+    assert "create the phase beads one at a time" in body
+    assert "in the exact order they appear in the" in body
+    assert "Do not run phase bead creation commands in parallel" in body
+    assert "child bead suffixes are allocated by creation order" in body
+
+
 def test_new_epic_colon_args_render_linked_legend_guidance() -> None:
     xprompt = get_all_xprompts()["bd/new_epic"]
 

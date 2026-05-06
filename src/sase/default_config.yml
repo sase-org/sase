@@ -333,6 +333,11 @@ xprompts:
       No ChangeSpec metadata was provided, so do not pass `-c/--changespec` or `-b/--bug-id` when creating the plan bead.
       {% endif %}
 
+      Create the epic plan bead first. Then create the phase beads one at a time, in the exact order they appear in the
+      plan file. Do not run phase bead creation commands in parallel: child bead suffixes are allocated by creation order,
+      so the first phase bead you create should receive the first child ID suffix, the second phase bead should receive
+      the second suffix, and so on.
+
       Make sure that each phase bead has the appropriate dependencies set up.
 
       After committing the bead-creation work, run `sase bead work <epic_id> --yes` (using the new plan bead's ID) to

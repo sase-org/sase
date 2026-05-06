@@ -692,7 +692,9 @@ When `bug_id` is supplied, `changespec` must also be supplied; the generated pla
 `sase bead create -c/--changespec` and `-b/--bug-id` metadata.
 
 `#bd/new_epic` also accepts an optional `legend_bead_id`. When supplied, or when the epic plan file frontmatter contains
-`legend_bead_id`, the epic is linked under that legend with `--type plan(<plan_file>,<legend_bead_id>) --tier epic`.
+`legend_bead_id`, the epic is linked under that legend with `--type plan(<plan_file>,<legend_bead_id>) --tier epic`. It
+creates the epic plan bead first, then creates phase beads sequentially in the order they appear in the plan file. Phase
+bead creation is intentionally not parallelized because child bead suffixes are allocated by creation order.
 `#bd/new_legend` creates a `--tier legend --epic-count <count>` plan bead for `sdd/legends/{YYYYMM}/...`, writes
 `legend_bead_id`, `tier: legend`, and `epic_count` frontmatter to the legend plan, commits that metadata, then runs
 `sase bead work <legend_bead_id> --yes`.
