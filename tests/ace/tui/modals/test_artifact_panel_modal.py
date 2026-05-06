@@ -1290,9 +1290,11 @@ async def test_missing_start_artifact_rebuilds_context_and_retries_once(
 
 
 @pytest.mark.asyncio
-async def test_missing_artifact_state_mentions_indexing_after_targeted_refresh(
+async def test_missing_artifact_state_explains_manual_sync_after_targeted_refresh(
     tmp_path: Path,
 ) -> None:
+    context_path = tmp_path / "project.gp"
+
     def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
         del index_path, artifact_id
         return _missing_detail()
@@ -1301,7 +1303,7 @@ async def test_missing_artifact_state_mentions_indexing_after_targeted_refresh(
         artifact_id="changespec:missing",
         show_func=fake_show,
         refresh_missing_func=lambda *args: None,
-        context_path=tmp_path / "project.gp",
+        context_path=context_path,
     )
     app = _ModalTestApp()
 
@@ -1313,11 +1315,49 @@ async def test_missing_artifact_state_mentions_indexing_after_targeted_refresh(
         option = option_list.get_option_at_index(0)
         detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
         path_text = str(modal.query_one("#artifact-panel-header-path", Static).render())
+        option_text = str(option.prompt)
 
     assert option.id == "__missing__"
-    assert "Artifact not found" in str(option.prompt)
-    assert "Indexing may still be pending" in detail_text
-    assert "Indexing needed" in path_text
+    assert "Artifact not found after targeted refresh" in option_text
+    assert "ID: changespec:missing" in option_text
+    assert f"Refresh context: path {context_path}" in option_text
+    assert "not indexed yet" in detail_text
+    assert "historical artifacts not synced" in detail_text
+    assert "source moved/deleted" in detail_text
+    assert "index unavailable" in detail_text
+    assert "sase artifact sync -j" in detail_text
+    assert f"sase artifact rebuild -j -t {context_path}" in detail_text
+    assert f"path {context_path}" in path_text
+
+
+@pytest.mark.asyncio
+async def test_missing_agent_artifact_state_suggests_targeted_artifact_dir_sync(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "projects" / "proj" / "artifacts" / "codex" / "ts"
+
+    def fake_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path, artifact_id
+        return _missing_detail()
+
+    modal = ArtifactPanelModal(
+        artifact_id="agent:missing",
+        show_func=fake_show,
+        refresh_missing_func=lambda *args: None,
+        artifact_dir=artifact_dir,
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        detail_text = str(modal.query_one("#artifact-panel-detail", Static).render())
+        path_text = str(modal.query_one("#artifact-panel-header-path", Static).render())
+
+    assert f"artifact dir {artifact_dir}" in path_text
+    assert f"Refresh context: artifact dir {artifact_dir}" in detail_text
+    assert f"sase artifact sync -j -a {artifact_dir}" in detail_text
 
 
 @pytest.mark.asyncio

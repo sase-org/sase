@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from rich.console import RenderableType
@@ -84,26 +85,17 @@ class ArtifactPanelRenderingMixin:
         if detail is None or detail.node is None:
             self._clear_entry_jump_hints()
             self._update_header_missing(self._artifact_id)
+            missing_message = self._missing_artifact_message(self._artifact_id)
             self._replace_options(
                 [
                     Option(
-                        state_message(
-                            "Artifact not found",
-                            "Targeted refresh found no indexed node.",
-                            style="yellow",
-                        ),
+                        missing_message,
                         id="__missing__",
                         disabled=True,
                     )
                 ]
             )
-            self._update_detail(
-                state_message(
-                    "Artifact not found",
-                    f"{self._artifact_id}\nIndexing may still be pending for this source.",
-                    style="yellow",
-                )
-            )
+            self._update_detail(missing_message)
             return
 
         self._update_header(detail, self._paged_model)
@@ -307,9 +299,46 @@ class ArtifactPanelRenderingMixin:
         primary.append("  not found", style="yellow")
         self.query_one("#artifact-panel-header-primary", Static).update(primary)
         self.query_one("#artifact-panel-header-path", Static).update(
-            "Indexing needed or source no longer exists"
+            self._missing_artifact_context_label()
         )
         self.query_one("#artifact-panel-header-counts", Static).update("")
+
+    def _missing_artifact_message(self: Any, artifact_id: str) -> Text:
+        detail_lines = [
+            f"ID: {artifact_id}",
+            self._missing_artifact_context_label(prefix="Refresh context"),
+            (
+                "Likely reason: not indexed yet, historical artifacts not synced, "
+                "source moved/deleted, or index unavailable."
+            ),
+            "Manual: sase artifact sync -j",
+        ]
+        context_command = self._missing_artifact_context_command()
+        if context_command is not None:
+            detail_lines.append(f"Manual: {context_command}")
+        return state_message(
+            "Artifact not found after targeted refresh",
+            "\n".join(line for line in detail_lines if line),
+            style="yellow",
+        )
+
+    def _missing_artifact_context_label(self: Any, *, prefix: str = "") -> str:
+        if self._context_artifact_dir is not None:
+            label = f"artifact dir {self._context_artifact_dir}"
+        elif self._context_path is not None:
+            label = f"path {self._context_path}"
+        else:
+            label = "Indexing needed or source no longer exists"
+        return f"{prefix}: {label}" if prefix else label
+
+    def _missing_artifact_context_command(self: Any) -> str | None:
+        if self._context_artifact_dir is not None:
+            artifact_dir = shlex.quote(str(self._context_artifact_dir))
+            return f"sase artifact sync -j -a {artifact_dir}"
+        if self._context_path is not None:
+            context_path = shlex.quote(str(self._context_path))
+            return f"sase artifact rebuild -j -t {context_path}"
+        return None
 
     def _update_header(
         self: Any,
