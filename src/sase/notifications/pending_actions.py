@@ -84,7 +84,6 @@ def action_state_for_notification(
     return _state_for_notification(notification, pending, current)
 
 
-# pyvision: public_api_methods.txt
 def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> PrefixResolution:
     """Resolve a full notification id or unique notification-id prefix."""
     store = load_store(include_legacy=include_legacy)
@@ -108,7 +107,6 @@ def resolve_prefix(prefix: str, *, include_legacy: bool = True) -> PrefixResolut
     return PrefixResolution("", prefix, len(prefix), "ambiguous_prefix")
 
 
-# pyvision: public_api_methods.txt
 def cleanup_stale(*, now: float | None = None) -> list[str]:
     """Remove stale pending entries and return removed prefixes."""
     current = time.time() if now is None else now
@@ -125,7 +123,6 @@ def cleanup_stale(*, now: float | None = None) -> list[str]:
         return stale
 
 
-# pyvision: public_api_methods.txt
 def load_store(*, include_legacy: bool = False) -> dict[str, Any]:
     """Load the shared pending-action store."""
     store = _load_json(PENDING_ACTIONS_PATH)

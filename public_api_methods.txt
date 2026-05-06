@@ -24,6 +24,7 @@ status_bucket_header
 MobileNotificationBridgeCounts
 MobileNotificationBridgeRow
 MobileNotificationBridgeSnapshot
+MobilePlanActionResult
 read_mobile_notification_snapshot
 resolve_mobile_notification_detail
 PrefixResolution
