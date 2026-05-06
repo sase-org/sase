@@ -21,6 +21,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.time import get_timezone
 
+from ....agent_tags import InvalidTagError, validate_tag_name
 from ._json_cache import load_json_cached
 from ..agent import Agent
 
@@ -66,6 +67,15 @@ def _plan_enrichment_status(
     return None
 
 
+def _valid_meta_tag(raw_value: object) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    try:
+        return validate_tag_name(raw_value)
+    except InvalidTagError:
+        return None
+
+
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     """Read agent_meta.json and populate model/vcs_provider fields.
 
@@ -95,6 +105,9 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.workspace_dir = data["workspace_dir"]
     if data.get("name"):
         agent.agent_name = data["name"]
+    meta_tag = _valid_meta_tag(data.get("tag"))
+    if meta_tag:
+        agent.tag = meta_tag
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
     raw_auto_action = data.get("auto_approve_plan_action")
@@ -297,6 +310,8 @@ def enrich_agent_from_meta_wire(
         agent.workspace_dir = meta.workspace_dir
     if meta.name:
         agent.agent_name = meta.name
+    if meta.tag:
+        agent.tag = meta.tag
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)
     if meta.auto_approve_plan_action:

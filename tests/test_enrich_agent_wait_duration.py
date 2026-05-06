@@ -180,6 +180,39 @@ def test_auto_approve_plan_action_from_agent_meta_wire() -> None:
     assert agent.approve is True
 
 
+def test_tag_from_agent_meta(tmp_path: Path) -> None:
+    """A valid tag in agent_meta.json seeds the agent tag."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "tag": "sase-26"})
+    )
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.tag == "sase-26"
+
+
+def test_invalid_tag_from_agent_meta_is_ignored(tmp_path: Path) -> None:
+    """Malformed stored directive metadata is not surfaced as a UI tag."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "tag": "has space"})
+    )
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.tag is None
+
+
+def test_tag_from_agent_meta_wire() -> None:
+    """Snapshot metadata mirrors filesystem tag enrichment."""
+    agent = _make_agent()
+
+    enrich_agent_from_meta_wire(agent, AgentMetaWire(tag="sase-26"), None)
+
+    assert agent.tag == "sase-26"
+
+
 def test_auto_epic_plan_before_submission_stays_running(tmp_path: Path) -> None:
     """An auto-epic plan writer is still active before it submits a plan."""
     meta = {"pid": 1234, "plan": True, "auto_approve_plan_action": "epic"}

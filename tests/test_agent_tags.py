@@ -14,6 +14,7 @@ from sase.ace.agent_tags import (
     save_agent_tags,
     set_tag,
     unset_tag,
+    update_agent_tag,
     validate_tag_name,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -180,3 +181,28 @@ def test_save_atomic_replace_overwrites_existing_file(tmp_path: Path) -> None:
         assert json.loads(test_file.read_text()) == [
             {"id": ["run", "x", "ts"], "tag": "fresh"}
         ]
+
+
+def test_update_agent_tag_preserves_existing_entries(tmp_path: Path) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    existing = (AgentType.RUNNING, "keep", "ts1")
+    new = (AgentType.WORKFLOW, "legend", "ts2")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        assert save_agent_tags({existing: "alpha"})
+        assert update_agent_tag(new, "sase-26")
+
+        assert load_agent_tags() == {
+            existing: "alpha",
+            new: "sase-26",
+        }
+
+
+def test_update_agent_tag_validates_input(tmp_path: Path) -> None:
+    test_file = tmp_path / "agent_tags.json"
+    identity = (AgentType.WORKFLOW, "legend", "ts")
+
+    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+        with pytest.raises(InvalidTagError):
+            update_agent_tag(identity, "bad tag")
+        assert load_agent_tags() == {}

@@ -145,7 +145,8 @@ def _load_agents_from_disk_impl(
     tags_by_identity = load_agent_tags()
 
     for agent in all_agents:
-        agent.tag = tags_by_identity.get(agent.identity)
+        if agent.identity in tags_by_identity:
+            agent.tag = tags_by_identity[agent.identity]
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
             agent.attempt_history = snapshot_cache.attempt_history_for(artifacts_dir)

@@ -311,6 +311,7 @@ class AgentMetaWire:
     parent_agent_timestamp: str | None = None
     parent_agent_name: str | None = None
     workflow_name: str | None = None
+    tag: str | None = None
     pid: int | None = None
     model: str | None = None
     llm_provider: str | None = None

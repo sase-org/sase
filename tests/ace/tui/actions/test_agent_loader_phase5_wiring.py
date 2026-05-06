@@ -7,6 +7,7 @@ does not call ``find_all_changespecs()`` itself.
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec
@@ -14,6 +15,8 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk,
     load_agents_from_disk_with_state,
 )
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_loader import AgentLoadState
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 
@@ -31,6 +34,26 @@ def _make_snapshot() -> list[ChangeSpec]:
             line_number=1,
         )
     ]
+
+
+def _make_load_state() -> AgentLoadState:
+    return AgentLoadState(
+        tier="tier2",
+        complete_history=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+
+
+def _make_agent(tag: str | None) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="legend-cl",
+        project_file="/tmp/myproj/myproj.gp",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 6, 12, 0, 0),
+        tag=tag,
+    )
 
 
 def test_load_agents_from_disk_passes_snapshot_through() -> None:
@@ -136,6 +159,43 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
         load_agents_from_disk(set())
 
     mock_find.assert_called_once()
+
+
+def test_load_agents_from_disk_preserves_meta_tag_without_persisted_tag() -> None:
+    agent = _make_agent("sase-26")
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([agent], _make_load_state()),
+        ),
+        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+    ):
+        loaded, dismissed = load_agents_from_disk(set())
+
+    assert dismissed == []
+    assert loaded == [agent]
+    assert loaded[0].tag == "sase-26"
+
+
+def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
+    agent = _make_agent("sase-26")
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.load_tiered_agents",
+            return_value=([agent], _make_load_state()),
+        ),
+        patch(
+            "sase.ace.agent_tags.load_agent_tags",
+            return_value={agent.identity: "manual"},
+        ),
+    ):
+        loaded, dismissed = load_agents_from_disk(set())
+
+    assert dismissed == []
+    assert loaded == [agent]
+    assert loaded[0].tag == "manual"
 
 
 def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(

@@ -18,6 +18,8 @@ import json
 import os
 import re
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -152,6 +154,41 @@ def save_agent_tags(
                 pass
             return False
         return True
+    except OSError:
+        return False
+
+
+@contextmanager
+def _agent_tags_file_lock() -> Iterator[None]:
+    """Hold an exclusive lock for the agent tag store read-modify-write cycle."""
+    import fcntl
+
+    _AGENT_TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = _AGENT_TAGS_FILE.parent / f"{_AGENT_TAGS_FILE.name}.lock"
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def update_agent_tag(
+    identity: tuple[AgentType, str, str | None],
+    tag: str,
+) -> bool:
+    """Atomically set one identity's tag in the persistent tag store.
+
+    The whole load-modify-save cycle runs under an exclusive sibling lock,
+    preventing concurrent runner launches from clobbering each other's tag
+    assignments.
+    """
+    validate_tag_name(tag)
+    try:
+        with _agent_tags_file_lock():
+            store = load_agent_tags()
+            set_tag(store, identity, tag)
+            return save_agent_tags(store)
     except OSError:
         return False
 
