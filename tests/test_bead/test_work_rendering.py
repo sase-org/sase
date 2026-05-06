@@ -88,11 +88,13 @@ class TestChangeSpecRendering:
             "---\n"
             "#git:feature_epic\n"
             "%name:e1\n"
-            "%approve\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
+        phase_segment, land_segment = rendered.split("\n---\n")
+        assert "%approve" in phase_segment
+        assert "%approve" not in land_segment
 
     def test_dependency_chain_wraps_only_first_phase_with_pr(
         self, conn: sqlite3.Connection
@@ -133,11 +135,13 @@ class TestChangeSpecRendering:
             "---\n"
             "#gh:feature_epic\n"
             "%name:e1\n"
-            "%approve\n"
             "%w:p1,p2,p3\n"
             "#custom/land:e1"
         )
         assert rendered == expected
+        segments = rendered.split("\n---\n")
+        assert all("%approve" in segment for segment in segments[:-1])
+        assert "%approve" not in segments[-1]
 
     def test_independent_phases_only_first_gets_pr(
         self, conn: sqlite3.Connection

@@ -118,11 +118,13 @@ class TestLegendRendering:
             "agents after approval.\n"
             "---\n"
             "%name:l1\n"
-            "%approve\n"
             "%w:l1.2\n"
             "#bd/land_legend:l1"
         )
         assert rendered == expected
+        segments = rendered.split("\n---\n")
+        assert all("%epic" in segment for segment in segments[:-1])
+        assert all("%approve" not in segment for segment in segments)
 
     def test_vcs_context_prefixes_every_legend_segment(
         self, conn: sqlite3.Connection
@@ -149,7 +151,7 @@ class TestLegendRendering:
         assert "%w:l1.2" in rendered
         assert "#bd/land_legend:l1" in rendered
         assert "%epic" not in segments[-1]
-        assert "%approve" in segments[-1]
+        assert "%approve" not in segments[-1]
 
     def test_user_override_land_legend_xprompt_name_propagates(
         self, conn: sqlite3.Connection

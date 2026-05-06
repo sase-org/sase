@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-05 20:04:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/landing_agents_manual_approval.md
 ---
 # Landing Agents Manual Plan Approval
