@@ -215,7 +215,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
         "ace(run)-260101_120000",
         prepared.argv[8],
     ]
-    assert Path(prepared.argv[8]).read_text() == "%tag:chop\ndo work"
+    assert Path(prepared.argv[8]).read_text() == "do work"
     assert Path(prepared.argv[8]).parent == tmp_dir
     assert mock_spawn.call_args.kwargs["claim_callback"] is not None
     records = get_live_chop_agent_records("hooks", chop_name="split")
@@ -340,82 +340,4 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
         project_name="proj",
     )
 
-    prepared = mock_spawn.call_args.args[0]
-    assert Path(prepared.argv[8]).read_text() == "do work"
     assert get_live_chop_agent_records("hooks", chop_name="split") == []
-
-
-@patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
-def test_spawn_agent_subprocess_tags_prompt_from_chop_extra_env(
-    mock_spawn: MagicMock,
-    mock_claim: MagicMock,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Chop env passed by a caller tags the temp prompt file."""
-    output_path = tmp_path / "out.txt"
-    workspace_dir = tmp_path / "workspace"
-    workspace_dir.mkdir()
-    tmp_dir = tmp_path / "tmp"
-    tmp_dir.mkdir()
-    mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
-    monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
-
-    spawn_agent_subprocess(
-        cl_name="proj",
-        project_file="/tmp/projects/proj/proj.gp",
-        workspace_dir=str(workspace_dir),
-        workspace_num=3,
-        workflow_name="ace(run)-260101_120000",
-        prompt="\n\ndo work",
-        timestamp="260101_120000",
-        project_name="proj",
-        extra_env={
-            ENV_CHOP_LUMBERJACK: "hooks",
-            ENV_CHOP_NAME: "split",
-            ENV_CHOP_RUN_ID: "run-1",
-        },
-    )
-
-    prepared = mock_spawn.call_args.args[0]
-    assert Path(prepared.argv[8]).read_text() == "%tag:chop\ndo work"
-
-
-@patch("sase.running_field.claim_workspace", return_value=True)
-@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
-def test_spawn_agent_subprocess_preserves_existing_tag_under_chop_env(
-    mock_spawn: MagicMock,
-    mock_claim: MagicMock,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An explicit user tag is not replaced by the default chop tag."""
-    output_path = tmp_path / "out.txt"
-    workspace_dir = tmp_path / "workspace"
-    workspace_dir.mkdir()
-    tmp_dir = tmp_path / "tmp"
-    tmp_dir.mkdir()
-    mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
-    monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
-
-    spawn_agent_subprocess(
-        cl_name="proj",
-        project_file="/tmp/projects/proj/proj.gp",
-        workspace_dir=str(workspace_dir),
-        workspace_num=3,
-        workflow_name="ace(run)-260101_120000",
-        prompt="%tag:custom\ndo work",
-        timestamp="260101_120000",
-        project_name="proj",
-        extra_env={
-            ENV_CHOP_LUMBERJACK: "hooks",
-            ENV_CHOP_NAME: "split",
-            ENV_CHOP_RUN_ID: "run-1",
-        },
-    )
-
-    prepared = mock_spawn.call_args.args[0]
-    assert Path(prepared.argv[8]).read_text() == "%tag:custom\ndo work"

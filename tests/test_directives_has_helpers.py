@@ -3,7 +3,6 @@
 from sase.xprompt.directives import (
     has_alt_directive,
     has_model_directive,
-    has_tag_directive,
     has_wait_directive,
 )
 
@@ -85,35 +84,6 @@ def test_has_model_directive_absent() -> None:
 def test_has_model_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
     assert has_model_directive("Just a plain prompt") is False
-
-
-# --- has_tag_directive tests ---
-
-
-def test_has_tag_directive_colon() -> None:
-    """Detects %tag:name syntax."""
-    assert has_tag_directive("%tag:review\nDo something") is True
-
-
-def test_has_tag_directive_alias_colon() -> None:
-    """Detects %t:name shorthand."""
-    assert has_tag_directive("Do something %t:review") is True
-
-
-def test_has_tag_directive_paren() -> None:
-    """Detects %tag(name) syntax."""
-    assert has_tag_directive("Do something %tag(review)") is True
-
-
-def test_has_tag_directive_absent() -> None:
-    """Returns False when ordinary text mentions tag without a directive."""
-    assert has_tag_directive("tag this after the launch") is False
-    assert has_tag_directive("Do something %target:review") is False
-
-
-def test_has_tag_directive_no_percent() -> None:
-    """Returns False quickly when no % in prompt."""
-    assert has_tag_directive("Just a plain prompt") is False
 
 
 # --- has_alt_directive tests ---

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 03:47:32
-status: done
+status: wip
 prompt: sdd/prompts/202605/chop_agent_tag.md
 ---
 # Plan: Tag Agents Launched By Lumberjack Chops

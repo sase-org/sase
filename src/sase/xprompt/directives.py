@@ -59,7 +59,6 @@ __all__ = [
     "extract_prompt_directives",
     "has_alt_directive",
     "has_model_directive",
-    "has_tag_directive",
     "has_wait_directive",
     "parse_absolute_time",
     "parse_duration",
@@ -89,19 +88,6 @@ def has_model_directive(prompt: str) -> bool:
     if "%" not in prompt:
         return False
     return bool(re.search(r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
-
-
-def has_tag_directive(prompt: str) -> bool:
-    """Quick check whether a prompt contains ``%tag`` or ``%t`` directives."""
-    if "%" not in prompt:
-        return False
-    return bool(
-        re.search(
-            r"(?:^|(?<=\s)|(?<=[(\[{\"']))%(?:tag|t)(?:[:(]|\s|$)",
-            prompt,
-            re.MULTILINE,
-        )
-    )
 
 
 def extract_prompt_directives(

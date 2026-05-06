@@ -21,7 +21,6 @@ ENV_CHOP_LUMBERJACK = "SASE_CHOP_LUMBERJACK"
 ENV_CHOP_NAME = "SASE_CHOP_NAME"
 ENV_CHOP_RUN_ID = "SASE_CHOP_RUN_ID"
 ENV_CHOP_PROMPT_HASH = "SASE_CHOP_PROMPT_HASH"
-CHOP_AGENT_TAG = "chop"
 
 
 @dataclass(frozen=True)
@@ -65,18 +64,6 @@ def build_chop_launch_env(
     if prompt is not None:
         env[ENV_CHOP_PROMPT_HASH] = prompt_hash(prompt)
     return env
-
-
-def prompt_with_chop_tag(prompt: str, env: dict[str, str] | None = None) -> str:
-    """Prepend the default chop tag directive for chop-launched agents."""
-    if _chop_agent_env_from_process_env(env) is None:
-        return prompt
-
-    from sase.xprompt.directives import has_tag_directive
-
-    if has_tag_directive(prompt):
-        return prompt
-    return f"%tag:{CHOP_AGENT_TAG}\n" + prompt.lstrip("\n")
 
 
 def _chop_agent_env_from_process_env(
