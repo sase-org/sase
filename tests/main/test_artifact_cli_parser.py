@@ -70,6 +70,18 @@ def test_artifact_help_paths_are_parser_valid(argv: list[str]) -> None:
     assert exc_info.value.code == 0
 
 
+def test_artifact_maintenance_help_documents_manual_startup_contract() -> None:
+    artifact_subcommands = subparser_action(artifact_parser()).choices
+
+    rebuild_help = artifact_subcommands["rebuild"].format_help()
+    sync_help = artifact_subcommands["sync"].format_help()
+
+    assert "Explicit derived artifact graph rebuild/backfill" in rebuild_help
+    assert "not run on startup" in rebuild_help
+    assert "alias for rebuild" in sync_help
+    assert "not run on startup" in sync_help
+
+
 @pytest.mark.parametrize(
     ("argv", "expected"),
     [

@@ -280,6 +280,10 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "rebuild",
         help="Explicitly rebuild derived artifact graph rows",
     )
+    rebuild_parser.description = (
+        "Explicit derived artifact graph rebuild/backfill. This manual "
+        "maintenance command is not run on startup."
+    )
     _add_rebuild_arguments(rebuild_parser)
 
     sync_parser = artifact_sub.add_parser(
