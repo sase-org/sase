@@ -9,6 +9,7 @@ import subprocess
 
 from rich.console import RenderableType
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -17,6 +18,10 @@ from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.actions.navigation.jump_hints import (
+    build_jump_hint_maps,
+    normalize_jump_key,
+)
 from sase.core.artifact_wire import (
     ArtifactDetailPagedWire,
     ArtifactDetailWire,
@@ -58,6 +63,11 @@ ArtifactRefreshFunc = Callable[
 ]
 ArtifactSearchFunc = Callable[[Path | str, ArtifactQueryWire], list[ArtifactNodeWire]]
 
+_ARTIFACT_PANEL_NORMAL_HINTS = (
+    "j/k: move  ': jump  enter: open  b/f: history  p/r: parent/root  "
+    "/: local filter  S: global search  y: copy  e: edit  g/G: graph  q/Esc: close"
+)
+
 
 class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
     """Modal that loads and displays one artifact graph node."""
@@ -66,6 +76,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "open_selected", "Open"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         ("b", "back", "Back"),
         ("f", "forward", "Forward"),
         ("p", "parent", "Parent"),
@@ -127,6 +138,10 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._search_results: list[ArtifactNodeWire] | None = None
         self._search_error: str | None = None
         self._suppress_search_input = False
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_row_id: dict[str, str] = {}
+        self._entry_jump_row_id_to_hint: dict[str, str] = {}
+        self._entry_jump_last_row_id: str | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="artifact-panel-container"):
@@ -155,7 +170,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="artifact-panel-detail-scroll"):
                         yield Static("Loading artifact...", id="artifact-panel-detail")
             yield Static(
-                "j/k: move  enter: open  b/f: history  p/r: parent/root  /: local filter  S: global search  y: copy  e: edit  g/G: graph  q/Esc: close",
+                _ARTIFACT_PANEL_NORMAL_HINTS,
                 id="artifact-panel-hints",
             )
 
@@ -329,6 +344,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _render_loading(self) -> None:
         self._row_by_option_id = {}
+        self._clear_entry_jump_hints()
         self._update_header_loading()
         self._replace_options(
             [Option("Loading artifact...", id="__loading__", disabled=True)]
@@ -338,6 +354,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
     def _render_error(self) -> None:
         message = self._error_message or "Artifact could not be loaded."
         self._row_by_option_id = {}
+        self._clear_entry_jump_hints()
         if self._render_worker is not None:
             self._render_worker.cancel()
         self._update_header_error(message)
@@ -350,6 +367,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
     def _render_detail(self, *, update_preview: bool = True) -> None:
         detail = self._detail
         if detail is None or detail.node is None:
+            self._clear_entry_jump_hints()
             self._update_header_missing(self._artifact_id)
             self._replace_options([Option("Artifact not found", disabled=True)])
             self._update_detail(f"Artifact not found: {self._artifact_id}")
@@ -365,12 +383,14 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _render_search_prompt(self) -> None:
         self._row_by_option_id = {}
+        self._clear_entry_jump_hints()
         self._replace_options(
             [Option("Type a global artifact search query", disabled=True)]
         )
 
     def _render_search_loading(self, query: str) -> None:
         self._row_by_option_id = {}
+        self._clear_entry_jump_hints()
         self._replace_options([Option(f"Searching for {query!r}...", disabled=True)])
 
     def _render_search_options(self) -> None:
@@ -381,6 +401,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
         self._row_by_option_id = {}
         if self._search_error is not None:
+            self._clear_entry_jump_hints()
             self._replace_options(
                 [Option(f"Search failed: {self._search_error}", disabled=True)]
             )
@@ -391,6 +412,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._render_search_loading(query)
             return
         if not results:
+            self._clear_entry_jump_hints()
             self._replace_options(
                 [Option(f"No global results for {query!r}", disabled=True)]
             )
@@ -404,7 +426,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         )
         for row in panel_rows.rows:
             option = Option(
-                _row_label(row),
+                _row_label(row, hint_char=self._entry_jump_row_id_to_hint.get(row.id)),
                 id=row.id,
                 disabled=not row.selectable,
             )
@@ -423,7 +445,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         )
         for row in panel_rows.rows:
             option = Option(
-                _row_label(row),
+                _row_label(row, hint_char=self._entry_jump_row_id_to_hint.get(row.id)),
                 id=row.id,
                 disabled=not row.selectable,
             )
@@ -431,6 +453,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             if row.selectable:
                 self._row_by_option_id[row.id] = row
         if not options:
+            self._clear_entry_jump_hints()
             message = (
                 "No rows match the current filter"
                 if self._state.filter_text
@@ -463,6 +486,8 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         option_list.clear_options()
         option_list.add_options(options)
         self._highlight_first_selectable(option_list, prefer_row_id=prefer_row_id)
+        if self._entry_jump_mode_active:
+            self._sync_jump_hints_to_visible_rows()
 
     def _update_detail(self, content: RenderableType) -> None:
         self.query_one("#artifact-panel-detail", Static).update(content)
@@ -538,6 +563,143 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         if option.id is None:
             return None
         return self._row_by_option_id.get(option.id)
+
+    def _highlighted_row_id(self) -> str | None:
+        option_list = self.query_one("#artifact-panel-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return None
+        option = option_list.get_option_at_index(highlighted)
+        option_id = option.id
+        if option_id is None or option_id not in self._row_by_option_id:
+            return None
+        return option_id
+
+    def _jump_candidate_row_ids(self) -> list[str]:
+        option_list = self.query_one("#artifact-panel-list", OptionList)
+        row_ids: list[str] = []
+        for index in range(option_list.option_count):
+            option = option_list.get_option_at_index(index)
+            option_id = option.id
+            if option.disabled or option_id is None:
+                continue
+            if option_id in self._row_by_option_id:
+                row_ids.append(option_id)
+        return row_ids
+
+    def _sync_jump_hints_to_visible_rows(self) -> None:
+        visible = set(self._jump_candidate_row_ids())
+        self._entry_jump_hint_to_row_id = {
+            hint: row_id
+            for hint, row_id in self._entry_jump_hint_to_row_id.items()
+            if row_id in visible
+        }
+        self._entry_jump_row_id_to_hint = {
+            row_id: hint
+            for row_id, hint in self._entry_jump_row_id_to_hint.items()
+            if row_id in visible
+        }
+        if not self._entry_jump_hint_to_row_id:
+            self._clear_entry_jump_hints()
+
+    def _clear_entry_jump_hints(self) -> None:
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_row_id = {}
+        self._entry_jump_row_id_to_hint = {}
+        self._update_jump_footer()
+
+    def _exit_entry_jump_mode(self) -> None:
+        prefer_row_id = self._highlighted_row_id()
+        self._clear_entry_jump_hints()
+        if self._search_text:
+            self._render_search_options()
+        elif self._detail is not None:
+            self._replace_options(
+                self._build_options(self._detail),
+                prefer_row_id=prefer_row_id,
+            )
+
+    def _jump_to_row_id(self, row_id: str) -> bool:
+        if row_id not in self._row_by_option_id:
+            self._exit_entry_jump_mode()
+            return True
+
+        self._clear_entry_jump_hints()
+        self._replace_options(
+            self._build_current_options_without_hints(),
+            prefer_row_id=row_id,
+        )
+        self._state.selected_row_id = row_id
+        return True
+
+    def _build_current_options_without_hints(self) -> list[Option]:
+        if self._search_text:
+            query = self._search_text
+            results = self._search_results
+            if not query:
+                return [Option("Type a global artifact search query", disabled=True)]
+            if self._search_error is not None:
+                return [Option(f"Search failed: {self._search_error}", disabled=True)]
+            if results is None:
+                return [Option(f"Searching for {query!r}...", disabled=True)]
+            if not results:
+                return [Option(f"No global results for {query!r}", disabled=True)]
+            self._row_by_option_id = {}
+            options: list[Option] = []
+            panel_rows = build_artifact_search_rows(
+                results,
+                query=query,
+                limit=ARTIFACT_PANEL_GLOBAL_SEARCH_LIMIT,
+            )
+            for row in panel_rows.rows:
+                options.append(
+                    Option(_row_label(row), id=row.id, disabled=not row.selectable)
+                )
+                if row.selectable:
+                    self._row_by_option_id[row.id] = row
+            return options
+
+        if self._detail is None:
+            return []
+        return self._build_options(self._detail)
+
+    def _handle_entry_jump_key(self, key: str) -> bool:
+        if not self._entry_jump_mode_active:
+            return False
+        if key == "escape":
+            self._exit_entry_jump_mode()
+            return True
+
+        if key == "apostrophe":
+            last_row_id = self._entry_jump_last_row_id
+            if last_row_id is not None and last_row_id in self._row_by_option_id:
+                current = self._highlighted_row_id()
+                if current is not None:
+                    self._entry_jump_last_row_id = current
+                return self._jump_to_row_id(last_row_id)
+            key = "1"
+
+        row_id = self._entry_jump_hint_to_row_id.get(key)
+        if row_id is None:
+            self._exit_entry_jump_mode()
+            return True
+
+        current = self._highlighted_row_id()
+        if current is not None:
+            self._entry_jump_last_row_id = current
+        return self._jump_to_row_id(row_id)
+
+    def _update_jump_footer(self) -> None:
+        try:
+            footer = self.query_one("#artifact-panel-hints", Static)
+        except Exception:
+            return
+
+        if self._entry_jump_mode_active:
+            action = "back" if self._entry_jump_last_row_id is not None else "first"
+            footer.update(f"JUMP ' {action}  <esc> cancel  enter opens selected")
+        else:
+            footer.update(_ARTIFACT_PANEL_NORMAL_HINTS)
 
     def _navigate_to(self, artifact_id: str) -> None:
         self._clear_search_state(render=False)
@@ -647,6 +809,36 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             return
         self._state.selected_row_id = row.id
         self._navigate_to(row.artifact_id)
+
+    def action_jump_to_entry(self) -> None:
+        row_ids = self._jump_candidate_row_ids()
+        if not row_ids:
+            return
+        self._entry_jump_hint_to_row_id, self._entry_jump_row_id_to_hint = (
+            build_jump_hint_maps(row_ids)
+        )
+        if not self._entry_jump_hint_to_row_id:
+            return
+
+        self._entry_jump_mode_active = True
+        self._update_jump_footer()
+        prefer_row_id = self._highlighted_row_id()
+        if self._search_text:
+            self._render_search_options()
+        elif self._detail is not None:
+            self._replace_options(
+                self._build_options(self._detail),
+                prefer_row_id=prefer_row_id,
+            )
+
+    def on_key(self, event: events.Key) -> None:
+        if not self._entry_jump_mode_active:
+            return
+
+        key = normalize_jump_key(event.key, event.character)
+        if self._handle_entry_jump_key(key):
+            event.prevent_default()
+            event.stop()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
@@ -758,15 +950,21 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         )
 
 
-def _row_label(row: ArtifactPanelRow) -> Text:
+def _row_label(row: ArtifactPanelRow, *, hint_char: str | None = None) -> Text:
     if not row.selectable:
         text = Text(row.label)
         text.stylize("bold cyan" if row.row_type == "group" else "yellow")
         return text
+    prefix = Text()
+    if hint_char is not None:
+        prefix.append("[", style="dim")
+        prefix.append(hint_char, style="bold #FFFF00")
+        prefix.append("] ", style="dim")
     if row.page_action == ARTIFACT_PANEL_SHOW_MORE_ACTION:
         text = Text(row.label)
         text.stylize("bold cyan")
-        return text
+        prefix.append_text(text)
+        return prefix
 
     badge = _semantic_badge(row.artifact_kind, row.file_type)
     text = Text()
@@ -788,6 +986,9 @@ def _row_label(row: ArtifactPanelRow) -> Text:
         text.stylize("bold", 0, len(f"[{badge}]"))
         if row.edge_direction:
             text.append(f"  {row.edge_direction}", style="dim")
+    if hint_char is not None:
+        prefix.append_text(text)
+        return prefix
     return text
 
 
