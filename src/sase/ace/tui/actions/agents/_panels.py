@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from ...models import Agent
     from ...models.agent_panels import AgentPanelGroup
 
 # Type alias for tab names
@@ -22,13 +23,40 @@ class AgentPanelsMixin:
     current_attempt_number: int | None
     _panel_group: AgentPanelGroup
     _current_group_key: tuple[str, ...] | None
+    _agents: list[Agent]
+
+    def _first_agent_idx_for_focused_group(
+        self, group_key: tuple[str, ...]
+    ) -> int | None:
+        """Return the first global agent index covered by a focused-panel group."""
+        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ...models.agent_panels import agents_for_panel
+
+        focused_key = self._panel_group.focused_key
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        global_indices = [i for i, k in enumerate(keys_per_agent) if k == focused_key]
+        panel_agents = agents_for_panel(self._agents, focused_key)
+        tree = build_agent_tree(
+            panel_agents,
+            fold_registry=getattr(self, "_group_fold_registry", None),
+            mode=getattr(self, "_grouping_mode", GroupingMode.STANDARD),
+        )
+        for entry in tree:
+            if entry.kind != "group" or entry.group is None:
+                continue
+            if entry.group.group_key != group_key:
+                continue
+            for local_idx in entry.group.agent_indices:
+                if 0 <= local_idx < len(global_indices):
+                    return global_indices[local_idx]
+            return None
+        return None
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:
         """Cycle focus between tag-driven side panels with wrap.
 
-        Snaps ``current_idx`` to the first agent of the new focused
-        panel and clears any pending banner-row focus.  No-ops when
-        only one panel exists.
+        Snaps focus to the first selectable row in the new panel's
+        rendered order.  No-ops when only one panel exists.
         """
         if self.current_tab != "agents":
             return
@@ -39,17 +67,27 @@ class AgentPanelsMixin:
         if not changed:
             return
 
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        focused_key = self._panel_group.focused_key
-        new_idx: int | None = None
-        for i, k in enumerate(keys_per_agent):
-            if k == focused_key:
-                new_idx = i
-                break
-        if new_idx is not None:
-            self.current_idx = new_idx  # type: ignore[attr-defined]
         self.current_attempt_number = None  # type: ignore[attr-defined]
-        self._current_group_key = None  # type: ignore[attr-defined]
+        stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        if stops:
+            kind, payload = stops[0]
+            if kind == "banner":
+                assert isinstance(payload, tuple)
+                self._current_group_key = payload  # type: ignore[attr-defined]
+                anchor_idx = self._first_agent_idx_for_focused_group(payload)
+                if anchor_idx is not None:
+                    self.current_idx = anchor_idx  # type: ignore[attr-defined]
+            else:
+                assert isinstance(payload, int)
+                self._current_group_key = None  # type: ignore[attr-defined]
+                self.current_idx = payload  # type: ignore[attr-defined]
+        else:
+            self._current_group_key = None  # type: ignore[attr-defined]
+            keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+            self._snap_current_idx_to_focused_panel(  # type: ignore[attr-defined]
+                keys_per_agent,
+                self._panel_group.focused_key,
+            )
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def action_focus_next_agent_panel(self) -> None:

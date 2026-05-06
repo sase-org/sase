@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 17:23:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/agents_panel_first_selection.md
 ---
 # Plan: Agents Panel J/K First Selection
