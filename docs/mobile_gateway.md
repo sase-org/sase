@@ -15,6 +15,8 @@ The implementation is split across repos:
   sibling `_mobile_agent_*` and `_mobile_helper_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records, pairing/token storage, audit log, SSE
   event stream, and committed API contract snapshot.
+- `../sase-android/README.md` is the Android client handoff for build/test commands, fake-gateway coverage, foreground
+  UX smoke checks, and Epic 7 limitations.
 
 ## Start Locally
 
