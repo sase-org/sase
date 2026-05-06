@@ -8,6 +8,7 @@ from sase.xprompt._parsing import (
     extract_vcs_workflow_tag,
     find_matching_paren_for_args,
     inherit_vcs_workflow_tag,
+    normalize_launch_xprompt_at_refs,
     normalize_vcs_underscore_refs,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
@@ -329,6 +330,33 @@ def test_normalize_vcs_underscore_mid_line() -> None:
         assert (
             normalize_vcs_underscore_refs("text #gh_sase prompt")
             == "text #gh:sase prompt"
+        )
+
+
+def test_normalize_launch_xprompt_at_refs_scoped_to_workflows() -> None:
+    import sase.xprompt._parsing as _mod
+
+    _mod._LAUNCH_XPROMPT_AT_REF_RE = None
+    with _patch_workflow_names({"gh", "git", "cd"}):
+        assert normalize_launch_xprompt_at_refs("#gh@sase Fix") == "#gh:sase Fix"
+        assert (
+            normalize_launch_xprompt_at_refs("%n:a #git@repo Fix")
+            == "%n:a #git:repo Fix"
+        )
+        assert normalize_launch_xprompt_at_refs("#topic@sase") == "#topic@sase"
+
+
+def test_normalize_launch_xprompt_at_refs_skips_markdown_code() -> None:
+    import sase.xprompt._parsing as _mod
+
+    _mod._LAUNCH_XPROMPT_AT_REF_RE = None
+    with _patch_workflow_names({"gh", "git"}):
+        text = "run `#gh@sase` then #gh@zorg"
+        assert normalize_launch_xprompt_at_refs(text) == "run `#gh@sase` then #gh:zorg"
+
+        fenced = "```\n#gh@sase\n```\n#git@repo"
+        assert (
+            normalize_launch_xprompt_at_refs(fenced) == "```\n#gh@sase\n```\n#git:repo"
         )
 
 

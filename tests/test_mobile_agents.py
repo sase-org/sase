@@ -11,10 +11,12 @@ from pathlib import Path
 from sase.agent.running import RunningAgentInfo
 from sase.integrations import mobile_agents
 from sase.integrations.mobile_agents import (
+    _launch_mobile_text_agents,
     _list_mobile_agents,
     _mobile_agent_resume_options,
     handle_mobile_agent_bridge,
 )
+from sase.agent.launcher import AgentLaunchResult
 
 
 def _agent(
@@ -157,3 +159,89 @@ def test_bridge_handler_rejects_malformed_json() -> None:
 
     assert code == 2
     assert "invalid JSON request" in stderr.getvalue()
+
+
+def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
+    monkeypatch,
+) -> None:
+    captured: list[str] = []
+
+    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+        captured.append(prompt)
+        return [
+            AgentLaunchResult(
+                pid=111,
+                workspace_num=0,
+                workspace_dir="/tmp/ws1",
+                output_path="/tmp/out1",
+                project_name="home",
+                timestamp="260506_143000",
+            ),
+            AgentLaunchResult(
+                pid=222,
+                workspace_num=0,
+                workspace_dir="/tmp/ws2",
+                output_path="/tmp/out2",
+                project_name="home",
+                timestamp="260506_143001",
+            ),
+        ]
+
+    monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.xprompt._parsing._LAUNCH_XPROMPT_AT_REF_RE",
+        None,
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workflow_names",
+        lambda: {"gh", "cd"},
+    )
+
+    payload = _launch_mobile_text_agents(
+        {
+            "schema_version": 1,
+            "prompt": "#gh@sase Fix it",
+            "name": "mobile.demo",
+            "provider": "codex",
+            "model": "gpt-5.5",
+        }
+    )
+
+    assert captured == ["%name:mobile.demo\n%model:codex/gpt-5.5\n#gh:sase Fix it"]
+    assert payload["primary"] == payload["slots"][0]
+    assert [slot["status"] for slot in payload["slots"]] == ["launched", "launched"]
+    assert payload["slots"][0]["artifact_dir"].endswith(
+        "/.sase/projects/home/artifacts/ace-run/20260506143000"
+    )
+
+
+def test_launch_mobile_text_agents_reports_validation_errors() -> None:
+    stderr = io.StringIO()
+
+    code = handle_mobile_agent_bridge(
+        argparse.Namespace(mobile_agent_bridge_subcommand="launch-text"),
+        stdin=io.StringIO('{"schema_version":1,"prompt":"   "}'),
+        stderr=stderr,
+    )
+
+    assert code == 2
+    assert "prompt must be a non-empty string" in stderr.getvalue()
+
+
+def test_launch_mobile_text_dry_run_does_not_spawn(monkeypatch) -> None:
+    def fail_launch(_prompt: str) -> list[AgentLaunchResult]:
+        raise AssertionError("dry run should not launch")
+
+    monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fail_launch)
+
+    payload = _launch_mobile_text_agents(
+        {"schema_version": 1, "prompt": "%name:dry\nDo work", "dry_run": True}
+    )
+
+    assert payload["primary"] == {
+        "slot_id": "0",
+        "name": "dry",
+        "status": "dry_run",
+        "artifact_dir": None,
+        "message": "launch request validated",
+    }

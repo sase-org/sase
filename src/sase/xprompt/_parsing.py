@@ -63,6 +63,7 @@ _GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
     r"(?=\s|$)"
 )
 _KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "hg", "jj", "p4"})
+_LAUNCH_XPROMPT_AT_REF_RE: re.Pattern[str] | None = None
 
 
 def normalize_vcs_underscore_refs(prompt: str) -> str:
@@ -87,6 +88,77 @@ def normalize_vcs_underscore_refs(prompt: str) -> str:
             re.MULTILINE,
         )
     return _VCS_UNDERSCORE_NORMALIZER.sub(r"\1:", prompt)
+
+
+def _markdown_code_ranges(text: str) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    i = 0
+    while i < len(text):
+        if text.startswith("```", i):
+            start = i
+            close = text.find("```", i + 3)
+            if close == -1:
+                ranges.append((start, len(text)))
+                break
+            ranges.append((start, close + 3))
+            i = close + 3
+            continue
+        if text[i] == "`":
+            start = i
+            close = text.find("`", i + 1)
+            if close == -1:
+                i += 1
+                continue
+            ranges.append((start, close + 1))
+            i = close + 1
+            continue
+        i += 1
+    return ranges
+
+
+def _inside_any_range(index: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(start <= index < end for start, end in ranges)
+
+
+def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
+    """Return the scoped ``#workflow@ref`` launch-shorthand normalizer."""
+    global _LAUNCH_XPROMPT_AT_REF_RE  # noqa: PLW0603
+    if _LAUNCH_XPROMPT_AT_REF_RE is None:
+        from sase.workspace_provider import get_workflow_names
+
+        workflows = (
+            set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES) | {"cd"}
+        )
+        alts = "|".join(re.escape(name) for name in sorted(workflows))
+        _LAUNCH_XPROMPT_AT_REF_RE = re.compile(
+            rf"(?P<context>^|(?<=[\s([{{\"']))"
+            rf"#(?P<workflow>{alts})"
+            r"(?P<marker>!!|\?\?)?"
+            r"@(?P<ref>[A-Za-z0-9][A-Za-z0-9_.~/-]*)"
+            r"(?=$|[\s)\]},.!?;:\"'])",
+            re.IGNORECASE,
+        )
+    return _LAUNCH_XPROMPT_AT_REF_RE
+
+
+def normalize_launch_xprompt_at_refs(prompt: str) -> str:
+    """Normalize mobile/Telegram ``#workflow@ref`` launch shorthand.
+
+    The rewrite is intentionally scoped to workspace/VCS workflow names and
+    skips Markdown code spans so ordinary prose and code samples are preserved.
+    """
+    if "@" not in prompt or "#" not in prompt:
+        return prompt
+
+    code_ranges = _markdown_code_ranges(prompt)
+
+    def replace(match: re.Match[str]) -> str:
+        if _inside_any_range(match.start(), code_ranges):
+            return match.group(0)
+        marker = match.group("marker") or ""
+        return f"{match.group('context')}#{match.group('workflow')}{marker}:{match.group('ref')}"
+
+    return _get_launch_xprompt_at_ref_pattern().sub(replace, prompt)
 
 
 def _get_vcs_tag_pattern() -> re.Pattern[str]:
@@ -472,6 +544,7 @@ __all__ = [
     "find_shorthand_text_end",
     "inherit_vcs_workflow_tag",
     "iter_xprompt_references",
+    "normalize_launch_xprompt_at_refs",
     "normalize_vcs_underscore_refs",
     "normalize_default_vcs_workflow",
     "normalize_default_vcs_workflow_segment",

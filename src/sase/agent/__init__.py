@@ -11,6 +11,7 @@ from sase.agent.agent_artifacts_cache import (
 from sase.agent.launcher import (
     AgentLaunchResult,
     launch_agent_from_cwd,
+    launch_agents_from_cwd,
     spawn_agent_subprocess,
 )
 from sase.agent.multi_prompt import (
@@ -48,6 +49,7 @@ __all__ = [
     "is_multi_prompt",
     "kill_named_agent",
     "launch_agent_from_cwd",
+    "launch_agents_from_cwd",
     "launch_multi_prompt_agents",
     "list_all_agents",
     "list_running_agents",

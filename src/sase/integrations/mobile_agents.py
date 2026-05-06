@@ -10,11 +10,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
 
+from sase.agent.launcher import AgentLaunchResult, launch_agents_from_cwd
 from sase.agent.running import (
     RunningAgentInfo,
     list_all_agents,
     list_running_agents,
 )
+from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.xprompt._parsing import normalize_launch_xprompt_at_refs
 
 MOBILE_AGENT_SCHEMA_VERSION = 1
 
@@ -84,6 +87,22 @@ def _mobile_agent_resume_options() -> dict[str, Any]:
     }
 
 
+def _launch_mobile_text_agents(request: dict[str, Any]) -> dict[str, Any]:
+    """Launch text agents through the normal SASE launch path."""
+    prompt = _mobile_launch_prompt(request)
+    if request.get("dry_run") is True:
+        return _dry_run_launch_response(prompt)
+
+    try:
+        results = launch_agents_from_cwd(prompt)
+    except Exception as exc:
+        raise _MobileAgentBridgeError(_safe_error_message(exc)) from exc
+
+    if not results:
+        raise _MobileAgentBridgeError("agent launch produced no results")
+    return _mobile_launch_response(results)
+
+
 def handle_mobile_agent_bridge(
     args: argparse.Namespace,
     *,
@@ -99,6 +118,8 @@ def handle_mobile_agent_bridge(
             response = _list_mobile_agents(request)
         elif operation == "resume-options":
             response = _mobile_agent_resume_options()
+        elif operation == "launch-text":
+            response = _launch_mobile_text_agents(request)
         else:
             raise _MobileAgentBridgeError("unknown mobile agent bridge operation")
     except (_MobileAgentBridgeError, ValueError, TypeError) as exc:
@@ -147,6 +168,118 @@ def _parse_list_request(payload: dict[str, Any]) -> _MobileAgentListRequest:
         project=project.strip() if project and project.strip() else None,
         limit=limit,
     )
+
+
+def _mobile_launch_prompt(payload: dict[str, Any]) -> str:
+    raw_prompt = payload.get("prompt")
+    if not isinstance(raw_prompt, str) or not raw_prompt.strip():
+        raise _MobileAgentBridgeError("prompt must be a non-empty string")
+
+    prompt = normalize_launch_xprompt_at_refs(raw_prompt.strip())
+    directives: list[str] = []
+    name = _optional_str(payload.get("name"))
+    if name:
+        if _prompt_has_name_directive(prompt):
+            raise _MobileAgentBridgeError(
+                "name cannot be provided when prompt already has a name directive"
+            )
+        directives.append(f"%name:{_directive_name(name)}")
+
+    model = _optional_str(payload.get("model"))
+    provider = _optional_str(payload.get("provider"))
+    runtime = _optional_str(payload.get("runtime"))
+    model_value = _mobile_model_directive_value(model, provider, runtime)
+    if model_value:
+        directives.append(f"%model:{model_value}")
+
+    if directives:
+        prompt = "\n".join([*directives, prompt])
+    return prompt
+
+
+def _mobile_model_directive_value(
+    model: str | None,
+    provider: str | None,
+    runtime: str | None,
+) -> str | None:
+    if model is None:
+        return None
+    prefix = provider or runtime
+    if prefix and "/" not in model:
+        return f"{prefix}/{model}"
+    return model
+
+
+def _prompt_has_name_directive(prompt: str) -> bool:
+    if "%" not in prompt:
+        return False
+    from sase.agent.multi_prompt_references import extract_static_name_directive
+
+    return extract_static_name_directive(prompt) is not None or bool(
+        re.search(r"(?:^|\s)%(?:name|n)(?:[:+(]|\s|$)", prompt, re.MULTILINE)
+    )
+
+
+def _dry_run_launch_response(prompt: str) -> dict[str, Any]:
+    slot = {
+        "slot_id": "0",
+        "name": _planned_name_for_prompt(prompt),
+        "status": "dry_run",
+        "artifact_dir": None,
+        "message": "launch request validated",
+    }
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "primary": slot,
+        "slots": [slot],
+    }
+
+
+def _mobile_launch_response(results: list[AgentLaunchResult]) -> dict[str, Any]:
+    slots = [
+        _result_to_slot(str(index), result) for index, result in enumerate(results)
+    ]
+    return {
+        "schema_version": MOBILE_AGENT_SCHEMA_VERSION,
+        "primary": slots[0] if slots else None,
+        "slots": slots,
+    }
+
+
+def _result_to_slot(slot_id: str, result: AgentLaunchResult) -> dict[str, Any]:
+    return {
+        "slot_id": slot_id,
+        "name": None,
+        "status": "launched",
+        "artifact_dir": _artifact_dir_for_launch(result),
+        "message": f"started pid {result.pid}",
+    }
+
+
+def _artifact_dir_for_launch(result: AgentLaunchResult) -> str | None:
+    if not result.timestamp or not result.project_name:
+        return None
+    artifacts_timestamp = convert_timestamp_to_artifacts_format(result.timestamp)
+    return str(
+        Path.home()
+        / ".sase"
+        / "projects"
+        / result.project_name
+        / "artifacts"
+        / "ace-run"
+        / artifacts_timestamp
+    )
+
+
+def _planned_name_for_prompt(prompt: str) -> str | None:
+    from sase.agent.multi_prompt_references import extract_static_name_directive
+
+    return extract_static_name_directive(prompt)
+
+
+def _safe_error_message(exc: BaseException) -> str:
+    message = str(exc).strip()
+    return message or exc.__class__.__name__
 
 
 def _filter_agents(

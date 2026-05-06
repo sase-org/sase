@@ -30,6 +30,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "resume-options",
         help=argparse.SUPPRESS,
     )
+    agent_bridge_subparsers.add_parser(
+        "launch-text",
+        help=argparse.SUPPRESS,
+    )
 
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",

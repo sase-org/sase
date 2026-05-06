@@ -150,7 +150,7 @@ def test_launch_agent_from_cwd_alt_fanout_uses_named_child_prompts(
     tmp_path: Path,
 ) -> None:
     _patch_cd_metadata(monkeypatch)
-    from sase.agent.launcher import launch_agent_from_cwd
+    from sase.agent.launcher import launch_agent_from_cwd, launch_agents_from_cwd
 
     spawn_result = MagicMock(pid=123, workspace_dir=str(tmp_path), workspace_num=0)
     with (
@@ -174,11 +174,18 @@ def test_launch_agent_from_cwd_alt_fanout_uses_named_child_prompts(
             f"%n:ag\n%alt(sec=security pass,perf=performance pass)\n"
             f"#cd:{tmp_path} do work"
         )
+        all_results = launch_agents_from_cwd(
+            f"%n:ag\n%alt(sec=security pass,perf=performance pass)\n"
+            f"#cd:{tmp_path} do work"
+        )
 
     assert result is spawn_result
-    assert spawn.call_count == 2
+    assert all_results == [spawn_result, spawn_result]
+    assert spawn.call_count == 4
     prompts = [c.kwargs["prompt"] for c in spawn.call_args_list]
     assert prompts == [
+        f"%name:ag.sec\nsecurity pass\n#cd:{tmp_path} do work",
+        f"%name:ag.perf\nperformance pass\n#cd:{tmp_path} do work",
         f"%name:ag.sec\nsecurity pass\n#cd:{tmp_path} do work",
         f"%name:ag.perf\nperformance pass\n#cd:{tmp_path} do work",
     ]

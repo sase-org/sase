@@ -314,25 +314,25 @@ def spawn_agent_subprocess(
     )
 
 
-def launch_agent_from_cwd(
+def launch_agents_from_cwd(
     query: str,
     extra_env: dict[str, str] | None = None,
     timestamp: str | None = None,
-) -> AgentLaunchResult:
-    """Resolve project context from CWD and launch a background agent.
+) -> list[AgentLaunchResult]:
+    """Resolve project context from CWD and launch one or more background agents.
 
-    This is the high-level entry point used by ``sase run --daemon``
-    and xprompt chop handlers.
+    This is the high-level entry point used by mobile launch surfaces that need
+    every slot from multi-prompt, multi-model, alt, and repeat fan-out.
 
     For multi-prompt queries (containing ``---`` separators), all segments
-    are launched sequentially and the first result is returned.
+    are launched sequentially.
 
     Args:
         query: The prompt/xprompt string to run as an agent.
         timestamp: Optional preallocated launch timestamp for fan-out callers.
 
     Returns:
-        AgentLaunchResult with process info (first agent for multi-prompt).
+        AgentLaunchResult records for every spawned slot.
 
     Raises:
         RuntimeError: If workspace allocation or claiming fails.
@@ -415,7 +415,7 @@ def launch_agent_from_cwd(
             extra_env=extra_env,
             default_bare_segments_to_home=True,
         )
-        return results[0]
+        return results
 
     query = normalize_default_vcs_workflow(query)
 
@@ -448,8 +448,8 @@ def launch_agent_from_cwd(
             }
             if extra_env:
                 slot_env.update(extra_env)
-            slot_results.append(
-                launch_agent_from_cwd(
+            slot_results.extend(
+                launch_agents_from_cwd(
                     spec.prompt,
                     extra_env=slot_env,
                     timestamp=spec.timestamp,
@@ -461,7 +461,7 @@ def launch_agent_from_cwd(
             base_spawn_fn=_spawn_repeat_slot,
             timestamps=repeat_timestamps,
         )
-        return slot_results[0]
+        return slot_results
 
     # --- Alt-split detection ---
     from sase.xprompt.directives import plan_prompt_fanout_variants
@@ -498,7 +498,7 @@ def launch_agent_from_cwd(
             extra_env=extra_env,
             default_bare_segments_to_home=True,
         )
-        return results[0]
+        return results
 
     # --- Detect VCS refs in prompt ---
     from sase.xprompt.directives import has_wait_directive
@@ -614,4 +614,20 @@ def launch_agent_from_cwd(
         extra_env=extra_env,
         base_timestamp=timestamp,
     )
-    return execution.results[0]
+    return execution.results
+
+
+def launch_agent_from_cwd(
+    query: str,
+    extra_env: dict[str, str] | None = None,
+    timestamp: str | None = None,
+) -> AgentLaunchResult:
+    """Resolve project context from CWD and launch a background agent.
+
+    This compatibility wrapper keeps the historical API returning the first
+    launch result while ``launch_agents_from_cwd()`` exposes full fan-out.
+    """
+    results = launch_agents_from_cwd(query, extra_env=extra_env, timestamp=timestamp)
+    if not results:
+        raise RuntimeError("agent launch produced no results")
+    return results[0]
