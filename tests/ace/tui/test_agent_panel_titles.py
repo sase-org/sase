@@ -12,6 +12,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from rich.text import Text
+
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -21,7 +23,7 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 class _ListWidget:
     def __init__(self, wid: str) -> None:
         self.id = wid
-        self.border_title: str | None = None
+        self.border_title: Text | str | None = None
         self.highlighted: int | None = None
         self._classes: set[str] = set()
 
@@ -98,6 +100,22 @@ def _agent(*, name: str, tag: str | None = None, suffix: str) -> Agent:
     )
 
 
+def _title_text(widget: _ListWidget) -> Text:
+    title = widget.border_title
+    assert isinstance(title, Text)
+    return title
+
+
+def _assert_title_span(
+    title: Text, *, start: int, end: int, style: str, text: str
+) -> None:
+    assert title.plain[start:end] == text
+    assert any(
+        span.start == start and span.end == end and span.style == style
+        for span in title.spans
+    )
+
+
 def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     agents = [
         _agent(name="u1", suffix="t1"),
@@ -111,13 +129,24 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     main = app._panel_widgets["agent-list-panel"]
-    assert main.border_title == "(untagged) · 2"
+    main_title = _title_text(main)
+    assert main_title.plain == "(untagged) · 2"
+    _assert_title_span(
+        main_title, start=0, end=10, style="dim #AFAFAF", text="(untagged)"
+    )
 
     # Tag panels follow in alphabetical order: apple (idx 1), banana (idx 2).
     apple = app._panel_widgets["agent-list-panel-1"]
     banana = app._panel_widgets["agent-list-panel-2"]
-    assert apple.border_title == "@apple · 2"
-    assert banana.border_title == "@banana · 1"
+    apple_title = _title_text(apple)
+    banana_title = _title_text(banana)
+    assert apple_title.plain == "@apple · 2"
+    assert banana_title.plain == "@banana · 1"
+    _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="@apple")
+    _assert_title_span(apple_title, start=6, end=10, style="#AFAFAF", text=" · 2")
+    _assert_title_span(
+        banana_title, start=0, end=7, style="bold #FFD75F", text="@banana"
+    )
 
 
 def test_panel_titles_track_alphabetical_slot_order() -> None:
@@ -133,7 +162,7 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
-    assert app._panel_widgets["agent-list-panel"].border_title == "@alpha · 1"
-    assert app._panel_widgets["agent-list-panel-1"].border_title == "@mike · 1"
-    assert app._panel_widgets["agent-list-panel-2"].border_title == "@zulu · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == "@alpha · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "@mike · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "@zulu · 1"
     assert "agent-list-panel-3" not in app._panel_widgets

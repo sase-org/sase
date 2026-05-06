@@ -12,6 +12,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
+from rich.text import Text
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -24,6 +26,21 @@ from ...util.trace import tui_trace
 from ._display_helpers import TabName, panel_widget_id
 
 log = logging.getLogger(__name__)
+
+_PANEL_TAG_STYLE = "bold #FFD75F"
+_PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
+_PANEL_COUNT_STYLE = "#AFAFAF"
+
+
+def _agent_panel_border_title(key: PanelKey, agent_count: int) -> Text:
+    """Build a styled panel title while preserving its plain-text label."""
+    title = Text()
+    if key is None:
+        title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
+    else:
+        title.append(f"@{key}", style=_PANEL_TAG_STYLE)
+    title.append(f" · {agent_count}", style=_PANEL_COUNT_STYLE)
+    return title
 
 
 class PanelsMixin:
@@ -164,8 +181,7 @@ class PanelsMixin:
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
 
-            label = "(untagged)" if key is None else f"@{key}"
-            widget.border_title = f"{label} · {len(panel_agents)}"
+            widget.border_title = _agent_panel_border_title(key, len(panel_agents))
 
             local_idx = -1
             if idx == focused_idx and 0 <= global_idx < len(self._agents):
