@@ -89,30 +89,36 @@ class TestDiamond:
 
         expected = (
             "%name:p1\n"
+            "%tag:e1\n"
             "%approve\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:p2\n"
+            "%tag:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:p3\n"
+            "%tag:e1\n"
             "%approve\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
             "%name:p4\n"
+            "%tag:e1\n"
             "%approve\n"
             "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
             "%name:e1\n"
+            "%tag:e1\n"
             "%w:p1,p2,p3,p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
+        assert all("%tag:e1" in segment for segment in segments)
         assert all("%approve" in segment for segment in segments[:-1])
         assert "%approve" not in segments[-1]
 

@@ -43,6 +43,7 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     assert f"%name:{legend_id}.1.0" in out
     assert f"%name:{legend_id}.2.0" in out
     assert f"%name:{legend_id}" in out
+    assert out.count(f"%tag:{legend_id}") == 3
     assert f"%w:{legend_id}.1" in out
     assert f"#bd/land_legend:{legend_id}" in out
     assert "%epic" in out
@@ -50,8 +51,10 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     segments = prompt.split("\n---\n")
     assert len(segments) == 3
     for segment in segments[:2]:
+        assert f"%tag:{legend_id}" in segment
         assert "%epic" in segment
         assert "%approve" not in segment
+    assert f"%tag:{legend_id}" in segments[2]
     assert "%epic" not in segments[2]
     assert "%approve" not in segments[2]
     with BeadProject(project_dir) as proj:
@@ -81,6 +84,7 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     assert len(segments) == 4
     for number, segment in enumerate(segments[:3], start=1):
         assert f"%name:{legend_id}.{number}.0" in segment
+        assert f"%tag:{legend_id}" in segment
         assert f"epic #{number} from the legend plan" in segment
         assert "%epic" in segment
         assert "%approve" not in segment
@@ -88,6 +92,7 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     assert f"%w:{legend_id}.2" in segments[2]
     assert "%w:" not in segments[0]
     assert f"%name:{legend_id}" in segments[3]
+    assert f"%tag:{legend_id}" in segments[3]
     assert f"%w:{legend_id}.3" in segments[3]
     assert f"#bd/land_legend:{legend_id}" in segments[3]
     assert "%epic" not in segments[3]
@@ -121,6 +126,7 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     query = captured["query"]
     assert query.count("%epic") == 3
     assert query.count("%approve") == 0
+    assert query.count(f"%tag:{legend_id}") == 4
     assert query.count("#epic") == 3
     assert query.count("---") == 3
     assert f"%name:{legend_id}.1.0" in query

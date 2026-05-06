@@ -317,7 +317,13 @@ def render_multi_prompt(
         for assignment in wave:
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
-            lines.extend([f"%name:{assignment.agent_name}", "%approve"])
+            lines.extend(
+                [
+                    f"%name:{assignment.agent_name}",
+                    _tag_directive(plan.epic_id),
+                    "%approve",
+                ]
+            )
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
@@ -325,6 +331,7 @@ def render_multi_prompt(
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:{plan.land_agent_name}")
+    land_lines.append(_tag_directive(plan.epic_id))
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
@@ -350,6 +357,7 @@ def render_legend_multi_prompt(
         lines.extend(
             [
                 f"%name:{assignment.agent_name}",
+                _tag_directive(plan.legend_id),
                 "%epic",
             ]
         )
@@ -366,6 +374,7 @@ def render_legend_multi_prompt(
 
     land_lines = _segment_prefix(vcs_context, is_first_phase=True)
     land_lines.append(f"%name:{plan.land_agent_name}")
+    land_lines.append(_tag_directive(plan.legend_id))
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_legend_xprompt.name}:{plan.legend_id}")
@@ -395,6 +404,10 @@ def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
             "ChangeSpec launch context is missing required field(s): "
             + ", ".join(missing)
         )
+
+
+def _tag_directive(bead_id: str) -> str:
+    return f"%tag:{bead_id}"
 
 
 def _segment_prefix(

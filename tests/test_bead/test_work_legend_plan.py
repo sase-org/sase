@@ -103,6 +103,7 @@ class TestLegendRendering:
 
         expected = (
             "%name:l1.1.0\n"
+            "%tag:l1\n"
             "%epic\n"
             "Can you help me implement epic #1 from the legend plan in the "
             "sdd/legends/202605/roadmap.md file? #epic Keep in mind that "
@@ -110,6 +111,7 @@ class TestLegendRendering:
             "agents after approval.\n"
             "---\n"
             "%name:l1.2.0\n"
+            "%tag:l1\n"
             "%epic\n"
             "%w:l1.1\n"
             "Can you help me implement epic #2 from the legend plan in the "
@@ -118,11 +120,13 @@ class TestLegendRendering:
             "agents after approval.\n"
             "---\n"
             "%name:l1\n"
+            "%tag:l1\n"
             "%w:l1.2\n"
             "#bd/land_legend:l1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
+        assert all("%tag:l1" in segment for segment in segments)
         assert all("%epic" in segment for segment in segments[:-1])
         assert all("%approve" not in segment for segment in segments)
 
@@ -141,9 +145,12 @@ class TestLegendRendering:
         segments = rendered.split("\n---\n")
         assert len(segments) == 3
         assert all(segment.startswith("#git:sase\n") for segment in segments)
+        assert "#git:sase\n%name:l1.1.0\n%tag:l1\n%epic" in rendered
+        assert "#git:sase\n%name:l1\n%tag:l1\n%w:l1.2" in rendered
         assert "%name:l1.1.0" in rendered
         assert "%name:l1.2.0" in rendered
         assert "%name:l1" in rendered
+        assert all("%tag:l1" in segment for segment in segments)
         for segment in segments[:2]:
             assert "%epic" in segment
             assert "%approve" not in segment

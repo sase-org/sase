@@ -47,6 +47,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     # Launcher was called exactly once with a multi-prompt referencing every phase.
     query = captured["query"]
     assert "---" in query
+    assert query.count(f"%tag:{epic_id}") == len(phase_ids) + 1
     for pid in phase_ids:
         assert f"#bd/work_phase_bead:{pid}" in query
     assert f"#bd/land_epic:{epic_id}" in query
@@ -98,6 +99,7 @@ def test_work_dry_run_never_mutates_or_launches(
     out = capsys.readouterr().out
     assert "Multi-prompt (dry run)" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
+    assert out.count(f"%tag:{epic_id}") == len(phase_ids) + 1
 
 
 def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
@@ -135,10 +137,11 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     for pid in phase_ids:
-        assert f"#git:sase\n%name:{pid}" in out
+        assert f"#git:sase\n%name:{pid}\n%tag:{epic_id}" in out
         assert f"#bd/work_phase_bead:{pid}" in out
-    assert f"#git:sase\n%name:{epic_id}" in out
+    assert f"#git:sase\n%name:{epic_id}\n%tag:{epic_id}" in out
     assert f"#bd/land_epic:{epic_id}" in out
+    assert out.count(f"%tag:{epic_id}") == len(phase_ids) + 1
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False
@@ -183,10 +186,15 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
-    assert f"#git:feature_epic\n%name:{phase_ids[1]}" in out
-    assert f"#git:feature_epic\n%name:{epic_id}" in out
+    assert (
+        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n%name:{phase_ids[0]}\n%tag:{epic_id}"
+        in out
+    )
+    assert f"#git:feature_epic\n%name:{phase_ids[1]}\n%tag:{epic_id}" in out
+    assert f"#git:feature_epic\n%name:{epic_id}\n%tag:{epic_id}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
+    assert out.count(f"%tag:{epic_id}") == len(phase_ids) + 1
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False
