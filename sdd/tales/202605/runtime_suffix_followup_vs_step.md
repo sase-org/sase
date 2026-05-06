@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 10:05:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/runtime_suffix_followup_vs_step.md
 ---
 # Plan: Runtime Suffix Ownership For Follow-Up Workflows

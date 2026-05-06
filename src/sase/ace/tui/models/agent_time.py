@@ -16,9 +16,11 @@ _ACTIVE_PARENT_STATUSES = {
 
 def should_display_runtime_suffix(agent: "Agent") -> bool:
     """Return True when an Agents-tab row should show a runtime suffix."""
-    if not agent.is_workflow_child:
+    if agent.parent_workflow is None:
         return True
-    return agent.step_type == "agent"
+    if agent.step_type != "agent":
+        return False
+    return not agent.parent_appears_as_agent
 
 
 def wait_until_target_and_reference(

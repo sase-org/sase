@@ -28,10 +28,12 @@ def _load_workflow_agent_steps_for_dir(
     parent_wf_traceback: str | None = None
     parent_wf_failed = False
     parent_wf_completed = False
+    parent_appears_as_agent = False
     parent_state_file = timestamp_dir / "workflow_state.json"
     if parent_state_file.exists():
         try:
             parent_state = load_json_cached(parent_state_file)
+            parent_appears_as_agent = bool(parent_state.get("appears_as_agent"))
             parent_status = parent_state.get("status")
             if parent_status == "failed":
                 parent_wf_failed = True
@@ -131,6 +133,7 @@ def _load_workflow_agent_steps_for_dir(
                 parent_step_index=parent_step_index,
                 parent_total_steps=parent_total_steps,
                 is_hidden_step=is_hidden,
+                parent_appears_as_agent=parent_appears_as_agent,
                 artifacts_dir=artifacts_dir_from_marker,
                 diff_path=diff_path,
                 error_message=error_message,

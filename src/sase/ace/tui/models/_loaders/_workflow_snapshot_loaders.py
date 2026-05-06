@@ -236,8 +236,10 @@ def _build_workflow_agent_steps_for_record(
     parent_wf_traceback: str | None = None
     parent_wf_failed = False
     parent_wf_completed = False
+    parent_appears_as_agent = False
     parent_state = record.workflow_state
     if parent_state is not None:
+        parent_appears_as_agent = parent_state.appears_as_agent
         if parent_state.status == "failed":
             parent_wf_failed = True
             parent_wf_error = parent_state.error
@@ -319,6 +321,7 @@ def _build_workflow_agent_steps_for_record(
                 parent_step_index=parent_step_index,
                 parent_total_steps=parent_total_steps,
                 is_hidden_step=is_hidden,
+                parent_appears_as_agent=parent_appears_as_agent,
                 artifacts_dir=artifacts_dir_from_marker,
                 diff_path=diff_path,
                 error_message=error_message,

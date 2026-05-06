@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
+from pathlib import Path
 
 import pytest
 from textual.app import App
 
+from sase.ace.tui.models._loaders._workflow_step_loaders import (
+    _load_workflow_agent_steps_for_dir,
+)
 from sase.ace.tui.models.agent import (
     Agent,
     AgentType,
@@ -51,6 +56,7 @@ def _workflow_child(
     stop: datetime | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str | None = None,
+    parent_appears_as_agent: bool = False,
 ) -> Agent:
     agent = _agent(
         agent_type=AgentType.WORKFLOW,
@@ -65,6 +71,26 @@ def _workflow_child(
     agent.parent_timestamp = "20260425140000"
     agent.step_name = agent.cl_name
     agent.step_type = step_type
+    agent.parent_appears_as_agent = parent_appears_as_agent
+    return agent
+
+
+def _linked_followup_workflow(
+    *,
+    status: str = "RUNNING",
+    start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
+    raw_suffix: str = "20260425143100",
+    parent_timestamp: str = "20260425140000",
+) -> Agent:
+    agent = _agent(
+        agent_type=AgentType.WORKFLOW,
+        status=status,
+        start=start,
+        raw_suffix=raw_suffix,
+        cl_name="followup",
+    )
+    agent.appears_as_agent = True
+    agent.parent_timestamp = parent_timestamp
     return agent
 
 
@@ -171,6 +197,30 @@ def test_compute_row_runtime_workflow_agent_step_returns_elapsed() -> None:
     assert elapsed == "2m05s"
 
 
+def test_compute_row_runtime_linked_followup_workflow_returns_elapsed() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(_linked_followup_workflow(start=start), now=now)
+    assert ts is None
+    assert elapsed == "2m05s"
+
+
+def test_compute_row_runtime_appears_as_agent_prompt_step_returns_nones() -> None:
+    start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 2, 5)
+    ts, elapsed = compute_row_runtime(
+        _workflow_child(
+            step_type="agent",
+            start=start,
+            cl_name="main",
+            parent_appears_as_agent=True,
+        ),
+        now=now,
+    )
+    assert ts is None
+    assert elapsed is None
+
+
 @pytest.mark.parametrize("step_type", ["python", "bash"])
 def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
     step_type: str,
@@ -216,12 +266,58 @@ def test_runtime_suffix_ticks_workflow_child_agent_step_ticks() -> None:
     assert runtime_suffix_ticks(agent) is True
 
 
+def test_runtime_suffix_ticks_linked_followup_workflow_ticks() -> None:
+    agent = _linked_followup_workflow(status="RUNNING")
+    assert runtime_suffix_ticks(agent) is True
+
+
+def test_runtime_suffix_ticks_appears_as_agent_prompt_step_does_not_tick() -> None:
+    agent = _workflow_child(
+        step_type="agent",
+        status="RUNNING",
+        cl_name="main",
+        parent_appears_as_agent=True,
+    )
+    assert runtime_suffix_ticks(agent) is False
+
+
 @pytest.mark.parametrize("step_type", ["python", "bash"])
 def test_runtime_suffix_ticks_non_agent_workflow_child_does_not_tick(
     step_type: str,
 ) -> None:
     agent = _workflow_child(step_type=step_type, status="RUNNING")
     assert runtime_suffix_ticks(agent) is False
+
+
+def test_workflow_step_loader_marks_appears_as_agent_parent(tmp_path: Path) -> None:
+    project_dir = tmp_path / "demo"
+    timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260425143000"
+    timestamp_dir.mkdir(parents=True)
+    (timestamp_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "workflow_name": "run",
+                "status": "running",
+                "appears_as_agent": True,
+            }
+        )
+    )
+    (timestamp_dir / "prompt_step_main.json").write_text(
+        json.dumps(
+            {
+                "workflow_name": "run",
+                "step_name": "main",
+                "step_type": "agent",
+                "status": "in_progress",
+            }
+        )
+    )
+
+    agents, _ = _load_workflow_agent_steps_for_dir(project_dir, timestamp_dir)
+
+    assert len(agents) == 1
+    assert agents[0].parent_workflow == "run"
+    assert agents[0].parent_appears_as_agent is True
 
 
 # --- row rendering / batch alignment ----------------------------------------

@@ -114,6 +114,9 @@ class Agent:
     # Whether this is a hidden workflow step (hidden by default in Agents tab)
     is_hidden_step: bool = False
 
+    # Whether this workflow step belongs to an appears-as-agent parent workflow
+    parent_appears_as_agent: bool = False
+
     # Workflow that looks like an agent (all non-prompt steps hidden)
     appears_as_agent: bool = False
 
