@@ -136,6 +136,139 @@ curl -N http://127.0.0.1:7629/api/v1/events \
 The first implementation keeps the event buffer in memory. After a gateway restart or buffer overflow, clients must
 handle a `resync_required` event by fetching full state again.
 
+## Notifications, Actions, And Attachments
+
+All notification, action, and attachment routes require the paired device bearer token:
+
+```bash
+BASE_URL="http://127.0.0.1:7629"
+TOKEN="sase_mobile_example"
+AUTH_HEADER="Authorization: Bearer $TOKEN"
+```
+
+List unread, non-silent notifications newest first:
+
+```bash
+curl -sS "$BASE_URL/api/v1/notifications?unread=true&limit=25" \
+  -H "$AUTH_HEADER"
+```
+
+Include dismissed or silent rows only when a client is rebuilding local state:
+
+```bash
+curl -sS "$BASE_URL/api/v1/notifications?include_dismissed=true&include_silent=true" \
+  -H "$AUTH_HEADER"
+```
+
+Inspect a plan approval notification before acting on it:
+
+```bash
+NOTIFICATION_ID="abcdef12-plan"
+
+curl -sS "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID" \
+  -H "$AUTH_HEADER"
+```
+
+Detail responses include full notes, action state, and attachment manifests. Download tokens are minted only in detail
+responses, are bound to the authenticated device, expire after a short TTL, and must still pass path and size checks at
+download time.
+
+Plan approval actions use the notification ID or any unique pending-action prefix:
+
+```bash
+PREFIX="abcdef12"
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/approve" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"commit_plan":true,"run_coder":false}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/run" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"coder_prompt":"Focus on tests"}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/reject" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"feedback":"Please narrow the scope"}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/feedback" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"feedback":"Revise the rollout section"}'
+```
+
+Epic and legend approvals use the same route shape:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/epic" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/legend" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1}'
+```
+
+HITL prompts can be accepted, rejected, or returned with feedback:
+
+```bash
+HITL_PREFIX="hitl0001"
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/accept" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/reject" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/feedback" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"feedback":"Use a smaller change"}'
+```
+
+Question prompts support stable option IDs, option indices, labels, and custom free text:
+
+```bash
+QUESTION_PREFIX="quest001"
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/answer" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"selected_option_id":"safe","global_note":"Use the durable path"}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/answer" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"selected_option_index":1}'
+
+curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/custom" \
+  -H "$AUTH_HEADER" \
+  -H 'Content-Type: application/json' \
+  -d '{"schema_version":1,"custom_answer":"Use SQLite","global_note":"Small local DB"}'
+```
+
+Download an attachment by using a token from a notification detail response:
+
+```bash
+ATTACHMENT_TOKEN="att_example"
+
+curl -sS "$BASE_URL/api/v1/attachments/$ATTACHMENT_TOKEN" \
+  -H "$AUTH_HEADER" \
+  -o attachment.bin
+```
+
+Mutating action routes audit device ID, endpoint, target notification/prefix, and outcome. Duplicate, stale, ambiguous,
+already-handled, unsupported, and missing-target cases return typed `ApiErrorWire` records and do not overwrite existing
+response files.
+
 ## Storage And Revocation
 
 Gateway state is stored under `<sase_home>/mobile_gateway/`. With the default SASE home, that is
@@ -184,3 +317,13 @@ cargo run -p sase_gateway -- \
 ```
 
 Keep the JSON snapshot, Rust wire tests, and this document aligned whenever the gateway route or record shape changes.
+
+## Known MVP Limitations
+
+- Notification reads are authoritative REST reads from the host JSONL store. Successful gateway mutations publish
+  `notifications_changed` SSE events, but passive file watching is intentionally out of the MVP.
+- Attachment downloads are capped by the gateway's configured max attachment bytes. Oversized, missing, directory,
+  traversal, symlinked, or unknown-risk files appear in manifests without download tokens.
+- Telegram remains supported through the shared pending-action compatibility path. If an older Telegram install has only
+  legacy pending-action JSON, mobile can read it, but Telegram is not yet required to use the shared store as its only
+  source of truth.
