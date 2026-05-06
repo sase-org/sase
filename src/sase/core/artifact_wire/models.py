@@ -116,6 +116,7 @@ class ArtifactQueryWire:
     schema_version: int = ARTIFACT_WIRE_SCHEMA_VERSION
     text: str | None = None
     kinds: tuple[str, ...] = ()
+    file_types: tuple[str, ...] = ()
     link_types: tuple[str, ...] = ()
     provenance: str | None = None
     source_kinds: tuple[str, ...] = ()

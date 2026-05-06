@@ -14,6 +14,42 @@ def _add_index_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_rebuild_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_index_argument(parser)
+    parser.add_argument("-p", "--projects-root", help="Projects root")
+    parser.add_argument("-w", "--workspace-root", help="Workspace root")
+    parser.add_argument("-b", "--beads-dir", help="Beads directory")
+    parser.add_argument(
+        "-S",
+        "--include-source",
+        action="append",
+        default=[],
+        help="Source kind to include; repeatable",
+    )
+    parser.add_argument(
+        "-X",
+        "--exclude-source",
+        action="append",
+        default=[],
+        help="Source kind to exclude; repeatable",
+    )
+    parser.add_argument("-t", "--target-path", help="Target path to upsert")
+    parser.add_argument("-a", "--artifact-dir", help="Agent artifact dir")
+    parser.add_argument(
+        "-c",
+        "--stale-cleanup",
+        choices=("none", "mark"),
+        default="none",
+        help="Stale cleanup mode (default: none)",
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit stable JSON output",
+    )
+
+
 def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'artifact' subcommand parser."""
     artifact_parser = subparsers.add_parser(
@@ -93,6 +129,13 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         default=[],
         help="Filter by artifact kind; repeatable",
+    )
+    list_parser.add_argument(
+        "-F",
+        "--file-type",
+        action="append",
+        default=[],
+        help="Filter file artifacts by semantic type; repeatable",
     )
     list_parser.add_argument(
         "-L",
@@ -225,41 +268,19 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
 
     rebuild_parser = artifact_sub.add_parser(
         "rebuild",
-        help="Rebuild derived artifact graph rows",
+        help="Explicitly rebuild derived artifact graph rows",
     )
-    _add_index_argument(rebuild_parser)
-    rebuild_parser.add_argument("-p", "--projects-root", help="Projects root")
-    rebuild_parser.add_argument("-w", "--workspace-root", help="Workspace root")
-    rebuild_parser.add_argument("-b", "--beads-dir", help="Beads directory")
-    rebuild_parser.add_argument(
-        "-S",
-        "--include-source",
-        action="append",
-        default=[],
-        help="Source kind to include; repeatable",
+    _add_rebuild_arguments(rebuild_parser)
+
+    sync_parser = artifact_sub.add_parser(
+        "sync",
+        help=("Explicitly sync/backfill historical artifact rows; not run on startup"),
     )
-    rebuild_parser.add_argument(
-        "-X",
-        "--exclude-source",
-        action="append",
-        default=[],
-        help="Source kind to exclude; repeatable",
+    sync_parser.description = (
+        "Explicit historical artifact sync/backfill. This is an alias for rebuild "
+        "with the same safe defaults and is not run on startup."
     )
-    rebuild_parser.add_argument("-t", "--target-path", help="Target path to upsert")
-    rebuild_parser.add_argument("-a", "--artifact-dir", help="Agent artifact dir")
-    rebuild_parser.add_argument(
-        "-c",
-        "--stale-cleanup",
-        choices=("none", "mark"),
-        default="none",
-        help="Stale cleanup mode (default: none)",
-    )
-    rebuild_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit stable JSON output",
-    )
+    _add_rebuild_arguments(sync_parser)
 
     doctor_parser = artifact_sub.add_parser(
         "doctor",

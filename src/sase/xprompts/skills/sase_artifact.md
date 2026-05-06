@@ -36,9 +36,13 @@ This prints a stable-shape JSON array of artifact nodes. Each node has: `id`, `k
 Useful filters:
 
 - `sase artifact list -j -k file -l 50` - file artifacts.
+- `sase artifact list -j -k file -F plan -F diff -l 50` - file artifacts by semantic file type.
 - `sase artifact list -j -q '<text>' -l 50` - text search across indexed artifact fields.
 - `sase artifact list -j -L parent -r <root_id> -l 50` - artifacts reachable under a root through parent links.
 - `sase artifact list -j -P manual -l 50` - manually-created artifacts.
+
+File artifacts keep `kind = "file"` and store the semantic type in `metadata.artifact_type`. Canonical file types are
+`plan`, `diff`, `chat`, `project`, `prompt`, and `misc`; missing or unknown metadata reads as `misc`.
 
 If the list is empty, say "no matching artifacts found" plainly. Do not infer artifact details from names alone.
 
@@ -91,12 +95,12 @@ The doctor JSON has `ok` and `issues`. Issue rows include `issue_type`, `severit
 For stale or missing index data, run troubleshooting in this order only when the user asks to refresh the index:
 
 ```bash
-sase artifact rebuild -j
+sase artifact sync -j
 sase artifact doctor -j
 ```
 
-`rebuild` mutates derived graph rows in the artifact index. Use it for stale-index troubleshooting, not for routine
-read-only discovery.
+`sync` is an explicit historical sync/backfill alias for `rebuild`; it mutates derived graph rows in the artifact index
+and is not run on startup. Use it for stale-index troubleshooting, not for routine read-only discovery.
 
 Common doctor issues:
 
@@ -109,9 +113,9 @@ Common doctor issues:
 
 For missing current context, prefer targeted rebuilds over full rebuilds:
 
-- `sase artifact rebuild -j -t <project_or_file_path>` - refresh one project or file path.
+- `sase artifact sync -j -t <project_or_file_path>` - refresh one project or file path.
 - `sase artifact rebuild -j -b <workspace>/sdd/beads -S bead_store` - refresh a bead store.
-- `sase artifact rebuild -j -a <artifact_dir> -S agent_artifact -S agent_created_file` - refresh one agent directory.
+- `sase artifact sync -j -a <artifact_dir> -S agent_artifact -S agent_created_file` - refresh one agent directory.
 - `sase artifact rebuild -j -c mark` - mark stale derived rows after intentional source removal.
 
 ## Mutating Commands
@@ -123,6 +127,7 @@ These commands change the artifact index and require explicit user intent:
 - `sase artifact remove -j -a <artifact_id> -r '<reason>'` - remove or tombstone an artifact.
 - `sase artifact remove -j -T <type> -S <source_id> -D <target_id> -r '<reason>'` - remove or tombstone a link tuple.
 - `sase artifact rebuild -j` - rebuild derived graph rows.
+- `sase artifact sync -j` - explicit historical sync/backfill alias for rebuild.
 
 When mutating, prefer `-j`, report affected node/link IDs and tombstone IDs, and stop if the command reports errors.
 Tombstones suppress graph rows or links; they do not delete the source project file, bead record, marker file, response,

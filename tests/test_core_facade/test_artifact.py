@@ -12,6 +12,14 @@ import pytest
 
 from sase.core import artifact_facade
 from sase.core.artifact_wire import (
+    ARTIFACT_FILE_TYPES,
+    ARTIFACT_FILE_TYPE_CHAT,
+    ARTIFACT_FILE_TYPE_DIFF,
+    ARTIFACT_FILE_TYPE_METADATA_KEY,
+    ARTIFACT_FILE_TYPE_MISC,
+    ARTIFACT_FILE_TYPE_PLAN,
+    ARTIFACT_FILE_TYPE_PROJECT,
+    ARTIFACT_FILE_TYPE_PROMPT,
     ARTIFACT_KIND_FILE,
     ARTIFACT_LINK_PARENT,
     ARTIFACT_PROVENANCE_DERIVED,
@@ -95,6 +103,19 @@ def test_schema_version_pinned() -> None:
     assert ARTIFACT_WIRE_SCHEMA_VERSION == 1
 
 
+def test_python_file_type_constants_mirror_rust_contract() -> None:
+    assert ARTIFACT_FILE_TYPE_METADATA_KEY == "artifact_type"
+    assert ARTIFACT_FILE_TYPES == (
+        ARTIFACT_FILE_TYPE_PLAN,
+        ARTIFACT_FILE_TYPE_DIFF,
+        ARTIFACT_FILE_TYPE_CHAT,
+        ARTIFACT_FILE_TYPE_PROJECT,
+        ARTIFACT_FILE_TYPE_PROMPT,
+        ARTIFACT_FILE_TYPE_MISC,
+    )
+    assert ARTIFACT_FILE_TYPES == ("plan", "diff", "chat", "project", "prompt", "misc")
+
+
 def test_node_wire_shape_matches_rust_snapshot() -> None:
     assert artifact_wire_to_json_dict(_node()) == {
         "id": "/tmp/example.md",
@@ -118,6 +139,7 @@ def test_query_options_and_detail_shapes_keep_nulls_and_lists() -> None:
         "schema_version": 1,
         "text": None,
         "kinds": [],
+        "file_types": [],
         "link_types": [],
         "provenance": None,
         "source_kinds": [],
@@ -128,6 +150,10 @@ def test_query_options_and_detail_shapes_keep_nulls_and_lists() -> None:
         "offset": 0,
     }
     assert artifact_query_from_dict(artifact_query_to_dict(query)) == query
+
+    typed_query = ArtifactQueryWire(kinds=("file",), file_types=("plan", "diff"))
+    assert artifact_query_to_dict(typed_query)["file_types"] == ["plan", "diff"]
+    assert artifact_query_from_dict(artifact_query_to_dict(typed_query)) == typed_query
 
     detail = artifact_detail_from_dict(
         {
@@ -439,7 +465,9 @@ def test_artifact_facade_calls_expected_bindings(
             "artifact_list",
             (
                 "/tmp/artifacts.sqlite",
-                artifact_query_to_dict(ArtifactQueryWire()),
+                artifact_query_to_dict(
+                    ArtifactQueryWire(file_types=(), kinds=(), link_types=())
+                ),
             ),
         ),
         ("artifact_show", ("/tmp/artifacts.sqlite", "/tmp/example.md")),

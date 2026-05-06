@@ -93,6 +93,62 @@ def test_rebuild_json_calls_facade_with_request(
     assert json.loads(capsys.readouterr().out)["operation"] == "rebuild"
 
 
+def test_sync_json_dispatches_to_rebuild_facade_with_request(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    result = ArtifactMutationResultWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        operation="rebuild",
+    )
+    mock_builder = Mock(return_value=ArtifactRebuildRequestWire(workspace_root="/ws"))
+    mock_rebuild = Mock(return_value=result)
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_rebuild_request",
+        mock_builder,
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_rebuild",
+        mock_rebuild,
+    )
+    args = create_parser().parse_args(
+        [
+            "artifact",
+            "sync",
+            "-j",
+            "-i",
+            str(tmp_path / "graph.sqlite"),
+            "-w",
+            "/ws",
+            "-S",
+            "agent_artifact",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    mock_builder.assert_called_once_with(
+        projects_root=None,
+        workspace_root="/ws",
+        beads_dir=None,
+        include_sources=("agent_artifact",),
+        exclude_sources=(),
+        target_path=None,
+        artifact_dir=None,
+        stale_cleanup="none",
+    )
+    mock_rebuild.assert_called_once_with(
+        tmp_path / "graph.sqlite",
+        mock_builder.return_value,
+    )
+    assert json.loads(capsys.readouterr().out)["operation"] == "rebuild"
+
+
 def test_rebuild_human_outputs_mutation_counts_and_errors(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

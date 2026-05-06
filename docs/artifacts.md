@@ -48,10 +48,15 @@ Useful filters include:
 
 ```bash
 sase artifact list -j -k file -l 50
+sase artifact list -j -k file -F plan -F diff -l 50
 sase artifact list -j -q "needle" -l 50
 sase artifact list -j -L parent -r <root_id> -l 50
 sase artifact list -j -P manual -l 50
 ```
+
+File artifacts keep `kind = "file"` and expose their semantic type in `metadata.artifact_type`. The canonical file types
+are `plan`, `diff`, `chat`, `project`, `prompt`, and `misc`; missing or unknown metadata is treated as `misc`. Use
+`-F/--file-type` only with file-artifact queries.
 
 Inspect one artifact exactly before summarizing its relationships or payloads:
 
@@ -99,14 +104,17 @@ response file, or any other source artifact. To inspect suppressed rows while de
 
 ## Rebuild Behavior
 
-`sase artifact rebuild` mutates the index by refreshing derived graph rows from configured sources. It can rebuild from
-project files, workspaces, bead stores, and agent artifact directories depending on the request options:
+`sase artifact rebuild` mutates the index by refreshing derived graph rows from configured sources. `sase artifact sync`
+is the friendlier alias for the same explicit historical sync/backfill operation; it is not run automatically at startup
+or when opening the artifact panel. Both commands can rebuild from project files, workspaces, bead stores, and agent
+artifact directories depending on the request options:
 
 ```bash
 sase artifact rebuild -j
 sase artifact rebuild -j -w <workspace_root> -b <beads_dir>
 sase artifact rebuild -j -S directory -t <target_path>
 sase artifact rebuild -j -c mark
+sase artifact sync -j
 ```
 
 Use rebuild for stale or missing derived data, not for routine read-only discovery. The default stale cleanup mode is
@@ -124,6 +132,7 @@ Use targeted rebuilds when a specific source changed:
 # One project file or ordinary file path.
 sase artifact rebuild -j -S project_file -S changespec -S commit -t <project.gp>
 sase artifact rebuild -j -S directory -t <path>
+sase artifact sync -j -S directory -t <path>
 
 # One bead store.
 sase artifact rebuild -j -S bead_store -b <workspace>/sdd/beads
@@ -179,7 +188,7 @@ remain compatible.
 2. Rebuild into the default graph index:
 
    ```bash
-   sase artifact rebuild -j
+   sase artifact sync -j
    ```
 
 3. Validate the graph:
@@ -207,7 +216,7 @@ remain compatible.
 
    ```bash
    sase artifact rebuild -j -t <project_or_file_path>
-   sase artifact rebuild -j -a <agent_artifact_dir>
+   sase artifact sync -j -a <agent_artifact_dir>
    ```
 
 ## Compatibility Notes

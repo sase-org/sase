@@ -11,6 +11,9 @@ from typing import NoReturn
 
 from sase.core import artifact_facade
 from sase.core.artifact_wire import (
+    ARTIFACT_FILE_TYPES,
+    ARTIFACT_FILE_TYPE_METADATA_KEY,
+    ARTIFACT_FILE_TYPE_MISC,
     ARTIFACT_ROOT_ID,
     ARTIFACT_PROVENANCE_MANUAL,
     ARTIFACT_WIRE_SCHEMA_VERSION,
@@ -52,7 +55,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
             _handle_show(args)
         if sub == "graph":
             _handle_graph(args)
-        if sub == "rebuild":
+        if sub in {"rebuild", "sync"}:
             _handle_rebuild(args)
         if sub == "doctor":
             _handle_doctor(args)
@@ -60,7 +63,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         print(f"sase artifact {sub or ''}: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print("Usage: sase artifact {add,remove,list,show,graph,rebuild,doctor}")
+    print("Usage: sase artifact {add,remove,list,show,graph,rebuild,sync,doctor}")
     sys.exit(1)
 
 
@@ -196,6 +199,7 @@ def _handle_list(args: argparse.Namespace) -> NoReturn:
     query = ArtifactQueryWire(
         text=args.text,
         kinds=tuple(args.kind),
+        file_types=tuple(args.file_type),
         link_types=tuple(args.link_type),
         provenance=args.provenance,
         source_kinds=tuple(args.source_kind),
@@ -302,7 +306,7 @@ def _format_node_table(nodes: object) -> str:
     if not node_rows:
         return "No artifacts found."
     return _format_table(
-        ("KIND", "ID", "TITLE", "PROVENANCE", "SOURCE", "UPDATED"),
+        ("KIND", "FILE TYPE", "ID", "TITLE", "PROVENANCE", "SOURCE", "UPDATED"),
         node_rows,
     )
 
@@ -317,8 +321,11 @@ def _format_detail(detail: ArtifactDetailWire | object, *, artifact_id: str) -> 
         f"Artifact: {_field(node, 'display_title', artifact_id)}",
         f"  id: {_field(node, 'id')}",
         f"  kind: {_field(node, 'kind')}",
-        f"  provenance: {_field(node, 'provenance')}",
     ]
+    file_type = _file_type_label(node)
+    if file_type:
+        lines.append(f"  file type: {file_type}")
+    lines.append(f"  provenance: {_field(node, 'provenance')}")
     source = _source_label(node)
     if source:
         lines.append(f"  source: {source}")
@@ -436,10 +443,11 @@ def _format_issue_table(issues: object) -> str:
     return _format_table(("SEVERITY", "TYPE", "ARTIFACT", "LINK", "MESSAGE"), rows)
 
 
-def _node_row(node: object) -> tuple[str, str, str, str, str, str]:
+def _node_row(node: object) -> tuple[str, str, str, str, str, str, str]:
     data = _as_dict(node)
     return (
         _field(data, "kind"),
+        _file_type_label(data),
         _field(data, "id"),
         _field(data, "display_title"),
         _field(data, "provenance"),
@@ -454,6 +462,19 @@ def _source_label(data: dict[str, object]) -> str:
     if source_kind and source_id:
         return f"{source_kind}:{source_id}"
     return source_kind or source_id
+
+
+def _file_type_label(data: dict[str, object]) -> str:
+    if _field(data, "kind") != "file":
+        return ""
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return ARTIFACT_FILE_TYPE_MISC
+    value = metadata.get(ARTIFACT_FILE_TYPE_METADATA_KEY)
+    file_type = value if isinstance(value, str) else ARTIFACT_FILE_TYPE_MISC
+    if file_type not in ARTIFACT_FILE_TYPES:
+        return ARTIFACT_FILE_TYPE_MISC
+    return file_type
 
 
 def _payload_summary(value: object) -> str:

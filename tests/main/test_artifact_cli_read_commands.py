@@ -42,6 +42,10 @@ def test_list_json_calls_facade_with_query(
             str(tmp_path / "graph.sqlite"),
             "-k",
             "file",
+            "-F",
+            "plan",
+            "-F",
+            "diff",
             "-L",
             "parent",
             "-P",
@@ -71,6 +75,7 @@ def test_list_json_calls_facade_with_query(
         ArtifactQueryWire(
             text="needle",
             kinds=("file",),
+            file_types=("plan", "diff"),
             link_types=("parent",),
             provenance="derived",
             source_kinds=("directory",),
@@ -94,6 +99,7 @@ def test_list_human_outputs_compact_table(
         id="file:/tmp/a.py",
         kind="file",
         display_title="a.py",
+        metadata={"artifact_type": "plan"},
         provenance="derived",
         source_kind="directory",
         source_id="/tmp",
@@ -114,6 +120,8 @@ def test_list_human_outputs_compact_table(
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "KIND" in output
+    assert "FILE TYPE" in output
+    assert "plan" in output
     assert "file:/tmp/a.py" in output
     assert "directory:/tmp" in output
 
@@ -213,6 +221,43 @@ def test_show_human_outputs_detail_sections(
     assert "related:" in output
     assert "object keys: body" in output
     assert "example diagnostic" in output
+
+
+def test_show_human_outputs_file_type_with_misc_compatibility(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    detail = ArtifactDetailWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=ArtifactNodeWire(
+            id="file:/tmp/unknown",
+            kind="file",
+            display_title="unknown",
+            metadata={"artifact_type": "surprise"},
+        ),
+    )
+    monkeypatch.setattr(
+        artifact_handler.artifact_facade,
+        "artifact_show",
+        Mock(return_value=detail),
+    )
+    args = create_parser().parse_args(
+        [
+            "artifact",
+            "show",
+            "-i",
+            str(tmp_path / "graph.sqlite"),
+            "-a",
+            "file:/tmp/unknown",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        artifact_handler.handle_artifact_command(args)
+
+    assert exc_info.value.code == 0
+    assert "file type: misc" in capsys.readouterr().out
 
 
 def test_show_human_truncates_long_payload_scalars(

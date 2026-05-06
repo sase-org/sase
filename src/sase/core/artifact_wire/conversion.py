@@ -269,6 +269,7 @@ def artifact_query_from_dict(data: dict[str, Any]) -> ArtifactQueryWire:
         schema_version=_schema_version(data, "ArtifactQueryWire"),
         text=data.get("text"),
         kinds=_tuple_strs(data.get("kinds")),
+        file_types=_tuple_strs(data.get("file_types")),
         link_types=_tuple_strs(data.get("link_types")),
         provenance=data.get("provenance"),
         source_kinds=_tuple_strs(data.get("source_kinds")),
