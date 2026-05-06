@@ -16,11 +16,15 @@ from textual.widgets import Input, OptionList, Static
 from sase.ace.tui.modals.artifact_panel_modal import ArtifactPanelModal
 from sase.core.artifact_wire import (
     ARTIFACT_WIRE_SCHEMA_VERSION,
+    ArtifactDetailPagedWire,
     ArtifactDetailWire,
+    ArtifactGroupSummaryWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
     ArtifactLinkWire,
     ArtifactNodeWire,
+    ArtifactPageRequestWire,
+    ArtifactRelationPageWire,
 )
 
 
@@ -69,6 +73,72 @@ def _detail(
 
 def _missing_detail() -> ArtifactDetailWire:
     return ArtifactDetailWire(schema_version=ARTIFACT_WIRE_SCHEMA_VERSION, node=None)
+
+
+def _paged_detail(
+    artifact_id: str,
+    *,
+    kind: str = "file",
+    title: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    children: list[ArtifactNodeWire] | None = None,
+    child_total: int | None = None,
+    outbound_links: list[ArtifactLinkWire] | None = None,
+    inbound_links: list[ArtifactLinkWire] | None = None,
+    path_to_root: list[ArtifactNodeWire] | None = None,
+) -> ArtifactDetailPagedWire:
+    loaded_children = children or []
+    loaded_outbound = outbound_links or []
+    loaded_inbound = inbound_links or []
+    children_page = (
+        ArtifactRelationPageWire(
+            summary=ArtifactGroupSummaryWire(
+                group_key="children",
+                direction="children",
+                total_count=child_total
+                if child_total is not None
+                else len(loaded_children),
+                loaded_count=len(loaded_children),
+            ),
+            nodes=loaded_children,
+        )
+        if loaded_children or child_total is not None
+        else None
+    )
+    outbound_pages = [
+        ArtifactRelationPageWire(
+            summary=ArtifactGroupSummaryWire(
+                group_key=f"outbound:{link.link_type}",
+                direction="outbound",
+                link_type=link.link_type,
+                total_count=1,
+                loaded_count=1,
+            ),
+            links=[link],
+        )
+        for link in loaded_outbound
+    ]
+    inbound_pages = [
+        ArtifactRelationPageWire(
+            summary=ArtifactGroupSummaryWire(
+                group_key=f"inbound:{link.link_type}",
+                direction="inbound",
+                link_type=link.link_type,
+                total_count=1,
+                loaded_count=1,
+            ),
+            links=[link],
+        )
+        for link in loaded_inbound
+    ]
+    return ArtifactDetailPagedWire(
+        schema_version=ARTIFACT_WIRE_SCHEMA_VERSION,
+        node=_node(artifact_id, kind, title, metadata),
+        children_page=children_page,
+        outbound_pages=outbound_pages,
+        inbound_pages=inbound_pages,
+        path_to_root=path_to_root or [],
+    )
 
 
 class _LargeFakeArtifactGraph:
@@ -170,6 +240,112 @@ class _LargeFakeArtifactGraph:
             for node in nodes:
                 details[node.id] = _detail(node.id, kind=node.kind)
         return details
+
+
+@pytest.mark.asyncio
+async def test_default_modal_load_uses_paged_show_and_projects_legacy_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paged_calls: list[tuple[str, str, ArtifactPageRequestWire | None]] = []
+    legacy_calls: list[str] = []
+    child = _node("child:one", "agent", "Child one")
+    link = ArtifactLinkWire(
+        id="out-1",
+        link_type="created",
+        source_id="alpha",
+        target_id="agent:one",
+    )
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        paged_calls.append((str(index_path), artifact_id, request))
+        return _paged_detail(
+            artifact_id,
+            kind="changespec",
+            children=[child],
+            outbound_links=[link],
+            path_to_root=[_node("/", "root")],
+        )
+
+    def fake_legacy_show(index_path: str | Any, artifact_id: str) -> ArtifactDetailWire:
+        del index_path
+        legacy_calls.append(artifact_id)
+        raise AssertionError("legacy artifact_show should not be used")
+
+    monkeypatch.setattr(
+        "sase.core.artifact_facade.artifact_show_paged",
+        fake_paged_show,
+    )
+    monkeypatch.setattr("sase.core.artifact_facade.artifact_show", fake_legacy_show)
+
+    modal = ArtifactPanelModal(
+        artifact_id="alpha",
+        index_path="/tmp/fake-artifacts.sqlite",
+    )
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+
+    assert [(path, artifact_id) for path, artifact_id, _ in paged_calls] == [
+        ("/tmp/fake-artifacts.sqlite", "alpha")
+    ]
+    assert isinstance(paged_calls[0][2], ArtifactPageRequestWire)
+    assert legacy_calls == []
+    assert modal._paged_model is not None
+    assert modal._detail is not None
+    assert [node.id for node in modal._detail.children] == ["child:one"]
+    assert [link.target_id for link in modal._detail.outbound_links] == ["agent:one"]
+
+
+@pytest.mark.asyncio
+async def test_paged_modal_open_does_not_render_hundreds_of_initial_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded_children = [_node(f"child:{idx}", "agent") for idx in range(10)]
+    paged_calls: list[str] = []
+
+    def fake_paged_show(
+        index_path: str | Any,
+        artifact_id: str,
+        request: ArtifactPageRequestWire | None = None,
+    ) -> ArtifactDetailPagedWire:
+        del index_path, request
+        paged_calls.append(artifact_id)
+        return _paged_detail(
+            artifact_id,
+            kind="changespec",
+            children=loaded_children,
+            child_total=240,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.artifact_facade.artifact_show_paged",
+        fake_paged_show,
+    )
+
+    modal = ArtifactPanelModal(artifact_id="alpha", index_path="/tmp/fake.sqlite")
+    app = _ModalTestApp()
+
+    async with app.run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        option_list = modal.query_one("#artifact-panel-list", OptionList)
+        visible_ids = [
+            option_list.get_option_at_index(index).id
+            for index in range(option_list.option_count)
+        ]
+
+    assert paged_calls == ["alpha"]
+    assert option_list.option_count == 11
+    assert "child:child:0" in visible_ids
+    assert "child:child:9" in visible_ids
 
 
 @pytest.mark.parametrize("start_id", ["/", "changespec:current", "agent:current"])

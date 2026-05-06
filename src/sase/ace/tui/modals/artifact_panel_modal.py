@@ -18,15 +18,20 @@ from textual.worker import Worker, WorkerState
 
 from sase.ace.hints import build_editor_args
 from sase.core.artifact_wire import (
+    ArtifactDetailPagedWire,
     ArtifactDetailWire,
     ArtifactGraphOptionsWire,
     ArtifactGraphWire,
+    ArtifactPageRequestWire,
 )
 
 from .artifact_panel_state import (
+    ArtifactPanelPagedModel,
     ArtifactPanelNavigationState,
     ArtifactPanelRow,
     build_artifact_panel_rows,
+    paged_model_from_legacy_detail,
+    paged_model_from_paged_detail,
     parent_id_from_detail,
 )
 from .artifact_panel_renderers import (
@@ -35,6 +40,9 @@ from .artifact_panel_renderers import (
 from .base import FilterInput, OptionListNavigationMixin
 
 ArtifactShowFunc = Callable[[Path | str, str], ArtifactDetailWire]
+ArtifactShowPagedFunc = Callable[
+    [Path | str, str, ArtifactPageRequestWire | None], ArtifactDetailPagedWire
+]
 ArtifactGraphFunc = Callable[[Path | str, ArtifactGraphOptionsWire], ArtifactGraphWire]
 ArtifactExportFunc = Callable[[Path | str, ArtifactGraphOptionsWire, str], str]
 ArtifactDetailRenderer = Callable[[ArtifactDetailWire], RenderableType]
@@ -68,6 +76,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         *,
         artifact_id: str,
         index_path: Path | str | None = None,
+        show_paged_func: ArtifactShowPagedFunc | None = None,
         show_func: ArtifactShowFunc | None = None,
         graph_func: ArtifactGraphFunc | None = None,
         export_func: ArtifactExportFunc | None = None,
@@ -84,6 +93,7 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
 
             index_path = default_artifact_index_path()
         self._index_path = index_path
+        self._show_paged_func = show_paged_func
         self._show_func = show_func
         self._graph_func = graph_func
         self._export_func = export_func
@@ -92,9 +102,10 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         self._context_path = context_path
         self._context_artifact_dir = artifact_dir
         self._missing_refresh_attempted: set[str] = set()
+        self._paged_model: ArtifactPanelPagedModel | None = None
         self._detail: ArtifactDetailWire | None = None
         self._error_message: str | None = None
-        self._load_worker: Worker[ArtifactDetailWire] | None = None
+        self._load_worker: Worker[ArtifactPanelPagedModel] | None = None
         self._render_worker: Worker[RenderableType] | None = None
         self._row_by_option_id: dict[str, ArtifactPanelRow] = {}
 
@@ -137,15 +148,13 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             thread=True,
         )
 
-    def _load_detail(self, artifact_id: str) -> ArtifactDetailWire:
-        show_func = self._show_func
-        if show_func is None:
-            from sase.core.artifact_facade import artifact_show
-
-            show_func = artifact_show
-        detail = show_func(self._index_path, artifact_id)
-        if detail.node is not None or artifact_id in self._missing_refresh_attempted:
-            return detail
+    def _load_detail(self, artifact_id: str) -> ArtifactPanelPagedModel:
+        model = self._show_paged_model(artifact_id)
+        if (
+            model.detail.node is not None
+            or artifact_id in self._missing_refresh_attempted
+        ):
+            return model
 
         self._missing_refresh_attempted.add(artifact_id)
         refresh_func = self._refresh_missing_func
@@ -173,7 +182,26 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
             self._context_path,
             self._context_artifact_dir,
         )
-        return show_func(self._index_path, artifact_id)
+        return self._show_paged_model(artifact_id)
+
+    def _show_paged_model(self, artifact_id: str) -> ArtifactPanelPagedModel:
+        show_func = self._show_func
+        if show_func is not None:
+            return paged_model_from_legacy_detail(
+                show_func(self._index_path, artifact_id)
+            )
+
+        show_paged_func = self._show_paged_func
+        if show_paged_func is None:
+            from sase.core.artifact_facade import artifact_show_paged
+
+            show_paged_func = artifact_show_paged
+        paged_detail = show_paged_func(
+            self._index_path,
+            artifact_id,
+            ArtifactPageRequestWire(),
+        )
+        return paged_model_from_paged_detail(paged_detail)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Render the artifact load result."""
@@ -189,13 +217,16 @@ class ArtifactPanelModal(OptionListNavigationMixin, ModalScreen[None]):
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             assert result is not None
-            self._detail = result
-            self._state.set_detail(result)
+            self._paged_model = result
+            self._detail = result.detail
+            self._state.set_paged_model(result)
             self._error_message = None
             self._render_detail()
         elif event.state == WorkerState.ERROR:
+            self._paged_model = None
             self._detail = None
             self._state.detail = None
+            self._state.paged_model = None
             self._error_message = str(event.worker.error or "Unknown artifact error")
             self._render_error()
 
