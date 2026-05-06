@@ -174,6 +174,12 @@ def main() -> NoReturn:
 
         handle_logs_command(args)
 
+    # --- mobile ---
+    if args.command == "mobile":
+        from .mobile_handler import handle_mobile_command
+
+        handle_mobile_command(args)
+
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command

@@ -8,6 +8,14 @@ chat_install:
   timeout_seconds: 900
   restart_attempts: 3
 
+mobile_gateway:
+  bind_address: "127.0.0.1"
+  port: 7629
+  state_dir: ""
+  allow_non_loopback: false
+  command: ""
+  startup_timeout_seconds: 10
+
 ace:
   inactive_seconds: 600
   snippets: {}
