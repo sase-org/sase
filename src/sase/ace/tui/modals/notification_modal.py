@@ -11,8 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 
 from sase.ace.tui.graphics import (
-    GraphicsCapability,
-    KittyImageRenderable,
+    ImageRenderContext,
     image_preview,
 )
 from sase.notifications import (
@@ -75,7 +74,6 @@ class NotificationModal(
         self._initial_index = initial_index
         self._current_file_index: int = 0
         self._pending_confirm_notification_id: str | None = None
-        self._current_image_renderable: KittyImageRenderable | None = None
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
@@ -114,7 +112,7 @@ class NotificationModal(
     def _image_preview(
         self,
         path: str,
-        capability: GraphicsCapability,
+        context: ImageRenderContext,
         *,
         columns: int,
         rows: int,
@@ -124,7 +122,7 @@ class NotificationModal(
         Kept as a method so tests and integrations that patch this module's
         ``image_preview`` symbol still affect preview rendering after the split.
         """
-        return image_preview(path, capability, columns=columns, rows=rows)
+        return image_preview(path, context, columns=columns, rows=rows)
 
     def _mark_all_read(self) -> None:
         """Mark all notifications as read in the backing store."""

@@ -762,15 +762,14 @@ a provider prefix; use `opencode models` to list models in your configured envir
 
 ### General
 
-| Variable                              | Description                                                                                                                                                      |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset.                                                                    |
-| `SASE_TUI_GRAPHICS`                   | Control ACE native terminal graphics probing only: disable with `off`/`0`; force Kitty probing with `kitty`/`force`/`1`. Portable cell image previews still run. |
-| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                  |
-| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                             |
-| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                      |
-| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                   |
-| `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, and `just test-cov`.                                                                      |
+| Variable                              | Description                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset. |
+| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.               |
+| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                          |
+| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                   |
+| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                |
+| `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, and `just test-cov`.   |
 
 ### Workspace Management (Internal)
 

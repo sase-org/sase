@@ -91,7 +91,7 @@ than 10 Markdown sources remain after filtering, SASE skips Markdown PDF renderi
 note explaining the limit. The final PDF and image lists are also written to `done.json` as `markdown_pdf_paths` and
 `image_paths` for agent metadata consumers.
 
-See [`agent_images.md`](agent_images.md) for the full attachment contract and the ACE terminal graphics preview notes.
+See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 
 For user-agent completion and failure notifications, `action_data` also includes `bead_display` when the agent name maps
 to a bead created by `sase bead work`. The value includes the bead ID plus the issue description or title when the bead

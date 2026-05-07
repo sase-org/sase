@@ -42,8 +42,8 @@ def _make_file_panel() -> MagicMock:
     panel._consume_image_cleanup_segments = types.MethodType(
         AgentFilePanel._consume_image_cleanup_segments, panel
     )
-    panel._graphics_capability = types.MethodType(
-        AgentFilePanel._graphics_capability, panel
+    panel._image_render_context = types.MethodType(
+        AgentFilePanel._image_render_context, panel
     )
     panel._image_preview_size = MagicMock(return_value=(33, 9))
     panel._display_static_image = types.MethodType(
@@ -61,7 +61,7 @@ def test_agent_file_panel_uses_image_preview_before_text_read(
     panel = _make_file_panel()
     calls: list[tuple[str, int, int]] = []
 
-    def fake_image_preview(path, _capability, *, columns, rows):
+    def fake_image_preview(path, _context, *, columns, rows):
         calls.append((path, columns, rows))
         return Text("image-preview")
 
@@ -110,7 +110,7 @@ def test_notification_modal_uses_image_preview_before_text_read(
             return scroll
         raise AssertionError(selector)
 
-    def fake_image_preview(path, _capability, *, columns, rows):
+    def fake_image_preview(path, _context, *, columns, rows):
         calls.append(path)
         assert (columns, rows) == (28, 7)
         return Text("image-preview")

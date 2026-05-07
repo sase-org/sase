@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 11:47:17
-status: wip
+status: done
 prompt: sdd/prompts/202605/pillow_only_image_rendering.md
 ---
 # Remove Native Terminal Image Rendering

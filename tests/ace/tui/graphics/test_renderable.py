@@ -8,48 +8,16 @@ from rich.segment import Segment
 
 from sase.ace.tui.graphics import (
     CellImageRenderable,
-    GraphicsCapability,
     ImageFallbackRenderable,
-    KITTY_PLACEHOLDER,
-    KittyImageRenderable,
+    ImageRenderContext,
     UPPER_HALF_BLOCK,
     clear_cell_image_cache,
     image_preview,
 )
 
 
-PNG_BYTES = b"\x89PNG\r\n\x1a\nfake"
-
-
-def _kitty_capability() -> GraphicsCapability:
-    return GraphicsCapability(
-        supported=True,
-        protocol="kitty",
-        passthrough="none",
-        reason="test",
-        terminal="kitty",
-        truecolor=True,
-        probed=True,
-    )
-
-
-def _tmux_kitty_capability() -> GraphicsCapability:
-    return GraphicsCapability(
-        supported=True,
-        protocol="kitty",
-        passthrough="tmux",
-        reason="test",
-        terminal="kitty",
-        truecolor=True,
-        probed=False,
-    )
-
-
-def _cell_capability(*, truecolor: bool = True) -> GraphicsCapability:
-    return GraphicsCapability.unavailable(
-        "no native graphics",
-        truecolor=truecolor,
-    )
+def _render_context(*, truecolor: bool = True) -> ImageRenderContext:
+    return ImageRenderContext(truecolor=truecolor, reason="test")
 
 
 def _write_image(
@@ -84,7 +52,7 @@ def _line_segments(segments: list[Segment]) -> list[list[Segment]]:
     return lines
 
 
-def test_image_preview_uses_cell_renderable_when_capability_unsupported(
+def test_image_preview_uses_cell_renderable(
     tmp_path: Path,
 ) -> None:
     image = tmp_path / "sample.png"
@@ -92,40 +60,31 @@ def test_image_preview_uses_cell_renderable_when_capability_unsupported(
 
     renderable = image_preview(
         str(image),
-        _cell_capability(),
+        _render_context(),
     )
 
     assert isinstance(renderable, CellImageRenderable)
 
 
-def test_image_preview_returns_kitty_renderable_for_png(tmp_path: Path) -> None:
+def test_image_preview_returns_cell_renderable_for_png(tmp_path: Path) -> None:
     image = tmp_path / "sample.png"
-    image.write_bytes(PNG_BYTES)
-
-    renderable = image_preview(str(image), _kitty_capability(), columns=2, rows=1)
-
-    assert isinstance(renderable, KittyImageRenderable)
-    assert renderable.columns == 2
-    assert renderable.rows == 1
-
-
-def test_image_preview_returns_tmux_kitty_renderable_for_png(tmp_path: Path) -> None:
-    image = tmp_path / "sample.png"
-    image.write_bytes(PNG_BYTES)
+    _write_image(image)
 
     renderable = image_preview(
         str(image),
-        _tmux_kitty_capability(),
+        _render_context(),
         columns=2,
         rows=1,
     )
 
-    assert isinstance(renderable, KittyImageRenderable)
-    assert renderable.passthrough == "tmux"
+    assert isinstance(renderable, CellImageRenderable)
+    assert renderable.columns == 2
+    assert renderable.rows == 1
 
 
-def test_jpeg_webp_and_gif_use_cell_renderable(tmp_path: Path) -> None:
+def test_png_jpeg_webp_and_gif_use_cell_renderable(tmp_path: Path) -> None:
     paths = [
+        tmp_path / "sample.png",
         tmp_path / "sample.jpg",
         tmp_path / "sample.webp",
         tmp_path / "sample.gif",
@@ -133,7 +92,7 @@ def test_jpeg_webp_and_gif_use_cell_renderable(tmp_path: Path) -> None:
     for path in paths:
         _write_image(path)
 
-    renderables = [image_preview(str(path), _kitty_capability()) for path in paths]
+    renderables = [image_preview(str(path), _render_context()) for path in paths]
 
     assert all(
         isinstance(renderable, CellImageRenderable) for renderable in renderables
@@ -143,18 +102,18 @@ def test_jpeg_webp_and_gif_use_cell_renderable(tmp_path: Path) -> None:
 def test_missing_unsupported_and_decode_failing_images_fall_back(
     tmp_path: Path,
 ) -> None:
-    missing = image_preview(str(tmp_path / "missing.png"), _cell_capability())
-    unsupported = image_preview(str(tmp_path / "notes.txt"), _cell_capability())
+    missing = image_preview(str(tmp_path / "missing.png"), _render_context())
+    unsupported = image_preview(str(tmp_path / "notes.txt"), _render_context())
     broken_path = tmp_path / "broken.png"
     broken_path.write_bytes(b"not an image")
-    broken = image_preview(str(broken_path), _cell_capability())
+    broken = image_preview(str(broken_path), _render_context())
 
     assert isinstance(missing, ImageFallbackRenderable)
     assert missing.reason == "file does not exist"
     assert isinstance(unsupported, ImageFallbackRenderable)
     assert "extension" in unsupported.reason
     assert isinstance(broken, ImageFallbackRenderable)
-    assert "portable preview unavailable" in broken.reason
+    assert "image preview unavailable" in broken.reason
 
 
 def test_cell_rendering_respects_requested_dimensions(tmp_path: Path) -> None:
@@ -171,7 +130,7 @@ def test_cell_rendering_respects_requested_dimensions(tmp_path: Path) -> None:
 
         renderable = image_preview(
             str(image),
-            _cell_capability(),
+            _render_context(),
             columns=columns,
             rows=rows,
         )
@@ -191,7 +150,7 @@ def test_cell_cache_invalidates_when_file_metadata_changes(tmp_path: Path) -> No
     image = tmp_path / "cached.png"
     _write_image(image, color=(255, 0, 0, 255))
 
-    first = image_preview(str(image), _cell_capability(), columns=2, rows=1)
+    first = image_preview(str(image), _render_context(), columns=2, rows=1)
     first_style = next(
         segment.style for segment in _render_segments(first) if segment.style
     )
@@ -200,7 +159,7 @@ def test_cell_cache_invalidates_when_file_metadata_changes(tmp_path: Path) -> No
     stat = image.stat()
     os.utime(image, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
 
-    second = image_preview(str(image), _cell_capability(), columns=2, rows=1)
+    second = image_preview(str(image), _render_context(), columns=2, rows=1)
     second_style = next(
         segment.style for segment in _render_segments(second) if segment.style
     )
@@ -209,36 +168,10 @@ def test_cell_cache_invalidates_when_file_metadata_changes(tmp_path: Path) -> No
 
 
 def test_no_preview_renderable_emits_more_rows_than_requested(tmp_path: Path) -> None:
-    cell_path = tmp_path / "cell.png"
-    _write_image(cell_path)
-    kitty_path = tmp_path / "kitty.png"
-    kitty_path.write_bytes(PNG_BYTES)
+    image = tmp_path / "cell.png"
+    _write_image(image)
 
-    cell = image_preview(str(cell_path), _cell_capability(), columns=4, rows=2)
-    kitty = image_preview(str(kitty_path), _kitty_capability(), columns=4, rows=2)
+    renderable = image_preview(str(image), _render_context(), columns=4, rows=2)
 
-    for renderable in (cell, kitty):
-        lines = _line_segments(_render_segments(renderable))
-        assert len(lines) <= 2
-
-
-def test_kitty_renderable_emits_control_segments_and_placeholders(
-    tmp_path: Path,
-) -> None:
-    image = tmp_path / "sample.png"
-    image.write_bytes(PNG_BYTES)
-    renderable = KittyImageRenderable.from_path(
-        str(image),
-        columns=2,
-        rows=1,
-        passthrough="none",
-    )
-
-    console = Console(record=True, force_terminal=True, width=20)
-    segments = list(console.render(renderable))
-
-    assert any(segment.control for segment in segments)
-    assert any(
-        isinstance(segment, Segment) and KITTY_PLACEHOLDER in segment.text
-        for segment in segments
-    )
+    lines = _line_segments(_render_segments(renderable))
+    assert len(lines) <= 2

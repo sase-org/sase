@@ -1,4 +1,4 @@
-"""Sizing helpers for terminal image preview placements."""
+"""Sizing helpers for image previews."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def image_preview_size_for_viewport(
     max_columns: int = MAX_IMAGE_PREVIEW_COLUMNS,
     max_rows: int = MAX_IMAGE_PREVIEW_ROWS,
 ) -> tuple[int, int]:
-    """Return a Kitty placeholder size that fits the visible viewport.
+    """Return an image preview size that fits the visible viewport.
 
     Textual panels may have borders, padding, and a scrollbar gutter. Prefer the
     scrollable content region because it reflects the cells where Rich output is

@@ -6,7 +6,7 @@ import os
 import subprocess
 from typing import Any
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -14,9 +14,8 @@ from textual.widgets import Label, Static
 
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.graphics import (
-    GraphicsCapability,
-    KittyImageRenderable,
-    TerminalControlRenderable,
+    ImageRenderContext,
+    image_render_context,
     image_preview_size_for_viewport,
     is_supported_image_path,
 )
@@ -86,22 +85,19 @@ class NotificationAttachmentMixin:
     ) -> None:
         """Render an image attachment using the TUI graphics preview layer."""
         cleanup = self._consume_image_cleanup_segments()
-        capability = self._graphics_capability()
+        context = self._image_render_context()
         columns, rows = self._image_preview_size(content_widget)
         renderable = self._image_preview(
             expanded_path,
-            capability,
+            context,
             columns=columns,
             rows=rows,
-        )
-        self._current_image_renderable = (
-            renderable if isinstance(renderable, KittyImageRenderable) else None
         )
         content_widget.update(Group(*cleanup, renderable))
         self._reset_file_scroll()
 
     def _image_preview_size(self: Any, content_widget: Static) -> tuple[int, int]:
-        """Choose a placeholder size from the visible notification file pane."""
+        """Choose a preview size from the visible notification file pane."""
         try:
             scroll = self.query_one("#notification-file-scroll", VerticalScroll)
         except Exception:
@@ -111,22 +107,12 @@ class NotificationAttachmentMixin:
             content_widget=content_widget,
         )
 
-    def _graphics_capability(self: Any) -> GraphicsCapability:
-        """Return app graphics support, or a fallback when the modal is unmounted."""
-        try:
-            capability = getattr(self.app, "graphics_capability", None)
-        except Exception:
-            capability = None
-        if isinstance(capability, GraphicsCapability):
-            return capability
-        return GraphicsCapability.unavailable("terminal graphics were not probed")
+    def _image_render_context(self: Any) -> ImageRenderContext:
+        """Return the image preview rendering context."""
+        return image_render_context()
 
-    def _consume_image_cleanup_segments(self: Any) -> list[TerminalControlRenderable]:
-        """Return terminal cleanup controls for the active Kitty image, if any."""
-        current = self._current_image_renderable
-        self._current_image_renderable = None
-        if isinstance(current, KittyImageRenderable):
-            return [TerminalControlRenderable(current.cleanup_sequence())]
+    def _consume_image_cleanup_segments(self: Any) -> list[RenderableType]:
+        """Compatibility no-op for surfaces that used image cleanup state."""
         return []
 
     def _reset_file_scroll(self: Any) -> None:

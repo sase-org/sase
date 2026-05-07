@@ -3,14 +3,13 @@
 import os
 from datetime import datetime
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.text import Text
 
 from sase.ace.tui.graphics import (
-    GraphicsCapability,
-    KittyImageRenderable,
-    TerminalControlRenderable,
+    ImageRenderContext,
     image_preview,
+    image_render_context,
     image_preview_size_for_viewport,
     is_supported_image_path,
 )
@@ -24,7 +23,6 @@ class FilePanelDisplayMixin:
 
     _full_content: str | None
     _static_header_path: str | None
-    _current_image_renderable: KittyImageRenderable | None
 
     def _display_file_with_timestamp(
         self,
@@ -279,20 +277,17 @@ class FilePanelDisplayMixin:
         self._post_trim_changed()  # type: ignore[attr-defined]
 
     def _display_static_image(self, expanded_path: str) -> None:
-        """Display a static raster image through the terminal graphics layer."""
+        """Display a static raster image through the preview layer."""
         cleanup = self._consume_image_cleanup_segments()
-        capability = self._graphics_capability()
+        context = self._image_render_context()
         columns, rows = self._image_preview_size()
         renderable = image_preview(
             expanded_path,
-            capability,
+            context,
             columns=columns,
             rows=rows,
         )
 
-        self._current_image_renderable = (
-            renderable if isinstance(renderable, KittyImageRenderable) else None
-        )
         self._full_content = None
         self._full_content_lexer = "text"  # type: ignore[attr-defined]
         self._content_mode = "image"  # type: ignore[attr-defined]
@@ -308,18 +303,12 @@ class FilePanelDisplayMixin:
         self._post_file_visibility(has_file=os.path.exists(expanded_path))  # type: ignore[attr-defined]
         self._post_trim_changed()  # type: ignore[attr-defined]
 
-    def _graphics_capability(self) -> GraphicsCapability:
-        """Return the app-level graphics capability, or an unavailable fallback."""
-        try:
-            capability = getattr(self.app, "graphics_capability", None)  # type: ignore[attr-defined]
-        except Exception:
-            capability = None
-        if isinstance(capability, GraphicsCapability):
-            return capability
-        return GraphicsCapability.unavailable("terminal graphics were not probed")
+    def _image_render_context(self) -> ImageRenderContext:
+        """Return the image preview rendering context."""
+        return image_render_context()
 
     def _image_preview_size(self) -> tuple[int, int]:
-        """Choose a placeholder size from the visible file-scroll viewport."""
+        """Choose a preview size from the visible file-scroll viewport."""
         scroll = self._get_scroll_container()  # type: ignore[attr-defined]
         return image_preview_size_for_viewport(
             scroll_widget=scroll,
@@ -327,12 +316,8 @@ class FilePanelDisplayMixin:
             reserved_rows=2,
         )
 
-    def _consume_image_cleanup_segments(self) -> list[TerminalControlRenderable]:
-        """Return terminal cleanup controls for the active Kitty image, if any."""
-        current = getattr(self, "_current_image_renderable", None)
-        self._current_image_renderable = None
-        if isinstance(current, KittyImageRenderable):
-            return [TerminalControlRenderable(current.cleanup_sequence())]
+    def _consume_image_cleanup_segments(self) -> list[RenderableType]:
+        """Compatibility no-op for surfaces that used image cleanup state."""
         return []
 
     def _show_loading(self) -> None:

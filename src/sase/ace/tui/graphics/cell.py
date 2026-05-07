@@ -192,7 +192,7 @@ def _rgb_to_ansi_256(red: int, green: int, blue: int) -> int:
 
 def _fallback_text(reason: str) -> Text:
     return Text(
-        f"Portable image preview unavailable: {reason}",
+        f"Image preview unavailable: {reason}",
         style="dim italic #D7AF5F",
     )
 

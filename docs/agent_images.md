@@ -1,4 +1,4 @@
-# Agent Attachments and TUI Graphics
+# Agent Attachments and Image Previews
 
 ## Overview
 
@@ -75,37 +75,20 @@ storage and lets downstream plugins decide how to render each file:
 
 See [`notifications.md`](notifications.md) for the notification model and modal keybindings.
 
-## ACE Terminal Graphics Foundation
+## ACE Image Preview Foundation
 
-ACE detects terminal graphics support before the Textual app starts and stores the detected capability on `AceApp`. The
-notification modal and Agents tab file panel route supported image extensions through the preview layer before
+The notification modal and Agents tab file panel route supported image extensions through the preview layer before
 attempting text decoding.
 
-Default capability detection is conservative and side-effect-free so startup does not leak terminal probe replies into
-Textual input handling. It trusts known Kitty-placeholder-capable terminal environments and tmux metadata, and reserves
-the active Kitty probe for explicit force mode:
+The internal preview layer renders PNG, JPEG, WebP, and GIF attachments as a Rich cell preview. It uses Pillow to decode
+the first image frame, fits it inside the visible panel bounds, composites transparency onto a dark background, and
+paints the result with colored half-block terminal cells. It works the same way in ordinary terminals, multiplexed
+sessions, SSH sessions, and environments with no image protocol support.
 
-- known Kitty-placeholder-capable terminal families are considered (`kitty` and `ghostty`)
-- tmux sessions query the outer terminal and `allow-passthrough` setting without emitting graphics probes
-- force mode bypasses the known-terminal-family gate
-- an active Kitty graphics probe is attempted only for force mode unless the caller explicitly skips probing
-- truecolor advertisement is recorded for diagnostics and placeholder rendering, but missing `COLORTERM=truecolor` does
-  not block a successful active probe in tmux or force mode
-
-The internal preview layer renders PNG, JPEG, WebP, and GIF attachments as a portable Rich cell preview by default. That
-preview uses Pillow to decode the first image frame, fits it inside the visible panel bounds, and paints it with colored
-half-block terminal cells. It works in ordinary terminals, tmux, SSH sessions, and terminal stacks where native graphics
-probing fails.
-
-When Kitty graphics support is detected, PNG files still use the higher-fidelity native Kitty path. Native graphics use
-the Kitty Unicode placeholder protocol with explicit row/column coordinate marks and tmux passthrough wrapping when
-needed. They are an upgrade path only: if Kitty is unavailable, disabled, or not applicable to the file type, ACE falls
-back to the portable cell renderer. Missing files, unsupported extensions, decode errors, and images above the renderer
-guardrails show a concise text fallback with the file path, byte size when available, and the relevant editor action
-(`e` in notifications or `%E` in agent panels).
-
-Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable native terminal
-graphics detection. This does not disable portable cell previews. Set it to `kitty` (also accepts `1`, `true`, `yes`,
-`on`, or `force`) to bypass the known-terminal-family gate while still requiring a successful active probe.
+ACE checks only terminal color depth from the environment. When `COLORTERM=truecolor`, `COLORTERM=24bit`, or a truecolor
+marker in `TERM` is present, previews use 24-bit color; otherwise they use 256-color approximations. Missing files,
+unsupported extensions, decode errors, missing Pillow, and images above the renderer guardrails show a concise text
+fallback with the file path, byte size when available, and the relevant editor action (`e` in notifications or `%E` in
+agent panels).
 
 Source: `src/sase/ace/tui/graphics/`
