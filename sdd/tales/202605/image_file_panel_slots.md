@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 17:24:38
-status: wip
+status: done
 prompt: sdd/prompts/202605/image_file_panel_slots.md
 ---
 # Plan: Completed-Agent Image File Panel Slots

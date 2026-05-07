@@ -14,8 +14,19 @@ from sase.ace.tui.graphics import (
     image_preview_size_for_viewport,
 )
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.ace.tui.models._loaders._done_loaders import _load_done_agent_for_dir
+from sase.ace.tui.models._loaders._done_loaders import (
+    _load_done_agent_for_dir,
+    load_done_agents_from_snapshot,
+)
 from sase.ace.tui.widgets.file_panel import AgentFilePanel
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    DoneMarkerWire,
+)
 from sase.notifications import Notification
 
 
@@ -218,6 +229,47 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
 
     assert agent is not None
     assert agent.extra_files == [str(plan), str(pdf), str(image), str(duplicate)]
+
+
+def test_snapshot_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.md"
+    pdf = tmp_path / "notes.pdf"
+    image = tmp_path / "image.png"
+    duplicate = tmp_path / "duplicate.png"
+    record = AgentArtifactRecordWire(
+        project_name="myproj",
+        project_dir=str(tmp_path / "myproj"),
+        project_file=str(tmp_path / "myproj" / "myproj.gp"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "artifacts" / "ace-run" / "20260430120000"),
+        timestamp="20260430120000",
+        done=DoneMarkerWire(
+            outcome="completed",
+            cl_name="feature",
+            project_file="/tmp/project.gp",
+            plan_path=str(plan),
+            markdown_pdf_paths=[str(pdf), str(plan)],
+            image_paths=[str(image), str(plan), str(duplicate)],
+        ),
+        has_done_marker=True,
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root=str(tmp_path),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[record],
+    )
+
+    agents = load_done_agents_from_snapshot(snapshot, {}, {})
+
+    assert len(agents) == 1
+    assert agents[0].extra_files == [
+        str(plan),
+        str(pdf),
+        str(image),
+        str(duplicate),
+    ]
 
 
 def test_image_fallback_mentions_editor_actions(tmp_path: Path) -> None:
