@@ -58,3 +58,19 @@ def save_last_agent_selection(selection: SelectionItem) -> bool:
         return True
     except OSError:
         return False
+
+
+def clear_last_agent_selection() -> bool:
+    """Remove the persisted last agent selection, best-effort.
+
+    Returns:
+        True if the selection file was removed, False if it was absent or
+        could not be removed.
+    """
+    try:
+        _LAST_SELECTION_FILE.unlink()
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False

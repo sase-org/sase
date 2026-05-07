@@ -37,6 +37,7 @@ def missing_workspace_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(_project_file: str, _name: str) -> str:
         raise ValueError("No workspace plugin detected a workflow type")
 
+    monkeypatch.setattr(_entry_points.os.path, "exists", lambda _path: True)
     monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _raise)
 
 
@@ -62,6 +63,48 @@ def test_repeat_last_selection_reports_vcs_detection_error_without_launching(
     ]
     assert app.prompt_launches == []
     assert app.editor_launches == []
+
+
+def test_repeat_last_selection_clears_stale_missing_project_without_launching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_calls: list[bool] = []
+    persisted_selection = SelectionItem(
+        display_name="branch",
+        item_type="cl",
+        project_name="project",
+        cl_name="branch",
+    )
+
+    def _unexpected_prefix(_project_file: str, _name: str) -> str:
+        raise AssertionError("stale selections should not detect workspace type")
+
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection.load_last_agent_selection",
+        lambda: persisted_selection,
+    )
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection.clear_last_agent_selection",
+        lambda: clear_calls.append(True) or True,
+    )
+    monkeypatch.setattr(_entry_points.os.path, "exists", lambda _path: False)
+    monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _unexpected_prefix)
+
+    app = _App()
+
+    app.action_start_agent_from_changespec()
+
+    assert app.notifications == [
+        (
+            "Saved @/<space> selection is stale: "
+            "project file not found for 'project'; cleared saved selection",
+            "warning",
+        )
+    ]
+    assert app.prompt_launches == []
+    assert app.editor_launches == []
+    assert app._last_custom_agent_selection is None
+    assert clear_calls == [True]
 
 
 def test_quick_current_changespec_reports_vcs_detection_error_without_saving(

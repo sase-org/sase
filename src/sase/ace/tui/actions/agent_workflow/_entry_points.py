@@ -303,6 +303,17 @@ class EntryPointsMixin:
         project_file = os.path.expanduser(
             f"~/.sase/projects/{project_name}/{project_name}.gp"
         )
+        if not os.path.exists(project_file):
+            from sase.ace.last_agent_selection import clear_last_agent_selection
+
+            self._last_custom_agent_selection = None
+            clear_last_agent_selection()
+            self.notify(  # type: ignore[attr-defined]
+                "Saved @/<space> selection is stale: "
+                f"project file not found for {project_name!r}; cleared saved selection",
+                severity="warning",
+            )
+            return
 
         if selection.item_type == "cl" and selection.cl_name:
             prefix = self._vcs_prompt_prefix_or_notify(project_file, selection.cl_name)
