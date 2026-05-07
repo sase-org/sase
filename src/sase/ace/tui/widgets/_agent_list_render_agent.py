@@ -34,6 +34,7 @@ def format_agent_option(
     fold_annotation: str = "",
     is_expanded: bool = False,
     is_marked: bool = False,
+    is_unread: bool = False,
     hint_char: str | None = None,
     tag_label: str | None = None,
     now: datetime | None = None,
@@ -43,6 +44,9 @@ def format_agent_option(
     text = render_tier_gutter(tier_styles)
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
+
+    if is_unread:
+        text.append("✦ ", style="bold #FFD75F")
 
     if is_marked:
         text.append("[✓] ", style="bold #00D700")
@@ -250,6 +254,7 @@ def cached_format_agent_option(
     fold_annotation: str = "",
     is_expanded: bool = False,
     is_marked: bool = False,
+    is_unread: bool = False,
     hint_char: str | None = None,
     tag_label: str | None = None,
     now: datetime | None = None,
@@ -269,6 +274,7 @@ def cached_format_agent_option(
         fold_annotation=fold_annotation,
         is_expanded=is_expanded,
         is_marked=is_marked,
+        is_unread=is_unread,
         hint_char=hint_char,
         tag_label=tag_label,
         now=now,
@@ -284,6 +290,7 @@ def cached_format_agent_option(
         fold_annotation=fold_annotation,
         is_expanded=is_expanded,
         is_marked=is_marked,
+        is_unread=is_unread,
         hint_char=hint_char,
         tag_label=tag_label,
         now=now,

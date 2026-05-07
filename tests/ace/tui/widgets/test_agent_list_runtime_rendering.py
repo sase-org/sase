@@ -184,6 +184,29 @@ def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
     assert " #fix" in left_with.plain
 
 
+def test_format_agent_option_renders_unread_marker_before_mark() -> None:
+    row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
+
+    left, _, _ = format_agent_option(
+        row_agent,
+        0,
+        is_selected=False,
+        is_marked=True,
+        is_unread=True,
+    )
+
+    assert "✦" in left.plain
+    assert left.plain.index("✦") < left.plain.index("[✓]")
+
+
+def test_format_agent_option_omits_unread_marker_by_default() -> None:
+    row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
+
+    left, _, _ = format_agent_option(row_agent, 0, is_selected=False)
+
+    assert "✦" not in left.plain
+
+
 def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() -> None:
     row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
     row_agent.agent_name = "coder"

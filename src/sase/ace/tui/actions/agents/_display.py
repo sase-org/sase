@@ -56,6 +56,7 @@ class AgentDisplayMixin(PanelsMixin, DetailMixin):
     _agent_detail_debouncer: DetailPanelDebouncer
 
     _marked_agents: set[tuple[AgentType, str, str | None]]
+    _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
     # Banner-target inverse map; agents-tab jump mode populates this when

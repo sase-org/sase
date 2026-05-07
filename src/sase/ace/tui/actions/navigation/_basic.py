@@ -107,6 +107,15 @@ class BasicNavigationMixin(NavigationMixinBase):
         else:
             self._current_group_key = None
             self.current_idx = payload
+            if 0 <= payload < len(self._agents):  # type: ignore[attr-defined]
+                agent = self._agents[payload]  # type: ignore[attr-defined]
+                unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+                if unread_ids is not None and agent.identity in unread_ids:
+                    unread_ids.discard(agent.identity)
+                    if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                        self._refresh_agents_display(  # type: ignore[attr-defined]
+                            list_changed=True, defer_detail=True
+                        )
         # The ``current_idx`` setter only fires ``watch_current_idx``
         # (the refresh trigger) when the index actually changes.
         # Banner-targeted stops leave ``current_idx`` untouched, and

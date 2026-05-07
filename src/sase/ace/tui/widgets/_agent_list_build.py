@@ -163,6 +163,7 @@ def build_list(
     *,
     fold_counts: dict[str, tuple[int, int]] | None = None,
     marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+    unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
     jump_hints: dict[int, str] | None = None,
     banner_jump_hints: dict[tuple[str, ...], str] | None = None,
     fold_registry: AgentGroupFoldRegistry | None = None,
@@ -189,6 +190,7 @@ def build_list(
     widget._banner_row_by_key = {}
 
     marked = marked_agents or set()
+    unread = unread_agents or set()
     parents_with_visible_children, fully_expanded_parents = _compute_visible_parents(
         agents
     )
@@ -216,6 +218,7 @@ def build_list(
             and agent.raw_suffix in parents_with_visible_children
         )
         is_marked = agent.identity in marked
+        is_unread = agent.identity in unread
         annotation = compute_fold_annotation(
             agent,
             fold_counts,
@@ -236,6 +239,7 @@ def build_list(
             fold_annotation=annotation,
             is_expanded=is_expanded,
             is_marked=is_marked,
+            is_unread=is_unread,
             hint_char=hint,
             tag_label=tag_label,
             now=now,
@@ -246,6 +250,7 @@ def build_list(
             "fold_annotation": annotation,
             "is_expanded": is_expanded,
             "is_marked": is_marked,
+            "is_unread": is_unread,
             "hint_char": hint,
             "tag_label": tag_label,
             "is_selected": is_selected_agent,
@@ -472,6 +477,7 @@ def patch_row(
     agent_idx: int,
     *,
     marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+    unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
     is_selected: bool | None = None,
     now: datetime | None = None,
 ) -> bool:
@@ -495,6 +501,9 @@ def patch_row(
     is_marked = (
         ctx["is_marked"] if marked_agents is None else agent.identity in marked_agents
     )
+    is_unread = (
+        ctx["is_unread"] if unread_agents is None else agent.identity in unread_agents
+    )
     sel = ctx["is_selected"] if is_selected is None else is_selected
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of
@@ -509,6 +518,7 @@ def patch_row(
         fold_annotation=ctx["fold_annotation"],
         is_expanded=ctx["is_expanded"],
         is_marked=is_marked,
+        is_unread=is_unread,
         hint_char=ctx["hint_char"],
         tag_label=ctx.get("tag_label"),
         now=now,
@@ -524,6 +534,7 @@ def patch_row(
     )
 
     ctx["is_marked"] = is_marked
+    ctx["is_unread"] = is_unread
     ctx["is_selected"] = sel
 
     widget._programmatic_update = True

@@ -91,6 +91,8 @@ class AgentLoadingMixin:
     # Agent completion tracking for notifications
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
+    _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
+    _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
 
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]

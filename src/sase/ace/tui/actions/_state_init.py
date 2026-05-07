@@ -320,6 +320,10 @@ class StateInitMixin:
         from ...dismissed_agents import load_dismissed_agents
 
         self._last_unread_ids: set[str] = set()
+        self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._agent_display_status_by_identity: dict[
+            tuple[AgentType, str, str | None], str
+        ] = {}
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()

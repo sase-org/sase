@@ -481,6 +481,20 @@ class EventHandlersMixin:
         # can target the group; selecting an agent row clears it.
         self._current_group_key = event.group_key  # type: ignore[attr-defined]
 
+        if event.group_key is None and 0 <= target_global < len(self._agents):
+            target_agent = self._agents[target_global]
+            unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+            if unread_ids is not None and target_agent.identity in unread_ids:
+                unread_ids.discard(target_agent.identity)
+                patched = False
+                patch_row = getattr(self, "_try_patch_agent_row", None)
+                if callable(patch_row):
+                    patched = bool(patch_row(target_agent))
+                if not patched:
+                    refresh = getattr(self, "_refresh_agents_display", None)
+                    if callable(refresh):
+                        refresh(list_changed=True, defer_detail=True)
+
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
         if event.tab != self.current_tab:

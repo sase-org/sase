@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 00:42:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_row_unread_indicator.md
 ---
 # Agent Row Unread Indicator Plan

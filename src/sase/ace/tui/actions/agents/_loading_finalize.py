@@ -27,6 +27,41 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -> None:
+    """Mark newly terminal visible agent rows as unread for this TUI session."""
+    old_status_by_identity = getattr(app, "_agent_display_status_by_identity", {})
+    unread_ids = getattr(app, "_unread_completed_agent_ids", None)
+    if unread_ids is None:
+        unread_ids = set()
+        app._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
+
+    visible_ids = {agent.identity for agent in app._agents}
+    unread_ids.intersection_update(visible_ids)
+
+    selected_visible_identity = None
+    if (
+        on_agents_tab
+        and getattr(app, "_current_group_key", None) is None
+        and 0 <= app.current_idx < len(app._agents)
+    ):
+        selected_visible_identity = app._agents[app.current_idx].identity
+        unread_ids.discard(selected_visible_identity)
+
+    for agent in app._agents:
+        old_status = old_status_by_identity.get(agent.identity)
+        if (
+            old_status is not None
+            and old_status not in DISMISSABLE_STATUSES
+            and agent.status in DISMISSABLE_STATUSES
+            and agent.identity != selected_visible_identity
+        ):
+            unread_ids.add(agent.identity)
+
+    app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
+        agent.identity: agent.status for agent in app._agents
+    }
+
+
 def get_or_parse_agent_query(app: AgentLoadingMixin) -> QueryExpr | None:
     """Return the parsed AST for the active agent search query.
 
@@ -219,6 +254,8 @@ def finalize_agent_list(
                 app._agents_last_identity = app._agents[new_idx].identity  # type: ignore[attr-defined]
             else:
                 app._agents_last_identity = None  # type: ignore[attr-defined]
+
+    _sync_unread_completed_agents(app, on_agents_tab)
 
     # Garbage-collect collapse entries for groups that vanished after
     # the latest fold/search/filter pipeline so a re-appearing group

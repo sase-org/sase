@@ -177,6 +177,9 @@ class PanelsMixin:
         focused_idx = self._panel_group.focused_idx
         fold_registry = self._group_fold_registry
         marked = self._marked_agents
+        unread: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
         fold_counts = self._fold_counts
         attempt_number = self.current_attempt_number
         current_group_key = self._current_group_key
@@ -242,6 +245,7 @@ class PanelsMixin:
                 local_idx,
                 fold_counts=fold_counts,
                 marked_agents=marked,
+                unread_agents=unread,
                 jump_hints=local_jump_hints,
                 banner_jump_hints=local_banner_hints,
                 current_attempt_number=attempt_number if idx == focused_idx else None,
@@ -576,6 +580,7 @@ class PanelsMixin:
         ok = widget.patch_agent_row(
             local_idx,
             marked_agents=self._marked_agents,
+            unread_agents=getattr(self, "_unread_completed_agent_ids", set()),
             is_selected=is_selected,
             now=None,
         )

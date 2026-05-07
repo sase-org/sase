@@ -120,6 +120,33 @@ def test_render_key_changes_when_tag_label_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_unread_flips() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        is_unread=False,
+        hint_char=None,
+        now=None,
+    )
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        is_unread=True,
+        hint_char=None,
+        now=None,
+    )
+    assert k1 != k2
+
+
 def test_render_key_changes_when_bead_agent_name_changes() -> None:
     a = _agent(agent_name="sase-x.3")
     k1 = agent_render_key(
@@ -236,6 +263,20 @@ def test_cached_format_agent_option_invalidates_on_field_change() -> None:
     assert parts_before[0] is not parts_after[0]
 
 
+def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
+    cache = AgentRenderCache()
+    a = _agent()
+    parts_before = cached_format_agent_option(
+        cache, a, 0, is_selected=False, is_unread=False, now=None
+    )
+    parts_after = cached_format_agent_option(
+        cache, a, 0, is_selected=False, is_unread=True, now=None
+    )
+    assert parts_before[0] is not parts_after[0]
+    assert "✦" not in parts_before[0].plain
+    assert "✦" in parts_after[0].plain
+
+
 def test_invalidate_agent_drops_only_that_identity() -> None:
     cache = AgentRenderCache()
     a = _agent(cl_name="alpha")
@@ -330,3 +371,22 @@ async def test_patch_agent_row_reflects_mark_change() -> None:
         # unmarked one — the cached path must not return the stale Text.
         assert "[✓]" in str(prompt_marked)
         assert "[✓]" not in str(prompt_unmarked)
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_reflects_unread_change() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0, unread_agents={a.identity})
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        prompt_unread = widget.get_option_at_index(row).prompt
+
+        ok = widget.patch_agent_row(0, unread_agents=set())
+        await pilot.pause()
+        assert ok
+        prompt_read = widget.get_option_at_index(row).prompt
+        assert "✦" in str(prompt_unread)
+        assert "✦" not in str(prompt_read)

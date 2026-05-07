@@ -136,6 +136,7 @@ class AgentList(OptionList, inherit_bindings=False):
         current_idx: int,
         fold_counts: dict[str, tuple[int, int]] | None = None,
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
         jump_hints: dict[int, str] | None = None,
         banner_jump_hints: dict[tuple[str, ...], str] | None = None,
         current_attempt_number: int | None = None,
@@ -153,6 +154,8 @@ class AgentList(OptionList, inherit_bindings=False):
             fold_counts: Optional dict mapping workflow raw_suffix to
                 (non_hidden_count, hidden_count) for fold annotations
             marked_agents: Optional set of marked agent identities
+            unread_agents: Optional set of completed agent identities with unseen
+                results in this TUI session.
             jump_hints: Optional row index -> hint character mapping
             current_attempt_number: Accepted for compatibility with pinned
                 attempt detail state. The list still highlights the selected
@@ -187,6 +190,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 current_idx,
                 fold_counts=fold_counts,
                 marked_agents=marked_agents,
+                unread_agents=unread_agents,
                 jump_hints=jump_hints,
                 banner_jump_hints=banner_jump_hints,
                 fold_registry=fold_registry,
@@ -311,6 +315,7 @@ class AgentList(OptionList, inherit_bindings=False):
         agent_idx: int,
         *,
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
         is_selected: bool | None = None,
         now: datetime | None = None,
     ) -> bool:
@@ -327,6 +332,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 self,
                 agent_idx,
                 marked_agents=marked_agents,
+                unread_agents=unread_agents,
                 is_selected=is_selected,
                 now=now,
             )
@@ -358,6 +364,7 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_annotation: str = "",
         is_expanded: bool = False,
         is_marked: bool = False,
+        is_unread: bool = False,
         hint_char: str | None = None,
     ) -> Option:
         """Format an agent as an option for display (single-row, no alignment)."""
@@ -368,6 +375,7 @@ class AgentList(OptionList, inherit_bindings=False):
             fold_annotation=fold_annotation,
             is_expanded=is_expanded,
             is_marked=is_marked,
+            is_unread=is_unread,
             hint_char=hint_char,
         )
         natural_width = left.cell_len + (2 if suffix.cell_len else 0) + suffix.cell_len
