@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 01:23:39
-status: wip
+status: done
 prompt: sdd/prompts/202605/nvim_slash_skill_completion.md
 ---
 # Add Slash Skill Completion to sase-nvim

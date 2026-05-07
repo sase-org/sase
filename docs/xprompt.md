@@ -77,11 +77,11 @@ sase xprompt explain my_workflow --arg key=value    # With named args
 ### `sase xprompt list`
 
 Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
-`"workflow"`), kind, reference prefix, insertion text, source file path, user-facing input definitions, tags, and a
-content preview. Clients should treat `insertion` as the authoritative reference text. Most `xprompt` and
-`embeddable_workflow` entries insert as `#name`; standalone workflows and multi-agent xprompts insert as `#!name`. Step
-inputs are omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a
-user.
+`"workflow"`), kind, reference prefix, insertion text, `is_skill`, source file path, user-facing input definitions,
+tags, and a content preview. Clients should treat `insertion` as the authoritative reference text. Most `xprompt` and
+`embeddable_workflow` entries insert as `#name`; standalone workflows and multi-agent xprompts insert as `#!name`.
+`is_skill` is `true` only for xprompt catalog entries marked as skills; workflows report `false`. Step inputs are
+omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a user.
 
 ```bash
 sase xprompt list                   # JSON array to stdout
