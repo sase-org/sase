@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.modals.project_discovery import is_launchable_project
+
 from ._types import PromptContext, TabName
 
 if TYPE_CHECKING:
@@ -63,8 +65,25 @@ class EntryPointsMixin:
             )
             return None
 
-    def action_start_agent_from_changespec(self) -> None:
-        """Repeat last @/<space> agent selection (bound to space)."""
+    def _clear_stale_last_custom_agent_selection(self, project_name: str) -> None:
+        from sase.ace.last_agent_selection import clear_last_agent_selection
+
+        self._last_custom_agent_selection = None
+        clear_last_agent_selection()
+        self.notify(  # type: ignore[attr-defined]
+            "Saved @/<space> selection is stale: "
+            f"project {project_name!r} is not launchable; cleared saved selection",
+            severity="warning",
+        )
+
+    def _last_selection_is_replayable(self, selection: SelectionItem) -> bool:
+        if selection.item_type == "home":
+            return True
+        if selection.item_type not in ("project", "cl"):
+            return False
+        return is_launchable_project(selection.project_name)
+
+    def _load_last_custom_agent_selection(self) -> tuple[SelectionItem | None, bool]:
         last = self._last_custom_agent_selection
         if last is None:
             from sase.ace.last_agent_selection import load_last_agent_selection
@@ -72,8 +91,19 @@ class EntryPointsMixin:
             last = load_last_agent_selection()
             if last is not None:
                 self._last_custom_agent_selection = last
+
+        if last is not None and not self._last_selection_is_replayable(last):
+            self._clear_stale_last_custom_agent_selection(last.project_name)
+            return None, True
+
+        return last, False
+
+    def action_start_agent_from_changespec(self) -> None:
+        """Repeat last @/<space> agent selection (bound to space)."""
+        last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
-            self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+            if not stale_cleared:
+                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
             return
         self._start_custom_agent_from_selection(last)
 
@@ -92,15 +122,10 @@ class EntryPointsMixin:
         )
 
         # Load last selection (same as <space>)
-        last = self._last_custom_agent_selection
+        last, stale_cleared = self._load_last_custom_agent_selection()
         if last is None:
-            from sase.ace.last_agent_selection import load_last_agent_selection
-
-            last = load_last_agent_selection()
-            if last is not None:
-                self._last_custom_agent_selection = last
-        if last is None:
-            self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+            if not stale_cleared:
+                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Resolve VCS prefix
@@ -300,20 +325,22 @@ class EntryPointsMixin:
             open_in_editor: Whether to open in editor instead of prompt bar.
         """
         project_name: str = selection.project_name
+        if selection.item_type == "home":
+            if open_in_editor:
+                self._select_and_open_editor_for_home()  # type: ignore[attr-defined]
+            else:
+                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+            return
+
+        if selection.item_type not in ("project", "cl") or not is_launchable_project(
+            project_name
+        ):
+            self._clear_stale_last_custom_agent_selection(project_name)
+            return
+
         project_file = os.path.expanduser(
             f"~/.sase/projects/{project_name}/{project_name}.gp"
         )
-        if not os.path.exists(project_file):
-            from sase.ace.last_agent_selection import clear_last_agent_selection
-
-            self._last_custom_agent_selection = None
-            clear_last_agent_selection()
-            self.notify(  # type: ignore[attr-defined]
-                "Saved @/<space> selection is stale: "
-                f"project file not found for {project_name!r}; cleared saved selection",
-                severity="warning",
-            )
-            return
 
         if selection.item_type == "cl" and selection.cl_name:
             prefix = self._vcs_prompt_prefix_or_notify(project_file, selection.cl_name)

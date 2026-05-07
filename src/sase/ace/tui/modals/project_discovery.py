@@ -35,6 +35,22 @@ def list_launchable_projects(
     return projects
 
 
+def is_launchable_project(
+    project_name: str,
+    projects_dir: Path | None = None,
+) -> bool:
+    """Return whether a project entry is a valid project-scoped launch target."""
+    if not project_name or project_name == "home":
+        return False
+
+    projects_base = projects_dir or Path.home() / ".sase" / "projects"
+    project_file = projects_base / project_name / f"{project_name}.gp"
+    if not project_file.is_file():
+        return False
+
+    return _is_launchable_project_file(project_file)
+
+
 def _is_launchable_project_file(project_file: Path) -> bool:
     workspace_dir = parse_workspace_dir(str(project_file))
     if not workspace_dir:

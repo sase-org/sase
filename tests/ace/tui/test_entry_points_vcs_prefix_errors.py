@@ -37,7 +37,7 @@ def missing_workspace_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(_project_file: str, _name: str) -> str:
         raise ValueError("No workspace plugin detected a workflow type")
 
-    monkeypatch.setattr(_entry_points.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _raise)
 
 
@@ -87,7 +87,7 @@ def test_repeat_last_selection_clears_stale_missing_project_without_launching(
         "sase.ace.last_agent_selection.clear_last_agent_selection",
         lambda: clear_calls.append(True) or True,
     )
-    monkeypatch.setattr(_entry_points.os.path, "exists", lambda _path: False)
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: False)
     monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _unexpected_prefix)
 
     app = _App()
@@ -97,7 +97,7 @@ def test_repeat_last_selection_clears_stale_missing_project_without_launching(
     assert app.notifications == [
         (
             "Saved @/<space> selection is stale: "
-            "project file not found for 'project'; cleared saved selection",
+            "project 'project' is not launchable; cleared saved selection",
             "warning",
         )
     ]

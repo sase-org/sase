@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 16:53:16
-status: wip
+status: done
 prompt: sdd/prompts/202605/valid_last_used_vcs_xprompt.md
 ---
 # Plan: Filter Stale Last-Used VCS XPrompt Selections

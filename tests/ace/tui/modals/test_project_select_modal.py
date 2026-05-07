@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from sase.ace.changespec import ChangeSpec
-from sase.ace.tui.modals.project_discovery import list_launchable_projects
+from sase.ace.tui.modals.project_discovery import (
+    is_launchable_project,
+    list_launchable_projects,
+)
 from sase.ace.tui.modals.project_select_modal import ProjectSelectModal
 
 
@@ -70,6 +73,9 @@ def test_list_launchable_projects_filters_invalid_entries(
     projects = list_launchable_projects(projects_dir)
 
     assert projects == ["valid"]
+    assert is_launchable_project("valid", projects_dir) is True
+    assert is_launchable_project("stale", projects_dir) is False
+    assert is_launchable_project("home", projects_dir) is False
 
 
 def test_project_select_modal_loads_launchable_projects_and_active_changespecs(

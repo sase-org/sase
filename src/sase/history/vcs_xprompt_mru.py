@@ -24,6 +24,23 @@ def load_vcs_xprompt_mru() -> list[str]:
         return []
 
 
+def load_launchable_vcs_xprompt_mru(
+    projects_dir: Path | None = None,
+    *,
+    prune: bool = True,
+) -> list[str]:
+    """Load MRU prefixes, dropping stale entries for known non-launchable projects."""
+    entries = load_vcs_xprompt_mru()
+    filtered = [
+        entry
+        for entry in entries
+        if not _is_stale_known_project_prefix(entry, projects_dir)
+    ]
+    if prune and filtered != entries:
+        _save_vcs_xprompt_mru(filtered)
+    return filtered
+
+
 def record_vcs_xprompt_usage(prefix: str) -> None:
     """Move/add prefix to the front of the MRU list, cap at 100, save to disk.
 
@@ -34,9 +51,37 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
     entries = [e for e in entries if e != prefix]
     entries.insert(0, prefix)
     entries = entries[:_MAX_ENTRIES]
+    _save_vcs_xprompt_mru(entries)
+
+
+def _save_vcs_xprompt_mru(entries: list[str]) -> None:
     try:
         _MRU_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(_MRU_FILE, "w", encoding="utf-8") as f:
             json.dump({"entries": entries}, f, indent=2)
     except OSError:
         pass
+
+
+def _is_stale_known_project_prefix(
+    prefix: str,
+    projects_dir: Path | None = None,
+) -> bool:
+    project_name = _project_name_from_vcs_prefix(prefix)
+    if project_name is None:
+        return False
+
+    projects_base = projects_dir or Path.home() / ".sase" / "projects"
+    project_file = projects_base / project_name / f"{project_name}.gp"
+    if not project_file.is_file():
+        return False
+
+    from sase.ace.tui.modals.project_discovery import is_launchable_project
+
+    return not is_launchable_project(project_name, projects_base)
+
+
+def _project_name_from_vcs_prefix(prefix: str) -> str | None:
+    from sase.xprompt._parsing import extract_project_from_vcs_tag
+
+    return extract_project_from_vcs_tag(prefix)

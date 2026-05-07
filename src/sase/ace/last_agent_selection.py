@@ -5,10 +5,13 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
+from typing import Literal, cast
 
 from .tui.modals import SelectionItem
 
 _LAST_SELECTION_FILE = Path.home() / ".sase" / "last_agent_selection.json"
+_SelectionItemType = Literal["project", "cl", "home", "all"]
+_VALID_ITEM_TYPES: set[_SelectionItemType] = {"project", "cl", "home", "all"}
 
 
 def load_last_agent_selection() -> SelectionItem | None:
@@ -32,11 +35,24 @@ def load_last_agent_selection() -> SelectionItem | None:
             or "project_name" not in data
         ):
             return None
+        display_name = data["display_name"]
+        item_type = data["item_type"]
+        project_name = data["project_name"]
+        cl_name = data.get("cl_name")
+        if (
+            not isinstance(display_name, str)
+            or not isinstance(item_type, str)
+            or item_type not in _VALID_ITEM_TYPES
+            or not isinstance(project_name, str)
+            or (cl_name is not None and not isinstance(cl_name, str))
+        ):
+            return None
+        item_type = cast(_SelectionItemType, item_type)
         return SelectionItem(
-            display_name=data["display_name"],
-            item_type=data["item_type"],
-            project_name=data["project_name"],
-            cl_name=data.get("cl_name"),
+            display_name=display_name,
+            item_type=item_type,
+            project_name=project_name,
+            cl_name=cl_name,
         )
     except (OSError, json.JSONDecodeError, TypeError, KeyError):
         return None

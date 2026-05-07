@@ -276,9 +276,11 @@ class PromptTextArea(
                     current_prefix = stripped
 
             if is_vcs_only:
-                from sase.history.vcs_xprompt_mru import load_vcs_xprompt_mru
+                from sase.history.vcs_xprompt_mru import (
+                    load_launchable_vcs_xprompt_mru,
+                )
 
-                mru = load_vcs_xprompt_mru()
+                mru = load_launchable_vcs_xprompt_mru()
                 if mru:
                     direction = -1 if event.key == "ctrl+n" else 1
                     if self._vcs_mru_index is not None:

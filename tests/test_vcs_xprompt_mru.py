@@ -4,11 +4,29 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.history.vcs_xprompt_mru import (
     _MAX_ENTRIES,
+    load_launchable_vcs_xprompt_mru,
     load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
 )
+
+
+def _write_project(
+    projects_dir: Path, project_name: str, workspace_dir: Path | None
+) -> None:
+    project_dir = projects_dir / project_name
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / f"{project_name}.gp"
+    if workspace_dir is None:
+        project_file.write_text("", encoding="utf-8")
+        return
+    project_file.write_text(
+        f"WORKSPACE_DIR: {workspace_dir}\nNAME: {project_name}_change\n",
+        encoding="utf-8",
+    )
 
 
 def test_load_empty_when_file_missing(tmp_path: Path) -> None:
@@ -130,3 +148,30 @@ def test_record_creates_file_if_missing(tmp_path: Path) -> None:
         assert fake.exists()
         result = load_vcs_xprompt_mru()
         assert result == ["#gh:first"]
+
+
+def test_load_launchable_filters_known_stale_projects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:stale", "#gh:branch", "#gh:valid"]}))
+    projects_dir = tmp_path / "projects"
+    valid_workspace = tmp_path / "valid-workspace"
+    valid_workspace.mkdir()
+    _write_project(projects_dir, "valid", valid_workspace)
+    _write_project(projects_dir, "stale", tmp_path / "missing-workspace")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert result == ["#gh:branch", "#gh:valid"]
+    assert json.loads(fake.read_text()) == {"entries": ["#gh:branch", "#gh:valid"]}
