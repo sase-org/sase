@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 19:57:59
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_runtime_aggregation.md
 ---
 # Plan: Aggregate Parent Agent Runtime From Child Agent Work

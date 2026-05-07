@@ -152,6 +152,13 @@ def test_render_key_changes_when_bead_agent_name_changes() -> None:
 
 def test_render_key_changes_across_seconds_for_ticking_parent_status() -> None:
     a = _agent(status="PLAN APPROVED")
+    a.runtime_children.append(
+        _agent(
+            cl_name="demo.code",
+            status="RUNNING",
+            raw_suffix="20260425143100",
+        )
+    )
 
     k1 = agent_render_key(
         a,
