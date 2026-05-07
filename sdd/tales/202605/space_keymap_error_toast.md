@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 10:44:54
-status: wip
+status: done
 prompt: sdd/prompts/202605/space_keymap_error_toast.md
 ---
 # Plan: Convert Space Keymap VCS Detection Crash Into TUI Error Toast

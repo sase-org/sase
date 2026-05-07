@@ -53,6 +53,16 @@ class EntryPointsMixin:
     # State for repeat-last-@/<space> selection
     _last_custom_agent_selection: SelectionItem | None = None
 
+    def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:
+        """Build a VCS prompt prefix, or show a TUI error when detection fails."""
+        try:
+            return _vcs_prompt_prefix(project_file, name)
+        except ValueError as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Cannot start agent for {name}: {exc}", severity="error"
+            )
+            return None
+
     def action_start_agent_from_changespec(self) -> None:
         """Repeat last @/<space> agent selection (bound to space)."""
         last = self._last_custom_agent_selection
@@ -99,7 +109,10 @@ class EntryPointsMixin:
             f"~/.sase/projects/{project_name}/{project_name}.gp"
         )
         name = last.cl_name if last.item_type == "cl" and last.cl_name else project_name
-        vcs_prefix = _vcs_prompt_prefix(project_file, name).rstrip()
+        prefix = self._vcs_prompt_prefix_or_notify(project_file, name)
+        if prefix is None:
+            return
+        vcs_prefix = prefix.rstrip()
 
         # Set up prompt context (same as _show_prompt_input_bar_for_home)
         timestamp = generate_timestamp()
@@ -172,7 +185,9 @@ class EntryPointsMixin:
 
         changespec = self.changespecs[self.current_idx]
         cl_name = changespec.name
-        prefix = _vcs_prompt_prefix(changespec.file_path, cl_name)
+        prefix = self._vcs_prompt_prefix_or_notify(changespec.file_path, cl_name)
+        if prefix is None:
+            return
 
         # Save for <space> repeat (so ,<space> selections are also available)
         self._last_custom_agent_selection = SelectionItem(
@@ -207,7 +222,9 @@ class EntryPointsMixin:
             return
         cl_name = agent.cl_name
         project_name = Path(agent.project_file).parent.name
-        prefix = _vcs_prompt_prefix(agent.project_file, cl_name)
+        prefix = self._vcs_prompt_prefix_or_notify(agent.project_file, cl_name)
+        if prefix is None:
+            return
 
         # Save for <space> repeat
         self._last_custom_agent_selection = SelectionItem(
@@ -288,7 +305,9 @@ class EntryPointsMixin:
         )
 
         if selection.item_type == "cl" and selection.cl_name:
-            prefix = _vcs_prompt_prefix(project_file, selection.cl_name)
+            prefix = self._vcs_prompt_prefix_or_notify(project_file, selection.cl_name)
+            if prefix is None:
+                return
             if open_in_editor:
                 self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
@@ -303,7 +322,9 @@ class EntryPointsMixin:
                 )
         else:
             # Project selection
-            prefix = _vcs_prompt_prefix(project_file, project_name)
+            prefix = self._vcs_prompt_prefix_or_notify(project_file, project_name)
+            if prefix is None:
+                return
             if open_in_editor:
                 self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
