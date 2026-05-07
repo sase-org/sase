@@ -17,6 +17,7 @@ The resolution path is easiest to read as a pipeline from prompt references to f
 ## Table of Contents
 
 - [CLI Subcommands](#cli-subcommands)
+- [Editor LSP](#editor-lsp)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
   - [Hooks](#hooks)
@@ -114,6 +115,28 @@ sase xprompt catalog --out /tmp/out # Write the PDF to the specified directory
 The command collects all visible xprompt templates, renders each into an HTML section, and produces a single PDF using
 the bundled `catalog_template.html.j2` and `catalog_style.css`. The mobile/helper structured catalog uses the same
 collection and classification code, but returns JSON metadata instead of requiring a PDF renderer.
+
+## Editor LSP
+
+`sase lsp` starts the SASE xprompt language server over stdio for editor integrations. It resolves the server command in
+this order:
+
+1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
+2. `sase-xprompt-lsp` on `PATH`.
+3. A sibling `../sase-core` debug or release binary, then
+   `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when available.
+
+Examples:
+
+```bash
+sase lsp
+sase lsp --version
+SASE_XPROMPT_LSP_CMD='cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --' sase lsp
+```
+
+The LSP v1 uses the existing structured xprompt catalog bridge. Editor clients can call the editor-branded alias
+`sase editor helper-bridge xprompt-catalog`, which returns the same JSON contract as
+`sase mobile helper-bridge xprompt-catalog` without exposing a mobile-specific command name.
 
 ## Discovery Order
 

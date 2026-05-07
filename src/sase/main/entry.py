@@ -135,6 +135,12 @@ def main() -> NoReturn:
 
         handle_core_command(args)
 
+    # --- editor ---
+    if args.command == "editor":
+        from .editor_handler import handle_editor_command
+
+        handle_editor_command(args)
+
     # --- file ---
     if args.command == "file":
         from .file_handler import handle_file_command
@@ -173,6 +179,12 @@ def main() -> NoReturn:
         from sase.logs.cli import handle_logs_command
 
         handle_logs_command(args)
+
+    # --- lsp ---
+    if args.command == "lsp":
+        from sase.integrations.xprompt_lsp import handle_xprompt_lsp_command
+
+        handle_xprompt_lsp_command(args)
 
     # --- mobile ---
     if args.command == "mobile":

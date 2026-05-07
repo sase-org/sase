@@ -202,6 +202,29 @@ def register_logs_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def register_lsp_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'lsp' subcommand parser."""
+    lsp_parser = subparsers.add_parser(
+        "lsp",
+        help="Start the SASE xprompt language server",
+        description=(
+            "Start the SASE xprompt language server. Set SASE_XPROMPT_LSP_CMD "
+            "to override the server command during development."
+        ),
+    )
+    lsp_parser.add_argument(
+        "-V",
+        "--version",
+        action="store_true",
+        help="Print the xprompt LSP server version and exit",
+    )
+    lsp_parser.add_argument(
+        "lsp_args",
+        nargs=argparse.REMAINDER,
+        help=argparse.SUPPRESS,
+    )
+
+
 def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'notify' subcommand parser."""
     notify_parser = subparsers.add_parser(
