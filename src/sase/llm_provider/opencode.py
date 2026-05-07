@@ -187,15 +187,16 @@ class OpenCodeProvider(LLMProvider):
         cycle = 0
 
         while True:
+            command_args = [*base_args, current_prompt]
             if timer_context:
                 with timer_context:
                     content, stderr_content, return_code, usage = self._run_subprocess(
-                        base_args, current_prompt, suppress_output
+                        command_args, suppress_output
                     )
                     print()
             else:
                 content, stderr_content, return_code, usage = self._run_subprocess(
-                    base_args, current_prompt, suppress_output
+                    command_args, suppress_output
                 )
 
             for key in total_usage:
@@ -220,7 +221,7 @@ class OpenCodeProvider(LLMProvider):
             if return_code != 0:
                 raise subprocess.CalledProcessError(
                     return_code,
-                    base_args,
+                    command_args,
                     output=content,
                     stderr=stderr_content,
                 )
@@ -233,24 +234,18 @@ class OpenCodeProvider(LLMProvider):
     def _run_subprocess(
         self,
         args: list[str],
-        prompt: str,
         suppress_output: bool,
     ) -> tuple[str, str, int, dict[str, int]]:
         """Run the OpenCode subprocess."""
         try:
             process = subprocess.Popen(
                 args,
-                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
         except FileNotFoundError as exc:
             raise _opencode_executable_not_found_error(args[0]) from exc
-
-        if process.stdin:
-            process.stdin.write(prompt)
-            process.stdin.close()
 
         start_interrupt_monitor(
             process,

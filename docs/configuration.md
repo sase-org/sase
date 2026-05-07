@@ -734,13 +734,13 @@ SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default
 real home, and is removed when the subprocess exits. This prevents Codex runtime config rewrites from dirtying the
 user-managed Codex config while preserving auth, hooks, skills, logs, and caches.
 
-Qwen Code uses `qwen -p - --output-format stream-json --yolo --model <model>` and expects users to configure Qwen auth
-through Qwen's supported settings path. Qwen OAuth free tier access ended on 2026-04-15; use API keys, Alibaba Cloud
-Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider.
+Qwen Code uses `qwen --input-format text --output-format stream-json --yolo --model <model>` and expects users to
+configure Qwen auth through Qwen's supported settings path. Qwen OAuth free tier access ended on 2026-04-15; use API
+keys, Alibaba Cloud Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider.
 
-OpenCode uses `opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd>` and
-expects users to configure OpenCode auth/settings through its normal XDG paths. OpenCode model names usually include a
-provider prefix; use `opencode models` to list models in your configured environment.
+OpenCode uses `opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> <prompt>`
+and expects users to configure OpenCode auth/settings through its normal XDG paths. OpenCode model names usually include
+a provider prefix; use `opencode models` to list models in your configured environment.
 
 ### VCS Provider
 

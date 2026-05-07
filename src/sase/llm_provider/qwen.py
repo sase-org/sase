@@ -144,8 +144,8 @@ class QwenProvider(LLMProvider):
 
         base_args = [
             _qwen_bin(),
-            "-p",
-            "-",
+            "--input-format",
+            "text",
             "--output-format",
             "stream-json",
             "--yolo",

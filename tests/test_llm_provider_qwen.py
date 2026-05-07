@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+import textwrap
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,7 +44,8 @@ def test_qwen_provider_command_construction(
 
     cmd = mock_popen.call_args.args[0]
     assert cmd[0] == "qwen"
-    assert cmd[:3] == ["qwen", "-p", "-"]
+    assert "--input-format" in cmd
+    assert "text" in cmd
     assert "--output-format" in cmd
     assert "stream-json" in cmd
     assert "--yolo" in cmd
@@ -252,3 +255,89 @@ def test_qwen_model_resolution() -> None:
         "qwen",
         "qwen3-coder-plus",
     )
+
+
+def test_qwen_provider_invokes_fake_cli_and_writes_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_qwen = tmp_path / "qwen"
+    fake_qwen.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import json
+            import sys
+
+            prompt = sys.stdin.read()
+            if "-p" in sys.argv or "--prompt" in sys.argv:
+                sys.stderr.write("qwen prompt must be read from stdin\\n")
+                sys.exit(64)
+            if "--input-format" not in sys.argv or "text" not in sys.argv:
+                sys.stderr.write("missing text input-format\\n")
+                sys.exit(64)
+            if prompt != "fake qwen prompt":
+                sys.stderr.write(f"unexpected prompt: {prompt!r}\\n")
+                sys.exit(64)
+
+            print(json.dumps({
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "qwen fake ok"}]},
+            }), flush=True)
+            print(json.dumps({
+                "type": "result",
+                "subtype": "success",
+                "result": "qwen fake ok",
+                "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+            }), flush=True)
+            """
+        )
+    )
+    fake_qwen.chmod(0o755)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_QWEN_PATH", str(fake_qwen))
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    result = QwenProvider().invoke(
+        "fake qwen prompt", model_tier="large", suppress_output=True
+    )
+
+    assert result.content == "qwen fake ok"
+    assert result.usage["input_tokens"] == 11
+    assert result.usage["output_tokens"] == 7
+    assert (artifacts / "live_reply.md").read_text() == "qwen fake ok"
+    assert json.loads((artifacts / "usage.json").read_text())["output_tokens"] == 7
+
+
+def test_qwen_provider_fake_cli_failure_surfaces_stream_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_qwen = tmp_path / "qwen"
+    fake_qwen.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import json
+            import sys
+
+            sys.stdin.read()
+            print(json.dumps({
+                "type": "error",
+                "error": {"message": "rate limit 429"},
+            }), flush=True)
+            sys.exit(7)
+            """
+        )
+    )
+    fake_qwen.chmod(0o755)
+    monkeypatch.setenv("SASE_QWEN_PATH", str(fake_qwen))
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        QwenProvider().invoke(
+            "fake qwen prompt", model_tier="large", suppress_output=True
+        )
+
+    assert exc_info.value.returncode == 7
+    assert "[error] rate limit 429" in exc_info.value.stderr

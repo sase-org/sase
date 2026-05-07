@@ -250,11 +250,11 @@ The `QwenProvider` invokes the `qwen` CLI tool.
 ### Command Construction
 
 ```
-qwen -p - --output-format stream-json --yolo --model <model> [extra_args...]
+qwen --input-format text --output-format stream-json --yolo --model <model> [extra_args...]
 ```
 
-The prompt is written to stdin. Output is streamed as JSON events; SASE extracts assistant text from `assistant` events
-and falls back to the final `result` text when no assistant text is emitted.
+The prompt is written to stdin using Qwen's text input mode. Output is streamed as JSON events; SASE extracts assistant
+text from `assistant` events and falls back to the final `result` text when no assistant text is emitted.
 
 ### Model Mapping
 
@@ -297,12 +297,12 @@ The `OpenCodeProvider` invokes the `opencode` CLI tool.
 ### Command Construction
 
 ```
-opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> [extra_args...]
+opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> [extra_args...] <prompt>
 ```
 
-The prompt is written to stdin. Output is streamed as JSONL events; SASE extracts assistant text from `text` events,
-captures errors from `error` events, and accumulates token counters from `step_finish` events when OpenCode reports
-them.
+The prompt is passed as OpenCode's `run [message..]` argument without shell interpolation. Output is streamed as JSONL
+events; SASE extracts assistant text from `text` events, captures errors from `error` events, and accumulates token
+counters from `step_finish` events when OpenCode reports them.
 
 ### Model Mapping
 
@@ -806,13 +806,13 @@ The preprocessing steps delegate to functions from two libraries:
 
 ## Subprocess Streaming
 
-Both providers use the shared `stream_process_output()` function from `_subprocess.py` to stream LLM output in
-real-time.
+Providers use shared helpers in `_subprocess.py` to stream LLM output in real-time.
 
 ### Mechanism
 
-1. The provider spawns the CLI tool via `subprocess.Popen` with `stdin=PIPE`, `stdout=PIPE`, `stderr=PIPE`.
-2. The prompt is written to stdin, then stdin is closed.
+1. The provider spawns the CLI tool via `subprocess.Popen` with `stdout=PIPE` and `stderr=PIPE`; providers that consume
+   prompts from stdin also set `stdin=PIPE`.
+2. The prompt is supplied using the provider's documented transport, either stdin or an argv message argument.
 3. Both stdout and stderr file descriptors are set to **non-blocking** mode via `os.set_blocking()`.
 4. A `select.select()` loop with a 0.1s timeout polls for readable data on both streams.
 5. Lines are read and optionally printed to the console in real-time.
@@ -951,7 +951,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 9. Get provider from registry and invoke
 │   ├── Build CLI command with flags
 │   ├── Spawn subprocess (Popen)
-│   ├── Write prompt to stdin
+│   ├── Supply prompt via provider transport
 │   └── Stream stdout/stderr in real-time
 │
 ├── 10. Postprocess

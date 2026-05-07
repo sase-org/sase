@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+import textwrap
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -49,9 +51,8 @@ def test_opencode_provider_command_construction(
     assert "anthropic/claude-sonnet-4-5" in cmd
     assert "--dir" in cmd
     assert mock_popen.call_args.kwargs["text"] is True
-    assert "test prompt" not in cmd
-    mock_process.stdin.write.assert_called_once_with("test prompt")
-    mock_process.stdin.close.assert_called_once()
+    assert cmd[-1] == "test prompt"
+    assert "stdin" not in mock_popen.call_args.kwargs
 
 
 @patch("sase.llm_provider.opencode.stream_and_parse_opencode_json_output")
@@ -275,3 +276,100 @@ def test_opencode_model_resolution_preserves_nested_provider_model() -> None:
         "opencode",
         "anthropic/claude-sonnet-4-5",
     )
+
+
+def test_opencode_provider_invokes_fake_cli_and_writes_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_opencode = tmp_path / "opencode"
+    fake_opencode.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import json
+            import sys
+
+            if sys.argv[:2] != [sys.argv[0], "run"]:
+                sys.stderr.write(f"unexpected subcommand: {sys.argv!r}\\n")
+                sys.exit(64)
+            if "--format" not in sys.argv or "json" not in sys.argv:
+                sys.stderr.write("missing json output format\\n")
+                sys.exit(64)
+            if "--model" not in sys.argv or "--dir" not in sys.argv:
+                sys.stderr.write("missing model or dir\\n")
+                sys.exit(64)
+            if sys.argv[-1] != "fake opencode prompt":
+                sys.stderr.write(f"unexpected prompt argv: {sys.argv[-1]!r}\\n")
+                sys.exit(64)
+
+            print(json.dumps({
+                "type": "text",
+                "part": {"type": "text", "text": "opencode fake ok"},
+            }), flush=True)
+            print(json.dumps({
+                "type": "step_finish",
+                "part": {
+                    "type": "step-finish",
+                    "tokens": {
+                        "input": 13,
+                        "output": 8,
+                        "cache": {"read": 2, "write": 1},
+                    },
+                },
+            }), flush=True)
+            """
+        )
+    )
+    fake_opencode.chmod(0o755)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_OPENCODE_PATH", str(fake_opencode))
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+
+    result = OpenCodeProvider().invoke(
+        "fake opencode prompt", model_tier="large", suppress_output=True
+    )
+
+    assert result.content == "opencode fake ok"
+    assert result.usage["input_tokens"] == 13
+    assert result.usage["output_tokens"] == 8
+    assert (artifacts / "live_reply.md").read_text() == "opencode fake ok"
+    usage = json.loads((artifacts / "usage.json").read_text())
+    assert usage["cache_read_input_tokens"] == 2
+    assert usage["cache_creation_input_tokens"] == 1
+
+
+def test_opencode_provider_fake_cli_failure_surfaces_json_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_opencode = tmp_path / "opencode"
+    fake_opencode.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import json
+            import sys
+
+            print(json.dumps({
+                "type": "error",
+                "error": {
+                    "name": "APIError",
+                    "data": {"message": "temporarily overloaded"},
+                },
+            }), flush=True)
+            sys.exit(9)
+            """
+        )
+    )
+    fake_opencode.chmod(0o755)
+    monkeypatch.setenv("SASE_OPENCODE_PATH", str(fake_opencode))
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        OpenCodeProvider().invoke(
+            "fake opencode prompt", model_tier="large", suppress_output=True
+        )
+
+    assert exc_info.value.returncode == 9
+    assert "[error] temporarily overloaded" in exc_info.value.stderr
