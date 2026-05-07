@@ -155,6 +155,25 @@ def build_deltas_section(
     Returns:
         Updated HintTracker.
     """
+    return build_delta_entries_section(
+        text,
+        changespec.deltas,
+        deltas_fold=deltas_fold,
+        hint_tracker=hint_tracker,
+        show_file_hints=show_file_hints,
+        workspace_dir=workspace_dir,
+    )
+
+
+def build_delta_entries_section(
+    text: Text,
+    deltas: list[DeltaEntry] | None,
+    deltas_fold: FoldLevel = FoldLevel.COLLAPSED,
+    hint_tracker: HintTracker | None = None,
+    show_file_hints: bool = False,
+    workspace_dir: str | None = None,
+) -> HintTracker:
+    """Build a DELTAS section from already-computed entries."""
     tracker = hint_tracker or HintTracker(
         counter=1 if show_file_hints else 0,
         mappings={},
@@ -163,7 +182,6 @@ def build_deltas_section(
         mentor_hint_to_info={},
     )
 
-    deltas = changespec.deltas
     if not deltas:
         return tracker
 

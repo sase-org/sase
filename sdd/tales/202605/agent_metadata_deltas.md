@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 19:40:29
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_metadata_deltas.md
 ---
 # Plan: Agent Metadata DELTAS Field

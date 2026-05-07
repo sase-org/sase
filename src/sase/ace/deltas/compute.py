@@ -75,7 +75,7 @@ def resolve_head_ref(
 _KNOWN_TYPES = {"A", "M", "D"}
 
 
-def _semantic_line_stats(raw_added: str, raw_removed: str) -> DeltaLineStats | None:
+def semantic_line_stats(raw_added: str, raw_removed: str) -> DeltaLineStats | None:
     """Convert Git-style numstat counts to semantic added/modified/removed."""
     if raw_added == "-" and raw_removed == "-":
         return DeltaLineStats(binary=True)
@@ -97,7 +97,7 @@ def _line_stats_by_path(
 ) -> dict[str, DeltaLineStats]:
     stats_by_path: dict[str, DeltaLineStats] = {}
     for raw_added, raw_removed, path in raw_stats:
-        stats = _semantic_line_stats(raw_added, raw_removed)
+        stats = semantic_line_stats(raw_added, raw_removed)
         if stats is not None:
             stats_by_path[path] = stats
     return stats_by_path

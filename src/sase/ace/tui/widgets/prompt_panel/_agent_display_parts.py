@@ -376,6 +376,11 @@ def build_header_text(
             style="#D7D7FF",
         )
 
+    if not cheap:
+        from ._agent_deltas import append_agent_deltas_section
+
+        append_agent_deltas_section(header_text, agent, hint_state=hint_state)
+
     # Meta fields from step output
     if agent.step_output and isinstance(agent.step_output, dict):
         meta_fields = extract_meta_fields(agent.step_output)
