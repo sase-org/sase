@@ -20,6 +20,19 @@ from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
 from .tab_bar import TabBar
 from .task_indicator import TaskIndicator
+from .xprompt_arg_assist import (
+    ActiveXPromptArgHint,
+    XPromptAssistEntry,
+    XPromptInputHint,
+    append_input_hints,
+    build_xprompt_assist_entries,
+    colon_args_skeleton,
+    input_hint_from_input_arg,
+    input_label,
+    named_args_skeleton,
+    required_inputs,
+    visible_inputs,
+)
 
 __all__ = [
     "AgentDetail",
@@ -27,6 +40,7 @@ __all__ = [
     "AgentThinkingPanel",
     "AgentList",
     "AncestorsChildrenPanel",
+    "ActiveXPromptArgHint",
     "AxeDashboard",
     "AxeInfoPanel",
     "BgCmdList",
@@ -44,4 +58,14 @@ __all__ = [
     "TabBar",
     "TaskIndicator",
     "ThinkingVisibilityChanged",
+    "XPromptAssistEntry",
+    "XPromptInputHint",
+    "append_input_hints",
+    "build_xprompt_assist_entries",
+    "colon_args_skeleton",
+    "input_hint_from_input_arg",
+    "input_label",
+    "named_args_skeleton",
+    "required_inputs",
+    "visible_inputs",
 ]

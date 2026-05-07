@@ -1,7 +1,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+from rich.text import Text
+
+from sase.ace.tui.modals.xprompt_browser_helpers import (
+    append_input_args,
+    classify_source,
+)
+from sase.xprompt.models import InputArg, InputType
 
 
 def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
@@ -27,3 +33,21 @@ def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
     assert category == "Built-in"
     assert display_path.endswith("default_xprompts/research_swarm.md")
     assert is_editable is True
+
+
+def test_append_input_args_keeps_required_and_optional_modal_styles() -> None:
+    text = Text("prompt")
+    append_input_args(
+        text,
+        [
+            InputArg(name="required", type=InputType.WORD),
+            InputArg(name="optional", type=InputType.INT, default=4),
+        ],
+    )
+
+    assert text.plain == "prompt\n     required\n     optional=4"
+    assert [(span.start, span.end, span.style) for span in text.spans] == [
+        (12, 20, "#D7AF87"),
+        (26, 34, "dim #D7AF87"),
+        (34, 36, "dim #888888"),
+    ]
