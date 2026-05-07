@@ -263,21 +263,10 @@ class AgentLaunchMixin(
 
                     known_ref = resolve_known_project_vcs_launch_ref(_vcs_prompt)
                     if known_ref is not None:
-                        from sase.running_field import (
-                            get_first_available_axe_workspace,
-                            get_workspace_directory_for_num,
-                        )
                         from sase.vcs_provider import VCS_DEFAULT_REVISION
 
                         workspace_num = 0
-                        workspace_dir = known_ref.workspace_dir
-                        if not has_wait:
-                            workspace_num = get_first_available_axe_workspace(
-                                known_ref.project_file
-                            )
-                            workspace_dir, _ = get_workspace_directory_for_num(
-                                workspace_num, known_ref.ref
-                            )
+                        workspace_dir = known_ref.workspace_dir if has_wait else ""
 
                         ctx.project_file = known_ref.project_file
                         ctx.project_name = known_ref.ref
@@ -480,6 +469,16 @@ class AgentLaunchMixin(
                 )
                 from sase.core.agent_launch_facade import plan_fake_fanout
 
+                use_preallocated_workspace = (
+                    not ctx.is_home_mode
+                    and not has_wait
+                    and bool(ctx.workspace_dir)
+                    and vcs_ref is not None
+                )
+                fixed_workspace = (
+                    ctx.is_home_mode or has_wait or use_preallocated_workspace
+                )
+
                 def _spawn_from_tui(request: LaunchSpawnRequest) -> None:
                     self._launch_background_agent(
                         cl_name=request.cl_name,
@@ -510,9 +509,9 @@ class AgentLaunchMixin(
                         is_home_mode=ctx.is_home_mode,
                         vcs_ref=vcs_ref,
                         deferred_workspace=has_wait,
-                        workspace_num=ctx.workspace_num,
-                        workspace_dir=ctx.workspace_dir,
-                        use_preallocated_workspace=True,
+                        workspace_num=ctx.workspace_num if fixed_workspace else None,
+                        workspace_dir=ctx.workspace_dir if fixed_workspace else None,
+                        use_preallocated_workspace=use_preallocated_workspace,
                     ),
                     spawn=_spawn_from_tui,
                     base_timestamp=ctx.timestamp,

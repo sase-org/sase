@@ -486,47 +486,70 @@ def claim_deferred_workspace(
         get_workspace_directory_for_num,
         release_workspace,
     )
+    from sase.agent.launch_executor import workspace_allocation_attempt_limit
 
     # Release the placeholder workspace_num=0 claim
     release_workspace(project_file, 0, workflow_name, cl_name)
 
-    # Allocate a real workspace
     vcs_wf_type = os.environ.get("SASE_AGENT_VCS_WORKFLOW_TYPE")
+    prefix = None
+    ws_get_dir = None
     if vcs_wf_type:
-        from sase.workspace_provider import (
-            get_pre_allocated_env_prefix,
-            get_workspace_directory as ws_get_dir,
-        )
+        from sase.workspace_provider import get_pre_allocated_env_prefix
+        from sase.workspace_provider import get_workspace_directory as _ws_get_dir
 
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir = ws_get_dir(
-            vcs_wf_type,
-            workspace_num,
-            project_name,
-            os.getcwd(),
-        )
-
-        # Set pre-allocation env vars for embedded workflows
         prefix = get_pre_allocated_env_prefix(vcs_wf_type)
-        if prefix:
-            os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
-            os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-            os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-    else:
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
+        ws_get_dir = _ws_get_dir
 
-    # Claim the real workspace
-    if not claim_ws(
-        project_file,
-        workspace_num,
-        workflow_name,
-        os.getpid(),
-        cl_name,
-        artifacts_timestamp=artifacts_timestamp,
-    ):
+    max_attempts = workspace_allocation_attempt_limit()
+    last_error: BaseException | None = None
+    workspace_num = 0
+    workspace_dir = ""
+    for _attempt in range(1, max_attempts + 1):
+        try:
+            workspace_num = get_first_available_axe_workspace(project_file)
+            if vcs_wf_type:
+                assert ws_get_dir is not None
+                workspace_dir = ws_get_dir(
+                    vcs_wf_type,
+                    workspace_num,
+                    project_name,
+                    os.getcwd(),
+                )
+            else:
+                workspace_dir, _ = get_workspace_directory_for_num(
+                    workspace_num, project_name
+                )
+
+            if claim_ws(
+                project_file,
+                workspace_num,
+                workflow_name,
+                os.getpid(),
+                cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+            ):
+                if prefix:
+                    os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
+                    os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+                    os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
+                break
+            last_error = RuntimeError(f"Failed to claim workspace #{workspace_num}")
+        except RuntimeError as exc:
+            last_error = exc
+            workspace_num = 0
+            workspace_dir = ""
+            break
+    else:
+        workspace_num = 0
+        workspace_dir = ""
+
+    if not workspace_dir or workspace_num == 0:
         print(
-            f"Failed to claim workspace #{workspace_num}",
+            "Failed to claim a real workspace after dependencies completed "
+            f"for {project_name}/{cl_name} after {max_attempts} attempts; "
+            "axe workspaces may all be claimed or racing with other launches."
+            + (f" Last error: {last_error}" if last_error else ""),
             file=sys.stderr,
         )
         sys.exit(1)

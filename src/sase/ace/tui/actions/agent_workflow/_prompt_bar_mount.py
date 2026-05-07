@@ -51,10 +51,6 @@ class PromptBarMountMixin:
         """
         from sase.workflows.commit.project_file_utils import create_project_file
         from sase.core.time import generate_timestamp
-        from sase.running_field import (
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
-        )
 
         from ...widgets import PromptInputBar
 
@@ -79,20 +75,10 @@ class PromptBarMountMixin:
         workflow_name = f"ace(run)-{timestamp}"
         display_name = cl_name or project_name
 
-        # For bulk runs, skip workspace resolution here;
-        # _launch_bulk_agents() resolves workspaces per-changespec.
-        if self._bulk_changespecs:  # type: ignore[attr-defined]
-            workspace_num = 0
-            workspace_dir = ""
-        else:
-            workspace_num = get_first_available_axe_workspace(project_file)
-            try:
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_name
-                )
-            except RuntimeError as e:
-                self.notify(f"Failed to get workspace: {e}", severity="error")  # type: ignore[attr-defined]
-                return
+        # Workspace allocation happens at spawn time so launch can retry if
+        # another agent claims the slot between preflight and subprocess spawn.
+        workspace_num = 0
+        workspace_dir = ""
 
         # Remove any existing prompt bar before mounting a new one.
         # Must happen before overwriting _prompt_context so the old bar's

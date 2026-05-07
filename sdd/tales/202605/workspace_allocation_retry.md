@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 15:05:30
-status: wip
+status: done
 prompt: sdd/prompts/202605/workspace_allocation_retry.md
 ---
 # Workspace Allocation Retry Plan

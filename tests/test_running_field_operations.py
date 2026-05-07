@@ -4,11 +4,14 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.running_field import (
     WorkspaceClaim,
     claim_next_axe_workspace,
     claim_workspace,
     get_claimed_workspaces,
+    get_first_available_axe_workspace,
     get_first_available_workspace,
     get_workspace_directory_for_num,
     release_workspace,
@@ -135,10 +138,45 @@ def test_get_first_available_workspace_main_claimed() -> None:
         Path(project_file).unlink()
 
 
+def test_get_first_available_axe_workspace_returns_first_gap() -> None:
+    """Axe allocation skips claimed slots and returns the first free number."""
+    project_file = _create_project_file_with_running(
+        running_claims=[
+            WorkspaceClaim(100, "run", "first", pid=11111),
+            WorkspaceClaim(102, "run", "third", pid=22222),
+        ]
+    )
+    try:
+        workspace_num = get_first_available_axe_workspace(
+            project_file, min_workspace=100, max_workspace=102
+        )
+        assert workspace_num == 101
+    finally:
+        Path(project_file).unlink()
+
+
+def test_get_first_available_axe_workspace_raises_when_range_claimed() -> None:
+    """A full axe range fails clearly instead of returning a duplicate slot."""
+    project_file = _create_project_file_with_running(
+        running_claims=[
+            WorkspaceClaim(100, "run", "first", pid=11111),
+            WorkspaceClaim(101, "run", "second", pid=22222),
+        ]
+    )
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match=r"All axe workspaces \(100-101\) are claimed",
+        ):
+            get_first_available_axe_workspace(
+                project_file, min_workspace=100, max_workspace=101
+            )
+    finally:
+        Path(project_file).unlink()
+
+
 def test_running_field_get_workspace_directory_plugin_failure() -> None:
     """Test get_workspace_directory raises on plugin failure."""
-    import pytest
-
     with patch(
         "sase.workspace_provider._registry.detect_workflow_type",
         side_effect=ValueError("No workspace plugin detected"),

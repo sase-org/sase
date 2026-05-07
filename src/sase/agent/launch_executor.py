@@ -101,6 +101,9 @@ SlotEnvCallback = Callable[[LaunchFanoutSlotWire], dict[str, str]]
 SlotLocalXpromptsCallback = Callable[[LaunchFanoutSlotWire], str | None]
 SlotExecutedCallback = Callable[[_LaunchExecutionRecord], None]
 
+_WORKSPACE_ALLOCATION_MAX_RETRIES_ENV = "SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES"
+_DEFAULT_WORKSPACE_ALLOCATION_MAX_RETRIES = 5
+
 
 def _default_spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
     from sase.agent import launcher as launcher_mod
@@ -155,8 +158,6 @@ def execute_launch_plan(
         timestamp = slot.timestamp or next(allocated_iter)
         workflow_name = slot.workflow_name or f"ace(run)-{timestamp}"
         slot_ctx = slot_context(slot, context) if slot_context else context
-        workspace_num, workspace_dir = _resolve_slot_workspace(slot_ctx)
-
         env = dict(extra_env or {})
         if slot_extra_env is not None:
             env.update(slot_extra_env(slot))
@@ -164,30 +165,102 @@ def execute_launch_plan(
             None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
         )
 
-        request = LaunchSpawnRequest(
-            cl_name=slot_ctx.cl_name,
-            project_file=slot_ctx.project_file,
-            workspace_dir=workspace_dir,
-            workspace_num=workspace_num,
+        request, result = _spawn_slot_with_workspace_retry(
+            slot=slot,
+            context=slot_ctx,
             workflow_name=workflow_name,
-            prompt=slot.prompt,
             timestamp=timestamp,
-            update_target=slot_ctx.update_target,
-            project_name=slot_ctx.project_name,
-            history_sort_key=slot_ctx.history_sort_key,
-            is_home_mode=slot_ctx.is_home_mode,
-            vcs_ref=slot_ctx.vcs_ref,
-            deferred_workspace=slot_ctx.deferred_workspace,
-            local_xprompts_file=local_xprompts_file,
             extra_env=env or None,
+            local_xprompts_file=local_xprompts_file,
+            spawn=spawn_fn,
         )
-        result = spawn_fn(request)
         record = _LaunchExecutionRecord(slot=slot, request=request, result=result)
         records.append(record)
         if on_slot_executed is not None:
             on_slot_executed(record)
 
     return _LaunchExecutionResult(records=records)
+
+
+def _spawn_slot_with_workspace_retry(
+    *,
+    slot: LaunchFanoutSlotWire,
+    context: LaunchExecutionContext,
+    workflow_name: str,
+    timestamp: str,
+    extra_env: dict[str, str] | None,
+    local_xprompts_file: str | None,
+    spawn: SpawnCallback,
+) -> tuple[LaunchSpawnRequest, AgentLaunchResult | None]:
+    max_attempts = workspace_allocation_attempt_limit()
+    last_request: LaunchSpawnRequest | None = None
+    last_error: RuntimeError | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        workspace_num, workspace_dir = _resolve_slot_workspace(context)
+        request = LaunchSpawnRequest(
+            cl_name=context.cl_name,
+            project_file=context.project_file,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+            workflow_name=workflow_name,
+            prompt=slot.prompt,
+            timestamp=timestamp,
+            update_target=context.update_target,
+            project_name=context.project_name,
+            history_sort_key=context.history_sort_key,
+            is_home_mode=context.is_home_mode,
+            vcs_ref=context.vcs_ref,
+            deferred_workspace=context.deferred_workspace,
+            local_xprompts_file=local_xprompts_file,
+            extra_env=extra_env,
+        )
+        last_request = request
+        try:
+            return request, spawn(request)
+        except RuntimeError as exc:
+            if not _should_retry_workspace_claim(context, exc):
+                raise
+            last_error = exc
+            if attempt == max_attempts:
+                break
+
+    assert last_request is not None
+    raise RuntimeError(
+        "Failed to claim an available workspace for "
+        f"{_workspace_target_label(context)} after {max_attempts} attempts; "
+        "axe workspaces may all be claimed or racing with other launches."
+    ) from last_error
+
+
+def workspace_allocation_attempt_limit() -> int:
+    """Return total workspace allocation attempts for launch retry loops."""
+    try:
+        max_retries = int(os.environ.get(_WORKSPACE_ALLOCATION_MAX_RETRIES_ENV, ""))
+    except ValueError:
+        max_retries = _DEFAULT_WORKSPACE_ALLOCATION_MAX_RETRIES
+    if max_retries < 0:
+        max_retries = 0
+    return 1 + max_retries
+
+
+def _should_retry_workspace_claim(
+    context: LaunchExecutionContext, exc: RuntimeError
+) -> bool:
+    if (
+        context.use_preallocated_workspace
+        or context.is_home_mode
+        or context.deferred_workspace
+    ):
+        return False
+    return str(exc).startswith("Failed to claim workspace #")
+
+
+def _workspace_target_label(context: LaunchExecutionContext) -> str:
+    project = context.project_name or context.project_file
+    if context.cl_name and context.cl_name != project:
+        return f"{project}/{context.cl_name}"
+    return project
 
 
 def _resolve_slot_workspace(context: LaunchExecutionContext) -> tuple[int, str]:
@@ -220,4 +293,5 @@ __all__ = [
     "LaunchExecutionContext",
     "LaunchSpawnRequest",
     "execute_launch_plan",
+    "workspace_allocation_attempt_limit",
 ]

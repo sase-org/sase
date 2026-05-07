@@ -482,6 +482,86 @@ class TestDeferredWorkspacePreparation:
         claim_mock.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))
 
+    def test_claim_deferred_workspace_retries_claim_race(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "2")
+        release_mock = MagicMock()
+        claim_mock = MagicMock(side_effect=[False, True])
+
+        with (
+            patch("sase.running_field.release_workspace", release_mock),
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                side_effect=[7, 8],
+            ) as first_ws,
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                side_effect=[
+                    (str(tmp_path / "ws7"), None),
+                    (str(tmp_path / "ws8"), None),
+                ],
+            ),
+            patch("sase.running_field.claim_workspace", claim_mock),
+            patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
+        ):
+            workspace_num, actual_workspace_dir = claim_deferred_workspace(
+                str(tmp_path / "project.gp"),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        assert workspace_num == 8
+        assert actual_workspace_dir == str(tmp_path / "ws8")
+        assert first_ws.call_count == 2
+        assert claim_mock.call_count == 2
+        chdir_mock.assert_called_once_with(str(tmp_path / "ws8"))
+
+    def test_claim_deferred_workspace_exhaustion_exits(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "1")
+
+        with (
+            patch("sase.running_field.release_workspace"),
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                side_effect=[7, 8],
+            ),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                side_effect=[
+                    (str(tmp_path / "ws7"), None),
+                    (str(tmp_path / "ws8"), None),
+                ],
+            ),
+            patch("sase.running_field.claim_workspace", return_value=False),
+            patch("sase.axe.run_agent_phases.os.chdir") as chdir_mock,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                claim_deferred_workspace(
+                    str(tmp_path / "project.gp"),
+                    "test-project",
+                    "test-workflow",
+                    "test-cl",
+                    "20260316_120000",
+                )
+
+        assert exc_info.value.code == 1
+        assert "Failed to claim a real workspace after dependencies completed" in (
+            capsys.readouterr().err
+        )
+        chdir_mock.assert_not_called()
+
     def test_deferred_wait_prepares_claimed_workspace_after_wait(
         self, tmp_path: Path
     ) -> None:

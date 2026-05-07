@@ -141,6 +141,18 @@ def _run_launch_body_with_common_patches(app: _LaunchBodyApp, prompt: str) -> No
         stack.enter_context(
             patch("sase.history.file_references.record_file_references")
         )
+        stack.enter_context(
+            patch(
+                "sase.running_field.get_first_available_axe_workspace",
+                return_value=100,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=("/tmp/ws100", None),
+            )
+        )
         app._run_agent_launch_body(prompt)
 
 
@@ -243,6 +255,8 @@ def test_run_agent_launch_body_skips_xprompt_processing_for_plain_prompt() -> No
     process.assert_not_called()
     assert len(app.launched) == 1
     assert app.launched[0]["prompt"] == "plain single-agent prompt"
+    assert app.launched[0]["workspace_num"] == 100
+    assert app.launched[0]["workspace_dir"] == "/tmp/ws100"
     assert app.launch_thread_ids == [body_thread_id]
     refresh_calls = [
         (fn, args)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.launch_executor import (
     LaunchExecutionContext,
     LaunchSpawnRequest,
@@ -115,3 +117,150 @@ def test_execute_fanout_plan_allocates_workspace_per_slot_and_merges_env() -> No
         {"BASE": "1", "SLOT": "1"},
     ]
     assert executed == ["260501_120000", "260501_120001"]
+
+
+def test_workspace_claim_failure_retries_with_new_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = plan_fake_fanout("single", ["do work"])
+    requests: list[LaunchSpawnRequest] = []
+    monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "2")
+
+    def _spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
+        requests.append(request)
+        if len(requests) == 1:
+            raise RuntimeError("Failed to claim workspace #100")
+        return _result_for(request)
+
+    with (
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            side_effect=[100, 101],
+        ) as first_ws,
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            side_effect=[("/workspace/100", None), ("/workspace/101", None)],
+        ) as ws_dir,
+    ):
+        execution = execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.gp",
+                project_name="project",
+            ),
+            spawn=_spawn,
+            base_timestamp="ts",
+        )
+
+    assert execution.results[0].workspace_num == 101
+    assert [request.workspace_num for request in requests] == [100, 101]
+    assert first_ws.call_count == 2
+    assert ws_dir.call_count == 2
+
+
+def test_workspace_claim_retry_exhaustion_raises_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "1")
+
+    with (
+        patch(
+            "sase.running_field.get_first_available_axe_workspace",
+            side_effect=[100, 101],
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            side_effect=[("/workspace/100", None), ("/workspace/101", None)],
+        ),
+    ):
+        with pytest.raises(
+            RuntimeError,
+            match=(
+                r"Failed to claim an available workspace for project/change "
+                r"after 2 attempts"
+            ),
+        ):
+            execute_launch_plan(
+                plan_fake_fanout("single", ["do work"]),
+                LaunchExecutionContext(
+                    cl_name="change",
+                    project_file="/project.gp",
+                    project_name="project",
+                ),
+                spawn=lambda _request: (_ for _ in ()).throw(
+                    RuntimeError("Failed to claim workspace #100")
+                ),
+                base_timestamp="ts",
+            )
+
+
+@pytest.mark.parametrize(
+    ("context", "expected_workspace_num", "expected_workspace_dir"),
+    [
+        (
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.gp",
+                project_name="project",
+                workspace_num=7,
+                workspace_dir="/workspace/7",
+                use_preallocated_workspace=True,
+            ),
+            7,
+            "/workspace/7",
+        ),
+        (
+            LaunchExecutionContext(
+                cl_name="home",
+                project_file="/home.gp",
+                project_name="home",
+                is_home_mode=True,
+                workspace_num=0,
+                workspace_dir="/home/user",
+            ),
+            0,
+            "/home/user",
+        ),
+        (
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.gp",
+                project_name="project",
+                deferred_workspace=True,
+            ),
+            0,
+            "/workspace/main",
+        ),
+    ],
+)
+def test_fixed_workspace_modes_do_not_retry_claim_failures(
+    context: LaunchExecutionContext,
+    expected_workspace_num: int,
+    expected_workspace_dir: str,
+) -> None:
+    requests: list[LaunchSpawnRequest] = []
+
+    def _spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
+        requests.append(request)
+        raise RuntimeError(f"Failed to claim workspace #{request.workspace_num}")
+
+    with (
+        patch("sase.running_field.get_first_available_axe_workspace") as first_ws,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value="/workspace/main",
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="Failed to claim workspace #"):
+            execute_launch_plan(
+                plan_fake_fanout("single", ["do work"]),
+                context,
+                spawn=_spawn,
+                base_timestamp="ts",
+            )
+
+    assert len(requests) == 1
+    assert requests[0].workspace_num == expected_workspace_num
+    assert requests[0].workspace_dir == expected_workspace_dir
+    first_ws.assert_not_called()

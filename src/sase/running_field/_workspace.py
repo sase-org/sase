@@ -40,6 +40,9 @@ def get_first_available_axe_workspace(
 
     Returns:
         First available workspace number in the axe range (100-199)
+
+    Raises:
+        RuntimeError: If every workspace in the axe range is claimed.
     """
     claims = get_claimed_workspaces(project_file)
     claimed_nums = {claim.workspace_num for claim in claims}
@@ -49,8 +52,10 @@ def get_first_available_axe_workspace(
         if n not in claimed_nums:
             return n
 
-    # All axe workspaces claimed - return min_workspace as fallback
-    return min_workspace
+    raise RuntimeError(
+        f"All axe workspaces ({min_workspace}-{max_workspace}) are claimed "
+        f"in {project_file}"
+    )
 
 
 def get_workspace_directory_for_num(

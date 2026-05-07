@@ -343,11 +343,7 @@ def launch_agents_from_cwd(
     )
     from sase.main.utils import ensure_project_file_and_get_workspace_num
     from sase.history.prompt import add_or_update_prompt
-    from sase.running_field import (
-        get_first_available_axe_workspace,
-        get_workspace_directory,
-        get_workspace_directory_for_num,
-    )
+    from sase.running_field import get_workspace_directory
     from sase.workspace_provider import get_workflow_names
 
     # --- Resolve project context ---
@@ -506,6 +502,7 @@ def launch_agents_from_cwd(
     has_wait = has_wait_directive(query)
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
+    use_preallocated_workspace = False
 
     # Try full VCS ref resolution — this updates project_file, workspace_dir,
     # etc. when the prompt contains an explicit ref like #gh:sase.  Must run
@@ -520,6 +517,7 @@ def launch_agents_from_cwd(
             workspace_num = ws_num
             vcs_ref = (wf_name, ref_value)
             is_home_mode = is_non_workspace_workflow(wf_name)
+            use_preallocated_workspace = not is_home_mode and not has_wait
             break
 
     if vcs_ref is None:
@@ -527,7 +525,7 @@ def launch_agents_from_cwd(
         if known_ref is not None:
             project_file = known_ref.project_file
             project_name = known_ref.ref
-            workspace_dir = None if not has_wait else known_ref.workspace_dir
+            workspace_dir = known_ref.workspace_dir if has_wait else None
             workspace_num = 0
             vcs_ref = (known_ref.workflow_type, known_ref.ref)
             is_home_mode = False
@@ -551,7 +549,7 @@ def launch_agents_from_cwd(
         project_name = "home"
         project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
 
-    # --- Allocate axe workspace ---
+    # --- Resolve fixed workspace contexts ---
     if timestamp is None:
         timestamp = reserve_launch_timestamp_batch(1)[0]
 
@@ -563,11 +561,6 @@ def launch_agents_from_cwd(
             # Deferred workspace: use main workspace dir as CWD during wait
             workspace_num = 0
             workspace_dir = get_workspace_directory(project_name, 1)
-        else:
-            workspace_num = get_first_available_axe_workspace(project_file)
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, project_name
-            )
 
     # --- Determine display name / sort key ---
     if vcs_ref is not None:
@@ -591,11 +584,10 @@ def launch_agents_from_cwd(
         branch_or_workspace=history_sort_key or None,
     )
 
-    assert workspace_num is not None
-    assert workspace_dir is not None
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout
 
+    fixed_workspace = is_home_mode or has_wait or use_preallocated_workspace
     execution = execute_launch_plan(
         plan_fake_fanout("single", [query]),
         LaunchExecutionContext(
@@ -607,9 +599,9 @@ def launch_agents_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=vcs_ref,
             deferred_workspace=has_wait,
-            workspace_num=workspace_num,
-            workspace_dir=workspace_dir,
-            use_preallocated_workspace=True,
+            workspace_num=workspace_num if fixed_workspace else None,
+            workspace_dir=workspace_dir if fixed_workspace else None,
+            use_preallocated_workspace=use_preallocated_workspace,
         ),
         extra_env=extra_env,
         base_timestamp=timestamp,
