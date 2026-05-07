@@ -2,6 +2,8 @@
 create_time: 2026-05-07 12:52:11
 status: wip
 prompt: sdd/prompts/202605/xprompt_lsp_jump_definition.md
+bead_id: sase-2b
+tier: epic
 ---
 # Plan: XPrompt LSP Jump To Definition
 
