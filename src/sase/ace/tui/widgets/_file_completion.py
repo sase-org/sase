@@ -155,6 +155,9 @@ class FileCompletionMixin(_MixinBase):
         if not isinstance(selected.metadata, XPromptAssistEntry):
             self._clear_xprompt_arg_hint()
             return False
+        if not selected.insertion.startswith("#"):
+            self._clear_xprompt_arg_hint()
+            return False
         if not required_inputs(selected.metadata):
             self._clear_xprompt_arg_hint()
             return False

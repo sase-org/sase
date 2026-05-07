@@ -52,6 +52,7 @@ class XPromptAssistEntry:
     input_signature: str | None
     inputs: tuple[XPromptInputHint, ...]
     content_preview: str | None
+    is_skill: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,7 @@ def build_xprompt_assist_entries(
                 for inp in entry.inputs
             ),
             content_preview=entry.content_preview,
+            is_skill=entry.is_skill,
         )
         for entry in projection.entries
     ]

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 01:13:36
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_skill_completion.md
 ---
 # Add Prompt Input Ctrl+T Completion for XPrompt Skills

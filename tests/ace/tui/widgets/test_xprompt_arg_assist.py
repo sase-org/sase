@@ -31,12 +31,14 @@ def _make_xprompt(
     source_path: str | None = "config",
     inputs: list[InputArg] | None = None,
     content: str = "body",
+    skill: bool | list[str] | None = None,
 ) -> XPrompt:
     return XPrompt(
         name=name,
         content=content,
         inputs=inputs or [],
         source_path=source_path,
+        skill=skill,
     )
 
 
@@ -69,6 +71,7 @@ def _entry(
 def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> None:
     xp = _make_xprompt(
         "typed",
+        skill=True,
         inputs=[
             InputArg(name="required_word", type=InputType.WORD, default=UNSET),
             InputArg(name="string_default", type=InputType.LINE, default="secret"),
@@ -106,6 +109,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
         "count?: int, enabled?: bool)"
     )
     assert entry.content_preview == "body"
+    assert entry.is_skill is True
     assert [
         (inp.name, inp.type, inp.required, inp.default_display, inp.position)
         for inp in entry.inputs

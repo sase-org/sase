@@ -97,7 +97,7 @@ class PromptInputBar(Static):
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
-                "[^T] path complete  [^G] editor  [^Y] workflow  [^J] newline"
+                "[^T] complete  [^G] editor  [^Y] workflow  [^J] newline"
             )
         yield Static("", id="prompt-completion", classes="hidden")
         yield PromptTextArea(
@@ -271,7 +271,8 @@ class PromptInputBar(Static):
         if entry is None:
             return
 
-        content.append(f"  {entry.kind}", style="dim")
+        kind = "skill" if entry.is_skill else entry.kind
+        content.append(f"  {kind}", style="dim")
         append_input_hints(content, entry.inputs)
 
     def hide_file_completions(self) -> None:
