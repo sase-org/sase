@@ -705,23 +705,26 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ### LLM Provider
 
-| Variable                         | Description                                                              |
-| -------------------------------- | ------------------------------------------------------------------------ |
-| `SASE_MODEL_TIER_OVERRIDE`       | Force all LLM invocations to a specific tier (`large` or `small`).       |
-| `SASE_MODEL_SIZE_OVERRIDE`       | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).         |
-| `SASE_LLM_LARGE_ARGS`            | Extra CLI args appended for `large` tier invocations (any provider).     |
-| `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).     |
-| `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset). |
-| `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset). |
-| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex). |
-| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).  |
-| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).  |
-| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.              |
-| `SASE_AGENT_PLAN_MODE`           | Enable Codex two-phase plan/implement flow.                              |
-| `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                      |
-| `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).   |
-| `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).   |
-| `SASE_GEMINI_PATH`               | Path to the Gemini CLI binary (default: `gemini`).                       |
+| Variable                         | Description                                                                |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| `SASE_MODEL_TIER_OVERRIDE`       | Force all LLM invocations to a specific tier (`large` or `small`).         |
+| `SASE_MODEL_SIZE_OVERRIDE`       | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).           |
+| `SASE_LLM_LARGE_ARGS`            | Extra CLI args appended for `large` tier invocations (any provider).       |
+| `SASE_LLM_SMALL_ARGS`            | Extra CLI args appended for `small` tier invocations (any provider).       |
+| `SASE_CLAUDE_LARGE_ARGS`         | Claude-specific extra args for `large` tier (fallback if generic unset).   |
+| `SASE_CLAUDE_SMALL_ARGS`         | Claude-specific extra args for `small` tier (fallback if generic unset).   |
+| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).   |
+| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier (fallback if generic unset).    |
+| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).    |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                |
+| `SASE_AGENT_PLAN_MODE`           | Enable Codex two-phase plan/implement flow.                                |
+| `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                        |
+| `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).     |
+| `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).     |
+| `SASE_OPENCODE_PATH`             | Path to the OpenCode CLI binary (default: `opencode`).                     |
+| `SASE_OPENCODE_LARGE_ARGS`       | OpenCode-specific extra args for `large` tier (fallback if generic unset). |
+| `SASE_OPENCODE_SMALL_ARGS`       | OpenCode-specific extra args for `small` tier (fallback if generic unset). |
+| `SASE_GEMINI_PATH`               | Path to the Gemini CLI binary (default: `gemini`).                         |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.
@@ -734,6 +737,10 @@ user-managed Codex config while preserving auth, hooks, skills, logs, and caches
 Qwen Code uses `qwen -p - --output-format stream-json --yolo --model <model>` and expects users to configure Qwen auth
 through Qwen's supported settings path. Qwen OAuth free tier access ended on 2026-04-15; use API keys, Alibaba Cloud
 Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider.
+
+OpenCode uses `opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd>` and
+expects users to configure OpenCode auth/settings through its normal XDG paths. OpenCode model names usually include a
+provider prefix; use `opencode models` to list models in your configured environment.
 
 ### VCS Provider
 

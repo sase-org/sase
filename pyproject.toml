@@ -68,6 +68,7 @@ agent_chat_from_name = "sase.scripts:agent_chat_from_name"
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex = "sase.llm_provider.codex:CodexProvider"
 gemini = "sase.llm_provider.gemini:GeminiProvider"
+opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen = "sase.llm_provider.qwen:QwenProvider"
 
 [project.entry-points."sase_vcs"]

@@ -1,8 +1,8 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (Claude
-Code, Codex, Gemini CLI, and Qwen Code are bundled; Jetski CLI ships as part of the sase-google plugin) behind a shared
-orchestration layer that handles preprocessing, invocation, and postprocessing.
+Code, Codex, Gemini CLI, Qwen Code, and OpenCode are bundled; Jetski CLI ships as part of the sase-google plugin) behind
+a shared orchestration layer that handles preprocessing, invocation, and postprocessing.
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@ orchestration layer that handles preprocessing, invocation, and postprocessing.
 - [Gemini CLI Integration](#gemini-cli-integration)
 - [Codex CLI Integration](#codex-cli-integration)
 - [Qwen Code Integration](#qwen-code-integration)
+- [OpenCode Integration](#opencode-integration)
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Model Tier System](#model-tier-system)
@@ -48,6 +49,7 @@ Key design principles:
 | `src/sase/llm_provider/claude.py`          | Claude Code provider implementation                 |
 | `src/sase/llm_provider/gemini.py`          | Gemini CLI provider implementation                  |
 | `src/sase/llm_provider/qwen.py`            | Qwen Code provider implementation                   |
+| `src/sase/llm_provider/opencode.py`        | OpenCode provider implementation                    |
 | `src/sase/llm_provider/registry.py`        | Provider registration and lookup                    |
 | `src/sase/llm_provider/config.py`          | Config file reader (`sase.yml`)                     |
 | `src/sase/llm_provider/types.py`           | `ModelTier`, `LoggingContext` types                 |
@@ -98,6 +100,7 @@ Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
 gemini = "sase.llm_provider.gemini:GeminiProvider"
+opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
 ```
 
@@ -116,8 +119,8 @@ provider = get_provider("claude")  # Explicit provider name
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
 3. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
-   priorities: `claude=0`, `codex=10`, `qwen=15`, `gemini=30`. External plugins (e.g. sase-google's Jetski at
-   priority 20) slot in by declaring their own priority.
+   priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins (e.g. sase-google's
+   Jetski at priority 20) slot in by declaring their own priority.
 
 ## Claude Code Integration
 
@@ -285,6 +288,57 @@ no normal headless-run config mutation could be verified.
 ### Timer Display
 
 While waiting for a response, a `gemini_timer("Waiting for Qwen")` spinner is shown (unless `suppress_output` is
+`True`).
+
+## OpenCode Integration
+
+The `OpenCodeProvider` invokes the `opencode` CLI tool.
+
+### Command Construction
+
+```
+opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> [extra_args...]
+```
+
+The prompt is written to stdin. Output is streamed as JSONL events; SASE extracts assistant text from `text` events,
+captures errors from `error` events, and accumulates token counters from `step_finish` events when OpenCode reports
+them.
+
+### Model Mapping
+
+OpenCode model IDs normally include an upstream provider prefix. Use `%model:opencode/<provider/model>` to route a
+single SASE prompt to a concrete OpenCode model.
+
+| Tier    | OpenCode Model                |
+| ------- | ----------------------------- |
+| `large` | `anthropic/claude-sonnet-4-5` |
+| `small` | `openai/gpt-5-mini`           |
+
+### Authentication and Config
+
+Configure OpenCode through its normal auth and settings flow before using it from SASE. OpenCode stores auth under its
+XDG data directory and reads config from its XDG config directory plus project `.opencode` config. Use `opencode models`
+to inspect the models available in your configured OpenCode environment.
+
+SASE deploys OpenCode skills under `~/.config/opencode/skills/`, which OpenCode scans as part of its config directory.
+SASE does not create a shadow OpenCode data/config home in this first implementation because OpenCode's normal headless
+run writes session/database state under its XDG data directory while reading auth/config from the standard locations.
+
+### Environment Variables
+
+| Variable                   | Description                                                  |
+| -------------------------- | ------------------------------------------------------------ |
+| `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier (generic, preferred)         |
+| `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier (generic, preferred)         |
+| `SASE_OPENCODE_PATH`       | Path to the OpenCode CLI binary (default: `opencode`)        |
+| `SASE_OPENCODE_LARGE_ARGS` | Extra CLI args for `large` tier (OpenCode-specific fallback) |
+| `SASE_OPENCODE_SMALL_ARGS` | Extra CLI args for `small` tier (OpenCode-specific fallback) |
+
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_OPENCODE_*_ARGS`.
+
+### Timer Display
+
+While waiting for a response, a `gemini_timer("Waiting for OpenCode")` spinner is shown (unless `suppress_output` is
 `True`).
 
 ## External Provider Plugins
