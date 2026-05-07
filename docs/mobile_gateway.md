@@ -65,6 +65,8 @@ mobile_gateway:
   state_dir: ""
   allow_non_loopback: false
   command: ""
+  agent_bridge_command: ""
+  helper_bridge_command: ""
   push_provider: "disabled"
   fcm_project_id: ""
   fcm_service_account_json: ""
@@ -495,6 +497,11 @@ curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&tag=changespec&limit=50
 curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&include_pdf=true" \
   -H "$AUTH_HEADER"
 ```
+
+Each xprompt catalog entry includes the display-only `input_signature` plus mobile editor metadata: `insertion`,
+`reference_prefix`, `kind`, and an `inputs` array of `{name, type, required, default_display, position}` records.
+Android should insert `insertion` when present, fall back to `#<name>` for older gateways, and use `inputs` only for
+prompt-adjacent argument hints. The raw launch prompt remains authoritative and is sent unchanged.
 
 List open/in-progress beads in a project and inspect one bead:
 
