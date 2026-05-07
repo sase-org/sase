@@ -18,6 +18,7 @@ def agent(
     run_start: datetime | None = None,
     stop: datetime | None = None,
     plan_times: list[datetime] | None = None,
+    code_time: datetime | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str = "demo",
 ) -> Agent:
@@ -33,6 +34,7 @@ def agent(
     )
     if plan_times is not None:
         result.plan_times = plan_times
+    result.code_time = code_time
     return result
 
 

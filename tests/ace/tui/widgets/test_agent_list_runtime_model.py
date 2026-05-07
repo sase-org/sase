@@ -206,6 +206,33 @@ def test_compute_row_runtime_aggregates_completed_and_active_children() -> None:
     assert elapsed == "6m01s"
 
 
+def test_compute_row_runtime_plan_approved_uses_segmented_parent_times() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    code = datetime(2026, 5, 6, 13, 15, 10)
+    now = datetime(2026, 5, 6, 13, 16, 15)
+
+    ts, elapsed = compute_row_runtime(
+        agent(
+            agent_type=AgentType.WORKFLOW,
+            status="PLAN APPROVED",
+            start=start,
+            run_start=run_start,
+            plan_times=[
+                datetime(2026, 5, 6, 13, 12, 0),
+                plan,
+                datetime(2026, 5, 6, 13, 16, 0),
+            ],
+            code_time=code,
+        ),
+        now=now,
+    )
+
+    assert ts is None
+    assert elapsed == "5m51s"
+
+
 def test_compute_row_runtime_planning_parent_with_completed_child_is_stable() -> None:
     parent = agent(
         agent_type=AgentType.WORKFLOW,
@@ -303,6 +330,15 @@ def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
 def test_runtime_suffix_ticks_parent_status_alone_is_stable(status: str) -> None:
     result = agent(status=status)
     assert runtime_suffix_ticks(result) is False
+
+
+def test_runtime_suffix_ticks_plan_approved_with_segmented_parent_times() -> None:
+    result = agent(
+        status="PLAN APPROVED",
+        plan_times=[datetime(2026, 5, 6, 13, 14, 53)],
+        code_time=datetime(2026, 5, 6, 13, 15, 10),
+    )
+    assert runtime_suffix_ticks(result) is True
 
 
 def test_runtime_suffix_ticks_parent_with_active_runtime_child() -> None:

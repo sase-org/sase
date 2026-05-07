@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 _PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE"}
 _ACTIVE_LEAF_STATUSES = {"RUNNING", "RETRYING"}
+_SEGMENTED_FOLLOWUP_RUNTIME_STATUSES = {"PLAN APPROVED"}
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,44 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
     return None
 
 
+def _segmented_followup_plan_time(agent: "Agent") -> datetime | None:
+    """Return the plan timestamp that anchors a follow-up runtime segment."""
+    if not agent.plan_times:
+        return None
+    if agent.code_time is None:
+        return None
+    submitted_before_code = [
+        plan_time for plan_time in agent.plan_times if plan_time <= agent.code_time
+    ]
+    if submitted_before_code:
+        return max(submitted_before_code)
+    return max(agent.plan_times)
+
+
+def _segmented_followup_runtime_interval(
+    agent: "Agent", effective_start: datetime, now: datetime
+) -> _RuntimeInterval | None:
+    """Return active runtime for a plan row with a running follow-up.
+
+    The approval gap between plan submission and code launch is not active
+    runtime, so the row displays ``BEGIN -> PLAN`` plus ``CODE -> now``.
+    """
+    if agent.status not in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES:
+        return None
+    if agent.code_time is None:
+        return None
+    plan_time = _segmented_followup_plan_time(agent)
+    if plan_time is None:
+        return None
+    elapsed_seconds = max(0.0, (plan_time - effective_start).total_seconds())
+    elapsed_seconds += max(0.0, (now - agent.code_time).total_seconds())
+    return _RuntimeInterval(
+        elapsed_seconds=elapsed_seconds,
+        terminal_time=None,
+        active=True,
+    )
+
+
 def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | None:
     """Return the row's own runtime interval, excluding aggregate children."""
     if agent.start_time is None:
@@ -122,6 +161,12 @@ def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | 
             terminal_time=terminal_time,
             active=False,
         )
+
+    segmented_interval = _segmented_followup_runtime_interval(
+        agent, effective_start, now
+    )
+    if segmented_interval is not None:
+        return segmented_interval
 
     if agent.status == "WAITING":
         if agent.run_start_time is None:
@@ -236,6 +281,11 @@ def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
             return True
     if agent.stop_time is not None:
         return False
+    if (
+        agent.start_time is not None
+        and _segmented_followup_plan_time(agent) is not None
+    ):
+        return agent.status in _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES
     if agent.status in _ACTIVE_LEAF_STATUSES:
         return agent.start_time is not None
     return agent.status == "WAITING" and agent.run_start_time is not None

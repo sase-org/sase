@@ -239,6 +239,35 @@ def test_render_key_changes_when_plan_runtime_timestamp_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_code_runtime_timestamp_changes() -> None:
+    a = _agent(status="PLAN APPROVED")
+    a.plan_times.append(datetime(2026, 4, 25, 14, 35, 0))
+
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 40, 1),
+    )
+    a.code_time = datetime(2026, 4, 25, 14, 36, 0)
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 40, 1),
+    )
+
+    assert k1 != k2
+
+
 # --- cache hit / miss --------------------------------------------------------
 
 

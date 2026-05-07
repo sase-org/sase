@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 10:30:42
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_approved_runtime.md
 ---
 # Plan: Show Runtime for PLAN APPROVED Plan-Chain Agents

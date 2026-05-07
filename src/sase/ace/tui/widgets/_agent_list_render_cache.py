@@ -81,6 +81,7 @@ def _runtime_signature(
         agent.run_start_time,
         agent.stop_time,
         tuple(agent.plan_times),
+        agent.code_time,
         tuple(agent.questions_times),
         child_signature,
         getattr(agent, "wait_until", None),
