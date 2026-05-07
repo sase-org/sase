@@ -254,6 +254,16 @@
             "description": "If true, this step is hidden by default in the Agents tab TUI",
             "default": false
           },
+          "finally": {
+            "type": "boolean",
+            "description": "If true, this step runs even when a prior step has failed. Finally steps must appear at the end of the workflow.",
+            "default": false
+          },
+          "artifact": {
+            "type": "string",
+            "description": "If set to stdout, write bash/python stdout to an artifact file and expose the artifact path as _artifact.",
+            "enum": ["stdout"]
+          },
           "if": {
             "type": "string",
             "description": "Jinja2 condition expression - step is skipped if false"
@@ -429,7 +439,8 @@
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
                     { "required": ["use"] },
-                    { "required": ["parallel"] }
+                    { "required": ["parallel"] },
+                    { "required": ["artifact"] }
                   ]
                 }
               },
@@ -442,7 +453,8 @@
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
                     { "required": ["use"] },
-                    { "required": ["parallel"] }
+                    { "required": ["parallel"] },
+                    { "required": ["artifact"] }
                   ]
                 }
               },
@@ -486,7 +498,9 @@
                     { "required": ["repeat"] },
                     { "required": ["while"] },
                     { "required": ["output"] },
-                    { "required": ["hitl"] }
+                    { "required": ["hitl"] },
+                    { "required": ["finally"] },
+                    { "required": ["artifact"] }
                   ]
                 }
               },
@@ -512,7 +526,8 @@
                     { "required": ["bash"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
-                    { "required": ["use"] }
+                    { "required": ["use"] },
+                    { "required": ["artifact"] }
                   ]
                 }
               }
@@ -531,7 +546,12 @@
                 { "required": ["parallel", "while"] },
                 { "required": ["prompt_part", "for"] },
                 { "required": ["prompt_part", "repeat"] },
-                { "required": ["prompt_part", "while"] }
+                { "required": ["prompt_part", "while"] },
+                { "required": ["prompt_part", "finally"] },
+                { "required": ["prompt_part", "artifact"] },
+                { "required": ["agent", "artifact"] },
+                { "required": ["prompt", "artifact"] },
+                { "required": ["parallel", "artifact"] }
               ]
             }
           }
