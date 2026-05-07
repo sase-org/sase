@@ -9,6 +9,7 @@ from textual.widgets import Static, TextArea
 
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.xprompt_arg_assist import (
+    ActiveXPromptArgHint,
     XPromptAssistEntry,
     append_input_hints,
 )
@@ -281,6 +282,27 @@ class PromptInputBar(Static):
         self._completion_line_count = 0
         self._update_height()
 
+    def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
+        """Show the post-accept xprompt argument hint panel."""
+        panel = self.query_one("#prompt-completion", Static)
+        content = Text()
+        content.append(hint.reference_text, style="bold green")
+        content.append(" arguments", style="dim")
+        append_input_hints(
+            content,
+            hint.entry.inputs,
+            active_index=hint.active_input_index,
+        )
+
+        panel.border_title = "xprompt args"
+        panel.border_subtitle = "[:] colon  [(] named args"
+        panel.update(content)
+        panel.remove_class("hidden")
+        self._completion_visible = True
+        line_count = len(content.plain.splitlines()) if content.plain else 0
+        self._completion_line_count = line_count + 3
+        self._update_height()
+
     def _handle_text_submission(self, text: str) -> None:
         """Process text submission from the TextArea."""
         value = text.strip()
@@ -308,6 +330,7 @@ class PromptInputBar(Static):
     def action_cancel(self) -> None:
         """Cancel the input bar."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
+        text_area._clear_xprompt_arg_hint()
         stripped = text_area.text.strip()
         self.post_message(self.Cancelled(cancelled_text=stripped, mode=self._mode))
 

@@ -16,6 +16,11 @@ from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     is_xprompt_like_token,
 )
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    ActiveXPromptArgHint,
+    XPromptAssistEntry,
+    required_inputs,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -35,12 +40,17 @@ class FileCompletionMixin(_MixinBase):
         _file_completion_index: int
         _file_completion_active: bool
         _completion_kind: str
+        _active_xprompt_arg_hint: ActiveXPromptArgHint | None
 
         def _find_prompt_bar(self) -> Any: ...
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> None: ...
+
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None: ...
 
     # -- Mixin implementation --
 
@@ -106,13 +116,41 @@ class FileCompletionMixin(_MixinBase):
             completion_kind=self._completion_kind,
         )
 
-    def _clear_file_completion(self) -> None:
+    def _clear_file_completion(self, *, clear_xprompt_arg_hint: bool = True) -> None:
         """Reset path completion state and hide panel."""
         self._file_completion_active = False
         self._file_completion_candidates = []
         self._file_completion_index = 0
         self._completion_kind = "file"
         self._update_file_completion_panel("")
+        if clear_xprompt_arg_hint:
+            self._clear_xprompt_arg_hint()
+
+    def _maybe_show_accepted_xprompt_arg_hint(
+        self,
+        selected: CompletionCandidate,
+        row: int,
+        start: int,
+    ) -> bool:
+        """Show post-accept argument hints for required-input xprompts."""
+        if not isinstance(selected.metadata, XPromptAssistEntry):
+            self._clear_xprompt_arg_hint()
+            return False
+        if not required_inputs(selected.metadata):
+            self._clear_xprompt_arg_hint()
+            return False
+
+        reference_start = self._absolute_offset((row, start))
+        reference_end = reference_start + len(selected.insertion)
+        hint = ActiveXPromptArgHint(
+            entry=selected.metadata,
+            reference_start=reference_start,
+            reference_end=reference_end,
+            reference_text=selected.insertion,
+        )
+        self._active_xprompt_arg_hint = hint
+        self._show_xprompt_arg_hint(hint)
+        return True
 
     def _get_token_context(self) -> tuple[int, int, int, str] | None:
         """Return token context using the appropriate getter for the active kind."""
@@ -146,6 +184,7 @@ class FileCompletionMixin(_MixinBase):
             self._clear_file_completion()
             return False
         row, start, end, _token = ctx
+        accepted_kind = self._completion_kind
         self._replace_token_text(row, start, end, selected.insertion)
         # Directory drill-down: open completion for the accepted directory
         # (only applies to file completion, not xprompt)
@@ -156,7 +195,11 @@ class FileCompletionMixin(_MixinBase):
             if not self._try_file_completion_tab():
                 self._clear_file_completion()
         else:
-            self._clear_file_completion()
+            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            if accepted_kind == "xprompt":
+                self._maybe_show_accepted_xprompt_arg_hint(selected, row, start)
+            else:
+                self._clear_xprompt_arg_hint()
         return True
 
     def _delete_selected_file_completion(self) -> bool:
@@ -238,6 +281,7 @@ class FileCompletionMixin(_MixinBase):
 
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        self._clear_xprompt_arg_hint()
         token_info = self._extract_token_around_cursor()
         if token_info is None:
             return self._try_file_history_completion()
@@ -270,8 +314,12 @@ class FileCompletionMixin(_MixinBase):
             return True
 
         if len(candidates) == 1:
-            self._replace_token_text(row, start, end, candidates[0].insertion)
-            self._clear_file_completion()
+            selected = candidates[0]
+            accepted_kind = self._completion_kind
+            self._replace_token_text(row, start, end, selected.insertion)
+            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            if accepted_kind == "xprompt":
+                self._maybe_show_accepted_xprompt_arg_hint(selected, row, start)
             return True
 
         if shared_extension:

@@ -68,6 +68,21 @@ class SnippetExpansionMixin(_MixinBase):
             return False
 
         template = snippets[trigger]
+        return self._expand_snippet_template_at_range(
+            template,
+            (row, word_start),
+            (row, col),
+        )
+
+    def _expand_snippet_template_at_range(
+        self,
+        template: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> bool:
+        """Expand a snippet template at an explicit document range."""
+        row, word_start = start
+        line = self.document.get_line(row)
 
         # Find all tabstop markers ($0, $1, $2, ...) and build cleaned text
         markers: list[tuple[int, int]] = []  # (tabstop_number, offset_in_cleaned)
@@ -103,8 +118,8 @@ class SnippetExpansionMixin(_MixinBase):
                 for num, offset in markers
             ]
 
-        # Replace trigger word with expanded text
-        self._replace_via_keyboard(expanded, (row, word_start), (row, col))
+        # Replace target range with expanded text
+        self._replace_via_keyboard(expanded, start, end)
 
         if not markers:
             # No markers — cursor stays at end (default behavior)

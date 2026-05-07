@@ -45,7 +45,10 @@ class ActiveXPromptArgHint:
     """An active argument hint resolved at a prompt cursor position."""
 
     entry: XPromptAssistEntry
-    mode: Literal["bare", "colon", "paren"]
+    reference_start: int
+    reference_end: int
+    reference_text: str
+    trigger_mode: Literal["accepted", "colon", "paren"] = "accepted"
     active_input_index: int = 0
 
 
@@ -112,10 +115,16 @@ def append_input_hints(
     inputs: tuple[XPromptInputHint, ...],
     *,
     include_types: bool = True,
+    active_index: int | None = None,
 ) -> None:
     """Append styled user-facing input hints to a Rich Text label."""
-    for inp in inputs:
-        text.append(_INPUT_INDENT)
+    for index, inp in enumerate(inputs):
+        if active_index is None:
+            text.append(_INPUT_INDENT)
+        elif index == active_index:
+            text.append("\n  \u25b8  ", style="bold")
+        else:
+            text.append(_INPUT_INDENT)
         text.append(
             _styled_input_label(inp, include_types), style=_input_name_style(inp)
         )

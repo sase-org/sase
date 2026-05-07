@@ -15,6 +15,10 @@ from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._text_formatting import TextFormattingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    ActiveXPromptArgHint,
+    named_args_skeleton,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -74,6 +78,7 @@ class PromptTextArea(
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
         self._completion_kind: str = "file"
+        self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._vcs_mru_index: int | None = None
 
     @property
@@ -98,6 +103,7 @@ class PromptTextArea(
         """Submit the prompt text."""
         self._snippet_tabstops = []
         self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
         self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
@@ -131,6 +137,7 @@ class PromptTextArea(
         PromptInputBar = _prompt_bar_class()
         bar = self._find_prompt_bar()
         if bar:
+            self._clear_xprompt_arg_hint()
             row, col = self.cursor_location
             bar.post_message(PromptInputBar.EditorRequested(self.text, row, col))
 
@@ -141,11 +148,13 @@ class PromptTextArea(
             return
         PromptInputBar = _prompt_bar_class()
         if bar:
+            self._clear_xprompt_arg_hint()
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._clear_file_completion()
+        self._clear_xprompt_arg_hint()
         self._vcs_mru_index = None
         self._vim_mode = "normal"
         self._pending_operator = ""
@@ -180,6 +189,7 @@ class PromptTextArea(
             if self._file_completion_active:
                 self._accept_file_completion()
             else:
+                self._clear_xprompt_arg_hint()
                 self.action_submit_prompt()
             return
 
@@ -187,6 +197,7 @@ class PromptTextArea(
             event.stop()
             event.prevent_default()
             self._clear_file_completion()
+            self._clear_xprompt_arg_hint()
             bar = self._find_prompt_bar()
             if bar:
                 bar.action_cancel()
@@ -204,11 +215,23 @@ class PromptTextArea(
                 event.stop()
                 event.prevent_default()
                 self._clear_file_completion()
+                self._clear_xprompt_arg_hint()
                 return
             event.stop()
             event.prevent_default()
             self._enter_normal_mode()
             return
+
+        if self._active_xprompt_arg_hint is not None and event.character in (":", "("):
+            if self._can_apply_xprompt_arg_action():
+                event.stop()
+                event.prevent_default()
+                if event.character == ":":
+                    self._apply_xprompt_colon_arg_hint()
+                else:
+                    self._apply_xprompt_named_arg_hint()
+                return
+            self._clear_xprompt_arg_hint()
 
         # Active file completion navigation / acceptance.
         if self._file_completion_active:
@@ -307,6 +330,7 @@ class PromptTextArea(
             self._vcs_mru_index = None
 
         self._refresh_file_completion_from_cursor()
+        self._refresh_xprompt_arg_hint_from_cursor()
 
         # Auto-wrap: reflow with prettier when line exceeds available width.
         # Skip wrapping on space so the user's trailing space is never consumed
@@ -332,6 +356,111 @@ class PromptTextArea(
     def on_unmount(self) -> None:
         """Cancel any pending async formatter task when widget is removed."""
         self._cancel_pending_prettier_format()
+
+    def _absolute_offset(self, location: tuple[int, int]) -> int:
+        """Convert a document location to an absolute character offset."""
+        row, col = location
+        return sum(len(self.document.get_line(r)) + 1 for r in range(row)) + col
+
+    def _location_from_absolute(self, offset: int) -> tuple[int, int]:
+        """Convert an absolute character offset to a document location."""
+        remaining = max(0, offset)
+        for row in range(self.document.line_count):
+            line_len = len(self.document.get_line(row))
+            if remaining <= line_len:
+                return row, remaining
+            remaining -= line_len + 1
+        last_row = self.document.line_count - 1
+        return last_row, len(self.document.get_line(last_row))
+
+    def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
+        """Render the active xprompt argument hint through the prompt bar."""
+        bar = self._find_prompt_bar()
+        if bar:
+            bar.show_xprompt_arg_hint(hint)
+
+    def _clear_xprompt_arg_hint(self) -> None:
+        """Clear active xprompt argument hint state and hide its panel."""
+        if self._active_xprompt_arg_hint is None:
+            return
+        self._active_xprompt_arg_hint = None
+        bar = self._find_prompt_bar()
+        if bar and not self._file_completion_active:
+            bar.hide_file_completions()
+
+    def _active_xprompt_hint_is_current(self) -> bool:
+        hint = self._active_xprompt_arg_hint
+        if hint is None:
+            return False
+        return (
+            self.text[hint.reference_start : hint.reference_end] == hint.reference_text
+        )
+
+    def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
+        """Dismiss post-accept hints when edits move outside the reference."""
+        hint = self._active_xprompt_arg_hint
+        if hint is None:
+            return
+        if not self._active_xprompt_hint_is_current():
+            self._clear_xprompt_arg_hint()
+            return
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        if cursor_offset != hint.reference_end:
+            self._clear_xprompt_arg_hint()
+
+    def _can_apply_xprompt_arg_action(self) -> bool:
+        """Return True when an active hint can consume syntax action keys."""
+        hint = self._active_xprompt_arg_hint
+        if hint is None or not self._active_xprompt_hint_is_current():
+            return False
+        return self._absolute_offset(self.cursor_location) == hint.reference_end
+
+    def _apply_xprompt_colon_arg_hint(self) -> bool:
+        """Rewrite the accepted reference with colon-argument syntax."""
+        hint = self._active_xprompt_arg_hint
+        if hint is None or not self._active_xprompt_hint_is_current():
+            self._clear_xprompt_arg_hint()
+            return False
+        if self._absolute_offset(self.cursor_location) != hint.reference_end:
+            self._clear_xprompt_arg_hint()
+            return False
+
+        start = self._location_from_absolute(hint.reference_start)
+        end = self._location_from_absolute(hint.reference_end)
+        replacement = f"{hint.entry.insertion}:"
+        self._replace_via_keyboard(replacement, start, end)
+        new_end = hint.reference_start + len(replacement)
+        self.cursor_location = self._location_from_absolute(new_end)
+        next_hint = ActiveXPromptArgHint(
+            entry=hint.entry,
+            reference_start=hint.reference_start,
+            reference_end=new_end,
+            reference_text=replacement,
+            trigger_mode="colon",
+            active_input_index=hint.active_input_index,
+        )
+        self._active_xprompt_arg_hint = next_hint
+        self._show_xprompt_arg_hint(next_hint)
+        return True
+
+    def _apply_xprompt_named_arg_hint(self) -> bool:
+        """Rewrite the accepted reference with a named-argument snippet."""
+        hint = self._active_xprompt_arg_hint
+        if hint is None or not self._active_xprompt_hint_is_current():
+            self._clear_xprompt_arg_hint()
+            return False
+        if self._absolute_offset(self.cursor_location) != hint.reference_end:
+            self._clear_xprompt_arg_hint()
+            return False
+
+        start = self._location_from_absolute(hint.reference_start)
+        end = self._location_from_absolute(hint.reference_end)
+        self._clear_xprompt_arg_hint()
+        return self._expand_snippet_template_at_range(
+            named_args_skeleton(hint.entry),
+            start,
+            end,
+        )
 
     def _refocus_if_needed(self) -> None:
         """Refocus this text area unless a modal is active."""
