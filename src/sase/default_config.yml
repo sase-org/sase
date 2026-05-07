@@ -14,6 +14,13 @@ mobile_gateway:
   state_dir: ""
   allow_non_loopback: false
   command: ""
+  push_provider: "disabled"
+  fcm_project_id: ""
+  fcm_service_account_json: ""
+  fcm_credential_env: ""
+  fcm_dry_run: false
+  push_timeout_seconds: 5
+  push_retry_limit: 1
   startup_timeout_seconds: 10
 
 ace:

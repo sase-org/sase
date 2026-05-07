@@ -63,8 +63,56 @@ mobile_gateway:
   state_dir: ""
   allow_non_loopback: false
   command: ""
+  push_provider: "disabled"
+  fcm_project_id: ""
+  fcm_service_account_json: ""
+  fcm_credential_env: ""
+  fcm_dry_run: false
+  push_timeout_seconds: 5
+  push_retry_limit: 1
   startup_timeout_seconds: 10
 ```
+
+## Push Hints
+
+Push delivery is disabled by default. When enabled, the gateway sends hint-only records derived from the same event
+stream used by SSE. Push payloads contain safe IDs, categories, reasons, and short display text; they do not contain
+bearer tokens, pairing codes, prompt bodies, response text, attachment contents, attachment tokens, or host paths. The
+mobile client must always fetch authenticated gateway state after a push wake or notification tap.
+
+Local development can use the test provider, which records attempted delivery without leaving the process:
+
+```bash
+sase mobile gateway start -P test
+```
+
+FCM HTTP v1 is configured with non-secret pointers. Use either a service-account JSON path or an environment variable
+containing a short-lived bearer token or service-account JSON:
+
+```bash
+export SASE_FCM_CREDENTIAL='...'
+sase mobile gateway start \
+  -P fcm \
+  -F my-firebase-project \
+  -E SASE_FCM_CREDENTIAL \
+  -D
+```
+
+Equivalent config:
+
+```yaml
+mobile_gateway:
+  push_provider: "fcm"
+  fcm_project_id: "my-firebase-project"
+  fcm_service_account_json: "~/.config/sase/firebase-service-account.json"
+  fcm_credential_env: ""
+  fcm_dry_run: false
+  push_timeout_seconds: 5
+  push_retry_limit: 1
+```
+
+Only credential paths or environment-variable names are passed on the gateway command line. Do not commit
+service-account JSON, Firebase project secrets, `google-services.json`, signing keys, or local tailnet hostnames.
 
 ## Pairing Flow
 

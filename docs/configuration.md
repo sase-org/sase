@@ -20,6 +20,7 @@ and CLI flags.
   - [precommit_command](#precommit_command)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
+  - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
   - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
@@ -599,6 +600,51 @@ paths remain named `chat_install` for compatibility. See [`docs/integrations.md`
 for the integration-facing Python API.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
+
+### mobile_gateway
+
+Configuration for `sase mobile gateway start`, which launches the workstation-hosted Rust gateway for paired mobile
+clients.
+
+```yaml
+mobile_gateway:
+  bind_address: "127.0.0.1"
+  port: 7629
+  state_dir: ""
+  allow_non_loopback: false
+  command: ""
+  push_provider: "disabled"
+  fcm_project_id: ""
+  fcm_service_account_json: ""
+  fcm_credential_env: ""
+  fcm_dry_run: false
+  push_timeout_seconds: 5
+  push_retry_limit: 1
+  startup_timeout_seconds: 10
+```
+
+| Field                                     | Type   | Default       | Description                                                               |
+| ----------------------------------------- | ------ | ------------- | ------------------------------------------------------------------------- |
+| `mobile_gateway.bind_address`             | string | `"127.0.0.1"` | Host address to bind. Non-loopback values require explicit opt-in.        |
+| `mobile_gateway.port`                     | int    | `7629`        | Gateway HTTP port.                                                        |
+| `mobile_gateway.state_dir`                | string | `""`          | SASE state root for gateway storage. Empty uses the Rust gateway default. |
+| `mobile_gateway.allow_non_loopback`       | bool   | `false`       | Allow LAN or tailnet binds after explicit user opt-in.                    |
+| `mobile_gateway.command`                  | string | `""`          | Gateway binary command override, parsed without a shell.                  |
+| `mobile_gateway.push_provider`            | string | `"disabled"`  | Push provider: `disabled`, `test`, or `fcm`.                              |
+| `mobile_gateway.fcm_project_id`           | string | `""`          | Firebase project ID for FCM HTTP v1.                                      |
+| `mobile_gateway.fcm_service_account_json` | string | `""`          | Local service-account JSON path. Do not commit this file.                 |
+| `mobile_gateway.fcm_credential_env`       | string | `""`          | Env var containing an FCM bearer token or service-account JSON.           |
+| `mobile_gateway.fcm_dry_run`              | bool   | `false`       | Ask FCM to validate messages without delivering them.                     |
+| `mobile_gateway.push_timeout_seconds`     | float  | `5`           | Timeout per push provider HTTP attempt.                                   |
+| `mobile_gateway.push_retry_limit`         | int    | `1`           | Retry attempts for best-effort push delivery.                             |
+| `mobile_gateway.startup_timeout_seconds`  | float  | `10`          | Seconds to wait for gateway readiness before exiting.                     |
+
+Push payloads are hint-only and must not contain bearer tokens, pairing codes, prompt bodies, response text, attachment
+contents, attachment tokens, or host paths. Only credential paths or environment-variable names are placed on the
+gateway command line. See [`docs/mobile_gateway.md`](mobile_gateway.md#push-hints) for setup examples and security
+notes.
+
+Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 ### sdd
 

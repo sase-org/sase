@@ -37,6 +37,13 @@ class _MobileGatewayConfig:
     command: tuple[str, ...] = ()
     agent_bridge_command: tuple[str, ...] = ()
     helper_bridge_command: tuple[str, ...] = ()
+    push_provider: str = "disabled"
+    fcm_project_id: str = ""
+    fcm_service_account_json: Path | None = None
+    fcm_credential_env: str = ""
+    fcm_dry_run: bool = False
+    push_timeout_seconds: float = 5.0
+    push_retry_limit: int = 1
     startup_timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS
 
 
@@ -67,6 +74,13 @@ def _load_mobile_gateway_config() -> _MobileGatewayConfig:
         command=_command_value(raw.get("command")),
         agent_bridge_command=_command_value(raw.get("agent_bridge_command")),
         helper_bridge_command=_command_value(raw.get("helper_bridge_command")),
+        push_provider=_push_provider_value(raw.get("push_provider")),
+        fcm_project_id=_string_value(raw.get("fcm_project_id"), ""),
+        fcm_service_account_json=_optional_path(raw.get("fcm_service_account_json")),
+        fcm_credential_env=_string_value(raw.get("fcm_credential_env"), ""),
+        fcm_dry_run=bool(raw.get("fcm_dry_run", False)),
+        push_timeout_seconds=_positive_float(raw.get("push_timeout_seconds"), 5.0),
+        push_retry_limit=_non_negative_int(raw.get("push_retry_limit"), 1),
         startup_timeout_seconds=_positive_float(
             raw.get("startup_timeout_seconds"), DEFAULT_STARTUP_TIMEOUT_SECONDS
         ),
@@ -97,6 +111,26 @@ def _prepare_mobile_gateway_launch(
         _command_value(getattr(args, "helper_bridge_command", None))
         or config.helper_bridge_command
     )
+    push_provider = _push_provider_value(
+        getattr(args, "push_provider", None) or config.push_provider
+    )
+    fcm_project_id = _string_value(
+        getattr(args, "fcm_project_id", None), config.fcm_project_id
+    )
+    fcm_service_account_json = (
+        _optional_path(getattr(args, "fcm_service_account_json", None))
+        or config.fcm_service_account_json
+    )
+    fcm_credential_env = _string_value(
+        getattr(args, "fcm_credential_env", None), config.fcm_credential_env
+    )
+    fcm_dry_run = config.fcm_dry_run or bool(getattr(args, "fcm_dry_run", False))
+    push_timeout_seconds = _positive_float(
+        getattr(args, "push_timeout_seconds", None), config.push_timeout_seconds
+    )
+    push_retry_limit = _non_negative_int(
+        getattr(args, "push_retry_limit", None), config.push_retry_limit
+    )
     if not command:
         command = _resolve_gateway_command()
     if not command:
@@ -118,6 +152,20 @@ def _prepare_mobile_gateway_launch(
         argv.extend(["--agent-bridge-command", shlex.join(agent_bridge_command)])
     if helper_bridge_command:
         argv.extend(["--helper-bridge-command", shlex.join(helper_bridge_command)])
+    if push_provider != "disabled":
+        argv.extend(["--push-provider", push_provider])
+    if fcm_project_id:
+        argv.extend(["--fcm-project-id", fcm_project_id])
+    if fcm_service_account_json is not None:
+        argv.extend(["--fcm-service-account-json", str(fcm_service_account_json)])
+    if fcm_credential_env:
+        argv.extend(["--fcm-credential-env", fcm_credential_env])
+    if fcm_dry_run:
+        argv.append("--fcm-dry-run")
+    if push_timeout_seconds != 5.0:
+        argv.extend(["--push-timeout-seconds", f"{push_timeout_seconds:g}"])
+    if push_retry_limit != 1:
+        argv.extend(["--push-retry-limit", str(push_retry_limit)])
     if allow_non_loopback:
         argv.append("--allow-non-loopback")
 
@@ -281,6 +329,24 @@ def _positive_float(value: Any, default: float) -> float:
     if result <= 0:
         return default
     return result
+
+
+def _non_negative_int(value: Any, default: int) -> int:
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return default
+    if result < 0:
+        return default
+    return result
+
+
+def _push_provider_value(value: Any) -> str:
+    if isinstance(value, str):
+        normalized = value.strip().lower().replace("-", "_")
+        if normalized in {"disabled", "test", "fcm"}:
+            return normalized
+    return "disabled"
 
 
 def _command_value(value: Any) -> tuple[str, ...]:

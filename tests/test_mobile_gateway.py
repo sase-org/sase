@@ -27,7 +27,15 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "state_dir": None,
         "allow_non_loopback": False,
         "gateway_command": None,
+        "agent_bridge_command": None,
         "helper_bridge_command": None,
+        "push_provider": None,
+        "fcm_project_id": None,
+        "fcm_service_account_json": None,
+        "fcm_credential_env": None,
+        "fcm_dry_run": False,
+        "push_timeout_seconds": None,
+        "push_retry_limit": None,
         "startup_timeout": None,
     }
     values.update(overrides)
@@ -51,6 +59,13 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
                 "command": "sase_gateway --extra",
                 "agent_bridge_command": "sase",
                 "helper_bridge_command": "sase-helper",
+                "push_provider": "fcm",
+                "fcm_project_id": "demo-project",
+                "fcm_service_account_json": str(tmp_path / "fcm.json"),
+                "fcm_credential_env": "SASE_FCM_CREDENTIAL",
+                "fcm_dry_run": True,
+                "push_timeout_seconds": "2.0",
+                "push_retry_limit": "3",
                 "startup_timeout_seconds": "2.5",
             }
         },
@@ -63,6 +78,13 @@ def test_load_mobile_gateway_config_normalizes_values(tmp_path: Path) -> None:
             command=("sase_gateway", "--extra"),
             agent_bridge_command=("sase",),
             helper_bridge_command=("sase-helper",),
+            push_provider="fcm",
+            fcm_project_id="demo-project",
+            fcm_service_account_json=tmp_path / "fcm.json",
+            fcm_credential_env="SASE_FCM_CREDENTIAL",
+            fcm_dry_run=True,
+            push_timeout_seconds=2.0,
+            push_retry_limit=3,
             startup_timeout_seconds=2.5,
         )
 
@@ -125,6 +147,42 @@ def test_prepare_launch_includes_state_dir_and_cli_overrides(tmp_path: Path) -> 
     ]
 
 
+def test_prepare_launch_includes_non_secret_push_settings(tmp_path: Path) -> None:
+    launch = _prepare_mobile_gateway_launch(
+        _args(
+            gateway_command="/bin/sase_gateway",
+            push_provider="fcm",
+            fcm_project_id="demo-project",
+            fcm_service_account_json=str(tmp_path / "fcm.json"),
+            fcm_credential_env="SASE_FCM_TOKEN",
+            fcm_dry_run=True,
+            push_timeout_seconds=2.5,
+            push_retry_limit=3,
+        ),
+        config=_MobileGatewayConfig(command=("ignored",)),
+    )
+
+    assert launch.argv == [
+        "/bin/sase_gateway",
+        "--bind",
+        "127.0.0.1:7629",
+        "--push-provider",
+        "fcm",
+        "--fcm-project-id",
+        "demo-project",
+        "--fcm-service-account-json",
+        str(tmp_path / "fcm.json"),
+        "--fcm-credential-env",
+        "SASE_FCM_TOKEN",
+        "--fcm-dry-run",
+        "--push-timeout-seconds",
+        "2.5",
+        "--push-retry-limit",
+        "3",
+    ]
+    assert "secret" not in " ".join(launch.argv).lower()
+
+
 def test_parser_accepts_mobile_gateway_start() -> None:
     args = create_parser().parse_args(
         [
@@ -146,6 +204,19 @@ def test_parser_accepts_mobile_gateway_start() -> None:
             "sase",
             "-J",
             "sase-helper",
+            "-P",
+            "fcm",
+            "-F",
+            "demo-project",
+            "-S",
+            "/tmp/fcm.json",
+            "-E",
+            "SASE_FCM_TOKEN",
+            "-D",
+            "-U",
+            "2.5",
+            "-R",
+            "3",
         ]
     )
 
@@ -160,6 +231,13 @@ def test_parser_accepts_mobile_gateway_start() -> None:
     assert args.startup_timeout == 1
     assert args.agent_bridge_command == "sase"
     assert args.helper_bridge_command == "sase-helper"
+    assert args.push_provider == "fcm"
+    assert args.fcm_project_id == "demo-project"
+    assert args.fcm_service_account_json == "/tmp/fcm.json"
+    assert args.fcm_credential_env == "SASE_FCM_TOKEN"
+    assert args.fcm_dry_run is True
+    assert args.push_timeout_seconds == 2.5
+    assert args.push_retry_limit == 3
 
 
 def test_parser_accepts_mobile_helper_bridge_changespec_tags() -> None:

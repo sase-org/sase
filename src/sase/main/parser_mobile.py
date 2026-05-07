@@ -135,3 +135,42 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "--helper-bridge-command",
         help=argparse.SUPPRESS,
     )
+    start_parser.add_argument(
+        "-P",
+        "--push-provider",
+        choices=("disabled", "test", "fcm"),
+        help="Push provider for hint delivery (disabled, test, or fcm)",
+    )
+    start_parser.add_argument(
+        "-F",
+        "--fcm-project-id",
+        help="Firebase project ID for FCM HTTP v1",
+    )
+    start_parser.add_argument(
+        "-S",
+        "--fcm-service-account-json",
+        help="Path to the FCM service-account JSON file",
+    )
+    start_parser.add_argument(
+        "-E",
+        "--fcm-credential-env",
+        help="Environment variable containing an FCM bearer token or service-account JSON",
+    )
+    start_parser.add_argument(
+        "-D",
+        "--fcm-dry-run",
+        action="store_true",
+        help="Ask FCM to validate messages without delivering them",
+    )
+    start_parser.add_argument(
+        "-U",
+        "--push-timeout-seconds",
+        type=float,
+        help="Seconds to wait for each push provider HTTP attempt",
+    )
+    start_parser.add_argument(
+        "-R",
+        "--push-retry-limit",
+        type=int,
+        help="Number of retry attempts for best-effort push delivery",
+    )
