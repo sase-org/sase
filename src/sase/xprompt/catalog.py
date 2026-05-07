@@ -16,13 +16,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sase.xprompt.loader import (
+    get_all_workflows,
     get_all_xprompts,
     get_known_project_workspaces,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
     load_project_local_xprompts,
 )
-from sase.xprompt.models import UNSET, InputArg, XPrompt
+from sase.xprompt.models import UNSET, InputArg, XPrompt, xprompt_to_workflow
+from sase.xprompt.reference_display import (
+    workflow_kind_value,
+    workflow_reference_insertion,
+    workflow_reference_prefix,
+)
+from sase.xprompt.workflow_models import Workflow
 
 log = logging.getLogger(__name__)
 
@@ -64,16 +71,31 @@ class CatalogArtifact:
 
 
 @dataclass(frozen=True)
+class StructuredCatalogInput:
+    """Mobile-safe structured xprompt input metadata."""
+
+    name: str
+    type: str
+    required: bool
+    default_display: str | None
+    position: int
+
+
+@dataclass(frozen=True)
 class StructuredCatalogEntry:
     """Mobile-safe structured xprompt catalog entry."""
 
     name: str
     display_label: str
+    insertion: str
+    reference_prefix: str
+    kind: str
     description: str | None
     source_bucket: str
     project: str | None
     tags: list[str]
     input_signature: str | None
+    inputs: list[StructuredCatalogInput]
     is_skill: bool
     content_preview: str | None
     source_path_display: str | None
@@ -126,6 +148,19 @@ class _CatalogEntry:
     xprompt: XPrompt
     bucket: str  # built-in / project / config / plugin / memory
     project: str | None  # set when bucket == "project"
+
+
+@dataclass
+class _StructuredCatalogSource:
+    """Internal workflow-like entry consumed by the mobile catalog projection."""
+
+    name: str
+    workflow: Workflow
+    bucket: str
+    project: str | None
+    description: str | None = None
+    is_skill: bool = False
+    content: str = ""
 
 
 @dataclass
@@ -193,8 +228,8 @@ def build_structured_xprompts_catalog(
     requiring an HTML/PDF renderer. PDF generation is best-effort and only runs
     when explicitly requested.
     """
-    filtered_entries = _filter_catalog_entries(
-        _gather_entries(),
+    filtered_entries = _filter_structured_catalog_entries(
+        _gather_structured_entries(),
         project=project,
         source=source,
         tag=tag,
@@ -239,7 +274,7 @@ def build_structured_xprompts_catalog(
             project_count=len(
                 {entry.project for entry in filtered_entries if entry.project}
             ),
-            skill_count=sum(1 for entry in filtered_entries if entry.xprompt.skill),
+            skill_count=sum(1 for entry in filtered_entries if entry.is_skill),
             pdf_requested=include_pdf,
         ),
         warnings=warnings,
@@ -248,25 +283,25 @@ def build_structured_xprompts_catalog(
     )
 
 
-def _filter_catalog_entries(
-    entries: list[_CatalogEntry],
+def _filter_structured_catalog_entries(
+    entries: list[_StructuredCatalogSource],
     *,
     project: str | None,
     source: str | None,
     tag: str | None,
     query: str | None,
-) -> list[_CatalogEntry]:
+) -> list[_StructuredCatalogSource]:
     normalized_query = query.casefold() if query else None
-    filtered: list[_CatalogEntry] = []
+    filtered: list[_StructuredCatalogSource] = []
     for entry in entries:
         if project is not None and entry.project not in (None, project):
             continue
         if source is not None and entry.bucket != source:
             continue
-        tag_values = [tag.value for tag in entry.xprompt.tags]
+        tag_values = [tag.value for tag in entry.workflow.tags]
         if tag is not None and tag not in tag_values:
             continue
-        if normalized_query is not None and not _entry_matches_query(
+        if normalized_query is not None and not _structured_entry_matches_query(
             entry, tag_values, normalized_query
         ):
             continue
@@ -274,15 +309,15 @@ def _filter_catalog_entries(
     return filtered
 
 
-def _entry_matches_query(
-    entry: _CatalogEntry, tag_values: list[str], query: str
+def _structured_entry_matches_query(
+    entry: _StructuredCatalogSource, tag_values: list[str], query: str
 ) -> bool:
     haystack = "\n".join(
         part
         for part in (
-            entry.xprompt.name,
-            entry.xprompt.description or "",
-            entry.xprompt.content,
+            entry.name,
+            entry.description or "",
+            entry.content,
             " ".join(tag_values),
         )
         if part
@@ -290,20 +325,51 @@ def _entry_matches_query(
     return query in haystack.casefold()
 
 
-def _structured_entry(entry: _CatalogEntry) -> StructuredCatalogEntry:
-    input_signature = _format_inputs(entry.xprompt.inputs) or None
+def _structured_entry(entry: _StructuredCatalogSource) -> StructuredCatalogEntry:
+    input_signature = _format_inputs(entry.workflow.inputs) or None
     return StructuredCatalogEntry(
-        name=entry.xprompt.name,
-        display_label=_display_label(entry.xprompt.name),
-        description=entry.xprompt.description,
+        name=entry.name,
+        display_label=_display_label(entry.name),
+        insertion=workflow_reference_insertion(entry.name, entry.workflow),
+        reference_prefix=workflow_reference_prefix(entry.workflow),
+        kind=workflow_kind_value(entry.workflow),
+        description=entry.description,
         source_bucket=entry.bucket,
         project=entry.project,
-        tags=sorted(tag.value for tag in entry.xprompt.tags),
+        tags=sorted(tag.value for tag in entry.workflow.tags),
         input_signature=input_signature,
-        is_skill=bool(entry.xprompt.skill),
-        content_preview=_content_preview(entry.xprompt.content),
+        inputs=_structured_inputs(entry.workflow.inputs),
+        is_skill=entry.is_skill,
+        content_preview=_content_preview(entry.content),
         source_path_display=_source_path_display(entry),
     )
+
+
+def _structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
+    rows: list[StructuredCatalogInput] = []
+    for inp in inputs:
+        if inp.is_step_input:
+            continue
+        rows.append(
+            StructuredCatalogInput(
+                name=inp.name,
+                type=inp.type.value,
+                required=inp.default is UNSET,
+                default_display=_default_display(inp.default),
+                position=len(rows),
+            )
+        )
+    return rows
+
+
+def _default_display(default: object) -> str | None:
+    if default is UNSET or default is None or isinstance(default, str):
+        return None
+    if isinstance(default, bool):
+        return "true" if default else "false"
+    if isinstance(default, (int, float)):
+        return str(default)
+    return None
 
 
 def _display_label(name: str) -> str:
@@ -320,8 +386,14 @@ def _content_preview(content: str) -> str | None:
     return text[:MAX_MOBILE_CONTENT_PREVIEW_CHARS].rstrip() + "..."
 
 
-def _source_path_display(entry: _CatalogEntry) -> str | None:
-    source = entry.xprompt.source_path
+def _entry_source_path(entry: _CatalogEntry | _StructuredCatalogSource) -> str | None:
+    if isinstance(entry, _CatalogEntry):
+        return entry.xprompt.source_path
+    return entry.workflow.source_path
+
+
+def _source_path_display(entry: _CatalogEntry | _StructuredCatalogSource) -> str | None:
+    source = _entry_source_path(entry)
     if not source:
         return None
     if source == "config" or source.startswith(
@@ -407,6 +479,83 @@ def _gather_entries() -> list[_CatalogEntry]:
 
     return sorted(
         seen.values(), key=lambda e: (e.bucket, e.project or "", e.xprompt.name)
+    )
+
+
+def _gather_structured_entries() -> list[_StructuredCatalogSource]:
+    """Collect workflow-like prompts for the mobile structured catalog."""
+    seen: dict[tuple[str, str], _StructuredCatalogSource] = {}
+
+    workflows = get_all_workflows()
+    for name, workflow in workflows.items():
+        entry = _classify_workflow(name, workflow, project=None)
+        seen[(workflow.source_path or "", name)] = entry
+
+    workflow_names = set(workflows)
+    for name, xp in get_all_xprompts().items():
+        if name in workflow_names:
+            continue
+        key = (xp.source_path or "", name)
+        if key in seen:
+            continue
+        entry = _classify_xprompt_for_structured(xp, project=None)
+        seen[key] = entry
+
+    for project, workspace in get_known_project_workspaces().items():
+        try:
+            project_xprompts = load_project_local_xprompts(workspace, project)
+        except Exception:
+            log.debug(
+                "Failed to load project-local xprompts for %s",
+                project,
+                exc_info=True,
+            )
+            continue
+        for name, xp in project_xprompts.items():
+            key = (xp.source_path or "", name)
+            if key in seen:
+                continue
+            seen[key] = _classify_xprompt_for_structured(xp, project=project)
+
+    return sorted(seen.values(), key=lambda e: (e.bucket, e.project or "", e.name))
+
+
+def _classify_xprompt_for_structured(
+    xp: XPrompt, project: str | None
+) -> _StructuredCatalogSource:
+    catalog_entry = _classify(xp, project=project)
+    return _StructuredCatalogSource(
+        name=xp.name,
+        workflow=xprompt_to_workflow(xp),
+        bucket=catalog_entry.bucket,
+        project=catalog_entry.project,
+        description=xp.description,
+        is_skill=bool(xp.skill),
+        content=xp.content,
+    )
+
+
+def _classify_workflow(
+    name: str, workflow: Workflow, project: str | None
+) -> _StructuredCatalogSource:
+    source = workflow.source_path or ""
+    catalog_entry = _classify(
+        XPrompt(
+            name=name,
+            content=workflow.get_prompt_part_content(),
+            inputs=workflow.inputs,
+            source_path=source,
+            tags=workflow.tags,
+            keywords=workflow.keywords,
+        ),
+        project=project,
+    )
+    return _StructuredCatalogSource(
+        name=name,
+        workflow=workflow,
+        bucket=catalog_entry.bucket,
+        project=catalog_entry.project,
+        content=workflow.get_prompt_part_content(),
     )
 
 

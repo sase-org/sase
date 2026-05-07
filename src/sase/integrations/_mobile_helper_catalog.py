@@ -90,11 +90,24 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
             {
                 "name": entry.name,
                 "display_label": entry.display_label,
+                "insertion": entry.insertion,
+                "reference_prefix": entry.reference_prefix,
+                "kind": entry.kind,
                 "description": entry.description,
                 "source_bucket": entry.source_bucket,
                 "project": entry.project,
                 "tags": entry.tags,
                 "input_signature": entry.input_signature,
+                "inputs": [
+                    {
+                        "name": inp.name,
+                        "type": inp.type,
+                        "required": inp.required,
+                        "default_display": inp.default_display,
+                        "position": inp.position,
+                    }
+                    for inp in entry.inputs
+                ],
                 "is_skill": entry.is_skill,
                 "content_preview": entry.content_preview,
                 "source_path_display": entry.source_path_display,

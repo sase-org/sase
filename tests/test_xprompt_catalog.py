@@ -20,8 +20,9 @@ from sase.xprompt.catalog import (
     build_structured_xprompts_catalog,
     build_xprompts_catalog,
 )
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 from sase.xprompt.tags import XPromptTag
+from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
 def _make_xprompt(
@@ -299,6 +300,7 @@ def test_structured_catalog_projects_filters_and_caps_preview(
         patch(
             "sase.xprompt.catalog.get_all_xprompts", return_value={"review": global_xp}
         ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
         patch(
             "sase.xprompt.catalog.get_known_project_workspaces",
             return_value={"sase": ws, "other": tmp_path / "other"},
@@ -328,7 +330,15 @@ def test_structured_catalog_projects_filters_and_caps_preview(
     assert [entry.name for entry in projection.entries] == ["local_fix"]
     entry = projection.entries[0]
     assert entry.project == "sase"
+    assert entry.insertion == "#local_fix"
+    assert entry.reference_prefix == "#"
+    assert entry.kind == "xprompt"
     assert entry.input_signature == "(path: path)"
+    assert [inp.name for inp in entry.inputs] == ["path"]
+    assert entry.inputs[0].type == "path"
+    assert entry.inputs[0].required is True
+    assert entry.inputs[0].default_display is None
+    assert entry.inputs[0].position == 0
     assert entry.is_skill is True
     assert entry.source_path_display == ".sase/xprompts/local.md"
     assert entry.content_preview is not None
@@ -348,6 +358,7 @@ def test_structured_catalog_source_filter_keeps_global_entries(
         patch(
             "sase.xprompt.catalog.get_all_xprompts", return_value={"global": config_xp}
         ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
         patch(
             "sase.xprompt.catalog.get_known_project_workspaces",
             return_value={"sase": tmp_path},
@@ -367,12 +378,116 @@ def test_structured_catalog_source_filter_keeps_global_entries(
     assert projection.entries[0].source_bucket == "config"
 
 
+def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
+    xp = _make_xprompt(
+        "typed",
+        source_path="config",
+        inputs=[
+            InputArg(name="required_word", type=InputType.WORD, default=UNSET),
+            InputArg(name="string_default", type=InputType.LINE, default="secret"),
+            InputArg(name="null_default", type=InputType.TEXT, default=None),
+            InputArg(name="count", type=InputType.INT, default=3),
+            InputArg(name="enabled", type=InputType.BOOL, default=False),
+            InputArg(
+                name="step_output",
+                type=InputType.LINE,
+                default=UNSET,
+                is_step_input=True,
+                output_schema=OutputSpec(type="json_schema", schema={"type": "object"}),
+            ),
+        ],
+    )
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog()
+
+    entry = projection.entries[0]
+    assert entry.input_signature == (
+        "(required_word: word, string_default?: line, null_default?: text, "
+        "count?: int, enabled?: bool)"
+    )
+    assert [
+        (inp.name, inp.type, inp.required, inp.default_display, inp.position)
+        for inp in entry.inputs
+    ] == [
+        ("required_word", "word", True, None, 0),
+        ("string_default", "line", False, None, 1),
+        ("null_default", "text", False, None, 2),
+        ("count", "int", False, "3", 3),
+        ("enabled", "bool", False, "false", 4),
+    ]
+
+
+def test_structured_catalog_all_step_inputs_has_no_signature() -> None:
+    xp = _make_xprompt(
+        "step_only",
+        source_path="config",
+        inputs=[
+            InputArg(
+                name="prior",
+                type=InputType.LINE,
+                is_step_input=True,
+                output_schema=OutputSpec(type="json_schema", schema={"type": "object"}),
+            )
+        ],
+    )
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"step_only": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog()
+
+    assert projection.entries[0].input_signature is None
+    assert projection.entries[0].inputs == []
+
+
+def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
+    standalone = Workflow(
+        name="ship",
+        inputs=[InputArg(name="target", type=InputType.WORD)],
+        steps=[WorkflowStep(name="run", agent="Ship {{ target }}")],
+        source_path="config",
+    )
+    multi_agent_xp = _make_xprompt(
+        "swarm",
+        source_path="config",
+        content="first\n---\nsecond",
+    )
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"swarm": multi_agent_xp},
+        ),
+        patch(
+            "sase.xprompt.catalog.get_all_workflows", return_value={"ship": standalone}
+        ),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog()
+
+    by_name = {entry.name: entry for entry in projection.entries}
+    assert by_name["ship"].kind == "standalone_workflow"
+    assert by_name["ship"].reference_prefix == "#!"
+    assert by_name["ship"].insertion == "#!ship"
+    assert by_name["swarm"].kind == "xprompt"
+    assert by_name["swarm"].reference_prefix == "#!"
+    assert by_name["swarm"].insertion == "#!swarm"
+
+
 def test_structured_catalog_pdf_engine_warning_does_not_block_records(
     tmp_path: Path,
 ) -> None:
     xp = _make_xprompt("hello", source_path="config")
     with (
         patch("sase.xprompt.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
         patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
         patch("sase.xprompt.catalog.shutil.which", return_value=None),
     ):

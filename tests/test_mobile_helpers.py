@@ -5,6 +5,7 @@ import pytest
 from sase.xprompt.catalog import (
     StructuredCatalogAttachment,
     StructuredCatalogEntry,
+    StructuredCatalogInput,
     StructuredCatalogProjection,
     StructuredCatalogSkipped,
     StructuredCatalogStats,
@@ -29,11 +30,23 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                 StructuredCatalogEntry(
                     name="fix_hook",
                     display_label="fix hook",
+                    insertion="#fix_hook",
+                    reference_prefix="#",
+                    kind="xprompt",
                     description="Repair a hook failure",
                     source_bucket="project",
                     project="sase",
                     tags=["fix_hook"],
                     input_signature="(log: text)",
+                    inputs=[
+                        StructuredCatalogInput(
+                            name="log",
+                            type="text",
+                            required=True,
+                            default_display=None,
+                            position=0,
+                        )
+                    ],
                     is_skill=False,
                     content_preview="Repair this failure",
                     source_path_display=".sase/xprompts/fix_hook.md",
@@ -88,11 +101,23 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
         {
             "name": "fix_hook",
             "display_label": "fix hook",
+            "insertion": "#fix_hook",
+            "reference_prefix": "#",
+            "kind": "xprompt",
             "description": "Repair a hook failure",
             "source_bucket": "project",
             "project": "sase",
             "tags": ["fix_hook"],
             "input_signature": "(log: text)",
+            "inputs": [
+                {
+                    "name": "log",
+                    "type": "text",
+                    "required": True,
+                    "default_display": None,
+                    "position": 0,
+                }
+            ],
             "is_skill": False,
             "content_preview": "Repair this failure",
             "source_path_display": ".sase/xprompts/fix_hook.md",
