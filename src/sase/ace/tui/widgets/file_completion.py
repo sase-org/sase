@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Any
 
 MAX_VISIBLE = 10
 """Maximum number of completion entries visible in the panel at once."""
@@ -17,6 +18,7 @@ class CompletionCandidate:
     insertion: str
     is_dir: bool
     name: str
+    metadata: Any | None = None
 
 
 _TOKEN_DELIMITERS: frozenset[str] = frozenset("'\"`?!;,()[]{}<>|&=+*^%$:\\")

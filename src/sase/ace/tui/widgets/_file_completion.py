@@ -89,7 +89,7 @@ class FileCompletionMixin(_MixinBase):
             bar.hide_file_completions()
             return
 
-        rows = [(c.display, c.is_dir) for c in self._file_completion_candidates]
+        rows = self._file_completion_candidates
         total = len(rows)
         if total <= MAX_VISIBLE:
             scroll_offset = 0

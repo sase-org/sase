@@ -4,36 +4,55 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from textual.widgets import Static
+
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
 from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     is_xprompt_like_token,
 )
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+from ._completion_helpers import CompletionTestApp
 
 
-def _simple_workflow(name: str) -> Workflow:
-    return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
-
-
-def _multi_agent_xprompt_workflow(name: str) -> Workflow:
-    return Workflow(
+def _entry(
+    name: str,
+    *,
+    prefix: str = "#",
+    kind: str = "xprompt",
+    inputs: tuple[XPromptInputHint, ...] = (),
+) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
         name=name,
-        steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
+        insertion=f"{prefix}{name}",
+        reference_prefix=prefix,
+        kind=kind,
+        input_signature=None,
+        inputs=inputs,
+        content_preview=None,
     )
 
 
-def _embeddable_workflow(name: str) -> Workflow:
-    return Workflow(
+def _input(
+    name: str,
+    type_: str,
+    *,
+    required: bool = True,
+    default_display: str | None = None,
+    position: int = 0,
+) -> XPromptInputHint:
+    return XPromptInputHint(
         name=name,
-        steps=[
-            WorkflowStep(name="setup", bash="true"),
-            WorkflowStep(name="prompt", prompt_part="body"),
-        ],
+        type=type_,
+        required=required,
+        default_display=default_display,
+        position=position,
     )
-
-
-def _standalone_workflow(name: str) -> Workflow:
-    return Workflow(name=name, steps=[WorkflowStep(name="run", agent="do it")])
 
 
 def test_xprompt_like_token_accepts_standalone_marker() -> None:
@@ -44,12 +63,15 @@ def test_xprompt_like_token_accepts_standalone_marker() -> None:
 
 
 def test_xprompt_completion_uses_kind_aware_insertions() -> None:
-    prompts = {
-        "commit": _simple_workflow("commit"),
-        "gh": _embeddable_workflow("gh"),
-        "sync": _standalone_workflow("sync"),
-    }
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=prompts):
+    entries = [
+        _entry("commit"),
+        _entry("gh", kind="embeddable_workflow"),
+        _entry("sync", prefix="#!", kind="standalone_workflow"),
+    ]
+    with patch(
+        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+        return_value=entries,
+    ):
         candidates, shared = build_xprompt_completion_candidates("#s")
 
     assert shared == ""
@@ -59,13 +81,16 @@ def test_xprompt_completion_uses_kind_aware_insertions() -> None:
 
 
 def test_standalone_marker_filters_to_standalone_workflows() -> None:
-    prompts = {
-        "sync": _standalone_workflow("sync"),
-        "setup": _simple_workflow("setup"),
-        "split": _multi_agent_xprompt_workflow("split"),
-        "send": _embeddable_workflow("send"),
-    }
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=prompts):
+    entries = [
+        _entry("sync", prefix="#!", kind="standalone_workflow"),
+        _entry("setup"),
+        _entry("split", prefix="#!", kind="xprompt"),
+        _entry("send", kind="embeddable_workflow"),
+    ]
+    with patch(
+        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+        return_value=entries,
+    ):
         candidates, shared = build_xprompt_completion_candidates("#!s")
 
     assert shared == ""
@@ -82,3 +107,132 @@ def test_xprompt_completion_finds_builtin_cd_workflow() -> None:
     assert "cd" in by_name
     assert by_name["cd"].display == "#cd"
     assert by_name["cd"].insertion == "#cd"
+
+
+def test_xprompt_candidates_carry_assist_metadata() -> None:
+    entry = _entry("review", inputs=(_input("path", "path"),))
+    with patch(
+        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+        return_value=[entry],
+    ):
+        candidates, _ = build_xprompt_completion_candidates("#r")
+
+    assert candidates[0].metadata is entry
+
+
+async def test_completion_panel_shows_required_input_names_and_types() -> None:
+    entries = [
+        _entry("review", inputs=(_input("path", "path"),)),
+        _entry("ship"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render()
+        assert "path: path" in rendered.plain
+
+
+async def test_completion_panel_renders_optional_inputs_distinctly() -> None:
+    optional = _input(
+        "count",
+        "int",
+        required=False,
+        default_display="2",
+    )
+    entries = [
+        _entry("configure", inputs=(optional,)),
+        _entry("deploy"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render()
+        assert "count?: int=2" in rendered.plain
+        assert "rgb(215,175,135) dim" in {str(span.style) for span in rendered.spans}
+
+
+async def test_completion_panel_handles_xprompt_with_no_visible_inputs() -> None:
+    entries = [_entry("plain"), _entry("typed", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render()
+        assert "#plain  xprompt" in rendered.plain
+
+
+async def test_standalone_marker_single_candidate_inserts_canonical_reference() -> None:
+    entries = [
+        _entry("send"),
+        _entry("sync", prefix="#!", kind="standalone_workflow"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#!s")
+        ta.cursor_location = (0, 3)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#!sync"
+    assert ta._file_completion_active is False

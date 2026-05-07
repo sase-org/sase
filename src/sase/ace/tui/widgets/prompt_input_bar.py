@@ -7,7 +7,11 @@ from textual.app import ComposeResult
 from textual.message import Message
 from textual.widgets import Static, TextArea
 
-from sase.ace.tui.widgets.file_completion import MAX_VISIBLE
+from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    append_input_hints,
+)
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -175,7 +179,7 @@ class PromptInputBar(Static):
     def show_file_completions(
         self,
         token: str,
-        rows: list[tuple[str, bool]],
+        rows: list[CompletionCandidate],
         selected_index: int,
         scroll_offset: int = 0,
         completion_kind: str = "file",
@@ -184,7 +188,7 @@ class PromptInputBar(Static):
 
         Args:
             token: Current token being completed.
-            rows: Completion entries as (display_label, is_dir).
+            rows: Completion entries.
             selected_index: Highlighted row index.
             scroll_offset: First visible entry index for scrolling.
             completion_kind: "file" for path completion, "xprompt" for xprompt.
@@ -196,7 +200,7 @@ class PromptInputBar(Static):
         is_xprompt = completion_kind == "xprompt"
         is_history = completion_kind == "file_history"
         content = Text()
-        for i, (label, is_dir) in enumerate(visible):
+        for i, candidate in enumerate(visible):
             actual_idx = scroll_offset + i
             is_selected = actual_idx == selected_index
 
@@ -206,13 +210,15 @@ class PromptInputBar(Static):
                 content.append("  ")
 
             if is_xprompt:
-                content.append(label, style="bold green" if is_selected else "green")
-            elif is_dir:
+                self._append_xprompt_completion_row(content, candidate, is_selected)
+            elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
-                content.append(label, style="bold cyan" if is_selected else "cyan")
+                content.append(
+                    candidate.display, style="bold cyan" if is_selected else "cyan"
+                )
             else:
                 content.append("\U0001f4c4 ")
-                content.append(label, style="bold" if is_selected else "")
+                content.append(candidate.display, style="bold" if is_selected else "")
 
             if i < len(visible) - 1:
                 content.append("\n")
@@ -240,9 +246,31 @@ class PromptInputBar(Static):
         panel.update(content)
         panel.remove_class("hidden")
         self._completion_visible = True
-        line_count = len(visible) + (1 if remaining > 0 else 0)
+        line_count = len(content.plain.splitlines()) if content.plain else 0
         self._completion_line_count = line_count + 3  # +3 for panel border + margin
         self._update_height()
+
+    def _append_xprompt_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one xprompt completion row using assist metadata when present."""
+        content.append(
+            candidate.display,
+            style="bold green" if is_selected else "green",
+        )
+        entry = (
+            candidate.metadata
+            if isinstance(candidate.metadata, XPromptAssistEntry)
+            else None
+        )
+        if entry is None:
+            return
+
+        content.append(f"  {entry.kind}", style="dim")
+        append_input_hints(content, entry.inputs)
 
     def hide_file_completions(self) -> None:
         """Hide the path completion panel."""
