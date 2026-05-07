@@ -27,7 +27,10 @@ _setup: _venv
             {{ venv_bin }}/python tools/validate_sase_core_rs; \
         fi; \
     fi
-    @{{ venv_bin }}/mypy --version > /dev/null 2>&1 || uv pip install --reinstall-package mypy -e ".[dev]"
+    @if ! {{ venv_bin }}/mypy --version > /dev/null 2>&1 || \
+        ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
+        uv pip install --reinstall-package mypy -e ".[dev]"; \
+    fi
 
 # Print a box header for a top-level command (private helper)
 _header NAME:

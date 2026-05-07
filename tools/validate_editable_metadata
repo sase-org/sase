@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Validate installed editable metadata against ``pyproject.toml``."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import sys
+import tomllib
+from pathlib import Path
+
+
+PROJECT_NAME = "sase"
+PYPROJECT = Path("pyproject.toml")
+
+
+def _error(message: str) -> None:
+    print(f"[validate_editable_metadata] {message}", file=sys.stderr)
+
+
+def _expected_entry_points() -> dict[tuple[str, str], str]:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    project = data.get("project", {})
+
+    expected: dict[tuple[str, str], str] = {}
+    for name, value in project.get("scripts", {}).items():
+        expected[("console_scripts", name)] = value
+
+    for group, entries in project.get("entry-points", {}).items():
+        for name, value in entries.items():
+            expected[(group, name)] = value
+
+    return expected
+
+
+def _installed_entry_points() -> dict[tuple[str, str], str] | None:
+    try:
+        distribution = importlib.metadata.distribution(PROJECT_NAME)
+    except importlib.metadata.PackageNotFoundError:
+        _error(f"{PROJECT_NAME!r} is not installed in this environment")
+        return None
+
+    return {
+        (entry_point.group, entry_point.name): entry_point.value
+        for entry_point in distribution.entry_points
+    }
+
+
+def main() -> int:
+    expected = _expected_entry_points()
+    installed = _installed_entry_points()
+    if installed is None:
+        return 1
+
+    stale = {
+        key: value
+        for key, value in expected.items()
+        if installed.get(key) != value
+    }
+    if not stale:
+        return 0
+
+    for (group, name), value in sorted(stale.items()):
+        installed_value = installed.get((group, name))
+        _error(
+            f"stale entry point {group}.{name}: "
+            f"expected {value!r}, found {installed_value!r}"
+        )
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
