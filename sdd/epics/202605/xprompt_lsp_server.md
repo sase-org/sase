@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 03:37:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_lsp_server.md
 bead_id: sase-2a
 tier: epic
