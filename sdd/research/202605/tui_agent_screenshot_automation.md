@@ -44,6 +44,29 @@ One important correction to older research: `sdd/research/202604/tui_e2e_testing
 mode. In the current codebase, the durable thing that exists is the Python `AcePage` testing DSL; there is no current
 `sase ace --agent` CLI path in `parser_ace.py` or `ace_handler.py`.
 
+Concrete repo facts an implementer must respect:
+
+- `AceApp.__init__` (`src/sase/ace/tui/app.py:174`) defaults: `query="!!!"`, `model_tier_override=None`,
+  `refresh_interval=10`, `auto_start_axe=True`, `restart_axe=False`. Automation must override the production-flavor
+  defaults (`refresh_interval=0`, `auto_start_axe=False`) explicitly; this is not the same `AceApp` `AcePage` constructs
+  even though the constructors share an interface.
+- `AcePage` monkey-patches `sase.ace.changespec.find_all_changespecs` and `find_all_changespecs_cached` with fixed
+  fixture data (`src/sase/ace/testing.py:148`). That is correct for tests but is the wrong default for an agent
+  screenshotting a live project — production automation must drive the real ChangeSpec discovery path so the screenshot
+  reflects actual project state.
+- Plain-text screen capture is already factored as `_capture_screen()` and structured state extraction as
+  `_extract_state()` (`src/sase/ace/testing.py:58` and `:71`). Both should be exported from a shared module so the
+  test DSL and the agent CLI share one implementation rather than diverging.
+- `get_sase_tmpdir()` (`src/sase/core/paths.py:32`) returns `$SASE_TMPDIR` or `None` (so callers fall back to the
+  system temp dir). It does not isolate per-agent runs — callers are responsible for unique filenames.
+- No `App.export_screenshot()`, `App.save_screenshot()`, or `pytest-textual-snapshot` usage exists in the repo today
+  (verified by grep). `cairosvg`, `svglib`, and `reportlab` are not in `pyproject.toml`. The only image library currently
+  on the dependency floor is Pillow, used by `src/sase/ace/tui/graphics/cell.py` for terminal-cell rendering, not for
+  SVG rasterization. This research's "SVG-first, PNG optional" recommendation is the right shape given those facts.
+- ACE already has an image surface — `94de4987` switched ACE image previews to Pillow-only via
+  `src/sase/ace/tui/graphics/cell.py`, and `c306e39b` added `tools/test_image_notification`. Neither converts SVG, but
+  the notification model already accepts image attachments (see "Agent Delivery Channels" below).
+
 ## External Findings
 
 ### Textual Has The Right Primitive
@@ -107,6 +130,20 @@ The design lesson is useful: agents need stable commands, JSON output, wait cond
 black-box PTY stack would duplicate what Textual already provides in-process and would make SASE agents less informed
 than SASE's tests.
 
+## CLI Surface Options
+
+The flag-based shape (`sase ace ... --agent-screenshot`) is the least-disruptive choice, but two alternatives are
+worth weighing before committing:
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| `sase ace '<query>' --agent-screenshot ...` (recommended) | Reuses the existing parser, query semantics, and config plumbing; agents already know `sase ace`. | Mode flag pollutes the interactive command surface; help output gets noisier. |
+| New sibling `sase ace-screenshot` (or `sase ace-shot`) | Clean separation of interactive vs. automation; no parser conflict; easy to omit interactive-only flags. | Two commands to maintain; cross-cutting flags (model tier, refresh interval) duplicated. |
+| New namespace `sase tui screenshot` | Future-proof for non-ACE TUIs; matches `sase axe …` style. | Premature generalization; ACE is the only Textual TUI today. |
+
+The flag approach is best for the first version. If automation grows enough scripted-step or daemon surface to dwarf
+the interactive flags, a sibling `sase ace-screenshot` is the cleanest second step.
+
 ## Proposed Product Shape
 
 Use a non-interactive ACE automation mode rather than a long-lived session daemon at first.
@@ -169,12 +206,18 @@ Request fields:
 
 Result fields:
 
+- `schema_version: int` — pin so future state changes don't silently break agent parsers.
 - `image_path: str`
 - `format: str`
+- `size: tuple[int, int]`
 - `state: dict[str, Any]`
 - `screen: str | None` or `screen_path`
 - `warnings: list[str]`
 - `error: str | None`
+
+The state schema today (from `_extract_state()`) includes `tab`, `idx`, `total`, `query`, `canonical_query`, `marked`,
+`modal`, fold flags, and a `selected` block. Treat it as the v1 schema and freeze the existing key names; add new keys
+rather than rename them.
 
 Key parsing should accept both comma-separated strings and repeated flags:
 
@@ -185,6 +228,41 @@ Key parsing should accept both comma-separated strings and repeated flags:
 
 Textual key names should be passed through directly where possible. Avoid inventing a second key naming scheme unless
 agent ergonomics prove it is needed.
+
+## Mouse, Modifiers, And Timing Controls
+
+`Pilot.press()` is sufficient for keyboard-driven flows, but ACE has mouse-clickable widgets (footer buttons, modal
+controls, tab strip) and the existing `AcePage.click(selector)` already wraps `Pilot.click()`. The agent CLI should
+accept clicks too, e.g. `--click "#footer-quit"` or as a step type in the JSON script:
+
+```json
+[{"click": "#footer-help"}, {"wait_text": "Help"}, {"press": ["escape"]}]
+```
+
+Other Textual primitives worth surfacing:
+
+- `Pilot.press(*keys, delay=...)` for animations that need inter-key spacing.
+- `Pilot.pause(delay=...)` for explicit settle windows when no specific signal is available.
+- `Pilot.hover()` for tooltip-driven UI; only add if a real flow needs it.
+
+Avoid inventing a new key alias namespace until a real agent failure proves Textual's names (`tab`, `enter`, `escape`,
+`ctrl+r`, `shift+tab`, etc.) are insufficient.
+
+## Determinism Knobs
+
+Stable screenshots across runs and parallel agents need every nondeterministic surface pinned:
+
+- **Theme/colors.** Force a known theme (e.g. `app.theme = "textual-dark"`) before capture; do not honor
+  `$TEXTUAL_THEME` from the calling environment.
+- **Animations.** Set `App.show_animations = "none"` (or pass `headless=True`-style flags exposed via `run_test`).
+  Headless mode already disables most animation, but explicit is better.
+- **Notifications/toasts.** Suppress notification widgets unless `--include-notifications` is passed; ACE plugins or
+  background jobs may otherwise pop a toast mid-capture.
+- **Cursor blink.** Disable blink so two adjacent runs produce byte-identical SVG when nothing else changed.
+- **Background work.** `auto_start_axe=False` and `refresh_interval=0` together stop the periodic refresh and the
+  child Axe process from racing the screenshot.
+- **Locale and time.** SVG screenshots embed visible timestamps and counts; pin `TZ` / `LC_ALL` if the agent uses
+  screenshots for diff-style regression checks.
 
 ## Wait Semantics
 
@@ -226,6 +304,47 @@ Suggested files:
 
 Screenshots should be best-effort artifacts, not durable project files.
 
+### Concurrency And Parallel Agents
+
+Multiple SASE agents can run concurrently in `sase_<N>` workspaces, and each one may take screenshots. The temp dir
+(`get_sase_tmpdir()`) is shared, not per-workspace, so:
+
+- Always include a short random suffix alongside the timestamp to avoid same-second collisions.
+- Optionally honor a `SASE_AGENT_ID` / workspace-scoped subdir (e.g. `<tmp>/ace_screenshots/<workspace>/`) so cleanup
+  scripts can sweep one agent's artifacts without touching another's.
+- Do not assume the SVG file outlives the calling process — return paths relative to a stable namespace if the agent
+  runtime needs them later, or attach them through `sase notify create` to persist into `~/.sase/notifications/`.
+
+## Agent Delivery Channels
+
+A screenshot file is only useful if it actually reaches the agent or human reading the output. SASE already has two
+viable delivery surfaces, neither of which the original draft called out:
+
+- **Notification system.** `Notification` (`src/sase/notifications/models.py`) carries a `files: list[str]` field, and
+  `tools/test_image_notification` already demonstrates calling `sase notify create` with an image attachment. An
+  `--notify` flag on the screenshot command (or a default for headless runs) would surface the screenshot in the
+  user's notification inbox and any mobile/Telegram notifier without a new IPC channel.
+- **Stdout JSON contract.** Returning the SVG path on stdout is enough for a host agent runtime that knows how to
+  attach local files to its next user turn. The skill/xprompt that wraps the command is responsible for telling the
+  runtime to read or display the file; the CLI should not assume runtime-specific image upload.
+
+For SASE's own agent runtimes (Claude Code, Gemini, Codex), the typical pattern is: the agent runs the CLI, parses
+the JSON, and either reads the file directly (if it can ingest images) or relies on the plain-text `screen` field as
+a fallback. Treat the image as the primary artifact and the `screen` text as the universal fallback.
+
+## Keymap Self-Discovery
+
+Agents need to know which keys to press without reading source. ACE's bindings live in two places:
+
+- `default_config.yml` (root config) — declarative per-mode keymap.
+- `src/sase/ace/tui/keymaps/` — typed registry (`AppKeymaps`, `_BINDING_META`) with `(action_name, description,
+  priority)` entries; loaded via `load_keymap_registry()`.
+
+A small companion command — `sase ace --list-bindings --json` — that dumps `{action, keys, description, scope}` would
+let agents introspect the current keymap rather than hard-coding string sequences. Without it, agents will silently
+break the first time a user customizes a binding. This is cheap to add alongside the screenshot CLI and amortizes
+the parser-change cost.
+
 ## PNG Conversion Strategy
 
 Make `svg` the default and implement `png` as optional.
@@ -249,6 +368,17 @@ surface. That adds fragile environment assumptions and loses the direct app stat
 The only reason to add a browser rasterization path is PNG conversion, and even then it should be an optional converter
 behind the Textual SVG capture.
 
+## Related SASE Research
+
+- `sdd/research/202604/tui_e2e_testing.md` — earlier exploration that proposed the `sase ace --agent` mode; useful
+  background but its CLI proposal predates the current `parser_ace.py` shape and the `AcePage` test DSL.
+- `sdd/research/202604/tui_image_pdf_support.md` — image rendering inside the TUI; tangential but relevant if PNG
+  output ever needs to be re-rendered as a TUI preview.
+- `sdd/research/202605/textual_image_rendering_research.md` — current state of Textual image surfaces; informs the
+  Pillow/SVG dependency posture.
+- `sdd/research/202604/tui_profiling_strategies.md` — profiling hooks that may interact with `refresh_interval=0`
+  automation runs.
+
 ## Risks And Mitigations
 
 | Risk | Mitigation |
@@ -262,18 +392,26 @@ behind the Textual SVG capture.
 
 ## Implementation Plan
 
-1. Extract screen/state helpers from `src/sase/ace/testing.py` into `src/sase/ace/automation.py` or a sibling shared
-   module.
-2. Add `run_ace_automation()` that constructs `AceApp`, runs `app.run_test(size=...)`, presses keys, waits, saves SVG,
-   captures state/screen, and returns a dataclass result.
-3. Add flag-based CLI support in `parser_ace.py` and branch in `ace_handler.py` before `app.run()`.
-4. Use `get_sase_tmpdir()` for default output paths.
-5. Add tests for:
+1. Extract `_capture_screen()` and `_extract_state()` from `src/sase/ace/testing.py` into a shared module
+   (`src/sase/ace/automation.py` or `src/sase/ace/state.py`) so the test DSL and the agent CLI consume identical
+   logic. Delete the test-only copies.
+2. Add `run_ace_automation()` that constructs `AceApp(refresh_interval=0, auto_start_axe=False, ...)`, runs
+   `app.run_test(size=...)`, applies determinism knobs (theme, animations, notifications), presses keys, waits, calls
+   `app.save_screenshot(path)`, captures state/screen, and returns a versioned dataclass result.
+3. Add flag-based CLI support in `parser_ace.py` (alphabetized) and branch in `ace_handler.py` before `app.run()`.
+   Keep the interactive default behavior unchanged.
+4. Use `get_sase_tmpdir()` for default output paths; include a workspace-scoped subdir + random suffix for parallel
+   safety.
+5. Add `sase ace --list-bindings --json` (or equivalent) so agents can self-discover key bindings instead of
+   hard-coding them.
+6. Add tests for:
    - keypress navigation writes a screenshot file;
-   - JSON result includes state and path;
+   - JSON result includes state, schema_version, and path;
    - invalid key returns a useful error;
    - `--format png` degrades gracefully when no converter is installed;
-   - `--wait-text` succeeds and times out deterministically.
+   - `--wait-text` succeeds and times out deterministically;
+   - parallel invocations (two `run_ace_automation()` calls) write to distinct paths;
+   - bindings listing matches the active keymap registry.
 
 ## Open Questions
 
@@ -298,3 +436,5 @@ behind the Textual SVG capture.
 - CairoSVG documentation: https://cairosvg.org/documentation/index.html
 - agent-tui docs.rs package page: https://docs.rs/crate/agent-tui/0.3.4
 - Microsoft tui-test README: https://github.com/microsoft/tui-test
+- Charmbracelet VHS (terminal "tape" automation prior art for the JSON step format):
+  https://github.com/charmbracelet/vhs
