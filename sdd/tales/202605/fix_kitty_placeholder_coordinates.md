@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 11:30:49
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_kitty_placeholder_coordinates.md
 ---
 # Fix Kitty Placeholder Image Rendering

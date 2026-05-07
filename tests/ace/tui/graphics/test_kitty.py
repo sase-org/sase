@@ -61,11 +61,18 @@ def test_place_and_delete_sequences() -> None:
 def test_placeholder_grid_coordinates() -> None:
     grid = placeholder_grid(2, 2)
 
-    assert len(grid) == 2
-    assert all(row.count(KITTY_PLACEHOLDER) == 2 for row in grid)
-    assert grid[0] != grid[1]
+    assert grid == [
+        f"{KITTY_PLACEHOLDER}\u0305\u0305{KITTY_PLACEHOLDER}\u0305\u030d",
+        f"{KITTY_PLACEHOLDER}\u030d\u0305{KITTY_PLACEHOLDER}\u030d\u030d",
+    ]
+
+
+def test_placeholder_grid_accepts_last_v1_coordinate() -> None:
+    grid = placeholder_grid(297, 1)
+
+    assert grid[0].endswith(f"{KITTY_PLACEHOLDER}\u0305\U0001d244")
 
 
 def test_placeholder_grid_rejects_v1_coordinate_overflow() -> None:
     with pytest.raises(ValueError, match="coordinate"):
-        placeholder_grid(5000, 1)
+        placeholder_grid(298, 1)
