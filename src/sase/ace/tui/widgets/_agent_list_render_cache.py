@@ -54,20 +54,35 @@ def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] |
     return (now.year, now.month, now.day, now.hour, now.minute, now.second)
 
 
-def _runtime_signature(agent: Agent, now: datetime | None) -> tuple[Any, ...]:
+def _runtime_signature(
+    agent: Agent, now: datetime | None, _seen: set[int] | None = None
+) -> tuple[Any, ...]:
     """Return a tuple of agent fields that drive the runtime suffix.
 
     Runtime-ticking rows fold in quantized *now* so a cache hit only
     happens within the same wall-clock second. Terminal rows have a
     stable signature regardless of *now*.
     """
+    if _seen is None:
+        _seen = set()
+    agent_id = id(agent)
+    if agent_id in _seen:
+        return ("cycle", agent.identity)
+    seen = _seen | {agent_id}
+
     time_sensitive = runtime_suffix_ticks(agent)
+    child_signature = tuple(
+        _runtime_signature(child, now, seen)
+        for child in getattr(agent, "runtime_children", ())
+    )
     return (
         agent.status,
         agent.start_time,
         agent.run_start_time,
         agent.stop_time,
         tuple(agent.plan_times),
+        tuple(agent.questions_times),
+        child_signature,
         getattr(agent, "wait_until", None),
         getattr(agent, "wait_duration", None),
         getattr(agent, "retry_next_at_epoch", None),

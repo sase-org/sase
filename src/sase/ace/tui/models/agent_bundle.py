@@ -18,6 +18,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
     for f in dataclasses.fields(agent):
         if f.name in (
             "followup_agents",
+            "runtime_children",
             "attempt_history",
             "_loaded_from_dismissed_bundle",
             "tag",
