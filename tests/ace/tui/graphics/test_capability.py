@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+
 import sase.ace.tui.graphics.capability as capability
 from sase.ace.tui.graphics import GraphicsCapability, detect_graphics_capability
 
@@ -12,6 +14,40 @@ def _env(**values: str) -> dict[str, str]:
 
 def _unexpected_probe(passthrough: str, timeout: float) -> bool:
     raise AssertionError("probe should not have been called")
+
+
+def _mock_tmux_commands(
+    monkeypatch,
+    outputs: dict[tuple[str, ...], tuple[int, str] | BaseException],
+) -> list[tuple[str, ...]]:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        timeout: float,
+    ) -> subprocess.CompletedProcess[str]:
+        assert check is False
+        assert capture_output is True
+        assert text is True
+        assert timeout == capability._TMUX_QUERY_TIMEOUT
+        key = tuple(command)
+        calls.append(key)
+        output = outputs.get(key, (1, ""))
+        if isinstance(output, BaseException):
+            raise output
+        return subprocess.CompletedProcess(
+            command,
+            output[0],
+            stdout=output[1],
+            stderr="",
+        )
+
+    monkeypatch.setattr(capability.subprocess, "run", fake_run)
+    return calls
 
 
 def _mock_active_probe(
@@ -110,18 +146,137 @@ def test_known_kitty_detection_does_not_probe() -> None:
     )
 
 
-def test_tmux_passthrough_is_recorded() -> None:
+def test_known_kitty_without_tmux_records_no_passthrough() -> None:
     cap = detect_graphics_capability(
-        _env(KITTY_WINDOW_ID="1", TMUX="/tmp/tmux"),
+        _env(KITTY_WINDOW_ID="1"),
         probe_func=_unexpected_probe,
     )
 
     assert cap.supported
-    assert cap.passthrough == "tmux"
+    assert cap.passthrough == "none"
     assert cap.probed is False
 
 
-def test_unknown_tmux_terminal_is_unsupported_without_override() -> None:
+def test_tmux_outer_kitty_with_passthrough_enabled_is_supported(monkeypatch) -> None:
+    calls = _mock_tmux_commands(
+        monkeypatch,
+        {
+            ("tmux", "display-message", "-p", "#{client_termname}"): (
+                0,
+                "xterm-kitty\n",
+            ),
+            ("tmux", "show", "-gqv", "allow-passthrough"): (0, "all\n"),
+        },
+    )
+
+    cap = detect_graphics_capability(
+        {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
+        probe_func=_unexpected_probe,
+    )
+
+    assert cap.supported
+    assert cap.protocol == "kitty"
+    assert cap.passthrough == "tmux"
+    assert cap.terminal == "kitty"
+    assert cap.probed is False
+    assert "Kitty graphics assumed from tmux outer terminal" == cap.reason
+    assert calls == [
+        ("tmux", "display-message", "-p", "#{client_termname}"),
+        ("tmux", "show", "-gqv", "allow-passthrough"),
+    ]
+
+
+def test_tmux_outer_kitty_falls_back_to_show_environment(monkeypatch) -> None:
+    calls = _mock_tmux_commands(
+        monkeypatch,
+        {
+            ("tmux", "display-message", "-p", "#{client_termname}"): (1, ""),
+            ("tmux", "show-environment", "-g", "TERM"): (
+                0,
+                "TERM=xterm-kitty\n",
+            ),
+            ("tmux", "show", "-gqv", "allow-passthrough"): (0, "on\n"),
+        },
+    )
+
+    cap = detect_graphics_capability(
+        {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
+        probe_func=_unexpected_probe,
+    )
+
+    assert cap.supported
+    assert cap.terminal == "kitty"
+    assert cap.passthrough == "tmux"
+    assert calls == [
+        ("tmux", "display-message", "-p", "#{client_termname}"),
+        ("tmux", "show-environment", "-g", "TERM"),
+        ("tmux", "show", "-gqv", "allow-passthrough"),
+    ]
+
+
+def test_tmux_outer_kitty_without_passthrough_is_unsupported(monkeypatch) -> None:
+    _mock_tmux_commands(
+        monkeypatch,
+        {
+            ("tmux", "display-message", "-p", "#{client_termname}"): (
+                0,
+                "xterm-kitty\n",
+            ),
+            ("tmux", "show", "-gqv", "allow-passthrough"): (0, "off\n"),
+        },
+    )
+
+    cap = detect_graphics_capability(
+        {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
+        probe_func=_unexpected_probe,
+    )
+
+    assert not cap.supported
+    assert cap.passthrough == "tmux"
+    assert cap.terminal == "kitty"
+    assert "tmux passthrough is not enabled" in cap.reason
+    assert cap.probed is False
+
+
+def test_tmux_metadata_command_failures_fall_back_to_unsupported(
+    monkeypatch,
+) -> None:
+    _mock_tmux_commands(
+        monkeypatch,
+        {
+            ("tmux", "display-message", "-p", "#{client_termname}"): (
+                subprocess.TimeoutExpired("tmux", 0.01)
+            ),
+            ("tmux", "show-environment", "-g", "TERM"): (1, ""),
+            ("tmux", "show", "-gqv", "allow-passthrough"): (1, ""),
+        },
+    )
+
+    cap = detect_graphics_capability(
+        {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
+        probe_func=_unexpected_probe,
+    )
+
+    assert not cap.supported
+    assert cap.passthrough == "tmux"
+    assert cap.terminal is None
+    assert cap.truecolor is False
+    assert cap.probed is False
+    assert "not attempted by default" in cap.reason
+
+
+def test_unknown_tmux_terminal_is_unsupported_without_override(monkeypatch) -> None:
+    _mock_tmux_commands(
+        monkeypatch,
+        {
+            ("tmux", "display-message", "-p", "#{client_termname}"): (
+                0,
+                "screen-256color\n",
+            ),
+            ("tmux", "show", "-gqv", "allow-passthrough"): (0, "all\n"),
+        },
+    )
+
     cap = detect_graphics_capability(
         {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
         probe_func=_unexpected_probe,
@@ -189,6 +344,17 @@ def test_force_kitty_probes_unknown_terminal_without_truecolor() -> None:
 def test_known_ghostty_detection_does_not_probe() -> None:
     cap = detect_graphics_capability(
         _env(TERM="xterm-256color", TERM_PROGRAM="ghostty"),
+        probe_func=_unexpected_probe,
+    )
+
+    assert cap.supported
+    assert cap.probed is False
+    assert cap.terminal == "ghostty"
+
+
+def test_ghostty_term_detection_does_not_probe() -> None:
+    cap = detect_graphics_capability(
+        _env(TERM="xterm-ghostty"),
         probe_func=_unexpected_probe,
     )
 

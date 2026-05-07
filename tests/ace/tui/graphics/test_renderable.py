@@ -33,6 +33,18 @@ def _kitty_capability() -> GraphicsCapability:
     )
 
 
+def _tmux_kitty_capability() -> GraphicsCapability:
+    return GraphicsCapability(
+        supported=True,
+        protocol="kitty",
+        passthrough="tmux",
+        reason="test",
+        terminal="kitty",
+        truecolor=True,
+        probed=False,
+    )
+
+
 def _cell_capability(*, truecolor: bool = True) -> GraphicsCapability:
     return GraphicsCapability.unavailable(
         "no native graphics",
@@ -95,6 +107,21 @@ def test_image_preview_returns_kitty_renderable_for_png(tmp_path: Path) -> None:
     assert isinstance(renderable, KittyImageRenderable)
     assert renderable.columns == 2
     assert renderable.rows == 1
+
+
+def test_image_preview_returns_tmux_kitty_renderable_for_png(tmp_path: Path) -> None:
+    image = tmp_path / "sample.png"
+    image.write_bytes(PNG_BYTES)
+
+    renderable = image_preview(
+        str(image),
+        _tmux_kitty_capability(),
+        columns=2,
+        rows=1,
+    )
+
+    assert isinstance(renderable, KittyImageRenderable)
+    assert renderable.passthrough == "tmux"
 
 
 def test_jpeg_webp_and_gif_use_cell_renderable(tmp_path: Path) -> None:

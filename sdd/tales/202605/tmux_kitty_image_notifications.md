@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 10:40:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/tmux_kitty_image_notifications.md
 ---
 # Fix Blurry Notification Image Previews in tmux

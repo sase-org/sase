@@ -10,6 +10,7 @@ from __future__ import annotations
 import fcntl
 import os
 import select
+import subprocess
 import termios
 import time
 import tty
@@ -59,6 +60,13 @@ class GraphicsCapability:
 
 ProbeFunc = Callable[[PassthroughMode, float], bool]
 _PROBE_REPLY_DRAIN_TIMEOUT = 0.02
+_TMUX_QUERY_TIMEOUT = 0.08
+
+
+@dataclass(frozen=True)
+class _TmuxMetadata:
+    terminal: str | None
+    allow_passthrough: str | None
 
 
 def has_truecolor(env: Mapping[str, str] | None = None) -> bool:
@@ -78,9 +86,74 @@ def _terminal_family(env: Mapping[str, str]) -> str | None:
     term = env.get("TERM", "").lower()
     if env.get("KITTY_WINDOW_ID") or term_program == "kitty" or "kitty" in term:
         return "kitty"
-    if term_program == "ghostty" or env.get("GHOSTTY_RESOURCES_DIR"):
+    if (
+        term_program == "ghostty"
+        or env.get("GHOSTTY_RESOURCES_DIR")
+        or "ghostty" in term
+    ):
         return "ghostty"
     return None
+
+
+def _terminal_family_from_term(term: str | None) -> str | None:
+    value = (term or "").lower()
+    if "kitty" in value:
+        return "kitty"
+    if "ghostty" in value:
+        return "ghostty"
+    return None
+
+
+def _tmux_metadata(env: Mapping[str, str]) -> _TmuxMetadata:
+    """Return outer tmux terminal details without emitting terminal probes."""
+    if not env.get("TMUX"):
+        return _TmuxMetadata(terminal=None, allow_passthrough=None)
+
+    terminal = _normalize_tmux_term(
+        _run_tmux_command(["tmux", "display-message", "-p", "#{client_termname}"])
+    )
+    if terminal is None:
+        terminal = _normalize_tmux_term(
+            _run_tmux_command(["tmux", "show-environment", "-g", "TERM"])
+        )
+
+    allow_passthrough = _run_tmux_command(["tmux", "show", "-gqv", "allow-passthrough"])
+    return _TmuxMetadata(terminal=terminal, allow_passthrough=allow_passthrough)
+
+
+def _run_tmux_command(command: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_TMUX_QUERY_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def _normalize_tmux_term(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = value.strip()
+    if value.startswith("TERM="):
+        value = value.removeprefix("TERM=").strip()
+    return value or None
+
+
+def _tmux_passthrough_enabled(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = value.strip().lower()
+    if normalized.startswith("allow-passthrough "):
+        normalized = normalized.split(None, 1)[1]
+    return normalized in {"on", "all", "yes", "true", "1", "enabled"}
 
 
 def detect_graphics_capability(
@@ -102,6 +175,14 @@ def detect_graphics_capability(
     terminal = _terminal_family(env)
     truecolor = has_truecolor(env)
     override = env.get("SASE_TUI_GRAPHICS", "").strip().lower()
+    tmux_metadata = (
+        _tmux_metadata(env) if passthrough == "tmux" and not override else None
+    )
+    tmux_terminal = (
+        _terminal_family_from_term(tmux_metadata.terminal) if tmux_metadata else None
+    )
+    if terminal is None and tmux_terminal is not None:
+        terminal = tmux_terminal
 
     if override in {"0", "false", "no", "off", "disable", "disabled"}:
         return GraphicsCapability.unavailable(
@@ -120,11 +201,24 @@ def detect_graphics_capability(
                 terminal=terminal,
                 truecolor=truecolor,
             )
+        if passthrough == "tmux" and not _tmux_passthrough_enabled(
+            tmux_metadata.allow_passthrough if tmux_metadata else None
+        ):
+            return GraphicsCapability.unavailable(
+                "tmux passthrough is not enabled for native terminal graphics",
+                passthrough=passthrough,
+                terminal=terminal,
+                truecolor=truecolor,
+            )
         return GraphicsCapability(
             supported=True,
             protocol="kitty",
             passthrough=passthrough,
-            reason="Kitty graphics assumed from terminal environment",
+            reason=(
+                "Kitty graphics assumed from tmux outer terminal"
+                if tmux_terminal is not None
+                else "Kitty graphics assumed from terminal environment"
+            ),
             terminal=terminal,
             truecolor=truecolor,
             probed=False,
