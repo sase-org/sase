@@ -1175,6 +1175,10 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
   visible typed inputs, with required arguments shown as `name: type` and optional arguments shown as `name?: type` plus
   a default when the default is a simple scalar. Standalone references use the `#!name` insertion form; typing `#!`
   filters completion to entries whose canonical insertion starts with `#!`.
+- **XPrompt argument completion**: When the cursor is inside a known xprompt argument position, `Ctrl+T` completes the
+  active argument instead of the xprompt name. For `path` inputs it delegates to file path completion, for `bool` inputs
+  it offers `true` and `false`, and inside parenthesized syntax it completes missing `name=` arguments without repeating
+  names already present in the argument list. Numeric inputs keep the type hint visible but do not invent values.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments).
@@ -1195,6 +1199,17 @@ For file completion, directories appear before files in the candidate list. Dotf
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
 completion panel shows up to 10 candidates at a time and scrolls to keep the highlight visible. When exactly one xprompt
 or file candidate matches, accepting completion inserts the canonical reference immediately.
+
+Accepting an xprompt completion, or selecting an xprompt from the `#@` picker, opens an `xprompt args` hint panel when
+the xprompt has required user-facing inputs. The panel shows the supported arguments and highlights the active one.
+Press `:` while the accepted reference is still current to switch to colon syntax, or press `(` to insert a
+required-argument named snippet and use `Tab` to advance through the snippet fields.
+
+The same hint panel appears while typing narrow, known argument forms such as `#name:`, `#!name:`, `#ns/name:`,
+`#ns__name:`, `#name!!:`, `#name??:`, `#name(`, and `#name(arg=`. The hint is advisory; the backend xprompt parser still
+owns expansion semantics when the prompt is submitted. Detection intentionally stays conservative, so prose shorthand,
+URLs, unknown xprompt names, `#name+`, and completed colon text such as `#name: value` do not keep the prompt-bar hint
+open.
 
 ### Special Prompt Shortcuts
 
