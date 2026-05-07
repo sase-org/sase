@@ -182,6 +182,9 @@ The default `show` format is markdown. It includes the notification notes, attac
 flags. Axe error digest notifications usually point to the actionable report through `files` or
 `action_data.error_report_path`; read that attached file for the detailed errors.
 
+To create a local test notification with a persistent PNG attachment for ACE modal image-preview checks, run
+`tools/test_image_notification` from the repository root.
+
 See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI reference.
 
 ## Storage

@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Create a SASE notification with a persistent test PNG attachment."""
+
+from __future__ import annotations
+
+import json
+import struct
+import subprocess
+import sys
+import zlib
+from pathlib import Path
+
+
+IMAGE_WIDTH = 96
+IMAGE_HEIGHT = 64
+ASSET_DIR = Path.home() / ".sase" / "notifications" / "test_assets"
+IMAGE_PATH = ASSET_DIR / "notification_test_image.png"
+
+
+def main() -> int:
+    ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    IMAGE_PATH.write_bytes(_png_bytes())
+
+    payload = {
+        "sender": "test-image-notification",
+        "notes": [
+            "Test notification with an attached image.",
+            "Use this to inspect image previews in the ACE notification modal.",
+        ],
+        "files": [str(IMAGE_PATH)],
+        "action": None,
+        "action_data": {},
+    }
+
+    try:
+        result = subprocess.run(
+            ["sase", "notify", "create"],
+            input=json.dumps(payload),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except FileNotFoundError:
+        print("error: 'sase' executable was not found on PATH", file=sys.stderr)
+        return 127
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip()
+        print("error: failed to create notification", file=sys.stderr)
+        if stderr:
+            print(stderr, file=sys.stderr)
+        return exc.returncode
+
+    notification_id = result.stdout.strip()
+    print(f"notification_id: {notification_id}")
+    print(f"image_path: {IMAGE_PATH}")
+    return 0
+
+
+def _png_bytes() -> bytes:
+    rows = bytearray()
+    for y in range(IMAGE_HEIGHT):
+        rows.append(0)
+        for x in range(IMAGE_WIDTH):
+            rows.extend(_pixel(x, y))
+
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            _chunk(b"IHDR", _ihdr()),
+            _chunk(b"IDAT", zlib.compress(bytes(rows), level=9)),
+            _chunk(b"IEND", b""),
+        ]
+    )
+
+
+def _ihdr() -> bytes:
+    return struct.pack(">IIBBBBB", IMAGE_WIDTH, IMAGE_HEIGHT, 8, 2, 0, 0, 0)
+
+
+def _pixel(x: int, y: int) -> bytes:
+    in_border = x < 3 or y < 3 or x >= IMAGE_WIDTH - 3 or y >= IMAGE_HEIGHT - 3
+    in_diagonal = abs((x * IMAGE_HEIGHT) - (y * IMAGE_WIDTH)) < IMAGE_WIDTH
+    in_center = 28 <= x <= 68 and 20 <= y <= 44
+
+    if in_border:
+        return bytes((28, 42, 53))
+    if in_diagonal:
+        return bytes((237, 125, 58))
+    if in_center:
+        return bytes((64, 151, 142))
+
+    red = 244 - (x * 52 // IMAGE_WIDTH)
+    green = 248 - (y * 42 // IMAGE_HEIGHT)
+    blue = 250 - ((x + y) * 34 // (IMAGE_WIDTH + IMAGE_HEIGHT))
+    return bytes((red, green, blue))
+
+
+def _chunk(kind: bytes, data: bytes) -> bytes:
+    checksum = zlib.crc32(kind)
+    checksum = zlib.crc32(data, checksum)
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", checksum)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
