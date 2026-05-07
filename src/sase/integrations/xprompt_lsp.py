@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import importlib.resources
+import json
 import os
 import shlex
 import shutil
@@ -11,11 +13,15 @@ from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import NoReturn
 
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
 SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
+SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
+SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -131,3 +137,49 @@ def _prepare_xprompt_lsp_environment(
     }
     for key, value in defaults.items():
         environ.setdefault(key, value)
+    if SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV not in environ:
+        environ[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] = json.dumps(
+            _discover_plugin_xprompt_dirs()
+        )
+    if SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
+        environ[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
+            _discover_plugin_config_paths()
+        )
+
+
+def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:
+    """Return concrete plugin xprompt directories for the Rust LSP loader."""
+    if is_plugin_disabled("XPROMPTS"):
+        return []
+
+    entries: list[dict[str, str]] = []
+    for module in discover_plugin_resources("sase_xprompts"):
+        try:
+            ref = importlib.resources.files(module).joinpath("xprompts")
+        except (TypeError, AttributeError):
+            continue
+        path = Path(str(ref))
+        if path.is_dir():
+            entries.append(
+                {"module": getattr(module, "__name__", str(module)), "path": str(path)}
+            )
+    return entries
+
+
+def _discover_plugin_config_paths() -> list[dict[str, str]]:
+    """Return concrete plugin default config files for the Rust LSP loader."""
+    if is_plugin_disabled("CONFIG"):
+        return []
+
+    entries: list[dict[str, str]] = []
+    for module in discover_plugin_resources("sase_config"):
+        try:
+            ref = importlib.resources.files(module).joinpath("default_config.yml")
+        except (TypeError, AttributeError):
+            continue
+        path = Path(str(ref))
+        if path.is_file():
+            entries.append(
+                {"module": getattr(module, "__name__", str(module)), "path": str(path)}
+            )
+    return entries
