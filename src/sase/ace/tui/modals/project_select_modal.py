@@ -17,6 +17,7 @@ from textual.widgets.option_list import Option
 from ...changespec import find_all_changespecs, parse_project_file
 from .base import FilterInput, OptionListNavigationMixin
 from .confirm_delete_modal import ConfirmDeleteModal
+from .project_discovery import list_launchable_projects
 
 
 @dataclass
@@ -83,22 +84,15 @@ class ProjectSelectModal(
             )
         )
 
-        # Load projects from ~/.sase/projects/<p>/<p>.gp
-        projects_dir = Path.home() / ".sase" / "projects"
-        if projects_dir.exists():
-            for project_dir in sorted(projects_dir.iterdir()):
-                if project_dir.is_dir():
-                    project_name = project_dir.name
-                    gp_file = project_dir / f"{project_name}.gp"
-                    if gp_file.exists():
-                        self.all_items.append(
-                            SelectionItem(
-                                display_name=f"[P] {project_name}",
-                                item_type="project",
-                                project_name=project_name,
-                                cl_name=None,
-                            )
-                        )
+        for project_name in list_launchable_projects():
+            self.all_items.append(
+                SelectionItem(
+                    display_name=f"[P] {project_name}",
+                    item_type="project",
+                    project_name=project_name,
+                    cl_name=None,
+                )
+            )
 
         # Load CLs with WIP, Draft, Ready, or Mailed status
         for cs in find_all_changespecs():
