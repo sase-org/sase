@@ -106,3 +106,28 @@ def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
     assert any(
         key == "V" and label == "attempt view" for key, label in with_history_bindings
     )
+
+
+def test_keybinding_footer_visible_image_uses_v_for_view_image() -> None:
+    """V advertises image viewing before the attempt-view fallback."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+    agent.attempt_history = [
+        AttemptRecord(
+            attempt_number=1,
+            status="failed",
+            start_epoch=0.0,
+            end_epoch=1.0,
+            model=None,
+            used_fallback=False,
+            error_snippet="err",
+            error_full="err",
+            live_reply_path="/x",
+            timestamps_path="/y",
+        )
+    ]
+
+    bindings = footer._compute_agent_bindings(agent, has_visible_image=True)
+
+    assert ("V", "view image") in bindings
+    assert ("V", "attempt view") not in bindings

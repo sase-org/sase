@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 17:57:11
-status: wip
+status: done
 prompt: sdd/prompts/202605/view_image_keymap.md
 ---
 # Add `V` View Image Keymap

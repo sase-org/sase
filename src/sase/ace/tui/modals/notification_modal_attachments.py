@@ -18,6 +18,7 @@ from sase.ace.tui.graphics import (
     image_render_context,
     image_preview_size_for_viewport,
     is_supported_image_path,
+    view_image_file,
 )
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import Notification
@@ -187,3 +188,30 @@ class NotificationAttachmentMixin:
             subprocess.run(editor_args, check=False)
 
         self._display_file(notification)
+
+    def _get_current_image_path(self: Any) -> str | None:
+        """Return the highlighted notification's current image attachment."""
+        notification = self._get_highlighted_notification()
+        if not notification or not notification.files:
+            return None
+        if self._current_file_index >= len(notification.files):
+            self._current_file_index = 0
+        file_path = notification.files[self._current_file_index]
+        expanded = os.path.expanduser(file_path)
+        if not is_supported_image_path(expanded):
+            return None
+        if not os.path.exists(expanded):
+            return None
+        return expanded
+
+    def action_view_image(self: Any) -> None:
+        """Open the currently displayed image attachment with kitten icat."""
+        image_path = self._get_current_image_path()
+        if image_path is None:
+            self.notify("No image visible", severity="warning")
+            return
+
+        with self.app.suspend():
+            result = view_image_file(image_path)
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")

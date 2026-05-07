@@ -304,6 +304,34 @@ class AgentPanelsMixin:
         self.notify(f"Attempt view: {mode}")  # type: ignore[attr-defined]
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
+    def action_view_image(self) -> None:
+        """Open the currently visible agent image, with attempt-view fallback."""
+        if self.current_tab != "agents":
+            return
+
+        from ...graphics import view_image_file
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        image_path = agent_detail.get_current_image_path()
+        if image_path is not None:
+            with self.suspend():  # type: ignore[attr-defined]
+                result = view_image_file(image_path)
+            if result.warning is not None:
+                self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if (
+            agent is not None
+            and agent.attempt_history
+            and getattr(self, "current_attempt_number", None) is None
+        ):
+            self.action_toggle_attempt_view()
+            return
+
+        self.notify("No image visible", severity="warning")  # type: ignore[attr-defined]
+
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
         self._cycle_panel_mode()

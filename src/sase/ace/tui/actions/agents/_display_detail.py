@@ -115,6 +115,10 @@ class DetailMixin:
                 if current_agent
                 else False
             )
+            get_image_path = getattr(agent_detail, "get_current_image_path", None)
+            has_visible_image = (
+                get_image_path() is not None if callable(get_image_path) else False
+            )
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -122,6 +126,7 @@ class DetailMixin:
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
                 group_focused=self._current_group_key is not None,
+                has_visible_image=has_visible_image,
             )
 
     def _update_agents_info_panel(self) -> None:

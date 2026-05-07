@@ -9,6 +9,7 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from ...models.agent import Agent
+from ...graphics import is_supported_image_path
 from ...util.trace import tui_trace
 from ._diff import DiffCacheKey, compute_diff_cache_key, get_agent_diff
 from ._display import FilePanelDisplayMixin
@@ -503,6 +504,17 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                 return None
             return os.path.expanduser(path)
         return None
+
+    def get_current_image_path(self) -> str | None:
+        """Return the current existing image file path, or None."""
+        path = self.get_current_file_path()
+        if path is None:
+            return None
+        if not is_supported_image_path(path):
+            return None
+        if not os.path.exists(path):
+            return None
+        return path
 
     def get_current_content(self) -> str | None:
         """Return the last displayed file content, or None."""

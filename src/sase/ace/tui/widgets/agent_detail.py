@@ -344,6 +344,13 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             return (None, thinking_panel.get_thinking_text(), ".md")
         return (None, None, "")
 
+    def get_current_image_path(self) -> str | None:
+        """Return the currently visible image path, or None."""
+        if not self.is_file_visible():
+            return None
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        return file_panel.get_current_image_path()
+
     def expand_file_trim(self) -> None:
         """Expand file content by one page."""
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)

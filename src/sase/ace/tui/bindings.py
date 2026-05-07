@@ -74,7 +74,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
     ),
-    Binding("V", "toggle_attempt_view", "Attempt View", show=False),
+    Binding("V", "view_image", "View Image", show=False),
+    Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
     # Tag-driven side-panel focus cycling (agents tab)
     Binding("J", "focus_next_agent_panel", "Next Panel", show=False),

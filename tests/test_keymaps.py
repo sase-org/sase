@@ -222,9 +222,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 79 configurable + 10 digit = 89 bindings."""
+    """build_app_bindings produces 80 configurable + 10 digit = 90 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 89
+    assert len(bindings) == 90
 
 
 def test_build_app_bindings_priority() -> None:
@@ -251,6 +251,14 @@ def test_capital_x_binds_agent_cleanup_panel() -> None:
     bindings = build_app_bindings(_default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     assert by_action["open_agent_cleanup_panel"].key == "X"
+
+
+def test_capital_v_binds_contextual_view_image() -> None:
+    """Capital V opens images and falls back to attempt view at runtime."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+    assert by_action["view_image"].key == "V"
+    assert by_action["toggle_attempt_view"].key == "D"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

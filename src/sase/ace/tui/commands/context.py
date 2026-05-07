@@ -70,6 +70,18 @@ def _file_panel_visible(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
         return False
 
 
+def _has_visible_image(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+    if app.current_tab != "agents":
+        return False
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        panel = app.query_one("#agent-detail-panel", AgentDetail)
+        return panel.get_current_image_path() is not None
+    except Exception:
+        return False
+
+
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     return sum(1 for a in agents if a.status in ("DONE", "FAILED"))
@@ -141,6 +153,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         else False
     )
     file_panel = _file_panel_visible(app)
+    has_image = _has_visible_image(app)
 
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)
@@ -159,6 +172,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         attempt_pinned=attempt_pinned,
         group_focused=group_focused,
         file_panel_visible=file_panel,
+        has_visible_image=has_image,
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),
         selected_axe_slot_running=running and isinstance(axe_item, BgCmdItem),

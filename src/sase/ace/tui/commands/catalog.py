@@ -151,6 +151,7 @@ _APP_COMMAND_META: tuple[
         ("go to cl",),
     ),
     ("edit_panel", "Edit panel file", "Agents", _AGENTS_ONLY, ()),
+    ("view_image", "View image", "Display", _AGENTS_ONLY, ("image", "icat")),
     (
         "show_agent_run_log",
         "Show agent run log",

@@ -12,11 +12,13 @@ from .cell import (
 from .images import SUPPORTED_IMAGE_EXTENSIONS, is_supported_image_path
 from .renderable import ImageFallbackRenderable, image_preview
 from .sizing import image_preview_size_for_viewport
+from .viewer import ImageViewerResult, view_image_file
 
 __all__ = [
     "CELL_IMAGE_BACKGROUND",
     "ImageFallbackRenderable",
     "ImageRenderContext",
+    "ImageViewerResult",
     "MAX_CELL_IMAGE_FILE_BYTES",
     "MAX_CELL_IMAGE_PIXELS",
     "SUPPORTED_IMAGE_EXTENSIONS",
@@ -28,4 +30,5 @@ __all__ = [
     "image_preview_size_for_viewport",
     "image_render_context",
     "is_supported_image_path",
+    "view_image_file",
 ]

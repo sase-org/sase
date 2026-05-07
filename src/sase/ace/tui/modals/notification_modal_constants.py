@@ -24,6 +24,6 @@ SECTIONS: list[tuple[str, str, str]] = [
 
 HEADER_ID_PREFIX = "hdr:"
 DEFAULT_HINT_TEXT = (
-    "Enter: select  x: dismiss  m: mute  s: snooze  e: edit  "
+    "Enter: select  x: dismiss  m: mute  s: snooze  e: edit  V: image  "
     "C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close"
 )

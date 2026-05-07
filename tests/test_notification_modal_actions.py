@@ -23,6 +23,10 @@ def test_dismiss_notification_direct_for_non_plan_question() -> None:
     modal._rebuild_list.assert_called_once_with(highlight_index=None)
 
 
+def test_notification_modal_binds_capital_v_to_view_image() -> None:
+    assert ("V", "view_image", "View Image") in NotificationModal.BINDINGS
+
+
 def test_dismiss_notification_requires_confirmation_for_plan_question() -> None:
     """x should require y/n confirmation for plan/question notifications."""
     modal = NotificationModal([_make_notification("n1", action="PlanApproval")])

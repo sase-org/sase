@@ -4,13 +4,15 @@ import json
 import types
 from types import SimpleNamespace
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from rich.console import Console, Group
 from rich.text import Text
 
+from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.graphics import (
     ImageFallbackRenderable,
+    ImageViewerResult,
     image_preview_size_for_viewport,
 )
 from sase.ace.tui.modals.notification_modal import NotificationModal
@@ -93,6 +95,30 @@ def test_agent_file_panel_uses_image_preview_before_text_read(
     assert isinstance(group, Group)
 
 
+def test_agent_file_panel_current_image_path_requires_visible_existing_image(
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    text = tmp_path / "notes.txt"
+    text.write_text("hello", encoding="utf-8")
+    missing = tmp_path / "missing.jpg"
+    panel = AgentFilePanel()
+    panel._file_list = [str(text), str(image), "__live_diff__", str(missing)]
+
+    panel._current_file_index = 0
+    assert panel.get_current_image_path() is None
+
+    panel._current_file_index = 1
+    assert panel.get_current_image_path() == str(image)
+
+    panel._current_file_index = 2
+    assert panel.get_current_image_path() is None
+
+    panel._current_file_index = 3
+    assert panel.get_current_image_path() is None
+
+
 def test_notification_modal_uses_image_preview_before_text_read(
     tmp_path: Path,
     monkeypatch,
@@ -139,6 +165,29 @@ def test_notification_modal_uses_image_preview_before_text_read(
     assert isinstance(content.update.call_args[0][0], Group)
     title.update.assert_called_once()
     scroll.scroll_home.assert_called_once_with(animate=False)
+
+
+def test_notification_modal_current_image_path_tracks_file_index(
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "notification.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    text = tmp_path / "notes.md"
+    text.write_text("hello", encoding="utf-8")
+    notification = Notification(
+        id="n1",
+        timestamp="2026-04-30T12:00:00-04:00",
+        sender="test",
+        files=[str(text), str(image)],
+    )
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+
+    modal._current_file_index = 0
+    assert modal._get_current_image_path() is None
+
+    modal._current_file_index = 1
+    assert modal._get_current_image_path() == str(image)
 
 
 def test_agent_file_panel_image_size_uses_scroll_viewport() -> None:
@@ -281,5 +330,143 @@ def test_image_fallback_mentions_editor_actions(tmp_path: Path) -> None:
     console.print(renderable)
 
     fallback_text = console.export_text()
-    assert "Open with e in notifications" in fallback_text
-    assert "%E in agent panels" in fallback_text
+    assert "Open directly with V" in fallback_text
+
+
+class _SuspendRecorder:
+    def __init__(self) -> None:
+        self.entered = False
+
+    def __enter__(self) -> None:
+        self.entered = True
+
+    def __exit__(self, *_args) -> None:
+        return None
+
+
+class _ImageActionApp(AgentPanelsMixin):
+    def __init__(self, image_path: str | None) -> None:
+        self.current_tab = "agents"
+        self.current_attempt_number = None
+        self.detail = MagicMock()
+        self.detail.get_current_image_path.return_value = image_path
+        self.suspend_recorder = _SuspendRecorder()
+        self.notify = MagicMock()
+        self._selected_agent = None
+
+    def query_one(self, *_args, **_kwargs):
+        return self.detail
+
+    def suspend(self):
+        return self.suspend_recorder
+
+    def _get_selected_agent(self):
+        return self._selected_agent
+
+
+def test_agents_view_image_action_runs_viewer_inside_suspend(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    calls: list[str] = []
+
+    def fake_viewer(path: str) -> ImageViewerResult:
+        calls.append(path)
+        assert app.suspend_recorder.entered is True
+        return ImageViewerResult(True)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", fake_viewer)
+
+    app.action_view_image()
+
+    assert calls == [str(image)]
+    app.notify.assert_not_called()
+
+
+def test_agents_view_image_action_falls_back_to_attempt_view(monkeypatch) -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(attempt_history=[object()])
+    app.action_toggle_attempt_view = MagicMock()  # type: ignore[method-assign]
+    viewer = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", viewer)
+
+    app.action_view_image()
+
+    viewer.assert_not_called()
+    app.action_toggle_attempt_view.assert_called_once_with()
+
+
+def test_agents_view_image_action_warns_when_no_image(monkeypatch) -> None:
+    app = _ImageActionApp(None)
+    app._selected_agent = SimpleNamespace(attempt_history=[])
+    viewer = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.view_image_file", viewer)
+
+    app.action_view_image()
+
+    viewer.assert_not_called()
+    app.notify.assert_called_once_with("No image visible", severity="warning")
+
+
+def test_notification_view_image_action_runs_viewer_inside_suspend(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "notification.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    notification = Notification(
+        id="n1",
+        timestamp="2026-04-30T12:00:00-04:00",
+        sender="test",
+        files=[str(image)],
+    )
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    suspend_recorder = _SuspendRecorder()
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    calls: list[str] = []
+
+    def fake_viewer(path: str) -> ImageViewerResult:
+        calls.append(path)
+        assert suspend_recorder.entered is True
+        return ImageViewerResult(True)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_attachments.view_image_file",
+        fake_viewer,
+    )
+
+    with patch.object(
+        NotificationModal,
+        "app",
+        new=SimpleNamespace(suspend=lambda: suspend_recorder),
+    ):
+        modal.action_view_image()
+
+    assert calls == [str(image)]
+    modal.notify.assert_not_called()
+
+
+def test_notification_view_image_action_warns_for_non_image(monkeypatch) -> None:
+    notification = Notification(
+        id="n1",
+        timestamp="2026-04-30T12:00:00-04:00",
+        sender="test",
+        files=["/tmp/not-image.txt"],
+    )
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    viewer = MagicMock()
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_attachments.view_image_file",
+        viewer,
+    )
+
+    modal.action_view_image()
+
+    viewer.assert_not_called()
+    modal.notify.assert_called_once_with("No image visible", severity="warning")

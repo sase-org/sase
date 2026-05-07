@@ -344,6 +344,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Cycle panels: file → thinking → metadata",
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
+                (d(a.view_image), "View image / attempt fallback"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

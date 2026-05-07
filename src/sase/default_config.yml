@@ -85,11 +85,12 @@ ace:
       jump_to_agent_changespec: "enter"
       edit_panel: "E"
       show_agent_run_log: "A"
+      view_image: "V"
       # Thinking panel
       toggle_thinking: "right_square_bracket"
       toggle_thinking_reverse: "left_square_bracket"
       # Attempt history (agents tab)
-      toggle_attempt_view: "V"
+      toggle_attempt_view: "D"
       # Agent tag modal (agents tab)
       add_agent_tag: "N"
       # Tag-driven side panels (agents tab)
