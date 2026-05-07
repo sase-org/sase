@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Literal
 
 from rich.text import Text
 
+from sase.xprompt._parsing import (
+    XPromptReference,
+    XPromptReferenceArgKind,
+    iter_xprompt_references,
+)
 from sase.xprompt.catalog import build_structured_xprompts_catalog
 from sase.xprompt.models import UNSET, InputArg
 
@@ -14,6 +20,14 @@ _INPUT_INDENT = "\n     "
 _REQUIRED_INPUT_STYLE = "#D7AF87"
 _OPTIONAL_INPUT_STYLE = "dim #D7AF87"
 _DEFAULT_STYLE = "dim #888888"
+_REFERENCE_BASE_RE = re.compile(
+    r"(?P<marker>#!|#)"
+    r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
+    r"(?P<hitl>!!|\?\?)?"
+)
+_NAMED_ARG_CURSOR_RE = re.compile(
+    r"(?:^|,)\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[^,]*$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,8 +170,155 @@ def append_input_args(text: Text, inputs: list[InputArg]) -> None:
     append_input_hints(text, tuple(hints), include_types=False)
 
 
+def detect_xprompt_arg_hint_at_cursor(
+    text: str,
+    cursor_offset: int,
+    entries: list[XPromptAssistEntry],
+) -> ActiveXPromptArgHint | None:
+    """Resolve a typed xprompt argument hint at *cursor_offset*.
+
+    Detection is intentionally narrow and only recognizes incomplete argument
+    positions where the prompt bar can offer lightweight assistance without
+    pretending to parse full xprompt semantics.
+    """
+    if not text or cursor_offset < 0 or cursor_offset > len(text):
+        return None
+
+    entry_by_name = _entry_by_name(entries)
+    for ref in iter_xprompt_references(text):
+        if ref.start >= cursor_offset:
+            continue
+        if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+            continue
+
+        base_end = _reference_base_end(text, ref.start, cursor_offset)
+        if base_end is None:
+            continue
+        if not (base_end <= cursor_offset):
+            continue
+        if ref.end > cursor_offset and not _cursor_is_inside_open_paren(text, ref):
+            continue
+
+        entry = entry_by_name.get(ref.name)
+        if entry is None or not required_inputs(entry):
+            continue
+
+        suffix = text[base_end:cursor_offset]
+        active_index = _active_input_index_for_suffix(suffix, entry)
+        if active_index is None:
+            continue
+
+        mode: Literal["colon", "paren"]
+        mode = "paren" if suffix.startswith("(") else "colon"
+        return ActiveXPromptArgHint(
+            entry=entry,
+            reference_start=ref.start,
+            reference_end=cursor_offset,
+            reference_text=text[ref.start : cursor_offset],
+            trigger_mode=mode,
+            active_input_index=active_index,
+        )
+    return None
+
+
+def accepted_xprompt_arg_hint(
+    text: str,
+    reference_start: int,
+    reference_end: int,
+    entries: list[XPromptAssistEntry],
+) -> ActiveXPromptArgHint | None:
+    """Resolve a post-accept hint for an inserted xprompt reference."""
+    if (
+        reference_start < 0
+        or reference_end > len(text)
+        or reference_start >= reference_end
+    ):
+        return None
+
+    reference_text = text[reference_start:reference_end]
+    entry_by_insertion = {entry.insertion: entry for entry in entries}
+    entry = entry_by_insertion.get(reference_text)
+    if entry is None or not required_inputs(entry):
+        return None
+    return ActiveXPromptArgHint(
+        entry=entry,
+        reference_start=reference_start,
+        reference_end=reference_end,
+        reference_text=reference_text,
+    )
+
+
 def _input_name_style(input_hint: XPromptInputHint) -> str:
     return _REQUIRED_INPUT_STYLE if input_hint.required else _OPTIONAL_INPUT_STYLE
+
+
+def _entry_by_name(
+    entries: list[XPromptAssistEntry],
+) -> dict[str, XPromptAssistEntry]:
+    return {entry.name: entry for entry in entries}
+
+
+def _reference_base_end(
+    text: str,
+    reference_start: int,
+    cursor_offset: int,
+) -> int | None:
+    match = _REFERENCE_BASE_RE.match(text[reference_start:cursor_offset])
+    if match is None:
+        return None
+    return reference_start + match.end()
+
+
+def _cursor_is_inside_open_paren(text: str, ref: XPromptReference) -> bool:
+    return ref.end <= len(text) and text[ref.end - 1 : ref.end] == "("
+
+
+def _active_input_index_for_suffix(
+    suffix: str,
+    entry: XPromptAssistEntry,
+) -> int | None:
+    if suffix == ":":
+        return 0
+    if suffix.startswith(":"):
+        return _colon_active_input_index(suffix, entry)
+    if suffix == "(":
+        return 0
+    if suffix.startswith("("):
+        return _paren_active_input_index(suffix, entry)
+    return None
+
+
+def _colon_active_input_index(
+    suffix: str,
+    entry: XPromptAssistEntry,
+) -> int | None:
+    value = suffix[1:]
+    if any(ch.isspace() for ch in value):
+        return None
+    if "+" in value or "(" in value or ")" in value:
+        return None
+    return min(value.count(","), len(entry.inputs) - 1)
+
+
+def _paren_active_input_index(
+    suffix: str,
+    entry: XPromptAssistEntry,
+) -> int | None:
+    body = suffix[1:]
+    if ")" in body:
+        return None
+    if not body:
+        return 0
+
+    match = _NAMED_ARG_CURSOR_RE.search(body)
+    if match is None:
+        return None
+
+    name = match.group("name")
+    for index, inp in enumerate(entry.inputs):
+        if inp.name == name:
+            return index
+    return None
 
 
 def _styled_input_label(input_hint: XPromptInputHint, include_types: bool) -> str:

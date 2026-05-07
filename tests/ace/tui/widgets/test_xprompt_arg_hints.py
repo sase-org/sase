@@ -178,3 +178,94 @@ async def test_submit_cancel_and_escape_clear_arg_hint_state() -> None:
         await pilot.press("escape")
         assert ta._active_xprompt_arg_hint is None
         assert ta._vim_mode == "normal"
+
+
+async def test_typed_colon_reference_shows_arg_hint_panel() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#review:")
+        ta.cursor_location = (0, len("#review:"))
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            ta._refresh_xprompt_arg_hint_from_cursor()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta._active_xprompt_arg_hint is not None
+        assert "path: path" in panel.render().plain
+        assert panel.border_title == "xprompt args"
+
+
+async def test_typed_hint_detection_skips_active_snippet_tabstops() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#review:")
+        ta.cursor_location = (0, len("#review:"))
+        ta._snippet_tabstops = [len("#review:")]
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            ta._refresh_xprompt_arg_hint_from_cursor()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta._active_xprompt_arg_hint is None
+        assert panel.has_class("hidden")
+
+
+async def test_snippet_modal_insertion_opens_same_arg_hint_path() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            bar.insert_snippet("review")
+
+        assert ta.text == "#review"
+        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_xprompt_arg_hint.trigger_mode == "accepted"
+
+
+async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
+    entries = [_entry("local", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        prompt = "#gh:sase #local:"
+        ta.load_text(prompt)
+        ta.cursor_location = (0, len(prompt))
+
+        def build_entries(project: str | None = None) -> list[XPromptAssistEntry]:
+            return entries if project == "sase" else []
+
+        with (
+            patch(
+                "sase.ace.tui.widgets.prompt_text_area.extract_vcs_workflow_tag",
+                return_value="#gh:sase ",
+            ),
+            patch(
+                "sase.ace.tui.widgets.prompt_text_area.extract_project_from_vcs_tag",
+                return_value="sase",
+            ),
+            patch(
+                "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+                side_effect=build_entries,
+            ) as build,
+        ):
+            ta._refresh_xprompt_arg_hint_from_cursor()
+
+        assert ta._active_xprompt_arg_hint is not None
+        build.assert_called_once_with(project="sase")

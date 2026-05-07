@@ -345,5 +345,8 @@ class PromptInputBar(Static):
         """
         text_area = self.query_one("#prompt-input", PromptTextArea)
         start, end = text_area.selection
+        reference_start = max(0, text_area._absolute_offset(start) - 1)
         text_area._replace_via_keyboard(snippet_name, start, end)
+        reference_end = reference_start + 1 + len(snippet_name)
+        text_area._maybe_show_inserted_xprompt_arg_hint(reference_start, reference_end)
         text_area.focus()

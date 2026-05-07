@@ -8,10 +8,14 @@ from unittest.mock import patch
 from rich.text import Text
 
 from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+    accepted_xprompt_arg_hint,
     append_input_args,
     append_input_hints,
     build_xprompt_assist_entries,
     colon_args_skeleton,
+    detect_xprompt_arg_hint_at_cursor,
     input_label,
     named_args_skeleton,
     required_inputs,
@@ -32,6 +36,32 @@ def _make_xprompt(
         content=content,
         inputs=inputs or [],
         source_path=source_path,
+    )
+
+
+def _input_hint(name: str, type_: str = "word", position: int = 0) -> XPromptInputHint:
+    return XPromptInputHint(
+        name=name,
+        type=type_,
+        required=True,
+        default_display=None,
+        position=position,
+    )
+
+
+def _entry(
+    name: str,
+    *inputs: XPromptInputHint,
+    prefix: str = "#",
+) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"{prefix}{name}",
+        reference_prefix=prefix,
+        kind="xprompt",
+        input_signature=None,
+        inputs=tuple(inputs),
+        content_preview=None,
     )
 
 
@@ -221,3 +251,61 @@ def test_append_input_args_preserves_modal_style_for_input_args() -> None:
         (23, 28, "dim #D7AF87"),
         (28, 30, "dim #888888"),
     ]
+
+
+def test_detect_typed_colon_and_paren_argument_positions() -> None:
+    entries = [
+        _entry(
+            "review",
+            _input_hint("path", "path"),
+            _input_hint("count", "int", 1),
+        ),
+        _entry("sync", _input_hint("branch"), prefix="#!"),
+        _entry("ns/foo", _input_hint("value")),
+    ]
+
+    cases = [
+        ("#review:", 0, "colon"),
+        ("#!sync:", 0, "colon"),
+        ("#ns/foo:", 0, "colon"),
+        ("#ns__foo:", 0, "colon"),
+        ("#review!!:", 0, "colon"),
+        ("#review??:", 0, "colon"),
+        ("#review(", 0, "paren"),
+        ("#review(path=", 0, "paren"),
+        ("#review:foo,", 1, "colon"),
+    ]
+
+    for prompt, active_index, trigger_mode in cases:
+        hint = detect_xprompt_arg_hint_at_cursor(prompt, len(prompt), entries)
+        assert hint is not None
+        assert hint.active_input_index == active_index
+        assert hint.trigger_mode == trigger_mode
+
+
+def test_detect_typed_argument_positions_rejects_broad_cases() -> None:
+    entries = [_entry("review", _input_hint("path", "path"))]
+
+    for prompt in [
+        "#unknown:",
+        "#review+",
+        "https://example.test/#review:",
+        "foo#review:",
+        "#review: text",
+        "#review(done)",
+    ]:
+        assert detect_xprompt_arg_hint_at_cursor(prompt, len(prompt), entries) is None
+
+
+def test_accepted_xprompt_arg_hint_requires_exact_inserted_reference() -> None:
+    entries = [
+        _entry("review", _input_hint("path", "path")),
+        _entry("plain"),
+    ]
+
+    hint = accepted_xprompt_arg_hint("#review", 0, len("#review"), entries)
+    assert hint is not None
+    assert hint.reference_text == "#review"
+
+    assert accepted_xprompt_arg_hint("#plain", 0, len("#plain"), entries) is None
+    assert accepted_xprompt_arg_hint("#review:", 0, len("#review:"), entries) is None

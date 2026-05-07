@@ -17,7 +17,15 @@ from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
+    XPromptAssistEntry,
+    accepted_xprompt_arg_hint,
+    build_xprompt_assist_entries,
+    detect_xprompt_arg_hint_at_cursor,
     named_args_skeleton,
+)
+from sase.xprompt._parsing import (
+    extract_project_from_vcs_tag,
+    extract_vcs_workflow_tag,
 )
 
 if TYPE_CHECKING:
@@ -79,6 +87,8 @@ class PromptTextArea(
         self._file_completion_active: bool = False
         self._completion_kind: str = "file"
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
+        self._xprompt_arg_assist_project: str | None = None
+        self._xprompt_arg_assist_entries: list[XPromptAssistEntry] | None = None
         self._vcs_mru_index: int | None = None
 
     @property
@@ -397,7 +407,17 @@ class PromptTextArea(
         )
 
     def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
-        """Dismiss post-accept hints when edits move outside the reference."""
+        """Refresh typed xprompt arg hints and dismiss stale accepted hints."""
+        if self._file_completion_active or self._snippet_tabstops:
+            return
+
+        detected = self._detect_xprompt_arg_hint_from_cursor()
+        if detected is not None:
+            if detected != self._active_xprompt_arg_hint:
+                self._active_xprompt_arg_hint = detected
+                self._show_xprompt_arg_hint(detected)
+            return
+
         hint = self._active_xprompt_arg_hint
         if hint is None:
             return
@@ -407,6 +427,56 @@ class PromptTextArea(
         cursor_offset = self._absolute_offset(self.cursor_location)
         if cursor_offset != hint.reference_end:
             self._clear_xprompt_arg_hint()
+
+    def _detect_xprompt_arg_hint_from_cursor(self) -> ActiveXPromptArgHint | None:
+        """Return a typed xprompt argument hint at the current cursor."""
+        if "#" not in self.text:
+            return None
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        return detect_xprompt_arg_hint_at_cursor(
+            self.text,
+            cursor_offset,
+            self._get_xprompt_arg_assist_entries(),
+        )
+
+    def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]:
+        """Return cached xprompt assist entries for the prompt's project context."""
+        project = self._xprompt_arg_assist_project_from_text()
+        if (
+            self._xprompt_arg_assist_entries is None
+            or project != self._xprompt_arg_assist_project
+        ):
+            self._xprompt_arg_assist_project = project
+            self._xprompt_arg_assist_entries = build_xprompt_assist_entries(
+                project=project
+            )
+        return self._xprompt_arg_assist_entries
+
+    def _xprompt_arg_assist_project_from_text(self) -> str | None:
+        """Derive project-local xprompt context from a leading VCS tag."""
+        tag = extract_vcs_workflow_tag(self.text)
+        if tag is None:
+            return None
+        return extract_project_from_vcs_tag(tag)
+
+    def _maybe_show_inserted_xprompt_arg_hint(
+        self,
+        reference_start: int,
+        reference_end: int,
+    ) -> bool:
+        """Show a post-accept hint after non-completion xprompt insertion."""
+        hint = accepted_xprompt_arg_hint(
+            self.text,
+            reference_start,
+            reference_end,
+            self._get_xprompt_arg_assist_entries(),
+        )
+        if hint is None:
+            self._clear_xprompt_arg_hint()
+            return False
+        self._active_xprompt_arg_hint = hint
+        self._show_xprompt_arg_hint(hint)
+        return True
 
     def _can_apply_xprompt_arg_action(self) -> bool:
         """Return True when an active hint can consume syntax action keys."""
