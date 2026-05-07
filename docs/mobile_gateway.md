@@ -114,6 +114,27 @@ mobile_gateway:
 Only credential paths or environment-variable names are passed on the gateway command line. Do not commit
 service-account JSON, Firebase project secrets, `google-services.json`, signing keys, or local tailnet hostnames.
 
+## Hardening Test Commands
+
+CI-friendly smoke slices for the three-repo mobile gateway surface:
+
+```bash
+# Android fake gateway, push hint, and background wake regressions.
+(cd ../sase-android && ./gradlew testDebugUnitTest --tests org.sase.mobile.testing.BackgroundHardeningSmokeTest)
+(cd ../sase-android && ./gradlew testDebugUnitTest --tests org.sase.mobile.testing.FakeGatewayTest)
+
+# Optional local emulator/device coverage.
+(cd ../sase-android && ./gradlew connectedDebugAndroidTest)
+
+# Rust push subscription, test provider, and temporary listener smoke coverage.
+(cd ../sase-core && cargo test -p sase_gateway push_subscription)
+(cd ../sase-core && cargo test -p sase_gateway test_push_provider_records_hint_attempts)
+(cd ../sase-core && cargo test -p sase_gateway listener_smoke_exercises_pairing_auth_and_session)
+
+# Python gateway config/argv bridge coverage.
+.venv/bin/pytest tests/test_mobile_gateway.py
+```
+
 ## Pairing Flow
 
 The local host starts pairing with `POST /api/v1/session/pair/start`. The response contains a short-lived one-time code
