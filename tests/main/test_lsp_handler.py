@@ -127,3 +127,47 @@ def test_sase_lsp_execs_env_override_in_subprocess(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert result.stderr == ""
     assert json.loads(result.stdout) == ["--version"]
+
+
+def test_sase_lsp_subprocess_preserves_version_and_server_args(
+    tmp_path: Path,
+) -> None:
+    fake_lsp = tmp_path / "fake_lsp.py"
+    fake_lsp.write_text(
+        "from __future__ import annotations\n"
+        "import json\n"
+        "import sys\n"
+        "print(json.dumps(sys.argv[1:]))\n",
+        encoding="utf-8",
+    )
+    repo_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    src_path = str(repo_root / "src")
+    env["PYTHONPATH"] = (
+        src_path
+        if not env.get("PYTHONPATH")
+        else f"{src_path}{os.pathsep}{env['PYTHONPATH']}"
+    )
+    env[SASE_XPROMPT_LSP_CMD_ENV] = f"{sys.executable} {fake_lsp}"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from sase.main.entry import main; main()",
+            "lsp",
+            "--version",
+            "--",
+            "--probe",
+            "value",
+        ],
+        cwd=repo_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == ["--version", "--probe", "value"]

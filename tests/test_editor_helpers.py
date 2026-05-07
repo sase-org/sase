@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import io
 import json
+from pathlib import Path
 
 import pytest
 
 from sase.integrations.editor_helpers import handle_editor_helper_bridge
 from sase.main.parser import create_parser
+from sase.xprompt.models import XPrompt
 from sase.xprompt.catalog import (
     StructuredCatalogEntry,
     StructuredCatalogProjection,
@@ -73,3 +75,50 @@ def test_editor_helper_bridge_aliases_xprompt_catalog(
     assert stderr.getvalue() == ""
     assert data["context"] == {"project": "sase", "scope": "explicit"}
     assert data["entries"][0]["name"] == "edit"
+
+
+def test_editor_helper_bridge_outputs_definition_path_for_real_catalog_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "workspace" / ".xprompts" / "jump.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("Jump target", encoding="utf-8")
+    xprompt = XPrompt(
+        name="jump",
+        content="Jump target",
+        source_path=str(source),
+    )
+
+    monkeypatch.setattr(
+        "sase.xprompt.catalog.get_all_xprompts", lambda: {"jump": xprompt}
+    )
+    monkeypatch.setattr("sase.xprompt.catalog.get_all_workflows", lambda: {})
+    monkeypatch.setattr("sase.xprompt.catalog.get_known_project_workspaces", lambda: {})
+    monkeypatch.setattr(
+        "sase.xprompt.catalog.load_project_local_xprompts",
+        lambda _workspace, _project: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+        lambda: tmp_path / "package_xprompts",
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+        lambda: tmp_path / "default_xprompts",
+    )
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="xprompt-catalog"),
+        stdin=io.StringIO(json.dumps({"schema_version": 1, "query": "jump"})),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    data = json.loads(stdout.getvalue())
+    assert code == 0
+    assert stderr.getvalue() == ""
+    assert data["entries"][0]["name"] == "jump"
+    assert data["entries"][0]["definition_path"] == str(source.resolve())

@@ -111,6 +111,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "is_skill": entry.is_skill,
                 "content_preview": entry.content_preview,
                 "source_path_display": entry.source_path_display,
+                "definition_path": entry.definition_path,
             }
             for entry in projection.entries
         ],
