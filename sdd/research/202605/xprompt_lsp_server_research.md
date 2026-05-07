@@ -94,6 +94,60 @@ Python helper bridge metadata, and the Rust gateway does not parse xprompt argum
 same pattern for v1: centralize editor protocol and cheap lexical analysis in Rust, but avoid prematurely reimplementing
 the entire Python xprompt loader.
 
+### Reusable Host-Bridge Substrate Already Exists
+
+`crates/sase_gateway/src/host_bridge.rs` is mature reusable plumbing the LSP should depend on rather than reimplement:
+
+- `pub trait HelperHostBridge` (line 98) defines `xprompt_catalog`, `file_history`, and related methods returning typed
+  wire structs.
+- `pub struct CommandHelperHostBridge` (line 461) implements the trait by spawning `sase mobile helper-bridge <op>`,
+  writing one-line JSON to stdin, parsing one-line JSON from stdout. It already reads
+  `SASE_MOBILE_HELPER_BRIDGE_COMMAND` for command override and uses `split_command_words` for argv parsing.
+- `pub enum HostBridgeError` (line 1294) already enumerates `BridgeUnavailable`, `HelperNotFound`,
+  `InvalidActionRequest`, and update-status variants — directly mappable to LSP `window/showMessage` severity.
+- `DynHelperHostBridge` is an `Arc<dyn HelperHostBridge>` for trait-object reuse; `StaticHelperHostBridge` is an
+  in-process fake suitable for LSP integration tests.
+- Wire structs `MobileXpromptCatalogRequestWire` / `MobileXpromptCatalogResponseWire` live in
+  `crates/sase_gateway/src/wire.rs`.
+
+The cleanest refactor is to lift `host_bridge.rs` and the relevant wire structs from `sase_gateway` into `sase_core`
+(or a new `sase_host_bridge` crate) so both the gateway and the LSP depend on it. This avoids `sase_xprompt_lsp`
+reaching across the gateway crate, which today also pulls HTTP routing, push notifications, and storage it doesn't
+need.
+
+Two real limitations of the current substrate that affect the LSP:
+
+- **No request timeout.** `CommandHelperHostBridge::invoke` calls `child.wait_with_output()` with no upper bound. A
+  hanging `sase` subprocess would block every subsequent completion. The LSP must wrap calls in
+  `tokio::time::timeout` (suggest 5 s for completion, 30 s for refresh).
+- **One subprocess per request.** Every call forks a Python interpreter, imports `sase`, runs the helper, and exits.
+  In this codebase the cold path is empirically 300-800 ms — too slow for per-keystroke completion. See
+  *Performance and Latency Targets* below.
+
+### `tracing` Is Not Yet A Workspace Dependency
+
+`../sase-core/Cargo.toml` does not declare `tracing` or `tracing-subscriber` as workspace deps today. Logging in the
+gateway is mostly bare `eprintln!` and structured error returns. The LSP crate should introduce both, since LSP
+servers must keep stdout free of any non-protocol bytes (a stray `println!` corrupts framing). The workspace's
+existing `tokio` features (`rt-multi-thread`, `io-util`, `macros`, `signal`) and `rust-version = "1.78"` are already
+sufficient for `tower-lsp-server`.
+
+### `sase-nvim` Public API Surface To Preserve
+
+The current public surface is small, which makes the migration low-risk:
+
+- `lua/sase/init.lua` exposes only `M.setup({ complete = { keymap = true|"<C-t>" } })`.
+- `lua/sase/complete.lua` binds `<C-t>` only when `opts.complete.keymap` is truthy (default off — opt-in).
+- `plugin/sase_complete.lua` defines `:SaseFileHistoryRefresh`.
+- `plugin/sase_xprompt.lua` registers the `#@` insert trigger.
+- `plugin/sase_yamlls.lua` resolves three schema paths via `sase path config-schema | xprompts-schema |
+  xprompts-collection-schema` and patches `yamlls`.
+
+Migration constraints: keep the `setup({ complete = ... })` shape, keep `:SaseFileHistoryRefresh`, keep the `#@`
+trigger, and find `sase` via `PATH` exactly as the existing `vim.fn.jobstart({ "sase", ... })` calls do. Add an
+`opts.lsp = { enabled?: boolean, cmd?: string[] }` field for opt-in LSP startup, and an
+`SASE_XPROMPT_LSP_CMD` env override for development.
+
 ## LSP Fit
 
 LSP is exactly the right protocol boundary for this problem. The official LSP project describes the motivation as
@@ -166,8 +220,28 @@ Cons:
 - More manual routing and concurrency work.
 - Less convenient if the implementation wants async host bridge calls, cancellation, and background refresh tasks.
 
+### Option C: `async-lsp`
+
+`async-lsp` is a third option worth naming as a Plan B. It is async/Tower-style like `tower-lsp-server`, actively
+maintained, and notably keeps the `LanguageServer` trait dyn-compatible — useful if the server wants runtime-swappable
+backends (e.g. a fake host bridge used in tests injected as `dyn LanguageServer`). It is published as
+`async-lsp` on crates.io. If `tower-lsp-server`'s impl-Trait-in-trait constraints become a problem, `async-lsp` is the
+closest drop-in.
+
+### Status As Of 2026-05
+
+The two main Tower-style options have diverged:
+
+- The original `tower-lsp` (`ebkalderon/tower-lsp`) has stalled. Its last release is 0.20.0, and the upstream
+  `lsp-types` crate it depends on is also unmaintained.
+- `tower-lsp-server` (`tower-lsp-community/tower-lsp-server`) is the active community fork. Recent releases (0.23.x in
+  early 2026) bumped MSRV to 1.77 and switched to the community-maintained `tower-lsp-community/lsp-types` fork.
+  Notable behavior change: the `LanguageServer` trait is no longer `dyn`-compatible because it now uses
+  impl-Trait-in-trait, so older tutorials that pass a `Box<dyn LanguageServer>` will not compile.
+
 Recommendation: use `tower-lsp-server` for the first implementation unless a dependency audit reveals a problem. It
-matches the current `tokio` workspace and should reduce protocol boilerplate.
+matches the current `tokio` workspace and should reduce protocol boilerplate. Treat `async-lsp` as the documented
+fallback.
 
 ## Proposed Architecture
 
@@ -230,6 +304,9 @@ trait EditorHostBridge {
 }
 ```
 
+In practice this should reuse `HelperHostBridge` from `sase_gateway::host_bridge` (or its lifted-into-`sase_core`
+form) rather than introduce a parallel trait. Add only the editor-specific methods that don't already exist there.
+
 V1 implementation:
 
 - invoke `sase mobile helper-bridge xprompt-catalog` over JSON stdin/stdout, or add a dedicated
@@ -240,6 +317,21 @@ V1 implementation:
 
 Using the mobile helper bridge for v1 is pragmatic because it already returns structured fields the LSP needs. A
 dedicated editor bridge can be introduced as an alias later without changing the LSP-facing library API.
+
+#### Concrete Wire Envelope (V1)
+
+The existing `CommandHelperHostBridge` flow is:
+
+1. `Command::new("sase").args(["mobile", "helper-bridge", "xprompt-catalog"])` (override via
+   `SASE_MOBILE_HELPER_BRIDGE_COMMAND`).
+2. Spawn with piped stdin/stdout, stderr captured but discarded.
+3. Write `serde_json::to_writer(stdin, &MobileXpromptCatalogRequestWire { .. })` followed by `\n`, close stdin.
+4. `child.wait_with_output()` (no timeout today — LSP must add one).
+5. Parse `serde_json::from_slice::<MobileXpromptCatalogResponseWire>(&output.stdout)`.
+6. Map non-zero exit codes to `HostBridgeError` variants; exit 4 has overloaded meaning depending on op.
+
+The LSP wraps each call in `tokio::time::timeout` and on timeout returns `CompletionList { isIncomplete: true,
+items: vec![] }` rather than failing the request, so editors don't see a hard error mid-typing.
 
 ### Cache Model
 
@@ -439,6 +531,217 @@ Only after the editor LSP API is stable:
 - use Python parity fixtures to prevent behavior drift;
 - remove the Python helper subprocess from the LSP hot path.
 
+## Additional LSP Methods Worth Considering
+
+The original outline focused on completion, hover, diagnostics, code actions, and inlay hints. The following methods
+are also a natural fit for xprompts and should be in the v2+ scope. Each maps directly onto fields the structured
+catalog already exposes.
+
+- `textDocument/definition`: jump from `#foo` to its source `.md`/`.yml` using `StructuredCatalogEntry.source_path_display`.
+  High value, low cost.
+- `textDocument/documentSymbol` and `workspace/symbol`: list xprompts referenced in the buffer (document) or available
+  in the project (workspace). Lets editors expose a SASE outline / fuzzy-finder without a Telescope-equivalent.
+- `textDocument/references`: find buffers referencing `#foo`. Medium value; needs a cross-buffer index.
+- `textDocument/semanticTokens`: highlight xprompt references uniformly across editors instead of duplicating
+  Tree-sitter queries. This is the cleanest way to retire the per-editor syntax files in `sase-nvim/syntax/` and the
+  TUI's manual highlighter.
+- `workspace/executeCommand`: maps cleanly to `sase.refreshXpromptCatalog`, `sase.clearFileHistory`,
+  `sase.openXpromptSource`. The original outline mentioned this; it should be promoted to a first-class capability
+  rather than an afterthought.
+- `workspace/didChangeWatchedFiles`: register xprompt source globs (`xprompts/**/*.md`, `xprompts/**/*.yml`,
+  `~/.config/sase/sase.yml`) and `~/.sase/file_reference_history.json` so the catalog auto-invalidates without manual
+  refresh.
+- `window/workDoneProgress`: report progress for cold catalog loads. With a 300-800 ms cold helper-bridge call this
+  matters more than it does for typical LSPs.
+- `$/cancelRequest`: cancel stale completion requests while a slow helper-bridge call is in flight. Without this the
+  server will serialize on the bridge.
+
+## Document Filter and Filetype Strategy
+
+The original draft asked whether to attach to all Markdown buffers or only SASE-specific ones, but did not commit to a
+strategy.
+
+Recommendation: advertise a permissive `documentSelector` covering `markdown`, `gitcommit`, and a custom `sase` /
+`saseprompt` language id, then *gate xprompt completion on token detection inside the analyzer* rather than on
+filetype. This mirrors how Copilot, codeium, and tabnine attach broadly without taking over irrelevant buffers — the
+server returns an empty completion list when no SASE token is present, which is cheap.
+
+For Neovim the client side becomes:
+
+```lua
+vim.lsp.start({
+  name = "sase-xprompt-lsp",
+  cmd = { "sase-xprompt-lsp" },
+  filetypes = { "markdown", "gitcommit", "sase" },
+  root_dir = vim.fs.root(0, { ".sase", ".git" }),
+})
+```
+
+`sase-nvim/ftdetect/` currently only handles `.gp` ChangeSpec files. Adding a `saseprompt` filetype detector for
+prompt-style buffers (e.g. `*.sase.md`, files under `xprompts/`) lets users opt in explicitly when they want richer
+diagnostics or want to suppress xprompt completion in vanilla Markdown.
+
+## Performance and Latency Targets
+
+The original draft mentioned that the server "must return quickly when context is not SASE-relevant" but did not set
+targets or quantify the helper-bridge cost.
+
+Concrete targets:
+
+- VS Code's built-in completion budget is ~100 ms per keystroke before the UI feels laggy.
+- Neovim's `vim.lsp.completion.enable` debounces at 150 ms by default.
+- Empirical cold cost of `sase mobile helper-bridge xprompt-catalog` in this codebase: ~300-800 ms (Python interpreter
+  startup + `sase` import + catalog build). Several catalog calls per keystroke is a non-starter.
+
+Mitigation hierarchy, in order of complexity:
+
+1. **In-process catalog cache.** Load once on `initialize` (with a `window/workDoneProgress` token), serve subsequent
+   completion requests from memory. Invalidate on `workspace/didChangeWatchedFiles`. This alone makes warm latency
+   sub-millisecond.
+2. **Background refresh.** A Tokio task periodically refreshes the cache (e.g. every 60 s) so the helper-bridge cost
+   never lands on a user keystroke. Combined with watched-file invalidation, this covers most edits.
+3. **Long-lived helper subprocess.** Replace the one-shot `sase mobile helper-bridge` invocation with a persistent
+   `sase mobile helper-bridge --stdio` process speaking newline-delimited JSON-RPC. This is how `pyright` and
+   `pyrefly` keep latency down. Requires changes on the Python side.
+4. **In-process via PyO3.** `sase_core_rs` is already shipped via maturin (`just rust-install`), so the LSP could
+   theoretically call into Python directly without a subprocess at all. This is the lowest-latency option but couples
+   the Rust binary to a specific Python install.
+
+V1 should ship with options 1 and 2. Option 3 is the right next step if user reports indicate cold-start lag on first
+completion. Option 4 should not be pursued unless 1-3 prove insufficient — it gives up the clean process boundary the
+gateway architecture deliberately enforces.
+
+## Capability Negotiation Gates
+
+The original draft listed features the server should advertise but did not gate behavior on what the client actually
+supports. Older clients (Helix until recently, plain Neovim before 0.10) lack pieces that VS Code takes for granted.
+Concrete checks to make against `InitializeParams.capabilities` before sending:
+
+- `textDocument.completion.completionItem.snippetSupport` — required before returning
+  `CompletionItem.insertTextFormat = Snippet`. If false, downgrade to plain text and skip placeholder syntax.
+- `textDocument.completion.completionItem.resolveSupport.properties` — required before returning items that depend on
+  `completionItem/resolve` to fill `documentation` or `detail`. If absent, inline expensive fields up front or omit
+  them.
+- `textDocument.completion.completionItem.tagSupport.valueSet` — controls whether the server can mark a stale `#foo`
+  with `CompletionItemTag.Deprecated` when the catalog says `#!foo` is canonical.
+- `textDocument.codeAction.codeActionLiteralSupport` — required before returning `CodeAction` literals. Older clients
+  only handle `Command` payloads, so the server must fall back to commands plus `workspace/executeCommand`.
+- `textDocument.publishDiagnostics.tagSupport.valueSet` — controls `DiagnosticTag.Unnecessary` for warnings such as
+  "this should be `#!foo`".
+- `workspace.workspaceFolders` — if absent, fall back to single-root mode using `rootUri`.
+
+## Snippet Portability
+
+The original draft mentioned `insertTextFormat = Snippet` for required-arg skeletons but did not flag editor-side
+gaps. TextMate-style placeholders (`$1`, `${1:default}`, `$0`) are LSP-standard, but support is uneven:
+
+- Neovim 0.10+ has built-in support via `vim.lsp.completion.enable`. Earlier versions need `vim-vsnip` or similar.
+- Helix added LSP snippet support relatively recently (PR #5864 era); placeholder navigation with Tab/Shift-Tab is
+  still incomplete in some versions.
+- Known Neovim issue: snippet placeholders are not pre-selected in some configurations (issue #29251).
+- VS Code is the reference implementation and has the most complete behavior.
+
+The server must always check `snippetSupport` before emitting placeholder-bearing insert text. Even when supported,
+prefer simple completion items by default (plain `#foo`), and surface "insert with required-arg skeleton" as a
+separate completion item (different `label`) or as a code action. This gives users a predictable default and a
+clearly-opt-in snippet path.
+
+## Error and Recovery Model
+
+The original draft did not specify what the server should do when the host bridge fails. Concrete model:
+
+- **Subprocess returns malformed JSON or non-zero exit:** map to `HostBridgeError`, log via `tracing::warn!`, send a
+  one-time `window/showMessage` (severity Warning), and emit a sticky `publishDiagnostics` entry on a synthetic URI
+  such as `sase:catalog` summarizing the failure. Do not crash the server. Subsequent completion requests return
+  empty `CompletionList { isIncomplete: true, items: [] }`.
+- **Subprocess hangs:** wrap calls in `tokio::time::timeout` (5 s for completion path, 30 s for explicit refresh).
+  On timeout treat as transient — return empty completions, log a warning, and let the next request retry.
+- **`sase` binary not on PATH:** detect at `initialize`, send `window/showMessage` (severity Error) once, and continue
+  serving an empty catalog so the editor still loads. Do not exit — exiting would cause clients to repeatedly restart
+  the server.
+- **Catalog refresh races with shutdown:** background tasks must observe `CancellationToken` (or
+  `tower-lsp-server`'s shutdown signal) and abort cleanly so the process exits within the LSP shutdown grace period.
+
+The general principle: an LSP server that exits or crashes during normal operation is worse than one that returns
+degraded results, because clients aggressively restart and the user sees flicker plus repeated error popups.
+
+## Logging and Observability
+
+LSP servers must keep stdout clean — every byte on stdout is part of the JSON-RPC framing. All logging must go to
+stderr. Clients capture stderr automatically: Neovim writes it to `vim.lsp.get_log_path()` (controlled by
+`vim.lsp.set_log_level`), VS Code routes it to the "Output" channel selected by server name.
+
+Because `sase-core` does not currently use `tracing`, the LSP crate should:
+
+- Add `tracing` and `tracing-subscriber` (with `env-filter` and `json` features).
+- Initialize a `tracing_subscriber::fmt()` writer pinned to `std::io::stderr`, controlled by `SASE_XPROMPT_LSP_LOG`
+  (e.g. `SASE_XPROMPT_LSP_LOG=info,sase_xprompt_lsp=debug`).
+- Avoid all `println!` / `print!` in the LSP crate. Add a clippy lint or a `#![deny(clippy::print_stdout)]` at the
+  crate root to prevent regressions.
+- Emit structured events at request boundaries (`initialize`, `completion`, `hover`, `executeCommand`) with request
+  IDs and durations so a user can paste a log into a bug report.
+
+A `--log-file <path>` flag on the binary is also worth supporting for users who can't easily access editor log files.
+
+## Distribution and Install Path
+
+The original draft did not address how users get the binary. Today:
+
+- `sase` ships as a Python entrypoint via `pip install -e ".[dev]"` (see `Justfile`) or `uv tool install sase`;
+  `pyproject.toml` declares the console script `sase = "sase.main.entry:main"`.
+- The Rust extension `sase_core_rs` is built via maturin into the venv (`just rust-install`), so a Rust toolchain is
+  already on the install critical path for full installs.
+- `sase-nvim` finds `sase` purely via `PATH` (`vim.fn.jobstart({ "sase", "path", ... })`). There is no env override.
+
+Three viable distribution options for `sase_xprompt_lsp`:
+
+1. **Ship as a `sase lsp` subcommand.** Simplest user-facing change — no new binary, no new install step. The Python
+   subcommand `exec`s into the Rust binary which is bundled inside the wheel (similar to how `ruff` ships its Rust
+   binary inside a Python wheel). `sase-nvim` invokes `vim.lsp.start({ cmd = { "sase", "lsp" } })`.
+2. **Standalone `sase-xprompt-lsp` binary.** Built by `cargo build --release` in `../sase-core`, copied into
+   `~/.local/bin` (or a `just lsp-install` step). Cleaner for editors that don't want a Python on the user's PATH,
+   but adds a second install workflow.
+3. **Maturin-shipped console script.** Add a second console script entry to `pyproject.toml` that wraps the bundled
+   binary. Minimal user surface but couples release cadence.
+
+Recommendation: option 1 for v1 (zero new install steps), with option 2 documented for users who want to run the LSP
+without installing the full `sase` Python package. For dev iteration, support an `SASE_XPROMPT_LSP_CMD` env var so
+contributors can point at a `cargo run` target without rebuilding the wheel.
+
+## Prior Art
+
+A few open-source projects worth studying before writing the first version:
+
+- **marksman** (`artempyanykh/marksman`) — Markdown LSP in F#. Single-binary distribution, completion + diagnostics +
+  goto-definition + references over wiki-style references; very close conceptually to "complete `#xprompt` cross
+  references in prose." The structure of its workspace symbol search and reference resolution is directly applicable.
+- **hx-lsp** (`erasin/hx-lsp`) — Rust LSP that wraps a *static catalog* of VS Code-format snippets and code actions
+  for Helix. Closest analog to the xprompt-catalog use case, including how it watches catalog files for changes.
+- **taplo** (`tamasfe/taplo`) — TOML LSP in Rust. Demonstrates the snapshot-test pattern for completion / hover output
+  and a clean separation between the protocol layer and the analyzer crate; the two-crate split this draft proposes
+  matches taplo's `taplo` / `taplo-lsp` boundary.
+- **lsp-cli** (`valentjn/lsp-cli`) — drives an arbitrary LSP from the shell. Useful as an end-to-end test harness
+  invoked from the existing `tests/` tree.
+- **Prefab "LSP from zero to completion" tutorial** — concrete walkthrough of building a completion-only LSP
+  (TypeScript / `vscode-languageserver`). The catalog-fetching pattern transfers cleanly to Rust.
+
+## Test Harness Choices
+
+The draft's "integration test that sends JSON-RPC initialize + completion over stdio" stayed abstract. Concrete
+options:
+
+- For unit tests of the analyzer (`sase_core::editor::*`), plain `cargo test` with golden JSON fixtures generated
+  from current Python helper output. Snapshot via `insta` to keep diffs reviewable.
+- For LSP integration tests inside `sase_xprompt_lsp`, drive the server via `tower::ServiceExt::oneshot` against the
+  `LspService` directly — `tower-lsp-server`'s own examples do this. No subprocess needed.
+- For end-to-end smoke tests, use rust-analyzer's pattern: `lsp_server::Connection::memory()` (in-memory channel
+  pair) wired to the same server entry point used in production.
+- For cross-tool sanity, run `lsp-cli` against the release binary from a shell script in CI, asserting on
+  completion / hover output for fixture buffers.
+
+A `StaticHelperHostBridge` (already exists in `sase_gateway`) is the right fake for all of the above — tests can
+preload it with deterministic catalog responses and avoid spawning Python entirely.
+
 ## Risks And Constraints
 
 - **Python ownership of xprompt semantics.** Full xprompt parsing/loading is complex and plugin-extensible. Bridge first,
@@ -482,6 +785,15 @@ Local code reviewed:
 - `../sase-core/crates/sase_gateway/README.md`
 - `../sase-core/crates/sase_gateway/src/wire.rs`
 
+Additional local code reviewed in this revision:
+
+- `../sase-core/crates/sase_gateway/src/host_bridge.rs` (`HelperHostBridge`, `CommandHelperHostBridge`,
+  `HostBridgeError`, `StaticHelperHostBridge`)
+- `../sase-core/Cargo.toml` (workspace deps and Rust version)
+- `../sase-nvim/lua/sase/init.lua`, `lua/sase/complete.lua`
+- `../sase-nvim/plugin/sase_complete.lua`, `plugin/sase_xprompt.lua`, `plugin/sase_yamlls.lua`
+- `pyproject.toml` and `Justfile` (distribution / install path)
+
 External references:
 
 - Microsoft LSP overview and latest stable spec note:
@@ -490,7 +802,17 @@ External references:
   <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/>
 - Neovim LSP client and completion documentation:
   <https://neovim.io/doc/user/lsp/>
-- `tower-lsp-server` crate docs:
-  <https://docs.rs/tower-lsp-server/latest/tower_lsp_server/>
-- `lsp-server` crate docs:
-  <https://rust-lang.github.io/rust-analyzer/lsp_server/index.html>
+- `tower-lsp-server` (active community fork): <https://github.com/tower-lsp-community/tower-lsp-server>
+- `tower-lsp` (original, stalled): <https://github.com/ebkalderon/tower-lsp>
+- `tower-lsp-server` crate docs: <https://docs.rs/tower-lsp-server/latest/tower_lsp_server/>
+- `async-lsp` crate (Plan B): <https://lib.rs/crates/async-lsp>
+- `lsp-server` crate docs: <https://rust-lang.github.io/rust-analyzer/lsp_server/index.html>
+- marksman (Markdown LSP, prior art for cross-reference completion): <https://github.com/artempyanykh/marksman>
+- hx-lsp (Rust LSP wrapping a static snippet catalog): <https://github.com/erasin/hx-lsp>
+- taplo (TOML LSP — analyzer/protocol crate split pattern): <https://github.com/tamasfe/taplo>
+- lsp-cli (CLI-driven LSP test harness): <https://github.com/valentjn/lsp-cli>
+- Prefab "LSP from zero to completion" tutorial:
+  <https://prefab.cloud/blog/lsp-language-server-from-zero-to-completion/>
+- Helix LSP snippet support PR (placeholder gaps): <https://github.com/helix-editor/helix/pull/5864>
+- Neovim snippet placeholder issue: <https://github.com/neovim/neovim/issues/29251>
+- vim-vsnip (legacy Neovim snippet support): <https://github.com/hrsh7th/vim-vsnip>
