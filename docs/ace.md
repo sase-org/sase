@@ -164,6 +164,9 @@ zero-count entries display `0 lines`. The section is omitted entirely when the C
 | `@`     | Run a custom agent (opens project/CL selection) |
 | `Space` | Run agent from current CL                       |
 
+If ACE cannot detect a workspace provider for the selected ChangeSpec or agent, the quick-launch actions show an error
+toast instead of opening a prompt with a broken VCS prefix.
+
 ### Bang Mode (`!` prefix)
 
 | Key  | Action                                            |
@@ -441,9 +444,10 @@ the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair s
 The elapsed duration starts at `BEGIN` when a row recorded wait-before-run metadata, otherwise at the row start time.
 Completed `DONE` / `PLAN DONE` workflow rows use the terminal agent stop time when one exists; plan-step rows that
 finish without a subprocess stop time anchor to the latest recorded plan submission time so completed planning rows do
-not keep ticking. The date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving
-the column internal hierarchy without inflating the palette. Statuses not in the table fall back to `(STATUS)` text for
-forwards compatibility.
+not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for the planner segment plus
+the coder segment, excluding the idle approval gap between plan submission and code launch. The date prefix uses a
+softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal hierarchy without
+inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards compatibility.
 
 ### Agent Search
 
@@ -846,10 +850,12 @@ never leaves you staring at a trimmed page.
 
 ## Image Preview Foundation
 
-ACE probes terminal graphics support before the Textual app starts and stores the result on the running app. The current
-graphics package is a reusable foundation for image previews: it renders PNG, JPEG, WebP, and GIF attachments with a
-portable Rich cell preview, detects Kitty-compatible terminals, handles tmux passthrough, and upgrades PNG files to
-Kitty graphics protocol placeholders when native graphics are available.
+ACE detects terminal graphics support before the Textual app starts and stores the result on the running app. The
+default path is side-effect-free: it trusts known Kitty-compatible terminal environments, including tmux sessions whose
+outer terminal and passthrough setting can be inspected, but it does not emit an active terminal probe unless explicitly
+forced with `SASE_TUI_GRAPHICS`. The current graphics package is a reusable foundation for image previews: it renders
+PNG, JPEG, WebP, and GIF attachments with a portable Rich cell preview, handles tmux passthrough, and upgrades PNG files
+to Kitty graphics protocol placeholders with explicit placeholder coordinate marks when native graphics are available.
 
 Generated images are already attached to successful agent completion notifications and recorded in `done.json` as
 `image_paths`. The Agents tab file panel and notification modal route supported raster image attachments through this
@@ -1048,7 +1054,8 @@ The dialog presents toggle switches, an optional text input, and a model picker:
 - **Run coder agent** (default: ON) — Whether to launch a coder agent after approval
 - **Additional prompt** — Optional extra instructions for the coder agent (only editable when coder is ON)
 - **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
-  registered models grouped by provider (Claude, Codex, Gemini, Qwen) with a "Custom..." option for freeform input.
+  registered models grouped by provider (Claude, Codex, Gemini, Qwen, OpenCode) with a "Custom..." option for freeform
+  input.
 
 At least one of commit/coder must be enabled — disabling one locks the other ON.
 
@@ -1150,18 +1157,18 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 
 ### INSERT Mode (Default)
 
-| Key      | Action                                                                   |
-| -------- | ------------------------------------------------------------------------ |
-| `Enter`  | Submit the prompt                                                        |
-| `Ctrl+J` | Insert a newline                                                         |
-| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0) |
-| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)           |
-| `Ctrl+G` | Open full prompt in `$EDITOR`                                            |
-| `Ctrl+I` | Load a prompt from history                                               |
-| `Ctrl+T` | Completion (file paths or xprompt names; see [Completion](#completion))  |
-| `Tab`    | Snippet expansion (see below)                                            |
-| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                          |
-| `Escape` | Switch to vim NORMAL mode                                                |
+| Key      | Action                                                                                        |
+| -------- | --------------------------------------------------------------------------------------------- |
+| `Enter`  | Submit the prompt                                                                             |
+| `Ctrl+J` | Insert a newline                                                                              |
+| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0)                      |
+| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)                                |
+| `Ctrl+G` | Open full prompt in `$EDITOR`                                                                 |
+| `Ctrl+I` | Load a prompt from history                                                                    |
+| `Ctrl+T` | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
+| `Tab`    | Snippet expansion (see below)                                                                 |
+| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                                               |
+| `Escape` | Switch to vim NORMAL mode                                                                     |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
@@ -1176,10 +1183,16 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
   visible typed inputs, with required arguments shown as `name: type` and optional arguments shown as `name?: type` plus
   a default when the default is a simple scalar. Standalone references use the `#!name` insertion form; typing `#!`
   filters completion to entries whose canonical insertion starts with `#!`.
+- **Slash-skill completion**: When the cursor is on a slash-skill token such as `/` or `/sase_`, completion filters the
+  same catalog to xprompts marked as `skill: true` and inserts `/skill_name`. Packaged built-in skills are included, so
+  `/sase_plan`, `/sase_questions`, and other bundled SASE skills are available without a project-local xprompt file.
 - **XPrompt argument completion**: When the cursor is inside a known xprompt argument position, `Ctrl+T` completes the
   active argument instead of the xprompt name. For `path` inputs it delegates to file path completion, for `bool` inputs
   it offers `true` and `false`, and inside parenthesized syntax it completes missing `name=` arguments without repeating
   names already present in the argument list. Numeric inputs keep the type hint visible but do not invent values.
+- **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g., `%m`), completion lists
+  user-facing prompt directives and accepts aliases into their canonical forms. For example, `%m` completes to `%model`
+  and `%w` completes to `%wait`. The panel shows each directive's aliases and whether it takes an argument or is a flag.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments).

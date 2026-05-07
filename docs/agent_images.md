@@ -77,16 +77,18 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 ## ACE Terminal Graphics Foundation
 
-ACE now probes terminal graphics support before the Textual app starts and stores the detected capability on `AceApp`.
-The notification modal and Agents tab file panel route supported image extensions through the preview layer before
+ACE detects terminal graphics support before the Textual app starts and stores the detected capability on `AceApp`. The
+notification modal and Agents tab file panel route supported image extensions through the preview layer before
 attempting text decoding.
 
-Capability detection is conservative for generic terminals, but it can use an active Kitty probe to prove support:
+Default capability detection is conservative and side-effect-free so startup does not leak terminal probe replies into
+Textual input handling. It trusts known Kitty-placeholder-capable terminal environments and tmux metadata, and reserves
+the active Kitty probe for explicit force mode:
 
 - known Kitty-placeholder-capable terminal families are considered (`kitty` and `ghostty`)
-- tmux sessions use Kitty passthrough wrapping and may probe even when tmux hides the outer terminal family
+- tmux sessions query the outer terminal and `allow-passthrough` setting without emitting graphics probes
 - force mode bypasses the known-terminal-family gate
-- an active Kitty graphics probe must succeed unless the caller explicitly skips probing
+- an active Kitty graphics probe is attempted only for force mode unless the caller explicitly skips probing
 - truecolor advertisement is recorded for diagnostics and placeholder rendering, but missing `COLORTERM=truecolor` does
   not block a successful active probe in tmux or force mode
 
@@ -95,11 +97,12 @@ preview uses Pillow to decode the first image frame, fits it inside the visible 
 half-block terminal cells. It works in ordinary terminals, tmux, SSH sessions, and terminal stacks where native graphics
 probing fails.
 
-When Kitty graphics support is detected, PNG files still use the higher-fidelity native Kitty path. Native graphics are
-an upgrade path only: if Kitty is unavailable, disabled, or not applicable to the file type, ACE falls back to the
-portable cell renderer. Missing files, unsupported extensions, decode errors, and images above the renderer guardrails
-show a concise text fallback with the file path, byte size when available, and the relevant editor action (`e` in
-notifications or `%E` in agent panels).
+When Kitty graphics support is detected, PNG files still use the higher-fidelity native Kitty path. Native graphics use
+the Kitty Unicode placeholder protocol with explicit row/column coordinate marks and tmux passthrough wrapping when
+needed. They are an upgrade path only: if Kitty is unavailable, disabled, or not applicable to the file type, ACE falls
+back to the portable cell renderer. Missing files, unsupported extensions, decode errors, and images above the renderer
+guardrails show a concise text fallback with the file path, byte size when available, and the relevant editor action
+(`e` in notifications or `%E` in agent panels).
 
 Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable native terminal
 graphics detection. This does not disable portable cell previews. Set it to `kitty` (also accepts `1`, `true`, `yes`,

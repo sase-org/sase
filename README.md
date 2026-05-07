@@ -91,8 +91,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   generated image files touched by agents so downstream notification plugins can deliver the full result
 - **Mobile Gateway** — Workstation-hosted HTTP/SSE gateway for paired mobile clients to inspect notifications, launch
   agents, and use fixed workflow helper APIs without exposing shell or filesystem access
-- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini bundled; Jetski via sase-google plugin) with
-  pre/post-processing and token usage tracking
+- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; Jetski via
+  sase-google plugin) with pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
@@ -114,7 +114,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │   LLM Provider    │  VCS Provider   │ Workspace Prov.  │
 │ (pluggy plugins;  │ (pluggy plugins)│ (pluggy plugins) │
 │  Claude, Codex,   │                 │                  │
-│  Gemini bundled)  │                 │                  │
+│  Gemini, Qwen,    │                 │                  │
+│  OpenCode bundled)│                 │                  │
 ├───────────────────┴─────────────────┴──────────────────┤
 │                    Plugin Packages                     │
 │  sase-github · sase-google · sase-telegram · sase-nvim │
@@ -189,6 +190,7 @@ sase
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
 | `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
+| `sase lsp`                     | Start the xprompt language server for editor integrations                                                      |
 | `sase mobile gateway start`    | Start the workstation-hosted mobile gateway in the foreground                                                  |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
 | `sase notify create`           | Explicit notification-create subcommand (alias of legacy `sase notify` create behavior)                        |
@@ -373,7 +375,7 @@ src/sase/
 │   ├── workflow_executor*.py # Workflow execution (steps, loops, parallel)
 │   ├── workflow_loader*.py   # Workflow YAML parsing and validation
 │   └── workflow_validator.py # Cross-step validation (field refs, finally, artifacts)
-├── llm_provider/          # Pluggable LLM abstraction (Claude, Codex, Gemini)
+├── llm_provider/          # Pluggable LLM abstraction (Claude, Codex, Gemini, Qwen, OpenCode)
 ├── vcs_provider/          # VCS abstraction (pluggy-based plugin system)
 │   ├── _hookspec.py       # Pluggy hook specifications (VCSHookSpec)
 │   ├── _plugin_manager.py # Plugin manager wrapping pluggy

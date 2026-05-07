@@ -664,15 +664,18 @@ Commit instructions here...
 | `true`                 | Deploy to all registered providers  |
 | `["claude", "gemini"]` | Deploy only to the listed providers |
 
-The `description` field provides a human-readable summary shown in `sase xprompt list` output.
+The `description` field provides a human-readable summary shown in `sase xprompt list` output. The structured catalog
+also marks these entries with `is_skill: true`; ACE and editor clients use that flag to offer slash-skill completions
+such as `/sase_plan` while keeping ordinary xprompts out of slash completion results.
 
 **Workflow:** Edit skill sources in `src/sase/xprompts/skills/`, run `sase init-skills --force`, then `chezmoi apply` to
 deploy the generated files to their live locations. Do not edit deployed SKILL.md files directly.
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init-skills`. Coding agents invoke
-them as `/sase_<name>`:
+The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase init-skills`. They are packaged with
+sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
+local skill files. Coding agents invoke them as `/sase_<name>`:
 
 | Skill                | Purpose                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- |

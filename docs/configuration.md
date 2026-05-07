@@ -769,6 +769,7 @@ a provider prefix; use `opencode models` to list models in your configured envir
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                  |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                             |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                      |
+| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                   |
 | `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, and `just test-cov`.                                                                      |
 
 ### Workspace Management (Internal)
@@ -1033,6 +1034,16 @@ Supported date range formats:
 - **Absolute**: `YYmmdd` or `YYmmddHHMMSS`
 - **Relative**: `-Nd` (days ago), `-Nh` (hours ago), `-Nm` (minutes ago), `0d` (today)
 - **Ranges**: `START..END` (e.g., `-7d..0d`); single point means "from that point to now"
+
+### `sase lsp`
+
+Starts the xprompt language server over stdio for editor integrations. `SASE_XPROMPT_LSP_CMD` can override the server
+command during development; otherwise `sase lsp` resolves `sase-xprompt-lsp` from `PATH` or a sibling `../sase-core`
+checkout.
+
+| Flag              | Values | Default | Description                            |
+| ----------------- | ------ | ------- | -------------------------------------- |
+| `-V`, `--version` | flag   | -       | Print the xprompt LSP version and exit |
 
 ### `sase path`
 
