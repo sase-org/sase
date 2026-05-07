@@ -35,7 +35,7 @@ class CustomModelInputModal(ModalScreen[str | None]):
         *,
         title: str = "Enter Custom Model",
         hint: str = "Format: provider/model  or  model",
-        placeholder: str = "e.g. codex/o3-preview",
+        placeholder: str = "e.g. opencode/anthropic/claude-sonnet-4-5",
     ) -> None:
         super().__init__()
         self._title = title

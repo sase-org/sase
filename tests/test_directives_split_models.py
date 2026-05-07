@@ -249,6 +249,31 @@ def test_split_prompt_for_models_gemini_collision_uses_short_alias() -> None:
     assert result[1] == ("%name:o.gem-flash25\n%model:gemini-2.5-flash\nReview")
 
 
+def test_split_prompt_for_models_opencode_nested_models_use_short_aliases() -> None:
+    """Explicit OpenCode provider/model strings use provider-local model aliases."""
+    prompt = (
+        "%n:o\n"
+        "%m(opencode/anthropic/claude-sonnet-4-5,opencode/openai/gpt-5-mini)\n"
+        "Review"
+    )
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == (
+        "%name:o.opc-sonnet45\n%model:opencode/anthropic/claude-sonnet-4-5\nReview"
+    )
+    assert result[1] == ("%name:o.opc-gpt5m\n%model:opencode/openai/gpt-5-mini\nReview")
+
+
+def test_split_prompt_for_models_unknown_nested_model_suffix_is_name_safe() -> None:
+    """Unknown explicit nested model names are sanitized for generated names."""
+    prompt = "%n:o\n%m(opencode/acme/foo/bar,opencode/acme/baz/qux)\nReview"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    name_lines = [line for item in result for line in item.splitlines()[:1]]
+    assert name_lines == ["%name:o.opc-acme_foo_bar", "%name:o.opc-acme_baz_qux"]
+
+
 def test_split_prompt_for_models_claude_collision_unchanged() -> None:
     """Claude opus/sonnet keep their raw names (no aliases declared)."""
     prompt = "%n:o\n%m(opus,sonnet)\nReview"

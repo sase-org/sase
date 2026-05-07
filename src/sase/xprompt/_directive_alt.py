@@ -436,6 +436,14 @@ def _model_disambiguator_for_naming(raw_model: str, label_model: str) -> str:
     return label_model
 
 
+def _model_suffix_value(model: str) -> str:
+    """Return the provider-local model value used for alias/fallback suffixes."""
+    from sase.llm_provider.registry import resolve_model_provider
+
+    _, resolved_model = resolve_model_provider(model)
+    return resolved_model
+
+
 def _inject_name_directive(prompt: str, name: str) -> str:
     """Prepend a ``%name:<name>`` line to *prompt*."""
     return f"%name:{name}\n{prompt}"
@@ -565,8 +573,14 @@ def _model_suffixes(
     for m in distinct_label_models:
         r = runtime_for[m]
         if runtime_count[r] > 1:
-            short = aliases.get(m, _model_disambiguator_for_naming(raw_for_label[m], m))
-            suffix_for[m] = f"{r}-{short}"
+            suffix_value = _model_suffix_value(m)
+            short = aliases.get(m) or aliases.get(suffix_value)
+            if short is None:
+                short = _model_disambiguator_for_naming(
+                    raw_for_label[m],
+                    suffix_value,
+                )
+            suffix_for[m] = _safe_fanout_suffix(f"{r}-{short}") or r
         else:
             suffix_for[m] = r
     # Aliases can collide (two distinct models mapped to the same short
@@ -576,9 +590,12 @@ def _model_suffixes(
         for m in distinct_label_models:
             r = runtime_for[m]
             if runtime_count[r] > 1:
-                suffix_for[m] = (
-                    f"{r}-{_model_disambiguator_for_naming(raw_for_label[m], m)}"
+                suffix_value = _model_suffix_value(m)
+                disambiguator = _model_disambiguator_for_naming(
+                    raw_for_label[m],
+                    suffix_value,
                 )
+                suffix_for[m] = _safe_fanout_suffix(f"{r}-{disambiguator}") or r
     return suffix_for
 
 

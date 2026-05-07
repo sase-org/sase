@@ -23,6 +23,14 @@ from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
 from .config import get_llm_provider_config
 
+_PROVIDER_FAMILY_COLORS: dict[str, str] = {
+    "claude": "#D97757",
+    "anthropic": "#D97757",
+    "gemini": "#4285F4",
+    "codex": "#10A37F",
+    "openai": "#10A37F",
+}
+
 
 @functools.cache
 def _build_llm_pm() -> pluggy.PluginManager:
@@ -88,6 +96,19 @@ def model_short_alias_map() -> dict[str, str]:
         aliases = method() or {}
         mapping.update(aliases)
     return mapping
+
+
+def provider_cli_status_color_map() -> dict[str, str]:
+    """Return provider colors from plugin metadata, plus vendor-family defaults."""
+    colors = dict(_PROVIDER_FAMILY_COLORS)
+    for name, plugin in iter_plugins():
+        method = getattr(plugin, "llm_cli_status_color", None)
+        if method is None:
+            continue
+        color = method()
+        if color:
+            colors[name] = color
+    return colors
 
 
 def _provider_names() -> list[str]:

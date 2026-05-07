@@ -641,9 +641,9 @@ for new agent launches without editing `~/.config/sase/sase.yml`.
 
 **When no override is active**, the modal shows the current resolved default (e.g. `Default: CLAUDE(opus)`) and offers a
 **Set override** action. Pick a known model from the provider-grouped picker, or use **Custom...** to enter a freeform
-`provider/model` (e.g. `codex/o3`). Then choose a duration — quick options are `15m`, `30m`, `1h`, `2h`, `4h`, or
-`Until cleared` — or type a custom duration like `45m`, `1h30m`, `90m`. Confirming writes the override and shows a toast
-like `Temporary LLM override: CODEX(o3) for 1h`.
+`provider/model` (e.g. `codex/o3` or `opencode/anthropic/claude-sonnet-4-5`). Then choose a duration — quick options are
+`15m`, `30m`, `1h`, `2h`, `4h`, or `Until cleared` — or type a custom duration like `45m`, `1h30m`, `90m`. Confirming
+writes the override and shows a toast like `Temporary LLM override: CODEX(o3) for 1h`.
 
 **When an override is active**, the modal shows an active badge (`Active: CODEX(o3) expires in 47m`) and offers **Change
 override** and **Clear override**. Clearing removes the active state immediately, even if the override was created by a
@@ -651,8 +651,8 @@ different ACE instance, an earlier session, or another sase process.
 
 ### Behavior
 
-- The override applies only to the **default** provider/model. Explicit prompt directives (`%model:codex/o3`) and an
-  explicit `provider_name` argument always win.
+- The override applies only to the **default** provider/model. Explicit prompt directives (`%model:codex/o3`,
+  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win.
 - Already-running agents keep their current provider/model. Only **new** launches use the override.
 - The override is persisted to `~/.sase/llm_override.json` so all sase processes on the same machine see it. Reads are
   best-effort self-cleaning: expired or malformed state files are deleted on next access.
@@ -663,6 +663,7 @@ different ACE instance, an earlier session, or another sase process.
 ### Examples
 
 - `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
+- `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
 - `Until cleared` — leave the override active across sessions; clear it later from the same `,P` modal.
 

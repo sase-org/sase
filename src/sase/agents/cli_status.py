@@ -24,32 +24,12 @@ _STATUS_COLORS: dict[str, str] = {
     "FAILED": "red",
 }
 
-# Hardcoded colours for provider-family aliases (vendor strings that are not
-# plugin entry-point names).  Plugin-declared colours — via
-# ``llm_cli_status_color`` — are merged in at lookup time by
-# :func:`_get_provider_colors`.
-_PROVIDER_FAMILY_COLORS: dict[str, str] = {
-    "claude": "#D97757",
-    "anthropic": "#D97757",
-    "gemini": "#4285F4",
-    "codex": "#10A37F",
-    "openai": "#10A37F",
-}
-
 
 def _get_provider_colors() -> dict[str, str]:
-    """Return provider colours, overlaying plugin metadata on family defaults."""
-    from sase.llm_provider.registry import iter_plugins
+    """Return provider colours from plugin metadata and family defaults."""
+    from sase.llm_provider.registry import provider_cli_status_color_map
 
-    colors = dict(_PROVIDER_FAMILY_COLORS)
-    for name, plugin in iter_plugins():
-        method = getattr(plugin, "llm_cli_status_color", None)
-        if method is None:
-            continue
-        color = method()
-        if color:
-            colors[name] = color
-    return colors
+    return provider_cli_status_color_map()
 
 
 _PROMPT_PRETTY_MAX_CHARS = 80

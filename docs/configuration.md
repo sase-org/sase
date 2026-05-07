@@ -162,17 +162,17 @@ full LLM provider architecture, preprocessing pipeline, and invocation lifecycle
 
 ```yaml
 llm_provider:
-  provider: claude # or "gemini" (default: auto-detect)
+  provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
 ```
 
-| Field                               | Type   | Default     | Description                                                                                            |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, then codex, then qwen, else gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                 |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                 |
+| Field                               | Type   | Default     | Description                                                                                                                                 |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                      |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                      |
 
 The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
 override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are

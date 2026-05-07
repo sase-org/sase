@@ -634,10 +634,10 @@ Commit instructions here...
 
 **Values:**
 
-| Value                  | Behavior                                              |
-| ---------------------- | ----------------------------------------------------- |
-| `true`                 | Deploy to all providers (Claude, Gemini, Codex, Qwen) |
-| `["claude", "gemini"]` | Deploy only to the listed providers                   |
+| Value                  | Behavior                            |
+| ---------------------- | ----------------------------------- |
+| `true`                 | Deploy to all registered providers  |
+| `["claude", "gemini"]` | Deploy only to the listed providers |
 
 The `description` field provides a human-readable summary shown in `sase xprompt list` output.
 
@@ -818,6 +818,7 @@ Directives use the same argument syntax as xprompt references:
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %model:gemini/gemini-2.5-pro # Provider/model syntax for Gemini
+%model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
 %name                        # Bare — auto-generates a unique name
@@ -1067,15 +1068,15 @@ parentheses (`%m(opus)`) always launch a single agent.
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
 they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.cld` and `foo.cdx`.
 The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook) — `cld`,
-`cdx`, `gem`, `qwn` for the built-in providers (`jet` ships in the `sase-google` plugin) — falling back to the full
-provider name for plugins that don't declare one. If `%name` is omitted, a single auto-generated base is allocated and
-shared (e.g. `a.cld` / `a.cdx`) rather than each agent picking its own letter independently. Single-model prompts retain
-their plain `%name` value unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model
-name disambiguates the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are
-replaced with a short alias (`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as
-`foo.gem-flash3` / `foo.gem-flash25` rather than echoing the full model string. Model arguments used for naming are
-first resolved through xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For
-example, `%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
+`cdx`, `gem`, `qwn`, `opc` for the built-in providers (`jet` ships in the `sase-google` plugin) — falling back to the
+full provider name for plugins that don't declare one. If `%name` is omitted, a single auto-generated base is allocated
+and shared (e.g. `a.cld` / `a.cdx`) rather than each agent picking its own letter independently. Single-model prompts
+retain their plain `%name` value unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`),
+the model name disambiguates the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g.
+`gemini-3-flash-preview`) are replaced with a short alias (`flash3`) declared by the provider plugin, so a same-runtime
+gemini fan-out reads as `foo.gem-flash3` / `foo.gem-flash25` rather than echoing the full model string. Model arguments
+used for naming are first resolved through xprompt shorthand expansion, while the launched prompt keeps the original
+`%model` value. For example, `%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
 
 ### Multi-Value Directives
 

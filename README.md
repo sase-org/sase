@@ -22,6 +22,8 @@ sase is designed to work with the coding agents you already use:
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported**              |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported**              |
 | [Codex](https://github.com/openai/codex)                      | **Supported**              |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)              | **Supported**              |
+| [OpenCode](https://opencode.ai/)                              | **Supported**              |
 | Jetski (Google's successor to Gemini CLI)                     | **Via sase-google plugin** |
 
 sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow

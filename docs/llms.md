@@ -369,7 +369,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "gemini" (default: auto-detect)
+  provider: claude # or "qwen", "opencode", "gemini" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
@@ -377,11 +377,11 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                               |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                     |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                     |
+| Field                               | Type   | Default     | Description                                                                                                                                 |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                       |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                       |
 
 ## Per-Prompt Provider Switching
 
@@ -396,6 +396,8 @@ Use `provider/model` to specify both explicitly:
 %model:codex/o3
 %model:claude/opus
 %model:gemini/gemini-2.5-pro
+%model:qwen/qwen3-coder-plus
+%model:opencode/anthropic/claude-sonnet-4-5
 ```
 
 ### Automatic Provider Resolution
@@ -407,6 +409,8 @@ Known model names are automatically mapped to their provider:
 | `opus`, `sonnet`, `haiku`                                                                                                       | claude   |
 | `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini` | codex    |
 | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash`                    | gemini   |
+| `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                   | qwen     |
+| `anthropic/claude-sonnet-4-5`, `openai/gpt-5-mini`, `qwen/qwen3-coder-plus`                                                     | opencode |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook (e.g. `jetski-default` from
 `sase-google`).
@@ -470,7 +474,7 @@ When no `%model` directive and no explicit `provider_name` are present, the defa
 
 1. **Active temporary override** at `~/.sase/llm_override.json` (if not expired).
 2. `llm_provider.provider` from the merged `sase.yml` config.
-3. Auto-detection (claude on PATH, then codex, else gemini).
+3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then gemini).
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the
@@ -480,9 +484,9 @@ configured default.
 
 ```json
 {
-  "provider": "codex",
-  "model": "o3",
-  "raw_model": "codex/o3",
+  "provider": "opencode",
+  "model": "anthropic/claude-sonnet-4-5",
+  "raw_model": "opencode/anthropic/claude-sonnet-4-5",
   "created_at": 1777470000.0,
   "expires_at": 1777473600.0,
   "source": "ace"
@@ -491,9 +495,9 @@ configured default.
 
 | Field        | Type            | Description                                                             |
 | ------------ | --------------- | ----------------------------------------------------------------------- |
-| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"gemini"`).        |
+| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).      |
 | `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).          |
-| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"` or just `"o3"`).                 |
+| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).    |
 | `created_at` | `float`         | Unix timestamp when the override was set.                               |
 | `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
 | `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
@@ -505,7 +509,7 @@ deleted on next access, so a forgotten override never lingers past its `expires_
 
 The user-supplied `raw_model` is normalized through the same rules as `%model`:
 
-- `provider/model` selects the provider explicitly (e.g. `codex/o3`).
+- `provider/model` selects the provider explicitly (e.g. `codex/o3` or `opencode/anthropic/claude-sonnet-4-5`).
 - A bare known model name infers its provider from plugin metadata (e.g. `sonnet` → claude).
 - An unknown bare model is accepted and runs on the current default provider, matching `%model` behavior.
 
@@ -531,6 +535,8 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 
 - ACE chord `,P`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
   CODEX(o3) for the next hour.
+- ACE chord `,P`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
+  OPENCODE(anthropic/claude-sonnet-4-5).
 - ACE chord `,P`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
 - ACE chord `,P`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.

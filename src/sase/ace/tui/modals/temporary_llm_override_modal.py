@@ -292,7 +292,7 @@ class TemporaryLLMOverrideModal(ModalScreen[TemporaryOverrideResult]):
                 CustomModelInputModal(
                     title="Custom Override Model",
                     hint="Format: provider/model  or  model",
-                    placeholder="e.g. codex/o3",
+                    placeholder="e.g. opencode/anthropic/claude-sonnet-4-5",
                 ),
                 callback=self._on_custom_picked,
             )

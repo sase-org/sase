@@ -22,14 +22,20 @@ def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
     if not llm_provider and not model:
         return ""
 
+    from sase.llm_provider.registry import (
+        format_provider_model_label,
+        provider_cli_status_color_map,
+        resolve_model_provider,
+    )
+
     provider = (llm_provider or "").lower()
-    if not provider and model:
-        if model in ("opus", "sonnet", "haiku"):
-            provider = "claude"
-        elif "gemini" in model.lower():
-            provider = "gemini"
-        elif model.startswith(("gpt-", "o3", "o4")):
-            provider = "codex"
+    if model:
+        resolved_provider, resolved_model = resolve_model_provider(model)
+        if not provider and resolved_provider:
+            provider = resolved_provider
+            model = resolved_model
+        elif resolved_provider == provider:
+            model = resolved_model
 
     if provider == "claude":
         name_style, paren_style, model_style = "bold #FF5F00", "#D75F00", "#FFAF00"
@@ -37,11 +43,14 @@ def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
         name_style, paren_style, model_style = "bold #87FF00", "#5FAF00", "#AFFF5F"
     elif provider == "gemini":
         name_style, paren_style, model_style = "bold #4285F4", "#5F87D7", "#87AFFF"
+    elif provider in provider_cli_status_color_map():
+        color = provider_cli_status_color_map()[provider]
+        name_style = f"bold {color}"
+        paren_style = color
+        model_style = color
     else:
         # Unknown/other provider: fall back to the plain-text label with a
         # neutral muted color, matching the fallback in append_model_field.
-        from sase.llm_provider.registry import format_provider_model_label
-
         label = format_provider_model_label(llm_provider, model)
         return f"[#AF87D7]{label}[/]"
 

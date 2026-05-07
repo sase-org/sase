@@ -151,15 +151,23 @@ def append_model_field(
     if not model:
         return
 
+    from sase.llm_provider.registry import (
+        format_provider_model_label,
+        provider_cli_status_color_map,
+        resolve_model_provider,
+    )
+
     # Infer provider from model name if not explicitly stored
     provider = llm_provider
     if not provider:
-        if model in ("opus", "sonnet", "haiku"):
-            provider = "claude"
-        elif "gemini" in model.lower():
-            provider = "gemini"
-        elif model.startswith(("gpt-", "o3", "o4")):
-            provider = "codex"
+        resolved_provider, resolved_model = resolve_model_provider(model)
+        if resolved_provider:
+            provider = resolved_provider
+            model = resolved_model
+    elif model:
+        resolved_provider, resolved_model = resolve_model_provider(model)
+        if resolved_provider == provider:
+            model = resolved_model
 
     header_text.append("Model: ", style="bold #87D7FF")
 
@@ -181,8 +189,16 @@ def append_model_field(
         header_text.append("(", style="#5F87D7")
         header_text.append(model, style="#87AFFF")
         header_text.append(")\n", style="#5F87D7")
+    elif provider:
+        color = provider_cli_status_color_map().get(provider, "#AF87D7")
+        header_text.append(provider.upper(), style=f"bold {color}")
+        header_text.append("(", style=color)
+        header_text.append(model, style=color)
+        header_text.append(")\n", style=color)
     else:
-        header_text.append(f"{model}\n", style="#AF87D7")
+        header_text.append(
+            f"{format_provider_model_label(provider, model)}\n", style="#AF87D7"
+        )
 
 
 def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:
