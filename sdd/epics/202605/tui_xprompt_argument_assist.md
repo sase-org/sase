@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 00:12:22
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_xprompt_argument_assist.md
 bead_id: sase-28
 tier: epic
