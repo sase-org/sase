@@ -152,6 +152,17 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
     assert candidates[1].metadata is entries[0]
 
 
+def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
+    candidates, _ = build_xprompt_completion_candidates("/sase_")
+    by_name = {candidate.name: candidate for candidate in candidates}
+
+    assert "sase_plan" in by_name
+    assert "sase_questions" in by_name
+    assert by_name["sase_plan"].display == "/sase_plan"
+    assert by_name["sase_plan"].insertion == "/sase_plan"
+    assert by_name["sase_plan"].metadata.is_skill is True
+
+
 def test_slash_skill_completion_extends_shared_prefix() -> None:
     entries = [
         _entry("sase_plan", is_skill=True),

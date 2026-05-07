@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sase.xprompt.loader import (
     _load_xprompt_from_file,
     _load_xprompts_from_default_files,
+    _load_xprompts_from_internal,
     get_all_prompts,
     get_all_xprompts,
 )
@@ -167,6 +168,20 @@ def test_load_xprompts_from_default_files_includes_research_swarm() -> None:
     assert xprompt.name == "research_swarm"
     assert "default_xprompts/research_swarm.md" in xprompt.source_path
     assert "{{ prompt }} #research" in xprompt.content
+
+
+def test_load_xprompts_from_internal_includes_packaged_skills() -> None:
+    """Package xprompts include shipped skill markdown under skills/."""
+    result = _load_xprompts_from_internal()
+
+    assert "sase_plan" in result
+    assert "sase_questions" in result
+
+    plan = result["sase_plan"]
+    assert plan.name == "sase_plan"
+    assert plan.skill is True
+    assert plan.description is not None
+    assert "xprompts/skills/sase_plan.md" in plan.source_path
 
 
 def test_default_file_xprompt_not_project_namespaced(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 11:15:14
-status: wip
+status: done
 prompt: sdd/prompts/202605/slash_skill_completion.md
 ---
 # Plan: restore slash-skill completion in the prompt widget

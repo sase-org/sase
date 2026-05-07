@@ -260,11 +260,16 @@ def _load_xprompts_from_internal() -> dict[str, XPrompt]:
     if not internal_dir.is_dir():
         return {}
 
+    skill_dir = internal_dir / "skills"
+    md_files = [*sorted(internal_dir.glob("*.md"))]
+    if skill_dir.is_dir():
+        md_files.extend(sorted(skill_dir.glob("*.md")))
+
     xprompts: dict[str, XPrompt] = {}
-    for md_file in internal_dir.glob("*.md"):
+    for md_file in md_files:
         if md_file.is_file():
             xprompt = _load_xprompt_from_file(md_file)
-            if xprompt:
+            if xprompt and xprompt.name not in xprompts:
                 xprompts[xprompt.name] = xprompt
 
     return xprompts

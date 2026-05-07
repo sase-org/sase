@@ -20,6 +20,7 @@ from sase.xprompt.catalog import (
     build_structured_xprompts_catalog,
     build_xprompts_catalog,
 )
+from sase.xprompt.loader import _load_xprompts_from_internal
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -376,6 +377,29 @@ def test_structured_catalog_source_filter_keeps_global_entries(
 
     assert [entry.name for entry in projection.entries] == ["global"]
     assert projection.entries[0].source_bucket == "config"
+
+
+def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
+    internal_xprompts = _load_xprompts_from_internal()
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value=internal_xprompts,
+        ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        projection = build_structured_xprompts_catalog(
+            source="built-in",
+            query="sase_plan",
+        )
+
+    by_name = {entry.name: entry for entry in projection.entries}
+    assert "sase_plan" in by_name
+    assert by_name["sase_plan"].is_skill is True
+    assert by_name["sase_plan"].source_path_display == "xprompts/skills/sase_plan.md"
+    assert projection.stats.skill_count >= 1
 
 
 def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
