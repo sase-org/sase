@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 12:45:41
-status: wip
+status: done
 prompt: sdd/prompts/202605/auto_prompt_completion.md
 ---
 # Auto-Start Prompt Completion Plan

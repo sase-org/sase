@@ -212,6 +212,89 @@ async def test_completion_panel_shows_required_input_names_and_types() -> None:
         assert "path: path" in rendered.plain
 
 
+async def test_typing_bare_hash_does_not_open_xprompt_completion() -> None:
+    entries = [_entry("review"), _entry("ship")]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ) as build_entries:
+            await pilot.press("#")
+            await pilot.pause()
+
+        assert ta.text == "#"
+        assert ta._file_completion_active is False
+        assert bar._completion_visible is False
+        build_entries.assert_not_called()
+
+
+async def test_typing_first_xprompt_letter_opens_completion_panel() -> None:
+    entries = [_entry("review"), _entry("ship")]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            await pilot.press("#", "r")
+            await pilot.pause()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta.text == "#r"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert panel.border_title == "xprompts"
+        assert "#review" in panel.render().plain
+
+
+async def test_typing_first_standalone_xprompt_letter_opens_completion_panel() -> None:
+    entries = [
+        _entry("review"),
+        _entry("sync", prefix="#!", kind="standalone_workflow"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            await pilot.press("#", "!", "s")
+            await pilot.pause()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta.text == "#!s"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert "#!sync" in panel.render().plain
+
+
+async def test_auto_xprompt_single_candidate_does_not_accept_candidate() -> None:
+    entries = [_entry("review")]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            await pilot.press("#", "r")
+            await pilot.pause()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta.text == "#r"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+        assert "#review" in panel.render().plain
+
+
 async def test_completion_panel_renders_optional_inputs_distinctly() -> None:
     optional = _input(
         "count",

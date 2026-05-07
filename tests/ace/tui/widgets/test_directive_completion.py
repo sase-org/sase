@@ -125,6 +125,38 @@ async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
         assert "choose one or more provider/model targets" in panel.render().plain
 
 
+async def test_typing_percent_at_start_opens_directive_panel() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("%")
+        await pilot.pause()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta.text == "%"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive"
+        assert panel.border_title == "directives"
+
+
+async def test_typing_percent_after_digit_does_not_open_completion() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        await pilot.press("5", "0", "%")
+        await pilot.pause()
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert ta.text == "50%"
+        assert ta._file_completion_active is False
+        assert bar._completion_visible is False
+        assert "hidden" in panel.classes
+
+
 async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:
     app = CompletionTestApp()
     async with app.run_test():
