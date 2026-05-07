@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 
 _AGENT_TAGS_FILE = Path.home() / ".sase" / "agent_tags.json"
 
+REVIEW_AGENT_TAG = "review"
+
 TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

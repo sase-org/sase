@@ -4,15 +4,19 @@ import json
 import os
 import signal
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.axe.runner_utils import (
     _killed_state,
     all_steps_hidden,
+    detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     install_sigterm_handler,
     prepare_workspace,
     was_killed,
+    write_done_marker,
 )
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 
@@ -98,6 +102,68 @@ def test_all_steps_hidden_visible_completed_step() -> None:
         with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
             json.dump(state, f)
         assert all_steps_hidden(tmpdir) is False
+
+
+def test_write_done_marker_can_write_visible_review_agent() -> None:
+    """Review agents should complete without forcing hidden rows."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_done_marker(
+            tmpdir,
+            cl_name="my_cl",
+            project_file="/tmp/project.gp",
+            timestamp="260506_120000",
+            exit_code=0,
+            hidden=False,
+        )
+
+        with open(os.path.join(tmpdir, "done.json"), encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert data["outcome"] == "completed"
+        assert data["artifacts_timestamp"] == "20260506120000"
+        assert "hidden" not in data
+
+
+def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
+    """Specialized review runners persist the same tag as %tag:review."""
+    artifacts_dir = tmp_path / "crs" / "20260506120000"
+    artifacts_dir.mkdir(parents=True)
+    tag_file = tmp_path / "agent_tags.json"
+
+    mock_provider = MagicMock()
+    mock_provider.resolve_model_name.return_value = "test-model"
+
+    with (
+        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file),
+        patch(
+            "sase.llm_provider.registry.get_default_provider_name",
+            return_value="test-provider",
+        ),
+        patch("sase.llm_provider.registry.get_provider", return_value=mock_provider),
+        patch(
+            "sase.workspace_provider.detect_workflow_type",
+            return_value="git",
+        ),
+        patch("sase.workspace_provider.get_display_name", return_value="Git"),
+    ):
+        detect_write_and_persist_review_agent_meta(
+            str(artifacts_dir),
+            "/tmp/project.gp",
+            "my_cl",
+        )
+
+    with open(artifacts_dir / "agent_meta.json", encoding="utf-8") as f:
+        meta = json.load(f)
+    with open(tag_file, encoding="utf-8") as f:
+        tags = json.load(f)
+
+    assert meta["tag"] == REVIEW_AGENT_TAG
+    assert tags == [
+        {
+            "id": ["run", "my_cl", "20260506120000"],
+            "tag": REVIEW_AGENT_TAG,
+        }
+    ]
 
 
 # Tests for finalize_axe_runner

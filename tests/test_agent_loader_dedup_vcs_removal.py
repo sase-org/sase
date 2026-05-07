@@ -327,18 +327,18 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
     assert result[0].workflow == "fix-hook"
 
 
-def test_embedded_vcs_removed_when_changespec_fix_hook_hidden() -> None:
-    """Test VCS workspace removed even when the fix-hook agent comes from ChangeSpec.
+def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
+    """Test VCS workspace removed when fix-hook agent comes from ChangeSpec.
 
     This reproduces the exact scenario: the fix-hook runner doesn't claim a workspace
     in the RUNNING field, so the fix-hook agent only exists as a ChangeSpec entry
-    (with hidden=True, _from_changespec=True). The embedded #hg workspace shares
-    the same PID. The VCS workspace should be removed entirely (not just hidden)
-    to prevent duplicate PIDs when hidden agents are toggled visible.
+    (with tag=review, _from_changespec=True). The embedded #hg workspace shares
+    the same PID. The VCS workspace should be removed entirely.
     """
+    from sase.ace.agent_tags import REVIEW_AGENT_TAG
     from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
 
-    # ChangeSpec HOOKS entry for the fix-hook agent (hidden=True, _from_changespec=True)
+    # ChangeSpec HOOKS entry for the fix-hook agent.
     mock_status_line = HookStatusLine(
         commit_entry_num="1",
         timestamp="260310_175213",
@@ -420,7 +420,8 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_hidden() -> None:
     # Only the fix-hook ChangeSpec agent should remain — VCS workspace is removed
     assert len(result) == 1
     assert result[0].workflow == "fix-hook"
-    assert result[0].hidden is True  # ChangeSpec agents are hidden by default
+    assert result[0].hidden is False
+    assert result[0].tag == REVIEW_AGENT_TAG
     # No agents with VCS workflow should remain
     hg_result = [a for a in result if a.workflow == "hg-yserve_15_yp_fields"]
     assert len(hg_result) == 0

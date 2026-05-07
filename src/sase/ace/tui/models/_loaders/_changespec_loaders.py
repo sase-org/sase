@@ -1,5 +1,6 @@
 """ChangeSpec field agent loaders (HOOKS, MENTORS, COMMENTS)."""
 
+from ....agent_tags import REVIEW_AGENT_TAG
 from ....changespec import ChangeSpec, extract_pid_from_agent_suffix
 from .._timestamps import parse_timestamp_from_suffix
 from ..agent import Agent, AgentType
@@ -48,6 +49,7 @@ def load_agents_from_hooks(
                 suffix_lower = sl.suffix.lower()
                 if "summarize" in suffix_lower:
                     workflow = "summarize-hook"
+            is_review_agent = workflow == "fix-hook"
 
             agents.append(
                 Agent(
@@ -68,7 +70,8 @@ def load_agents_from_hooks(
                     bug=bug,
                     cl_num=cl_num,
                     error_message=error_message,
-                    hidden=True,
+                    hidden=not is_review_agent,
+                    tag=REVIEW_AGENT_TAG if is_review_agent else None,
                     _from_changespec=True,
                 )
             )
@@ -117,7 +120,7 @@ def load_agents_from_mentors(
                     raw_suffix=msl.suffix,
                     bug=bug,
                     cl_num=cl_num,
-                    hidden=True,
+                    tag=REVIEW_AGENT_TAG,
                     _from_changespec=True,
                 )
             )
@@ -160,7 +163,7 @@ def load_agents_from_comments(
                 raw_suffix=comment.suffix,
                 bug=bug,
                 cl_num=cl_num,
-                hidden=True,
+                tag=REVIEW_AGENT_TAG,
                 _from_changespec=True,
             )
         )

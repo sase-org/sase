@@ -26,7 +26,7 @@ from sase.ace.hooks import (
     set_hook_suffix,
 )
 from sase.axe.runner_utils import (
-    detect_and_write_agent_meta,
+    detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     read_agent_meta,
     write_done_marker,
@@ -144,8 +144,10 @@ def main() -> int:
         timestamp=timestamp,
     )
 
-    # Write agent_meta.json early so Agents tab shows model/VCS while running
-    detect_and_write_agent_meta(artifacts_dir, project_file)
+    # Write agent_meta.json early so Agents tab shows model/VCS/tag while running
+    detect_write_and_persist_review_agent_meta(
+        artifacts_dir, project_file, changespec_name
+    )
 
     try:
         print(f"Running fix-hook workflow for {changespec_name}")
@@ -310,6 +312,7 @@ def main() -> int:
             error=error_summary,
             traceback_str=error_traceback_str,
             output_path=output_log_path,
+            hidden=False,
         )
 
         # Write error report for failed runs

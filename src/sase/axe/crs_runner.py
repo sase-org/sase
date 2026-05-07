@@ -22,7 +22,7 @@ from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
 from sase.ace.hooks import format_duration
 from sase.axe.runner_utils import (
-    detect_and_write_agent_meta,
+    detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     read_agent_meta,
     write_done_marker,
@@ -99,8 +99,10 @@ def main() -> int:
         timestamp=timestamp,
     )
 
-    # Write agent_meta.json early so Agents tab shows model/VCS while running
-    detect_and_write_agent_meta(artifacts_dir, project_file)
+    # Write agent_meta.json early so Agents tab shows model/VCS/tag while running
+    detect_write_and_persist_review_agent_meta(
+        artifacts_dir, project_file, changespec_name
+    )
 
     # Read output_path from env var (set by starter.py)
     output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
@@ -170,6 +172,7 @@ def main() -> int:
             error=error_summary,
             traceback_str=error_traceback_str,
             output_path=output_log_path,
+            hidden=False,
         )
 
         # Write error report for failed runs

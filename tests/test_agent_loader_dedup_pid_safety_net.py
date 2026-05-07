@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
@@ -85,14 +86,13 @@ def test_pid_dedup_safety_net() -> None:
     assert result[0].workspace_num == 100
 
 
-def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
-    """Test that PID safety net also deduplicates hidden agents.
+def test_pid_dedup_safety_net_works_on_review_agents() -> None:
+    """Test that PID safety net deduplicates review-tagged agents.
 
-    When two hidden agents share a PID (e.g., a hidden ChangeSpec fix-hook
-    and a hidden VCS workspace), the safety net should still remove one
-    to prevent duplicate PIDs even when hidden agents are toggled visible.
+    When a ChangeSpec fix-hook and VCS workspace share a PID, the safety
+    net should still remove one to prevent duplicate process rows.
     """
-    # Hidden fix-hook agent (from ChangeSpec)
+    # Review-tagged fix-hook agent (from ChangeSpec)
     fix_hook_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
@@ -102,10 +102,10 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
         workflow="fix-hook",
         raw_suffix="fix_hook-99999-260310_175213",
         pid=99999,
-        hidden=True,
+        tag=REVIEW_AGENT_TAG,
     )
 
-    # Hidden VCS workspace agent with same PID
+    # VCS workspace agent with same PID
     # (pretend VCS hiding didn't remove it — this tests safety net)
     vcs_agent = Agent(
         agent_type=AgentType.RUNNING,
@@ -117,7 +117,6 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
         raw_suffix=None,
         workspace_num=100,
         pid=99999,
-        hidden=True,
     )
 
     with (
@@ -165,6 +164,7 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
     assert len(pid_agents) == 1
     # The non-VCS agent should be kept (VCS is removed)
     assert pid_agents[0].workflow == "fix-hook"
+    assert pid_agents[0].tag == REVIEW_AGENT_TAG
 
 
 def test_pid_dedup_preserves_followup_workflow_agents() -> None:

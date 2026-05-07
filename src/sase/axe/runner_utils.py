@@ -7,6 +7,7 @@ import signal
 import sys
 from collections.abc import Callable
 
+from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.vcs_provider import get_vcs_provider
 
@@ -139,6 +140,7 @@ def _write_agent_meta(
     model: str | None = None,
     llm_provider: str | None = None,
     vcs_provider: str | None = None,
+    tag: str | None = None,
 ) -> None:
     """Write agent_meta.json to an axe runner's artifacts directory.
 
@@ -150,6 +152,7 @@ def _write_agent_meta(
         model: Model name (e.g., "gemini-3.1-pro-preview").
         llm_provider: LLM provider name (e.g., "gemini").
         vcs_provider: VCS provider display name (e.g., "Mercurial").
+        tag: Optional Agents-tab grouping tag.
     """
     meta: dict[str, object] = {"pid": os.getpid()}
     if model:
@@ -158,6 +161,8 @@ def _write_agent_meta(
         meta["llm_provider"] = llm_provider
     if vcs_provider:
         meta["vcs_provider"] = vcs_provider
+    if tag:
+        meta["tag"] = tag
 
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
@@ -170,6 +175,8 @@ def _write_agent_meta(
 def detect_and_write_agent_meta(
     artifacts_dir: str,
     project_file: str,
+    *,
+    tag: str | None = None,
 ) -> None:
     """Detect model/VCS metadata and write agent_meta.json.
 
@@ -179,6 +186,7 @@ def detect_and_write_agent_meta(
     Args:
         artifacts_dir: Path to the artifacts directory.
         project_file: Path to the project file (used for VCS detection).
+        tag: Optional Agents-tab grouping tag.
     """
     from sase.llm_provider.registry import get_default_provider_name, get_provider
     from sase.workspace_provider import detect_workflow_type, get_display_name
@@ -203,7 +211,32 @@ def detect_and_write_agent_meta(
         model=model,
         llm_provider=llm_provider,
         vcs_provider=vcs_provider,
+        tag=tag,
     )
+
+
+def detect_write_and_persist_review_agent_meta(
+    artifacts_dir: str,
+    project_file: str,
+    cl_name: str,
+    *,
+    raw_suffix: str | None = None,
+) -> None:
+    """Write review-tagged metadata and persist the tag for a runner identity.
+
+    Specialized review runners (CRS, mentor, fix-hook) bypass the generic
+    prompt directive parser, so they need to write the same observable tag
+    state that a ``%tag:review`` launch would have produced.
+    """
+    detect_and_write_agent_meta(artifacts_dir, project_file, tag=REVIEW_AGENT_TAG)
+
+    from sase.ace.agent_tags import update_agent_tag
+    from sase.ace.tui.models.agent import AgentType
+
+    identity_suffix = raw_suffix
+    if identity_suffix is None:
+        identity_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
+    update_agent_tag((AgentType.RUNNING, cl_name, identity_suffix), REVIEW_AGENT_TAG)
 
 
 def write_done_marker(
@@ -219,6 +252,7 @@ def write_done_marker(
     error: str | None = None,
     traceback_str: str | None = None,
     output_path: str | None = None,
+    hidden: bool = True,
 ) -> None:
     """Write a done.json marker to an axe runner's artifacts directory.
 
@@ -234,6 +268,7 @@ def write_done_marker(
         error: Optional error summary string.
         traceback_str: Optional formatted traceback string.
         output_path: Optional path to the stdout/stderr output log.
+        hidden: Whether the completed row should be hidden by default.
     """
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
@@ -246,8 +281,9 @@ def write_done_marker(
         "timestamp": timestamp,
         "artifacts_timestamp": artifacts_timestamp,
         "outcome": outcome,
-        "hidden": True,
     }
+    if hidden:
+        done_data["hidden"] = True
     if workspace_num is not None:
         done_data["workspace_num"] = workspace_num
     if response_path:

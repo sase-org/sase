@@ -14,7 +14,7 @@ from pathlib import Path
 from sase.ace.hooks import format_duration
 from sase.ace.mentors import set_mentor_status
 from sase.axe.runner_utils import (
-    detect_and_write_agent_meta,
+    detect_write_and_persist_review_agent_meta,
     install_sigterm_handler,
     read_agent_meta,
     write_done_marker,
@@ -66,8 +66,8 @@ def main() -> None:
         timestamp=timestamp,
     )
 
-    # Write agent_meta.json early so Agents tab shows model/VCS while running
-    detect_and_write_agent_meta(artifacts_dir, project_file)
+    # Write agent_meta.json early so Agents tab shows model/VCS/tag while running
+    detect_write_and_persist_review_agent_meta(artifacts_dir, project_file, cl_name)
 
     print(f"Starting mentor workflow: {mentor_name}")
     print(f"CL: {cl_name}")
@@ -167,6 +167,7 @@ def main() -> None:
             error=error_summary,
             traceback_str=error_traceback_str,
             output_path=output_log_path,
+            hidden=False,
         )
 
         # Write error report for failed runs

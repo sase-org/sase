@@ -7,9 +7,10 @@ claims, and surfaces home-mode ace agents from filesystem markers or
 
 from pathlib import Path
 
-from sase.running_field import get_claimed_workspaces
 from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.running_field import get_claimed_workspaces
 
+from ....agent_tags import REVIEW_AGENT_TAG
 from ....hooks.processes import is_process_running
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -24,6 +25,16 @@ from .._timestamps import (
     parse_timestamp_from_workflow_name,
 )
 from ..agent import Agent, AgentType
+
+
+def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
+    if not workflow:
+        return False
+    normalized = workflow.replace("-", "_")
+    return any(
+        normalized.startswith(prefix)
+        for prefix in ("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")
+    )
 
 
 def get_all_project_files() -> list[str]:
@@ -116,14 +127,8 @@ def load_agents_from_running_field(
                 cl_num=cl_by_cl_name.get(cl_name),
             )
             enrich_agent_from_meta(agent, agent.get_artifacts_dir())
-            # Axe-spawned agents are always hidden
-            # Normalize hyphens to underscores (canonical form uses underscores,
-            # e.g. xprompt workflow_label "fix_hook")
-            if claim.workflow and any(
-                claim.workflow.replace("-", "_").startswith(p)
-                for p in ["axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor("]
-            ):
-                agent.hidden = True
+            if _is_review_agent_workflow_claim(claim.workflow):
+                agent.tag = REVIEW_AGENT_TAG
             agents.append(agent)
 
     return agents
