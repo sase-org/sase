@@ -73,8 +73,8 @@ def test_load_all_agents_with_summarize_agents() -> None:
         assert len(agents) == 1
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workflow == "summarize-hook"
-        assert agents[0].hidden is True
-        assert agents[0].tag is None
+        assert agents[0].hidden is False
+        assert agents[0].tag == REVIEW_AGENT_TAG
 
 
 def test_load_all_agents_with_fix_hook_review_agent() -> None:

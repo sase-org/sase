@@ -24,7 +24,7 @@ from pathlib import Path
 
 from sase.ace.hooks import format_duration, set_hook_suffix
 from sase.axe.runner_utils import (
-    detect_and_write_agent_meta,
+    detect_write_and_persist_review_agent_meta,
     read_agent_meta,
     write_done_marker,
     write_error_report,
@@ -73,7 +73,9 @@ def main() -> int:
     )
 
     # Write agent_meta.json early so Agents tab shows model/VCS while running
-    detect_and_write_agent_meta(artifacts_dir, project_file)
+    detect_write_and_persist_review_agent_meta(
+        artifacts_dir, project_file, changespec_name
+    )
 
     try:
         print(f"Running summarize-hook workflow for {changespec_name}")
@@ -144,6 +146,7 @@ def main() -> int:
                         timestamp=timestamp,
                         exit_code=exit_code,
                         output_path=output_log_path,
+                        hidden=False,
                     )
                     print()
                     print(f"{WORKFLOW_COMPLETE_MARKER}None EXIT_CODE: {exit_code}")
@@ -221,6 +224,7 @@ def main() -> int:
         error=error_summary,
         traceback_str=error_traceback_str,
         output_path=output_log_path,
+        hidden=False,
     )
 
     # Write error report for failed runs

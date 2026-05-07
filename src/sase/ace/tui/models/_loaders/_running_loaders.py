@@ -33,7 +33,13 @@ def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
     normalized = workflow.replace("-", "_")
     return any(
         normalized.startswith(prefix)
-        for prefix in ("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")
+        for prefix in (
+            "axe(mentor)",
+            "axe(fix_hook)",
+            "axe(summarize_hook)",
+            "axe(crs)",
+            "mentor(",
+        )
     )
 
 

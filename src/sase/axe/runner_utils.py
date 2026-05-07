@@ -172,7 +172,7 @@ def _write_agent_meta(
         print(f"Warning: Failed to write agent_meta.json: {e}")
 
 
-def detect_and_write_agent_meta(
+def _detect_and_write_agent_meta(
     artifacts_dir: str,
     project_file: str,
     *,
@@ -228,7 +228,7 @@ def detect_write_and_persist_review_agent_meta(
     prompt directive parser, so they need to write the same observable tag
     state that a ``%tag:review`` launch would have produced.
     """
-    detect_and_write_agent_meta(artifacts_dir, project_file, tag=REVIEW_AGENT_TAG)
+    _detect_and_write_agent_meta(artifacts_dir, project_file, tag=REVIEW_AGENT_TAG)
 
     from sase.ace.agent_tags import update_agent_tag
     from sase.ace.tui.models.agent import AgentType

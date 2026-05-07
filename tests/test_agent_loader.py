@@ -148,3 +148,51 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
         assert agents[0].workflow == "axe(fix-hook)-251230_151429"
         assert agents[0].hidden is False
         assert agents[0].tag == REVIEW_AGENT_TAG
+
+
+def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
+    """Test RUNNING entries with axe(summarize-hook) are review-tagged."""
+    mock_claim = MagicMock()
+    mock_claim.workspace_num = 100
+    mock_claim.workflow = "axe(summarize-hook)-251230_151429"
+    mock_claim.cl_name = "my_feature"
+    mock_claim.pid = None
+    mock_claim.artifacts_timestamp = "20251230151429"
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=["/tmp/test.gp"],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[mock_claim],
+        ),
+        patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+    ):
+        agents = load_all_agents()
+        assert len(agents) == 1
+        assert agents[0].agent_type == AgentType.RUNNING
+        assert agents[0].workflow == "axe(summarize-hook)-251230_151429"
+        assert agents[0].hidden is False
+        assert agents[0].tag == REVIEW_AGENT_TAG

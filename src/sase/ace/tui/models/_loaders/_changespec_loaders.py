@@ -49,7 +49,7 @@ def load_agents_from_hooks(
                 suffix_lower = sl.suffix.lower()
                 if "summarize" in suffix_lower:
                     workflow = "summarize-hook"
-            is_review_agent = workflow == "fix-hook"
+            is_review_agent = workflow in ("fix-hook", "summarize-hook")
 
             agents.append(
                 Agent(
