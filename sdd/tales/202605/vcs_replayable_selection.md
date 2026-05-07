@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 19:39:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/vcs_replayable_selection.md
 ---
 # Plan: Prevent Non-Launchable VCS Refs From Becoming Replay State

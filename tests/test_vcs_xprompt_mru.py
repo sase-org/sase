@@ -175,3 +175,37 @@ def test_load_launchable_filters_known_stale_projects(
 
     assert result == ["#gh:branch", "#gh:valid"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:branch", "#gh:valid"]}
+
+
+def test_record_prunes_known_stale_project_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:project", "#gh:valid"]}))
+    projects_dir = tmp_path / ".sase" / "projects"
+    valid_workspace = tmp_path / "valid-workspace"
+    valid_workspace.mkdir()
+    _write_project(projects_dir, "valid", valid_workspace)
+    _write_project(projects_dir, "project", tmp_path / "missing-workspace")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with (
+        patch.object(
+            __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+            "_MRU_FILE",
+            fake,
+        ),
+        patch(
+            "sase.history.vcs_xprompt_mru.Path.home",
+            return_value=tmp_path,
+        ),
+    ):
+        record_vcs_xprompt_usage("#gh:project")
+        result = load_vcs_xprompt_mru()
+
+    assert result == ["#gh:valid"]
+    assert json.loads(fake.read_text()) == {"entries": ["#gh:valid"]}

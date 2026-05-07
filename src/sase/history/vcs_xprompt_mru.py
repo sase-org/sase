@@ -48,6 +48,12 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
     entries = load_vcs_xprompt_mru()
+    if _is_stale_known_project_prefix(prefix):
+        filtered = [e for e in entries if e != prefix]
+        if filtered != entries:
+            _save_vcs_xprompt_mru(filtered)
+        return
+
     entries = [e for e in entries if e != prefix]
     entries.insert(0, prefix)
     entries = entries[:_MAX_ENTRIES]
