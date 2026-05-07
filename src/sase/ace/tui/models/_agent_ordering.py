@@ -100,7 +100,6 @@ def sort_and_reorder(
 
         _attach_runtime_children(
             agents,
-            workflow_agent_steps,
             steps_by_parent,
             followups_by_parent,
         )
@@ -161,13 +160,12 @@ def _clear_runtime_children(
 
 def _attach_runtime_children(
     agents: list[Agent],
-    workflow_agent_steps: list[Agent],
     steps_by_parent: dict[str, list[Agent]],
     followups_by_parent: dict[str, list[Agent]],
 ) -> None:
     """Attach direct visible runtime children to their parent rows."""
     parent_by_suffix: dict[str, Agent] = {}
-    for agent in [*agents, *workflow_agent_steps]:
+    for agent in agents:
         if agent.raw_suffix:
             parent_by_suffix[agent.raw_suffix] = agent
 

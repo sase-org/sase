@@ -119,10 +119,10 @@ def _is_planner_phase_row(agent: "Agent") -> bool:
     """Return whether a row's own runtime should end at plan submission."""
     if agent.status == "PLAN DONE":
         return True
-    if agent.role_suffix == PLAN_CHAIN_PLAN_SUFFIX:
-        return True
     if agent.parent_workflow is None or agent.step_type != "agent":
         return False
+    if agent.role_suffix == PLAN_CHAIN_PLAN_SUFFIX:
+        return True
     return agent.step_name in _WORKFLOW_PLAN_STEP_NAMES or (
         agent.cl_name in _WORKFLOW_PLAN_STEP_NAMES
     )

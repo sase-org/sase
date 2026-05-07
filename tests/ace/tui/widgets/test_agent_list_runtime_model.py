@@ -284,6 +284,30 @@ def test_compute_row_runtime_plan_approved_uses_segmented_parent_times() -> None
     assert elapsed == "5m51s"
 
 
+def test_plan_approved_plan_suffix_runtime_is_segmented() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    code = datetime(2026, 5, 6, 13, 15, 10)
+    now = datetime(2026, 5, 6, 13, 16, 15)
+
+    result = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="PLAN APPROVED",
+        start=start,
+        run_start=run_start,
+        plan_times=[plan],
+        code_time=code,
+        role_suffix=".plan",
+    )
+
+    ts, elapsed = compute_row_runtime(result, now=now)
+
+    assert ts is None
+    assert elapsed == "5m51s"
+    assert runtime_suffix_ticks(result) is True
+
+
 def test_compute_row_runtime_planning_parent_with_completed_child_is_stable() -> None:
     parent = agent(
         agent_type=AgentType.WORKFLOW,
@@ -443,6 +467,52 @@ def test_sort_and_reorder_populates_runtime_children_idempotently() -> None:
     sort_and_reorder([parent, coder], [planner, shell, embedded])
 
     assert parent.runtime_children == [planner, coder]
+
+
+def test_sort_reorder_runtime_children_ignore_step_suffix_collision() -> None:
+    parent_suffix = "20260506130900"
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="PLAN APPROVED",
+        raw_suffix=parent_suffix,
+        cl_name="aga.r1.plan",
+        role_suffix=".plan",
+    )
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 5, 6, 13, 9, 0),
+        run_start=datetime(2026, 5, 6, 13, 10, 7),
+        plan_times=[datetime(2026, 5, 6, 13, 14, 53)],
+        raw_suffix=parent_suffix,
+        cl_name="plan",
+        role_suffix=".plan",
+        parent_appears_as_agent=True,
+    )
+    planner.parent_timestamp = parent_suffix
+    resolve = workflow_child(
+        step_type="bash",
+        status="DONE",
+        raw_suffix=parent_suffix,
+        cl_name="resolve",
+    )
+    resolve.parent_timestamp = parent_suffix
+    resolve.is_hidden_step = True
+    coder = agent(
+        status="RUNNING",
+        start=datetime(2026, 5, 6, 13, 15, 10),
+        run_start=datetime(2026, 5, 6, 13, 15, 10),
+        raw_suffix="20260506131510",
+        cl_name="aga.r1.code",
+        role_suffix=".code",
+    )
+    coder.parent_timestamp = parent_suffix
+
+    sort_and_reorder([parent, coder], [planner, resolve])
+
+    assert parent.runtime_children == [planner, coder]
+    assert resolve.runtime_children == []
+    assert planner.runtime_children == []
 
 
 def test_runtime_suffix_ticks_workflow_child_agent_step_ticks() -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 11:31:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/plan_approved_runtime_parent_child.md
 ---
 # Fix PLAN APPROVED Parent and Planner Child Runtime Interaction
