@@ -134,9 +134,11 @@ sase lsp --version
 SASE_XPROMPT_LSP_CMD='cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --' sase lsp
 ```
 
-The LSP v1 uses the existing structured xprompt catalog bridge. Editor clients can call the editor-branded alias
-`sase editor helper-bridge xprompt-catalog`, which returns the same JSON contract as
-`sase mobile helper-bridge xprompt-catalog` without exposing a mobile-specific command name.
+The LSP loads the supported xprompt catalog sources directly in Rust for completion, hover, diagnostics, and definition
+requests. `sase lsp` exports the installed package xprompt paths to the server so built-in Markdown prompts, YAML
+workflows, default config prompts, project-local prompts, user config prompts, and memory prompts do not require a
+Python helper subprocess on the completion path. The Python helper bridge remains stable for mobile clients and as a
+compatibility fallback for sources the Rust loader cannot discover.
 
 ## Discovery Order
 

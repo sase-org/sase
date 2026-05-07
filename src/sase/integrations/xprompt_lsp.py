@@ -7,11 +7,15 @@ import os
 import shlex
 import shutil
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import NoReturn
 
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
+SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
+SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
+SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
+SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -23,6 +27,7 @@ def handle_xprompt_lsp_command(args: argparse.Namespace) -> NoReturn:
     """Exec the Rust xprompt LSP server for clean stdio and signal handling."""
     try:
         argv = _build_xprompt_lsp_argv(args)
+        _prepare_xprompt_lsp_environment(os.environ)
         os.execvp(argv[0], argv)
     except _XPromptLspLaunchError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -111,3 +116,18 @@ def _strip_remainder_sentinel(raw_args: Sequence[str]) -> Sequence[str]:
     if raw_args and raw_args[0] == "--":
         return raw_args[1:]
     return raw_args
+
+
+def _prepare_xprompt_lsp_environment(
+    environ: MutableMapping[str, str], package_dir: Path | None = None
+) -> None:
+    """Expose package xprompt locations to the Rust LSP catalog loader."""
+    root = package_dir or Path(__file__).resolve().parents[1]
+    defaults = {
+        SASE_XPROMPT_PACKAGE_DIR_ENV: str(root),
+        SASE_XPROMPT_BUILTIN_DIR_ENV: str(root / "xprompts"),
+        SASE_XPROMPT_DEFAULT_DIR_ENV: str(root / "default_xprompts"),
+        SASE_DEFAULT_CONFIG_PATH_ENV: str(root / "default_config.yml"),
+    }
+    for key, value in defaults.items():
+        environ.setdefault(key, value)

@@ -7,9 +7,14 @@ import sys
 from pathlib import Path
 
 from sase.integrations.xprompt_lsp import (
+    SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_XPROMPT_LSP_CMD_ENV,
+    SASE_XPROMPT_BUILTIN_DIR_ENV,
+    SASE_XPROMPT_DEFAULT_DIR_ENV,
+    SASE_XPROMPT_PACKAGE_DIR_ENV,
     _XPromptLspLaunchError,
     _build_xprompt_lsp_argv,
+    _prepare_xprompt_lsp_environment,
 )
 from sase.main.parser import create_parser
 
@@ -69,6 +74,20 @@ def test_build_lsp_argv_errors_without_command() -> None:
         assert "SASE_XPROMPT_LSP_CMD" in str(exc)
     else:
         raise AssertionError("expected XPromptLspLaunchError")
+
+
+def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> None:
+    package_dir = tmp_path / "sase"
+    env: dict[str, str] = {
+        SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
+    }
+
+    _prepare_xprompt_lsp_environment(env, package_dir=package_dir)
+
+    assert env[SASE_XPROMPT_PACKAGE_DIR_ENV] == str(package_dir)
+    assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
+    assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
+    assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
 
 
 def test_sase_lsp_execs_env_override_in_subprocess(tmp_path: Path) -> None:
