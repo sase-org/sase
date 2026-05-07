@@ -125,7 +125,7 @@ class PromptTextArea(
             next_end = len(self.document.get_line(row + 1))
             self.move_cursor((row + 1, next_end), select=select)
         else:
-            super().action_cursor_line_end(select=select)
+            self.move_cursor((row, line_end), select=select)
 
     def action_cursor_line_start(self, select: bool = False) -> None:
         """Move to start of line, or start of previous line if already there."""

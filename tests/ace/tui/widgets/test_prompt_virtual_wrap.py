@@ -88,3 +88,35 @@ async def test_wrapped_prompt_height_includes_completion_panel() -> None:
             visual_lines + 2 + 4,
             app.screen.size.height - 2,
         )
+
+
+async def test_cursor_line_end_moves_to_physical_line_end_not_wrap_boundary() -> None:
+    prompt = "abcdefghijklmnopqrstuvwxyz0123456789"
+    app = _PromptBarApp(prompt)
+
+    async with app.run_test(size=(24, 12)) as pilot:
+        await pilot.pause()
+
+        text_area = app.query_one(PromptTextArea)
+        text_area.move_cursor((0, 5))
+        assert text_area.wrapped_document.height > text_area.document.line_count
+
+        text_area.action_cursor_line_end()
+
+        assert text_area.cursor_location == (0, len(prompt))
+
+
+async def test_repeated_cursor_line_end_moves_to_next_physical_line_end() -> None:
+    first_line = "alpha"
+    second_line = "bravo charlie delta"
+    app = _PromptBarApp(f"{first_line}\n{second_line}")
+
+    async with app.run_test(size=(18, 12)) as pilot:
+        await pilot.pause()
+
+        text_area = app.query_one(PromptTextArea)
+        text_area.move_cursor((0, len(first_line)))
+
+        text_area.action_cursor_line_end()
+
+        assert text_area.cursor_location == (1, len(second_line))
