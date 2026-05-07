@@ -19,6 +19,7 @@ def agent(
     stop: datetime | None = None,
     plan_times: list[datetime] | None = None,
     code_time: datetime | None = None,
+    role_suffix: str | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str = "demo",
 ) -> Agent:
@@ -35,6 +36,7 @@ def agent(
     if plan_times is not None:
         result.plan_times = plan_times
     result.code_time = code_time
+    result.role_suffix = role_suffix
     return result
 
 
@@ -46,6 +48,8 @@ def workflow_child(
     run_start: datetime | None = None,
     stop: datetime | None = None,
     plan_times: list[datetime] | None = None,
+    code_time: datetime | None = None,
+    role_suffix: str | None = None,
     raw_suffix: str = "20260425143000",
     cl_name: str | None = None,
     parent_appears_as_agent: bool = False,
@@ -57,6 +61,8 @@ def workflow_child(
         run_start=run_start,
         stop=stop,
         plan_times=plan_times,
+        code_time=code_time,
+        role_suffix=role_suffix,
         raw_suffix=raw_suffix,
         cl_name=cl_name or f"{step_type}-step",
     )

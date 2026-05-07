@@ -157,6 +157,57 @@ def test_compute_row_runtime_done_plan_step_uses_latest_plan_time() -> None:
     assert elapsed == "4m46s"
 
 
+def test_compute_row_runtime_plan_done_row_uses_plan_time_before_stop_time() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    code = datetime(2026, 5, 6, 13, 15, 10)
+    stop = datetime(2026, 5, 6, 13, 22, 40)
+    now = datetime(2026, 5, 6, 13, 23, 0)
+
+    ts, elapsed = compute_row_runtime(
+        agent(
+            status="PLAN DONE",
+            start=start,
+            stop=stop,
+            plan_times=[datetime(2026, 5, 6, 13, 12, 0), plan],
+            code_time=code,
+            role_suffix=".plan",
+        ),
+        now=now,
+    )
+
+    assert ts == ("", "13:14:53")
+    assert elapsed == "5m53s"
+
+
+def test_compute_row_runtime_done_plan_step_prefers_plan_time_over_stop() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    code = datetime(2026, 5, 6, 13, 15, 10)
+    stop = datetime(2026, 5, 6, 13, 22, 40)
+    now = datetime(2026, 5, 6, 13, 23, 0)
+
+    ts, elapsed = compute_row_runtime(
+        workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            stop=stop,
+            plan_times=[datetime(2026, 5, 6, 13, 12, 0), plan],
+            code_time=code,
+            cl_name="plan",
+            role_suffix=".plan",
+            parent_appears_as_agent=True,
+        ),
+        now=now,
+    )
+
+    assert ts == ("", "13:14:53")
+    assert elapsed == "4m46s"
+
+
 def test_compute_row_runtime_stop_time_wins_over_plan_time() -> None:
     start = datetime(2026, 5, 6, 13, 9, 0)
     run_start = datetime(2026, 5, 6, 13, 10, 7)

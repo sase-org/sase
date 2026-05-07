@@ -4,12 +4,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
+
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 _PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE"}
 _ACTIVE_LEAF_STATUSES = {"RUNNING", "RETRYING"}
 _SEGMENTED_FOLLOWUP_RUNTIME_STATUSES = {"PLAN APPROVED"}
+_WORKFLOW_PLAN_STEP_NAMES = {"plan"}
 
 
 @dataclass(frozen=True)
@@ -99,6 +102,8 @@ def _format_finish_timestamp(
 
 def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
     """Return the terminal timestamp to anchor a completed row runtime."""
+    if _is_planner_phase_row(agent) and agent.plan_times:
+        return max(agent.plan_times)
     if agent.stop_time is not None:
         return agent.stop_time
     if agent.status in _PLAN_RUNTIME_TERMINAL_STATUSES and agent.plan_times:
@@ -108,6 +113,19 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)
     return None
+
+
+def _is_planner_phase_row(agent: "Agent") -> bool:
+    """Return whether a row's own runtime should end at plan submission."""
+    if agent.status == "PLAN DONE":
+        return True
+    if agent.role_suffix == PLAN_CHAIN_PLAN_SUFFIX:
+        return True
+    if agent.parent_workflow is None or agent.step_type != "agent":
+        return False
+    return agent.step_name in _WORKFLOW_PLAN_STEP_NAMES or (
+        agent.cl_name in _WORKFLOW_PLAN_STEP_NAMES
+    )
 
 
 def _segmented_followup_plan_time(agent: "Agent") -> datetime | None:

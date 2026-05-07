@@ -162,6 +162,57 @@ def test_format_agent_option_done_plan_step_uses_plan_time_suffix() -> None:
     assert suffix.plain == "13:14:53 · 4m46s"
 
 
+def test_format_agent_option_plan_done_row_uses_plan_time_suffix() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    stop = datetime(2026, 5, 6, 13, 22, 40)
+    now = datetime(2026, 5, 6, 13, 23, 0)
+
+    _, suffix, _ = format_agent_option(
+        agent(
+            status="PLAN DONE",
+            start=start,
+            stop=stop,
+            plan_times=[plan],
+            code_time=datetime(2026, 5, 6, 13, 15, 10),
+            role_suffix=".plan",
+        ),
+        0,
+        is_selected=False,
+        now=now,
+    )
+
+    assert suffix.plain == "13:14:53 · 5m53s"
+
+
+def test_format_agent_option_done_plan_step_prefers_plan_time_over_stop_time() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    run_start = datetime(2026, 5, 6, 13, 10, 7)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    stop = datetime(2026, 5, 6, 13, 22, 40)
+    now = datetime(2026, 5, 6, 13, 23, 0)
+
+    _, suffix, _ = format_agent_option(
+        workflow_child(
+            step_type="agent",
+            status="DONE",
+            start=start,
+            run_start=run_start,
+            stop=stop,
+            plan_times=[plan],
+            code_time=datetime(2026, 5, 6, 13, 15, 10),
+            cl_name="plan",
+            role_suffix=".plan",
+            parent_appears_as_agent=True,
+        ),
+        0,
+        is_selected=False,
+        now=now,
+    )
+
+    assert suffix.plain == "13:14:53 · 4m46s"
+
+
 def test_format_agent_option_no_start_has_empty_suffix() -> None:
     _, suffix, _ = format_agent_option(
         agent(start=None), 0, is_selected=False, now=datetime.now()
