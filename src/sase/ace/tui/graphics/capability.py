@@ -1,7 +1,8 @@
 """Terminal graphics capability detection for the ace TUI.
 
-The active Kitty probe must run before Textual starts its input loop. Once
-``App.run()`` owns stdin, probe replies are indistinguishable from user input.
+Default detection is side-effect-free: it relies on environment variables and
+does not emit terminal queries before Textual starts its input loop. The active
+Kitty probe remains available for explicit ``SASE_TUI_GRAPHICS`` force values.
 """
 
 from __future__ import annotations
@@ -91,9 +92,10 @@ def detect_graphics_capability(
 ) -> GraphicsCapability:
     """Detect whether Kitty graphics placeholders should be enabled.
 
-    Detection is intentionally conservative for generic terminals, but lets an
-    active Kitty probe prove support when tmux hides the outer terminal identity
-    or the user explicitly forces Kitty probing.
+    Detection is intentionally conservative for generic terminals. Known
+    Kitty-compatible terminals are trusted from their environment, while the
+    active Kitty probe is reserved for explicit user opt-in because late probe
+    replies can otherwise become normal TUI key input.
     """
     env = os.environ if env is None else env
     passthrough = _passthrough_mode(env)
@@ -110,21 +112,22 @@ def detect_graphics_capability(
         )
 
     force_kitty = override in {"1", "true", "yes", "on", "kitty", "force"}
-    probe_eligible = terminal is not None or passthrough == "tmux" or force_kitty
-    if not probe_eligible:
-        return GraphicsCapability.unavailable(
-            "terminal family is unknown outside tmux; Kitty graphics probe was not attempted",
+    if not force_kitty:
+        if terminal is None:
+            return GraphicsCapability.unavailable(
+                "terminal family is unknown; active Kitty graphics probe was not attempted by default",
+                passthrough=passthrough,
+                terminal=terminal,
+                truecolor=truecolor,
+            )
+        return GraphicsCapability(
+            supported=True,
+            protocol="kitty",
             passthrough=passthrough,
+            reason="Kitty graphics assumed from terminal environment",
             terminal=terminal,
             truecolor=truecolor,
-        )
-
-    if not truecolor and passthrough == "none" and not force_kitty:
-        return GraphicsCapability.unavailable(
-            "Kitty placeholders require truecolor foreground encoding",
-            passthrough=passthrough,
-            terminal=terminal,
-            truecolor=False,
+            probed=False,
         )
 
     if not probe:
@@ -132,7 +135,7 @@ def detect_graphics_capability(
             supported=True,
             protocol="kitty",
             passthrough=passthrough,
-            reason="Kitty graphics assumed from environment",
+            reason="Kitty graphics forced by SASE_TUI_GRAPHICS",
             terminal=terminal or "kitty",
             truecolor=truecolor,
             probed=False,

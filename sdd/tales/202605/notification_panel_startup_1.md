@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 10:25:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/notification_panel_startup_1.md
 ---
 # Diagnose and Fix Startup Notification Panel

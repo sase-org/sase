@@ -80,70 +80,69 @@ def test_unknown_terminal_is_unsupported_without_override() -> None:
     assert "not attempted" in cap.reason
 
 
-def test_truecolor_required_for_placeholders() -> None:
+def test_known_kitty_is_trusted_without_truecolor() -> None:
     cap = detect_graphics_capability(
         {"TERM": "xterm-kitty"},
         probe_func=_unexpected_probe,
     )
 
-    assert not cap.supported
-    assert "truecolor" in cap.reason
+    assert cap.supported
+    assert cap.protocol == "kitty"
+    assert cap.terminal == "kitty"
+    assert cap.truecolor is False
+    assert cap.probed is False
 
 
-def test_probe_success_enables_kitty() -> None:
+def test_known_kitty_detection_does_not_probe() -> None:
     cap = detect_graphics_capability(
         _env(KITTY_WINDOW_ID="1"),
-        probe_func=lambda passthrough, timeout: True,
+        probe_func=_unexpected_probe,
     )
 
     assert cap == GraphicsCapability(
         supported=True,
         protocol="kitty",
         passthrough="none",
-        reason="Kitty graphics probe succeeded",
+        reason="Kitty graphics assumed from terminal environment",
         terminal="kitty",
         truecolor=True,
-        probed=True,
+        probed=False,
     )
 
 
 def test_tmux_passthrough_is_recorded() -> None:
-    seen: list[str] = []
-
     cap = detect_graphics_capability(
         _env(KITTY_WINDOW_ID="1", TMUX="/tmp/tmux"),
-        probe_func=lambda passthrough, timeout: (
-            seen.append(passthrough) is None or True
-        ),
+        probe_func=_unexpected_probe,
     )
 
     assert cap.supported
     assert cap.passthrough == "tmux"
-    assert seen == ["tmux"]
+    assert cap.probed is False
 
 
-def test_unknown_tmux_terminal_probe_success_enables_kitty() -> None:
-    seen: list[str] = []
-
+def test_unknown_tmux_terminal_is_unsupported_without_override() -> None:
     cap = detect_graphics_capability(
         {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
-        probe_func=lambda passthrough, timeout: (
-            seen.append(passthrough) is None or True
-        ),
+        probe_func=_unexpected_probe,
     )
 
-    assert cap.supported
-    assert cap.protocol == "kitty"
+    assert not cap.supported
     assert cap.passthrough == "tmux"
-    assert cap.terminal == "kitty"
+    assert cap.terminal is None
     assert cap.truecolor is False
-    assert cap.probed
-    assert seen == ["tmux"]
+    assert cap.probed is False
+    assert "not attempted by default" in cap.reason
 
 
-def test_unknown_tmux_terminal_reports_probe_failure() -> None:
+def test_forced_unknown_tmux_terminal_reports_probe_failure() -> None:
     cap = detect_graphics_capability(
-        {"TERM": "tmux-256color", "TERM_PROGRAM": "tmux", "TMUX": "/tmp/tmux"},
+        {
+            "TERM": "tmux-256color",
+            "TERM_PROGRAM": "tmux",
+            "TMUX": "/tmp/tmux",
+            "SASE_TUI_GRAPHICS": "kitty",
+        },
         probe_func=lambda passthrough, timeout: False,
     )
 
@@ -155,9 +154,13 @@ def test_unknown_tmux_terminal_reports_probe_failure() -> None:
     assert "probe did not receive" in cap.reason
 
 
-def test_missing_colorterm_does_not_block_successful_tmux_probe() -> None:
+def test_forced_tmux_probe_success_enables_kitty_without_truecolor() -> None:
     cap = detect_graphics_capability(
-        {"TERM": "xterm-256color", "TMUX": "/tmp/tmux"},
+        {
+            "TERM": "xterm-256color",
+            "TMUX": "/tmp/tmux",
+            "SASE_TUI_GRAPHICS": "kitty",
+        },
         probe_func=lambda passthrough, timeout: True,
     )
 
@@ -183,14 +186,14 @@ def test_force_kitty_probes_unknown_terminal_without_truecolor() -> None:
     assert seen == ["none"]
 
 
-def test_probe_failure_disables_kitty() -> None:
+def test_known_ghostty_detection_does_not_probe() -> None:
     cap = detect_graphics_capability(
         _env(TERM="xterm-256color", TERM_PROGRAM="ghostty"),
-        probe_func=lambda passthrough, timeout: False,
+        probe_func=_unexpected_probe,
     )
 
-    assert not cap.supported
-    assert cap.probed
+    assert cap.supported
+    assert cap.probed is False
     assert cap.terminal == "ghostty"
 
 
@@ -199,6 +202,37 @@ def test_probe_can_be_skipped_for_noninteractive_tests() -> None:
 
     assert cap.supported
     assert not cap.probed
+
+
+def test_forced_probe_can_be_skipped_for_noninteractive_tests() -> None:
+    cap = detect_graphics_capability(
+        {"TERM": "xterm-256color", "SASE_TUI_GRAPHICS": "kitty"},
+        probe=False,
+    )
+
+    assert cap.supported
+    assert cap.terminal == "kitty"
+    assert not cap.probed
+
+
+def test_default_detection_does_not_emit_probe_bytes_or_consume_late_reply(
+    monkeypatch,
+) -> None:
+    delayed_reply = b"\x1b_Gi=31337;OK\x1b\\"
+    reads = [delayed_reply]
+    writes, tcsetattrs = _mock_active_probe(
+        monkeypatch,
+        select_readable=[[0]],
+        read_chunks=reads,
+    )
+
+    cap = detect_graphics_capability(_env(KITTY_WINDOW_ID="1"))
+
+    assert cap.supported
+    assert cap.probed is False
+    assert writes == []
+    assert reads == [delayed_reply]
+    assert tcsetattrs == []
 
 
 def test_active_probe_reports_kitty_support_and_discards_late_reply(
