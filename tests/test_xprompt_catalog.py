@@ -402,6 +402,77 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
     assert projection.stats.skill_count >= 1
 
 
+def test_structured_catalog_definition_paths_for_real_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    ws = tmp_path / "workspace"
+    pkg_dir = tmp_path / "pkg_xprompts"
+    default_dir = tmp_path / "default_xprompts"
+    config_dir = home / ".config" / "sase"
+    memory_dir = tmp_path / "memory" / "long"
+    for directory in (ws / ".xprompts", pkg_dir, default_dir, config_dir, memory_dir):
+        directory.mkdir(parents=True)
+
+    package_source = pkg_dir / "builtin.md"
+    default_source = default_dir / "defaulted.md"
+    local_source = ws / ".xprompts" / "local.md"
+    config_source = config_dir / "sase.yml"
+    memory_source = memory_dir / "topic.md"
+    for path in (
+        package_source,
+        default_source,
+        local_source,
+        config_source,
+        memory_source,
+    ):
+        path.write_text("body")
+
+    monkeypatch.setenv("HOME", str(home))
+    xprompts = {
+        "builtin": _make_xprompt("builtin", source_path=str(package_source)),
+        "defaulted": _make_xprompt("defaulted", source_path=str(default_source)),
+        "cfg": _make_xprompt("cfg", source_path="config"),
+        "memory/long/topic": _make_xprompt(
+            "memory/long/topic", source_path=str(memory_source)
+        ),
+        "plugin": _make_xprompt("plugin", source_path="plugin:module/plugin.md"),
+        "runtime": _make_xprompt("runtime", source_path="config:runtime"),
+    }
+    local_xp = _make_xprompt("sase/local", source_path=str(local_source))
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value=xprompts),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch(
+            "sase.xprompt.catalog.get_known_project_workspaces",
+            return_value={"sase": ws},
+        ),
+        patch(
+            "sase.xprompt.catalog.load_project_local_xprompts",
+            return_value={"sase/local": local_xp},
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=pkg_dir,
+        ),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_default_xprompts_dir",
+            return_value=default_dir,
+        ),
+    ):
+        projection = build_structured_xprompts_catalog(project="sase")
+
+    by_name = {entry.name: entry for entry in projection.entries}
+    assert by_name["builtin"].definition_path == str(package_source.resolve())
+    assert by_name["defaulted"].definition_path == str(default_source.resolve())
+    assert by_name["cfg"].definition_path == str(config_source.resolve())
+    assert by_name["memory/long/topic"].definition_path == str(memory_source.resolve())
+    assert by_name["sase/local"].definition_path == str(local_source.resolve())
+    assert by_name["plugin"].definition_path is None
+    assert by_name["runtime"].definition_path is None
+
+
 def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
     xp = _make_xprompt(
         "typed",

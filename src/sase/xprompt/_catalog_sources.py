@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import logging
 from pathlib import Path
 
@@ -218,6 +219,67 @@ def source_path_display(
     return f"~/.config/sase/{rel.as_posix()}"
 
 
+def definition_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None:
+    """Return an absolute local file path suitable for editor navigation."""
+    source = entry_source_path(entry)
+    if not source:
+        return None
+
+    path = _source_definition_path(source, entry.project)
+    if path is None or not path.is_file():
+        return None
+    try:
+        return str(path.resolve())
+    except OSError:
+        return None
+
+
+def _source_definition_path(source: str, project: str | None) -> Path | None:
+    if source.startswith("plugin:") or source.startswith("plugin_config:"):
+        return None
+
+    if source == "default_config":
+        try:
+            ref = importlib.resources.files("sase").joinpath("default_config.yml")
+            return Path(str(ref))
+        except Exception:
+            return None
+
+    if source == "local_config":
+        return Path.cwd() / "sase.yml"
+
+    if source.startswith("project_local_config:"):
+        project_name = source.removeprefix("project_local_config:")
+        workspace = get_known_project_workspaces().get(project_name)
+        if workspace is None:
+            return None
+        return workspace / "sase.yml"
+
+    config_dir = Path.home() / ".config" / "sase"
+    if source == "config":
+        return config_dir / "sase.yml"
+
+    if source.startswith("config_overlay:"):
+        filename = source.removeprefix("config_overlay:")
+        return config_dir / filename
+
+    if source.startswith("config:"):
+        return None
+
+    path = Path(source)
+    if path.is_absolute():
+        return path
+
+    if project is not None:
+        workspace = get_known_project_workspaces().get(project)
+        if workspace is not None:
+            project_path = workspace / path
+            if project_path.is_file():
+                return project_path
+
+    return Path.cwd() / path
+
+
 def safe_path_display(path: Path) -> str | None:
     try:
         resolved = path.resolve()
@@ -258,6 +320,7 @@ _classify_workflow = classify_workflow
 _classify = classify
 _entry_source_path = entry_source_path
 _source_path_display = source_path_display
+_definition_path = definition_path
 _safe_path_display = safe_path_display
 _safe_file_size = safe_file_size
 _package_xprompt_dirs = package_xprompt_dirs

@@ -60,6 +60,7 @@ from ._catalog_sources import (
     classify as _classify_impl,
     classify_workflow as _classify_workflow_impl,
     classify_xprompt_for_structured as _classify_xprompt_for_structured_impl,
+    definition_path as _definition_path_impl,
     entry_source_path as _entry_source_path_impl,
     package_xprompt_dirs as _package_xprompt_dirs_impl,
 )
@@ -138,6 +139,11 @@ def _entry_source_path(entry: CatalogEntry | StructuredCatalogSource) -> str | N
     return _entry_source_path_impl(entry)
 
 
+def _definition_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None:
+    _sync_catalog_source_dependencies()
+    return _definition_path_impl(entry)
+
+
 def _source_path_display(
     entry: CatalogEntry | StructuredCatalogSource,
 ) -> str | None:
@@ -199,6 +205,7 @@ __all__ = [
     "_compute_stats",
     "_content_preview",
     "_default_display",
+    "_definition_path",
     "_display_label",
     "_entry_source_path",
     "_filter_structured_catalog_entries",

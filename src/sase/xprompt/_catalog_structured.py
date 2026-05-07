@@ -16,6 +16,7 @@ from ._catalog_models import (
 )
 from ._catalog_render import build_xprompts_catalog
 from ._catalog_sources import (
+    definition_path,
     gather_structured_entries,
     safe_file_size,
     safe_path_display,
@@ -158,6 +159,7 @@ def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
         is_skill=entry.is_skill,
         content_preview=content_preview(entry.content),
         source_path_display=source_path_display(entry),
+        definition_path=definition_path(entry),
     )
 
 

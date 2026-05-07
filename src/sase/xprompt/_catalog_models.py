@@ -53,7 +53,7 @@ class StructuredCatalogInput:
 
 @dataclass(frozen=True)
 class StructuredCatalogEntry:
-    """Mobile-safe structured xprompt catalog entry."""
+    """Structured xprompt catalog entry."""
 
     name: str
     display_label: str
@@ -69,6 +69,7 @@ class StructuredCatalogEntry:
     is_skill: bool
     content_preview: str | None
     source_path_display: str | None
+    definition_path: str | None = None
 
 
 @dataclass(frozen=True)
