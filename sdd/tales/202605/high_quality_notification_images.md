@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 16:54:09
-status: wip
+status: done
 prompt: sdd/prompts/202605/high_quality_notification_images.md
 ---
 # High-Quality Notification Image Previews

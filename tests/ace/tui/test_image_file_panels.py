@@ -154,7 +154,36 @@ def test_notification_image_size_uses_scroll_viewport(monkeypatch) -> None:
 
     monkeypatch.setattr(modal, "query_one", fake_query_one)
 
-    assert modal._image_preview_size(content) == (22, 24)
+    assert modal._image_preview_size(content) == (22, 30)
+
+
+def test_image_preview_size_caps_large_viewports() -> None:
+    scroll = SimpleNamespace(
+        scrollable_content_region=SimpleNamespace(width=220, height=90)
+    )
+
+    assert image_preview_size_for_viewport(scroll_widget=scroll) == (160, 60)
+
+
+def test_notification_image_mode_marks_layout_widgets(monkeypatch) -> None:
+    modal = NotificationModal([])
+    widgets = {
+        "#notification-container": MagicMock(),
+        "#notification-left": MagicMock(),
+        "#notification-right": MagicMock(),
+    }
+
+    def fake_query_one(selector, _type=None):
+        return widgets[selector]
+
+    monkeypatch.setattr(modal, "query_one", fake_query_one)
+
+    modal._set_image_preview_mode(True)
+    modal._set_image_preview_mode(False)
+
+    for widget in widgets.values():
+        widget.add_class.assert_called_once_with("image-preview")
+        widget.remove_class.assert_called_once_with("image-preview")
 
 
 def test_image_preview_size_for_tiny_viewport_stays_bounded() -> None:

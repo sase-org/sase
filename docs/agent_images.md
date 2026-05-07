@@ -80,15 +80,21 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 The notification modal and Agents tab file panel route supported image extensions through the preview layer before
 attempting text decoding.
 
-The internal preview layer renders PNG, JPEG, WebP, and GIF attachments as a Rich cell preview. It uses Pillow to decode
-the first image frame, fits it inside the visible panel bounds, composites transparency onto a dark background, and
-paints the result with colored half-block terminal cells. It works the same way in ordinary terminals, multiplexed
-sessions, SSH sessions, and environments with no image protocol support.
+The internal preview layer renders PNG, JPEG, WebP, and GIF attachments as a portable Rich cell preview. It uses Pillow
+to decode the first image frame, apply EXIF orientation, fit it inside the visible panel bounds, composite transparency
+onto a dark background, and apply a mild preview-only sharpen pass after resizing. Each terminal cell samples a 2 x 2
+pixel block and chooses the closest Unicode block mask with foreground and background colors, which preserves more
+edges, diagonals, UI details, and text-like shapes than a fixed half-block sampler.
+
+No Kitty, iTerm2, Sixel, or other terminal image protocol support is required. The renderer only emits colored Unicode
+text through Rich/Textual, so it works the same way in ordinary terminals, multiplexed sessions, SSH sessions, and
+environments with no image protocol support. Preview quality depends on the visible pane size and terminal color depth:
+larger panes provide more sampled cells, and truecolor terminals preserve colors better than 256-color terminals.
 
 ACE checks only terminal color depth from the environment. When `COLORTERM=truecolor`, `COLORTERM=24bit`, or a truecolor
 marker in `TERM` is present, previews use 24-bit color; otherwise they use 256-color approximations. Missing files,
 unsupported extensions, decode errors, missing Pillow, and images above the renderer guardrails show a concise text
-fallback with the file path, byte size when available, and the relevant editor action (`e` in notifications or `%E` in
-agent panels).
+fallback with the file path, byte size when available, and the relevant editor action. Use `e` in notifications or `%E`
+in agent panels whenever full-fidelity viewing is needed.
 
 Source: `src/sase/ace/tui/graphics/`

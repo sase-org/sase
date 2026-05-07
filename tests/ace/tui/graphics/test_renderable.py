@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 from rich.console import Console
 from rich.segment import Segment
 
@@ -35,9 +36,28 @@ def _write_image(
     image.save(path, format=image_format)
 
 
+def _write_pixels(
+    path: Path,
+    pixels: list[list[tuple[int, int, int, int]]],
+) -> None:
+    from PIL import Image
+
+    height = len(pixels)
+    width = len(pixels[0])
+    image = Image.new("RGBA", (width, height))
+    for y, row in enumerate(pixels):
+        for x, color in enumerate(row):
+            image.putpixel((x, y), color)
+    image.save(path)
+
+
 def _render_segments(renderable: object) -> list[Segment]:
     console = Console(record=True, force_terminal=True, width=120)
     return list(console.render(renderable))
+
+
+def _cell_segments(renderable: object) -> list[Segment]:
+    return [segment for segment in _render_segments(renderable) if segment.text != "\n"]
 
 
 def _line_segments(segments: list[Segment]) -> list[list[Segment]]:
@@ -140,9 +160,112 @@ def test_cell_rendering_respects_requested_dimensions(tmp_path: Path) -> None:
         assert isinstance(renderable, CellImageRenderable)
         assert len(lines) == rows
         assert all(len(line) == columns for line in lines)
-        assert sum(segment.text.count(UPPER_HALF_BLOCK) for segment in segments) == (
-            columns * rows
-        )
+        assert len(_cell_segments(renderable)) == columns * rows
+
+
+def test_diagonal_fixture_selects_diagonal_block_mask(tmp_path: Path) -> None:
+    image = tmp_path / "diagonal.png"
+    black = (0, 0, 0, 255)
+    white = (255, 255, 255, 255)
+    _write_pixels(
+        image,
+        [
+            [white, black],
+            [black, white],
+        ],
+    )
+
+    renderable = image_preview(
+        str(image),
+        _render_context(),
+        columns=1,
+        rows=1,
+    )
+
+    [segment] = _cell_segments(renderable)
+    assert segment.text == "\u259a"
+    assert segment.style is not None
+    assert segment.style.color is not None
+    assert segment.style.bgcolor is not None
+
+
+def test_transparency_composites_against_configured_background(tmp_path: Path) -> None:
+    image = tmp_path / "transparent.png"
+    _write_image(image, size=(2, 2), color=(255, 0, 0, 0))
+    background = (10, 20, 30)
+
+    renderable = CellImageRenderable.from_path(
+        str(image),
+        columns=1,
+        rows=1,
+        truecolor=True,
+        background=background,
+    )
+
+    [segment] = _cell_segments(renderable)
+    assert segment.style is not None
+    assert segment.style.color is not None
+    assert segment.style.bgcolor is not None
+    assert segment.style.color.triplet is not None
+    assert segment.style.bgcolor.triplet is not None
+    assert tuple(segment.style.color.triplet) == background
+    assert tuple(segment.style.bgcolor.triplet) == background
+
+
+def test_exif_orientation_is_applied_before_cell_conversion(tmp_path: Path) -> None:
+    from PIL import Image
+
+    image = Image.new("RGBA", (2, 4))
+    for y in range(4):
+        image.putpixel((0, y), (255, 0, 0, 255))
+        image.putpixel((1, y), (0, 0, 255, 255))
+
+    exif = Image.Exif()
+    exif[274] = 6
+    path = tmp_path / "oriented.png"
+    image.save(path, exif=exif)
+    with Image.open(path) as reopened:
+        if reopened.getexif().get(274) != 6:
+            pytest.skip("Pillow did not persist PNG EXIF orientation")
+
+    renderable = image_preview(
+        str(path),
+        _render_context(),
+        columns=2,
+        rows=1,
+    )
+
+    glyphs = {segment.text for segment in _cell_segments(renderable)}
+    assert glyphs <= {UPPER_HALF_BLOCK, "\u2584"}
+    assert glyphs
+
+
+def test_truecolor_and_ansi_256_styles_are_valid(tmp_path: Path) -> None:
+    image = tmp_path / "styles.png"
+    _write_image(image, color=(70, 120, 220, 255))
+
+    truecolor_renderable = image_preview(
+        str(image),
+        _render_context(truecolor=True),
+        columns=1,
+        rows=1,
+    )
+    ansi_renderable = image_preview(
+        str(image),
+        _render_context(truecolor=False),
+        columns=1,
+        rows=1,
+    )
+
+    truecolor_style = _cell_segments(truecolor_renderable)[0].style
+    ansi_style = _cell_segments(ansi_renderable)[0].style
+    assert truecolor_style is not None
+    assert truecolor_style.color is not None
+    assert truecolor_style.bgcolor is not None
+    assert truecolor_style.color.triplet is not None
+    assert ansi_style is not None
+    assert ansi_style.color is not None
+    assert ansi_style.bgcolor is not None
 
 
 def test_cell_cache_invalidates_when_file_metadata_changes(tmp_path: Path) -> None:

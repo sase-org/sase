@@ -1605,6 +1605,10 @@ NotificationModal #notification-left {
     height: 100%;
 }
 
+NotificationModal #notification-left.image-preview {
+    width: 30%;
+}
+
 NotificationModal #notification-list {
     height: 1fr;
     border: solid $secondary;
@@ -1624,6 +1628,10 @@ NotificationModal #notification-right {
     margin-left: 1;
     border-left: solid $secondary;
     padding-left: 1;
+}
+
+NotificationModal #notification-right.image-preview {
+    width: 70%;
 }
 
 NotificationModal #notification-file-title {

@@ -32,6 +32,7 @@ class NotificationAttachmentMixin:
         content_widget = self.query_one("#notification-file-content", Static)
 
         if notification is None or not notification.files:
+            self._set_image_preview_mode(False)
             title.update("No files attached")
             cleanup = self._consume_image_cleanup_segments()
             content_widget.update(Group(*cleanup, "") if cleanup else "")
@@ -48,9 +49,11 @@ class NotificationAttachmentMixin:
         expanded_path = os.path.expanduser(file_path)
 
         if is_supported_image_path(expanded_path):
+            self._set_image_preview_mode(True)
             self._display_image_file(expanded_path, content_widget)
             return
 
+        self._set_image_preview_mode(False)
         cleanup = self._consume_image_cleanup_segments()
         try:
             with open(expanded_path, encoding="utf-8") as f:
@@ -106,6 +109,22 @@ class NotificationAttachmentMixin:
             scroll_widget=scroll,
             content_widget=content_widget,
         )
+
+    def _set_image_preview_mode(self: Any, enabled: bool) -> None:
+        """Shift notification layout toward the preview pane for image files."""
+        for selector in (
+            "#notification-container",
+            "#notification-left",
+            "#notification-right",
+        ):
+            try:
+                widget = self.query_one(selector)
+            except Exception:
+                continue
+            if enabled:
+                widget.add_class("image-preview")
+            else:
+                widget.remove_class("image-preview")
 
     def _image_render_context(self: Any) -> ImageRenderContext:
         """Return the image preview rendering context."""
