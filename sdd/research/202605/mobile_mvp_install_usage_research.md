@@ -50,6 +50,8 @@ explicit `-L`, and public tunnels/Funnel are not recommended.
   - `../sase-android`: `c6cf460` app scaffold, `e91e839` REST client, `b6fa458` pairing/session,
     `b1bde27` inbox/detail UI, `e26588d` text launch, `082cc3f` image launch, `a0d3716` foreground connected mode,
     `dc343c2` FCM registration, `42f2237` APK packaging docs.
+- Cross-checked against the runtime CLI surface (`sase mobile --help`, `sase mobile gateway --help`,
+  `sase mobile gateway start --help`) and the contract snapshot's `EventPayloadWire`/`ApiErrorWire` records.
 
 ## What Shipped
 
@@ -180,6 +182,28 @@ The current CLI help exposes:
 The default config lives under `mobile_gateway` in `src/sase/default_config.yml` and sets `bind_address:
 "127.0.0.1"`, `port: 7629`, `allow_non_loopback: false`, and `push_provider: "disabled"`.
 
+`sase mobile` exposes three subcommands but only `gateway start` is user-facing:
+
+```text
+sase mobile gateway start    # start the workstation gateway (this is the one you run)
+sase mobile agent-bridge     # internal, invoked by the Rust gateway; SUPPRESSED in --help
+sase mobile helper-bridge    # internal, invoked by the Rust gateway; SUPPRESSED in --help
+```
+
+The bridge subcommands are not part of the user surface — the Rust gateway invokes them with fixed operation names. Do
+not call them by hand.
+
+### Quick health check
+
+Once the gateway is up, you can confirm it is reachable before pairing:
+
+```bash
+curl -sS http://127.0.0.1:7629/api/v1/health
+```
+
+`GET /api/v1/health` is one of three unauthenticated routes (the others are `POST /api/v1/session/pair/start` and
+`POST /api/v1/session/pair/finish`); every other route requires the paired bearer token.
+
 ## Network Setup
 
 Use the right Android base URL for the device:
@@ -228,8 +252,50 @@ The app supports JSON and URI QR payloads. Example JSON payload:
 }
 ```
 
+The equivalent URI form (accepted by the same Settings screen):
+
+```text
+sase://pair?base_url=http%3A%2F%2F127.0.0.1%3A7629&pairing_id=pair_abc123&code=123456&host_label=workstation
+```
+
+The pairing parser is intentionally narrow: it accepts only the fields above and rejects arbitrary `command`, `path`,
+`query`, or `fragment` data. Pairing codes are one-time and short-lived; if the code expires, restart
+`sase mobile gateway start` to mint a new pairing challenge.
+
 After pairing, the app stores the bearer token in app-private secure storage. The gateway stores token hashes, not raw
 tokens.
+
+### Manual pairing for testing without a phone
+
+You can drive the pairing flow with `curl` to validate the gateway end-to-end before installing the APK. Use the
+`pairing_id` and `code` printed by `sase mobile gateway start`:
+
+```bash
+PAIRING_ID="pair_abc123"
+PAIRING_CODE="123456"
+
+curl -sS http://127.0.0.1:7629/api/v1/session/pair/finish \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"schema_version\": 1,
+    \"pairing_id\": \"$PAIRING_ID\",
+    \"code\": \"$PAIRING_CODE\",
+    \"device\": {
+      \"display_name\": \"laptop-curl\",
+      \"platform\": \"android\",
+      \"app_version\": \"0.1.0\"
+    }
+  }"
+```
+
+The response returns the bearer token exactly once. Use it for any authenticated probe:
+
+```bash
+TOKEN="sase_mobile_example"
+curl -sS http://127.0.0.1:7629/api/v1/session -H "Authorization: Bearer $TOKEN"
+```
+
+This is useful for diagnosing whether a problem is in the gateway, the network, or the Android client.
 
 ## Normal Use
 
@@ -264,12 +330,27 @@ prompts. Launch and retry results are correlated with request IDs where the clie
 Use helper screens to:
 
 - List active ChangeSpec tags.
-- Browse xprompt catalog entries.
+- Browse xprompt catalog entries (with optional best-effort PDF generation).
 - List/show beads.
 - Start the fixed SASE update worker and poll structured update status.
 
 Helper endpoints are fixed product operations. The phone cannot send shell commands, cwd values, arbitrary host paths,
-environment variables, or bridge argv.
+environment variables, or bridge argv. The gateway invokes fixed `sase mobile helper-bridge <operation>` commands; the
+update worker itself runs only the configured `chat_install.command`.
+
+Project context resolution:
+
+- When a helper or launch request includes `project=<name>`, the bridge resolves only
+  `<sase_home>/projects/<name>/<name>.gp` and uses that file's `WORKSPACE_DIR` for any cwd. Mobile cannot supply a
+  workspace path directly.
+- Omit `project` to use the paired device's remembered project (the last product-shaped context the device used).
+- Pass `all_projects=true` on bead lookups to force a cross-project search across known SASE projects.
+
+Helper responses include a common `result` block with `status`, `message`, `warnings`, `skipped`, and
+`partial_failure_count`. Android renders `partial_success` by showing the primary payload plus the structured `skipped`
+rows; the message string is for humans only and must not be parsed for control flow. `POST /api/v1/update/start` is the
+only mutating helper route; everything else is read-only. `helpers_changed` SSE events are best-effort; polling
+`GET /api/v1/update/{job_id}` is authoritative for completion.
 
 ### Background Delivery
 
@@ -295,6 +376,91 @@ Local gateway push testing can use:
 ```bash
 sase mobile gateway start -P test
 ```
+
+The `test` provider records attempted delivery in-process without sending traffic off the workstation; it is the right
+choice for verifying the gateway side of push without a Firebase project.
+
+## SSE Events
+
+Authenticated clients subscribe to `GET /api/v1/events` with `Accept: text/event-stream`. The wire records published on
+this stream are documented in `EventPayloadWire`:
+
+- `notifications_changed` — a notification's read/dismissed/action state changed.
+- `agents_changed` — an agent was launched, killed, retried, or transitioned status.
+- `helpers_changed` — a helper-driven action (most often the update worker) progressed.
+- `resync_required` — the in-memory event buffer can no longer satisfy the client's `Last-Event-ID`; the client must
+  refetch authoritative state.
+- `heartbeat` — periodic keepalive carrying a monotonic sequence.
+- `session` — the device's session state changed.
+
+Each event has a stable monotonic ID such as `0000000000000001`. Clients reconnect with `Last-Event-ID: <id>` to replay
+buffered events newer than the last processed ID. The first MVP keeps the buffer in memory, so a gateway restart or
+buffer overflow surfaces a `resync_required` event and the client must refetch full state.
+
+## API Error Codes
+
+Errors arrive as `ApiErrorWire` records with a typed `code`. Useful ones to anticipate when smoke-testing or
+troubleshooting:
+
+- `unauthorized` — bearer missing/expired/revoked, or pairing flow not completed.
+- `pairing_expired`, `pairing_rejected` — restart `sase mobile gateway start` to mint a new pairing challenge.
+- `not_found`, `helper_not_found`, `agent_not_found` — target ID or name does not match host state.
+- `agent_not_running` — kill/retry on a terminal agent.
+- `conflict_already_handled` — action already taken (e.g. plan already approved on another device).
+- `gone_stale` — pending action was superseded; client should refresh detail.
+- `ambiguous_prefix` — supplied prefix matches more than one pending action.
+- `unsupported_action` — action not valid for that notification kind.
+- `attachment_expired` — short-lived download token timed out; re-fetch detail.
+- `launch_failed`, `invalid_upload`, `bridge_unavailable` — agent launch or bridge dispatch failed.
+- `update_already_running`, `update_job_not_found` — update worker state mismatch.
+- `permission_denied`, `internal`, `invalid_request` — generic guardrails.
+
+The Android client maps these to typed UX states (stale refresh, already-handled recovery, draft preservation,
+re-pair prompts), which is why detail screens preserve feedback and custom-answer drafts after transient errors.
+
+## Storage And State
+
+Gateway state lives under `<sase_home>/mobile_gateway/` (default `~/.sase/mobile_gateway/`):
+
+- `devices.json` — paired devices, including a `revoked_at` field used by the revocation primitive.
+- `audit.jsonl` — append-only audit records with device ID, endpoint, target ID, and outcome. Pairing codes and bearer
+  tokens are intentionally excluded.
+- `agent_launch_contexts.jsonl` — per-launch mobile context (request IDs, project, name).
+- `agent_kill_contexts/` — per-kill records.
+- `device_project_contexts/` — last product-shaped project context per device, used when `project` is omitted on
+  helper/launch requests.
+- Image launch attachments — stored under SASE-owned gateway state; the absolute saved path is injected into the
+  launched agent prompt.
+
+Bearer tokens are never written to disk; only SHA-256 hashes are stored. Revoking a device flips `revoked_at` and any
+future authenticated request with that token fails with `unauthorized`.
+
+## Telegram Fallback
+
+Telegram remains the supported remote path while the Android MVP is private/internal-only. The shared pending-action
+compatibility layer means a notification approved on Android (or vice-versa) is honored across transports. If mobile
+access is rolled back (for example by stopping the gateway and `tailscale serve reset`), Telegram is still available for
+pending plan/HITL/question actions.
+
+## Known MVP Limitations
+
+- Private/internal APK distribution only — no Play Store release. Release minification is intentionally disabled until a
+  broader rollout.
+- Notification reads are authoritative REST reads from the host JSONL store. Passive file-watching is intentionally out
+  of the MVP; mutations publish `notifications_changed` SSE events instead.
+- Attachment downloads are capped by the gateway's max-attachment-bytes setting. Oversized, missing, directory,
+  traversal, symlinked, or unknown-risk files appear in manifests without download tokens.
+- Image launch enforces an oversize ceiling and rejects payloads above the limit with `invalid_upload`.
+- Agent project context is an MVP metadata + known-project cwd selector. It does not expose arbitrary host directory
+  selection; clients must use SASE prompt syntax (e.g. `#gh:12345`) for VCS refs.
+- Helper routes are native picker APIs, not generic command execution. ChangeSpec, xprompt, and bead helpers are
+  read-only; xprompt PDF generation is best-effort and opt-in.
+- FCM is the first push provider; UnifiedPush/ntfy remain future provider options behind the transport-agnostic
+  subscription model. Push diagnostics primarily live in tests/logs and the Android Settings push card.
+- Foreground connected mode improves durability but still follows Android background execution limits; lower-power
+  delivery still depends on push.
+- The Android API client is hand-written against the checked contract snapshot; generated client adoption is
+  intentionally deferred.
 
 ## Smoke Checklist
 
@@ -348,8 +514,22 @@ Automated gates called out by the docs:
 (cd ../sase-android && ./gradlew connectedDebugAndroidTest)
 (cd ../sase-core && cargo test -p sase_gateway push_subscription)
 (cd ../sase-core && cargo test -p sase_gateway test_push_provider_records_hint_attempts)
+(cd ../sase-core && cargo test -p sase_gateway listener_smoke_exercises_pairing_auth_and_session)
 .venv/bin/pytest tests/test_mobile_gateway.py
 ```
+
+Targeted CI-friendly hardening subsets (faster than the full unit suite):
+
+```bash
+(cd ../sase-android && ./gradlew testDebugUnitTest --tests org.sase.mobile.testing.BackgroundHardeningSmokeTest)
+(cd ../sase-android && ./gradlew testDebugUnitTest --tests org.sase.mobile.testing.FakeGatewayTest)
+(cd ../sase-android && ./gradlew testDebugUnitTest --tests 'org.sase.mobile.data.notifications.push.*')
+```
+
+The Android repo also ships a route-based fake-gateway harness (`GatewayApiClientTest`, `ActionRepositoryTest`,
+`AgentRepositoryTest`, `HelperRepositoryTest`, `UpdateRepositoryTest`) that covers contract-shaped requests, stale and
+already-handled errors, draft preservation, and `agents_changed`/`helpers_changed` refresh paths without a real
+workstation gateway — useful for app development when the Rust gateway is not running.
 
 For this research note, I verified source availability and command shape by running:
 
