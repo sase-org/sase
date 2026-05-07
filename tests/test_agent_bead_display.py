@@ -7,7 +7,30 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.bead_display import format_agent_bead_display_for_name
+from sase.agent.bead_display import (
+    derive_agent_bead_id_from_name,
+    format_agent_bead_display_for_name,
+)
+
+
+def test_dotted_non_bead_agent_name_is_not_a_bead() -> None:
+    assert derive_agent_bead_id_from_name("aij.2") is None
+    assert format_agent_bead_display_for_name("aij.2") is None
+
+
+def test_land_suffix_requires_bead_shaped_epic_name() -> None:
+    assert derive_agent_bead_id_from_name("aij.land") is None
+
+
+def test_non_bead_agent_name_does_not_touch_bead_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_lookup(bead_id: str, *, project_name: str | None = None) -> None:
+        raise AssertionError("non-bead agent names must not touch bead storage")
+
+    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+
+    assert format_agent_bead_display_for_name("aij.2") is None
 
 
 def test_agent_bead_display_finds_description_in_legacy_sibling_store(

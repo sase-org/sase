@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from sase.bead.model import Issue
 
 _DISMISSED_AGENT_PREFIX_RE = re.compile(r"^\d{6}\.")
-_PHASE_BEAD_AGENT_NAME_RE = re.compile(r"^.+\.\d+$")
 _TOP_LEVEL_BEAD_AGENT_NAME_RE = re.compile(r"^[^\s.]+-[0-9a-z]+$")
+_BEAD_AGENT_NAME_RE = re.compile(r"^[^\s.]+-[0-9a-z]+(?:\.\d+)*$")
 
 
 def _normalized_agent_name(agent_name: str | None) -> str | None:
@@ -39,6 +39,12 @@ def _is_top_level_bead_agent_name(normalized_agent_name: str | None) -> bool:
     return bool(_TOP_LEVEL_BEAD_AGENT_NAME_RE.match(normalized_agent_name))
 
 
+def _is_bead_agent_name(normalized_agent_name: str | None) -> bool:
+    if not normalized_agent_name:
+        return False
+    return bool(_BEAD_AGENT_NAME_RE.match(normalized_agent_name))
+
+
 def derive_agent_bead_id_from_name(agent_name: str | None) -> str | None:
     """Infer a bead id from an agent name written by ``sase bead work``."""
     normalized = _normalized_agent_name(agent_name)
@@ -47,12 +53,9 @@ def derive_agent_bead_id_from_name(agent_name: str | None) -> str | None:
 
     if _is_land_agent_name(normalized):
         epic_id = normalized.removesuffix(".land")
-        return epic_id or None
+        return epic_id if _is_bead_agent_name(epic_id) else None
 
-    if _PHASE_BEAD_AGENT_NAME_RE.match(normalized):
-        return normalized
-
-    if _is_top_level_bead_agent_name(normalized):
+    if _is_bead_agent_name(normalized):
         return normalized
 
     return None

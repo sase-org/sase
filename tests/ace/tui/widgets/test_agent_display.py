@@ -254,6 +254,15 @@ class TestAgentBeadMetadata:
         assert "Name: @reviewer\n" in header.plain
         assert "Bead:" not in header.plain
 
+    def test_dotted_ordinary_agent_name_omits_bead(self) -> None:
+        agent = _make_agent(agent_name="aij.2")
+
+        assert derive_agent_bead_id(agent) is None
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Name: @aij.2\n" in header.plain
+        assert "Bead:" not in header.plain
+
     def test_full_header_renders_bead_description(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -453,6 +462,14 @@ class TestAgentListBeadBadge:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "◆" not in left.plain
+
+    def test_dotted_ordinary_agent_row_omits_bead_badge(self) -> None:
+        agent = _make_agent(agent_name="aij.2")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "◆" not in left.plain
+        assert "@aij.2" in left.plain
 
     def test_bead_badge_flows_from_fold_annotation_to_agent_name(self) -> None:
         agent = _make_agent(agent_name="sase-x.3", tag="pinned")
