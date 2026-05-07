@@ -169,7 +169,7 @@ class PromptTextArea(
         bar = self._find_prompt_bar()
         if bar:
             bar.border_title = f"{bar._base_title} [NORMAL]"
-            bar.border_subtitle = "[Esc] cancel  [i] insert"
+            bar.border_subtitle = "[Esc] clear  [i] insert  [^C] cancel"
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
@@ -182,7 +182,7 @@ class PromptTextArea(
         bar = self._find_prompt_bar()
         if bar:
             bar.border_title = bar._base_title
-            bar.border_subtitle = "[Esc] cancel"
+            bar.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""

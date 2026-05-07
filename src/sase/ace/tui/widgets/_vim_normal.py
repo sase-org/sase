@@ -39,6 +39,16 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                 self._mutation_key_buffer.clear()
             self._mutation_key_buffer.append(key)
 
+        # Escape --------------------------------------------------------------
+        if event.key == "escape":
+            self._pending_keys = ""
+            self._pending_count = None
+            self._pending_operator = ""
+            self._pending_operator_count = 1
+            self._clear_count_prefix()
+            self._update_count_display()
+            return True
+
         # Handle pending key sequences (gg) ----------------------------------
         if self._pending_keys:
             pending = self._pending_keys
@@ -108,20 +118,6 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                             sr, sc, er, ec = find_a_word(self.document, row, col, eff)
                     self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
-            return True
-
-        # Escape --------------------------------------------------------------
-        if event.key == "escape":
-            if self._pending_operator:
-                self._pending_operator = ""
-                self._pending_operator_count = 1
-                self._clear_count_prefix()
-                self._update_count_display()
-                return True
-            self._clear_count_prefix()
-            bar = self._find_prompt_bar()
-            if bar:
-                bar.action_cancel()
             return True
 
         # Count prefix accumulation: 1-9 starts, 0 appends to existing

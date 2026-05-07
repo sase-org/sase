@@ -124,10 +124,10 @@ class PromptInputBar(Static):
         # Border title and subtitle
         self.border_title = self._base_title
         if self._mode in ("feedback", "approve_prompt"):
-            self.border_subtitle = "[Enter] send  [Esc] cancel"
+            self.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
             self.add_class("feedback-mode")
         else:
-            self.border_subtitle = "[Esc] cancel"
+            self.border_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self.call_after_refresh(self._update_height)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:

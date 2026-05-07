@@ -62,9 +62,11 @@ class VimNormalOpsMixin(_MixinBase):
             if self._count_prefix:
                 indicator += self._count_prefix
             if indicator:
-                bar.border_subtitle = f"[Esc] cancel  [i] insert  {indicator}"
+                bar.border_subtitle = (
+                    f"[Esc] clear  [i] insert  [^C] cancel  {indicator}"
+                )
             else:
-                bar.border_subtitle = "[Esc] cancel  [i] insert"
+                bar.border_subtitle = "[Esc] clear  [i] insert  [^C] cancel"
 
     def _clear_count_prefix(self) -> None:
         """Clear count prefix and update display if needed."""

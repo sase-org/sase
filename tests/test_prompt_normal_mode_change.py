@@ -99,8 +99,8 @@ async def test_C_multiline_only_affects_current_line() -> None:
 # =============================================================================
 
 
-async def test_escape_cancels_pending_operator() -> None:
-    """Pressing Escape after d cancels the operator."""
+async def test_escape_clears_pending_operator() -> None:
+    """Pressing Escape after d clears the operator."""
     async with PromptPage("hello world") as page:
         await page.press("d")
         assert page.ta._pending_operator == "d"

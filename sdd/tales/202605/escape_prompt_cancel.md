@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 12:40:11
-status: wip
+status: done
 prompt: sdd/prompts/202605/escape_prompt_cancel.md
 ---
 # Plan: Make Prompt Escape Non-Cancelling
