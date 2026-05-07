@@ -7,6 +7,7 @@ from textual.app import ComposeResult
 from textual.message import Message
 from textual.widgets import Static, TextArea
 
+from sase.ace.tui.widgets.directive_completion import DirectiveCompletionMetadata
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -188,6 +189,7 @@ class PromptInputBar(Static):
         visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
 
         is_xprompt = completion_kind == "xprompt"
+        is_directive = completion_kind == "directive"
         is_history = completion_kind == "file_history"
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         content = Text()
@@ -202,6 +204,8 @@ class PromptInputBar(Static):
 
             if is_xprompt:
                 self._append_xprompt_completion_row(content, candidate, is_selected)
+            elif is_directive:
+                self._append_directive_completion_row(content, candidate, is_selected)
             elif is_arg_completion:
                 content.append(
                     candidate.display,
@@ -227,6 +231,8 @@ class PromptInputBar(Static):
         # for file-history completion, directory for file.
         if is_xprompt:
             panel.border_title = "xprompts"
+        elif is_directive:
+            panel.border_title = "directives"
         elif completion_kind == "xprompt_arg_name":
             panel.border_title = "xprompt arg names"
         elif completion_kind == "xprompt_arg_value":
@@ -274,6 +280,35 @@ class PromptInputBar(Static):
         kind = "skill" if entry.is_skill else entry.kind
         content.append(f"  {kind}", style="dim")
         append_input_hints(content, entry.inputs)
+
+    def _append_directive_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+    ) -> None:
+        """Append one prompt directive completion row."""
+        content.append(
+            candidate.display,
+            style="bold magenta" if is_selected else "magenta",
+        )
+        metadata = (
+            candidate.metadata
+            if isinstance(candidate.metadata, DirectiveCompletionMetadata)
+            else None
+        )
+        if metadata is None:
+            return
+
+        details: list[str] = []
+        if metadata.argument_hint:
+            details.append(metadata.argument_hint)
+        if metadata.aliases:
+            details.append(
+                "alias " + ", ".join(f"%{alias}" for alias in metadata.aliases)
+            )
+        if details:
+            content.append(f"  {'  '.join(details)}", style="dim")
 
     def hide_file_completions(self) -> None:
         """Hide the path completion panel."""

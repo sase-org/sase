@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.widgets.directive_completion import (
+    build_directive_completion_candidates,
+    extract_directive_token_around_cursor,
+    is_directive_like_token,
+)
 from sase.ace.tui.widgets.file_completion import (
     MAX_VISIBLE,
     CompletionCandidate,
@@ -87,6 +92,17 @@ class FileCompletionMixin(_MixinBase):
         if not is_xprompt_like_token(token):
             return None
         row, _ = self.cursor_location
+        return row, start, end, token
+
+    def _get_directive_token_context(self) -> tuple[int, int, int, str] | None:
+        """Return (row, start, end, token) for the current directive token."""
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        token_info = extract_directive_token_around_cursor(line, col)
+        if token_info is None:
+            return None
+
+        start, end, token = token_info
         return row, start, end, token
 
     def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
@@ -176,6 +192,8 @@ class FileCompletionMixin(_MixinBase):
 
     def _get_token_context(self) -> tuple[int, int, int, str] | None:
         """Return token context using the appropriate getter for the active kind."""
+        if self._completion_kind == "directive":
+            return self._get_directive_token_context()
         if self._completion_kind == "xprompt":
             return self._get_xprompt_token_context()
         if self._completion_kind.startswith("xprompt_arg_"):
@@ -305,6 +323,8 @@ class FileCompletionMixin(_MixinBase):
             ].insertion
         if self._completion_kind == "xprompt":
             candidates, _shared = build_xprompt_completion_candidates(token)
+        elif self._completion_kind == "directive":
+            candidates, _shared = build_directive_completion_candidates(token)
         elif self._completion_kind.startswith("xprompt_arg_"):
             arg_ctx = self._get_xprompt_arg_completion_context()
             if arg_ctx is None:
@@ -341,32 +361,40 @@ class FileCompletionMixin(_MixinBase):
             return self._try_xprompt_arg_completion_tab(arg_ctx)
 
         self._clear_xprompt_arg_hint()
-        token_info = self._extract_token_around_cursor()
-        if token_info is None:
-            return self._try_file_history_completion()
-
-        _start, _end, raw_token = token_info
-
-        # Determine completion kind from the raw token.
-        if is_xprompt_like_token(raw_token):
-            self._completion_kind = "xprompt"
-            ctx = self._get_xprompt_token_context()
-            if ctx is None:
-                self._clear_file_completion()
-                return False
-            row, start, end, token = ctx
-            candidates, shared_extension = build_xprompt_completion_candidates(token)
-        elif is_path_like_token(raw_token):
-            self._completion_kind = "file"
-            ctx = self._get_path_token_context()
-            if ctx is None:
-                self._clear_file_completion()
-                return False
-            row, start, end, token = ctx
-            candidates, shared_extension = build_completion_candidates(token)
+        directive_ctx = self._get_directive_token_context()
+        if directive_ctx is not None and is_directive_like_token(directive_ctx[3]):
+            self._completion_kind = "directive"
+            row, start, end, token = directive_ctx
+            candidates, shared_extension = build_directive_completion_candidates(token)
         else:
-            self._clear_file_completion()
-            return False
+            token_info = self._extract_token_around_cursor()
+            if token_info is None:
+                return self._try_file_history_completion()
+
+            _start, _end, raw_token = token_info
+
+            # Determine completion kind from the raw token.
+            if is_xprompt_like_token(raw_token):
+                self._completion_kind = "xprompt"
+                ctx = self._get_xprompt_token_context()
+                if ctx is None:
+                    self._clear_file_completion()
+                    return False
+                row, start, end, token = ctx
+                candidates, shared_extension = build_xprompt_completion_candidates(
+                    token
+                )
+            elif is_path_like_token(raw_token):
+                self._completion_kind = "file"
+                ctx = self._get_path_token_context()
+                if ctx is None:
+                    self._clear_file_completion()
+                    return False
+                row, start, end, token = ctx
+                candidates, shared_extension = build_completion_candidates(token)
+            else:
+                self._clear_file_completion()
+                return False
 
         if not candidates:
             self._clear_file_completion()
@@ -393,6 +421,8 @@ class FileCompletionMixin(_MixinBase):
             row, start, end, token = ctx
             if self._completion_kind == "xprompt":
                 candidates, _ = build_xprompt_completion_candidates(token)
+            elif self._completion_kind == "directive":
+                candidates, _ = build_directive_completion_candidates(token)
             elif self._completion_kind.startswith("xprompt_arg_"):
                 arg_ctx = self._get_xprompt_arg_completion_context()
                 if arg_ctx is None:
