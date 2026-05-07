@@ -161,52 +161,6 @@ class FileCompletionMixin(_MixinBase):
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
 
-    def _open_auto_completion(
-        self,
-        completion_kind: str,
-        token: str,
-        candidates: list[CompletionCandidate],
-    ) -> bool:
-        """Open a completion panel without mutating the typed token."""
-        if not candidates:
-            return False
-        self._completion_kind = completion_kind
-        self._file_completion_active = True
-        self._file_completion_candidates = candidates
-        self._file_completion_index = 0
-        self._update_file_completion_panel(token)
-        return True
-
-    def _try_auto_completion_for_inserted_character(
-        self,
-        character: str | None,
-    ) -> bool:
-        """Open completion automatically for narrow prompt-reference triggers."""
-        if self._file_completion_active or character is None:
-            return False
-
-        if character == "%":
-            directive_ctx = self._get_directive_token_context()
-            if directive_ctx is None:
-                return False
-            _row, _start, _end, token = directive_ctx
-            if not is_directive_like_token(token):
-                return False
-            candidates, _shared = build_directive_completion_candidates(token)
-            return self._open_auto_completion("directive", token, candidates)
-
-        if not _is_xprompt_identifier_character(character):
-            return False
-        xprompt_ctx = self._get_xprompt_token_context()
-        if xprompt_ctx is None:
-            return False
-        _row, _start, _end, token = xprompt_ctx
-        partial = _xprompt_auto_partial_name(token)
-        if partial is None or len(partial) != 1:
-            return False
-        candidates, _shared = build_xprompt_completion_candidates(token)
-        return self._open_auto_completion("xprompt", token, candidates)
-
     def _maybe_show_accepted_xprompt_arg_hint(
         self,
         selected: CompletionCandidate,
@@ -557,20 +511,6 @@ def _effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
     if is_path_like_token(ctx.token):
         return ctx.token
     return f"./{ctx.token}"
-
-
-def _is_xprompt_identifier_character(character: str) -> bool:
-    """Return True for the typed characters that can start an xprompt name."""
-    return len(character) == 1 and (character.isalnum() or character == "_")
-
-
-def _xprompt_auto_partial_name(token: str) -> str | None:
-    """Return the partial xprompt name eligible for automatic opening."""
-    if token.startswith("#!"):
-        return token[2:]
-    if token.startswith("#"):
-        return token[1:]
-    return None
 
 
 def _build_xprompt_arg_completion_candidates(

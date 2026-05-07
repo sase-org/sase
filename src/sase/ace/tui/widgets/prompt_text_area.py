@@ -332,11 +332,7 @@ class PromptTextArea(
         if self._vcs_mru_index is not None:
             self._vcs_mru_index = None
 
-        auto_completion_opened = self._try_auto_completion_for_inserted_character(
-            event.character
-        )
-        if not auto_completion_opened:
-            self._refresh_file_completion_from_cursor()
+        self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
 
     def _on_resize(self) -> None:
