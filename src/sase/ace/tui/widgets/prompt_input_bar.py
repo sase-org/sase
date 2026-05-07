@@ -103,6 +103,7 @@ class PromptInputBar(Static):
         yield PromptTextArea(
             self._initial_value,
             language="markdown",
+            soft_wrap=True,
             show_line_numbers=False,
             highlight_cursor_line=False,
             id="prompt-input",
@@ -126,6 +127,7 @@ class PromptInputBar(Static):
             self.add_class("feedback-mode")
         else:
             self.border_subtitle = "[Esc] cancel"
+        self.call_after_refresh(self._update_height)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
@@ -134,33 +136,19 @@ class PromptInputBar(Static):
         self._update_height()
 
     def _get_visual_line_count(self) -> int:
-        """Count visual lines accounting for soft wrap."""
+        """Count rendered text rows using Textual's wrapped document."""
         try:
             text_area = self.query_one("#prompt-input", PromptTextArea)
         except Exception:
             return 1
 
         doc = text_area.document
-        text_width = text_area.size.width
+        wrapped_document = getattr(text_area, "wrapped_document", None)
+        wrapped_height = getattr(wrapped_document, "height", None)
+        if isinstance(wrapped_height, int) and wrapped_height > 0:
+            return wrapped_height
 
-        # Subtract gutter width when line numbers are shown
-        if text_area.show_line_numbers:
-            gutter_width = len(str(doc.line_count)) + 2
-            text_width -= gutter_width
-
-        if text_width <= 0:
-            return doc.line_count
-
-        visual_lines = 0
-        for i in range(doc.line_count):
-            line = doc.get_line(i)
-            line_len = len(line)
-            if line_len <= text_width:
-                visual_lines += 1
-            else:
-                visual_lines += -(-line_len // text_width)  # ceil division
-
-        return max(1, visual_lines)
+        return max(1, doc.line_count)
 
     def _update_height(self) -> None:
         """Auto-grow the bar based on content, up to the full screen height."""
@@ -176,6 +164,7 @@ class PromptInputBar(Static):
     def on_resize(self) -> None:
         """Recalculate height when the terminal is resized."""
         self._update_height()
+        self.call_after_refresh(self._update_height)
 
     def show_file_completions(
         self,

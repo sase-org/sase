@@ -1,7 +1,5 @@
 """Tests for PromptTextArea NORMAL-mode J (join lines) command."""
 
-from unittest.mock import AsyncMock, patch
-
 from sase.ace.testing import PromptPage
 
 
@@ -84,16 +82,14 @@ async def test_dot_repeats_join() -> None:
 
 
 # =============================================================================
-# Auto-wrap integration
+# Virtual-wrap integration
 # =============================================================================
 
 
-async def test_join_does_not_trigger_prettier_formatting() -> None:
-    """J does not trigger prettier formatting (NORMAL mode never formats)."""
+async def test_join_does_not_create_background_formatter_state() -> None:
+    """J edits text directly; prompt wrapping remains visual-only."""
     async with PromptPage("hello\nworld") as page:
-        with patch.object(
-            page.ta, "_format_with_prettier", new_callable=AsyncMock
-        ) as mock_fmt:
-            await page.press("J")
-            assert page.text == "hello world"
-            mock_fmt.assert_not_called()
+        await page.press("J")
+        assert page.text == "hello world"
+        assert not hasattr(page.ta, "_format_with_prettier")
+        assert not hasattr(page.ta, "_prettier_format_task")

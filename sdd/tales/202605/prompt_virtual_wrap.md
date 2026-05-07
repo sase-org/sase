@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 00:42:51
-status: wip
+status: done
 prompt: sdd/prompts/202605/prompt_virtual_wrap.md
 ---
 # Plan: Prompt Input Virtual Wrapping

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -12,7 +11,6 @@ from textual.widgets import TextArea
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
-from sase.ace.tui.widgets._text_formatting import TextFormattingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -45,7 +43,6 @@ class PromptTextArea(
     VimNormalModeMixin,
     FileCompletionMixin,
     SnippetExpansionMixin,
-    TextFormattingMixin,
     LineRenderingMixin,
     TextArea,
 ):
@@ -76,10 +73,6 @@ class PromptTextArea(
         self._last_mutation_keys: list[str] = []
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
-        self._formatting: bool = False
-        self._prettier_format_task: asyncio.Task[None] | None = None
-        self._prettier_format_requested_generation: int = 0
-        self._prettier_format_completed_generation: int = 0
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
         self._file_completion_candidates: list[CompletionCandidate] = []
@@ -342,18 +335,6 @@ class PromptTextArea(
         self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
 
-        # Auto-wrap: reflow with prettier when line exceeds available width.
-        # Skip wrapping on space so the user's trailing space is never consumed
-        # by the line break — wrapping will fire on the next non-space character
-        # when the space has become an interior word separator.
-        if (
-            self._vim_mode == "insert"
-            and event.character
-            and event.character.isprintable()
-            and event.character != " "
-        ):
-            self._schedule_prettier_format()
-
     def _on_resize(self) -> None:
         """Scroll cursor into view after the parent resizes."""
         super()._on_resize()
@@ -362,10 +343,6 @@ class PromptTextArea(
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
         self.call_later(self._refocus_if_needed)
-
-    def on_unmount(self) -> None:
-        """Cancel any pending async formatter task when widget is removed."""
-        self._cancel_pending_prettier_format()
 
     def _absolute_offset(self, location: tuple[int, int]) -> int:
         """Convert a document location to an absolute character offset."""

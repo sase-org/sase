@@ -29,52 +29,6 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     return f"#{workflow_type}:{name} "
 
 
-def _format_prompt_with_prettier(text: str, screen_width: int) -> str:
-    """Format prompt text with prettier for display in the prompt input bar.
-
-    Uses the same ``prettier --prose-wrap always`` invocation as
-    :meth:`PromptTextArea._format_with_prettier` for auto-wrap.
-
-    Args:
-        text: The prompt text to format.
-        screen_width: The terminal screen width for calculating wrap width.
-
-    Returns:
-        The formatted text, or the original text if prettier fails.
-    """
-    import subprocess
-
-    # Approximate the PromptTextArea wrap width:
-    # screen - border (2) - gutter - scrollbar (2) - cursor (1)
-    line_count = text.count("\n") + 1
-    gutter_width = len(str(max(line_count, 2))) + 2
-    wrap_width = max(screen_width - 2 - gutter_width - 2 - 1, 1)
-
-    try:
-        result = subprocess.run(
-            [
-                "prettier",
-                "--parser",
-                "markdown",
-                "--prose-wrap",
-                "always",
-                "--print-width",
-                str(wrap_width),
-            ],
-            input=text.encode(),
-            capture_output=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            formatted = result.stdout.decode()
-            if formatted.endswith("\n"):
-                formatted = formatted[:-1]
-            return formatted
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return text
-
-
 def _rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
     """Replace or prepend the top-level prompt name directive for retry."""
     from sase.agent.retry_prompt import rewrite_retry_prompt_name
@@ -461,9 +415,9 @@ class EntryPointsMixin:
     ) -> None:
         """Show agent prompt in the prompt input bar for editing and relaunch.
 
-        The prompt is formatted with prettier before loading into the bar.
-        The user can edit inline and submit, or press ``Ctrl+G`` to open
-        their editor.
+        The prompt is loaded exactly as stored.  Long logical lines wrap
+        visually in the input bar, while the user can edit inline and submit,
+        or press ``Ctrl+G`` to open their editor.
 
         Args:
             raw_prompt: The agent's raw xprompt content.
@@ -511,16 +465,9 @@ class EntryPointsMixin:
             is_home_mode=True,
         )
 
-        # Format prompt with prettier for nice wrapping in the input bar
-        try:
-            screen_width = self.screen.size.width  # type: ignore[attr-defined]
-        except Exception:
-            screen_width = 80
-        formatted_prompt = _format_prompt_with_prettier(raw_prompt, screen_width)
-
-        # Show prompt input bar with the formatted prompt
+        # Show prompt input bar with the raw prompt. Soft wrapping is visual only.
         self.mount(  # type: ignore[attr-defined]
-            PromptInputBar(initial_value=formatted_prompt, id="prompt-input-bar")
+            PromptInputBar(initial_value=raw_prompt, id="prompt-input-bar")
         )
 
     def _start_agents_from_marked(self) -> None:
