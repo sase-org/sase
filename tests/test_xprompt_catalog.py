@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from types import ModuleType
 from pathlib import Path
 from unittest.mock import patch
 
@@ -471,6 +472,71 @@ def test_structured_catalog_definition_paths_for_real_sources(
     assert by_name["sase/local"].definition_path == str(local_source.resolve())
     assert by_name["plugin"].definition_path is None
     assert by_name["runtime"].definition_path is None
+
+
+def test_structured_catalog_definition_paths_for_plugin_real_sources(
+    tmp_path: Path,
+) -> None:
+    plugin_xprompts_dir = tmp_path / "fake_xprompts" / "xprompts"
+    plugin_config_dir = tmp_path / "fake_config"
+    plugin_xprompts_dir.mkdir(parents=True)
+    plugin_config_dir.mkdir()
+    plugin_md = plugin_xprompts_dir / "plug.md"
+    plugin_flow = plugin_xprompts_dir / "flow.yml"
+    plugin_config = plugin_config_dir / "default_config.yml"
+    plugin_md.write_text("Plugin prompt body")
+    plugin_flow.write_text("steps:\n  - name: main\n    prompt_part: body\n")
+    plugin_config.write_text("xprompts:\n  cfg:\n    content: Config body\n")
+
+    xprompt_module = ModuleType("fake_plugin.prompts")
+    config_module = ModuleType("fake_plugin.config")
+
+    def files(module: ModuleType) -> Path:
+        if module.__name__ == "fake_plugin.prompts":
+            return tmp_path / "fake_xprompts"
+        if module.__name__ == "fake_plugin.config":
+            return plugin_config_dir
+        raise AssertionError(module.__name__)
+
+    plugin_xp = _make_xprompt(
+        "plug",
+        source_path="plugin:fake_plugin.prompts/plug.md",
+    )
+    plugin_cfg = _make_xprompt(
+        "cfg",
+        source_path="plugin_config:fake_plugin.config",
+    )
+    plugin_workflow = Workflow(
+        name="flow",
+        steps=[WorkflowStep(name="main", prompt_part="Plugin workflow body")],
+        source_path="plugin:fake_plugin.prompts/flow.yml",
+    )
+
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"plug": plugin_xp, "cfg": plugin_cfg},
+        ),
+        patch(
+            "sase.xprompt.catalog.get_all_workflows",
+            return_value={"flow": plugin_workflow},
+        ),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch(
+            "sase.xprompt._catalog_sources.discover_plugin_resources",
+            side_effect=lambda group: (
+                [xprompt_module] if group == "sase_xprompts" else [config_module]
+            ),
+        ),
+        patch("sase.xprompt._catalog_sources.is_plugin_disabled", return_value=False),
+        patch("sase.xprompt._catalog_sources.importlib.resources.files", files),
+    ):
+        projection = build_structured_xprompts_catalog()
+
+    by_name = {entry.name: entry for entry in projection.entries}
+    assert by_name["plug"].definition_path == str(plugin_md.resolve())
+    assert by_name["flow"].definition_path == str(plugin_flow.resolve())
+    assert by_name["cfg"].definition_path == str(plugin_config.resolve())
 
 
 def test_structured_catalog_input_metadata_filters_step_inputs() -> None:

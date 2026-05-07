@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 15:24:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/xprompt_lsp_definition_e2e_fix.md
 ---
 # Plan: Fix XPrompt LSP Jump To Definition End To End

@@ -6,6 +6,7 @@ import importlib.resources
 import logging
 from pathlib import Path
 
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     get_all_workflows,
     get_all_xprompts,
@@ -235,8 +236,11 @@ def definition_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None
 
 
 def _source_definition_path(source: str, project: str | None) -> Path | None:
-    if source.startswith("plugin:") or source.startswith("plugin_config:"):
-        return None
+    if source.startswith("plugin:"):
+        return _plugin_xprompt_definition_path(source)
+
+    if source.startswith("plugin_config:"):
+        return _plugin_config_definition_path(source)
 
     if source == "default_config":
         try:
@@ -278,6 +282,47 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
                 return project_path
 
     return Path.cwd() / path
+
+
+def _plugin_xprompt_definition_path(source: str) -> Path | None:
+    if is_plugin_disabled("XPROMPTS"):
+        return None
+
+    remainder = source.removeprefix("plugin:")
+    if "/" not in remainder:
+        return None
+    module_name, filename = remainder.split("/", 1)
+    if not module_name or not filename:
+        return None
+
+    for module in discover_plugin_resources("sase_xprompts"):
+        if getattr(module, "__name__", None) != module_name:
+            continue
+        try:
+            ref = importlib.resources.files(module).joinpath("xprompts", filename)
+        except (TypeError, AttributeError):
+            return None
+        return Path(str(ref))
+    return None
+
+
+def _plugin_config_definition_path(source: str) -> Path | None:
+    if is_plugin_disabled("CONFIG"):
+        return None
+
+    module_name = source.removeprefix("plugin_config:")
+    if not module_name:
+        return None
+
+    for module in discover_plugin_resources("sase_config"):
+        if getattr(module, "__name__", None) != module_name:
+            continue
+        try:
+            ref = importlib.resources.files(module).joinpath("default_config.yml")
+        except (TypeError, AttributeError):
+            return None
+        return Path(str(ref))
+    return None
 
 
 def safe_path_display(path: Path) -> str | None:
