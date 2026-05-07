@@ -1,23 +1,18 @@
 """Time/duration formatting helpers for the Agent model."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
+_ACTIVE_PARENT_STATUSES = {
+    "PLAN APPROVED",
+    "EPIC APPROVED",
+    "LEGEND APPROVED",
+    "PLAN COMMITTED",
+}
 _PLAN_RUNTIME_TERMINAL_STATUSES = {"DONE", "PLAN DONE"}
-_ACTIVE_LEAF_STATUSES = {"RUNNING", "RETRYING"}
-
-
-@dataclass(frozen=True)
-class _RuntimeInterval:
-    """Runtime interval data before display formatting."""
-
-    elapsed_seconds: float
-    terminal_time: datetime | None
-    active: bool
 
 
 def should_display_runtime_suffix(agent: "Agent") -> bool:
@@ -102,94 +97,7 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
         return agent.stop_time
     if agent.status in _PLAN_RUNTIME_TERMINAL_STATUSES and agent.plan_times:
         return max(agent.plan_times)
-    if agent.status == "PLANNING" and agent.plan_times:
-        return max(agent.plan_times)
-    if agent.status == "QUESTION" and agent.questions_times:
-        return max(agent.questions_times)
     return None
-
-
-def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | None:
-    """Return the row's own runtime interval, excluding aggregate children."""
-    if agent.start_time is None:
-        return None
-
-    effective_start = agent.run_start_time or agent.start_time
-    terminal_time = _row_runtime_terminal_time(agent)
-    if terminal_time is not None:
-        return _RuntimeInterval(
-            elapsed_seconds=(terminal_time - effective_start).total_seconds(),
-            terminal_time=terminal_time,
-            active=False,
-        )
-
-    if agent.status == "WAITING":
-        if agent.run_start_time is None:
-            return None
-        return _RuntimeInterval(
-            elapsed_seconds=(now - effective_start).total_seconds(),
-            terminal_time=None,
-            active=True,
-        )
-
-    if agent.status in _ACTIVE_LEAF_STATUSES:
-        return _RuntimeInterval(
-            elapsed_seconds=(now - effective_start).total_seconds(),
-            terminal_time=None,
-            active=True,
-        )
-
-    return None
-
-
-def _aggregate_runtime(
-    agent: "Agent", now: datetime, seen: set[int]
-) -> _RuntimeInterval | None:
-    """Return the aggregate interval from direct runtime children."""
-    children = getattr(agent, "runtime_children", ())
-    if not children:
-        return None
-
-    elapsed_seconds = 0.0
-    active = False
-    terminal_times: list[datetime] = []
-    contributed = False
-    for child in children:
-        interval = _runtime_interval(child, now, seen)
-        if interval is None:
-            continue
-        contributed = True
-        elapsed_seconds += interval.elapsed_seconds
-        active = active or interval.active
-        if interval.terminal_time is not None:
-            terminal_times.append(interval.terminal_time)
-
-    if not contributed:
-        return None
-    return _RuntimeInterval(
-        elapsed_seconds=elapsed_seconds,
-        terminal_time=None if active else max(terminal_times, default=None),
-        active=active,
-    )
-
-
-def _runtime_interval(
-    agent: "Agent", now: datetime, seen: set[int] | None = None
-) -> _RuntimeInterval | None:
-    """Return aggregate runtime when available, otherwise leaf runtime."""
-    if not should_display_runtime_suffix(agent):
-        return None
-    if seen is None:
-        seen = set()
-    agent_id = id(agent)
-    if agent_id in seen:
-        return None
-    seen.add(agent_id)
-
-    aggregate = _aggregate_runtime(agent, now, seen)
-    if aggregate is not None:
-        return aggregate
-    return _leaf_runtime_interval(agent, now)
 
 
 def compute_row_runtime(
@@ -208,16 +116,23 @@ def compute_row_runtime(
     Elapsed uses ``run_start_time`` when set so a long WAIT period doesn't
     inflate what reads as runtime; falls back to ``start_time``.
     """
-    reference = now if now is not None else datetime.now()
-    interval = _runtime_interval(agent, reference)
-    if interval is None:
+    if not should_display_runtime_suffix(agent):
         return (None, None)
-    if interval.terminal_time is not None:
+    if agent.start_time is None:
+        return (None, None)
+    effective_start = agent.run_start_time or agent.start_time
+    terminal_time = _row_runtime_terminal_time(agent)
+    if terminal_time is not None:
+        elapsed_secs = (terminal_time - effective_start).total_seconds()
         return (
-            _format_finish_timestamp(interval.terminal_time, now=now),
-            format_compact_duration(interval.elapsed_seconds),
+            _format_finish_timestamp(terminal_time, now=now),
+            format_compact_duration(elapsed_secs),
         )
-    return (None, format_compact_duration(interval.elapsed_seconds))
+    if agent.status == "WAITING" and agent.run_start_time is None:
+        return (None, None)
+    reference = now if now is not None else datetime.now()
+    elapsed_secs = (reference - effective_start).total_seconds()
+    return (None, format_compact_duration(elapsed_secs))
 
 
 def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
@@ -231,11 +146,15 @@ def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
 
     if not should_display_runtime_suffix(agent):
         return False
-    for child in getattr(agent, "runtime_children", ()):
-        if runtime_suffix_ticks(child, _seen):
-            return True
-    if agent.stop_time is not None:
+    if agent.start_time is None or agent.stop_time is not None:
         return False
-    if agent.status in _ACTIVE_LEAF_STATUSES:
-        return agent.start_time is not None
-    return agent.status == "WAITING" and agent.run_start_time is not None
+    if agent.status in ("RUNNING", "RETRYING"):
+        return True
+    if agent.status == "WAITING" and agent.run_start_time is not None:
+        return True
+    if agent.status in _ACTIVE_PARENT_STATUSES:
+        return True
+    return any(
+        runtime_suffix_ticks(followup, _seen)
+        for followup in getattr(agent, "followup_agents", ())
+    )

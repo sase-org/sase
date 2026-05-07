@@ -59,7 +59,7 @@ async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None
             start=start,
             raw_suffix="20260425140000",
         )
-        parent.runtime_children.append(
+        parent.followup_agents.append(
             agent(
                 status="RUNNING",
                 start=start,
@@ -103,7 +103,7 @@ async def test_patch_active_runtime_rows_advances_epic_approved_parent() -> None
             start=start,
             raw_suffix="20260425140000",
         )
-        parent.runtime_children.append(
+        parent.followup_agents.append(
             agent(
                 status="RUNNING",
                 start=start,
@@ -162,29 +162,6 @@ def test_patch_active_runtime_rows_skips_waiting_without_run_start() -> None:
         run_start=None,
     )
     widget._agents = [waiting_agent]
-    calls: list[int] = []
-
-    def patch_agent_row(agent_idx: int, **_: object) -> bool:
-        calls.append(agent_idx)
-        return True
-
-    widget.patch_agent_row = patch_agent_row  # type: ignore[method-assign]
-
-    patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 2, 0))
-
-    assert patched == 0
-    assert calls == []
-
-
-@pytest.mark.parametrize("status", ["PLANNING", "QUESTION", "WAITING INPUT"])
-def test_patch_active_runtime_rows_skips_paused_parent_status(status: str) -> None:
-    widget = AgentList()
-    paused_parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        status=status,
-        start=datetime(2026, 4, 25, 14, 0, 0),
-    )
-    widget._agents = [paused_parent]
     calls: list[int] = []
 
     def patch_agent_row(agent_idx: int, **_: object) -> bool:

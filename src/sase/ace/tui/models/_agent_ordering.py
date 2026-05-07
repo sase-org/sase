@@ -19,8 +19,6 @@ def sort_and_reorder(
     workflow_agent_steps: list[Agent],
 ) -> list[Agent]:
     """Sort agents by time and insert workflow steps after their parents."""
-    _clear_runtime_children(agents, workflow_agent_steps)
-
     # Sort by start time (most recent first), with None times at end
     agents_with_time = [a for a in agents if a.start_time is not None]
     agents_without_time = [a for a in agents if a.start_time is None]
@@ -98,13 +96,6 @@ def sort_and_reorder(
                         agent.step_index = info[0]
                         agent.total_steps = info[1]
 
-        _attach_runtime_children(
-            agents,
-            workflow_agent_steps,
-            steps_by_parent,
-            followups_by_parent,
-        )
-
         result: list[Agent] = []
         for agent in sorted_agents:
             result.append(agent)
@@ -144,40 +135,3 @@ def sort_and_reorder(
         return result
 
     return sorted_agents
-
-
-def _clear_runtime_children(
-    agents: list[Agent], workflow_agent_steps: list[Agent]
-) -> None:
-    """Reset load-time runtime links before rebuilding relationships."""
-    seen: set[int] = set()
-    for agent in [*agents, *workflow_agent_steps]:
-        agent_id = id(agent)
-        if agent_id in seen:
-            continue
-        seen.add(agent_id)
-        agent.runtime_children.clear()
-
-
-def _attach_runtime_children(
-    agents: list[Agent],
-    workflow_agent_steps: list[Agent],
-    steps_by_parent: dict[str, list[Agent]],
-    followups_by_parent: dict[str, list[Agent]],
-) -> None:
-    """Attach direct visible runtime children to their parent rows."""
-    parent_by_suffix: dict[str, Agent] = {}
-    for agent in [*agents, *workflow_agent_steps]:
-        if agent.raw_suffix:
-            parent_by_suffix[agent.raw_suffix] = agent
-
-    for parent_suffix, parent in parent_by_suffix.items():
-        children: list[Agent] = []
-        children.extend(
-            step
-            for step in steps_by_parent.get(parent_suffix, [])
-            if step.step_type == "agent" and step.parent_step_index is None
-        )
-        children.extend(followups_by_parent.get(parent_suffix, []))
-        if children:
-            parent.runtime_children.extend(children)

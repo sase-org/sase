@@ -201,10 +201,6 @@ class Agent:
     # Follow-up agents linked to this parent (populated at load time, not serialized)
     followup_agents: list["Agent"] = field(default_factory=list)
 
-    # Child agents whose intervals contribute to this row's aggregate runtime
-    # (populated at load time, not serialized).
-    runtime_children: list["Agent"] = field(default_factory=list)
-
     # Retry-chain lineage (spawn-on-retry).
     # retry_of_timestamp: backward pointer to the immediate parent in the
     #   retry chain. None when this is not a retry.

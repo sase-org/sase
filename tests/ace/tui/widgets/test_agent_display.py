@@ -529,25 +529,6 @@ class TestFollowupAgentsField:
         assert restored.followup_agents == []
 
 
-# -- runtime_children field ---------------------------------------------------
-
-
-class TestRuntimeChildrenField:
-    def test_defaults_empty(self) -> None:
-        assert _make_agent().runtime_children == []
-
-    def test_excluded_from_bundle(self) -> None:
-        agent = _make_agent()
-        agent.runtime_children.append(_make_agent(cl_name="child"))
-        assert "runtime_children" not in agent.to_bundle_dict()
-
-    def test_roundtrip_resets(self) -> None:
-        agent = _make_agent()
-        agent.runtime_children.append(_make_agent(cl_name="child"))
-        restored = Agent.from_bundle_dict(agent.to_bundle_dict())
-        assert restored.runtime_children == []
-
-
 # -- _apply_status_overrides followup population ------------------------------
 
 

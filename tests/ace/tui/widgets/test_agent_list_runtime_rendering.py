@@ -42,6 +42,14 @@ def test_format_agent_option_active_suffix_contains_only_elapsed() -> None:
             "🏃‍♂️ 12s",
         ),
         (
+            agent(
+                agent_type=AgentType.WORKFLOW,
+                status="PLAN APPROVED",
+                start=datetime(2026, 4, 25, 14, 4, 0),
+            ),
+            "🏃‍♂️ 1m",
+        ),
+        (
             workflow_child(
                 step_type="agent",
                 status="RUNNING",
@@ -57,39 +65,6 @@ def test_format_agent_option_live_suffix_has_runtime_marker(
     now = datetime(2026, 4, 25, 14, 5, 0)
     _, suffix, _ = format_agent_option(runtime_agent, 0, is_selected=False, now=now)
     assert suffix.plain == expected
-
-
-def test_format_agent_option_aggregate_parent_uses_child_sum() -> None:
-    parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="PLAN APPROVED",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-    planner = workflow_child(
-        step_type="agent",
-        status="DONE",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-        run_start=datetime(2026, 5, 6, 13, 10, 7),
-        plan_times=[datetime(2026, 5, 6, 13, 13, 3)],
-        cl_name="plan",
-    )
-    coder = agent(
-        status="RUNNING",
-        start=datetime(2026, 5, 6, 13, 13, 10),
-        run_start=datetime(2026, 5, 6, 13, 13, 10),
-        raw_suffix="20260506131310",
-        cl_name="demo.code",
-    )
-    parent.runtime_children.extend([planner, coder])
-
-    _, suffix, _ = format_agent_option(
-        parent,
-        0,
-        is_selected=False,
-        now=datetime(2026, 5, 6, 13, 16, 15),
-    )
-
-    assert suffix.plain == "🏃‍♂️ 6m01s"
 
 
 def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None:

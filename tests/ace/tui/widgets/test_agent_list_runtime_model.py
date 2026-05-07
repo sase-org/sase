@@ -7,8 +7,6 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models.agent import compute_row_runtime
-from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent_time import (
     _format_finish_timestamp,
     runtime_suffix_ticks,
@@ -177,115 +175,6 @@ def test_compute_row_runtime_stop_time_wins_over_plan_time() -> None:
     assert elapsed == "3m"
 
 
-def test_compute_row_runtime_aggregates_completed_and_active_children() -> None:
-    parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="PLAN APPROVED",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-    planner = workflow_child(
-        step_type="agent",
-        status="DONE",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-        run_start=datetime(2026, 5, 6, 13, 10, 7),
-        plan_times=[datetime(2026, 5, 6, 13, 13, 3)],
-        cl_name="plan",
-    )
-    coder = agent(
-        status="RUNNING",
-        start=datetime(2026, 5, 6, 13, 13, 10),
-        run_start=datetime(2026, 5, 6, 13, 13, 10),
-        raw_suffix="20260506131310",
-        cl_name="demo.code",
-    )
-    parent.runtime_children.extend([planner, coder])
-
-    ts, elapsed = compute_row_runtime(parent, now=datetime(2026, 5, 6, 13, 16, 15))
-
-    assert ts is None
-    assert elapsed == "6m01s"
-
-
-def test_compute_row_runtime_planning_parent_with_completed_child_is_stable() -> None:
-    parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="PLANNING",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-    planner = workflow_child(
-        step_type="agent",
-        status="DONE",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-        run_start=datetime(2026, 5, 6, 13, 10, 0),
-        plan_times=[datetime(2026, 5, 6, 13, 12, 30)],
-        cl_name="plan",
-    )
-    parent.runtime_children.append(planner)
-
-    ts, elapsed = compute_row_runtime(parent, now=datetime(2026, 5, 6, 13, 30, 0))
-
-    assert ts == ("", "13:12:30")
-    assert elapsed == "2m30s"
-    assert runtime_suffix_ticks(parent) is False
-
-
-def test_compute_row_runtime_question_parent_without_child_does_not_tick() -> None:
-    result = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="QUESTION",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-
-    assert compute_row_runtime(result, now=datetime(2026, 5, 6, 13, 30, 0)) == (
-        None,
-        None,
-    )
-    assert runtime_suffix_ticks(result) is False
-
-
-def test_compute_row_runtime_waiting_input_parent_without_child_does_not_tick() -> None:
-    result = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="WAITING INPUT",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-
-    assert compute_row_runtime(result, now=datetime(2026, 5, 6, 13, 30, 0)) == (
-        None,
-        None,
-    )
-    assert runtime_suffix_ticks(result) is False
-
-
-def test_compute_row_runtime_prerun_waiting_child_contributes_zero() -> None:
-    parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        status="PLANNING",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-    )
-    planner = workflow_child(
-        step_type="agent",
-        status="DONE",
-        start=datetime(2026, 5, 6, 13, 9, 0),
-        run_start=datetime(2026, 5, 6, 13, 10, 0),
-        plan_times=[datetime(2026, 5, 6, 13, 12, 0)],
-        cl_name="plan",
-    )
-    waiting = agent(
-        status="WAITING",
-        start=datetime(2026, 5, 6, 13, 20, 0),
-        run_start=None,
-        raw_suffix="20260506132000",
-        cl_name="queued",
-    )
-    parent.runtime_children.extend([planner, waiting])
-
-    ts, elapsed = compute_row_runtime(parent, now=datetime(2026, 5, 6, 13, 30, 0))
-
-    assert ts == ("", "13:12:00")
-    assert elapsed == "2m"
-
-
 @pytest.mark.parametrize("step_type", ["python", "bash"])
 def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
     step_type: str,
@@ -300,20 +189,20 @@ def test_compute_row_runtime_non_agent_workflow_child_returns_nones(
 
 
 @pytest.mark.parametrize("status", ["PLAN APPROVED", "LEGEND APPROVED"])
-def test_runtime_suffix_ticks_parent_status_alone_is_stable(status: str) -> None:
+def test_runtime_suffix_ticks_active_parent_status(status: str) -> None:
     result = agent(status=status)
-    assert runtime_suffix_ticks(result) is False
+    assert runtime_suffix_ticks(result) is True
 
 
-def test_runtime_suffix_ticks_parent_with_active_runtime_child() -> None:
+def test_runtime_suffix_ticks_parent_with_active_followup() -> None:
     parent = agent(status="PLANNING")
     child = agent(status="RUNNING", raw_suffix="20260425143100", cl_name="child")
-    parent.runtime_children.append(child)
+    parent.followup_agents.append(child)
 
     assert runtime_suffix_ticks(parent) is True
 
 
-def test_runtime_suffix_ticks_stopped_parent_without_runtime_child_is_stable() -> None:
+def test_runtime_suffix_ticks_stopped_parent_with_active_followup_is_stable() -> None:
     parent = agent(
         status="PLAN APPROVED",
         stop=datetime(2026, 4, 25, 14, 31, 0),
@@ -322,40 +211,6 @@ def test_runtime_suffix_ticks_stopped_parent_without_runtime_child_is_stable() -
     parent.followup_agents.append(child)
 
     assert runtime_suffix_ticks(parent) is False
-
-
-def test_sort_and_reorder_populates_runtime_children_idempotently() -> None:
-    parent = agent(
-        agent_type=AgentType.WORKFLOW,
-        raw_suffix="20260425140000",
-        cl_name="parent",
-    )
-    planner = workflow_child(
-        step_type="agent",
-        raw_suffix="20260425140100",
-        cl_name="plan",
-    )
-    shell = workflow_child(
-        step_type="bash",
-        raw_suffix="20260425140200",
-        cl_name="shell",
-    )
-    embedded = workflow_child(
-        step_type="agent",
-        raw_suffix="20260425140300",
-        cl_name="embedded",
-    )
-    embedded.parent_step_index = 0
-    coder = agent(
-        raw_suffix="20260425140400",
-        cl_name="code",
-    )
-    coder.parent_timestamp = "20260425140000"
-
-    sort_and_reorder([parent, coder], [planner, shell, embedded])
-    sort_and_reorder([parent, coder], [planner, shell, embedded])
-
-    assert parent.runtime_children == [planner, coder]
 
 
 def test_runtime_suffix_ticks_workflow_child_agent_step_ticks() -> None:
