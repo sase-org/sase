@@ -189,6 +189,7 @@ class PromptInputBar(Static):
 
         is_xprompt = completion_kind == "xprompt"
         is_history = completion_kind == "file_history"
+        is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         content = Text()
         for i, candidate in enumerate(visible):
             actual_idx = scroll_offset + i
@@ -201,6 +202,11 @@ class PromptInputBar(Static):
 
             if is_xprompt:
                 self._append_xprompt_completion_row(content, candidate, is_selected)
+            elif is_arg_completion:
+                content.append(
+                    candidate.display,
+                    style="bold yellow" if is_selected else "yellow",
+                )
             elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(
@@ -221,6 +227,12 @@ class PromptInputBar(Static):
         # for file-history completion, directory for file.
         if is_xprompt:
             panel.border_title = "xprompts"
+        elif completion_kind == "xprompt_arg_name":
+            panel.border_title = "xprompt arg names"
+        elif completion_kind == "xprompt_arg_value":
+            panel.border_title = "xprompt arg values"
+        elif completion_kind == "xprompt_arg_path":
+            panel.border_title = "xprompt path"
         elif is_history:
             panel.border_title = "recent files"
         elif "/" in token:

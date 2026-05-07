@@ -66,6 +66,24 @@ class ActiveXPromptArgHint:
     active_input_index: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class XPromptArgCompletionContext:
+    """Completion target resolved inside an xprompt argument list."""
+
+    entry: XPromptAssistEntry
+    completion_kind: Literal[
+        "xprompt_arg_path",
+        "xprompt_arg_value",
+        "xprompt_arg_name",
+        "xprompt_arg_type_hint",
+    ]
+    value_start: int
+    value_end: int
+    token: str
+    active_input: XPromptInputHint | None = None
+    used_arg_names: frozenset[str] = frozenset()
+
+
 def build_xprompt_assist_entries(
     project: str | None = None,
 ) -> list[XPromptAssistEntry]:
@@ -248,6 +266,42 @@ def accepted_xprompt_arg_hint(
     )
 
 
+def detect_xprompt_arg_completion_at_cursor(
+    text: str,
+    cursor_offset: int,
+    entries: list[XPromptAssistEntry],
+) -> XPromptArgCompletionContext | None:
+    """Resolve a Ctrl+T completion target inside xprompt arguments."""
+    if not text or cursor_offset < 0 or cursor_offset > len(text):
+        return None
+
+    entry_by_name = _entry_by_name(entries)
+    for ref in iter_xprompt_references(text):
+        if ref.start >= cursor_offset:
+            continue
+        if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+            continue
+
+        base_end = _reference_base_end(text, ref.start, cursor_offset)
+        if base_end is None or base_end > cursor_offset:
+            continue
+        if ref.end > cursor_offset and not _cursor_is_inside_reference_args(
+            text, ref, base_end, cursor_offset
+        ):
+            continue
+
+        entry = entry_by_name.get(ref.name)
+        if entry is None or not entry.inputs:
+            continue
+
+        suffix = text[base_end:cursor_offset]
+        if suffix.startswith(":"):
+            return _colon_completion_context(entry, base_end, suffix)
+        if suffix.startswith("("):
+            return _paren_completion_context(entry, base_end, suffix)
+    return None
+
+
 def _input_name_style(input_hint: XPromptInputHint) -> str:
     return _REQUIRED_INPUT_STYLE if input_hint.required else _OPTIONAL_INPUT_STYLE
 
@@ -273,6 +327,17 @@ def _cursor_is_inside_open_paren(text: str, ref: XPromptReference) -> bool:
     return ref.end <= len(text) and text[ref.end - 1 : ref.end] == "("
 
 
+def _cursor_is_inside_reference_args(
+    text: str,
+    ref: XPromptReference,
+    base_end: int,
+    cursor_offset: int,
+) -> bool:
+    if _cursor_is_inside_open_paren(text, ref):
+        return True
+    return text[base_end : base_end + 1] == "(" and cursor_offset <= ref.end
+
+
 def _active_input_index_for_suffix(
     suffix: str,
     entry: XPromptAssistEntry,
@@ -286,6 +351,102 @@ def _active_input_index_for_suffix(
     if suffix.startswith("("):
         return _paren_active_input_index(suffix, entry)
     return None
+
+
+def _completion_kind_for_input(
+    input_hint: XPromptInputHint,
+) -> Literal["xprompt_arg_path", "xprompt_arg_value", "xprompt_arg_type_hint"]:
+    if input_hint.type == "path":
+        return "xprompt_arg_path"
+    if input_hint.type == "bool":
+        return "xprompt_arg_value"
+    return "xprompt_arg_type_hint"
+
+
+def _colon_completion_context(
+    entry: XPromptAssistEntry,
+    base_end: int,
+    suffix: str,
+) -> XPromptArgCompletionContext | None:
+    active_index = _colon_active_input_index(suffix, entry)
+    if active_index is None:
+        return None
+
+    body = suffix[1:]
+    value_start = base_end + 1
+    if "," in body:
+        last_comma = body.rfind(",")
+        value_start += last_comma + 1
+    value_end = base_end + len(suffix)
+    token = suffix[value_start - base_end :]
+    active_input = entry.inputs[active_index]
+    return XPromptArgCompletionContext(
+        entry=entry,
+        completion_kind=_completion_kind_for_input(active_input),
+        value_start=value_start,
+        value_end=value_end,
+        token=token,
+        active_input=active_input,
+    )
+
+
+def _paren_completion_context(
+    entry: XPromptAssistEntry,
+    base_end: int,
+    suffix: str,
+) -> XPromptArgCompletionContext | None:
+    body = suffix[1:]
+    if ")" in body:
+        return None
+
+    clause_start = body.rfind(",") + 1
+    clause = body[clause_start:]
+    stripped_clause = clause.lstrip()
+    leading_ws = len(clause) - len(stripped_clause)
+    value_start = base_end + 1 + clause_start + leading_ws
+    value_end = base_end + len(suffix)
+
+    if "=" not in stripped_clause:
+        if any(ch.isspace() for ch in stripped_clause):
+            return None
+        return XPromptArgCompletionContext(
+            entry=entry,
+            completion_kind="xprompt_arg_name",
+            value_start=value_start,
+            value_end=value_end,
+            token=stripped_clause,
+            used_arg_names=_used_named_arg_names(body[:clause_start]),
+        )
+
+    name_part, value_part = stripped_clause.split("=", 1)
+    name = name_part.strip()
+    active_input = _input_by_name(entry, name)
+    if active_input is None:
+        return None
+
+    value_leading_ws = len(value_part) - len(value_part.lstrip())
+    token_start = value_start + len(name_part) + 1 + value_leading_ws
+    token = value_part.lstrip()
+    return XPromptArgCompletionContext(
+        entry=entry,
+        completion_kind=_completion_kind_for_input(active_input),
+        value_start=token_start,
+        value_end=value_end,
+        token=token,
+        active_input=active_input,
+        used_arg_names=_used_named_arg_names(body[:clause_start]),
+    )
+
+
+def _used_named_arg_names(body_prefix: str) -> frozenset[str]:
+    names: set[str] = set()
+    for clause in body_prefix.split(","):
+        if "=" not in clause:
+            continue
+        name = clause.split("=", 1)[0].strip()
+        if name:
+            names.add(name)
+    return frozenset(names)
 
 
 def _colon_active_input_index(
@@ -341,3 +502,13 @@ def _default_display_from_input_arg(inp: InputArg) -> str | None:
     if default_text == "":
         return None
     return default_text
+
+
+def _input_by_name(
+    entry: XPromptAssistEntry,
+    name: str,
+) -> XPromptInputHint | None:
+    for inp in entry.inputs:
+        if inp.name == name:
+            return inp
+    return None

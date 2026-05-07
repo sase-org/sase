@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     append_input_hints,
     build_xprompt_assist_entries,
     colon_args_skeleton,
+    detect_xprompt_arg_completion_at_cursor,
     detect_xprompt_arg_hint_at_cursor,
     input_label,
     named_args_skeleton,
@@ -309,3 +310,48 @@ def test_accepted_xprompt_arg_hint_requires_exact_inserted_reference() -> None:
 
     assert accepted_xprompt_arg_hint("#plain", 0, len("#plain"), entries) is None
     assert accepted_xprompt_arg_hint("#review:", 0, len("#review:"), entries) is None
+
+
+def test_detects_type_aware_arg_completion_contexts() -> None:
+    entries = [
+        _entry(
+            "review",
+            _input_hint("path", "path"),
+            _input_hint("enabled", "bool", 1),
+            _input_hint("count", "int", 2),
+        )
+    ]
+
+    path_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#review:", len("#review:"), entries
+    )
+    assert path_ctx is not None
+    assert path_ctx.completion_kind == "xprompt_arg_path"
+    assert path_ctx.active_input is not None
+    assert path_ctx.active_input.name == "path"
+    assert path_ctx.value_start == len("#review:")
+    assert path_ctx.value_end == len("#review:")
+    assert path_ctx.token == ""
+
+    bool_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#review(enabled=)", len("#review(enabled="), entries
+    )
+    assert bool_ctx is not None
+    assert bool_ctx.completion_kind == "xprompt_arg_value"
+    assert bool_ctx.active_input is not None
+    assert bool_ctx.active_input.name == "enabled"
+    assert bool_ctx.token == ""
+
+    name_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#review(path=foo, e", len("#review(path=foo, e"), entries
+    )
+    assert name_ctx is not None
+    assert name_ctx.completion_kind == "xprompt_arg_name"
+    assert name_ctx.token == "e"
+    assert name_ctx.used_arg_names == frozenset({"path"})
+
+    int_ctx = detect_xprompt_arg_completion_at_cursor(
+        "#review(count=", len("#review(count="), entries
+    )
+    assert int_ctx is not None
+    assert int_ctx.completion_kind == "xprompt_arg_type_hint"
