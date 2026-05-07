@@ -67,7 +67,7 @@ at the digest file; the skill should tell agents to read that attached file afte
 - Do not add notification mutation behavior such as mark-read, dismiss, mute, or snooze for the skill. The skill is for
   inspection.
 - Do not expose TUI-only rendering internals through the CLI.
-- Do not introduce provider-specific behavior for Claude, Gemini, Codex, or Jetski.
+- Do not introduce provider-specific behavior for Claude, Gemini, Codex, or external provider.
 
 ## Phase 1 - Notification Catalog Foundation
 

@@ -45,7 +45,7 @@ independently.
 
 - `on_mount` keeps the event loop free between awaits so the `KeybindingFooter` startup stopwatch ticks at ~10Hz (see
   comment at `src/sase/ace/tui/actions/startup.py:382`). Optimizations must not move work _back_ onto the main thread.
-- Runtime-uniform behavior across Claude/Gemini/Codex/Jetski — no runtime-specific branches.
+- Runtime-uniform behavior across Claude/Gemini/Codex/external provider — no runtime-specific branches.
 - New CLI args (if any) need short options. None expected here.
 - Code-comment policy: only WHYs that aren't obvious from identifiers.
 

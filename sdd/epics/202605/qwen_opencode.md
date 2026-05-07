@@ -14,9 +14,9 @@ register through `[project.entry-points."sase_llm"]` in `pyproject.toml`, and ex
 hooks. Skills are generated from `src/sase/xprompts/skills/` by `sase init-skills`, and provider-specific skill target
 paths come from `llm_skill_deploy_subpath()`.
 
-The current tree is newer than the older LLM-provider-plugin epic: Jetski is already external to this repo and the
-registry already aggregates provider metadata from entry points. This work should therefore add Qwen Code and OpenCode
-as first-class built-in providers, not redesign provider discovery.
+The current tree is newer than the older LLM-provider-plugin epic: external provider support already lives outside this
+repo, and the registry already aggregates provider metadata from entry points. This work should therefore add Qwen Code
+and OpenCode as first-class built-in providers, not redesign provider discovery.
 
 Research basis:
 
@@ -44,8 +44,8 @@ Research basis:
 
 ## Principles
 
-- Treat Qwen and OpenCode like Claude, Codex, Gemini, and Jetski: same hooks, skills, commit flow, telemetry, retry
-  behavior, agent metadata, temporary overrides, and ACE display behavior.
+- Treat Qwen and OpenCode like Claude, Codex, Gemini, and external providers: same hooks, skills, commit flow,
+  telemetry, retry behavior, agent metadata, temporary overrides, and ACE display behavior.
 - Keep providers thin. They should build CLI commands, isolate mutable CLI home/config where necessary, run
   subprocesses, and return `InvokeResult`. Prompt preprocessing, postprocessing, chat history, telemetry, and agent
   orchestration stay in shared code.
@@ -341,7 +341,7 @@ Update cross-cutting docs if not already covered in Phases 1 and 2:
 
 - `just install`
 - `just check`
-- `rg -n "claude|codex|gemini|jetski" src/sase docs tests` audit shows no hardcoded list that should include
+- `rg -n "claude|codex|gemini|external" src/sase docs tests` audit shows no hardcoded list that should include
   Qwen/OpenCode but was missed.
 - `sase init-skills --dry-run --provider qwen` and `--provider opencode` both work.
 
@@ -408,5 +408,5 @@ opencode --version
 - Shadow homes: do not add home isolation speculatively. Add it only if local inspection shows headless runs mutate
   global config or trust state in a way that can affect other SASE agents.
 - Auto-detection priority: suggested order after this work is `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, external
-  `jetski=20`, `gemini=30`. If this surprises existing users, make Qwen/OpenCode opt-in only by omitting autodetect
+  `external=20`, `gemini=30`. If this surprises existing users, make Qwen/OpenCode opt-in only by omitting autodetect
   priority in the first provider phase and revisit in Phase 3.

@@ -8,7 +8,7 @@ prompt: sdd/prompts/202604/init_skills_prettier_format.md
 ## Problem
 
 `sase init-skills` writes generated `SKILL.md` files into the chezmoi repo (under
-`~/.local/share/chezmoi/home/dot_*/skills/.../SKILL.md` and the `dot_gemini/jetski/skills/.../` variant). The chezmoi
+`~/.local/share/chezmoi/home/dot_*/skills/.../SKILL.md` and provider-specific variants). The chezmoi
 repo's CI runs:
 
 ```
@@ -23,7 +23,7 @@ template lines readable in editors) and Jinja2 substitutes shorter strings (e.g.
 Concrete evidence:
 
 - Failed CI run `24915774540` — `[warn] home/dot_*/skills/sase_plan/SKILL.md` for all four providers (Claude, Codex,
-  Gemini, Gemini/Jetski).
+  Gemini and external providers).
 - Manual fix commit `dcc0ad47 chore: Format with prettier` showed the diff was purely line-rejoining (no semantic
   change).
 - Source `src/sase/xprompts/skills/sase_plan.md` contains lines like

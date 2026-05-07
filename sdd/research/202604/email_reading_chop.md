@@ -51,7 +51,7 @@ Create a sibling plugin at `~/projects/github/sase-org/sase-gmail`, mirroring `s
 Why:
 
 - Email has its own dependencies (`google-api-python-client`, `google-auth-oauthlib`, likely `google-auth-httplib2`).
-- `sase-google` is currently Mercurial/Jetski-focused; bundling Gmail there would make "Google" mean unrelated things.
+- `sase-google` is currently Mercurial/external provider-focused; bundling Gmail there would make "Google" mean unrelated things.
 - The existing comm-channel packages are standalone chop-script packages.
 - A separate repo keeps auth docs, setup tests, and optional CLI commands isolated.
 

@@ -199,7 +199,7 @@ change for dashboards that consume those metric names).
    Each should return at least one series with the expected label set (`llm_provider`, `project`, `workflow`, `status`
    where applicable).
 5. Spot-check that `sase_llm_invocations_total` now has additional series beyond `summarize-hook-runner` — i.e., from
-   actual agent runs with `provider=claude|gemini|codex|jetski`.
+   actual agent runs with `provider=claude|gemini|codex|external`.
 
 ## Scope Boundary
 

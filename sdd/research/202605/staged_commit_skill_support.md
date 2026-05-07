@@ -155,7 +155,7 @@ selection is set on the payload **before** `checkpoint_save(cp)` runs. A `--stag
 ### Stop hook and skill contract
 
 The stop hook in `src/sase/hooks/sase_commit_stop_hook.py` is a single shared script — runtime is detected from env
-vars and the same diff logic runs for Claude, Codex, Gemini, and Jetski. It detects remaining local changes through
+vars and the same diff logic runs for Claude, Codex, Gemini, and external provider. It detects remaining local changes through
 `provider.diff_with_untracked()` (falling back to `provider.diff()`), extracts the changed file list, and emits a
 `block`/`deny` JSON payload to the runtime. There is no awareness of payload selection mode: the hook reads only the
 working tree.

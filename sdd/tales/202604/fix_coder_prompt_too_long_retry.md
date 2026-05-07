@@ -164,7 +164,7 @@ the happy path; update it to assert `prepare_workspace` is not invoked under the
   `plans/202604/prompt_too_long_checkpoint_restart.md`.
 - **Changing rate-limit retries to also preserve workspace.** Conservative default; revisit in a separate thread.
 - **New `"resumed_context_overflow"` `RetryStatus` literal.** Nice-to-have TUI label distinction; not load-bearing.
-- **Jetski / Gemini / Codex context-overflow patterns.** Original plan noted these as speculative and out of scope;
+- **external provider / Gemini / Codex context-overflow patterns.** Original plan noted these as speculative and out of scope;
   handle when each provider's exact error string is confirmed.
 - **`state.allow_retry` as a general kill-switch.** If a future scenario genuinely needs to suppress retries
   selectively, re-introduce it scoped to that scenario; don't keep a dead field "just in case."

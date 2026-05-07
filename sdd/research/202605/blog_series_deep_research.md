@@ -17,7 +17,7 @@ I would not make Medium, LinkedIn, or Substack the only home for this series.
 
 ## Why SASE wants an owned canonical blog
 
-SASE is a technical, developer-facing system, not a general essay brand. The repo describes it as “a Python toolkit for AI-powered software engineering workflows” combining a TUI, scheduling daemon, YAML workflow engine, and pluggable LLM/VCS abstractions for managing code changes at scale . It also explicitly targets users of coding agents such as Claude Code, Gemini CLI, Codex, and Jetski via plugin support .
+SASE is a technical, developer-facing system, not a general essay brand. The repo describes it as “a Python toolkit for AI-powered software engineering workflows” combining a TUI, scheduling daemon, YAML workflow engine, and pluggable LLM/VCS abstractions for managing code changes at scale . It also explicitly targets users of coding agents such as Claude Code, Gemini CLI, Codex, and external provider via plugin support .
 
 That means your series needs to do several things well:
 

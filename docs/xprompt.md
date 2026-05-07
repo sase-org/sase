@@ -596,7 +596,7 @@ keyword hit falls inside a masked region. A negative keyword that doesn't cover 
 For example, `keywords: [foo, "!/foo/"]` matches `"update foo and /path/to/foo/"` (via the standalone `foo`) but not
 `"update /path/to/foo/"` (both `foo` occurrences land inside the `/foo/` masked span).
 
-> **YAML gotcha**: `!`-prefixed entries MUST be quoted (`"!jetski"`), otherwise YAML parses the leading `!` as a tag
+> **YAML gotcha**: `!`-prefixed entries MUST be quoted (`"!vendor"`), otherwise YAML parses the leading `!` as a tag
 > directive and raises an error at load time.
 
 ### Command Substitution Masking
@@ -1096,15 +1096,15 @@ parentheses (`%m(opus)`) always launch a single agent.
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
 they can be told apart at a glance. Given `%m(opus,gpt-5.5) %n:foo`, the two agents are named `foo.cld` and `foo.cdx`.
 The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook) — `cld`,
-`cdx`, `gem`, `qwn`, `opc` for the built-in providers (`jet` ships in the `sase-google` plugin) — falling back to the
-full provider name for plugins that don't declare one. If `%name` is omitted, a single auto-generated base is allocated
-and shared (e.g. `a.cld` / `a.cdx`) rather than each agent picking its own letter independently. Single-model prompts
-retain their plain `%name` value unchanged. When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`),
-the model name disambiguates the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g.
-`gemini-3-flash-preview`) are replaced with a short alias (`flash3`) declared by the provider plugin, so a same-runtime
-gemini fan-out reads as `foo.gem-flash3` / `foo.gem-flash25` rather than echoing the full model string. Model arguments
-used for naming are first resolved through xprompt shorthand expansion, while the launched prompt keeps the original
-`%model` value. For example, `%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
+`cdx`, `gem`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that don't
+declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`) rather
+than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value unchanged.
+When two models share a runtime (e.g. `%m(opus,sonnet)` — both `claude`), the model name disambiguates the suffix:
+`foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `gemini-3-flash-preview`) are replaced with a short alias
+(`flash3`) declared by the provider plugin, so a same-runtime gemini fan-out reads as `foo.gem-flash3` /
+`foo.gem-flash25` rather than echoing the full model string. Model arguments used for naming are first resolved through
+xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
+`%n:ag %m(#flash,#pro)` can launch agents named `ag.gem-flash3` and `ag.gem-pro31p`.
 
 ### Multi-Value Directives
 

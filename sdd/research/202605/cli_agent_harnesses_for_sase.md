@@ -4,7 +4,7 @@ Research date: 2026-05-07 (updated 2026-05-06 with second-pass corrections and g
 
 ## Question
 
-SASE already has first-class agent runtime support for Claude Code, Codex CLI, Gemini CLI, and plugin-provided Jetski.
+SASE already has first-class agent runtime support for Claude Code, Codex CLI, Gemini CLI, and plugin-provided external provider.
 What other CLI agent harnesses are worth considering, and which ones look easiest or most strategic to integrate through
 SASE's `LLMProvider` plugin boundary?
 

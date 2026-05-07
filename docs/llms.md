@@ -1,7 +1,7 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (Claude
-Code, Codex, Gemini CLI, Qwen Code, and OpenCode are bundled; Jetski CLI ships as part of the sase-google plugin) behind
+Code, Codex, Gemini CLI, Qwen Code, and OpenCode are bundled; additional providers can ship as external plugins) behind
 a shared orchestration layer that handles preprocessing, invocation, and postprocessing.
 
 ## Table of Contents
@@ -104,7 +104,7 @@ opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
 ```
 
-External plugin packages (e.g. `sase-google`) declare additional entries under the same group.
+External plugin packages declare additional entries under the same group.
 
 To get a provider instance:
 
@@ -119,8 +119,8 @@ provider = get_provider("claude")  # Explicit provider name
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
 3. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
-   priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins (e.g. sase-google's
-   Jetski at priority 20) slot in by declaring their own priority.
+   priorities: `claude=0`, `codex=10`, `qwen=15`, `opencode=18`, `gemini=30`. External plugins slot in by declaring
+   their own priority.
 
 ## Claude Code Integration
 
@@ -347,19 +347,9 @@ Additional LLM providers are shipped as external packages that declare `[project
 `pyproject.toml`. Plugins carry all their own metadata (model names, skill deploy path, CLI status color, auto-detect
 priority, retry defaults) via pluggy `@hookimpl` methods — sase core has no plugin-specific branching.
 
-### Jetski (`sase-google`)
-
-The `JetskiProvider` in the [`sase-google`](../../sase-google) plugin package invokes Google's Jetski CLI (the successor
-to Gemini CLI). Install the plugin in the same environment as sase to enable it:
-
-- Auto-detect priority: `20` (between codex and gemini), CLI name `jetski-cli`.
-- Default model: `jetski-default`.
-- Skills for the `jetski` runtime deploy to `~/.gemini/jetski/skills/` — Jetski shares its config parent with Gemini
-  CLI.
-- Binary resolution: `SASE_JETSKI_PATH` env var, then the hardcoded Google-internal install path, then `jetski-cli` on
-  `PATH`.
-
-See `../../sase-google/src/sase_google/llm_jetski/provider.py` for the full implementation.
+External provider packages own their CLI invocation details, model metadata, skill deployment path, auto-detect
+priority, and retry defaults. Install the provider package in the same environment as sase to make its `sase_llm` entry
+point available.
 
 ## Configuration
 
@@ -412,8 +402,7 @@ Known model names are automatically mapped to their provider:
 | `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                   | qwen     |
 | `anthropic/claude-sonnet-4-5`, `openai/gpt-5-mini`, `qwen/qwen3-coder-plus`                                                     | opencode |
 
-Each installed plugin contributes its own model names via the `llm_known_model_names()` hook (e.g. `jetski-default` from
-`sase-google`).
+Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
 For unrecognized model names, the default provider is used.
 
@@ -583,8 +572,7 @@ Complete reference of environment variables used by the LLM provider layer.
 | ------------------ | ---------------------------------------------------- |
 | `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
 
-External provider plugins (e.g. `sase-google` for Jetski) document their own environment variables in their respective
-repos.
+External provider plugins document their own environment variables in their respective repos.
 
 ### VCS Provider
 

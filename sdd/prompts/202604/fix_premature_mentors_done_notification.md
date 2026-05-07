@@ -17,7 +17,7 @@ Can you help me diagnose the root cause of this issue and fix it? Think this thr
 │  [$D█  ┌────────────────────────────────────────────────────────────────────────────────────────┐ │ File 1/1: ~/.sase/projects/yserve/yserve.gp                                                                                             █ │    │
 │     █  │ * [user-agent] GEMINI(gemini-3.1-pro-preview) completed: ace(r...  4h ago  [agent]  2  │ │     1 RUNNING:                                                                                                                          █ │    │
 │     █  │ files                                                                                  │ │     2   #104 | 2069766 | ace(run)-260425_161017 | yserve_read_grow | 20260425161017                                                     █ │    │
-│     █  │ * [user-agent] JETSKI(jetski-default) completed: ace(run)-2604...  4h ago  [agent]  1  │ │     3                                                                                                                                   █ │    │
+│     █  │ * [user-agent] EXTERNAL_PROVIDER(model) completed: ace(run)-2604...  4h ago  [agent]  1  │ │     3                                                                                                                                   █ │    │
 │     █  │ file                                                                                   │ │     4                                                                                                                                   █ │    │
 │     █  │ * [user-agent] GEMINI(gemini-3-flash-preview) completed: ace(r...  4h ago  [agent]  1  │ │     5 WORKSPACE_DIR: /google/src/cloud/bbugyi/yserve/google3/                                                                           █ │    │
 │     █  │ file                                                                                   │ │     6                                                                                                                                   █ │    │
@@ -28,7 +28,7 @@ Can you help me diagnose the root cause of this issue and fix it? Think this thr
 │     █  │ files                                                                                  │ │    11                                                                                                                                   █ │    │
 │     █  │ * [user-agent] GEMINI(gemini-3.1-pro-preview) completed: ace(r...  4h ago  [agent]  2  │ │    12   This adds YieldGroupService methods to switching_config.textproto with growbird_state = READ_SHADOW_WIP and adds initial        █ │    │
 │     █  │ files                                                                                  │ │       shadow_wip_column configurations for the yield_group and yieldpartner tables.                                                     █ │    │
-│     █  │ * [user-agent] JETSKI(jetski-default) completed: ace(run)-2604...  4h ago  [agent]  1  │ │    13 BUG: http://b/350330301                                                                                                           █ │    │
+│     █  │ * [user-agent] EXTERNAL_PROVIDER(model) completed: ace(run)-2604...  4h ago  [agent]  1  │ │    13 BUG: http://b/350330301                                                                                                           █ │    │
 │     █  │ file                                                                                   │ │    14 CL: http://cl/900318938                                                                                                           █ │    │
 │     █  │ * [user-agent] GEMINI(gemini-3.1-pro-preview) completed: ace(r...  4h ago  [agent]  1  │ │    15 STATUS: Mailed                                                                                                                    █ │    │
 │     █  │ file                                                                                   │ │    16 COMMITS:                                                                                                                          █ │    │
@@ -92,4 +92,4 @@ Can you help me diagnose the root cause of this issue and fix it? Think this thr
 ```
 
 ### DYNAMIC MEMORY
-- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `jetski`)
+- @.sase/memory/long-external-repos.md (memory/long/external_repos, matched: `external provider`)

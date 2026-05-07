@@ -17,14 +17,13 @@ for managing code changes at scale.
 
 sase is designed to work with the coding agents you already use:
 
-| Agent                                                         | Status                     |
-| ------------------------------------------------------------- | -------------------------- |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported**              |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported**              |
-| [Codex](https://github.com/openai/codex)                      | **Supported**              |
-| [Qwen Code](https://github.com/QwenLM/qwen-code)              | **Supported**              |
-| [OpenCode](https://opencode.ai/)                              | **Supported**              |
-| Jetski (Google's successor to Gemini CLI)                     | **Via sase-google plugin** |
+| Agent                                                         | Status        |
+| ------------------------------------------------------------- | ------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported** |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported** |
+| [Codex](https://github.com/openai/codex)                      | **Supported** |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)              | **Supported** |
+| [OpenCode](https://opencode.ai/)                              | **Supported** |
 
 sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow
 infrastructure that turns individual agent runs into a managed software engineering pipeline.
@@ -91,8 +90,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
   generated image files touched by agents so downstream notification plugins can deliver the full result
 - **Mobile Gateway** — Workstation-hosted HTTP/SSE gateway for paired mobile clients to inspect notifications, launch
   agents, and use fixed workflow helper APIs without exposing shell or filesystem access
-- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; Jetski via
-  sase-google plugin) with pre/post-processing and token usage tracking
+- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini, Qwen, and OpenCode bundled; optional external
+  providers via plugins) with pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 

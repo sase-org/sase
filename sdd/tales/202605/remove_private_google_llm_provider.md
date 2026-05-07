@@ -1,7 +1,6 @@
 ---
-create_time: 2026-05-07 11:53:48
-status: wip
-prompt: sdd/prompts/202605/remove_private_google_llm_provider.md
+create_time: 2026-05-07 12:09:20
+status: done
 ---
 # Remove private Google LLM provider references from sase
 

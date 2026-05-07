@@ -85,7 +85,7 @@ context-overflow patterns per provider:
 | ----------------- | ------------------------------------------------ | ------------- | ------------ |
 | `claude`          | `"Prompt is too long"`                           | 3             | `[0]`        |
 | `codex`           | `"context_length_exceeded"`, `"tokens exceeded"` | 3             | `[0]`        |
-| `jetski`/`gemini` | `"input token limit"`, `"request too large"`     | 3             | `[0]`        |
+| `external`/`gemini` | `"input token limit"`, `"request too large"`     | 3             | `[0]`        |
 
 Change `get_retry_config` to merge user-configured values on top of built-ins (user overrides take precedence; otherwise
 the built-in pattern list is appended to whatever the user configured, deduplicated). The wait time is `0` because
@@ -155,7 +155,7 @@ _BUILT_IN_DEFAULTS: dict[str, ProviderRetryConfig] = {
         wait_times=[0],
         continuation_prompt=_CONTEXT_OVERFLOW_NUDGE,
     ),
-    # codex, jetski, gemini analogues
+    # codex, external, gemini analogues
 }
 
 def get_retry_config(provider_name: str) -> ProviderRetryConfig | None:
@@ -206,7 +206,7 @@ a model response are not going to appear in `stderr` (which is what we match aga
 
 ### Provider coverage
 
-Fix 1 lists patterns for all four providers, but Jetski/Gemini/Codex are speculative — confirm exact error strings by
+Fix 1 lists patterns for all four providers, but external provider/Gemini/Codex are speculative — confirm exact error strings by
 triggering each (or reading their SDK docs) before landing. For MVP, it's acceptable to ship the Claude entry only and
 add the others as follow-ups; the core mechanism is provider-agnostic once in place.
 

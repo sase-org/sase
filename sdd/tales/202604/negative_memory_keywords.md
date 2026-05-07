@@ -16,7 +16,7 @@ when any of its negative keywords match the user's prompt — even if positive k
 Today dynamic memory only supports inclusive matching: if any keyword fires, the memory is appended. Some memories are
 only helpful in certain subcontexts and actively _unhelpful_ (or misleading) in adjacent contexts that share vocabulary.
 For example, a `generated_skills.md` memory might be relevant when the prompt talks about `skill`, but _not_ when the
-prompt is about deploying skills via the unrelated `jetski` runtime. Negative keywords give memory authors a cheap way
+prompt is about deploying skills via the unrelated `vendor` runtime. Negative keywords give memory authors a cheap way
 to carve out exceptions without having to restructure their keyword sets or split a single memory into several narrower
 ones.
 
@@ -27,12 +27,12 @@ Given a memory xprompt with the following frontmatter:
 ```yaml
 ---
 tags: memory
-keywords: [skill, SKILL.md, "commit workflow", "!jetski", "!deprecated"]
+keywords: [skill, SKILL.md, "commit workflow", "!vendor", "!deprecated"]
 ---
 ```
 
 - `skill`, `SKILL.md`, `commit workflow` are **positive** keywords.
-- `!jetski`, `!deprecated` are **negative** keywords.
+- `!vendor`, `!deprecated` are **negative** keywords.
 
 A memory is included in `### DYNAMIC MEMORY` iff:
 
@@ -48,10 +48,10 @@ Concrete rules:
   user wouldn't write this; we just need deterministic behavior.)
 - `!` is parsed only at the start of the keyword string. Interior `!` characters are literal (they were already
   supported via `re.escape()`).
-- The `!` sigil is _not_ part of the keyword for matching purposes — i.e. `!jetski` matches the word `jetski` in the
+- The `!` sigil is _not_ part of the keyword for matching purposes — i.e. `!vendor` matches the word `vendor` in the
   prompt.
-- The `YAML` parser will treat `!jetski` as a plain string when quoted. Unquoted `!foo` is a YAML tag directive and will
-  error — so the documentation and examples MUST show quoted form: `"!jetski"`.
+- The `YAML` parser will treat `!vendor` as a plain string when quoted. Unquoted `!foo` is a YAML tag directive and will
+  error — so the documentation and examples MUST show quoted form: `"!vendor"`.
 
 ## Scope
 
@@ -193,7 +193,7 @@ None that block implementation. Candidates the user may want to weigh in on late
 
 The "blanket veto" rule in `## User-facing Semantics` above has been superseded. The refined rule masks each negative
 keyword's matched text out of the prompt before positive-keyword matching runs; a memory is excluded only when every
-positive hit fell inside a masked region. Concretely, under the new rule the `["skill", "!jetski"]` +
-`"deploy a skill via jetski"` example is **included** (the standalone `skill` still matches outside the `jetski` mask),
+positive hit fell inside a masked region. Concretely, under the new rule the `["skill", "!vendor"]` +
+`"deploy a skill via vendor"` example is **included** (the standalone `skill` still matches outside the `vendor` mask),
 reversing the behavior documented above. See `plans/202604/negative_keyword_masking.md` for the full refined design and
 its motivation.

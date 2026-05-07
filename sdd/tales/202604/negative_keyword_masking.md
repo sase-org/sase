@@ -43,13 +43,13 @@ Properties:
 - If no negative keyword matches, masking is a no-op and behavior is identical to the original simple-matching logic.
 - If negatives match but the positives also match **outside** the masked spans, the memory is still included.
 - If negatives match and positives only matched **inside** the masked spans, the memory is excluded — the prior use case
-  of `["skill", "!jetski"]` on "deploy a skill via jetski" still excludes, because `jetski` is the negative-matched span
+  of `["skill", "!vendor"]` on "deploy a skill via vendor" still excludes, because `vendor` is the negative-matched span
   and `skill` still matches outside it → include. Wait: this is actually the case the current spec _excludes_.
 
 ### Migration note on prior behavior
 
-The previous spec (plans/202604/negative_memory_keywords.md) documented a stricter veto: `["skill", "!jetski"]` +
-`"deploy a skill via jetski"` → excluded. Under the new rule, `skill` still matches outside the `jetski` span, so the
+The previous spec (plans/202604/negative_memory_keywords.md) documented a stricter veto: `["skill", "!vendor"]` +
+`"deploy a skill via vendor"` → excluded. Under the new rule, `skill` still matches outside the `vendor` span, so the
 memory is **included**. This is a behavioral change for any existing memory that relied on the blanket veto.
 
 Current state of the repo:
@@ -172,13 +172,13 @@ Tests (`tests/test_dynamic_memory.py`):
 
 Tests to **update** (their current expectations describe the old veto semantics):
 
-- `test_negative_keyword_excludes_memory` — today asserts that `["skill", "!jetski"]` + `"deploy a skill via jetski"`
-  yields no match. Under the new rule, `skill` still matches outside the `jetski` mask → **this should now match**. Flip
+- `test_negative_keyword_excludes_memory` — today asserts that `["skill", "!vendor"]` + `"deploy a skill via vendor"`
+  yields no match. Under the new rule, `skill` still matches outside the `vendor` mask → **this should now match**. Flip
   the assertion to expect a single match whose `keywords_matched == ["skill"]`. Consider renaming the test to
   `test_negative_keyword_does_not_exclude_when_positive_matches_outside_mask` so the name doesn't lie.
-- `test_negative_keyword_case_insensitive` — today asserts that `"JETSKI skill deploy"` with `["skill", "!jetski"]`
-  excludes. Under the new rule, `skill` matches outside the masked `JETSKI` span → should include. Flip the assertion;
-  rename to reflect that we're checking the negative match itself is case-insensitive (i.e. an uppercase `JETSKI` does
+- `test_negative_keyword_case_insensitive` — today asserts that `"VENDOR skill deploy"` with `["skill", "!vendor"]`
+  excludes. Under the new rule, `skill` matches outside the masked `VENDOR` span → should include. Flip the assertion;
+  rename to reflect that we're checking the negative match itself is case-insensitive (i.e. an uppercase `VENDOR` does
   get masked), not that the whole memory is excluded.
 - `test_negative_overrides_positive_in_same_list` — `["skill", "!skill"]` + `"update the skill"` still yields no match
   (masking covers every `skill`). Expectation survives; keep the test, maybe tweak the docstring to reflect the masking

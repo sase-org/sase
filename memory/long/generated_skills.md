@@ -35,13 +35,13 @@ Any change to `sase commit` CLI arguments must include same-turn updates to:
 The commit stop hook dynamically resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider.
 However, not every runtime has every skill installed:
 
-| Skill              | Claude | Gemini | Codex | Jetski |
-| ------------------ | ------ | ------ | ----- | ------ |
-| `/sase_git_commit` | Yes    | Yes    | Yes   | Yes    |
-| `/sase_hg_commit`  | No     | Yes    | No    | Yes    |
+| Skill              | Claude | Gemini | Codex |
+| ------------------ | ------ | ------ | ----- |
+| `/sase_git_commit` | Yes    | Yes    | Yes   |
+| `/sase_hg_commit`  | No     | Yes    | No    |
 
-Claude does NOT have the `/sase_hg_commit` skill — it is only relevant for Gemini and Jetski, which run on machines
-using the Mercurial VCS provider (sase-google plugin). Do not re-add `/sase_hg_commit` to Claude.
+Claude and Codex do NOT have the `/sase_hg_commit` skill — it is only relevant for Gemini in this repo. Do not re-add
+`/sase_hg_commit` to other core-generated runtimes unless this repo grows first-class Mercurial skill support for them.
 
 ## Plan Mode and Questions
 

@@ -47,7 +47,7 @@ trajectory capture as first-class concerns. Different tradeoffs — neither domi
 ### 2b. Skills
 
 - **SASE** generates skills *into runtime-specific paths* (e.g. `~/.claude/skills/`, `~/.gemini/skills/`,
-  `.gemini/jetski/skills/` for the `sase-google` plugin). They are authored in `xprompts/skills/` and expanded by the
+  provider-specific directories for plugins). They are authored in `xprompts/skills/` and expanded by the
   init-skills handler. Skills are **static artifacts** versioned with the repo.
 - **Hermes** advertises **agent-curated skills**: created from experience, "self-improving during use," browseable via
   `/skills`, and shareable on agentskills.io (Skills Hub). It implements the open agentskills.io standard.

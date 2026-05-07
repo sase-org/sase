@@ -68,7 +68,7 @@ warning: tales/202604/fix_silent_mentor_failures.md: no inferable counterpart fi
 warning: tales/202604/fix_split_cl_name_v2.md: no inferable counterpart file (unpaired-file)
 warning: tales/202604/fix_split_hg_ref_detection.md: no inferable counterpart file (unpaired-file)
 warning: tales/202604/fix_tab_bar_worker_flake.md: no inferable counterpart file (unpaired-file)
-warning: tales/202604/jetski_empty_output_fix.md: no inferable counterpart file (unpaired-file)
+warning: tales/202604/provider_empty_output_fix.md: no inferable counterpart file (unpaired-file)
 warning: tales/202604/jump_to_entry_keymap.md: no inferable counterpart file (unpaired-file)
 warning: tales/202604/just_check_uses_test.md: no inferable counterpart file (unpaired-file)
 warning: tales/202604/keymap_inbox_swap.md: no inferable counterpart file (unpaired-file)
