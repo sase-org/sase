@@ -79,30 +79,60 @@ The relevant current fields are:
 - `content_preview`
 - `source_path_display`
 
-`input_signature` is produced by `_format_inputs()` as display text like `(p: path, n?: line)`. It filters out step
-inputs and encodes requiredness by omission of `?`. That is useful for display, but it is too lossy for a prompt-editor
-feature:
+`input_signature` is produced by `_format_inputs()` (`src/sase/xprompt/catalog.py:603-616`) as display text like
+`(plan_file: path, notes?: line)`. It filters out step inputs and encodes requiredness by omission of `?`. That is
+useful for display, but it is too lossy for a prompt-editor feature:
 
 - It has no stable per-input array.
-- Defaults are not available except as a display convention.
-- Tests and fixtures already show drift: Android fixtures use values like `"bead_id"`, while Python currently formats
-  `"(path: path)"`.
+- Defaults are not surfaced at all (the formatter omits them entirely).
+- Subtle gotcha: when **every** input is `is_step_input=True`, `_format_inputs` returns `""` and `_structured_entry`
+  converts that to `None`, even though `workflow.inputs` is non-empty. Android cannot infer "no required inputs" from
+  `input_signature is None` once structured `inputs` exist; rely on the new array directly.
+- Tests and fixtures already show drift: Android fixtures use values like `"bead_id"`, while Python actually formats
+  `"(bead_id: word)"`.
 - Client parsing would couple Android to punctuation rather than the backend input model.
+
+The Rust contract (`../sase-core/crates/sase_gateway/src/wire.rs`) is at `GatewayWireSchemaVersion = 1`. Adding new
+fields is backward-compatible if Android defaults missing fields to empty/`null`, but the snapshot test
+`committed_contract_snapshot_is_current` (`crates/sase_gateway/src/contract.rs`) byte-compares against
+`contracts/api_v1/mobile_api_v1.json`, so the JSON snapshot must be regenerated in the same change.
 
 ### Android Launch UI
 
 The launch screen is currently a raw prompt editor plus helper chips:
 
 - `../sase-android/app/src/main/java/org/sase/mobile/ui/launch/LaunchScreen.kt`
-  - Prompt is stored as `TextFieldValue`, so cursor/selection are available.
+  - Prompt is stored as `var prompt by rememberSaveable(stateSaver = TextFieldValue.Saver)`, so cursor and selection
+    are preserved across recomposition and process death — no extra plumbing needed for hint-state restoration.
+  - `insertPromptSnippet(...)` (~`LaunchScreen.kt:651-661`) is a raw splice that replaces the current selection with
+    a snippet and places the cursor right after it. Useful as the primitive for selection-trigger insertion, but it
+    does not parse the existing buffer.
+  - Concrete colon-arg precedent already exists: phase-bead insertion writes
+    `"#bd/work_phase_bead:$id"` (~`LaunchScreen.kt:666-670`, mirrored in `HelpersScreen.kt:637-641`). The proposed
+    "Colon args" edit action should follow this same shape.
+  - `refreshHelpers()` (~`LaunchScreen.kt:140-147`) re-fetches the catalog with the current `project` filter. There is
+    a `LaunchedEffect(helperRepository, helperEventVersion)` that fires on gateway `event_helpers_changed` pings
+    (`app/src/test/resources/fixtures/gateway/event_helpers_changed.json`) but **no `LaunchedEffect(project)`** —
+    typing a new project name does not re-fetch the catalog, so project-local xprompts will be missing from the
+    catalog map and hints will silently no-op. Fix this *before* shipping hints, otherwise the feature looks broken
+    for any project-scoped xprompt.
+  - Theme tokens already in use for similar surfaces: `MaterialTheme.colorScheme.surfaceVariant` (~`alpha = 0.55f` for
+    `HelperResultBanner`), `MaterialTheme.shapes.small`, `typography.titleSmall`/`bodyMedium`. Reuse these so the hint
+    panel matches the existing helper banner styling.
   - `LaunchHelperInsertPanel` inserts ChangeSpec tags, xprompts, and beads into the prompt.
-  - Xprompt chips currently insert `#${entry.name}` unconditionally.
+  - Xprompt chips currently insert `"#${entry.name}"` unconditionally (~`LaunchScreen.kt:517`).
 - `../sase-android/app/src/main/java/org/sase/mobile/ui/helpers/HelpersScreen.kt`
-  - Xprompt rows copy/insert `#${entry.name}` unconditionally.
+  - Xprompt rows copy/insert `"#${entry.name}"` unconditionally (~line 376).
 
 The unconditional `#` insertion is fine for simple inline xprompts, but it is incomplete for standalone workflows or
 multi-agent xprompts that should use `#!`. The TUI has the correct helper in
 `src/sase/xprompt/reference_display.py`: `workflow_reference_insertion(name, workflow)`.
+
+Performance note: Compose recomposes on every keystroke. The `Map<String, MobileXpromptCatalogEntryWire>` used by the
+detector should be built with `remember(state.xprompts) { state.xprompts.associateBy { it.name } }` so lookup stays
+O(1) and the map is not rebuilt per character. The detector itself should also early-return on
+`state.loading || state.failureMessage != null || catalogByName.isEmpty()` so the user does not see a flash of
+empty hint panel before the catalog arrives.
 
 ## Existing Parser Semantics To Preserve
 
@@ -111,17 +141,33 @@ The shared xprompt reference parser lives in:
 - `src/sase/xprompt/_parsing_references.py`
 - `src/sase/xprompt/_parsing_args.py`
 
-Important syntax rules:
+The full reference regex is composed in `_parsing_references.py:11-39`. Salient pieces the mobile detector should
+mirror exactly:
 
-- `#name`
-- `#name(args)`
-- `#name:arg`
-- `#name:a,b,c`
-- `#name: text` shorthand
-- `#name:: text` shorthand
-- `#!name` for standalone workflow or multi-agent xprompt references
-- `#ns/name` namespaced references
-- `#a__b` as a slash alias for `#a/b`
+- **Leading-context anchor** (`_parsing_references.py:11`): `(?:^|(?<=\s)|(?<=[(\[{"\']))`. References only start at
+  line start, after whitespace, or after `(`, `[`, `{`, `"`, `'`. This is what makes `foo#bar:` not a reference and is
+  also why `# Heading` is not a reference (the regex requires a name char to follow `#`/`#!` immediately, no space).
+  Android does not need a separate Markdown-heading guard.
+- **Marker** (`_parsing_references.py:14`): `#!|#`.
+- **Name** (`_parsing_references.py:17-19`): `[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*`. Each slash segment
+  must start with a letter or underscore. The double-underscore alias `#a__b` is a literal name, not a regex feature;
+  it is rewritten to `a/b` after parsing in `_parsing_args.py` (`name.replace("__", "/")`).
+- **HITL suffix** (`_parsing_references.py:22`): `!!|??`. References like `#foo!!:`, `#bar??(...)` are valid; the
+  suffix sits between the name and the argument fragment. The Android cursor detector must strip a trailing `!!`/`??`
+  before looking the reference up in the catalog (`_parsing_args.py:162-187` is the host equivalent).
+- **Argument fragment** (`_parsing_references.py:25-29`): a single colon-arg whitelist of
+  `` `…` ``, `$(…)`, `{{…}}`, `{…}`, or `[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-]`. Comma is included, so a colon-arg can be a
+  comma-separated list. The mobile detector can ignore the substitution forms in v1 — exact trailing `:` is enough.
+- **Plus syntax** (`_parsing_args.py:209-210`): `#foo+` is sugar for `:true`. Hints should not trigger on `+`.
+
+Reference syntax surface:
+
+- `#name`, `#name(args)`, `#name:arg`, `#name:a,b,c`, `#name+`
+- `#name: text` (single-colon shorthand) and `#name:: text` (double-colon shorthand) — both consume to end of paragraph
+  via `find_double_colon_text_end`/`find_shorthand_text_end`. The mobile hint detector should not trigger on the space
+  variant because it would compete with normal prose.
+- `#!name` for standalone-workflow or multi-agent (`---`-separated) xprompt references.
+- `#ns/name` and the `#a__b` slash alias.
 
 For mobile hints, the app does not need to fully reimplement expansion parsing. It only needs a lightweight cursor
 detector that recognizes a reference immediately before the cursor and looks it up in the already-loaded catalog. The
@@ -129,13 +175,38 @@ backend remains authoritative at launch time.
 
 Cursor detector scope:
 
-- Show hints when the cursor is after an exact trailing colon for a known reference: `#foo:|`, `#!foo:|`,
-  `#ns/foo:|`, `#ns__foo:|`.
-- Optionally keep hints visible while the user fills comma-separated colon args: `#foo:first,|` can highlight the second
-  input.
-- Do not trigger on Markdown headings like `# Heading`.
+- Show hints when the cursor is after an exact trailing colon for a known reference: `#foo:|`, `#!foo:|`, `#ns/foo:|`,
+  `#ns__foo:|`, `#foo!!:|`, `#foo??:|`.
+- Optionally keep hints visible while the user fills comma-separated colon args: `#foo:first,|` can highlight the
+  second input.
+- Strip any trailing `!!`/`??` before catalog lookup. Replace `__` with `/` for namespaced names.
 - Do not trigger on unknown names.
-- Do not trigger when the colon belongs to surrounding prose, URLs, or a prior completed token.
+- Do not trigger when the colon belongs to surrounding prose, URLs, or a prior completed token (the leading-context
+  anchor makes this naturally false in most cases).
+
+## TUI Prior Art
+
+The TUI already renders xprompt argument hints. Mobile should match these conventions where reasonable so the two
+clients feel coherent.
+
+- **Inline argument signature on each xprompt row in the selection modal.** `append_input_args(text, inputs)` at
+  `src/sase/ace/tui/modals/xprompt_browser_helpers.py:22-42` (used by `xprompt_select_modal.py:21`) writes one indented
+  line per visible input below the xprompt name, using:
+  - required: bright `#D7AF87` (warm tan).
+  - optional: dim `#D7AF87` for the name, plus `=<default>` (or `?` when no default) in dim `#888888`.
+  - same `is_step_input` filter and same `default is UNSET` requiredness rule the catalog projection should use.
+  Android should map these roles to Material tokens — for example required → `colorScheme.tertiary`, optional name →
+  `colorScheme.onSurfaceVariant` at reduced alpha, default-display → `colorScheme.onSurfaceVariant` at lower alpha.
+- **Compact inline completion line, not a modal.** The prompt input bar reserves a single `Static#prompt-completion`
+  line above the editor (`src/sase/ace/tui/widgets/prompt_input_bar.py`) and the `<ctrl+t>` xprompt completion uses it
+  via `src/sase/ace/tui/widgets/xprompt_completion.py`. The mobile hint surface should follow the same pattern — a
+  compact panel directly under the prompt field rather than a popup that fights the IME.
+- **Insertion already uses the canonical helper in TUI.** `xprompt_completion.py` resolves `workflow_reference_insertion`
+  and `workflow_reference_prefix`, so it correctly inserts `#!` for standalone or `---`-segmented xprompts. Android
+  currently does not (`LaunchScreen.kt:517` and `HelpersScreen.kt:376` both hard-code `"#${entry.name}"`). Bringing
+  Android up to parity is a prerequisite for hints that target `#!` references.
+- **No on-`:` hint trigger exists yet anywhere.** That part is genuinely mobile-novel; there is no Python prior art to
+  reuse. The detector contract below is the authoritative spec.
 
 ## Contract Recommendation
 
@@ -167,10 +238,25 @@ Fields:
 
 - `inputs`: stable array for UI logic.
 - `required`: derived from `default is UNSET`.
-- `default_display`: stringified non-secret default for display only; `null` when required or default is explicit null.
+- `default_display`: stringified default for display only; `null` when required or when the default is explicit YAML
+  `null`. **Sensitive-default risk:** `InputArg` does not currently carry a `sensitive`/`secret` flag (`models.py:46-83`),
+  so any default value authored in a workflow YAML — including tokens, paths, or names a user considers private — would
+  flow to mobile clients as plain text. Recommended mitigations, in order of preference: (a) add `sensitive: bool = False`
+  to `InputArg` and gate `default_display` on it; (b) until that lands, ship `default_display = null` for all string
+  defaults and only surface defaults for `INT`/`BOOL`/`FLOAT` types; (c) never emit `default_display` for inputs whose
+  name matches a denylist (`token`, `secret`, `password`, `key`).
 - `position`: stable positional order.
-- `insertion`: exact reference to insert, including `#` vs `#!`.
-- `reference_prefix`/`kind`: useful for filtering and future UI display; `insertion` is the most directly useful field.
+- `insertion`: exact reference to insert, including `#` vs `#!`. Required field — Android cannot derive the marker from
+  `kind` alone, because `workflow_reference_prefix` returns `"#!"` for `SIMPLE_XPROMPT` whose body contains `---`
+  segment separators (`src/sase/xprompt/reference_display.py:9-37`), which `kind` does not capture.
+- `reference_prefix`: `"#"` or `"#!"`, sourced from `workflow_reference_prefix`. Useful for chip-label rendering even
+  when `insertion` is what gets pasted into the editor.
+- `kind`: source from `workflow_kind_value(workflow)` (returns the strings `"xprompt"`, `"embeddable_workflow"`,
+  `"standalone_workflow"`). Note `workflow_kind_value` returns `"xprompt"` (not `"simple_xprompt"`) for the
+  `SIMPLE_XPROMPT` enum value — match that string on the wire.
+
+Do **not** project `InputArg.output_schema` to the wire. It is internal step-output validation and may carry arbitrary
+JSON Schema with PII or repo-specific structure; the catalog should never serialize it.
 
 Keep `input_signature` for compact list display and backwards compatibility.
 
@@ -348,10 +434,33 @@ The detector should accept both `#foo:` and `#!foo:`. The catalog should tell An
 
 Support names like `#bd/work_phase_bead:` and the double-underscore alias `#bd__work_phase_bead:`.
 
+### HITL Override Suffix
+
+References can carry a HITL override suffix `!!` or `??` between the name and the argument fragment, e.g. `#foo!!:`,
+`#bar??(arg=1)`. The cursor detector must strip a trailing `!!`/`??` before catalog lookup so a user who types
+`#foo!!:` still sees hints. (Mirror `_parsing_args.py:162-187`.)
+
+### All-Step-Inputs XPrompts
+
+When `workflow.inputs` is non-empty but every entry has `is_step_input=True`, the catalog produces
+`input_signature is None` even though structured `inputs` would be empty. Android logic should drive the hint surface
+off the new `inputs` array, not off `input_signature`.
+
+### Sensitive Defaults
+
+Until `InputArg.sensitive` exists, the gateway projection should treat string defaults as untrusted and emit
+`default_display = null` for them. Numeric and bool defaults are safe.
+
+### Loading And Error States
+
+`LaunchHelperState.loading=true` is the initial state and `state.failureMessage` is set when the catalog fetch fails.
+The hint surface must short-circuit in both cases — silent no-op rather than a partial hint based on a stale map.
+
 ### Project-Filtered Catalogs
 
-Launch currently refreshes helpers with a `project` filter. If the prompt field's project changes, the hint map should
-refresh or at least mark stale helper results. A stale map can miss project-local xprompts.
+Launch currently refreshes helpers with a `project` filter. The launch screen does not have a `LaunchedEffect(project)`
+today, so changing the project does not re-fetch the catalog and the hint map can miss project-local xprompts. Add an
+explicit (debounced) refresh on project change as part of this feature, not after.
 
 ## Testing Plan
 
@@ -362,14 +471,18 @@ Add focused tests around `build_structured_xprompts_catalog()`:
 - required and optional inputs become structured input records;
 - `default: null` is optional with `default_display == null`;
 - `is_step_input=True` inputs are omitted;
-- `input_signature` remains unchanged;
+- an xprompt whose inputs are entirely step inputs round-trips with `inputs == []` and `input_signature is None`;
+- `input_signature` remains unchanged for existing fixtures;
 - insertion metadata uses `#` for inline xprompts;
-- if workflows are included, standalone workflows use `#!`.
+- standalone workflows AND simple xprompts whose body has `---` segment separators both use `#!`;
+- `output_schema` is never serialized to the wire;
+- string defaults are not echoed in `default_display` until `sensitive` exists.
 
 Update mobile helper bridge tests:
 
-- `tests/test_mobile_helpers.py`
-- `tests/test_mobile_helper_bridge_smoke.py`
+- `tests/test_mobile_helpers.py` — note its `data["entries"] == [...]` assertion (~line 87-100) is exact-dict-equality
+  and will fail until updated for the new fields.
+- `tests/test_mobile_helper_bridge_smoke.py` — same dict-equality pattern.
 
 ### Rust Gateway Tests
 
@@ -377,14 +490,21 @@ Update:
 
 - `../sase-core/crates/sase_gateway/src/wire.rs` sample JSON tests;
 - route tests around `/api/v1/xprompts/catalog`;
-- `../sase-core/crates/sase_gateway/contracts/api_v1/mobile_api_v1.json`.
+- `../sase-core/crates/sase_gateway/contracts/api_v1/mobile_api_v1.json`. The
+  `committed_contract_snapshot_is_current` test (`crates/sase_gateway/src/contract.rs`) does a byte-exact comparison,
+  so regenerating the snapshot must be part of the same change. Schema version stays at `1` (additive change).
 
 ### Android Tests
 
 Update fixtures:
 
-- `../sase-android/app/src/test/resources/fixtures/gateway/xprompt_catalog.json`
-- `../sase-android/app/src/test/resources/contracts/mobile_api_v1.json`
+- `../sase-android/app/src/test/resources/fixtures/gateway/xprompt_catalog.json` — already drifts from the producer
+  (uses `"bead_id"` where Python emits `"(bead_id: word)"`); regenerate from a real fixture build.
+- `../sase-android/app/src/test/resources/contracts/mobile_api_v1.json`.
+
+`MobileApiContractTest` only asserts schema version, contract name, base path, route list, and error shape, and the
+DTO decoder uses `ignoreUnknownKeys = true`. Adding `inputs` and `insertion` to the wire will not break existing
+contract tests on the Android side; new fields need their own decode tests.
 
 Add Compose/UI tests:
 
@@ -408,17 +528,37 @@ Add pure Kotlin tests for cursor detection if the parser is extracted from the c
    - Recommended: not in the first pass. Show types as hints and let host-side xprompt validation remain authoritative.
 4. Whether hints should parse comma progress immediately.
    - Recommended: start with exact `#foo:` trigger, then add progress highlighting once the core UX is proven.
+5. How to handle defaults that may be sensitive.
+   - Recommended: add `InputArg.sensitive: bool = False` and gate `default_display`. Until then, omit string defaults
+     entirely; only echo `INT`/`BOOL`/`FLOAT` defaults.
+6. Whether the TUI should also gain an on-`:` hint trigger.
+   - Out of scope here, but worth noting: the TUI uses inline-row hints (`append_input_args`) rather than a dynamic
+     trigger. If parity becomes a goal, the same detector logic could land in `prompt_input_bar.py`.
 
 ## Implementation Sequence
 
-1. Add structured xprompt input metadata to the Python catalog projection.
-2. Add Rust wire records and refresh the mobile API contract.
-3. Update Android DTOs and fixtures.
-4. Replace `#${entry.name}` insertion with `entry.insertion ?: "#${entry.name}"`.
-5. Add launch-screen prompt hint state and UI panel.
-6. Add selection-trigger behavior.
-7. Add typed-colon cursor-trigger behavior.
-8. Add focused tests in all three repos.
+1. Fix the Android project-change refresh gap (`LaunchedEffect(project)`) so a stale catalog cannot make hints
+   silently no-op for project-local xprompts.
+2. Add structured xprompt input metadata to the Python catalog projection (including `insertion`, `reference_prefix`,
+   `kind`).
+3. Add Rust wire records, refresh `mobile_api_v1.json`, and re-run the contract snapshot test.
+4. Update Android DTOs and fixtures.
+5. Replace `"#${entry.name}"` insertion with `entry.insertion ?: "#${entry.name}"` in `LaunchScreen.kt` and
+   `HelpersScreen.kt`.
+6. Memoize the catalog map (`remember(state.xprompts) { state.xprompts.associateBy { it.name } }`).
+7. Add launch-screen prompt hint state and UI panel.
+8. Add selection-trigger behavior.
+9. Add typed-colon cursor-trigger behavior (handle HITL suffix and `__` aliasing in the lookup path).
+10. Add focused tests in all three repos.
+
+## Related Work
+
+- Closed `sase-26.4.3` (Phase 3: Xprompt Catalog Endpoint And Optional PDF Attachment) is the bead that landed the
+  current `MobileXpromptCatalogEntryWire`; this work extends that contract.
+- Closed `sase-26.3.3` (Phase 3: Text Launch Endpoint And Mobile Launch Normalization) defines the launch payload
+  shape that the inserted reference text ultimately rides on.
+- No open beads currently track structured xprompt input metadata or mobile xprompt UX hints. This research is
+  greenfield input for a new epic + phase beads.
 
 This keeps the backend authoritative, keeps Android's parser intentionally shallow, and gives users the expected mobile
 hint UX without changing xprompt launch semantics.
