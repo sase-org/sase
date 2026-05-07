@@ -1047,7 +1047,7 @@ The dialog presents toggle switches, an optional text input, and a model picker:
 - **Run coder agent** (default: ON) — Whether to launch a coder agent after approval
 - **Additional prompt** — Optional extra instructions for the coder agent (only editable when coder is ON)
 - **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
-  registered models grouped by provider (Claude, Codex, Gemini) with a "Custom..." option for freeform input.
+  registered models grouped by provider (Claude, Codex, Gemini, Qwen) with a "Custom..." option for freeform input.
 
 At least one of commit/coder must be enabled — disabling one locks the other ON.
 

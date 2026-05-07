@@ -1,7 +1,7 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (Claude
-Code, Codex, and Gemini CLI are bundled; Jetski CLI ships as part of the sase-google plugin) behind a shared
+Code, Codex, Gemini CLI, and Qwen Code are bundled; Jetski CLI ships as part of the sase-google plugin) behind a shared
 orchestration layer that handles preprocessing, invocation, and postprocessing.
 
 ## Table of Contents
@@ -11,6 +11,7 @@ orchestration layer that handles preprocessing, invocation, and postprocessing.
 - [Claude Code Integration](#claude-code-integration)
 - [Gemini CLI Integration](#gemini-cli-integration)
 - [Codex CLI Integration](#codex-cli-integration)
+- [Qwen Code Integration](#qwen-code-integration)
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Model Tier System](#model-tier-system)
@@ -46,6 +47,7 @@ Key design principles:
 | `src/sase/llm_provider/_plugin_manager.py` | Plugin manager wrapping pluggy (`LLMPluginManager`) |
 | `src/sase/llm_provider/claude.py`          | Claude Code provider implementation                 |
 | `src/sase/llm_provider/gemini.py`          | Gemini CLI provider implementation                  |
+| `src/sase/llm_provider/qwen.py`            | Qwen Code provider implementation                   |
 | `src/sase/llm_provider/registry.py`        | Provider registration and lookup                    |
 | `src/sase/llm_provider/config.py`          | Config file reader (`sase.yml`)                     |
 | `src/sase/llm_provider/types.py`           | `ModelTier`, `LoggingContext` types                 |
@@ -96,6 +98,7 @@ Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
 gemini = "sase.llm_provider.gemini:GeminiProvider"
+qwen   = "sase.llm_provider.qwen:QwenProvider"
 ```
 
 External plugin packages (e.g. `sase-google`) declare additional entries under the same group.
@@ -113,8 +116,8 @@ provider = get_provider("claude")  # Explicit provider name
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
 3. If no config exists (or provider is empty), auto-detect by walking registered plugins in ascending
    `llm_autodetect_priority()` order and picking the first whose `llm_autodetect_cli_name()` is on `PATH`. Built-in
-   priorities: `claude=0`, `codex=10`, `gemini=30`. External plugins (e.g. sase-google's Jetski at priority 20) slot in
-   by declaring their own priority.
+   priorities: `claude=0`, `codex=10`, `qwen=15`, `gemini=30`. External plugins (e.g. sase-google's Jetski at
+   priority 20) slot in by declaring their own priority.
 
 ## Claude Code Integration
 
@@ -236,6 +239,53 @@ debugging or emergency compatibility.
 While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is
 `True`). In plan mode, the timer reads "Waiting for Codex (planning)" during Phase 1 and "Implementing plan" during
 Phase 2.
+
+## Qwen Code Integration
+
+The `QwenProvider` invokes the `qwen` CLI tool.
+
+### Command Construction
+
+```
+qwen -p - --output-format stream-json --yolo --model <model> [extra_args...]
+```
+
+The prompt is written to stdin. Output is streamed as JSON events; SASE extracts assistant text from `assistant` events
+and falls back to the final `result` text when no assistant text is emitted.
+
+### Model Mapping
+
+| Tier    | Qwen Model          |
+| ------- | ------------------- |
+| `large` | `qwen3-coder-plus`  |
+| `small` | `qwen3-coder-flash` |
+
+### Authentication
+
+Configure Qwen Code through its supported auth and settings flow before using it from SASE. Qwen OAuth free tier access
+ended on 2026-04-15; use API keys, Alibaba Cloud Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider
+instead of relying on the discontinued OAuth free tier.
+
+### Environment Variables
+
+| Variable               | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)     |
+| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)     |
+| `SASE_QWEN_PATH`       | Path to the Qwen Code CLI binary (default: `qwen`)       |
+| `SASE_QWEN_LARGE_ARGS` | Extra CLI args for `large` tier (Qwen-specific fallback) |
+| `SASE_QWEN_SMALL_ARGS` | Extra CLI args for `small` tier (Qwen-specific fallback) |
+
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_QWEN_*_ARGS`.
+
+Qwen Code config is left in Qwen's normal locations (`~/.qwen/settings.json` and project `.qwen/settings.json`). SASE
+does not create a shadow Qwen home in the first implementation because local Qwen was unavailable during this phase, so
+no normal headless-run config mutation could be verified.
+
+### Timer Display
+
+While waiting for a response, a `gemini_timer("Waiting for Qwen")` spinner is shown (unless `suppress_output` is
+`True`).
 
 ## External Provider Plugins
 
@@ -458,6 +508,14 @@ Complete reference of environment variables used by the LLM provider layer.
 | `SASE_CODEX_LARGE_ARGS` | Codex-specific extra args for `large` tier |
 | `SASE_CODEX_SMALL_ARGS` | Codex-specific extra args for `small` tier |
 | `SASE_AGENT_PLAN_MODE`  | Enable Codex two-phase plan/implement flow |
+
+### Qwen-Specific
+
+| Variable               | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `SASE_QWEN_PATH`       | Path to the Qwen Code CLI binary          |
+| `SASE_QWEN_LARGE_ARGS` | Qwen-specific extra args for `large` tier |
+| `SASE_QWEN_SMALL_ARGS` | Qwen-specific extra args for `small` tier |
 
 ### Gemini-Specific
 

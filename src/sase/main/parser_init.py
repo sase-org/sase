@@ -42,7 +42,7 @@ def register_init_skills_parser(subparsers: argparse._SubParsersAction) -> None:
     init_skills_parser.add_argument(
         "-p",
         "--provider",
-        choices=["claude", "gemini", "codex"],
+        choices=["claude", "gemini", "codex", "qwen"],
         help="Only deploy for a specific provider (default: all)",
     )
 

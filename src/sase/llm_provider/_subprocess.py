@@ -297,6 +297,7 @@ def stream_and_parse_json_output(
                             error_events,
                             live_reply_file,
                             timestamps_file,
+                            usage_totals,
                         )
                 if process.stderr:
                     os.set_blocking(process.stderr.fileno(), True)
@@ -319,6 +320,109 @@ def stream_and_parse_json_output(
 
     # If process failed, append any captured error/result events to stderr
     # so the caller has full diagnostic context
+    if return_code != 0 and error_events:
+        error_info = "\n".join(error_events)
+        if stderr_content:
+            stderr_content += "\n" + error_info
+        else:
+            stderr_content = error_info
+
+    return combined_text, stderr_content, return_code, usage_totals
+
+
+def stream_and_parse_qwen_json_output(
+    process: subprocess.Popen[str],
+    suppress_output: bool = False,
+) -> tuple[str, str, int, dict[str, int]]:
+    """Stream Qwen Code ``stream-json`` events and extract assistant text.
+
+    Qwen's stream is Claude-like for assistant events, but its final
+    ``result`` event may be the only reliable answer in some versions. This
+    parser keeps assistant streaming behavior and falls back to the result
+    text when no assistant text was emitted.
+    """
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+    stderr_lines: list[str] = []
+    usage_totals: dict[str, int] = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+    live_reply_file = _open_live_reply_file()
+    timestamps_file = _open_live_reply_timestamps_file()
+
+    try:
+        if process.stdout:
+            os.set_blocking(process.stdout.fileno(), False)
+        if process.stderr:
+            os.set_blocking(process.stderr.fileno(), False)
+
+        while True:
+            readable: list[object] = []
+            if process.stdout:
+                readable.append(process.stdout)
+            if process.stderr:
+                readable.append(process.stderr)
+
+            if not readable:
+                break
+
+            ready, _, _ = select.select(readable, [], [], 0.1)
+
+            if process.stdout and process.stdout in ready:
+                line = process.stdout.readline()
+                if line:
+                    _process_qwen_json_line(
+                        line,
+                        assistant_texts,
+                        suppress_output,
+                        error_events,
+                        live_reply_file,
+                        timestamps_file,
+                        usage_totals,
+                    )
+
+            if process.stderr and process.stderr in ready:
+                line = process.stderr.readline()
+                if line:
+                    stderr_lines.append(line)
+                    if not suppress_output:
+                        print(line, end="", file=sys.stderr, flush=True)
+
+            if process.poll() is not None:
+                if process.stdout:
+                    os.set_blocking(process.stdout.fileno(), True)
+                    for line in process.stdout:
+                        _process_qwen_json_line(
+                            line,
+                            assistant_texts,
+                            suppress_output,
+                            error_events,
+                            live_reply_file,
+                            timestamps_file,
+                            usage_totals,
+                        )
+                if process.stderr:
+                    os.set_blocking(process.stderr.fileno(), True)
+                    for line in process.stderr:
+                        stderr_lines.append(line)
+                        if not suppress_output:
+                            print(line, end="", file=sys.stderr, flush=True)
+                break
+    finally:
+        if live_reply_file:
+            live_reply_file.close()
+        if timestamps_file:
+            timestamps_file.close()
+
+    return_code = process.wait()
+    combined_text = "\n\n".join(assistant_texts)
+    stderr_content = "".join(stderr_lines)
+
+    _write_usage_artifact(usage_totals)
+
     if return_code != 0 and error_events:
         error_info = "\n".join(error_events)
         if stderr_content:
@@ -688,3 +792,168 @@ def _process_json_line(
             if isinstance(usage, dict):
                 for key in usage_totals:
                     usage_totals[key] += usage.get(key, 0)
+
+
+def _process_qwen_json_line(
+    line: str,
+    assistant_texts: list[str],
+    suppress_output: bool,
+    error_events: list[str] | None = None,
+    live_reply_file: IO[str] | None = None,
+    timestamps_file: IO[str] | None = None,
+    usage_totals: dict[str, int] | None = None,
+) -> None:
+    """Parse one Qwen Code stream-json line.
+
+    Assistant events are streamed immediately. Result text is captured only
+    when no assistant text has been seen, avoiding duplicate final answers for
+    Qwen versions that emit both event types.
+    """
+    line = line.strip()
+    if not line:
+        return
+
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return
+
+    event_type = event.get("type")
+
+    if event_type == "assistant":
+        for text in _qwen_assistant_texts(event):
+            _append_stream_text(
+                text,
+                assistant_texts,
+                suppress_output,
+                live_reply_file,
+                timestamps_file,
+            )
+    elif event_type == "result":
+        _capture_qwen_diagnostic(event, "result", error_events)
+        if usage_totals is not None:
+            _accumulate_qwen_usage(event.get("usage"), usage_totals)
+        result_text = _qwen_result_text(event)
+        if result_text and not assistant_texts:
+            _append_stream_text(
+                result_text,
+                assistant_texts,
+                suppress_output,
+                live_reply_file,
+                timestamps_file,
+            )
+    elif event_type == "error":
+        _capture_qwen_diagnostic(event, "error", error_events)
+
+
+def _qwen_assistant_texts(event: Mapping[str, object]) -> list[str]:
+    """Extract text blocks from known Qwen assistant event shapes."""
+    texts: list[str] = []
+    message = event.get("message")
+    if isinstance(message, dict):
+        texts.extend(_extract_text_from_content(message.get("content")))
+    texts.extend(_extract_text_from_content(event.get("content")))
+    return [text for text in texts if text]
+
+
+def _qwen_result_text(event: Mapping[str, object]) -> str:
+    """Extract final text from known Qwen result event fields."""
+    for key in ("result", "response", "text", "content"):
+        value = event.get(key)
+        if isinstance(value, str) and value:
+            return value
+    message = event.get("message")
+    if isinstance(message, dict):
+        texts = _extract_text_from_content(message.get("content"))
+        if texts:
+            return "\n".join(texts)
+    return ""
+
+
+def _extract_text_from_content(content: object) -> list[str]:
+    """Extract text from a string or list of content blocks."""
+    if isinstance(content, str):
+        return [content]
+    if not isinstance(content, list):
+        return []
+
+    texts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str) and text:
+                texts.append(text)
+    return texts
+
+
+def _append_stream_text(
+    text: str,
+    assistant_texts: list[str],
+    suppress_output: bool,
+    live_reply_file: IO[str] | None,
+    timestamps_file: IO[str] | None,
+) -> None:
+    """Append extracted assistant text to memory, artifacts, and console."""
+    if live_reply_file:
+        if timestamps_file:
+            ts_entry = {
+                "byte_offset": live_reply_file.tell(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
+            }
+            timestamps_file.write(json.dumps(ts_entry) + "\n")
+            timestamps_file.flush()
+        if assistant_texts:
+            live_reply_file.write("\n\n")
+        live_reply_file.write(text)
+        live_reply_file.flush()
+    assistant_texts.append(text)
+    if not suppress_output:
+        print(text, flush=True)
+
+
+def _capture_qwen_diagnostic(
+    event: Mapping[str, object],
+    event_type: str,
+    error_events: list[str] | None,
+) -> None:
+    """Capture Qwen error/result detail for non-zero exit diagnostics."""
+    if error_events is None:
+        return
+    detail = event.get("error") or event.get("message") or event.get("result", "")
+    if isinstance(detail, dict):
+        detail = detail.get("message", json.dumps(detail))
+    if isinstance(detail, str) and detail:
+        error_events.append(f"[{event_type}] {detail}")
+
+
+def _accumulate_qwen_usage(
+    usage: object,
+    usage_totals: dict[str, int],
+) -> None:
+    """Accumulate Qwen token usage into SASE's common usage keys."""
+    if not isinstance(usage, dict):
+        return
+
+    usage_totals["input_tokens"] += _int_usage(
+        usage.get("input_tokens", usage.get("prompt_tokens", 0))
+    )
+    usage_totals["output_tokens"] += _int_usage(
+        usage.get("output_tokens", usage.get("completion_tokens", 0))
+    )
+    usage_totals["cache_creation_input_tokens"] += _int_usage(
+        usage.get("cache_creation_input_tokens", 0)
+    )
+    usage_totals["cache_read_input_tokens"] += _int_usage(
+        usage.get("cache_read_input_tokens", 0)
+    )
+
+
+def _int_usage(value: object) -> int:
+    """Return *value* as an int usage count when possible."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return 0

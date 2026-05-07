@@ -168,11 +168,11 @@ llm_provider:
     small: sonnet
 ```
 
-| Field                               | Type   | Default     | Description                                                                                 |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, then codex, else gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                      |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                      |
+| Field                               | Type   | Default     | Description                                                                                            |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, then codex, then qwen, else gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                 |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                 |
 
 The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. The
 override is set/cleared from the ACE `,P` modal and persisted to `~/.sase/llm_override.json`; expired entries are
@@ -718,6 +718,9 @@ Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 | `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier (fallback if generic unset).  |
 | `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to launch Codex with the inherited `CODEX_HOME`.              |
 | `SASE_AGENT_PLAN_MODE`           | Enable Codex two-phase plan/implement flow.                              |
+| `SASE_QWEN_PATH`                 | Path to the Qwen Code CLI binary (default: `qwen`).                      |
+| `SASE_QWEN_LARGE_ARGS`           | Qwen-specific extra args for `large` tier (fallback if generic unset).   |
+| `SASE_QWEN_SMALL_ARGS`           | Qwen-specific extra args for `small` tier (fallback if generic unset).   |
 | `SASE_GEMINI_PATH`               | Path to the Gemini CLI binary (default: `gemini`).                       |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
@@ -727,6 +730,10 @@ SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default
 `~/.cache/sase/codex_home/`, receives a copy of the real `config.toml`, symlinks other Codex home entries back to the
 real home, and is removed when the subprocess exits. This prevents Codex runtime config rewrites from dirtying the
 user-managed Codex config while preserving auth, hooks, skills, logs, and caches.
+
+Qwen Code uses `qwen -p - --output-format stream-json --yolo --model <model>` and expects users to configure Qwen auth
+through Qwen's supported settings path. Qwen OAuth free tier access ended on 2026-04-15; use API keys, Alibaba Cloud
+Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider.
 
 ### VCS Provider
 

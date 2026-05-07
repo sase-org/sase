@@ -9,23 +9,23 @@ additional functionality is available through optional plugin packages.
 
 Sase defines five entry point groups for plugin discovery:
 
-| Entry Point Group | Purpose                                              | Example Plugin               |
-| ----------------- | ---------------------------------------------------- | ---------------------------- |
-| `sase_vcs`        | VCS provider plugins (git, hg, etc.)                 | `sase-github`                |
-| `sase_workspace`  | Workspace provider plugins (ref resolution, submit)  | `sase-github`                |
-| `sase_llm`        | LLM provider plugins (Claude, Codex, Gemini, Jetski) | `sase-google`                |
-| `sase_xprompts`   | XPrompt templates and workflows                      | `sase-google`                |
-| `sase_config`     | Default configuration (`default_config.yml`)         | `sase-google`, `sase-github` |
+| Entry Point Group | Purpose                                                    | Example Plugin               |
+| ----------------- | ---------------------------------------------------------- | ---------------------------- |
+| `sase_vcs`        | VCS provider plugins (git, hg, etc.)                       | `sase-github`                |
+| `sase_workspace`  | Workspace provider plugins (ref resolution, submit)        | `sase-github`                |
+| `sase_llm`        | LLM provider plugins (Claude, Codex, Gemini, Qwen, Jetski) | `sase-google`                |
+| `sase_xprompts`   | XPrompt templates and workflows                            | `sase-google`                |
+| `sase_config`     | Default configuration (`default_config.yml`)               | `sase-google`, `sase-github` |
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                             |
-| --------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase` (core)   | BareGitPlugin, Claude/Codex/Gemini LLM providers                                        | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_llm: claude, codex, gemini`      |
-| `sase-github`   | GitHubPlugin with GitHub CLI (`gh`) PR operations                                       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts`             |
-| `sase-google`   | HgPlugin for Mercurial, Jetski LLM provider, `sase_hg_*` helper commands                | `sase_vcs: hg`, `sase_workspace: hg`, `sase_llm: jetski`, `sase_config`, `sase_xprompts` |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy)                                                                 |
-| `sase-nvim`     | Neovim integration (e.g., project spec syntax highlighting)                             | standalone (not pluggy)                                                                  |
+| Package         | Description                                                                             | Entry Points                                                                              |
+| --------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `sase` (core)   | BareGitPlugin, Claude/Codex/Gemini/Qwen LLM providers                                   | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_llm: claude, codex, gemini, qwen` |
+| `sase-github`   | GitHubPlugin with GitHub CLI (`gh`) PR operations                                       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts`              |
+| `sase-google`   | HgPlugin for Mercurial, Jetski LLM provider, `sase_hg_*` helper commands                | `sase_vcs: hg`, `sase_workspace: hg`, `sase_llm: jetski`, `sase_config`, `sase_xprompts`  |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy)                                                                  |
+| `sase-nvim`     | Neovim integration (e.g., project spec syntax highlighting)                             | standalone (not pluggy)                                                                   |
 
 ## Installation
 
@@ -86,7 +86,7 @@ LLM provider plugins use pluggy's hook system. The hook specification is defined
 `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_default_retry_config`) are invoked per-plugin by the registry
 so each provider contributes its own metadata. All hook method names are prefixed with `llm_`.
 
-Core sase ships Claude, Codex, and Gemini providers as built-in entry points. The Jetski provider ships with the
+Core sase ships Claude, Codex, Gemini, and Qwen providers as built-in entry points. The Jetski provider ships with the
 `sase-google` plugin — don't reach for "add it to core" as a fix; its skill files are intentionally deployed under
 `~/.gemini/jetski/` rather than `~/.jetski/` because it shares the Gemini CLI parent directory by design.
 
