@@ -26,7 +26,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptArgCompletionContext,
     detect_xprompt_arg_completion_at_cursor,
-    required_inputs,
+    detect_xprompt_arg_hint_at_cursor,
+    xprompt_completion_skeleton,
 )
 
 if TYPE_CHECKING:
@@ -61,6 +62,12 @@ class FileCompletionMixin(_MixinBase):
         def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None: ...
         def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _expand_snippet_template_at_range(
+            self,
+            template: str,
+            start: tuple[int, int],
+            end: tuple[int, int],
+        ) -> bool: ...
 
     # -- Mixin implementation --
 
@@ -161,34 +168,44 @@ class FileCompletionMixin(_MixinBase):
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
 
-    def _maybe_show_accepted_xprompt_arg_hint(
+    def _accept_xprompt_completion_candidate(
         self,
         selected: CompletionCandidate,
         row: int,
         start: int,
+        end: int,
     ) -> bool:
-        """Show post-accept argument hints for required-input xprompts."""
+        """Accept an xprompt candidate using its completion skeleton when eligible."""
         if not isinstance(selected.metadata, XPromptAssistEntry):
-            self._clear_xprompt_arg_hint()
             return False
         if not selected.insertion.startswith("#"):
-            self._clear_xprompt_arg_hint()
-            return False
-        if not required_inputs(selected.metadata):
-            self._clear_xprompt_arg_hint()
             return False
 
-        reference_start = self._absolute_offset((row, start))
-        reference_end = reference_start + len(selected.insertion)
-        hint = ActiveXPromptArgHint(
-            entry=selected.metadata,
-            reference_start=reference_start,
-            reference_end=reference_end,
-            reference_text=selected.insertion,
+        return self._expand_snippet_template_at_range(
+            xprompt_completion_skeleton(selected.metadata),
+            (row, start),
+            (row, end),
         )
+
+    def _refresh_xprompt_completion_skeleton_hint(
+        self,
+        selected: CompletionCandidate,
+    ) -> None:
+        """Refresh argument hints from the just-accepted xprompt metadata."""
+        if not isinstance(selected.metadata, XPromptAssistEntry):
+            self._clear_xprompt_arg_hint()
+            return
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        hint = detect_xprompt_arg_hint_at_cursor(
+            self.text,
+            cursor_offset,
+            [selected.metadata],
+        )
+        if hint is None:
+            self._clear_xprompt_arg_hint()
+            return
         self._active_xprompt_arg_hint = hint
         self._show_xprompt_arg_hint(hint)
-        return True
 
     def _get_token_context(self) -> tuple[int, int, int, str] | None:
         """Return token context using the appropriate getter for the active kind."""
@@ -251,7 +268,12 @@ class FileCompletionMixin(_MixinBase):
             return False
         row, start, end, _token = ctx
         accepted_kind = self._completion_kind
-        self._replace_token_text(row, start, end, selected.insertion)
+        used_xprompt_skeleton = (
+            accepted_kind == "xprompt"
+            and self._accept_xprompt_completion_candidate(selected, row, start, end)
+        )
+        if not used_xprompt_skeleton:
+            self._replace_token_text(row, start, end, selected.insertion)
         # Directory drill-down: open completion for the accepted directory.
         if selected.is_dir and self._completion_kind in ("file", "xprompt_arg_path"):
             self._file_completion_active = False
@@ -262,7 +284,10 @@ class FileCompletionMixin(_MixinBase):
         else:
             self._clear_file_completion(clear_xprompt_arg_hint=False)
             if accepted_kind == "xprompt":
-                self._maybe_show_accepted_xprompt_arg_hint(selected, row, start)
+                if used_xprompt_skeleton:
+                    self._refresh_xprompt_completion_skeleton_hint(selected)
+                else:
+                    self._clear_xprompt_arg_hint()
             elif accepted_kind.startswith("xprompt_arg_"):
                 self._refresh_xprompt_arg_hint_from_cursor()
             else:
@@ -403,10 +428,18 @@ class FileCompletionMixin(_MixinBase):
         if len(candidates) == 1:
             selected = candidates[0]
             accepted_kind = self._completion_kind
-            self._replace_token_text(row, start, end, selected.insertion)
+            used_xprompt_skeleton = (
+                accepted_kind == "xprompt"
+                and self._accept_xprompt_completion_candidate(selected, row, start, end)
+            )
+            if not used_xprompt_skeleton:
+                self._replace_token_text(row, start, end, selected.insertion)
             self._clear_file_completion(clear_xprompt_arg_hint=False)
             if accepted_kind == "xprompt":
-                self._maybe_show_accepted_xprompt_arg_hint(selected, row, start)
+                if used_xprompt_skeleton:
+                    self._refresh_xprompt_completion_skeleton_hint(selected)
+                else:
+                    self._clear_xprompt_arg_hint()
             elif accepted_kind.startswith("xprompt_arg_"):
                 self._refresh_xprompt_arg_hint_from_cursor()
             return True

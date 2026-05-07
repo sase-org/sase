@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     named_args_skeleton,
     required_inputs,
     visible_inputs,
+    xprompt_completion_skeleton,
 )
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 
@@ -47,6 +48,18 @@ def _input_hint(name: str, type_: str = "word", position: int = 0) -> XPromptInp
         name=name,
         type=type_,
         required=True,
+        default_display=None,
+        position=position,
+    )
+
+
+def _optional_input_hint(
+    name: str, type_: str = "word", position: int = 0
+) -> XPromptInputHint:
+    return XPromptInputHint(
+        name=name,
+        type=type_,
+        required=False,
         default_display=None,
         position=position,
     )
@@ -182,6 +195,30 @@ def test_skeletons_use_required_inputs_only() -> None:
 
     assert named_args_skeleton(entry) == "#mixed(first=$1, second=$2)$0"
     assert colon_args_skeleton(entry) == "#mixed:$0"
+
+
+def test_completion_skeletons_match_required_input_shapes() -> None:
+    assert xprompt_completion_skeleton(_entry("none")) == "#none "
+    assert (
+        xprompt_completion_skeleton(_entry("optional", _optional_input_hint("count")))
+        == "#optional "
+    )
+    assert xprompt_completion_skeleton(_entry("path", _input_hint("path", "path"))) == (
+        "#path:"
+    )
+    assert xprompt_completion_skeleton(_entry("text", _input_hint("body", "text"))) == (
+        "#text::"
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("many", _input_hint("path", "path"), _input_hint("body", "text"))
+        )
+        == "#many($0)"
+    )
+    assert (
+        xprompt_completion_skeleton(_entry("run", _input_hint("target"), prefix="#!"))
+        == "#!run:"
+    )
 
 
 def test_entry_with_only_step_inputs_has_no_user_facing_hints() -> None:

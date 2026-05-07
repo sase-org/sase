@@ -138,6 +138,17 @@ def colon_args_skeleton(entry: XPromptAssistEntry) -> str:
     return f"{entry.insertion}:$0"
 
 
+def xprompt_completion_skeleton(entry: XPromptAssistEntry) -> str:
+    """Return the Ctrl+T accept skeleton for an xprompt completion entry."""
+    inputs = required_inputs(entry)
+    if not inputs:
+        return f"{entry.insertion} "
+    if len(inputs) > 1:
+        return f"{entry.insertion}($0)"
+    suffix = "::" if inputs[0].type == "text" else ":"
+    return f"{entry.insertion}{suffix}"
+
+
 def input_label(input_hint: XPromptInputHint) -> str:
     """Format a compact input label for non-Rich assist surfaces."""
     required_marker = "" if input_hint.required else "?"
@@ -216,7 +227,9 @@ def detect_xprompt_arg_hint_at_cursor(
             continue
         if not (base_end <= cursor_offset):
             continue
-        if ref.end > cursor_offset and not _cursor_is_inside_open_paren(text, ref):
+        if ref.end > cursor_offset and not _cursor_is_inside_reference_args(
+            text, ref, base_end, cursor_offset
+        ):
             continue
 
         entry = entry_by_name.get(ref.name)

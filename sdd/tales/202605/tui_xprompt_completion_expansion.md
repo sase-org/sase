@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 14:54:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/tui_xprompt_completion_expansion.md
 ---
 # TUI XPrompt Completion Expansion Plan

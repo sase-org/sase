@@ -32,6 +32,7 @@ from .xprompt_arg_assist import (
     named_args_skeleton,
     required_inputs,
     visible_inputs,
+    xprompt_completion_skeleton,
 )
 
 __all__ = [
@@ -68,4 +69,5 @@ __all__ = [
     "named_args_skeleton",
     "required_inputs",
     "visible_inputs",
+    "xprompt_completion_skeleton",
 ]

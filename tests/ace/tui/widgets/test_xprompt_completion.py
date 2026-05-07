@@ -297,8 +297,138 @@ async def test_standalone_marker_single_candidate_inserts_canonical_reference() 
         ):
             assert ta._try_file_completion_tab() is True
 
-    assert ta.text == "#!sync"
+    assert ta.text == "#!sync "
     assert ta._file_completion_active is False
+
+
+async def test_single_candidate_xprompt_without_inputs_adds_trailing_space() -> None:
+    entries = [_entry("none")]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#n")
+        ta.cursor_location = (0, 2)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#none "
+    assert ta.cursor_location == (0, len("#none "))
+    assert ta._active_xprompt_arg_hint is None
+
+
+async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
+    entries = [_entry("review", inputs=(_input("path", "path"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#review:"
+    assert ta.cursor_location == (0, len("#review:"))
+    assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_single_candidate_xprompt_required_text_inserts_double_colon() -> None:
+    entries = [_entry("write", inputs=(_input("body", "text"),))]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#w")
+        ta.cursor_location = (0, 2)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#write::"
+    assert ta.cursor_location == (0, len("#write::"))
+    assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_single_candidate_xprompt_many_inputs_places_cursor_in_parens() -> None:
+    entries = [
+        _entry(
+            "many",
+            inputs=(
+                _input("path", "path"),
+                _input("body", "text", position=1),
+            ),
+        )
+    ]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#m")
+        ta.cursor_location = (0, 2)
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(
+                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+                return_value=entries,
+            ),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#many()"
+    assert "$0" not in ta.text
+    assert ta.cursor_location == (0, len("#many("))
+    assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
+    entries = [
+        _entry("many", inputs=(_input("path", "path"), _input("body", "text"))),
+        _entry("more"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#m")
+        ta.cursor_location = (0, 2)
+        with patch(
+            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            return_value=entries,
+        ):
+            await pilot.press("ctrl+t")
+            await pilot.press("enter")
+
+    assert ta.text == "#many()"
+    assert ta.cursor_location == (0, len("#many("))
 
 
 async def test_slash_skill_single_candidate_inserts_slash_reference() -> None:

@@ -63,7 +63,7 @@ async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
-        assert ta.text == "#review"
+        assert ta.text == "#review:"
         assert ta._active_xprompt_arg_hint is not None
         assert "path: path" in rendered.plain
         assert panel.border_title == "xprompt args"
@@ -83,7 +83,7 @@ async def test_accepting_xprompt_without_required_inputs_skips_arg_hint() -> Non
         ):
             assert ta._try_file_completion_tab() is True
 
-        assert ta.text == "#plain"
+        assert ta.text == "#plain "
         assert ta._active_xprompt_arg_hint is None
         assert bar._completion_visible is False
 
@@ -92,14 +92,15 @@ async def test_colon_action_rewrites_reference_and_preserves_surrounding_text() 
     entries = [_entry("review", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta.load_text("before #r after")
-        ta.cursor_location = (0, len("before #r"))
+        ta.load_text("before # after")
+        ta.cursor_location = (0, len("before #"))
         with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
             return_value=entries,
         ):
-            await pilot.press("ctrl+t")
+            bar.insert_snippet("review")
             await pilot.press(":")
 
         assert ta.text == "before #review: after"
@@ -119,14 +120,15 @@ async def test_named_action_uses_snippet_tabstops_for_required_args() -> None:
     ]
     app = CompletionTestApp()
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta.load_text("#r")
-        ta.cursor_location = (0, 2)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
         with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
             return_value=entries,
         ):
-            await pilot.press("ctrl+t")
+            bar.insert_snippet("review")
             await pilot.press("(")
 
         assert ta.text == "#review(path=, count=)"
