@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from sase.xprompt.catalog import (
+    NoXpromptsFound,
+    PdfEngineUnavailable,
+    _compute_stats,
+    _render_html,
+    build_xprompts_catalog,
+)
+from sase.xprompt.tags import XPromptTag
+
+from tests._xprompt_catalog_helpers import make_xprompt, seed_entries
+
+
+def test_render_html_contains_sections() -> None:
+    from sase.xprompt.catalog import _build_document
+
+    entries = seed_entries()
+    stats = _compute_stats(entries)
+    document = _build_document(entries, stats)
+    html = _render_html(document)
+
+    assert "xprompts Catalog" in html
+    assert "</span>a\n" in html
+    assert "</span>b\n" in html
+    assert "</span>c\n" in html
+    assert "alpha" in html
+    assert "Built-in xprompts" in html
+
+
+def test_build_raises_when_no_xprompts() -> None:
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        with pytest.raises(NoXpromptsFound):
+            build_xprompts_catalog()
+
+
+def test_build_raises_when_no_pdf_engine(tmp_path: Path) -> None:
+    xp = make_xprompt(
+        "hello",
+        source_path="config",
+        description="A test prompt",
+    )
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.xprompt.catalog.shutil.which", return_value=None),
+    ):
+        with pytest.raises(PdfEngineUnavailable):
+            build_xprompts_catalog(output_dir=tmp_path)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    shutil.which("wkhtmltopdf") is None and shutil.which("pandoc") is None,
+    reason="No PDF engine available",
+)
+def test_build_integration_produces_pdf(tmp_path: Path) -> None:
+    xps = {
+        "hello": make_xprompt(
+            "hello",
+            source_path="config",
+            tags=frozenset({XPromptTag.vcs}),
+            description="A test",
+            content="Hello from the test xprompt.",
+        ),
+        "goodbye": make_xprompt(
+            "goodbye",
+            source_path="config",
+            content="bye",
+        ),
+    }
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value=xps),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        artifact = build_xprompts_catalog(output_dir=tmp_path)
+
+    assert artifact.pdf_path.is_file()
+    header = artifact.pdf_path.read_bytes()[:4]
+    assert header == b"%PDF"
+    assert artifact.stats.total == 2
