@@ -34,6 +34,66 @@ return 404 from the PyPI JSON API. PyPI does not allow distribution filenames to
 project name, version, and distribution type. The next public release cannot reuse `0.1.0`; use `0.2.0` for `sase` and
 public plugins.
 
+## Follow-up Findings from Fresh Research
+
+The earlier draft is directionally right, but it under-specifies several operational realities that materially affect
+the first-public-release plan:
+
+- **The Rust extension already uses `abi3-py312`, which is the right call and should be documented as load-bearing.**
+  `sase-core-rs/Cargo.toml` declares `pyo3 = { version = "0.22", features = ["abi3-py312"] }` and the release workflow
+  uses `setup-python@v5` with `python-version: "3.12"` only. abi3 means *one* wheel per platform/architecture covers
+  CPython 3.12, 3.13, and 3.14, so the matrix stays a 4-cell grid (Linux x86_64, Linux aarch64, macOS universal2,
+  Windows x86_64) instead of a 12-cell grid. Wheel filenames will be of the form
+  `sase_core_rs-0.1.1-cp312-abi3-<platform>.whl`. The cost is that **free-threaded CPython (PEP 703 / `t`-suffixed
+  builds) is NOT covered by abi3** — those interpreters refuse abi3 wheels and fall through to the sdist. If
+  free-threaded support matters, that is a separate version-specific build matrix.
+- **The Rust workflow currently publishes via stored `PYPI_API_TOKEN`, not Trusted Publishing.** The action used is
+  `twine upload`, which cannot emit PEP 740 digital attestations. Switching to `pypa/gh-action-pypi-publish@release/v1`
+  with `id-token: write` both retires the long-lived token and gets PyPI attestations for free, which downstream users
+  can verify with `pip install --require-hashes` plus the [PEP 740 verifier](https://docs.pypi.org/attestations/).
+- **Publishing the `sase-core-rs` sdist is a footgun for the platforms it should help.** An sdist install requires
+  CPython headers, a Rust toolchain matching the workspace MSRV (`1.78`), `cargo`, and a working linker. Users on
+  musl/Alpine, Linux ppc64le, FreeBSD, Termux, etc. will hit `pip install sase-core-rs` and either succeed slowly with
+  Rust pre-installed or fail with an opaque maturin/cargo trace. Two reasonable options:
+  1. Ship the sdist but add a `PYPI_README.md` install warning naming the toolchain and minimum Rust version, and make
+     `sase` print a clear "no compatible wheel for your platform — install Rust 1.78+ first" message when it cannot
+     load `sase_core_rs`.
+  2. Skip the sdist entirely and rely on platform wheels until a non-trivial number of users actually need it. The
+     downside is `pip download --no-binary :all:` and reproducible-build flows break.
+- **musllinux wheels are not built.** Alpine, distroless musl base images, and many lightweight CI runners fall back
+  to sdist as a result. Adding a `musllinux_1_2` matrix entry to the maturin job is the cheapest fix and is documented
+  in the maturin-action README.
+- **The `sase` publish workflow's smoke test is a live-PyPI integration test, not a hermetic test.** It pip-installs
+  the just-built `sase` wheel and lets PyPI resolve `sase-core-rs`. If `sase-core-rs` has a regression, every `sase`
+  release smoke goes red even when `sase` itself is fine. For first public release, also run a *hermetic* smoke that
+  installs `sase-core-rs` from a frozen URL/digest pin so the failure mode "core regressed on PyPI" is distinguishable
+  from "this `sase` build is bad".
+- **PyPI does not let you delete a release in a way that lets you re-upload.** The only safe correction for a broken
+  release is `pypi yank` (release stays installable for existing pins, hidden from new resolutions) plus a fresh patch
+  version. Plan to publish `0.2.0rc1` to PyPI first, exercise the install paths from a clean machine, then promote to
+  `0.2.0`. The RC route gives you a real "abort and ship 0.2.0rc2" option that the final release does not.
+- **PyPI name ownership for `sase` and `sase-github` is already claimed.** Both projects had `0.1.0` uploads on
+  2026-02-23. Before any further work, confirm the publishing identity for those projects matches the intended
+  `sase-org` GitHub org. If a different account uploaded those, the public release is blocked on either getting that
+  account back or filing a [PEP 541](https://peps.python.org/pep-0541/) name-transfer request, which is slow.
+- **There is no in-tree way to ask "which plugins did SASE just discover?".** `src/sase/main/plugin_discovery.py`
+  exposes `discover_plugin_resources(group)` but no `sase plugin list` CLI surface. First-public users who run
+  `uv tool install sase --with sase-github` and then can't see GitHub features will have no quick diagnostic. Adding
+  a `sase plugin list` command (groups: `sase_llm`, `sase_vcs`, `sase_workspace`, plus any others) is a small
+  ergonomics change that should ship with `0.2.0`.
+- **`sase --version` is worth standardizing.** A first-line bug-report aid is `sase --version` printing
+  `sase 0.2.0 (sase-core-rs 0.1.1, python 3.12.x, platform <triple>)`. Right now `sase core health` is the canonical
+  health probe, which is correct for "is the Rust extension loadable?" but verbose for "what version did the user
+  install?".
+- **`sase` pyproject metadata is sparse compared to `sase-core-rs`.** Today's `pyproject.toml` has no `description`,
+  `readme`, `authors`, `keywords`, `classifiers`, or `project.urls`. PyPI's project page will look bare and search
+  ranking for "agentic", "TUI", "ChangeSpec" etc. will be zero. Closing this gap is a pre-publish chore, not a
+  research item.
+- **Pre-1.0 SemVer carve-out should be communicated.** Under SemVer, `0.x.y` versions can break at any minor bump.
+  Both `sase` and `sase-core-rs` are pre-1.0; the dependency constraint `sase-core-rs>=0.1.1,<0.2.0` already encodes
+  this, and plugins should mirror it (`sase>=0.2,<0.3`). Document this contract in CHANGELOG / README so users don't
+  expect Cargo-style compatibility from `0.x`.
+
 ## Current Package Topology
 
 ### `sase`
@@ -79,6 +139,8 @@ Workspace facts:
 - Import module: `sase_core_rs`
 - Python: `>=3.12`
 - Build backend: `maturin>=1.7,<2.0`
+- PyO3 features: `abi3-py312` (single wheel covers CPython 3.12 / 3.13 / 3.14 per platform; free-threaded `t`
+  builds are out of scope and would need a separate version-specific matrix).
 - Wheel metadata says Linux, macOS, and Windows are supported.
 
 Current release workflow:
@@ -135,6 +197,29 @@ Checked with `https://pypi.org/pypi/<package>/json` on 2026-05-07:
 
 PyPI's file-reuse rule makes this operationally important: deleting and recreating a release does not allow the same
 filename to be uploaded again. Any fixed public package needs a new version.
+
+## Wheel Matrix and Platform Coverage
+
+The platforms that get a binary wheel directly determine the install UX, because anything else falls back to sdist
+and an sdist of a Rust extension requires a full Rust + CPython-headers build environment.
+
+| Platform                       | Currently built? | Recommended for `0.2.0` | Notes                                                              |
+| ------------------------------ | ---------------- | ----------------------- | ------------------------------------------------------------------ |
+| Linux x86_64 (manylinux 2_28)  | Yes              | Yes                     | Covers most laptops, CI, and cloud VMs.                            |
+| Linux aarch64 (manylinux 2_28) | Yes              | Yes                     | Apple Silicon Linux VMs, Graviton, Raspberry Pi 64-bit.            |
+| Linux x86_64 (musllinux_1_2)   | No               | **Add**                 | Alpine, distroless, lightweight CI runners.                        |
+| Linux aarch64 (musllinux_1_2)  | No               | Optional                | Less common; add if user demand appears.                           |
+| macOS universal2               | Yes              | Yes                     | Covers Intel and Apple Silicon Macs from one build.                |
+| macOS arm64-only               | No               | Optional                | Slimmer wheel; universal2 already covers it.                       |
+| Windows x86_64                 | Yes              | Yes                     | Covers most Windows users.                                         |
+| Windows ARM64                  | No               | Defer                   | Small audience; add if asked.                                      |
+| Free-threaded CPython (`t`)    | No (abi3 floor)  | Defer                   | abi3 wheels are refused by `t` builds; needs a separate matrix.    |
+| sdist                          | Yes              | Reconsider              | Useful for packagers; lethal for naïve `pip install` on no-wheel. |
+
+If the sdist stays, the README on PyPI and the `sase core health --json` failure message must both name the required
+toolchain (Rust >= 1.78, CPython 3.12+ headers, a working linker) so users can self-diagnose. If the sdist is removed,
+explicitly document that source builds are done by checking out the GitHub repo rather than via `pip install
+--no-binary :all:`.
 
 ## Recommended Release Versioning
 
@@ -197,6 +282,44 @@ uv pip install --python /tmp/sase-release-smoke/bin/python \
 
 The wheelhouse smoke catches the exact failure that matters most: a new `sase` wheel that cannot resolve or import the
 new Rust extension.
+
+### 1b. TestPyPI Dry Run
+
+Before the production tags, rehearse the whole sequence end-to-end on TestPyPI:
+
+```bash
+# In sase-core, push a temporary tag like v0.1.1rc1 with a workflow variant
+# pointing at https://test.pypi.org/legacy/.
+# Then in sase, push v0.2.0rc1 the same way.
+```
+
+Install from a clean machine with the test index:
+
+```bash
+uv venv --python 3.12 /tmp/testpypi
+uv pip install --python /tmp/testpypi/bin/python \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ \
+  "sase==0.2.0rc1"
+/tmp/testpypi/bin/sase core health
+/tmp/testpypi/bin/sase --version
+```
+
+TestPyPI uses a separate account, separate Trusted Publishing config, and a separate quota. The full rehearsal catches
+metadata regressions, wheel-tag typos, missing READMEs, and missing classifiers without burning a real version.
+
+### 1c. Publish `0.2.0rc1` to PyPI
+
+Once TestPyPI is clean, ship a release-candidate to mainline PyPI before the final `0.2.0`. This gives a real abort
+window: if `0.2.0rc1` fails on a real user's machine, you can yank it and ship `0.2.0rc2` without burning the `0.2.0`
+slot.
+
+```bash
+git tag -a v0.2.0rc1 -m "Release sase 0.2.0rc1"
+git push origin v0.2.0rc1
+```
+
+When the RC has been live for a few days without incident, promote with `v0.2.0`.
 
 ### 2. Publish `sase-core-rs`
 
@@ -400,28 +523,79 @@ for SASE's current plugin design as long as the docs consistently say "install p
 A standalone Rust binary can be a future phase after the plugin boundary moves to a process/Wasm/manifest protocol. It
 should not block the first public release.
 
+## Yank and Rollback Playbook
+
+PyPI does not allow re-uploading a deleted version. The corrections available are:
+
+- **Yank** (`pypi yank`): the release stays installable for any pin/lockfile that already names it, but resolvers
+  treat it as unavailable for new installs and dependents. Use this when a release is broken but not malicious.
+- **Delete**: removes the project version entirely. Filenames cannot be re-uploaded, so any user-visible reference to
+  that version becomes a permanent gap. Reserve for accidental private/credential leaks.
+- **Patch release**: the only forward path. After yanking a broken `0.2.0`, ship `0.2.1` with the fix.
+
+If the broken release is `sase` and the dependency on `sase-core-rs` is the cause, the patch release usually goes on
+`sase-core-rs` (`0.1.2`) and `sase`'s constraint resolves to it without a `sase` re-release. If the dependency
+constraint is too narrow to absorb the patch (e.g. `sase-core-rs==0.1.1` was pinned), `sase` also needs a patch.
+
+A short, written rollback runbook in the repo (e.g. `docs/release_rollback.md`) is worth more than any tooling: the
+person executing it under pressure may be a different person from the one who set the pipeline up.
+
+## Pre-Publish Blockers
+
+Before tagging anything publicly, confirm:
+
+1. **PyPI ownership of `sase` and `sase-github`.** Both projects exist with `0.1.0` from 2026-02-23. The publishing
+   identity must match `sase-org`; if not, follow [PEP 541](https://peps.python.org/pep-0541/).
+2. **A maintainer-owned PyPI organization or maintainer set with 2FA enforced.** PyPI requires 2FA for any account
+   that uploads, and Trusted Publishing requires the GitHub repo and environment to be pre-registered on the project.
+3. **`sase` pyproject metadata** (description, readme, authors, keywords, classifiers, project.urls) is filled in to
+   at least the level of `sase-core-rs`'s pyproject. Without this, the PyPI project page is bare.
+4. **`sase --version`** produces a single-line version string suitable for bug reports.
+5. **`sase plugin list`** (or equivalent) exposes discovered entry-point plugins. Without it, users have no
+   first-line diagnostic when plugins silently fail to load.
+6. **CHANGELOG entry for `0.2.0`** that documents pre-1.0 SemVer policy and breaking changes since `0.1.0`.
+7. **License files committed in every package** — `LICENSE` for MIT-only packages, plus `LICENSE-APACHE` for
+   `sase-core-rs` since it is dual-licensed `MIT OR Apache-2.0`.
+8. **A single canonical install URL** in the README that points at a docs page (or PyPI project page) covering both
+   `uv tool install` and `pipx`.
+
 ## CI And Release Gaps To Close
 
 Highest priority:
 
-- Publish `sase-core-rs` through Trusted Publishing instead of `PYPI_API_TOKEN`.
+- Publish `sase-core-rs` through Trusted Publishing instead of `PYPI_API_TOKEN`. This also enables PEP 740
+  attestations, which arrive automatically with `pypa/gh-action-pypi-publish@release/v1` and `id-token: write`.
 - Bump public versions away from already-uploaded `0.1.0`.
 - Tighten plugin dependency lower bounds to `sase>=0.2,<0.3`.
 - Add publish workflows for `sase-telegram` if it is public.
 - Add post-publish install smoke jobs that install from PyPI, not only local artifacts.
 - Add a top-level release checklist that encodes the package ordering.
+- Add `concurrency:` blocks to all publish workflows so two simultaneous tag pushes can't race a half-uploaded
+  release into the index.
+- Use `skip-existing: true` on `pypa/gh-action-pypi-publish` so partial-failure retries stay idempotent.
+- Add a `musllinux_1_2 x86_64` cell to the `sase-core-rs` matrix.
+- Add a TestPyPI rehearsal job (manual `workflow_dispatch`) so dry-runs don't burn real version slots.
 
 Medium priority:
 
-- Add `project.urls`, authors/maintainers, classifiers, and README metadata to every public package.
-- Decide license expression consistency: `sase-core-rs` uses `MIT OR Apache-2.0`; `sase` and plugins use `MIT`.
-- Add `--locked` to Rust release builds.
-- Generate GitHub releases with notes and artifacts for every tag.
-- Consider a `sase[github]` or `sase[telegram]` extra only if SASE wants `pip install "sase[github]"` venv users. Extras
-  are less useful for `uv tool`/`pipx` than explicit `--with`/`inject`, but can improve normal venv ergonomics.
+- Add `project.urls`, authors/maintainers, classifiers, readme, and description to every public package. `sase`'s
+  pyproject is currently the thinnest of the three.
+- Decide license expression consistency: `sase-core-rs` uses `MIT OR Apache-2.0`; `sase` and plugins use `MIT`. If
+  both license families are kept, ship `LICENSE` and `LICENSE-APACHE` files inside the `sase-core-rs` wheel/sdist.
+- Add `--locked` to Rust release builds. Without it, a transitive crate yank between tag and publish can quietly
+  pick a different dependency tree than what was tested.
+- Generate GitHub releases with notes and artifacts for every tag (`gh release create vX.Y.Z dist/* --notes-file
+  CHANGELOG-X.Y.Z.md`), so wheels are auditable independently of PyPI.
+- Add a `sase plugin list` CLI command and `sase --version` formatting for first-line bug reports.
+- Add a hermetic install smoke that pins `sase-core-rs` by URL/digest instead of resolving from PyPI, so "core
+  regressed on PyPI" is distinguishable from "this `sase` build is bad".
+- Consider a `sase[github]` or `sase[telegram]` extra only if SASE wants `pip install "sase[github]"` venv users.
+  Extras are less useful for `uv tool`/`pipx` than explicit `--with`/`inject`, but can improve normal venv ergonomics.
 
 Lower priority:
 
+- musllinux aarch64 wheel. Add only if user demand surfaces.
+- Free-threaded CPython wheels (separate, version-specific matrix; not abi3-compatible).
 - Homebrew formula or installer script. Useful later, but PyPI plus `uv tool` is the shortest reliable public path.
 - A standalone binary. Desirable only after the plugin model changes.
 
@@ -461,3 +635,12 @@ External references:
 - maturin-action hardening notes: https://github.com/PyO3/maturin-action
 - PyO3 `abi3` features: https://pyo3.rs/main/features.html
 - PyO3 building/distribution notes: https://pyo3.rs/latest/building-and-distribution.html
+- PEP 740 (digital attestations on PyPI): https://peps.python.org/pep-0740/
+- PEP 541 (PyPI project name disputes / transfers): https://peps.python.org/pep-0541/
+- PEP 656 (musllinux platform tag): https://peps.python.org/pep-0656/
+- PEP 703 (free-threaded CPython): https://peps.python.org/pep-0703/
+- TestPyPI: https://test.pypi.org/ and https://packaging.python.org/en/latest/guides/using-testpypi/
+- PyPI yank semantics (PEP 592): https://peps.python.org/pep-0592/
+- PyPI 2FA requirements: https://blog.pypi.org/posts/2024-01-01-2fa-enforced/
+- gh-action-pypi-publish (`skip-existing`, attestations): https://github.com/pypa/gh-action-pypi-publish
+- GitHub Actions concurrency control: https://docs.github.com/en/actions/using-jobs/using-concurrency
