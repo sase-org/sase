@@ -263,7 +263,9 @@ epic phases.
 `sase mobile gateway start` launches the workstation-hosted gateway used by paired mobile clients. It binds to
 `127.0.0.1` by default, supports local pairing, and exposes authenticated session, SSE event, notification, agent, and
 fixed workflow-helper endpoints. See [`docs/mobile_gateway.md`](docs/mobile_gateway.md) for setup, pairing, Tailscale
-guidance, bridge boundaries, and the API contract location.
+guidance, bridge boundaries, and the API contract location. See
+[`docs/mobile_mvp_runbook.md`](docs/mobile_mvp_runbook.md) for private APK packaging, remote access, push payload
+boundaries, troubleshooting, rollback, and the MVP threat model.
 
 ## Project Structure
 
@@ -458,6 +460,7 @@ extension APIs:
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system
 - [`docs/mobile_gateway.md`](docs/mobile_gateway.md) — Mobile gateway setup, pairing, and security notes
+- [`docs/mobile_mvp_runbook.md`](docs/mobile_mvp_runbook.md) — Android mobile MVP packaging, Tailscale, and threat model
 - [`docs/notifications.md`](docs/notifications.md) — Notification system
 - [`docs/perf_runbook.md`](docs/perf_runbook.md) — `sase ace` performance runbook (`SASE_TUI_TRACE` and benchmark
   harness)

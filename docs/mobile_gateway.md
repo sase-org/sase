@@ -17,6 +17,8 @@ The implementation is split across repos:
   event stream, and committed API contract snapshot.
 - `../sase-android/README.md` is the Android client handoff for build/test commands, fake-gateway coverage, foreground
   UX smoke checks, and Epic 7 limitations.
+- [`docs/mobile_mvp_runbook.md`](mobile_mvp_runbook.md) is the install/operate/security runbook for private APK
+  distribution, Tailscale Serve remote access, push payload boundaries, troubleshooting, and rollback.
 
 ## Start Locally
 
@@ -113,6 +115,19 @@ mobile_gateway:
 
 Only credential paths or environment-variable names are passed on the gateway command line. Do not commit
 service-account JSON, Firebase project secrets, `google-services.json`, signing keys, or local tailnet hostnames.
+
+## Private Remote Access And Packaging
+
+The MVP runbook covers debug APK installation, signed release APKs, Firebase-configured internal builds, versioning,
+Tailscale Serve setup, threat model, and rollback steps:
+
+```text
+docs/mobile_mvp_runbook.md
+```
+
+Keep the gateway on `127.0.0.1` when using Tailscale Serve. Tailscale proxies the loopback gateway inside the tailnet,
+so the SASE process does not need a LAN or public bind. Use `--allow-non-loopback` / `-L` only for explicit LAN or
+tailnet address binds during short smoke windows.
 
 ## Hardening Test Commands
 
