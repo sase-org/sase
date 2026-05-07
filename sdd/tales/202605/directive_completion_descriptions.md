@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 11:47:54
-status: wip
+status: done
 prompt: sdd/prompts/202605/directive_completion_descriptions.md
 ---
 # Plan: Directive Completion Descriptions

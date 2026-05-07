@@ -21,6 +21,7 @@ class DirectiveCompletionMetadata:
 
     aliases: tuple[str, ...] = ()
     argument_hint: str = ""
+    description: str = ""
 
 
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
@@ -35,6 +36,21 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "repeat": ":count",
     "tag": ":tag",
     "wait": ":agent or :duration",
+}
+
+
+_DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
+    "alt": "split a prompt into text/model variants",
+    "approve": "run autonomously without plan approval prompts",
+    "edit": "return editor text to the prompt bar before launch",
+    "epic": "plan first and auto-approve the plan as an epic",
+    "hide": "hide the agent from the default Agents tab",
+    "model": "choose one or more provider/model targets",
+    "name": "assign or auto-generate the agent name",
+    "plan": "create a plan first, then wait for approval",
+    "repeat": "run the prompt multiple serial iterations",
+    "tag": "assign a user-managed agent tag",
+    "wait": "defer launch until agents complete or time elapses",
 }
 
 
@@ -89,6 +105,7 @@ def build_directive_completion_candidates(
             metadata=DirectiveCompletionMetadata(
                 aliases=aliases_by_directive.get(directive, ()),
                 argument_hint=_DIRECTIVE_ARGUMENT_HINTS.get(directive, ""),
+                description=_DIRECTIVE_DESCRIPTIONS.get(directive, ""),
             ),
         )
         for directive in sorted(_USER_FACING_DIRECTIVES)

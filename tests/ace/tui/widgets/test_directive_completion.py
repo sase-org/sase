@@ -7,6 +7,7 @@ from unittest.mock import patch
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.directive_completion import (
+    DirectiveCompletionMetadata,
     build_directive_completion_candidates,
     extract_directive_token_around_cursor,
     is_directive_like_token,
@@ -33,6 +34,29 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%model" in insertions
     assert "%wait" in insertions
     assert "%xprompts_enabled" not in insertions
+
+
+def test_directive_completion_includes_representative_descriptions() -> None:
+    model, _ = _single_candidate("%mo")
+    wait, _ = _single_candidate("%w")
+    alt, _ = _single_candidate("%al")
+
+    assert _metadata(model).description == "choose one or more provider/model targets"
+    assert _metadata(wait).description == (
+        "defer launch until agents complete or time elapses"
+    )
+    assert _metadata(alt).description == "split a prompt into text/model variants"
+
+
+def test_all_directive_completion_candidates_have_descriptions() -> None:
+    candidates, _ = build_directive_completion_candidates("%")
+
+    missing = [
+        candidate.insertion
+        for candidate in candidates
+        if not _metadata(candidate).description
+    ]
+    assert missing == []
 
 
 def test_directive_completion_filters_partial_name() -> None:
@@ -98,6 +122,7 @@ async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
         assert panel.border_title == "directives"
+        assert "choose one or more provider/model targets" in panel.render().plain
 
 
 async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:
@@ -161,3 +186,8 @@ def _single_candidate(token: str):
     candidates, shared = build_directive_completion_candidates(token)
     assert len(candidates) == 1
     return candidates[0], shared
+
+
+def _metadata(candidate) -> DirectiveCompletionMetadata:
+    assert isinstance(candidate.metadata, DirectiveCompletionMetadata)
+    return candidate.metadata

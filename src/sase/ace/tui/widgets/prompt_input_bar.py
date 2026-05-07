@@ -307,6 +307,8 @@ class PromptInputBar(Static):
             details.append(
                 "alias " + ", ".join(f"%{alias}" for alias in metadata.aliases)
             )
+        if metadata.description:
+            details.append(metadata.description)
         if details:
             content.append(f"  {'  '.join(details)}", style="dim")
 
