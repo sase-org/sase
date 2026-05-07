@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-06 20:05:26
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_tag_hash_prefix.md
 ---
 # Plan: Use `#` For Agents-Tab Dynamic Agent Tag Prefixes

@@ -1,7 +1,7 @@
 """Per-panel border-title labels for vertically stacked Agents-tab panels.
 
 Each ``AgentList`` panel must show a ``border_title`` identifying its tag
-(``(untagged)`` / ``@<tag>``) plus a ``· N`` agent count, refreshed every
+(``(untagged)`` / ``#<tag>``) plus a ``· N`` agent count, refreshed every
 time :meth:`AgentDisplayMixin._refresh_panel_widgets` runs (panel widget
 ids correspond to index slots, not fixed tags — alphabetic shifts can
 flip which tag a slot points at).
@@ -140,12 +140,12 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     banana = app._panel_widgets["agent-list-panel-2"]
     apple_title = _title_text(apple)
     banana_title = _title_text(banana)
-    assert apple_title.plain == "@apple · 2"
-    assert banana_title.plain == "@banana · 1"
-    _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="@apple")
+    assert apple_title.plain == "#apple · 2"
+    assert banana_title.plain == "#banana · 1"
+    _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="#apple")
     _assert_title_span(apple_title, start=6, end=10, style="#AFAFAF", text=" · 2")
     _assert_title_span(
-        banana_title, start=0, end=7, style="bold #FFD75F", text="@banana"
+        banana_title, start=0, end=7, style="bold #FFD75F", text="#banana"
     )
 
 
@@ -162,7 +162,7 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == "@alpha · 1"
-    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "@mike · 1"
-    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "@zulu · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == "#alpha · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "#mike · 1"
+    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "#zulu · 1"
     assert "agent-list-panel-3" not in app._panel_widgets

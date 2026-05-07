@@ -133,7 +133,7 @@ def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
 
 
 def _three_panel_agents() -> list[Agent]:
-    """3 panels: untagged, @apple, @banana."""
+    """3 panels: untagged, #apple, #banana."""
     return [
         _agent(name="u1", tag=None, suffix="t1"),
         _agent(name="a1", tag="apple", suffix="t2"),

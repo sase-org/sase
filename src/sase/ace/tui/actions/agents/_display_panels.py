@@ -42,7 +42,7 @@ def _agent_panel_border_title(
     elif key is None:
         title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
     else:
-        title.append(f"@{key}", style=_PANEL_TAG_STYLE)
+        title.append(f"#{key}", style=_PANEL_TAG_STYLE)
     title.append(f" · {agent_count}", style=_PANEL_COUNT_STYLE)
     return title
 
