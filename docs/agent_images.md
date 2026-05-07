@@ -90,14 +90,19 @@ Capability detection is conservative for generic terminals, but it can use an ac
 - truecolor advertisement is recorded for diagnostics and placeholder rendering, but missing `COLORTERM=truecolor` does
   not block a successful active probe in tmux or force mode
 
-The internal preview renderable currently transmits PNG bytes through the Kitty graphics protocol and falls back to a
-text placeholder for unsupported terminals, missing files, unsupported extensions, and non-PNG raster files. JPEG, WebP,
-and GIF are collected as notification attachments today, but need a future transcoding/display step before inline Kitty
-preview can render them. The fallback includes the file path, byte size when available, and the relevant editor action
-(`e` in notifications or `%E` in agent panels) so non-Kitty sessions remain usable.
+The internal preview layer renders PNG, JPEG, WebP, and GIF attachments as a portable Rich cell preview by default. That
+preview uses Pillow to decode the first image frame, fits it inside the visible panel bounds, and paints it with colored
+half-block terminal cells. It works in ordinary terminals, tmux, SSH sessions, and terminal stacks where native graphics
+probing fails.
 
-Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable terminal graphics
-detection. Set it to `kitty` (also accepts `1`, `true`, `yes`, `on`, or `force`) to bypass the known-terminal-family
-gate while still requiring a successful active probe.
+When Kitty graphics support is detected, PNG files still use the higher-fidelity native Kitty path. Native graphics are
+an upgrade path only: if Kitty is unavailable, disabled, or not applicable to the file type, ACE falls back to the
+portable cell renderer. Missing files, unsupported extensions, decode errors, and images above the renderer guardrails
+show a concise text fallback with the file path, byte size when available, and the relevant editor action (`e` in
+notifications or `%E` in agent panels).
+
+Set `SASE_TUI_GRAPHICS=off` (also accepts `0`, `false`, `no`, `disable`, or `disabled`) to disable native terminal
+graphics detection. This does not disable portable cell previews. Set it to `kitty` (also accepts `1`, `true`, `yes`,
+`on`, or `force`) to bypass the known-terminal-family gate while still requiring a successful active probe.
 
 Source: `src/sase/ace/tui/graphics/`

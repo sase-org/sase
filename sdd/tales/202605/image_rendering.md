@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 00:24:58
-status: wip
+status: done
 prompt: sdd/prompts/202605/image_rendering.md
 ---
 # Improve SASE Image Rendering

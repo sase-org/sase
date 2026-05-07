@@ -12,6 +12,7 @@ from rich.segment import Segment
 from rich.text import Text
 
 from .capability import GraphicsCapability
+from .cell import CellImageError, CellImageRenderable
 from .images import is_inline_image_path, is_supported_image_path
 from .kitty import (
     build_delete_sequence,
@@ -40,7 +41,7 @@ class TerminalControlRenderable:
 
 @dataclass(frozen=True)
 class ImageFallbackRenderable:
-    """Textual fallback shown when terminal image rendering is unavailable."""
+    """Textual fallback shown when image preview rendering is unavailable."""
 
     path: str
     reason: str
@@ -50,7 +51,7 @@ class ImageFallbackRenderable:
     ) -> RenderResult:
         del console, options
         text = Text()
-        text.append("Image preview unavailable\n", style="bold #D7AF5F")
+        text.append("Portable image preview unavailable\n", style="bold #D7AF5F")
         text.append(str(Path(self.path).expanduser()), style="#87D7FF underline")
         try:
             size = os.path.getsize(os.path.expanduser(self.path))
@@ -147,7 +148,7 @@ def image_preview(
     *,
     columns: int = 40,
     rows: int = 12,
-) -> KittyImageRenderable | ImageFallbackRenderable:
+) -> KittyImageRenderable | CellImageRenderable | ImageFallbackRenderable:
     """Return a renderable for a local image path without raising on fallback."""
     expanded = os.path.abspath(os.path.expanduser(path))
     if not is_supported_image_path(expanded):
@@ -156,22 +157,32 @@ def image_preview(
         )
     if not os.path.exists(expanded):
         return ImageFallbackRenderable(expanded, "file does not exist")
-    if not capability.supported or capability.protocol != "kitty":
-        return ImageFallbackRenderable(expanded, capability.reason)
-    if not is_inline_image_path(expanded):
-        return ImageFallbackRenderable(
-            expanded,
-            "Inline Kitty previews currently require PNG files; convert this attachment to PNG for terminal display",
-        )
+    if (
+        capability.supported
+        and capability.protocol == "kitty"
+        and is_inline_image_path(expanded)
+    ):
+        try:
+            return KittyImageRenderable.from_path(
+                expanded,
+                columns=columns,
+                rows=rows,
+                passthrough=capability.passthrough,
+            )
+        except OSError:
+            pass
+
     try:
-        return KittyImageRenderable.from_path(
+        return CellImageRenderable.from_path(
             expanded,
             columns=columns,
             rows=rows,
-            passthrough=capability.passthrough,
+            truecolor=capability.truecolor,
         )
     except OSError as exc:
         return ImageFallbackRenderable(expanded, str(exc))
+    except CellImageError as exc:
+        return ImageFallbackRenderable(expanded, f"portable preview unavailable: {exc}")
 
 
 def _placeholder_sgr(image_id: int, placement_id: int) -> str:

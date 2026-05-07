@@ -840,14 +840,14 @@ never leaves you staring at a trimmed page.
 ## Image Preview Foundation
 
 ACE probes terminal graphics support before the Textual app starts and stores the result on the running app. The current
-graphics package is a reusable foundation for image previews: it detects Kitty-compatible terminals, handles tmux
-passthrough, emits Kitty graphics protocol placeholders for PNG files, and falls back to a text placeholder when inline
-preview is unavailable.
+graphics package is a reusable foundation for image previews: it renders PNG, JPEG, WebP, and GIF attachments with a
+portable Rich cell preview, detects Kitty-compatible terminals, handles tmux passthrough, and upgrades PNG files to
+Kitty graphics protocol placeholders when native graphics are available.
 
 Generated images are already attached to successful agent completion notifications and recorded in `done.json` as
-`image_paths`. Broad file-panel image rendering is still limited to surfaces that opt into the internal graphics
-renderable. See [`agent_images.md`](agent_images.md) for supported image extensions, `SASE_TUI_GRAPHICS`, and current
-preview limitations.
+`image_paths`. The Agents tab file panel and notification modal route supported raster image attachments through this
+preview layer before attempting text decoding. See [`agent_images.md`](agent_images.md) for supported image extensions,
+`SASE_TUI_GRAPHICS`, and current preview behavior.
 
 ## Agent Auto-Naming
 

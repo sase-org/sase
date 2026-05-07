@@ -12,6 +12,7 @@ dependencies = [
     "jinja2",
     "jsonschema",
     "langchain-core",
+    "pillow",
     "pluggy",
     "prometheus_client",
     "pyinstrument",
