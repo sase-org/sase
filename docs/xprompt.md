@@ -77,9 +77,11 @@ sase xprompt explain my_workflow --arg key=value    # With named args
 ### `sase xprompt list`
 
 Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
-`"workflow"`), source file path, input definitions, tags, and a content preview. Newer clients should prefer the
-`kind`/`insertion` metadata when present: `simple_xprompt` and `embeddable_workflow` entries are inserted as `#name`,
-while `standalone_workflow` entries are inserted as `#!name`.
+`"workflow"`), kind, reference prefix, insertion text, source file path, user-facing input definitions, tags, and a
+content preview. Clients should treat `insertion` as the authoritative reference text. Most `xprompt` and
+`embeddable_workflow` entries insert as `#name`; standalone workflows and multi-agent xprompts insert as `#!name`. Step
+inputs are omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a
+user.
 
 ```bash
 sase xprompt list                   # JSON array to stdout
@@ -109,31 +111,33 @@ sase xprompt catalog                # Write the PDF to a tempdir and print its p
 sase xprompt catalog --out /tmp/out # Write the PDF to the specified directory
 ```
 
-The command collects all xprompts visible to the current config (same set `sase xprompt list` returns), renders each
-into an HTML section, and produces a single PDF using the bundled `catalog_template.html.j2` and `catalog_style.css`.
+The command collects all visible xprompt templates, renders each into an HTML section, and produces a single PDF using
+the bundled `catalog_template.html.j2` and `catalog_style.css`. The mobile/helper structured catalog uses the same
+collection and classification code, but returns JSON metadata instead of requiring a PDF renderer.
 
 ## Discovery Order
 
 XPrompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
 higher-priority source wins (first-wins).
 
-| Priority | Location                               | Notes                                       |
-| -------- | -------------------------------------- | ------------------------------------------- |
-| 1        | `.xprompts/` (CWD, hidden dir)         | Highest priority; project-local overrides   |
-| 2        | `xprompts/` (CWD)                      | Non-hidden variant                          |
-| 3        | `~/.xprompts/` (home, hidden dir)      | User-wide overrides                         |
-| 4        | `~/xprompts/` (home)                   | Non-hidden variant                          |
-| 5        | `~/.config/sase/xprompts/{project}/`   | Project-specific (when project is set)      |
-| 6        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)   |
-| 7        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                   |
-| 8        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts          |
-| 9        | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with sase |
+| Priority | Location                               | Notes                                            |
+| -------- | -------------------------------------- | ------------------------------------------------ |
+| 1        | `.xprompts/` (CWD, hidden dir)         | Highest priority; project-local overrides        |
+| 2        | `xprompts/` (CWD)                      | Non-hidden variant                               |
+| 3        | `~/.xprompts/` (home, hidden dir)      | User-wide overrides                              |
+| 4        | `~/xprompts/` (home)                   | Non-hidden variant                               |
+| 5        | `~/.config/sase/xprompts/{project}/`   | Project-specific (when project is set)           |
+| 6        | `memory/long/*.md`                     | Auto-discovered dynamic-memory xprompts          |
+| 7        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)        |
+| 8        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                        |
+| 9        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts               |
+| 10       | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with core SASE |
 
-Each directory (priorities 1-5, 7-9) can contain individual `.md` files. Within priority 6, the config merge chain
+Each directory (priorities 1-6 and 8-10) can contain individual `.md` files. Within priority 7, the config merge chain
 applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a local
 `./sase.yml` in the current working directory (highest config priority).
 
-For file-based xprompts (priorities 1-5, 7-9), the xprompt name defaults to the filename stem (e.g., `summarize.md`
+For file-based xprompts (priorities 1-6 and 8-10), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
 
 Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`.

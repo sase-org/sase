@@ -308,6 +308,8 @@ are stripped during replacement since resume scenarios should not carry over HIT
 Workflows launched via `sase run` are visible in the Agents tab alongside ACE-launched workflows. The TUI scans
 `artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
 `workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
+Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible
+and are automatically grouped under the `@review` tag, matching the behavior of a `%tag:review` prompt launch.
 
 ### Tag Side Panels
 
@@ -714,6 +716,10 @@ project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (mult
 icon; standalone workflows are displayed with the `#!name` insertion syntax. Project-local xprompts defined in each
 project's `sase.yml` file are also included, even though the TUI's normal config loading does not read project-local
 config files.
+
+The list rows and preview metadata show the same insertion form and visible input metadata used by `Ctrl+T` completion.
+Step-only inputs are hidden from this user-facing surface because they are supplied by workflow execution rather than
+typed by the user.
 
 ### Keybindings
 
@@ -1165,7 +1171,10 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
 
 - **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`), completion shows matching
   xprompt names from all discovery sources. Built-in workspace references such as `#cd` are included; use `#cd:<path>`
-  to run from a specific directory without VCS workspace management.
+  to run from a specific directory without VCS workspace management. Completion rows include the xprompt kind and
+  visible typed inputs, with required arguments shown as `name: type` and optional arguments shown as `name?: type` plus
+  a default when the default is a simple scalar. Standalone references use the `#!name` insertion form; typing `#!`
+  filters completion to entries whose canonical insertion starts with `#!`.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments).
@@ -1184,7 +1193,8 @@ Press `Ctrl+T` to activate completion. The completion kind is determined by the 
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
-completion panel shows up to 10 candidates at a time and scrolls to keep the highlight visible.
+completion panel shows up to 10 candidates at a time and scrolls to keep the highlight visible. When exactly one xprompt
+or file candidate matches, accepting completion inserts the canonical reference immediately.
 
 ### Special Prompt Shortcuts
 

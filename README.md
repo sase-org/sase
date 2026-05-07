@@ -73,8 +73,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
 - **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
-- **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, semantic tags, and CLI tools for
-  expansion, listing, workflow visualization, and DAG graphing
+- **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, semantic tags, TUI/mobile argument
+  hints, and CLI tools for expansion, listing, catalog generation, workflow visualization, and DAG graphing
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **SDD** — Spec-driven development artifacts that persist expanded prompts plus approved tales, executable epics, and
@@ -235,9 +235,10 @@ They support control flow (conditionals, loops), parallel execution, and human-i
 XPrompt is the prompt template system. Templates use YAML front matter for metadata and Jinja2 for rendering. References
 like `#name(args)` are expanded from multiple discovery locations (project, user, built-in). XPrompts can be annotated
 with semantic role tags (`vcs`, `crs`, `fix_hook`, `rollover`) for lookup-by-role. XPrompt powers both standalone prompt
-expansion and the prompt steps within workflows. The `sase xprompt` CLI provides subcommands for expanding prompts
-(`expand --trace`), listing all available xprompts (`list`), visualizing workflow execution plans (`explain`), and
-generating workflow DAGs (`graph`).
+expansion and the prompt steps within workflows. The TUI and mobile helper APIs use the structured catalog to insert the
+right reference form (`#name` or `#!name`) and show prompt-adjacent input hints for typed arguments. The `sase xprompt`
+CLI provides subcommands for expanding prompts (`expand --trace`), listing all available xprompts (`list`), generating a
+PDF catalog (`catalog`), visualizing workflow execution plans (`explain`), and generating workflow DAGs (`graph`).
 
 ### Workspace References
 
