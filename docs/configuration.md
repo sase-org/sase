@@ -463,17 +463,18 @@ xprompts:
     tags: [crs]
 ```
 
-Xprompts defined in `sase.yml` are priority 6 out of 9 in the resolution order:
+Xprompts defined in `sase.yml` are priority 7 out of 10 in the resolution order:
 
 1. `.xprompts/*.md` (CWD, hidden directory)
 2. `xprompts/*.md` (CWD)
 3. `~/.xprompts/*.md` (home, hidden directory)
 4. `~/xprompts/*.md` (home)
 5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
-6. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
-7. Plugin packages (via `sase_xprompts` entry points)
-8. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
-9. `<sase_package>/xprompts/*.md` (built-in package xprompts)
+6. `memory/long/*.md` auto-discovered memory xprompts with `keywords` frontmatter
+7. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
+8. Plugin packages (via `sase_xprompts` entry points)
+9. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
+10. `<sase_package>/xprompts/*.md` (built-in package xprompts)
 
 Earlier sources win on name conflicts. File-based xprompts use YAML front matter for metadata and the file body for
 content.
@@ -1033,6 +1034,31 @@ Supported date range formats:
 - **Absolute**: `YYmmdd` or `YYmmddHHMMSS`
 - **Relative**: `-Nd` (days ago), `-Nh` (hours ago), `-Nm` (minutes ago), `0d` (today)
 - **Ranges**: `START..END` (e.g., `-7d..0d`); single point means "from that point to now"
+
+### `sase editor`
+
+`sase editor` exposes JSON-over-stdin helper operations for editor integrations. It is intentionally a fixed-operation
+bridge rather than a generic shell or filesystem API.
+
+| Form                                        | Input                | Description                                                                                                      |
+| ------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sase editor helper-bridge xprompt-catalog` | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
+
+The structured catalog includes insertion metadata (`insertion`, `reference_prefix`, `kind`), typed argument metadata,
+display/source fields, and `definition_path` when SASE can resolve a real file to jump to.
+
+### `sase file`
+
+| Form             | Flags                     | Description                                                                                     |
+| ---------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `sase file list` | `-p/--path`, `-t/--token` | Emit JSON filesystem completion candidates rooted at `--path` and filtered by the cursor token. |
+
+### `sase file-history`
+
+| Form                       | Flags       | Description                                                      |
+| -------------------------- | ----------- | ---------------------------------------------------------------- |
+| `sase file-history list`   | none        | Emit the recency-ordered file-reference history as a JSON array. |
+| `sase file-history delete` | `-p/--path` | Remove one entry from the file-reference history.                |
 
 ### `sase lsp`
 

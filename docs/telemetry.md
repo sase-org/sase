@@ -29,7 +29,7 @@ principles:
   default). There is no runtime overhead unless telemetry is explicitly enabled.
 - **Dual data collection**: Short-lived processes (agents) push metrics to a Push Gateway. Long-lived processes (axe
   daemon) expose metrics via an HTTP endpoint for Prometheus to scrape.
-- **33 metrics across 7 subsystems**: Comprehensive coverage of the full sase lifecycle.
+- **34 metrics across 7 subsystems**: Comprehensive coverage of the full sase lifecycle.
 
 ## Configuration
 
@@ -182,7 +182,7 @@ cd sase-monitoring && docker compose up -d
 │ (short-lived procs) │   (long-lived: axe daemon)         │
 ├─────────────────────┴────────────────────────────────────┤
 │                 Prometheus Metrics Layer                 │
-│       metrics.py (26 singletons, stub/real switch)       │
+│       metrics.py (34 metric singletons, stub/real switch)│
 ├──────────────────────────────────────────────────────────┤
 │                  Instrumentation Points                  │
 │  Agent · LLM · Axe · Hooks · Beads · VCS · Notifications │
@@ -194,7 +194,7 @@ cd sase-monitoring && docker compose up -d
 | File / Directory                   | Purpose                                       |
 | ---------------------------------- | --------------------------------------------- |
 | `src/sase/telemetry/__init__.py`   | Public API exports                            |
-| `src/sase/telemetry/metrics.py`    | Module-level metric singletons (26 attrs)     |
+| `src/sase/telemetry/metrics.py`    | Module-level metric singletons (34 attrs)     |
 | `src/sase/telemetry/_registry.py`  | Init, Push Gateway integration, atexit        |
 | `src/sase/telemetry/_stubs.py`     | No-op stub classes (zero overhead)            |
 | `src/sase/telemetry/_config.py`    | Configuration loading from sase.yml           |
@@ -207,7 +207,7 @@ cd sase-monitoring && docker compose up -d
 
 ## Metric Catalog
 
-33 metrics organized into 7 subsystems:
+34 metrics organized into 7 subsystems:
 
 ### Agent Lifecycle
 
@@ -227,6 +227,7 @@ cd sase-monitoring && docker compose up -d
 | `sase_llm_invocation_duration_seconds` | histogram | provider             | Invocation duration     |
 | `sase_llm_errors_total`                | counter   | provider, error_type | LLM errors              |
 | `sase_llm_retries_total`               | counter   | provider             | LLM retries             |
+| `sase_llm_retry_spawns_total`          | counter   | outcome              | Cross-process retries   |
 | `sase_llm_input_tokens_total`          | counter   | provider             | Input tokens consumed   |
 | `sase_llm_output_tokens_total`         | counter   | provider             | Output tokens generated |
 | `sase_llm_cache_read_tokens_total`     | counter   | provider             | Cache-read tokens       |

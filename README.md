@@ -84,7 +84,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 - **Beads** — Git-native issue tracking for SDD epics, phase dependencies, and multi-agent execution plans
 - **Mentors** — Automated AI code review agents with configurable profiles, structured JSON output, and TUI-based review
   and apply workflow
-- **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
+- **Telemetry** — Prometheus-based observability with 34 metrics across 7 subsystems, live TUI dashboard, health checks,
   and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
 - **Agent Artifacts** — Completion notifications can include chat, diff, error logs, generated Markdown PDFs, and
   generated image files touched by agents so downstream notification plugins can deliver the full result
@@ -183,6 +183,7 @@ sase
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
 | `sase core health`             | Check that the required `sase_core_rs` Rust extension is loadable and working (`-j` for JSON)                  |
+| `sase editor helper-bridge`    | JSON helper bridge for editor integrations, currently exposing the structured xprompt catalog                  |
 | `sase file list`               | JSON file/directory candidates rooted at `--path` (used by editor `<C-t>` completion)                          |
 | `sase file-history delete`     | Remove one path from the file-reference history                                                                |
 | `sase file-history list`       | JSON array of recently-referenced paths (most recent first; consumed by editor plugins)                        |

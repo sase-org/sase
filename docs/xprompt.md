@@ -20,7 +20,6 @@ The resolution path is easiest to read as a pipeline from prompt references to f
 - [Editor LSP](#editor-lsp)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
-  - [Hooks](#hooks)
 - [Reference Syntax](#reference-syntax)
 - [Arguments](#arguments)
 - [Shorthand Syntax](#shorthand-syntax)

@@ -119,12 +119,29 @@ the saved path into the agent prompt. Launch, kill, retry, upload, and per-devic
 Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`, `beads-show`, `update-start`, and
 `update-status`. ChangeSpec, xprompt, and bead helpers are read-only. The only mutating helper operation is
 `update-start`, which starts the configured `chat_install.command` worker and reports status through structured polling.
+The structured xprompt catalog includes `definition_path` when the source can be resolved to a real file, so mobile and
+editor clients can offer jump-to-definition without reverse-engineering display paths.
 
 External callers should import from these facade modules only. The `_mobile_agent_*` and `_mobile_helper_*` modules are
 private split implementations kept small for testability and should not be imported by plugins or clients. The public
 HTTP route contract is documented in [`docs/mobile_gateway.md`](mobile_gateway.md).
 
 Source: `src/sase/integrations/mobile_agents.py`, `src/sase/integrations/mobile_helpers.py`
+
+## Editor Helper Bridge
+
+`sase.integrations.editor_helpers` exposes an editor-branded helper bridge over the same fixed JSON operations used by
+the mobile helper facade. The current CLI surface is:
+
+```bash
+printf '{"schema_version":1,"project":"sase"}' | sase editor helper-bridge xprompt-catalog
+```
+
+The operation returns the structured xprompt catalog, including insertion metadata, typed inputs, source display fields,
+and `definition_path` for entries backed by a resolvable file. Editor integrations should use this bridge or `sase lsp`
+instead of importing private catalog modules directly.
+
+Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/xprompt_lsp.py`
 
 ## Chat Update Worker
 

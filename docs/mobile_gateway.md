@@ -499,9 +499,10 @@ curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&include_pdf=true" \
 ```
 
 Each xprompt catalog entry includes the display-only `input_signature` plus mobile editor metadata: `insertion`,
-`reference_prefix`, `kind`, and an `inputs` array of `{name, type, required, default_display, position}` records.
-Android should insert `insertion` when present, fall back to `#<name>` for older gateways, and use `inputs` only for
-prompt-adjacent argument hints. The raw launch prompt remains authoritative and is sent unchanged.
+`reference_prefix`, `kind`, `definition_path` when a real source file can be resolved, and an `inputs` array of
+`{name, type, required, default_display, position}` records. Android should insert `insertion` when present, fall back
+to `#<name>` for older gateways, and use `inputs` only for prompt-adjacent argument hints. The raw launch prompt remains
+authoritative and is sent unchanged.
 
 List open/in-progress beads in a project and inspect one bead:
 
