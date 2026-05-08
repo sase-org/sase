@@ -426,7 +426,13 @@ class TestAgentBeadMetadata:
 
 
 class TestAgentArtifactMetadata:
-    def test_full_header_renders_artifact_summary(self, tmp_path: Path) -> None:
+    def test_full_header_renders_artifact_paths_after_deltas(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        home = tmp_path / "home"
+        monkeypatch.setenv("HOME", str(home))
         artifacts_dir = (
             tmp_path
             / ".sase"
@@ -437,19 +443,59 @@ class TestAgentArtifactMetadata:
             / "20260507120000"
         )
         artifacts_dir.mkdir(parents=True)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        plan = home / ".sase" / "plans" / "202605" / "approved_plan.md"
+        plan.parent.mkdir(parents=True)
+        plan.write_text("# Plan", encoding="utf-8")
         chat = tmp_path / "chat.md"
         image = tmp_path / "image.png"
+        explicit_source = tmp_path / "notes.md"
+        diff_path = tmp_path / "agent.diff"
         chat.write_text("chat", encoding="utf-8")
         image.write_bytes(b"png")
+        explicit_source.write_text("notes", encoding="utf-8")
+        diff_path.write_text(
+            """diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1 @@
+-old
++new
+""",
+            encoding="utf-8",
+        )
+        from sase.core.agent_artifact_facade import store_explicit_agent_artifact
+
+        explicit = store_explicit_agent_artifact(explicit_source, artifacts_dir)
         (artifacts_dir / "done.json").write_text(
             json.dumps({"response_path": str(chat), "image_paths": [str(image)]}),
             encoding="utf-8",
         )
-        agent = _make_agent(status="DONE", artifacts_dir=str(artifacts_dir))
+        (artifacts_dir / "plan_path.json").write_text(
+            json.dumps({"plan_path": str(plan)}),
+            encoding="utf-8",
+        )
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps({"plan_path": str(plan), "plan_committed": False}),
+            encoding="utf-8",
+        )
+        agent = _make_agent(
+            status="DONE",
+            artifacts_dir=str(artifacts_dir),
+            workspace_dir=str(workspace),
+            diff_path=str(diff_path),
+        )
 
         header, _ = build_header_text(agent, cheap=False)
 
-        assert "ARTIFACTS: 2 (chat, image)\n" in header.plain
+        assert header.plain.index("DELTAS:\n") < header.plain.index("ARTIFACTS:\n")
+        assert "ARTIFACTS: 2" not in header.plain
+        assert "(chat, image)" not in header.plain
+        assert "~/.sase/plans/202605/approved_plan.md" in header.plain
+        assert explicit.path.replace(str(home), "~") in header.plain
+        assert "chat.md" not in header.plain
+        assert "image.png" not in header.plain
 
     def test_cheap_header_omits_artifact_summary(
         self,
@@ -465,6 +511,79 @@ class TestAgentArtifactMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "ARTIFACTS:" not in header.plain
+
+    def test_uncommitted_plan_prefers_archived_plan_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        home = tmp_path / "home"
+        monkeypatch.setenv("HOME", str(home))
+        artifacts_dir = tmp_path / "artifacts"
+        workspace = tmp_path / "workspace"
+        archived_plan = home / ".sase" / "plans" / "202605" / "plan.md"
+        sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+        artifacts_dir.mkdir()
+        archived_plan.parent.mkdir(parents=True)
+        sdd_plan.parent.mkdir(parents=True)
+        archived_plan.write_text("# Archived", encoding="utf-8")
+        sdd_plan.write_text("# SDD", encoding="utf-8")
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "plan_path": str(archived_plan),
+                    "sdd_plan_path": str(sdd_plan),
+                    "plan_committed": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        agent = _make_agent(
+            status="DONE",
+            artifacts_dir=str(artifacts_dir),
+            workspace_dir=str(workspace),
+        )
+
+        header, _ = build_header_text(agent, cheap=False)
+
+        assert "~/.sase/plans/202605/plan.md" in header.plain
+        assert "sdd/tales/202605/plan.md" not in header.plain
+
+    def test_committed_plan_uses_workspace_relative_path_and_hint_mapping(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        workspace = tmp_path / "workspace"
+        archived_plan = tmp_path / "home" / ".sase" / "plans" / "202605" / "plan.md"
+        sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+        artifacts_dir.mkdir()
+        archived_plan.parent.mkdir(parents=True)
+        sdd_plan.parent.mkdir(parents=True)
+        archived_plan.write_text("# Archived", encoding="utf-8")
+        sdd_plan.write_text("# SDD", encoding="utf-8")
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "plan_path": str(archived_plan),
+                    "sdd_plan_path": str(sdd_plan),
+                    "plan_committed": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        agent = _make_agent(
+            status="DONE",
+            artifacts_dir=str(artifacts_dir),
+            workspace_dir=str(workspace),
+        )
+        panel = _FakePromptPanel()
+
+        mappings = panel.update_display_with_hints(agent)
+
+        plain = _plain_of(panel.captured[-1])
+        assert "ARTIFACTS:\n  ~ [1] sdd/tales/202605/plan.md\n" in plain
+        assert mappings[1] == str(sdd_plan)
 
 
 # -- agent list bead badge ----------------------------------------------------

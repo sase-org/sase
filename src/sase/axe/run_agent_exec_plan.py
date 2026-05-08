@@ -110,6 +110,7 @@ def _record_workflow_metadata(
         "feedback_submitted_at",
         "sdd_prompt_path",
         "sdd_plan_path",
+        "plan_committed",
         "questions_submitted_at",
     }
     for key, value in relationships.items():
@@ -318,6 +319,8 @@ def handle_plan_marker(
             _commit_sdd_files(ctx.workspace_dir, sdd_plan_name, plan_kind=plan_kind)
         else:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+    plan_committed = bool(should_commit and sdd_plan_path is not None)
+    update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
 
     if not plan_result.run_coder and plan_result.action not in ("epic", "legend"):
         return "plan_committed"
@@ -377,6 +380,7 @@ def handle_plan_marker(
                 if state.sdd_spec_path
                 else None,
                 "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "plan_committed": plan_committed,
                 "legend_bead_id": (
                     legend_bead_id if plan_result.action == "epic" else None
                 ),
@@ -457,6 +461,7 @@ def handle_plan_marker(
                 if state.sdd_spec_path
                 else None,
                 "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "plan_committed": plan_committed,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": _agent_name_for_suffix(
                     ctx, PLAN_CHAIN_PLAN_SUFFIX

@@ -382,18 +382,15 @@ def create_followup_artifacts(
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
     if relationships:
         for key, value in relationships.items():
-            if (
-                key
-                in {
-                    "plan_path",
-                    "sdd_prompt_path",
-                    "sdd_plan_path",
-                    "feedback_submitted_at",
-                    "questions_submitted_at",
-                    "changespec_name",
-                }
-                and value
-            ):
+            if key in {
+                "plan_path",
+                "sdd_prompt_path",
+                "sdd_plan_path",
+                "plan_committed",
+                "feedback_submitted_at",
+                "questions_submitted_at",
+                "changespec_name",
+            } and (value or (key == "plan_committed" and value is not None)):
                 followup_meta[key] = value
 
     with open(

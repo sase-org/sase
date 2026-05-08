@@ -9,6 +9,7 @@ import pytest
 
 from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
+from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -153,6 +154,9 @@ class TestPlanFollowupPrompts:
             outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert outcome == "plan_committed"
         mock_commit.assert_called_once()
+        assert call(state.current_artifacts_dir, "plan_committed", True) in (
+            plan_mod.update_meta_field.call_args_list
+        )
 
     def test_approve_no_coder_commit_false_skips_commit(self, tmp_path) -> None:
         """run_coder=False, commit_plan=False -> outcome 'plan_committed', no SDD commit."""
@@ -181,6 +185,42 @@ class TestPlanFollowupPrompts:
             outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert outcome == "plan_committed"
         mock_commit.assert_not_called()
+        assert call(state.current_artifacts_dir, "plan_committed", False) in (
+            plan_mod.update_meta_field.call_args_list
+        )
+
+    def test_approve_followup_propagates_plan_committed_flag(self, tmp_path) -> None:
+        """Coder follow-up metadata records whether the SDD plan was committed."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "plan.md"
+        (tmp_path / "plan.md").write_text("# Plan")
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# SDD")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=True,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", sdd_plan),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        relationships = plan_mod.create_followup_artifacts.call_args.kwargs[
+            "relationships"
+        ]
+        assert relationships["plan_committed"] is True
 
     def test_coder_prompt_model_override_skips_inherited(self, tmp_path) -> None:
         """Custom prompt with %m:sonnet overrides inherited model."""
@@ -509,3 +549,28 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
     meta = json.loads((followup / "agent_meta.json").read_text())
     assert isinstance(meta["epic_started_at"], str)
     assert meta["epic_started_at"].endswith("+00:00")
+
+
+def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> None:
+    followup = tmp_path / "followup"
+    followup.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        result = create_followup_artifacts(
+            "test_proj",
+            {"model": "opus", "changespec_name": "test"},
+            ".code",
+            "20260331_120000",
+            workspace_num=1,
+            relationships={
+                "plan_path": str(tmp_path / "plan.md"),
+                "plan_committed": False,
+            },
+        )
+
+    assert result == str(followup)
+    meta = json.loads((followup / "agent_meta.json").read_text())
+    assert meta["plan_committed"] is False
