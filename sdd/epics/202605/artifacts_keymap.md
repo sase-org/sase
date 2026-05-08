@@ -2,6 +2,8 @@
 create_time: 2026-05-07 21:43:39
 status: wip
 prompt: sdd/prompts/202605/artifacts_keymap.md
+bead_id: sase-2c
+tier: epic
 ---
 # Generalize Agents Tab Artifact Viewing
 
