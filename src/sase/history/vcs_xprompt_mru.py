@@ -3,8 +3,12 @@
 import json
 from pathlib import Path
 
-_MRU_FILE = Path.home() / ".sase" / "vcs_xprompt_mru.json"
+_MRU_FILE = Path("~/.sase/vcs_xprompt_mru.json")
 _MAX_ENTRIES = 100
+
+
+def _mru_file() -> Path:
+    return Path(_MRU_FILE).expanduser()
 
 
 def load_vcs_xprompt_mru() -> list[str]:
@@ -13,10 +17,11 @@ def load_vcs_xprompt_mru() -> list[str]:
     Returns:
         Ordered list of VCS prefix strings, most recently used first.
     """
-    if not _MRU_FILE.exists():
+    mru_file = _mru_file()
+    if not mru_file.exists():
         return []
     try:
-        with open(_MRU_FILE, encoding="utf-8") as f:
+        with open(mru_file, encoding="utf-8") as f:
             data = json.load(f)
         entries = data.get("entries", [])
         return [e for e in entries if isinstance(e, str)][:_MAX_ENTRIES]
@@ -62,8 +67,9 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
 
 def _save_vcs_xprompt_mru(entries: list[str]) -> None:
     try:
-        _MRU_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_MRU_FILE, "w", encoding="utf-8") as f:
+        mru_file = _mru_file()
+        mru_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(mru_file, "w", encoding="utf-8") as f:
             json.dump({"entries": entries}, f, indent=2)
     except OSError:
         pass
@@ -77,7 +83,7 @@ def _is_stale_known_project_prefix(
     if project_name is None:
         return False
 
-    projects_base = projects_dir or Path.home() / ".sase" / "projects"
+    projects_base = projects_dir or Path("~/.sase/projects").expanduser()
     project_file = projects_base / project_name / f"{project_name}.gp"
     if not project_file.is_file():
         return False

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-07 21:06:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/vcs_xprompt_mru_test_history.md
 ---
 # Stop VCS XPrompt MRU Test Writes From Polluting User History

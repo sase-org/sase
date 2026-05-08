@@ -12,6 +12,7 @@ from sase.history.vcs_xprompt_mru import (
     load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
 )
+from tests.conftest import redirect_sase_home
 
 
 def _write_project(
@@ -150,6 +151,21 @@ def test_record_creates_file_if_missing(tmp_path: Path) -> None:
         assert result == ["#gh:first"]
 
 
+def test_record_uses_redirected_sase_home_without_mru_file_patch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default MRU writes follow the suite's ``~/.sase`` redirection."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / "sase_home")
+    isolated_mru = sase_home / "vcs_xprompt_mru.json"
+    real_home_mru = Path.home() / ".sase" / "vcs_xprompt_mru.json"
+
+    record_vcs_xprompt_usage(f"#cd:{tmp_path}")
+
+    assert isolated_mru.exists()
+    assert load_vcs_xprompt_mru() == [f"#cd:{tmp_path}"]
+    assert isolated_mru != real_home_mru
+
+
 def test_load_launchable_filters_known_stale_projects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -182,7 +198,8 @@ def test_record_prunes_known_stale_project_prefix(
 ) -> None:
     fake = tmp_path / "vcs_xprompt_mru.json"
     fake.write_text(json.dumps({"entries": ["#gh:project", "#gh:valid"]}))
-    projects_dir = tmp_path / ".sase" / "projects"
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    projects_dir = sase_home / "projects"
     valid_workspace = tmp_path / "valid-workspace"
     valid_workspace.mkdir()
     _write_project(projects_dir, "valid", valid_workspace)
@@ -198,10 +215,6 @@ def test_record_prunes_known_stale_project_prefix(
             __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
             "_MRU_FILE",
             fake,
-        ),
-        patch(
-            "sase.history.vcs_xprompt_mru.Path.home",
-            return_value=tmp_path,
         ),
     ):
         record_vcs_xprompt_usage("#gh:project")
