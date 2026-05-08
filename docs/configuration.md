@@ -1093,6 +1093,16 @@ checkout.
 | ----------- | ------ | ---------- | --------------------------- |
 | `plan_file` | path   | (required) | Path to the plan `.md` file |
 
+### `sase artifact`
+
+`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It moves a
+generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab can open
+it with `A`, even after the agent has been dismissed and revived.
+
+| Form                   | Flags                                  | Description                                       |
+| ---------------------- | -------------------------------------- | ------------------------------------------------- |
+| `sase artifact create` | `-p/--path`, `-n/--label`, `-k/--kind` | Store one explicit artifact for the current agent |
+
 ### `sase questions`
 
 | Flag             | Values | Default    | Description                             |

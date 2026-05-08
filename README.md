@@ -152,6 +152,7 @@ sase
 | `sase agents tag`              | Manage the user-defined tag on an agent (`set` / `unset` / `list`)                                             |
 | `sase agents archive`          | Rebuild or verify the dismissed-agent bundle summary index                                                     |
 | `sase agents index`            | Rebuild or verify the persistent agent artifact index used for fast agent startup                              |
+| `sase artifact create`         | Move a file produced by the current agent into persistent artifact storage                                     |
 | `sase axe chop`                | List or run individual chop scripts                                                                            |
 | `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
 | `sase axe maintenance`         | Enter, exit, or inspect maintenance mode, which pauses lumberjack ticks                                        |

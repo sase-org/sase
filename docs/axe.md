@@ -232,6 +232,12 @@ sources remain, Axe skips Markdown PDF rendering for that completion and adds a 
 is otherwise best-effort: missing conversion tools or render failures omit that source without failing the agent run.
 See [`agent_images.md`](agent_images.md) for the full contract.
 
+The Agents tab exposes completion artifacts through the `A` action. A done agent with one artifact opens it directly;
+multiple artifacts open a picker. Chat transcripts, plan files, generated PDFs/images, and explicit artifacts created
+with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate in the same list. Explicit artifacts are
+stored under `~/.sase/artifacts/` with a persistent association so they remain available after dismissing and later
+reviving the agent. The direct agent run-log binding is `V`.
+
 ## Maintenance Mode
 
 Maintenance mode is a lightweight pause switch for scheduled axe work. `sase axe maintenance enter --reason <text>`
