@@ -6,7 +6,7 @@ rewritten to the planned name of agent N when that name is knowable; otherwise
 the launcher falls back to the legacy naming poll.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from sase.agent.launcher import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
@@ -74,6 +74,7 @@ def launch_multi_prompt_agents(
     vcs_ref: tuple[str, str] | None,
     on_agent_spawned: Callable[[], None] | None = None,
     extra_env: dict[str, str] | None = None,
+    segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     default_bare_segments_to_home: bool = False,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent.
@@ -105,6 +106,7 @@ def launch_multi_prompt_agents(
             vcs_ref=vcs_ref,
             on_agent_spawned=on_agent_spawned,
             extra_env=extra_env,
+            segment_extra_env=segment_extra_env,
             default_bare_segments_to_home=default_bare_segments_to_home,
             timestamp_allocator=timestamp_allocator,
             results=results,
@@ -127,6 +129,7 @@ def _spawn_segments_into(
     vcs_ref: tuple[str, str] | None,
     on_agent_spawned: Callable[[], None] | None,
     extra_env: dict[str, str] | None,
+    segment_extra_env: Sequence[dict[str, str] | None] | None,
     default_bare_segments_to_home: bool,
     timestamp_allocator: LaunchTimestampBatchAllocator,
     results: list[AgentLaunchResult],
@@ -152,9 +155,16 @@ def _spawn_segments_into(
             "home_mode": is_home_mode,
         },
     )
+    if segment_extra_env is not None and len(segment_extra_env) != len(segments):
+        raise ValueError(
+            "segment_extra_env must have one entry per multi-prompt segment"
+        )
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
     for i, segment in enumerate(segments):
+        segment_env = (
+            dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
+        )
         if default_bare_segments_to_home:
             with timer.stage("prompt_normalize", segment_index=i):
                 segment = normalize_default_vcs_workflow_segment(segment)
@@ -223,9 +233,9 @@ def _spawn_segments_into(
                     planned_name, planned_env_name = None, None
                 planned_names[j] = planned_name
                 slot_planned_env[j] = (
-                    {_PLANNED_AGENT_NAME_ENV: planned_env_name}
+                    {**segment_env, _PLANNED_AGENT_NAME_ENV: planned_env_name}
                     if planned_env_name is not None
-                    else {}
+                    else dict(segment_env)
                 )
 
             # Each sub-prompt gets its own copy of the local xprompts file

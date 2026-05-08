@@ -8,8 +8,11 @@ from sase.bead.work import (
     ChangeSpecLaunchContext,
     EpicWorkPlan,
     PhaseAssignment,
+    SASE_BEAD_ID_ENV,
     VCSLaunchContext,
     build_epic_work_plan,
+    epic_work_segment_env,
+    legend_work_segment_env,
     render_multi_prompt,
 )
 from sase.xprompt.directives import extract_prompt_directives
@@ -125,6 +128,63 @@ class TestRenderEdgeCases:
         assert "%name:sase-42.3" in land_segment
         assert "%w:sase-42.3.1" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
+
+    def test_epic_work_segment_env_tracks_phase_then_land_bead_ids(
+        self,
+        conn: sqlite3.Connection,
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1"), phase("p2")])
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert epic_work_segment_env(plan) == (
+            {SASE_BEAD_ID_ENV: "p1"},
+            {SASE_BEAD_ID_ENV: "p2"},
+            {SASE_BEAD_ID_ENV: "e1"},
+        )
+
+    def test_legend_child_epic_env_uses_work_beads_not_display_tag(
+        self,
+        conn: sqlite3.Connection,
+    ) -> None:
+        seed(
+            conn,
+            [
+                legend("l1"),
+                epic("e1", parent_id="l1"),
+                phase("p1", parent_id="e1"),
+            ],
+        )
+        plan = build_epic_work_plan(conn, "e1")
+
+        assert plan.launch_tag_id == "l1"
+        assert epic_work_segment_env(plan) == (
+            {SASE_BEAD_ID_ENV: "p1"},
+            {SASE_BEAD_ID_ENV: "e1"},
+        )
+
+    def test_legend_work_segment_env_uses_legend_bead_id(self) -> None:
+        from sase.bead.work import LegendEpicAssignment, LegendWorkPlan
+
+        plan = LegendWorkPlan(
+            legend_id="l1",
+            plan_file="sdd/legends/202605/roadmap.md",
+            assignments=(
+                LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
+                LegendEpicAssignment(
+                    epic_number=2,
+                    agent_name="l1.2.0",
+                    waits_on=("l1.1",),
+                ),
+            ),
+            land_agent_name="l1",
+            land_waits_on=("l1.2",),
+        )
+
+        assert legend_work_segment_env(plan) == (
+            {SASE_BEAD_ID_ENV: "l1"},
+            {SASE_BEAD_ID_ENV: "l1"},
+            {SASE_BEAD_ID_ENV: "l1"},
+        )
 
 
 class TestChangeSpecRendering:

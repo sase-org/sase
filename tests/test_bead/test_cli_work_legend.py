@@ -29,7 +29,9 @@ def test_legend_work_dry_run_never_mutates_or_launches(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(legend_id, dry_run=True, yes=True))
@@ -70,7 +72,9 @@ def test_legend_work_dry_run_renders_three_epic_chain(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(legend_id, dry_run=True, yes=True))
@@ -110,10 +114,15 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     launch_calls: list[str] = []
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         launch_calls.append(query)
         captured["query"] = query
         captured["extra_env"] = extra_env
+        captured["segment_extra_env"] = segment_extra_env
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -136,6 +145,9 @@ def test_legend_work_live_launch_marks_ready_and_does_not_preclaim_children(
     assert f"%w:{legend_id}.3" in query
     assert f"#bd/land_legend:{legend_id}" in query
     assert captured["extra_env"] is None
+    assert captured["segment_extra_env"] == tuple(
+        {"SASE_BEAD_ID": legend_id} for _ in range(4)
+    )
     with BeadProject(project_dir) as proj:
         legend = proj.show(legend_id)
         assert legend.is_ready_to_work is True
@@ -153,7 +165,11 @@ def test_legend_work_rolls_back_ready_on_launch_failure(
 ) -> None:
     legend_id = seed_legend(project_dir)
 
-    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def boom(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
@@ -178,7 +194,11 @@ def test_legend_work_retry_keeps_already_ready_flag_on_launch_failure(
 ) -> None:
     legend_id = seed_legend(project_dir)
 
-    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def boom(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)

@@ -65,6 +65,7 @@ def _handle_epic_bead_work(
         ChangeSpecLaunchContext,
         EpicPlanError,
         build_epic_work_plan_from_beads_dir,
+        epic_work_segment_env,
         render_multi_prompt,
     )
     from sase.bead.xprompts import (
@@ -174,7 +175,10 @@ def _handle_epic_bead_work(
     try:
         from sase.agent import launcher as _launcher
 
-        result = _launcher.launch_agent_from_cwd(query)
+        result = _launcher.launch_agent_from_cwd(
+            query,
+            segment_extra_env=epic_work_segment_env(plan),
+        )
     except Exception as e:
         print(
             f"Error: agent launch failed for epic {epic_id}: {e}",
@@ -207,6 +211,7 @@ def _handle_legend_bead_work(
     from sase.bead.work import (
         LegendPlanError,
         build_legend_work_plan_from_beads_dir,
+        legend_work_segment_env,
         render_legend_multi_prompt,
     )
     from sase.bead.xprompts import (
@@ -283,7 +288,10 @@ def _handle_legend_bead_work(
     try:
         from sase.agent import launcher as _launcher
 
-        result = _launcher.launch_agent_from_cwd(query)
+        result = _launcher.launch_agent_from_cwd(
+            query,
+            segment_extra_env=legend_work_segment_env(plan),
+        )
     except Exception as e:
         print(
             f"Error: agent launch failed for legend {legend_id}: {e}",

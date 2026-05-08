@@ -20,6 +20,8 @@ from sase.core.rust import require_rust_binding
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
 
+SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
+
 
 @dataclass(frozen=True)
 class PhaseAssignment:
@@ -344,6 +346,16 @@ def render_multi_prompt(
     return "\n---\n".join(segments)
 
 
+def epic_work_segment_env(plan: EpicWorkPlan) -> tuple[dict[str, str], ...]:
+    """Return per-segment env for an epic work prompt rendered from *plan*."""
+    envs: list[dict[str, str]] = []
+    for wave in plan.waves:
+        for assignment in wave:
+            envs.append(_bead_env(assignment.bead_id))
+    envs.append(_bead_env(plan.epic_id))
+    return tuple(envs)
+
+
 def render_legend_multi_prompt(
     plan: LegendWorkPlan,
     land_legend_xprompt: Workflow,
@@ -388,6 +400,13 @@ def render_legend_multi_prompt(
     return "\n---\n".join(segments)
 
 
+def legend_work_segment_env(plan: LegendWorkPlan) -> tuple[dict[str, str], ...]:
+    """Return per-segment env for a legend work prompt rendered from *plan*."""
+    envs = [_bead_env(plan.legend_id) for _ in plan.assignments]
+    envs.append(_bead_env(plan.legend_id))
+    return tuple(envs)
+
+
 def _validate_vcs_context(ctx: VCSLaunchContext) -> None:
     missing = []
     if not ctx.vcs_workflow:
@@ -413,6 +432,10 @@ def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
 
 def _tag_directive(bead_id: str) -> str:
     return f"%tag:{bead_id}"
+
+
+def _bead_env(bead_id: str) -> dict[str, str]:
+    return {SASE_BEAD_ID_ENV: bead_id}
 
 
 def _segment_prefix(

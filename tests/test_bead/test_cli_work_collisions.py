@@ -35,7 +35,11 @@ def test_work_retry_allows_terminal_same_name_attempt(
 
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
 
@@ -62,7 +66,9 @@ def test_work_retry_refuses_live_same_name_attempt(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -99,7 +105,7 @@ def test_work_refuses_when_land_name_collision(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -123,7 +129,7 @@ def test_work_refuses_when_legacy_land_name_collision(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -148,7 +154,9 @@ def test_work_dry_run_warns_on_collision_without_mutating(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
@@ -176,7 +184,9 @@ def test_work_dry_run_retry_filters_closed_phases_without_mutating(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     with BeadProject(project_dir) as proj:
@@ -215,7 +225,11 @@ def test_work_passes_when_no_collisions(
 
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
 

@@ -33,9 +33,14 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     epic_id, phase_ids = seed_diamond(project_dir)
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         captured["query"] = query
         captured["extra_env"] = extra_env
+        captured["segment_extra_env"] = segment_extra_env
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -50,6 +55,9 @@ def test_work_launches_and_passes_rendered_multi_prompt(
         assert f"#bd/work_phase_bead:{pid}" in query
     assert f"#bd/land_epic:{epic_id}" in query
     assert captured["extra_env"] is None
+    assert captured["segment_extra_env"] == tuple(
+        {"SASE_BEAD_ID": bead_id} for bead_id in [*phase_ids, epic_id]
+    )
 
     # Each phase was pre-claimed.
     with BeadProject(project_dir) as proj:
@@ -83,9 +91,14 @@ def test_work_linked_legend_epic_uses_legend_tag_and_links(
 
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         captured["query"] = query
         captured["extra_env"] = extra_env
+        captured["segment_extra_env"] = segment_extra_env
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -100,6 +113,11 @@ def test_work_linked_legend_epic_uses_legend_tag_and_links(
     assert f"#bd/land_epic:{epic.id}" in query
 
     assert captured["extra_env"] is None
+    assert captured["segment_extra_env"] == (
+        {"SASE_BEAD_ID": p1.id},
+        {"SASE_BEAD_ID": p2.id},
+        {"SASE_BEAD_ID": epic.id},
+    )
 
 
 def test_work_dry_run_never_mutates_or_launches(
@@ -110,7 +128,11 @@ def test_work_dry_run_never_mutates_or_launches(
     epic_id, phase_ids = seed_diamond(project_dir)
     launch_calls: list[str] = []
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         launch_calls.append(query)
         return FakeLaunchResult()
 
@@ -160,7 +182,9 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
@@ -209,7 +233,9 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None: launch_calls.append(query) or FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
@@ -264,7 +290,11 @@ def test_work_rolls_back_on_launch_failure(
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
 
-    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def boom(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
@@ -294,7 +324,11 @@ def test_work_allows_already_ready_epic_and_launches_remaining_phases(
     epic_id, phase_ids = seed_diamond(project_dir)
     captured: dict[str, Any] = {}
 
-    def fake_launch(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
 
@@ -331,7 +365,11 @@ def test_work_retry_does_not_unmark_already_ready_epic_on_launch_failure(
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
 
-    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def boom(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
@@ -367,7 +405,11 @@ def test_work_rollback_restores_prior_in_progress_status(
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
 
-    def boom(query: str, extra_env: Any = None) -> FakeLaunchResult:
+    def boom(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", boom)
@@ -433,7 +475,11 @@ def test_rollback_kills_partially_launched_agents(
             output_path="",
         )
 
-        def fake_launch(query: str, extra_env: Any = None) -> Any:
+        def fake_launch(
+            query: str,
+            extra_env: Any = None,
+            segment_extra_env: Any = None,
+        ) -> Any:
             raise _MultiPromptPartialLaunchError([partial_result], RuntimeError("boom"))
 
         monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)

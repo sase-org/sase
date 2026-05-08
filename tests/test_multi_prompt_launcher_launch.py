@@ -218,3 +218,85 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
 
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == extra_env
     assert mock_spawn.call_args_list[1].kwargs["extra_env"] == extra_env
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/1")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws1", None),
+)
+def test_launch_multi_prompt_merges_segment_extra_env(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Per-segment env is forwarded and can vary between child agents."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    launch_multi_prompt_agents(
+        segments=["%name:first\nseg1", "%wait\nseg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        extra_env={"SASE_SHARED": "yes"},
+        segment_extra_env=[
+            {"SASE_BEAD_ID": "sase-x.1"},
+            {"SASE_BEAD_ID": "sase-x.2"},
+        ],
+    )
+
+    assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
+        "SASE_SHARED": "yes",
+        "SASE_BEAD_ID": "sase-x.1",
+    }
+    assert mock_spawn.call_args_list[1].kwargs["extra_env"] == {
+        "SASE_SHARED": "yes",
+        "SASE_BEAD_ID": "sase-x.2",
+    }
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws1", None),
+)
+def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """A display tag alone is not treated as a bead association env."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    launch_multi_prompt_agents(
+        segments=["%tag:review\nReview this"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    assert mock_spawn.call_args_list[0].kwargs["extra_env"] is None

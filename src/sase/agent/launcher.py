@@ -6,6 +6,7 @@ Extracts the common subprocess-spawning logic used by both
 
 import os
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -317,6 +318,7 @@ def spawn_agent_subprocess(
 def launch_agents_from_cwd(
     query: str,
     extra_env: dict[str, str] | None = None,
+    segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     timestamp: str | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch one or more background agents.
@@ -368,9 +370,27 @@ def launch_agents_from_cwd(
     )
 
     multi = parse_multi_prompt(query)
-    expanded_segments = expand_multi_agent_xprompts(
-        multi.segments, multi.local_xprompts
-    )
+    expanded_segment_extra_env: list[dict[str, str] | None] | None = None
+    if segment_extra_env is not None:
+        if len(segment_extra_env) != len(multi.segments):
+            raise ValueError(
+                "segment_extra_env must have one entry per multi-prompt segment"
+            )
+        expanded_segments = []
+        expanded_segment_extra_env = []
+        for segment, env in zip(multi.segments, segment_extra_env, strict=True):
+            segment_expansions = expand_multi_agent_xprompts(
+                [segment], multi.local_xprompts
+            )
+            expanded_segments.extend(segment_expansions)
+            expanded_segment_extra_env.extend([env] * len(segment_expansions))
+    else:
+        expanded_segments = expand_multi_agent_xprompts(
+            multi.segments, multi.local_xprompts
+        )
+
+    if not expanded_segments:
+        return []
 
     if len(expanded_segments) > 1:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
@@ -409,11 +429,15 @@ def launch_agents_from_cwd(
             is_home_mode=is_home_mode,
             vcs_ref=mp_vcs_ref,
             extra_env=extra_env,
+            segment_extra_env=expanded_segment_extra_env,
             default_bare_segments_to_home=True,
         )
         return results
 
-    query = normalize_default_vcs_workflow(query)
+    query = normalize_default_vcs_workflow(expanded_segments[0])
+    if expanded_segment_extra_env:
+        segment_env = expanded_segment_extra_env[0] or {}
+        extra_env = {**(extra_env or {}), **segment_env}
 
     # --- Repeat fan-out ---
     # When %r:N is present, spawn N independent agents before any further
@@ -612,6 +636,7 @@ def launch_agents_from_cwd(
 def launch_agent_from_cwd(
     query: str,
     extra_env: dict[str, str] | None = None,
+    segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     timestamp: str | None = None,
 ) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
@@ -619,7 +644,12 @@ def launch_agent_from_cwd(
     This compatibility wrapper keeps the historical API returning the first
     launch result while ``launch_agents_from_cwd()`` exposes full fan-out.
     """
-    results = launch_agents_from_cwd(query, extra_env=extra_env, timestamp=timestamp)
+    results = launch_agents_from_cwd(
+        query,
+        extra_env=extra_env,
+        segment_extra_env=segment_extra_env,
+        timestamp=timestamp,
+    )
     if not results:
         raise RuntimeError("agent launch produced no results")
     return results[0]
