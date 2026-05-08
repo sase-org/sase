@@ -2,6 +2,8 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from sase.core.agent_artifact_facade import (
     list_agent_artifacts,
     list_explicit_agent_artifacts,
@@ -87,6 +89,67 @@ def test_agent_meta_chat_path_is_used_when_done_response_is_missing(
 
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
         ("chat", str(chat))
+    ]
+
+
+def test_generated_markdown_pdf_artifact_keeps_pdf_path_and_uses_source_metadata(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    source = workspace / "docs" / "report.md"
+    pdf = artifacts_dir / "markdown_pdfs" / "docs__report.md.pdf"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Report\n", encoding="utf-8")
+    pdf.parent.mkdir(parents=True)
+    pdf.write_text("pdf", encoding="utf-8")
+    _write_json(
+        artifacts_dir / "done.json",
+        {
+            "workspace_dir": str(workspace),
+            "markdown_pdf_paths": [str(pdf)],
+        },
+    )
+    (artifacts_dir / "markdown_pdfs" / "index.json").write_text(
+        json.dumps([{"source_path": str(source), "pdf_path": str(pdf)}]),
+        encoding="utf-8",
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [
+        (artifact.kind, artifact.label, artifact.path) for artifact in artifacts
+    ] == [("pdf", "report.md", str(pdf))]
+    assert artifacts[0].source_path == str(source)
+    assert artifacts[0].workspace_dir == str(workspace)
+
+
+def test_home_plan_is_skipped_when_matching_workspace_plan_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    home = tmp_path / "home"
+    workspace = tmp_path / "workspace"
+    home_plan = home / ".sase" / "plans" / "approved.md"
+    workspace_plan = workspace / "sdd" / "tales" / "approved.md"
+    for path in (home_plan, workspace_plan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: home)
+    _write_json(
+        artifacts_dir / "done.json",
+        {
+            "workspace_dir": str(workspace),
+            "plan_path": str(home_plan),
+        },
+    )
+    _write_json(artifacts_dir / "agent_meta.json", {"plan_path": str(workspace_plan)})
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(workspace_plan))
     ]
 
 

@@ -15,12 +15,12 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from collections.abc import Iterator
 
 AgentArtifactKind = Literal["chat", "plan", "image", "markdown", "pdf", "file"]
 
@@ -70,6 +70,7 @@ class AgentArtifact:
     kind: AgentArtifactKind
     path: str
     source_path: str | None = None
+    workspace_dir: str | None = None
     created_at: str | None = None
     agent_artifacts_dir: str | None = None
     project: str | None = None
@@ -114,6 +115,7 @@ def agent_artifact_from_dict(data: dict[str, Any]) -> AgentArtifact:
         kind=kind,
         path=str(data["path"]),
         source_path=_optional_str(data.get("source_path")),
+        workspace_dir=_optional_str(data.get("workspace_dir")),
         created_at=_optional_str(data.get("created_at")),
         agent_artifacts_dir=_optional_str(data.get("agent_artifacts_dir")),
         project=_optional_str(data.get("project")),
@@ -243,6 +245,8 @@ def synthesize_default_agent_artifacts(
     association = _association_from_metadata(
         artifacts_dir, done=done, agent_meta=agent_meta
     )
+    workspace_dir = _first_str(done.get("workspace_dir"))
+    markdown_pdf_sources = _read_markdown_pdf_source_paths(artifacts_dir)
 
     artifacts: list[AgentArtifact] = []
 
@@ -255,17 +259,20 @@ def synthesize_default_agent_artifacts(
                 kind="chat",
                 path=chat_path,
                 ordinal="chat",
+                workspace_dir=workspace_dir,
             )
         )
 
-    for index, plan_path in enumerate(
+    plan_paths = _filter_duplicate_home_plan_paths(
         _unique_values(
             done.get("plan_path"),
             agent_meta.get("plan_path"),
             agent_meta.get("sdd_plan_path"),
             plan_marker.get("plan_path"),
-        )
-    ):
+        ),
+        workspace_dir=workspace_dir,
+    )
+    for index, plan_path in enumerate(plan_paths):
         artifacts.append(
             _default_artifact(
                 association,
@@ -273,6 +280,7 @@ def synthesize_default_agent_artifacts(
                 kind="plan",
                 path=plan_path,
                 ordinal=f"plan-{index}",
+                workspace_dir=workspace_dir,
             )
         )
 
@@ -284,17 +292,21 @@ def synthesize_default_agent_artifacts(
                 kind="image",
                 path=image_path,
                 ordinal=f"image-{index}",
+                workspace_dir=workspace_dir,
             )
         )
 
     for index, pdf_path in enumerate(_coerce_str_list(done.get("markdown_pdf_paths"))):
+        source_path = markdown_pdf_sources.get(_path_key(pdf_path))
         artifacts.append(
             _default_artifact(
                 association,
-                label=_label_for_path(pdf_path, fallback="PDF"),
+                label=_label_for_path(source_path or pdf_path, fallback="PDF"),
                 kind="pdf",
                 path=pdf_path,
                 ordinal=f"pdf-{index}",
+                source_path=source_path,
+                workspace_dir=workspace_dir,
             )
         )
 
@@ -476,13 +488,16 @@ def _default_artifact(
     kind: AgentArtifactKind,
     path: str,
     ordinal: str,
+    source_path: str | None = None,
+    workspace_dir: str | None = None,
 ) -> AgentArtifact:
     return AgentArtifact(
         id=_artifact_id(f"default-{ordinal}", association, path, label),
         label=label,
         kind=kind,
         path=path,
-        source_path=path,
+        source_path=source_path,
+        workspace_dir=workspace_dir,
         created_at=_file_created_at(path),
         agent_artifacts_dir=association.agent_artifacts_dir,
         project=association.project,
@@ -567,6 +582,68 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _read_json_array(path: Path) -> list[Any]:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _read_markdown_pdf_source_paths(artifacts_dir: Path) -> dict[str, str]:
+    rows = _read_json_array(artifacts_dir / "markdown_pdfs" / "index.json")
+    sources_by_pdf: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        pdf_path = row.get("pdf_path")
+        source_path = row.get("source_path")
+        if isinstance(pdf_path, str) and pdf_path and isinstance(source_path, str):
+            sources_by_pdf[_path_key(pdf_path)] = source_path
+    return sources_by_pdf
+
+
+def _filter_duplicate_home_plan_paths(
+    plan_paths: list[str],
+    *,
+    workspace_dir: str | None,
+) -> list[str]:
+    workspace_plan_names = {
+        Path(plan_path).name
+        for plan_path in plan_paths
+        if _is_inside_dir(plan_path, workspace_dir)
+    }
+    if not workspace_plan_names:
+        return plan_paths
+    return [
+        plan_path
+        for plan_path in plan_paths
+        if not (
+            Path(plan_path).name in workspace_plan_names
+            and _is_home_plan_path(plan_path)
+        )
+    ]
+
+
+def _is_home_plan_path(path: Path | str) -> bool:
+    return _is_inside_dir(path, Path.home() / ".sase" / "plans")
+
+
+def _is_inside_dir(path: Path | str, parent: Path | str | None) -> bool:
+    if parent is None:
+        return False
+    try:
+        _resolved_path(path).relative_to(_resolved_path(parent))
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _resolved_path(path: Path | str) -> Path:
+    return Path(path).expanduser().resolve(strict=False)
 
 
 def _coerce_kind(kind: Any) -> AgentArtifactKind:

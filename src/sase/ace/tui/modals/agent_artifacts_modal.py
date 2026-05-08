@@ -43,6 +43,18 @@ def _artifact_path(artifact: Any) -> str:
     return str(getattr(artifact, "path", "") or "")
 
 
+def _artifact_display_path(artifact: Any) -> str:
+    source_path = str(getattr(artifact, "source_path", "") or "")
+    if getattr(artifact, "kind", None) == "pdf" and source_path:
+        return source_path
+    return _artifact_path(artifact)
+
+
+def _artifact_workspace_dir(artifact: Any) -> str | None:
+    workspace_dir = getattr(artifact, "workspace_dir", None)
+    return workspace_dir if isinstance(workspace_dir, str) and workspace_dir else None
+
+
 def _artifact_kind(artifact: Any) -> str:
     return _short_text(
         getattr(artifact, "kind", "file") or "file", max_len=_MAX_KIND_LEN
@@ -58,11 +70,44 @@ def _artifact_label(artifact: Any) -> str:
     )
 
 
-def _short_path(path: str, *, max_len: int = _MAX_PATH_LEN) -> str:
+def _display_path(path: str, *, workspace_dir: str | None = None) -> str:
     if not path:
         return "(no path)"
-    expanded = str(Path(path).expanduser())
-    return _short_text(expanded, max_len=max_len, from_end=True)
+    expanded = Path(path).expanduser()
+    if workspace_dir:
+        try:
+            relative = expanded.resolve(strict=False).relative_to(
+                Path(workspace_dir).expanduser().resolve(strict=False)
+            )
+        except (OSError, ValueError):
+            pass
+        else:
+            return relative.as_posix() or "."
+    return _home_relative_path(expanded)
+
+
+def _home_relative_path(path: Path) -> str:
+    try:
+        relative = path.resolve(strict=False).relative_to(
+            Path.home().expanduser().resolve(strict=False)
+        )
+    except (OSError, ValueError):
+        return str(path)
+    text = relative.as_posix()
+    return "~" if not text else f"~/{text}"
+
+
+def _short_path(
+    path: str,
+    *,
+    max_len: int = _MAX_PATH_LEN,
+    workspace_dir: str | None = None,
+) -> str:
+    return _short_text(
+        _display_path(path, workspace_dir=workspace_dir),
+        max_len=max_len,
+        from_end=True,
+    )
 
 
 def _artifact_option_text(selector: str | None, artifact: Any) -> Text:
@@ -74,7 +119,11 @@ def _artifact_option_text(selector: str | None, artifact: Any) -> Text:
     text.append(_artifact_label(artifact))
     text.append(f"  [{_artifact_kind(artifact)}]", style="dim #87D7FF")
     text.append("\n")
-    text.append(f"   {_short_path(_artifact_path(artifact))}", style="dim")
+    display_path = _short_path(
+        _artifact_display_path(artifact),
+        workspace_dir=_artifact_workspace_dir(artifact),
+    )
+    text.append(f"   {display_path}", style="dim")
     return text
 
 

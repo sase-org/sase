@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 12:01:04
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifacts_panel_paths.md
 ---
 # Artifacts Panel Path Display Improvements

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList
 
@@ -21,11 +23,21 @@ class _TestApp(App[object | None]):
         yield from ()
 
 
-def _artifact(index: int, *, label: str | None = None, path: str | None = None):
+def _artifact(
+    index: int,
+    *,
+    label: str | None = None,
+    path: str | None = None,
+    kind: str = "markdown",
+    source_path: str | None = None,
+    workspace_dir: str | None = None,
+):
     return SimpleNamespace(
         label=label or f"Artifact {index}",
-        kind="markdown",
+        kind=kind,
         path=path or f"/tmp/artifact-{index}.md",
+        source_path=source_path,
+        workspace_dir=workspace_dir,
     )
 
 
@@ -126,3 +138,54 @@ def test_artifact_modal_option_text_truncates_long_label_and_path() -> None:
     assert "..." in plain
     assert "segment-19" in plain
     assert len(plain.splitlines()[0]) < 90
+
+
+def test_artifact_modal_option_text_displays_home_relative_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    artifact = _artifact(1, path=str(home / ".sase" / "chats" / "agent.md"))
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    plain = _artifact_option_text("1", artifact).plain
+
+    assert "~/.sase/chats/agent.md" in plain
+    assert str(home) not in plain
+
+
+def test_artifact_modal_option_text_prefers_workspace_relative_path(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    artifact = _artifact(
+        1,
+        path=str(workspace / "src" / "report.md"),
+        workspace_dir=str(workspace),
+    )
+
+    plain = _artifact_option_text("1", artifact).plain
+
+    assert "src/report.md" in plain
+    assert str(workspace) not in plain
+
+
+def test_artifact_modal_option_text_displays_pdf_markdown_source_path(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    pdf = tmp_path / "artifacts" / "markdown_pdfs" / "docs__report.md.pdf"
+    source = workspace / "docs" / "report.md"
+    artifact = _artifact(
+        1,
+        label="report.md",
+        kind="pdf",
+        path=str(pdf),
+        source_path=str(source),
+        workspace_dir=str(workspace),
+    )
+
+    plain = _artifact_option_text("1", artifact).plain
+
+    assert "docs/report.md" in plain
+    assert "markdown_pdfs" not in plain
