@@ -629,6 +629,25 @@ def test_viewer_module_entrypoint_prints_warning_and_returns_nonzero(
     assert capsys.readouterr().err == "missing dependency\n"
 
 
+def test_viewer_module_entrypoint_help_does_not_emit_runpy_warning() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-Wdefault",
+            "-m",
+            "sase.ace.tui.graphics.viewer",
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "RuntimeWarning" not in result.stderr
+    assert "found in sys.modules" not in result.stderr
+
+
 def test_artifact_view_mode_treats_chat_markdown_as_markdown(tmp_path: Path) -> None:
     assert artifact_view_mode(tmp_path / "chat.md", kind="chat") == "markdown"
     assert artifact_view_mode(tmp_path / "plan.markdown", kind="plan") == "markdown"

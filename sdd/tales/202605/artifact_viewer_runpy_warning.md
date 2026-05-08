@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 18:06:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_viewer_runpy_warning.md
 ---
 # Artifact Viewer `runpy` Warning Plan
