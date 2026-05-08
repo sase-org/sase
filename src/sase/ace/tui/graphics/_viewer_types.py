@@ -53,6 +53,7 @@ class ArtifactViewerResult:
     ok: bool
     warning: str | None = None
     warnings: tuple[ArtifactViewerWarning, ...] = ()
+    pane_id: str | None = None
 
 
 ImageViewerResult = ArtifactViewerResult

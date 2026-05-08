@@ -14,7 +14,9 @@ from sase.attachments.markdown_pdf import render_markdown_pdf
 
 from . import _viewer_loop, _viewer_render
 from ._viewer_launch import (
+    artifact_tmux_pane_exists,
     artifact_viewer_module_command,
+    close_artifact_tmux_pane,
     is_tmux_session,
     view_agent_artifact,
     view_agent_artifact_in_tmux_pane,
@@ -141,7 +143,9 @@ __all__ = [
     "ArtifactViewerResult",
     "ArtifactViewerWarning",
     "ImageViewerResult",
+    "artifact_tmux_pane_exists",
     "artifact_view_mode",
+    "close_artifact_tmux_pane",
     "convert_pdf_to_png_pages",
     "is_tmux_session",
     "main",

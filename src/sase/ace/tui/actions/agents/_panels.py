@@ -25,6 +25,7 @@ class AgentPanelsMixin:
     _current_group_key: tuple[str, ...] | None
     _agent_panels_grouped: bool
     _agents: list[Agent]
+    _artifact_tmux_pane_id: str | None
 
     def _first_agent_idx_for_focused_group(
         self, group_key: tuple[str, ...]
@@ -327,6 +328,8 @@ class AgentPanelsMixin:
 
         if is_tmux_session():
             result = view_agent_artifact_in_tmux_pane(artifact)
+            if result.ok and result.pane_id is not None:
+                self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifact(artifact)
@@ -348,11 +351,37 @@ class AgentPanelsMixin:
 
         if is_tmux_session():
             result = view_agent_artifacts_in_tmux_pane(artifacts)
+            if result.ok and result.pane_id is not None:
+                self._artifact_tmux_pane_id = result.pane_id  # type: ignore[attr-defined]
         else:
             with self.suspend():  # type: ignore[attr-defined]
                 result = view_agent_artifacts(artifacts)
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+
+    def _toggle_tracked_artifact_tmux_pane(self) -> bool:
+        """Close a live tracked artifact pane, returning whether the action is done."""
+        from ...graphics import (
+            artifact_tmux_pane_exists,
+            close_artifact_tmux_pane,
+            is_tmux_session,
+        )
+
+        if not is_tmux_session():
+            return False
+
+        pane_id = getattr(self, "_artifact_tmux_pane_id", None)
+        if pane_id is None:
+            return False
+        if not artifact_tmux_pane_exists(pane_id):
+            self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+            return False
+
+        result = close_artifact_tmux_pane(pane_id)
+        self._artifact_tmux_pane_id = None  # type: ignore[attr-defined]
+        if result.warning is not None:
+            self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
+        return True
 
     def _focus_agent_list_after_artifact_modal(self) -> None:
         if self.current_tab != "agents":
@@ -367,6 +396,8 @@ class AgentPanelsMixin:
     def action_open_agent_artifacts(self) -> None:
         """Open or choose artifacts associated with the selected agent."""
         if self.current_tab != "agents":
+            return
+        if self._toggle_tracked_artifact_tmux_pane():
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]

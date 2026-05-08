@@ -140,7 +140,15 @@ def view_artifact_files_in_tmux_pane(
         return viewer_result_from_warnings((warning,))
 
     viewer_command = artifact_viewer_module_command(specs)
-    tmux_command = ["tmux", "split-window", "-h", shlex.join(viewer_command)]
+    tmux_command = [
+        "tmux",
+        "split-window",
+        "-h",
+        "-P",
+        "-F",
+        "#{pane_id}",
+        shlex.join(viewer_command),
+    ]
     result = subprocess.run(
         tmux_command,
         check=False,
@@ -153,6 +161,72 @@ def view_artifact_files_in_tmux_pane(
         warning = ArtifactViewerWarning(
             "tmux_split_failed",
             f"tmux split-window failed with exit code {result.returncode}{suffix}",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    pane_id = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else None
+    return ArtifactViewerResult(True, pane_id=pane_id)
+
+
+def artifact_tmux_pane_exists(pane_id: str) -> bool:
+    """Return whether *pane_id* currently resolves in tmux."""
+
+    if not pane_id or shutil.which("tmux") is None:
+        return False
+    result = subprocess.run(
+        ["tmux", "display-message", "-p", "-t", pane_id, "#{pane_id}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def close_artifact_tmux_pane(pane_id: str) -> ArtifactViewerResult:
+    """Close a tracked artifact viewer tmux pane."""
+
+    if not pane_id:
+        warning = ArtifactViewerWarning(
+            "missing_tmux_pane",
+            "No tmux pane id to close",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if pane_id == os.environ.get("TMUX_PANE"):
+        warning = ArtifactViewerWarning(
+            "refusing_current_tmux_pane",
+            "Refusing to close the current tmux pane",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if not is_tmux_session():
+        warning = ArtifactViewerWarning(
+            "not_in_tmux",
+            "Not running inside tmux",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+    if shutil.which("tmux") is None:
+        warning = ArtifactViewerWarning(
+            "missing_tmux",
+            "tmux executable not found",
+            tool="tmux",
+        )
+        return viewer_result_from_warnings((warning,))
+
+    result = subprocess.run(
+        ["tmux", "kill-pane", "-t", pane_id],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        suffix = f": {stderr}" if stderr else ""
+        warning = ArtifactViewerWarning(
+            "tmux_kill_failed",
+            f"tmux kill-pane failed with exit code {result.returncode}{suffix}",
             tool="tmux",
         )
         return viewer_result_from_warnings((warning,))

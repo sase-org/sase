@@ -426,7 +426,7 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
     def fake_tmux_viewer(viewed_artifact) -> ArtifactViewerResult:
         calls.append(viewed_artifact)
         assert app.suspend_recorder.entered is False
-        return ArtifactViewerResult(True)
+        return ArtifactViewerResult(True, pane_id="%7")
 
     same_pane_viewer = MagicMock()
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
@@ -443,6 +443,7 @@ def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
     callback(artifact)
 
     assert calls == [artifact]
+    assert app._artifact_tmux_pane_id == "%7"
     same_pane_viewer.assert_not_called()
     app.notify.assert_not_called()
 
@@ -593,7 +594,7 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
     def fake_tmux_viewer(selected_artifacts) -> ArtifactViewerResult:
         calls.append(list(selected_artifacts))
         assert app.suspend_recorder.entered is False
-        return ArtifactViewerResult(True)
+        return ArtifactViewerResult(True, pane_id="%7")
 
     same_pane_viewer = MagicMock()
     monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
@@ -610,8 +611,54 @@ def test_agents_open_artifacts_modal_callback_opens_marked_sequence_in_tmux(
     callback(artifacts)
 
     assert calls == [artifacts]
+    assert app._artifact_tmux_pane_id == "%7"
     same_pane_viewer.assert_not_called()
     app.agent_list.focus.assert_called_once_with()
+
+
+def test_agents_open_artifacts_action_closes_live_tracked_tmux_pane(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    exists = MagicMock(return_value=True)
+    close = MagicMock(return_value=ArtifactViewerResult(True))
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr("sase.ace.tui.graphics.artifact_tmux_pane_exists", exists)
+    monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+
+    app.action_open_agent_artifacts()
+
+    exists.assert_called_once_with("%7")
+    close.assert_called_once_with("%7")
+    assert app._artifact_tmux_pane_id is None
+    assert app.pushed == []
+    app.notify.assert_not_called()
+
+
+def test_agents_open_artifacts_action_clears_stale_tmux_pane_and_opens_modal(
+    monkeypatch,
+) -> None:
+    app = _ImageActionApp(None)
+    app._artifact_tmux_pane_id = "%7"
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [SimpleNamespace(path="/tmp/chat.md", kind="chat", label="Chat")]
+    close = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.artifact_tmux_pane_exists",
+        lambda _pane_id: False,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.close_artifact_tmux_pane", close)
+
+    app.action_open_agent_artifacts()
+
+    close.assert_not_called()
+    assert app._artifact_tmux_pane_id is None
+    assert len(app.pushed) == 1
+    modal, callback = app.pushed[0]
+    assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
+    assert callback is not None
 
 
 def test_notification_view_image_action_runs_viewer_inside_suspend(

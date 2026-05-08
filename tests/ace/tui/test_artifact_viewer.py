@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from rich.console import Console
 
@@ -14,7 +15,9 @@ from sase.ace.tui.graphics.viewer import (
     _artifact_header_panel,
     _format_artifact_header_path,
     _print_page_prompt,
+    artifact_tmux_pane_exists,
     artifact_view_mode,
+    close_artifact_tmux_pane,
     convert_pdf_to_png_pages,
     is_tmux_session,
     main as viewer_main,
@@ -441,16 +444,24 @@ def test_tmux_pane_launch_invokes_split_window_with_module_entrypoint(
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0, "", "")
+        return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
     monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifact, kind="image")
 
     assert result.ok is True
+    assert result.pane_id == "%7"
     assert len(calls) == 1
-    assert calls[0][:3] == ["tmux", "split-window", "-h"]
-    assert shlex.split(calls[0][3]) == [
+    assert calls[0][:6] == [
+        "tmux",
+        "split-window",
+        "-h",
+        "-P",
+        "-F",
+        "#{pane_id}",
+    ]
+    assert shlex.split(calls[0][6]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
@@ -477,12 +488,13 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0, "", "")
+        return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
 
     monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
 
     result = view_artifact_file_in_tmux_pane(artifacts[0].path, kind=artifacts[0].kind)
     assert result.ok is True
+    assert result.pane_id == "%7"
 
     calls.clear()
     from sase.ace.tui.graphics.viewer import view_artifact_files_in_tmux_pane
@@ -490,7 +502,8 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
     result = view_artifact_files_in_tmux_pane(artifacts)
 
     assert result.ok is True
-    assert shlex.split(calls[0][3]) == [
+    assert result.pane_id == "%7"
+    assert shlex.split(calls[0][6]) == [
         sys.executable,
         "-m",
         "sase.ace.tui.graphics.viewer",
@@ -501,6 +514,50 @@ def test_tmux_pane_launch_invokes_multi_artifact_entrypoint(
         str(artifacts[0].path),
         str(artifacts[1].path),
     ]
+
+
+def test_tmux_pane_helpers_check_and_kill_tracked_pane(monkeypatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TMUX_PANE", "%1")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd[:2] == ["tmux", "display-message"]:
+            return subprocess.CompletedProcess(cmd, 0, "%7\n", "")
+        if cmd[:2] == ["tmux", "kill-pane"]:
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(cmd)
+
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", fake_run)
+
+    assert artifact_tmux_pane_exists("%7") is True
+    result = close_artifact_tmux_pane("%7")
+
+    assert result.ok is True
+    assert calls == [
+        ["tmux", "display-message", "-p", "-t", "%7", "#{pane_id}"],
+        ["tmux", "kill-pane", "-t", "%7"],
+    ]
+
+
+def test_tmux_pane_close_refuses_current_pane(monkeypatch) -> None:
+    kill = MagicMock()
+    monkeypatch.setenv("TMUX_PANE", "%1")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "tmux" else None,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.subprocess.run", kill)
+
+    result = close_artifact_tmux_pane("%1")
+
+    assert result.ok is False
+    assert result.warning == "Refusing to close the current tmux pane"
+    kill.assert_not_called()
 
 
 def test_viewer_module_entrypoint_delegates_to_view_artifact_files(

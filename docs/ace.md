@@ -264,7 +264,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | Key                 | Action                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `R`                 | Revive a previously dismissed agent                                                                           |
-| `A`                 | Open completion artifacts for the focused agent                                                               |
+| `A`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
 | `@`                 | Run custom agent                                                                                              |
 | `a`                 | Cycle auto-approve state / answer HITL                                                                        |
 | `n`                 | Name agent                                                                                                    |
@@ -334,11 +334,13 @@ Artifact panel controls:
 | `A`         | Open all artifacts in list order, ignoring marks                        |
 | `q` / `Esc` | Close the panel                                                         |
 
-When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Outside
-tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image, Markdown, and PDF
-artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs are converted to
-PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and `pandoc` plus a
-supported PDF engine for Markdown rendering. Missing tools produce a warning instead of failing the TUI.
+When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Press `A`
+again while that ACE-opened viewer pane is still present to close it; if the pane was already closed, `A` opens the
+artifact panel normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer
+supports image, Markdown, and PDF artifacts: images are displayed directly with `kitten icat`; Markdown is first
+rendered to PDF; PDFs are converted to PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for
+PDF/Markdown paging, and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning
+instead of failing the TUI.
 
 Viewer controls:
 
