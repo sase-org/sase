@@ -61,3 +61,14 @@ def test_shipped_skill_source_is_discoverable_for_all_providers(
         rendered = target.read_text(encoding="utf-8")
         for example in expected_examples:
             assert example in rendered
+
+
+@pytest.mark.parametrize("skill_name", ["sase_git_commit", "sase_hg_commit"])
+def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
+    skill_name: str,
+) -> None:
+    """Commit skills should rely on SASE_BEAD_ID rather than a commit flag."""
+    src = get_sase_package_xprompts_dir() / "skills" / f"{skill_name}.md"
+    body = src.read_text(encoding="utf-8")
+    assert "--bead-id" not in body
+    assert "sase bead list --status=in_progress" not in body

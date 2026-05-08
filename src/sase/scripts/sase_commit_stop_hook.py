@@ -124,8 +124,11 @@ def _build_name_instruction() -> str | None:
     return " ".join(parts)
 
 
-def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
+def _build_commit_instruction_message(
+    skill: str, commit_method: str, bead_id: str | None = None
+) -> str:
     method = commit_method or "create_commit"
+    resolved_bead_id = (bead_id or "").strip()
     parts = [
         "A post-completion hook has detected uncommitted changes.",
         f"Did you make these changes? If so, please commit them using your {skill} skill before continuing.",
@@ -143,6 +146,11 @@ def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
         " environment decide. Do NOT pass a --type value that conflicts with"
         " the stated method."
     )
+    if resolved_bead_id:
+        parts.append(
+            f"After `sase commit` succeeds, run `sase bead close {resolved_bead_id}` "
+            f"and verify bead `{resolved_bead_id}` is closed."
+        )
     parts.append(
         "If you did NOT make these changes, you can safely ignore this warning"
         " — it will not appear again this session."
@@ -316,7 +324,10 @@ def main() -> int:
         return _exit(0, reason="no_changes")
 
     skill = _resolve_commit_skill(project_dir)
-    commit_instruction = _build_commit_instruction_message(skill, commit_method)
+    bead_id = os.environ.get("SASE_BEAD_ID")
+    commit_instruction = _build_commit_instruction_message(
+        skill, commit_method, bead_id
+    )
     name_instruction = _build_name_instruction()
     if name_instruction:
         commit_instruction += " " + name_instruction

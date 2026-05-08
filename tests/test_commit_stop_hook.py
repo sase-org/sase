@@ -46,6 +46,25 @@ def test_commit_instruction_includes_method_override_warning() -> None:
     assert "--type create_pull_request" in message
 
 
+def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:
+    """SASE_BEAD_ID should produce explicit post-commit bead closure guidance."""
+    message = _build_commit_instruction_message(
+        "/sase_git_commit", "create_commit", "  sase-2d.4  "
+    )
+    assert "using your /sase_git_commit skill" in message
+    assert "sase bead close sase-2d.4" in message
+    assert "verify bead `sase-2d.4` is closed" in message
+
+
+def test_commit_instruction_omits_bead_close_when_bead_id_is_unset() -> None:
+    """Unset or blank bead IDs must not mention bead closure."""
+    message = _build_commit_instruction_message(
+        "/sase_git_commit", "create_commit", "   "
+    )
+    assert "sase bead close" not in message
+    assert "bead `" not in message
+
+
 def test_codex_emit_block_includes_details_in_json(capsys: object) -> None:
     """Codex JSON reason must contain details when provided."""
     with (
