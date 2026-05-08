@@ -117,9 +117,63 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
     """
 
     current_tab: str
+    current_idx: int
+    current_attempt_number: int | None
+    _agents: list[Agent]
+    _current_group_key: tuple[str, ...] | None
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
     _revived_agent_raw_suffixes: set[str]
+
+    def _select_revived_agent(self, agent: Agent) -> bool:
+        """Select *agent* after a revive reload, including its tag panel."""
+        target_idx: int | None = None
+        for idx, candidate in enumerate(getattr(self, "_agents", [])):
+            if candidate.identity == agent.identity or (
+                agent.raw_suffix and candidate.raw_suffix == agent.raw_suffix
+            ):
+                target_idx = idx
+                break
+        if target_idx is None:
+            return False
+
+        if hasattr(self, "_current_group_key"):
+            self._current_group_key = None  # type: ignore[attr-defined]
+        self.current_idx = target_idx  # type: ignore[attr-defined]
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+
+        panel_group = getattr(self, "_panel_group", None)
+        panel_keys_per_agent = getattr(self, "_panel_keys_per_agent", None)
+        if panel_group is None or not callable(panel_keys_per_agent):
+            return True
+
+        try:
+            keys_per_agent = panel_keys_per_agent()
+        except Exception:
+            return True
+        if not (0 <= target_idx < len(keys_per_agent)):
+            return True
+
+        target_panel_key = keys_per_agent[target_idx]
+        panel_keys = getattr(panel_group, "panel_keys", [])
+        try:
+            panel_group.focused_idx = panel_keys.index(target_panel_key)
+            return True
+        except ValueError:
+            pass
+
+        try:
+            from ...models.agent_panels import AgentPanelGroup
+
+            self._panel_group = AgentPanelGroup.from_agents(  # type: ignore[attr-defined]
+                self._agents,  # type: ignore[attr-defined]
+                target_panel_key,
+                merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+            )
+        except Exception:
+            pass
+        return True
 
     def _remove_dismissed_aliases_for_suffixes(self, suffixes: set[str]) -> None:
         """Remove dismissed identities whose raw_suffix matches revived suffixes.
@@ -362,15 +416,8 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
             )
         self._load_agents()  # type: ignore[attr-defined]
 
-        # Auto-select the revived agent in the list
-        if self.current_tab == "agents":
-            for idx, a in enumerate(self._agents):  # type: ignore[attr-defined]
-                if a.identity == agent.identity or (
-                    agent.raw_suffix and a.raw_suffix == agent.raw_suffix
-                ):
-                    self.current_idx = idx  # type: ignore[attr-defined]
-                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-                    break
+        if self.current_tab == "agents" and self._select_revived_agent(agent):
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _do_revive_agents(self, agents: list[Agent]) -> None:
         """Revive multiple dismissed agents in a single batch.
@@ -447,3 +494,13 @@ class AgentRevivalMixin(ArtifactRestorationMixin):
                 severity="warning",
             )
         self._load_agents()  # type: ignore[attr-defined]
+        if self.current_tab == "agents":
+            revive_candidates = [
+                agent for agent in valid_agents if not agent.is_workflow_child
+            ]
+            if not revive_candidates:
+                revive_candidates = valid_agents
+            for agent in revive_candidates:
+                if self._select_revived_agent(agent):
+                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                    break

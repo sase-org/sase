@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 18:16:18
-status: wip
+status: done
 prompt: sdd/prompts/202605/revive_agent_selects_panel.md
 ---
 # Plan: Select Revived Agents Across Agent Panels

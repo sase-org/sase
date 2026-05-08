@@ -13,6 +13,7 @@ import pytest
 from sase.agent.names import find_named_agent
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -37,11 +38,15 @@ class FakeReviveApp(AgentRevivalMixin):
     def __init__(self) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
+        self.current_attempt_number: int | None = None
+        self._current_group_key: tuple[str, ...] | None = None
+        self._agent_panels_grouped = False
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
+        self.loaded_agents: list[Agent] | None = None
         self.notifications: list[tuple[str, str]] = []
         self.restored: list[tuple[tuple[AgentType, str, str | None], str | None]] = []
         self.load_count = 0
@@ -52,10 +57,18 @@ class FakeReviveApp(AgentRevivalMixin):
 
     def _load_agents(self) -> None:
         self.load_count += 1
+        if self.loaded_agents is not None:
+            self._agents = self.loaded_agents
 
     def _refresh_agents_display(self, *, list_changed: bool) -> None:
         if list_changed:
             self.refresh_count += 1
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        return panel_key_per_agent(
+            self._agents,
+            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+        )
 
     def _restore_agent_artifacts(
         self,
@@ -109,6 +122,61 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
     assert app.restored[1] == (child.identity, parent.artifacts_dir)
 
 
+def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
+    """Single revive moves focus to the revived agent's rendered tag panel."""
+    app = FakeReviveApp()
+    active = _make_agent(cl_name="active", raw_suffix="active_suffix", tag="alpha")
+    dismissed = _make_agent(cl_name="revived", raw_suffix="revived_suffix", tag="beta")
+    reloaded = _make_agent(
+        cl_name="revived",
+        raw_suffix="revived_suffix",
+        tag="beta",
+        status="RUNNING",
+    )
+    app._agents = [active]
+    app.loaded_agents = [active, reloaded]
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key="alpha")
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app.current_idx = 0
+    app.current_attempt_number = 7
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(dismissed)
+
+    assert app.current_idx == 1
+    assert app._agents[app.current_idx].raw_suffix == "revived_suffix"
+    assert app._panel_group.focused_key == "beta"
+    assert app._current_group_key is None
+    assert app.current_attempt_number is None
+    assert app.refresh_count == 1
+
+
+def test_do_revive_agent_clears_stale_banner_focus() -> None:
+    """Reviving an agent selects its row, not a stale collapsed group banner."""
+    app = FakeReviveApp()
+    dismissed = _make_agent(cl_name="revived", raw_suffix="revived_suffix")
+    reloaded = _make_agent(cl_name="revived", raw_suffix="revived_suffix")
+    app.loaded_agents = [reloaded]
+    app._panel_group = AgentPanelGroup.from_agents([reloaded])
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._current_group_key = ("stale",)
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agent(dismissed)
+
+    assert app.current_idx == 0
+    assert app._current_group_key is None
+    assert app.refresh_count == 1
+
+
 def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     """Batch revive clears aliases for all revived parent/child suffixes."""
     app = FakeReviveApp()
@@ -160,6 +228,52 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     assert mock_remove.call_args_list[1].kwargs == {"child_raw_suffixes": set()}
     assert app.load_count == 1
     assert len(app.restored) == 4
+
+
+def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
+    """Batch revive selects the first selected parent, not an implicit child."""
+    app = FakeReviveApp()
+    active = _make_agent(cl_name="active", raw_suffix="active_suffix", tag="alpha")
+    parent_one = _make_agent(
+        cl_name="feature1",
+        raw_suffix="parent_one_suffix",
+        tag="beta",
+    )
+    parent_two = _make_agent(
+        cl_name="feature2",
+        raw_suffix="parent_two_suffix",
+        workflow="wf_two",
+        tag="gamma",
+    )
+    child_one = _make_agent(
+        cl_name="child1",
+        raw_suffix="child_one_suffix",
+        parent_workflow="wf",
+        parent_timestamp="parent_one_suffix",
+        tag="beta",
+    )
+    app._agents = [active]
+    app.loaded_agents = [active, child_one, parent_one, parent_two]
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key="alpha")
+    app._dismissed_agent_objects = [parent_one, parent_two, child_one]
+    app._dismissed_agents = {
+        parent_one.identity,
+        parent_two.identity,
+        child_one.identity,
+    }
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_bundle_by_identity"),
+    ):
+        app._do_revive_agents([parent_one, parent_two])
+
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx].raw_suffix == "parent_one_suffix"
+    assert app._panel_group.focused_key == "beta"
+    assert app._current_group_key is None
+    assert app.current_attempt_number is None
+    assert app.refresh_count == 1
 
 
 @pytest.mark.parametrize(
