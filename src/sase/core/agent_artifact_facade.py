@@ -154,7 +154,6 @@ def artifact_association_from_dir(
     )
 
 
-# pyvision: public_api_methods.txt
 def store_explicit_agent_artifact(
     source_path: Path | str,
     agent_artifacts_dir: Path | str,
@@ -205,7 +204,6 @@ def store_explicit_agent_artifact(
     return artifact
 
 
-# pyvision: public_api_methods.txt
 def read_explicit_agent_artifact_index(
     index_path: Path | str | None = None,
 ) -> list[AgentArtifact]:
@@ -222,7 +220,6 @@ def read_explicit_agent_artifact_index(
         return _read_index_unlocked(idx)
 
 
-# pyvision: public_api_methods.txt
 def list_explicit_agent_artifacts(
     agent_artifacts_dir: Path | str,
     *,
@@ -235,7 +232,6 @@ def list_explicit_agent_artifacts(
     return [row for row in rows if _matches_association(row, association)]
 
 
-# pyvision: public_api_methods.txt
 def synthesize_default_agent_artifacts(
     agent_artifacts_dir: Path | str,
 ) -> list[AgentArtifact]:
@@ -306,7 +302,6 @@ def synthesize_default_agent_artifacts(
     return _dedupe_artifacts(artifacts)
 
 
-# pyvision: public_api_methods.txt
 def list_agent_artifacts(
     agent_artifacts_dir: Path | str,
     *,

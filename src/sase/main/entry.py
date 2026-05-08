@@ -43,6 +43,12 @@ def main() -> NoReturn:
 
         handle_agents_command(args)
 
+    # --- artifact ---
+    if args.command == "artifact":
+        from .artifact_handler import handle_artifact_command
+
+        handle_artifact_command(args)
+
     # --- axe ---
     if args.command == "axe":
         from .axe_handler import handle_axe_command

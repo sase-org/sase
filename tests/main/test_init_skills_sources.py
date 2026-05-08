@@ -16,6 +16,7 @@ from tests.main.init_skills_handler_helpers import make_args
 @pytest.mark.parametrize(
     ("skill_name", "expected_examples"),
     [
+        ("sase_artifact", ("sase artifact create -p", "--kind")),
         ("sase_chats", ("sase chats list -j", "sase chats show")),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
     ],
