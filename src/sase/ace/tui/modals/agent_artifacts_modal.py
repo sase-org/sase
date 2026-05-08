@@ -145,6 +145,7 @@ class AgentArtifactSelectionModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("m", "toggle_mark", "Mark"),
+        ("A", "open_all", "Open All"),
         ("enter", "open_selected", "Open"),
     ]
 
@@ -225,6 +226,9 @@ class AgentArtifactSelectionModal(
             return
         self.dismiss(self._artifacts[index])
 
+    def action_open_all(self) -> None:
+        self.dismiss(list(self._artifacts))
+
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
         self.action_open_selected()
@@ -247,7 +251,7 @@ class AgentArtifactSelectionModal(
         option_list.highlighted = index
 
     def _hint_text(self) -> str:
-        base = "key/enter: open  m: mark  j/k: navigate  q/esc: close"
+        base = "key/enter: open  m: mark  A: open all  j/k: navigate  q/esc: close"
         mark_count = len(self._marked_indexes)
         if mark_count:
             return f"{base}  marked: {mark_count}"

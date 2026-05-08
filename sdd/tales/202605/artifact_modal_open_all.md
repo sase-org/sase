@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 16:02:40
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_modal_open_all.md
 ---
 # Plan: Add Artifact Modal Open-All Key

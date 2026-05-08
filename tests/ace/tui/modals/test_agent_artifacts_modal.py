@@ -151,6 +151,52 @@ async def test_artifact_modal_marks_return_in_list_order() -> None:
     assert result == [artifacts[0], artifacts[2]]
 
 
+async def test_artifact_modal_open_all_returns_all_artifacts_in_list_order() -> None:
+    artifacts = [_artifact(index) for index in range(4)]
+    result: object | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("A")
+        await pilot.pause()
+
+    assert result == artifacts
+    assert result is not artifacts
+
+
+async def test_artifact_modal_open_all_ignores_existing_marks() -> None:
+    artifacts = [_artifact(index) for index in range(4)]
+    result: object | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("m")
+        option_list.highlighted = 0
+        await pilot.press("m")
+        await pilot.press("A")
+        await pilot.pause()
+
+    assert result == artifacts
+
+
 async def test_artifact_modal_mark_advances_highlight() -> None:
     artifacts = [_artifact(index) for index in range(3)]
 
@@ -181,6 +227,26 @@ async def test_artifact_modal_mark_wraps_highlight_to_first_row() -> None:
         await pilot.pause()
 
         assert option_list.highlighted == 0
+
+
+async def test_artifact_modal_hint_includes_open_all_and_mark_count() -> None:
+    artifacts = [_artifact(index) for index in range(3)]
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentArtifactSelectionModal(artifacts)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert "A: open all" in modal._hint_text()
+        assert "marked:" not in modal._hint_text()
+
+        option_list = modal.query_one("#agent-artifacts-list", OptionList)
+        option_list.highlighted = 1
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert "A: open all" in modal._hint_text()
+        assert modal._hint_text().endswith("marked: 1")
 
 
 def test_artifact_modal_unmarked_option_text_omits_empty_checkbox() -> None:
