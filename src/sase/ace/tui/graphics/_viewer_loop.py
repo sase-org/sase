@@ -43,9 +43,9 @@ def page_index_after_key(current_index: int, key: str, page_count: int) -> int |
     if page_count <= 1:
         return current_index
     if normalized == "n":
-        return min(current_index + 1, page_count - 1)
+        return (current_index + 1) % page_count
     if normalized == "p":
-        return max(current_index - 1, 0)
+        return (current_index - 1) % page_count
     return current_index
 
 
@@ -59,9 +59,8 @@ def page_loop_available_keys(
     """Return page-loop keys available for the current page."""
 
     keys: list[str] = []
-    if index < page_count - 1:
+    if page_count > 1:
         keys.append("n")
-    if index > 0:
         keys.append("p")
     if artifact_index < artifact_count - 1:
         keys.append("N")
@@ -176,10 +175,12 @@ def run_artifact_sequence_loop(
         if key == "q":
             _clear_terminal(run)
             return _PageLoopResult()
-        if key == "n":
-            page_index = min(page_index + 1, len(pages) - 1)
-        elif key == "p":
-            page_index = max(page_index - 1, 0)
+        if key in {"n", "p", "r"}:
+            next_page_index = page_index_after_key(page_index, key, len(pages))
+            if next_page_index is None:
+                _clear_terminal(run)
+                return _PageLoopResult()
+            page_index = next_page_index
         elif key == "N":
             artifact_index = min(artifact_index + 1, len(specs) - 1)
             page_index = 0

@@ -79,20 +79,21 @@ def test_convert_pdf_to_png_pages_reports_failure(
 
 def test_artifact_page_index_state_machine() -> None:
     assert page_index_after_key(0, "n", 3) == 1
-    assert page_index_after_key(2, "n", 3) == 2
+    assert page_index_after_key(2, "n", 3) == 0
     assert page_index_after_key(2, "p", 3) == 1
-    assert page_index_after_key(0, "p", 3) == 0
+    assert page_index_after_key(0, "p", 3) == 2
     assert page_index_after_key(1, "r", 3) == 1
     assert page_index_after_key(1, "x", 3) == 1
     assert page_index_after_key(0, "q", 3) is None
     assert page_index_after_key(0, "n", 1) == 0
+    assert page_index_after_key(0, "p", 1) == 0
 
 
 def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert page_loop_available_keys(0, 1) == ("r", "q")
-    assert page_loop_available_keys(0, 3) == ("n", "r", "q")
+    assert page_loop_available_keys(0, 3) == ("n", "p", "r", "q")
     assert page_loop_available_keys(1, 3) == ("n", "p", "r", "q")
-    assert page_loop_available_keys(2, 3) == ("p", "r", "q")
+    assert page_loop_available_keys(2, 3) == ("n", "p", "r", "q")
     assert page_loop_available_keys(0, 1, artifact_index=0, artifact_count=3) == (
         "N",
         "r",
@@ -114,7 +115,10 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
     assert capsys.readouterr().out == "\nPage 1/1  r: refresh  q: quit"
 
     _print_page_prompt(index=0, page_count=3)
-    assert capsys.readouterr().out == "\nPage 1/3  n: next page  r: refresh  q: quit"
+    assert (
+        capsys.readouterr().out
+        == "\nPage 1/3  n: next page  p: previous page  r: refresh  q: quit"
+    )
 
     _print_page_prompt(index=1, page_count=3)
     assert (
@@ -124,7 +128,8 @@ def test_artifact_page_loop_available_keys_and_prompts(capsys) -> None:
 
     _print_page_prompt(index=2, page_count=3)
     assert (
-        capsys.readouterr().out == "\nPage 3/3  p: previous page  r: refresh  q: quit"
+        capsys.readouterr().out
+        == "\nPage 3/3  n: next page  p: previous page  r: refresh  q: quit"
     )
 
     _print_page_prompt(
@@ -218,7 +223,7 @@ def test_run_artifact_page_loop_refreshes_current_page(tmp_path: Path) -> None:
     ]
 
 
-def test_run_artifact_page_loop_ignores_unavailable_boundary_keys(
+def test_run_artifact_page_loop_wraps_boundary_keys(
     tmp_path: Path,
 ) -> None:
     pages = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
@@ -243,6 +248,8 @@ def test_run_artifact_page_loop_ignores_unavailable_boundary_keys(
         ["kitten", "icat", str(pages[0])],
         ["clear"],
         ["kitten", "icat", str(pages[1])],
+        ["clear"],
+        ["kitten", "icat", str(pages[0])],
         ["clear"],
     ]
 
@@ -272,7 +279,7 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         fake_render_result,
     )
     commands: list[list[str]] = []
-    keys = iter(["n", "N", "P", "q"])
+    keys = iter(["p", "n", "N", "P", "q"])
 
     def fake_run(cmd):
         commands.append(list(cmd))
@@ -295,6 +302,8 @@ def test_run_artifact_sequence_loop_navigates_pages_and_artifacts(
         ["kitten", "icat", str(first_pages[0])],
         ["clear"],
         ["kitten", "icat", str(first_pages[1])],
+        ["clear"],
+        ["kitten", "icat", str(first_pages[0])],
         ["clear"],
         ["kitten", "icat", str(second_pages[0])],
         ["clear"],
