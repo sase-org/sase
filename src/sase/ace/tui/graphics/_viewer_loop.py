@@ -36,6 +36,7 @@ class _PageLoopResult:
 
 _ARTIFACT_VIEWER_RESERVED_ROWS = 7
 _ARTIFACT_VIEWER_HEADER_ROWS = 5
+_ARTIFACT_VIEWER_RESERVED_COLUMNS = 2
 _PAGE_LOOP_RESERVED_ROWS = 2
 _MIN_IMAGE_COLUMNS = 20
 _MIN_IMAGE_ROWS = 5
@@ -215,13 +216,14 @@ def artifact_image_area(
     terminal_size: os.terminal_size | tuple[int, int] | None = None,
     *,
     reserved_rows: int = _ARTIFACT_VIEWER_RESERVED_ROWS,
+    reserved_columns: int = _ARTIFACT_VIEWER_RESERVED_COLUMNS,
     top_rows: int = _ARTIFACT_VIEWER_HEADER_ROWS,
 ) -> ArtifactImageArea:
     """Return the terminal cell area available for artifact image display."""
 
     size = terminal_size or shutil.get_terminal_size(fallback=(80, 24))
     lines = int(size[1])
-    columns = max(_MIN_IMAGE_COLUMNS, int(size[0]))
+    columns = max(_MIN_IMAGE_COLUMNS, int(size[0]) - max(0, reserved_columns))
     rows = max(_MIN_IMAGE_ROWS, lines - reserved_rows)
     top = min(max(0, top_rows), max(0, lines - rows))
     return ArtifactImageArea(columns=columns, rows=rows, top=top)

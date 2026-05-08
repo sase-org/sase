@@ -94,7 +94,7 @@ def test_artifact_header_panel_includes_path_and_positions(tmp_path: Path) -> No
 
 def test_artifact_image_area_reserves_viewer_rows() -> None:
     assert artifact_image_area((100, 40)) == ArtifactImageArea(
-        columns=100,
+        columns=98,
         rows=33,
         top=5,
     )
@@ -104,7 +104,10 @@ def test_artifact_image_area_reserves_viewer_rows() -> None:
         top=3,
     )
     assert artifact_image_area((100, 40), reserved_rows=2, top_rows=0) == (
-        ArtifactImageArea(columns=100, rows=38)
+        ArtifactImageArea(columns=98, rows=38)
+    )
+    assert artifact_image_area((100, 40), reserved_columns=0) == (
+        ArtifactImageArea(columns=100, rows=33, top=5)
     )
 
 
@@ -129,8 +132,8 @@ def test_artifact_markdown_pdf_profile_uses_image_area_aspect() -> None:
     )
 
     assert profile is not None
-    assert profile.page_width == "11.00in"
-    assert profile.page_height == "3.67in"
+    assert profile.page_width == "8.50in"
+    assert profile.page_height == "4.86in"
     assert profile.margin == "0.18in"
     assert profile.css_font_size == "16px"
     assert profile.latex_font_size == "12pt"
@@ -235,8 +238,8 @@ def test_render_markdown_artifact_passes_pane_aware_profile(
 
     assert result.warnings == ()
     assert len(profiles) == 1
-    assert profiles[0].page_width == "11.00in"
-    assert profiles[0].page_height == "3.67in"
+    assert profiles[0].page_width == "8.50in"
+    assert profiles[0].page_height == "4.86in"
     assert profiles[0].margin == "0.18in"
 
 
