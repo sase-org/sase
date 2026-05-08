@@ -319,10 +319,17 @@ class AgentPanelsMixin:
             return []
 
     def _open_agent_artifact(self, artifact: Any) -> None:
-        from ...graphics import view_agent_artifact
+        from ...graphics import (
+            is_tmux_session,
+            view_agent_artifact,
+            view_agent_artifact_in_tmux_pane,
+        )
 
-        with self.suspend():  # type: ignore[attr-defined]
-            result = view_agent_artifact(artifact)
+        if is_tmux_session():
+            result = view_agent_artifact_in_tmux_pane(artifact)
+        else:
+            with self.suspend():  # type: ignore[attr-defined]
+                result = view_agent_artifact(artifact)
         if result.warning is not None:
             self.notify(result.warning, severity="warning")  # type: ignore[attr-defined]
 

@@ -394,12 +394,67 @@ def test_agents_open_artifacts_action_runs_single_viewer_inside_suspend(
         assert app.suspend_recorder.entered is True
         return ArtifactViewerResult(True)
 
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: False)
     monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", fake_viewer)
 
     app.action_open_agent_artifacts()
 
     assert calls == [artifact]
     app.notify.assert_not_called()
+
+
+def test_agents_open_artifacts_action_uses_tmux_pane_without_suspend(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+    calls: list[object] = []
+
+    def fake_tmux_viewer(viewed_artifact) -> ArtifactViewerResult:
+        calls.append(viewed_artifact)
+        assert app.suspend_recorder.entered is False
+        return ArtifactViewerResult(True)
+
+    same_pane_viewer = MagicMock()
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact_in_tmux_pane",
+        fake_tmux_viewer,
+    )
+    monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", same_pane_viewer)
+
+    app.action_open_agent_artifacts()
+
+    assert calls == [artifact]
+    same_pane_viewer.assert_not_called()
+    app.notify.assert_not_called()
+
+
+def test_agents_open_artifacts_action_surfaces_tmux_warning(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: True)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact_in_tmux_pane",
+        lambda _artifact: ArtifactViewerResult(False, warning="tmux missing"),
+    )
+
+    app.action_open_agent_artifacts()
+
+    assert app.suspend_recorder.entered is False
+    app.notify.assert_called_once_with("tmux missing", severity="warning")
 
 
 def test_agents_open_artifacts_action_warns_when_no_artifacts(monkeypatch) -> None:
@@ -464,6 +519,7 @@ def test_agents_open_artifacts_modal_callback_restores_agent_list_focus(
         "sase.ace.tui.graphics.view_agent_artifact",
         lambda _artifact: ArtifactViewerResult(True),
     )
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: False)
 
     app.action_open_agent_artifacts()
     _modal, callback = app.pushed[0]

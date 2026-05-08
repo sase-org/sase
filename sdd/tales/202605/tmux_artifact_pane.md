@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 00:03:01
-status: wip
+status: done
 prompt: sdd/prompts/202605/tmux_artifact_pane.md
 ---
 # Plan: Open Agent Artifacts In A Tmux Side Pane

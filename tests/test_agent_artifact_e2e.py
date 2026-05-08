@@ -208,6 +208,7 @@ def test_agents_action_opens_chat_only_agent_and_uses_panel_for_multiple_artifac
         opened.append(artifact)
         return ArtifactViewerResult(True)
 
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: False)
     monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", fake_viewer)
 
     single_app = _ArtifactActionApp(_agent(chat_only_dir))

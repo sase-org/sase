@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -71,6 +73,12 @@ def view_agent_artifact(artifact: _ArtifactLike) -> ArtifactViewerResult:
     return view_artifact_file(artifact.path, kind=artifact.kind)
 
 
+def view_agent_artifact_in_tmux_pane(artifact: _ArtifactLike) -> ArtifactViewerResult:
+    """Open an agent artifact with the terminal page viewer in a tmux pane."""
+
+    return view_artifact_file_in_tmux_pane(artifact.path, kind=artifact.kind)
+
+
 def view_artifact_file(
     path: str | Path,
     *,
@@ -97,6 +105,55 @@ def view_image_file(path: str) -> ImageViewerResult:
     """Compatibility wrapper for image-only notification/file-panel callers."""
 
     return view_artifact_file(path, kind="image")
+
+
+def is_tmux_session() -> bool:
+    """Return whether the current process is running inside tmux."""
+
+    return bool(os.environ.get("TMUX") or os.environ.get("TMUX_PANE"))
+
+
+def view_artifact_file_in_tmux_pane(
+    path: str | Path,
+    *,
+    kind: str | None = None,
+) -> ArtifactViewerResult:
+    """Launch the artifact viewer in a right-side tmux pane."""
+
+    if not is_tmux_session():
+        warning = ArtifactViewerWarning(
+            "not_in_tmux",
+            "Not running inside tmux",
+            tool="tmux",
+        )
+        return _viewer_result_from_warnings((warning,))
+    if shutil.which("tmux") is None:
+        warning = ArtifactViewerWarning(
+            "missing_tmux",
+            "tmux executable not found",
+            tool="tmux",
+        )
+        return _viewer_result_from_warnings((warning,))
+
+    viewer_command = _artifact_viewer_module_command(path, kind=kind)
+    tmux_command = ["tmux", "split-window", "-h", shlex.join(viewer_command)]
+    result = subprocess.run(
+        tmux_command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        suffix = f": {stderr}" if stderr else ""
+        warning = ArtifactViewerWarning(
+            "tmux_split_failed",
+            f"tmux split-window failed with exit code {result.returncode}{suffix}",
+            tool="tmux",
+        )
+        return _viewer_result_from_warnings((warning,))
+
+    return ArtifactViewerResult(True)
 
 
 def render_artifact_pages(
@@ -347,6 +404,22 @@ def _viewer_result_from_warnings(
     )
 
 
+def _artifact_viewer_module_command(
+    path: str | Path,
+    *,
+    kind: str | None = None,
+) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "sase.ace.tui.graphics.viewer",
+    ]
+    if kind is not None:
+        command.extend(["--kind", str(kind)])
+    command.append(str(Path(path).expanduser()))
+    return command
+
+
 def _run_command(cmd: Sequence[str]) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(list(cmd), check=False)
 
@@ -373,3 +446,34 @@ def _read_single_key() -> str:
         return os.read(fd, 1).decode(errors="ignore")
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def _parse_viewer_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m sase.ace.tui.graphics.viewer",
+        description="Open a SASE artifact in the terminal artifact viewer.",
+    )
+    parser.add_argument("path", help="Artifact file path to view")
+    parser.add_argument(
+        "-k",
+        "--kind",
+        default=None,
+        help="Artifact kind used to choose the viewer mode",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the artifact viewer module entry point."""
+
+    args = _parse_viewer_args(argv)
+    result = view_artifact_file(args.path, kind=args.kind)
+    if result.ok:
+        return 0
+    if result.warning is not None:
+        print(result.warning, file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
