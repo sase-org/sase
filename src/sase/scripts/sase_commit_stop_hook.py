@@ -131,9 +131,22 @@ def _build_commit_instruction_message(
     resolved_bead_id = (bead_id or "").strip()
     parts = [
         "A post-completion hook has detected uncommitted changes.",
-        f"Did you make these changes? If so, please commit them using your {skill} skill before continuing.",
-        f"The commit method type is `{method}`.",
+        "First decide whether the listed uncommitted changes were made by you in this session.",
+        "If you did NOT make these changes, ignore this warning for the session; it will not appear again.",
     ]
+    if resolved_bead_id:
+        parts.append(
+            f"If you DID make these changes, run `sase bead close {resolved_bead_id}` "
+            f"and verify bead `{resolved_bead_id}` is closed before invoking the commit skill."
+        )
+        parts.append(
+            f"Then commit the changes using your {skill} skill before continuing."
+        )
+    else:
+        parts.append(
+            f"If you DID make these changes, commit them using your {skill} skill before continuing."
+        )
+    parts.append(f"The commit method type is `{method}`.")
     if method != "create_pull_request":
         parts.append(
             "When constructing the commit message, describe only the changes in this commit."
@@ -145,15 +158,6 @@ def _build_commit_instruction_message(
         f"You MUST use `--type {method}` or omit --type entirely to let the"
         " environment decide. Do NOT pass a --type value that conflicts with"
         " the stated method."
-    )
-    if resolved_bead_id:
-        parts.append(
-            f"After `sase commit` succeeds, run `sase bead close {resolved_bead_id}` "
-            f"and verify bead `{resolved_bead_id}` is closed."
-        )
-    parts.append(
-        "If you did NOT make these changes, you can safely ignore this warning"
-        " — it will not appear again this session."
     )
     return " ".join(parts)
 

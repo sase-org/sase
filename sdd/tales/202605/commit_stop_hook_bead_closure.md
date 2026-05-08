@@ -1,7 +1,7 @@
 ---
 title: Commit Stop Hook Bead Closure Ordering
 create_time: 2026-05-07 23:42:10
-status: wip
+status: done
 prompt: sdd/prompts/202605/commit_stop_hook_bead_closure.md
 ---
 
