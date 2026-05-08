@@ -121,6 +121,89 @@ def test_format_agent_option_unread_finished_suffix_has_completed_marker() -> No
     assert suffix.plain == "20:17:03 · 🎉 6h17m"
 
 
+def test_format_agent_option_planning_suffix_has_user_paused_marker() -> None:
+    start = datetime(2026, 5, 6, 13, 9, 0)
+    plan = datetime(2026, 5, 6, 13, 14, 53)
+    now = datetime(2026, 5, 6, 13, 23, 0)
+
+    _, suffix, _ = format_agent_option(
+        agent(
+            agent_type=AgentType.WORKFLOW,
+            status="PLANNING",
+            start=start,
+            plan_times=[plan],
+        ),
+        0,
+        is_selected=False,
+        now=now,
+    )
+
+    assert suffix.plain == "13:14:53 · 🙋 5m53s"
+    assert "🏃‍♂️" not in suffix.plain
+    assert "🎉" not in suffix.plain
+
+
+def test_format_agent_option_question_without_time_has_user_paused_marker() -> None:
+    _, suffix, _ = format_agent_option(
+        agent(
+            agent_type=AgentType.WORKFLOW,
+            status="QUESTION",
+            start=datetime(2026, 5, 6, 13, 9, 0),
+        ),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 13, 23, 0),
+    )
+
+    assert suffix.plain == "🙋"
+
+
+def test_format_agent_option_waiting_input_has_user_paused_marker() -> None:
+    _, suffix, _ = format_agent_option(
+        agent(
+            agent_type=AgentType.WORKFLOW,
+            status="WAITING INPUT",
+            start=datetime(2026, 5, 6, 13, 9, 0),
+        ),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 13, 23, 0),
+    )
+
+    assert suffix.plain == "🙋"
+
+
+def test_format_agent_option_plan_approved_active_suffix_has_running_marker() -> None:
+    _, suffix, _ = format_agent_option(
+        agent(
+            agent_type=AgentType.WORKFLOW,
+            status="PLAN APPROVED",
+            start=datetime(2026, 5, 6, 13, 9, 0),
+            run_start=datetime(2026, 5, 6, 13, 10, 7),
+            plan_times=[datetime(2026, 5, 6, 13, 14, 53)],
+            code_time=datetime(2026, 5, 6, 13, 15, 10),
+        ),
+        0,
+        is_selected=False,
+        now=datetime(2026, 5, 6, 13, 16, 15),
+    )
+
+    assert suffix.plain == "🏃‍♂️ 5m51s"
+    assert "🙋" not in suffix.plain
+
+
+def test_format_agent_option_unread_terminal_suffix_uses_completed_marker() -> None:
+    _, suffix, _ = format_agent_option(
+        agent(status="DONE", start=None),
+        0,
+        is_selected=False,
+        is_unread=True,
+    )
+
+    assert suffix.plain == "🎉"
+    assert "🙋" not in suffix.plain
+
+
 def test_format_agent_option_finished_yesterday_suffix_human_readable() -> None:
     start = datetime(2026, 4, 24, 19, 38, 18)
     stop = datetime(2026, 4, 24, 20, 17, 3)

@@ -41,6 +41,15 @@ _RUNTIME_LIVE_MARKER_STYLE = "#D7AF5F"
 # so newly finished unseen rows scan where active runtimes did.
 _RUNTIME_UNREAD_COMPLETED_MARKER = "🎉 "
 _RUNTIME_UNREAD_COMPLETED_MARKER_STYLE = "#FFD75F"
+# User-paused marker: same suffix slot, used when the row is waiting on
+# an explicit user action instead of active runtime.
+_RUNTIME_USER_PAUSED_MARKER = "🙋 "
+_RUNTIME_USER_PAUSED_MARKER_STYLE = "#FFAF00"
+_USER_PAUSED_STATUSES = frozenset({"PLANNING", "QUESTION", "WAITING INPUT"})
+
+
+def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
+    return agent.status in _USER_PAUSED_STATUSES and not is_ticking
 
 
 def render_tier_gutter(tier_styles: tuple[str, ...]) -> Text:
@@ -67,11 +76,20 @@ def build_runtime_suffix(
     suffix = Text()
     is_ticking = runtime_suffix_ticks(agent)
     show_unread_marker = is_unread and not is_ticking
+    show_user_paused_marker = (
+        _runtime_suffix_user_paused(agent, is_ticking=is_ticking)
+        and not show_unread_marker
+    )
     if ts_pair is None and elapsed is None:
         if show_unread_marker:
             suffix.append(
                 _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
                 style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+            )
+        elif show_user_paused_marker:
+            suffix.append(
+                _RUNTIME_USER_PAUSED_MARKER.rstrip(),
+                style=_RUNTIME_USER_PAUSED_MARKER_STYLE,
             )
         return suffix
     if ts_pair is not None:
@@ -89,11 +107,21 @@ def build_runtime_suffix(
                 _RUNTIME_UNREAD_COMPLETED_MARKER,
                 style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
             )
+        elif show_user_paused_marker:
+            suffix.append(
+                _RUNTIME_USER_PAUSED_MARKER,
+                style=_RUNTIME_USER_PAUSED_MARKER_STYLE,
+            )
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
     elif show_unread_marker:
         suffix.append(
             _RUNTIME_UNREAD_COMPLETED_MARKER.rstrip(),
             style=_RUNTIME_UNREAD_COMPLETED_MARKER_STYLE,
+        )
+    elif show_user_paused_marker:
+        suffix.append(
+            _RUNTIME_USER_PAUSED_MARKER.rstrip(),
+            style=_RUNTIME_USER_PAUSED_MARKER_STYLE,
         )
     return suffix
 
