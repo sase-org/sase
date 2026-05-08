@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 
@@ -54,8 +55,30 @@ def run_precommit(cwd: str) -> bool:
     return True
 
 
+def enforce_bead_id_in_message(payload: dict) -> None:
+    """Add payload["bead_id"] to the commit-message headline when present."""
+    bead_id = payload.get("bead_id")
+    if not bead_id:
+        return
+
+    bead_id = str(bead_id)
+    message = str(payload.get("message", "") or "")
+    first_line, sep, rest = message.partition("\n")
+    if _message_line_has_bead_id(first_line, bead_id):
+        return
+
+    tagged_first_line = f"{first_line} ({bead_id})" if first_line else f"({bead_id})"
+    payload["message"] = f"{tagged_first_line}{sep}{rest}"
+
+
+def _message_line_has_bead_id(line: str, bead_id: str) -> bool:
+    """Return True when *line* contains the exact bead ID as a token."""
+    pattern = rf"(?<![A-Za-z0-9_.-]){re.escape(bead_id)}(?![A-Za-z0-9_.-])"
+    return re.search(pattern, line) is not None
+
+
 def handle_beads(payload: dict, cwd: str) -> None:
-    """Close and sync beads, inject bead ID into commit message."""
+    """Close and sync beads best-effort; keep message tagging idempotent."""
     bead_id = payload.get("bead_id")
     has_bead_dir = os.path.isdir(os.path.join(cwd, BEADS_DIRNAME)) or os.path.isdir(
         os.path.join(cwd, ".beads")
@@ -65,11 +88,7 @@ def handle_beads(payload: dict, cwd: str) -> None:
         # Close bead (best effort)
         print_status(f"Closing bead {bead_id}...", "progress")
         _run_bead_command(["sase", "bead", "close", bead_id], cwd)
-        # Inject bead ID into commit message headline
-        message = payload.get("message", "")
-        if f"({bead_id})" not in message:
-            first_line, sep, rest = message.partition("\n")
-            payload["message"] = f"{first_line} ({bead_id}){sep}{rest}"
+        enforce_bead_id_in_message(payload)
 
     if bead_id or has_bead_dir:
         # Sync beads (best effort)

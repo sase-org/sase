@@ -26,6 +26,7 @@ from sase.workflows.commit.commit_tracking import (
     write_result_marker,
 )
 from sase.workflows.commit.precommit_hooks import (
+    enforce_bead_id_in_message,
     handle_beads,
     handle_sase_plan,
     run_precommit,
@@ -101,6 +102,8 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.FAILED
 
         cwd = os.getcwd()
+
+        enforce_bead_id_in_message(self._payload)
 
         # Bead lifecycle and SASE_PLAN: skip for proposals.
         # Must run before precommit so plan files are in place for formatting.
