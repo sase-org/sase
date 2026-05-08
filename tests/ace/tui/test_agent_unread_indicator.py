@@ -14,19 +14,24 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 from sase.ace.tui.widgets.agent_list import AgentList
 
+_DEFAULT_START_TIME = datetime(2026, 5, 7, 9, 0, 0)
+
 
 def _agent(
     *,
     name: str = "demo",
     status: str = "RUNNING",
     raw_suffix: str = "20260507090000",
+    start_time: datetime | None = _DEFAULT_START_TIME,
+    stop_time: datetime | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
         project_file="/tmp/projects/demo/demo.gp",
         status=status,
-        start_time=datetime(2026, 5, 7, 9, 0, 0),
+        start_time=start_time,
+        stop_time=stop_time,
         raw_suffix=raw_suffix,
     )
 
@@ -233,12 +238,45 @@ class _UnreadJumpApp(AgentsMixinCore):
         self.debounced_refresh_calls += 1
 
 
-def test_jump_to_next_unread_done_agent_uses_visible_order_and_wraps() -> None:
-    a = _agent(name="a", status="DONE", raw_suffix="a")
-    b = _agent(name="b", status="DONE", raw_suffix="b")
-    c = _agent(name="c", status="RUNNING", raw_suffix="c")
-    app = _UnreadJumpApp([a, b, c], visible=[2, 0, 1], current_idx=2)
-    app._unread_completed_agent_ids.update({a.identity, b.identity})
+def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> None:
+    older = _agent(
+        name="older",
+        status="DONE",
+        raw_suffix="older",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    newest = _agent(
+        name="newest",
+        status="DONE",
+        raw_suffix="newest",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    running = _agent(
+        name="running",
+        status="RUNNING",
+        raw_suffix="running",
+        stop_time=datetime(2026, 5, 7, 13, 0, 0),
+    )
+    middle = _agent(
+        name="middle",
+        status="FAILED",
+        raw_suffix="middle",
+        stop_time=datetime(2026, 5, 7, 11, 0, 0),
+    )
+    app = _UnreadJumpApp(
+        [older, newest, running, middle],
+        visible=[2, 0, 3, 1],
+        current_idx=2,
+    )
+    app._unread_completed_agent_ids.update(
+        {older.identity, newest.identity, running.identity, middle.identity}
+    )
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 1
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 3
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 0
@@ -257,6 +295,48 @@ def test_jump_to_next_unread_done_agent_ignores_running_and_read_done() -> None:
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 2
     assert app.patch_calls == [unread_done]
+
+
+def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing() -> (
+    None
+):
+    fallback_newest = _agent(
+        name="fallback",
+        status="DONE",
+        raw_suffix="fallback",
+        start_time=datetime(2026, 5, 7, 12, 0, 0),
+        stop_time=None,
+    )
+    stopped_older = _agent(
+        name="stopped",
+        status="DONE",
+        raw_suffix="stopped",
+        start_time=datetime(2026, 5, 7, 8, 0, 0),
+        stop_time=datetime(2026, 5, 7, 11, 0, 0),
+    )
+    missing_time = _agent(
+        name="missing",
+        status="FAILED",
+        raw_suffix="missing",
+        start_time=None,
+        stop_time=None,
+    )
+    app = _UnreadJumpApp(
+        [stopped_older, missing_time, fallback_newest],
+        current_idx=99,
+    )
+    app._unread_completed_agent_ids.update(
+        {fallback_newest.identity, stopped_older.identity, missing_time.identity}
+    )
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 2
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 0
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 1
 
 
 def test_jump_to_next_unread_done_agent_preserves_target_unread_state() -> None:
@@ -294,9 +374,19 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
     assert app.debounced_refresh_calls == 1
 
 
-def test_jump_to_next_unread_done_agent_anchors_after_focused_banner() -> None:
-    first = _agent(name="first", status="DONE", raw_suffix="first")
-    second = _agent(name="second", status="DONE", raw_suffix="second")
+def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -> None:
+    first = _agent(
+        name="first",
+        status="DONE",
+        raw_suffix="first",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    second = _agent(
+        name="second",
+        status="DONE",
+        raw_suffix="second",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
     app = _UnreadJumpApp(
         [first, second],
         visible=[0, 1],
@@ -308,3 +398,4 @@ def test_jump_to_next_unread_done_agent_anchors_after_focused_banner() -> None:
     assert app._jump_to_next_unread_done_agent()
 
     assert app.current_idx == 1
+    assert app._current_group_key is None

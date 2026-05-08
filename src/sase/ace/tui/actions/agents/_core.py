@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._approve import AgentApproveMixin
@@ -327,43 +328,33 @@ class AgentsMixinCore(
         if not unread_ids:
             return False
 
-        start_pos = 0
-        if getattr(self, "_current_group_key", None) is None:
-            try:
-                start_pos = (visible.index(self.current_idx) + 1) % len(visible)
-            except ValueError:
-                start_pos = 0
-        else:
-            try:
-                stops = self._panel_navigation_stops()
-            except Exception:
-                stops = []
-            for stop_pos, (kind, payload) in enumerate(stops):
-                if kind == "banner" and payload == self._current_group_key:
-                    for next_kind, next_payload in (
-                        stops[stop_pos + 1 :] + stops[:stop_pos]
-                    ):
-                        if next_kind == "agent" and isinstance(next_payload, int):
-                            try:
-                                start_pos = visible.index(next_payload)
-                            except ValueError:
-                                start_pos = 0
-                            break
-                    break
-
-        target_idx: int | None = None
-        for offset in range(len(visible)):
-            idx = visible[(start_pos + offset) % len(visible)]
+        candidates: list[tuple[int, int, datetime | None]] = []
+        for visible_pos, idx in enumerate(visible):
             if not (0 <= idx < len(self._agents)):
                 continue
             agent = self._agents[idx]
             if agent.status in ("DONE", "FAILED") and agent.identity in unread_ids:
-                target_idx = idx
-                break
+                candidates.append(
+                    (idx, visible_pos, agent.stop_time or agent.start_time)
+                )
 
-        if target_idx is None:
+        if not candidates:
             return False
 
+        candidates.sort(
+            key=lambda candidate: candidate[2] or datetime.min, reverse=True
+        )
+
+        target_pos = 0
+        if getattr(self, "_current_group_key", None) is None:
+            for candidate_pos, (idx, _visible_pos, _completion_time) in enumerate(
+                candidates
+            ):
+                if idx == self.current_idx:
+                    target_pos = (candidate_pos + 1) % len(candidates)
+                    break
+
+        target_idx = candidates[target_pos][0]
         old_idx = self.current_idx
         old_group_key = self._current_group_key
         target_agent = self._agents[target_idx]
