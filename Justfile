@@ -157,6 +157,10 @@ check: _setup
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
     @tools/run_silent "test"               just test
 
+# Build the MkDocs Material site with strict warnings-as-errors behavior.
+docs-check: _venv
+    uv run --extra docs mkdocs build --strict
+
 # Validate SDD prompt/plan frontmatter links.
 sdd-validate: _setup
     {{ venv_bin }}/sase sdd validate
@@ -176,7 +180,7 @@ pylimit *args: (_header "pylimit")
 
 # Remove build artifacts
 clean:
-    rm -rf build/ dist/ *.egg-info src/*.egg-info .tox/ .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage
+    rm -rf build/ dist/ site/ *.egg-info src/*.egg-info .tox/ .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage
 
 # Build wheel and sdist
 build: _setup

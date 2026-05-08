@@ -205,7 +205,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,>`       | Open prompt history modal with cancelled prompts visible                                      |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
-> [Agents Tab Leader Mode](#leader-mode--prefix-1).
+> [Agents Tab Leader Mode](#leader-mode-prefix_1).
 
 ### Mentor Review Modal
 

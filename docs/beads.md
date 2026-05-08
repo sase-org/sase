@@ -16,7 +16,7 @@ beads can represent ordinary plans, executable epics, or legend-level roadmaps t
   - [Dependencies](#dependencies)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
-  - [SQLite + JSONL Dual Storage](#sqlite--jsonl-dual-storage)
+  - [SQLite + JSONL Dual Storage](#sqlite-jsonl-dual-storage)
   - [Sync Mechanism](#sync-mechanism)
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
