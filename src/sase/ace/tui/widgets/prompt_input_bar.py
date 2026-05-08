@@ -13,6 +13,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
     append_input_hints,
+    detect_xprompt_arg_hint_at_cursor,
+    xprompt_completion_suffix_skeleton,
 )
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -373,7 +375,11 @@ class PromptInputBar(Static):
         stripped = text_area.text.strip()
         self.post_message(self.Cancelled(cancelled_text=stripped, mode=self._mode))
 
-    def insert_snippet(self, snippet_name: str) -> None:
+    def insert_snippet(
+        self,
+        snippet_name: str,
+        entry: XPromptAssistEntry | None = None,
+    ) -> None:
         """Insert a snippet reference at the cursor position.
 
         The '#' from the '#@' trigger is already in the input
@@ -381,11 +387,47 @@ class PromptInputBar(Static):
 
         Args:
             snippet_name: The snippet name to insert (without #)
+            entry: Optional selected xprompt metadata for smart argument insertion.
         """
         text_area = self.query_one("#prompt-input", PromptTextArea)
         start, end = text_area.selection
+        if entry is not None and self._insert_xprompt_smart_snippet(
+            text_area,
+            entry,
+            start,
+            end,
+        ):
+            text_area.focus()
+            return
+
         reference_start = max(0, text_area._absolute_offset(start) - 1)
         text_area._replace_via_keyboard(snippet_name, start, end)
         reference_end = reference_start + 1 + len(snippet_name)
         text_area._maybe_show_inserted_xprompt_arg_hint(reference_start, reference_end)
         text_area.focus()
+
+    def _insert_xprompt_smart_snippet(
+        self,
+        text_area: PromptTextArea,
+        entry: XPromptAssistEntry,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> bool:
+        """Insert a selected xprompt using the Ctrl+T completion skeleton."""
+        skeleton = xprompt_completion_suffix_skeleton(entry)
+        if not text_area._expand_snippet_template_at_range(skeleton, start, end):
+            return False
+
+        cursor_offset = text_area._absolute_offset(text_area.cursor_location)
+        hint = detect_xprompt_arg_hint_at_cursor(
+            text_area.text,
+            cursor_offset,
+            [entry],
+        )
+        if hint is None:
+            text_area._clear_xprompt_arg_hint()
+            return True
+
+        text_area._active_xprompt_arg_hint = hint
+        text_area._show_xprompt_arg_hint(hint)
+        return True

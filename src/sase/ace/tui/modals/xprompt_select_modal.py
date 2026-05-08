@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
@@ -19,6 +21,18 @@ from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
 from .xprompt_browser_helpers import append_input_args
+from ..widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    xprompt_assist_entry_from_workflow,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class XPromptSelection:
+    """Selection payload for inserting an xprompt after an existing ``#``."""
+
+    suffix: str
+    entry: XPromptAssistEntry | None = None
 
 
 class _XPromptFilterInput(Input):
@@ -50,7 +64,9 @@ class _XPromptFilterInput(Input):
                 self.cursor_position = 0
 
 
-class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
+class XPromptSelectModal(
+    OptionListNavigationMixin, ModalScreen[XPromptSelection | None]
+):
     """Modal for selecting an xprompt with filtering and preview."""
 
     _option_list_id = "xprompt-list"
@@ -221,10 +237,10 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         option_list = self.query_one("#xprompt-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is not None and 0 <= highlighted < len(self._filtered_names):
-            self.dismiss(self._insertion_suffix(self._filtered_names[highlighted]))
+            self.dismiss(self._selection_for_name(self._filtered_names[highlighted]))
         else:
             # Select first item if none highlighted
-            self.dismiss(self._insertion_suffix(self._filtered_names[0]))
+            self.dismiss(self._selection_for_name(self._filtered_names[0]))
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -236,7 +252,17 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection."""
         if event.option and event.option.id:
-            self.dismiss(self._insertion_suffix(str(event.option.id)))
+            self.dismiss(self._selection_for_name(str(event.option.id)))
+
+    def _selection_for_name(self, name: str) -> XPromptSelection:
+        """Return the insertion payload for a selected xprompt name."""
+        workflow = self._prompts.get(name)
+        if workflow is None:
+            return XPromptSelection(suffix=name)
+        return XPromptSelection(
+            suffix=workflow_reference_suffix(name, workflow),
+            entry=xprompt_assist_entry_from_workflow(name, workflow),
+        )
 
     def _insertion_suffix(self, name: str) -> str:
         """Return the text inserted after the existing ``#`` from ``#@``."""

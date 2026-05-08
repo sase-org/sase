@@ -125,13 +125,17 @@ class PromptBarRequestsMixin:
             return
 
         from ...modals import XPromptSelectModal
+        from ...modals.xprompt_select_modal import XPromptSelection
 
-        def on_xprompt_select(result: str | None) -> None:
+        def on_xprompt_select(result: XPromptSelection | str | None) -> None:
             if result:
                 # Insert xprompt name into the input bar
                 try:
                     bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                    bar.insert_snippet(result)
+                    if isinstance(result, XPromptSelection):
+                        bar.insert_snippet(result.suffix, result.entry)
+                    else:
+                        bar.insert_snippet(result)
                 except Exception:
                     pass
 

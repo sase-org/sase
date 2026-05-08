@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     required_inputs,
     visible_inputs,
     xprompt_completion_skeleton,
+    xprompt_completion_suffix_skeleton,
 )
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 
@@ -218,6 +219,16 @@ def test_completion_skeletons_match_required_input_shapes() -> None:
     assert (
         xprompt_completion_skeleton(_entry("run", _input_hint("target"), prefix="#!"))
         == "#!run:"
+    )
+
+
+def test_completion_suffix_skeleton_strips_existing_hash_trigger() -> None:
+    assert xprompt_completion_suffix_skeleton(_entry("none")) == "none "
+    assert (
+        xprompt_completion_suffix_skeleton(
+            _entry("run", _input_hint("target"), prefix="#!")
+        )
+        == "!run:"
     )
 
 

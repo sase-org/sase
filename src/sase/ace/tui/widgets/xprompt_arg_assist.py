@@ -15,6 +15,12 @@ from sase.xprompt._parsing import (
 )
 from sase.xprompt.catalog import build_structured_xprompts_catalog
 from sase.xprompt.models import UNSET, InputArg
+from sase.xprompt.reference_display import (
+    workflow_kind_value,
+    workflow_reference_insertion,
+    workflow_reference_prefix,
+)
+from sase.xprompt.workflow_models import Workflow
 
 _INPUT_INDENT = "\n     "
 _REQUIRED_INPUT_STYLE = "#D7AF87"
@@ -114,6 +120,30 @@ def build_xprompt_assist_entries(
     ]
 
 
+def xprompt_assist_entry_from_workflow(
+    name: str,
+    workflow: Workflow,
+) -> XPromptAssistEntry:
+    """Build a TUI assist entry from a selected workflow-like xprompt."""
+    inputs: list[XPromptInputHint] = []
+    for inp in workflow.inputs:
+        hint = input_hint_from_input_arg(inp, len(inputs))
+        if hint is not None:
+            inputs.append(hint)
+
+    return XPromptAssistEntry(
+        name=name,
+        insertion=workflow_reference_insertion(name, workflow),
+        reference_prefix=workflow_reference_prefix(workflow),
+        kind=workflow_kind_value(workflow),
+        input_signature=None,
+        inputs=tuple(inputs),
+        content_preview=(
+            workflow.get_prompt_part_content() if workflow.is_simple_xprompt() else None
+        ),
+    )
+
+
 def visible_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
     """Return user-facing inputs for an assist entry."""
     return entry.inputs
@@ -147,6 +177,14 @@ def xprompt_completion_skeleton(entry: XPromptAssistEntry) -> str:
         return f"{entry.insertion}($0)"
     suffix = "::" if inputs[0].type == "text" else ":"
     return f"{entry.insertion}{suffix}"
+
+
+def xprompt_completion_suffix_skeleton(entry: XPromptAssistEntry) -> str:
+    """Return a completion skeleton inserted after an existing ``#`` trigger."""
+    skeleton = xprompt_completion_skeleton(entry)
+    if skeleton.startswith("#"):
+        return skeleton[1:]
+    return skeleton
 
 
 def input_label(input_hint: XPromptInputHint) -> str:

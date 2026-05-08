@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 11:08:47
-status: wip
+status: done
 prompt: sdd/prompts/202605/hash_at_smart_args.md
 ---
 # Plan: Smart xprompt arguments for #@

@@ -83,7 +83,7 @@ from .xprompt_browser_modal import XPromptBrowserModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
 from .xprompt_filename_modal import XPromptFilenameModal
 from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
-from .xprompt_select_modal import XPromptSelectModal
+from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 
 __all__ = [
     "ActivityModal",
@@ -164,6 +164,7 @@ __all__ = [
     "XPromptFilenameModal",
     "XPromptLocation",
     "XPromptLocationModal",
+    "XPromptSelection",
     "XPromptSelectModal",
     "WorkflowHITLInput",
     "WorkflowHITLModal",

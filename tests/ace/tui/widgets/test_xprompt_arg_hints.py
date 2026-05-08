@@ -241,6 +241,113 @@ async def test_snippet_modal_insertion_opens_same_arg_hint_path() -> None:
         assert ta._active_xprompt_arg_hint.trigger_mode == "accepted"
 
 
+async def test_snippet_modal_smart_insertion_adds_trailing_space_without_args() -> None:
+    entry = _entry("plain")
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("plain", entry)
+
+        assert ta.text == "#plain "
+        assert ta._active_xprompt_arg_hint is None
+
+
+async def test_snippet_modal_smart_insertion_adds_path_colon_hint() -> None:
+    entry = _entry("review", inputs=(_input("path", "path"),))
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("review", entry)
+
+        assert ta.text == "#review:"
+        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_xprompt_arg_hint.trigger_mode == "colon"
+
+
+async def test_snippet_modal_smart_insertion_adds_text_double_colon_hint() -> None:
+    entry = _entry("ask", inputs=(_input("body", "text"),))
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("ask", entry)
+
+        assert ta.text == "#ask::"
+        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_xprompt_arg_hint.trigger_mode == "colon"
+
+
+async def test_snippet_modal_smart_insertion_adds_multi_input_skeleton() -> None:
+    entry = _entry(
+        "many",
+        inputs=(
+            _input("path", "path"),
+            _input("body", "text", position=1),
+        ),
+    )
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("many", entry)
+
+        assert ta.text == "#many()"
+        assert ta.cursor_location == (0, len("#many("))
+        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_xprompt_arg_hint.trigger_mode == "paren"
+
+
+async def test_snippet_modal_smart_insertion_preserves_standalone_marker() -> None:
+    entry = _entry(
+        "run",
+        prefix="#!",
+        inputs=(_input("target", "line"),),
+    )
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("!run", entry)
+
+        assert ta.text == "#!run:"
+        assert ta._active_xprompt_arg_hint is not None
+
+
+async def test_snippet_modal_smart_insertion_uses_selected_metadata() -> None:
+    entry = _entry("local", inputs=(_input("path", "path"),))
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#gh:sase #")
+        ta.cursor_location = (0, len("#gh:sase #"))
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            return_value=[],
+        ):
+            bar.insert_snippet("local", entry)
+
+        assert ta.text == "#gh:sase #local:"
+        assert ta._active_xprompt_arg_hint is not None
+
+
 async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
     entries = [_entry("local", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()
