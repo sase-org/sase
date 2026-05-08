@@ -1748,18 +1748,13 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sase-core-rs", directory = "../sase-core/crates/sase_core_py" },
+    { name = "sase-core-rs", specifier = ">=0.1.1,<0.2.0" },
     { name = "schedule" },
     { name = "textual", extras = ["syntax"], specifier = ">=0.45.0" },
     { name = "tox", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'dev'" },
 ]
 provides-extras = ["dev", "docs"]
-
-[[package]]
-name = "sase-core-rs"
-version = "0.1.1"
-source = { directory = "../sase-core/crates/sase_core_py" }
 
 [[package]]
 name = "schedule"

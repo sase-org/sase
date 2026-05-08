@@ -29,7 +29,7 @@ _setup: _venv
     fi
     @if ! {{ venv_bin }}/mypy --version > /dev/null 2>&1 || \
         ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
-        uv pip install --reinstall-package mypy -e ".[dev]"; \
+        uv pip install --no-sources --reinstall-package mypy -e ".[dev]"; \
     fi
 
 # Print a box header for a top-level command (private helper)
@@ -50,7 +50,7 @@ install: _venv
         printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just rust-install; \
     fi
-    uv pip install -e ".[dev]"
+    uv pip install --no-sources -e ".[dev]"
 
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
@@ -158,8 +158,9 @@ check: _setup
     @tools/run_silent "test"               just test
 
 # Build the MkDocs Material site with strict warnings-as-errors behavior.
-docs-check: _venv
-    uv run --extra docs mkdocs build --strict
+docs-check: _setup
+    uv pip install --no-sources -e ".[docs]"
+    {{ venv_bin }}/mkdocs build --strict
 
 # Validate SDD prompt/plan frontmatter links.
 sdd-validate: _setup

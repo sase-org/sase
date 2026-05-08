@@ -43,9 +43,6 @@ docs = [
     "mkdocs-material",
 ]
 
-[tool.uv.sources]
-sase-core-rs = { path = "../sase-core/crates/sase_core_py" }
-
 [project.scripts]
 sase = "sase.main.entry:main"
 sase_bug = "sase.scripts:sase_bug"

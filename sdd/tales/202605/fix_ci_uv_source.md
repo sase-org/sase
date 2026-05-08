@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 18:19:43
-status: wip
+status: done
 prompt: sdd/prompts/202605/fix_ci_uv_source.md
 ---
 # Fix CI break from local uv source
