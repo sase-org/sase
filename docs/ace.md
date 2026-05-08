@@ -275,6 +275,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
 | `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
 | `m`                 | Mark / unmark current agent (auto-advances to next)                                                           |
+| `U`                 | Toggle the focused agent's unread marker                                                                      |
 | `u`                 | Clear all agent marks                                                                                         |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
 | `X`                 | Open the cleanup panel for panel, global, tag, marked, group, or custom cleanup                               |
@@ -319,13 +320,39 @@ and are automatically grouped under the `@review` tag, matching the behavior of 
 
 Press `A` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
 include chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit files saved with
-`sase artifact create -p <path> [-n <label>] [-k <kind>]`.
+`sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
+the label, kind, and path are visible before launching the terminal viewer.
+
+Artifact panel controls:
+
+| Key         | Action                                                                  |
+| ----------- | ----------------------------------------------------------------------- |
+| selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)    |
+| `j` / `k`   | Move through artifact rows                                              |
+| `m`         | Mark / unmark the highlighted artifact and advance to the next row      |
+| `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked |
+| `A`         | Open all artifacts in list order, ignoring marks                        |
+| `q` / `Esc` | Close the panel                                                         |
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Outside
 tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image, Markdown, and PDF
 artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs are converted to
 PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and `pandoc` plus a
 supported PDF engine for Markdown rendering. Missing tools produce a warning instead of failing the TUI.
+
+Viewer controls:
+
+| Key | Action                                              |
+| --- | --------------------------------------------------- |
+| `n` | Next page; wraps from the last page to the first    |
+| `p` | Previous page; wraps from the first page to last    |
+| `N` | Next artifact when viewing an artifact sequence     |
+| `P` | Previous artifact when viewing an artifact sequence |
+| `r` | Refresh the current page                            |
+| `q` | Close the viewer                                    |
+
+Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale path are present, ACE prefers
+the committed SDD plan; otherwise it keeps the path that best matches the run metadata.
 
 ### Tag Side Panels
 
@@ -446,9 +473,11 @@ bead ID. Legacy `<epic_id>.land` land agents keep the same badge. Dismissed agen
 date-prefix used for dismissal.
 
 The right-hand edge of each row carries a runtime suffix (`<start-timestamp> · <elapsed>`) right-aligned within the
-panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; pre-run
-`WAITING` rows with no `BEGIN` time hide the suffix so queued waits do not look like live runtime. For finished agents,
-the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to fit the existing 15-cell slot:
+panel. Active rows that have actually started include a `🏃‍♂️` marker before the ticking elapsed duration; unread
+completed rows use a `🎉` marker in the same suffix slot; and user-paused rows (`PLANNING`, `QUESTION`, `WAITING INPUT`)
+use a `🙋` marker while waiting for a human response. Pre-run `WAITING` rows with no `BEGIN` time hide the suffix so
+queued waits do not look like live runtime. For finished agents, the start-timestamp half is rendered as a humanized
+`(date_prefix, time)` pair sized to fit the existing 15-cell slot:
 
 - **Same day**: `HH:MM:SS`
 - **Prior day, same year**: `Mon DD HH:MM` (drops seconds — they're noise once a row finished hours ago)
@@ -493,6 +522,7 @@ cached by raw query string so re-renders skip the parse.
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,h`       | Run agent with the default `#cd:~` directory context                                          |
 | `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
+| `,j`       | Jump to the newest unread completed agent; repeats move through older unread completions      |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
 | `,P`       | Set/clear temporary default model (see [Temporary Model Override](#temporary-model-override)) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                                        |

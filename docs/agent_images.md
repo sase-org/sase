@@ -84,12 +84,22 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 The Agents tab exposes completed agent artifacts through the `A` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit artifacts created
-with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list.
+with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list. The panel is shown even for a
+single artifact so users can confirm the artifact label, kind, and path before opening it.
+
+The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to open the marked set or
+highlighted row, and `A` to open every artifact in list order. When multiple artifacts are opened together, the terminal
+viewer adds `N`/`P` navigation between artifacts in addition to page navigation.
 
 When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane. Outside tmux, ACE suspends and
 opens the viewer in the current terminal pane. The viewer chooses its mode from the artifact kind and file extension:
 supported images are displayed directly, PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging.
-The page loop uses `n`/`p` to move between pages and `q` to close the viewer.
+The page loop uses `n`/`p` to move between pages, wrapping at the first and last page, `r` to refresh, and `q` to close
+the viewer.
+
+Only one plan artifact is listed for each agent. If run metadata contains both an archived plan path and an SDD tale
+path, committed plans prefer the SDD path; uncommitted plans prefer the archived path unless only the SDD path is
+available.
 
 Viewer dependencies are intentionally outside the agent completion path. `kitten` is required for terminal display,
 `pdftoppm` is required for PDF/Markdown paging, and Markdown rendering also needs `pandoc` plus one supported PDF

@@ -772,6 +772,7 @@ a provider prefix; use `opencode models` to list models in your configured envir
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                   |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                |
 | `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, and `just test-cov`.   |
+| `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.    |
 
 ### Workspace Management (Internal)
 

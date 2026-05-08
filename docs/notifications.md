@@ -91,6 +91,10 @@ than 10 Markdown sources remain after filtering, SASE skips Markdown PDF renderi
 note explaining the limit. The final PDF and image lists are also written to `done.json` as `markdown_pdf_paths` and
 `image_paths` for agent metadata consumers.
 
+In ACE, completion artifacts are opened from the Agents tab with `A`. The artifact panel supports marking multiple files
+and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
+artifacts use one selection workflow.
+
 See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image preview notes.
 
 For user-agent completion and failure notifications, `action_data` also includes `bead_display` when the agent name maps

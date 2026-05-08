@@ -277,9 +277,9 @@ boundaries, troubleshooting, rollback, and the MVP threat model.
 
 Successful agent runs persist their normal chat/diff metadata and can attach generated Markdown PDFs, image files, plan
 files, and explicit files saved with `sase artifact create`. The ACE Agents tab opens that artifact list with `A`; a
-single artifact opens directly, while multiple artifacts open a picker. Inside tmux the viewer opens in a side pane, and
-outside tmux it temporarily suspends ACE in the current pane. See [`docs/agent_images.md`](docs/agent_images.md) for the
-attachment and viewer contracts.
+picker is shown even when only one artifact is available so the user can inspect labels, mark entries, or open the full
+artifact sequence. Inside tmux the viewer opens in a side pane, and outside tmux it temporarily suspends ACE in the
+current pane. See [`docs/agent_images.md`](docs/agent_images.md) for the attachment and viewer contracts.
 
 ## Project Structure
 
@@ -447,7 +447,8 @@ just build         # Build wheel + sdist
 
 `just test`, `just test-slow`, and `just test-cov` size their pytest-xdist worker pool from the local CPU count, capped
 at 16 workers. Set `SASE_PYTEST_WORKERS=<N>` to override that value when debugging concurrency-sensitive tests or when a
-smaller worker pool is better for the machine.
+smaller worker pool is better for the machine. Test selectors are normalized from the directory where `just` was
+invoked, so `just test tests/foo_test.py::test_name` works the same from the repository root or a subdirectory.
 
 ### Required Rust Core
 
