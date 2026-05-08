@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 17:17:57
-status: wip
+status: done
 prompt: sdd/prompts/202605/unread_jump_ack.md
 ---
 # Plan: Acknowledge unread agent on leader jump

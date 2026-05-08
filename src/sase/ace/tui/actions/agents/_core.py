@@ -371,12 +371,7 @@ class AgentsMixinCore(
         return visible
 
     def _jump_to_next_unread_done_agent(self) -> bool:
-        """Move focus to the next visible unread completed agent.
-
-        This intentionally preserves the target's unread marker. Normal
-        row-selection paths clear unread state, but this jump is for finding
-        unread completions without acknowledging them.
-        """
+        """Move focus to the next visible unread completed agent and acknowledge it."""
         if not self._agents:
             return False
 
@@ -444,19 +439,17 @@ class AgentsMixinCore(
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None  # type: ignore[attr-defined]
 
-        unread_ids.add(target_agent.identity)
-
         needs_full_refresh = panel_changed or (
             old_idx == target_idx and old_group_key is not None
         )
         if needs_full_refresh:
+            if target_agent.identity not in self._manual_unread_ids():
+                unread_ids.discard(target_agent.identity)
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )
-        elif not self._try_patch_agent_row(target_agent):  # type: ignore[attr-defined]
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+        else:
+            self._acknowledge_agent_unread(target_agent)
         return True
 
     def _get_selected_agent(self) -> Agent | None:

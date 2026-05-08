@@ -450,15 +450,40 @@ def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> N
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 1
+    assert newest.identity not in app._unread_completed_agent_ids
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 3
+    assert middle.identity not in app._unread_completed_agent_ids
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 0
+    assert older.identity not in app._unread_completed_agent_ids
+
+    assert not app._jump_to_next_unread_done_agent()
+    assert app.current_idx == 0
+
+
+def test_jump_to_next_unread_done_agent_wraps_from_oldest_to_newest() -> None:
+    oldest = _agent(
+        name="oldest",
+        status="DONE",
+        raw_suffix="oldest",
+        stop_time=datetime(2026, 5, 7, 10, 0, 0),
+    )
+    newest = _agent(
+        name="newest",
+        status="DONE",
+        raw_suffix="newest",
+        stop_time=datetime(2026, 5, 7, 12, 0, 0),
+    )
+    app = _UnreadJumpApp([oldest, newest], current_idx=0)
+    app._unread_completed_agent_ids.update({oldest.identity, newest.identity})
 
     assert app._jump_to_next_unread_done_agent()
+
     assert app.current_idx == 1
+    assert newest.identity not in app._unread_completed_agent_ids
 
 
 def test_jump_to_next_unread_done_agent_ignores_running_and_read_done() -> None:
@@ -507,23 +532,27 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 2
+    assert fallback_newest.identity not in app._unread_completed_agent_ids
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 0
+    assert stopped_older.identity not in app._unread_completed_agent_ids
 
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 1
+    assert missing_time.identity not in app._unread_completed_agent_ids
 
 
-def test_jump_to_next_unread_done_agent_preserves_target_unread_state() -> None:
+def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state() -> None:
     done = _agent(name="done", status="PLAN DONE")
     app = _UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
 
     assert app._jump_to_next_unread_done_agent()
 
-    assert done.identity in app._unread_completed_agent_ids
+    assert done.identity not in app._unread_completed_agent_ids
     assert app.current_attempt_number is None
+    assert app.patch_calls == [done]
     assert app.refresh_calls == []
 
 
@@ -534,6 +563,7 @@ def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
 
     assert app._jump_to_next_unread_done_agent()
 
+    assert done.identity not in app._unread_completed_agent_ids
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
@@ -547,6 +577,7 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
     assert app.current_idx == 0
     assert app._current_group_key is None
+    assert done.identity not in app._unread_completed_agent_ids
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
@@ -575,6 +606,7 @@ def test_jump_to_next_unread_done_agent_starts_at_newest_from_focused_banner() -
 
     assert app.current_idx == 1
     assert app._current_group_key is None
+    assert app._unread_completed_agent_ids == {first.identity}
 
 
 def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
@@ -600,7 +632,7 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
 
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert target.identity in app._unread_completed_agent_ids
+    assert target.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
