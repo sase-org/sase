@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 15:39:27
-status: wip
+status: done
 prompt: sdd/prompts/202605/command_palette_key_filter.md
 ---
 # Command Palette `key:<key>` Filter Plan

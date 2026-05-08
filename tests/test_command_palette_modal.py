@@ -139,6 +139,78 @@ def test_filter_specs_empty_query_returns_all_in_order() -> None:
     assert [s.id for s in out] == ["app.refresh", "app.next"]
 
 
+def test_filter_specs_key_filter_matches_raw_keys_and_chords() -> None:
+    a = _spec("app.down", "Move down", key_display="j", key_sequence=("j",))
+    b = _spec(
+        "leader.jump",
+        "Jump to notification",
+        key_display=",j",
+        key_sequence=("comma", "j"),
+    )
+    c = _spec("app.journal", "Journal", key_display="x", key_sequence=("x",))
+
+    out = filter_specs([a, b, c], "key:j")
+    assert [s.id for s in out] == ["app.down", "leader.jump"]
+
+
+def test_filter_specs_key_filter_matches_display_chord() -> None:
+    a = _spec(
+        "leader.task_queue",
+        "Task queue",
+        key_display=",t",
+        key_sequence=("comma", "t"),
+    )
+    b = _spec("app.task", "Task list", key_display="x", key_sequence=("x",))
+
+    out = filter_specs([a, b], "key:,t")
+    assert [s.id for s in out] == ["leader.task_queue"]
+
+
+def test_filter_specs_key_filter_matches_app_binding_alternatives() -> None:
+    a = _spec(
+        "app.open_command_palette",
+        "Open command palette",
+        key_display=": / ;",
+        key_sequence=("colon,semicolon",),
+    )
+    b = _spec("app.refresh", "Refresh", key_display="r", key_sequence=("r",))
+
+    assert [s.id for s in filter_specs([a, b], "key::")] == ["app.open_command_palette"]
+    assert [s.id for s in filter_specs([a, b], "key:semicolon")] == [
+        "app.open_command_palette"
+    ]
+
+
+def test_filter_specs_key_filter_does_not_match_text_metadata() -> None:
+    a = _spec(
+        "app.refresh",
+        "Refresh tab",
+        key_display="r",
+        key_sequence=("r",),
+        category="Display",
+        aliases=("reload",),
+    )
+
+    assert filter_specs([a], "key:refresh") == []
+    assert filter_specs([a], "key:display") == []
+    assert filter_specs([a], "key:reload") == []
+
+
+def test_filter_specs_key_filter_prefix_is_case_insensitive() -> None:
+    a = _spec("app.quit", "Quit", key_display="Ctrl+D", key_sequence=("ctrl+d",))
+    b = _spec("app.refresh", "Refresh", key_display="r", key_sequence=("r",))
+
+    out = filter_specs([a, b], " KEY:ctrl+d ")
+    assert [s.id for s in out] == ["app.quit"]
+
+
+def test_filter_specs_bare_key_filter_returns_all_in_order() -> None:
+    a = _spec("app.refresh", "Refresh")
+    b = _spec("app.next", "Next")
+    out = filter_specs([a, b], " key: ")
+    assert [s.id for s in out] == ["app.refresh", "app.next"]
+
+
 # --- _build_row_text ---
 
 

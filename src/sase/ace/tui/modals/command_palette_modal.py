@@ -103,11 +103,41 @@ def _score_match(spec: CommandSpec, query: str) -> int:
     return 0
 
 
+def _parse_key_filter(query: str) -> str | None:
+    """Return the key filter needle when *query* uses ``key:<needle>``."""
+    stripped = query.strip()
+    if not stripped.lower().startswith("key:"):
+        return None
+    return stripped[4:].strip()
+
+
+def _spec_matches_key_filter(spec: CommandSpec, needle: str) -> bool:
+    """Return whether *needle* matches any trigger form for *spec*."""
+    q = needle.lower()
+    candidates: list[str] = [spec.key_display]
+
+    candidates.extend(spec.key_sequence)
+    candidates.append("".join(spec.key_sequence))
+    candidates.append(" ".join(spec.key_sequence))
+
+    for raw in spec.key_sequence:
+        if "," in raw:
+            candidates.extend(part.strip() for part in raw.split(",") if part.strip())
+
+    return any(q in candidate.lower() for candidate in candidates)
+
+
 def _filter_specs(specs: list[CommandSpec], query: str) -> list[CommandSpec]:
     """Return *specs* filtered + ranked against *query*.
 
     Stable for ties (preserves catalog order).
     """
+    key_needle = _parse_key_filter(query)
+    if key_needle is not None:
+        if not key_needle:
+            return list(specs)
+        return [s for s in specs if _spec_matches_key_filter(s, key_needle)]
+
     if not query:
         return list(specs)
     scored: list[tuple[int, int, CommandSpec]] = []
