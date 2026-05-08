@@ -330,7 +330,7 @@ def test_image_fallback_mentions_editor_actions(tmp_path: Path) -> None:
     console.print(renderable)
 
     fallback_text = console.export_text()
-    assert "Open directly with V" in fallback_text
+    assert "Open artifact with A" in fallback_text
 
 
 class _SuspendRecorder:
