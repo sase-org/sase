@@ -82,10 +82,9 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 ## ACE Artifact Viewer
 
-The Agents tab exposes completed agent artifacts through the `A` key. If an agent has one artifact, ACE opens it
-directly; if it has multiple artifacts, ACE shows a picker. Chat transcripts, plan files, generated Markdown PDFs,
-generated images, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use
-the same list.
+The Agents tab exposes completed agent artifacts through the `A` key. When artifacts exist, ACE opens the artifact panel
+for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit artifacts created
+with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list.
 
 When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane. Outside tmux, ACE suspends and
 opens the viewer in the current terminal pane. The viewer chooses its mode from the artifact kind and file extension:

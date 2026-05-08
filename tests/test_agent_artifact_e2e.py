@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -190,7 +192,7 @@ def _agent(artifacts_dir: Path) -> SimpleNamespace:
     return SimpleNamespace(status="DONE", get_artifacts_dir=lambda: str(artifacts_dir))
 
 
-def test_agents_action_opens_chat_only_agent_and_uses_panel_for_multiple_artifacts(
+def test_agents_action_uses_panel_for_chat_only_and_multiple_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -213,6 +215,16 @@ def test_agents_action_opens_chat_only_agent_and_uses_panel_for_multiple_artifac
 
     single_app = _ArtifactActionApp(_agent(chat_only_dir))
     single_app.action_open_agent_artifacts()
+
+    assert single_app.suspend_recorder.entered is False
+    assert opened == []
+    assert len(single_app.pushed) == 1
+    single_modal, single_callback = single_app.pushed[0]
+    assert single_modal.__class__.__name__ == "AgentArtifactSelectionModal"
+    assert single_callback is not None
+
+    chat_artifact = list_agent_artifacts(chat_only_dir)[0]
+    cast(Callable[[AgentArtifact], None], single_callback)(chat_artifact)
 
     assert single_app.suspend_recorder.entered is True
     assert [(artifact.kind, artifact.label) for artifact in opened] == [

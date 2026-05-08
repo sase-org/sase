@@ -233,9 +233,9 @@ is otherwise best-effort: missing conversion tools or render failures omit that 
 Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. See
 [`agent_images.md`](agent_images.md) for the full contract.
 
-The Agents tab exposes completion artifacts through the `A` action. A done agent with one artifact opens it directly;
-multiple artifacts open a picker. Chat transcripts, plan files, generated PDFs/images, and explicit artifacts created
-with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate in the same list. Explicit artifacts are
+The Agents tab exposes completion artifacts through the `A` action. When artifacts exist, ACE opens the artifact panel
+for selection. Chat transcripts, plan files, generated PDFs/images, and explicit artifacts created with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate in the same list. Explicit artifacts are
 stored under `~/.sase/artifacts/` with a persistent association so they remain available after dismissing and later
 reviving the agent. Inside tmux, artifact viewing opens in a right-side tmux pane; outside tmux, ACE suspends and uses
 the current pane. The viewer supports images, Markdown, and PDFs, and warns when required terminal/rendering tools are

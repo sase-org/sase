@@ -317,9 +317,9 @@ and are automatically grouped under the `@review` tag, matching the behavior of 
 
 ### Agent Artifacts
 
-Press `A` on a focused agent to open artifacts associated with that agent. A single artifact opens directly; multiple
-artifacts open a picker. The list can include chat transcripts, plan files, generated Markdown PDFs, generated images,
-and explicit files saved with `sase artifact create -p <path> [-n <label>] [-k <kind>]`.
+Press `A` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
+include chat transcripts, plan files, generated Markdown PDFs, generated images, and explicit files saved with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]`.
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. Outside
 tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image, Markdown, and PDF

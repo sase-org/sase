@@ -377,7 +377,7 @@ class _ImageActionApp(AgentPanelsMixin):
         self.pushed.append((modal, callback))
 
 
-def test_agents_open_artifacts_action_runs_single_viewer_inside_suspend(
+def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -399,11 +399,19 @@ def test_agents_open_artifacts_action_runs_single_viewer_inside_suspend(
 
     app.action_open_agent_artifacts()
 
+    assert len(app.pushed) == 1
+    modal, callback = app.pushed[0]
+    assert modal.__class__.__name__ == "AgentArtifactSelectionModal"
+    assert callback is not None
+    assert calls == []
+
+    callback(artifact)
+
     assert calls == [artifact]
     app.notify.assert_not_called()
 
 
-def test_agents_open_artifacts_action_uses_tmux_pane_without_suspend(
+def test_agents_open_artifacts_single_selection_uses_tmux_pane_without_suspend(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -429,6 +437,10 @@ def test_agents_open_artifacts_action_uses_tmux_pane_without_suspend(
     monkeypatch.setattr("sase.ace.tui.graphics.view_agent_artifact", same_pane_viewer)
 
     app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifact)
 
     assert calls == [artifact]
     same_pane_viewer.assert_not_called()
@@ -452,6 +464,10 @@ def test_agents_open_artifacts_action_surfaces_tmux_warning(
     )
 
     app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+
+    callback(artifact)
 
     assert app.suspend_recorder.entered is False
     app.notify.assert_called_once_with("tmux missing", severity="warning")

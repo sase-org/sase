@@ -384,10 +384,6 @@ class AgentPanelsMixin:
             self.notify(message, severity="warning")  # type: ignore[attr-defined]
             return
 
-        if len(artifacts) == 1:
-            self._open_agent_artifacts([artifacts[0]])
-            return
-
         from ...modals import AgentArtifactSelectionModal
 
         def _open_selected(selection: Any) -> None:
