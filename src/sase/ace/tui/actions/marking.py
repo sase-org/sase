@@ -32,6 +32,12 @@ class MarkingMixin:
             self._toggle_mark_agent()  # type: ignore[attr-defined]
             return
 
+    def action_toggle_agent_unread(self) -> None:
+        """Toggle the selected agent row's unread marker."""
+        if self.current_tab == "agents":
+            self._toggle_agent_unread()  # type: ignore[attr-defined]
+            return
+
     def _toggle_mark_changespec(self) -> None:
         """Toggle mark on the currently-selected ChangeSpec."""
         if not self.changespecs:

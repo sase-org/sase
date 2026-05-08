@@ -71,6 +71,7 @@ def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
     }
     assert ("A", "Open artifacts") in agent_pairs
     assert (",j", "Jump to next unread done agent") in agent_pairs
+    assert ("U", "Toggle unread marker") in agent_pairs
     for sections in (cls_sections, axe_sections):
         action_labels = {
             label
@@ -229,9 +230,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 80 configurable + 10 digit = 90 bindings."""
+    """build_app_bindings produces 81 configurable + 10 digit = 91 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 90
+    assert len(bindings) == 91
 
 
 def test_build_app_bindings_priority() -> None:
@@ -267,6 +268,7 @@ def test_capital_a_binds_agent_artifacts_and_v_binds_run_log() -> None:
     assert by_action["open_agent_artifacts"].key == "A"
     assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"
+    assert by_action["toggle_agent_unread"].key == "U"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

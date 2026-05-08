@@ -91,6 +91,8 @@ ace:
       toggle_thinking_reverse: "left_square_bracket"
       # Attempt history (agents tab)
       toggle_attempt_view: "D"
+      # Manual unread marker (agents tab)
+      toggle_agent_unread: "U"
       # Agent tag modal (agents tab)
       add_agent_tag: "N"
       # Tag-driven side panels (agents tab)

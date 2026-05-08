@@ -334,6 +334,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.reword), "Edit wait target / run now"),
                 (d(a.kill_agent), "Kill/dismiss agent/group/marked"),
                 (d(a.toggle_mark), "Mark/unmark current agent"),
+                (d(a.toggle_agent_unread), "Toggle unread marker"),
                 (d(a.clear_marks), "Clear all agent marks"),
                 (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
                 (d(a.edit_spec), "Edit chat in editor"),

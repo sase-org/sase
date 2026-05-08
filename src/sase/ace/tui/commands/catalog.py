@@ -172,6 +172,13 @@ _APP_COMMAND_META: tuple[
         _AGENTS_ONLY,
         ("retry", "history"),
     ),
+    (
+        "toggle_agent_unread",
+        "Toggle agent unread marker",
+        "Agents",
+        _AGENTS_ONLY,
+        ("unread", "read"),
+    ),
     ("add_agent_tag", "Add / remove agent tag", "Agents", _AGENTS_ONLY, ()),
     (
         "focus_next_agent_panel",

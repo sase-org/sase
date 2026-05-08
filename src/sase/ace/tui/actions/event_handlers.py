@@ -469,6 +469,22 @@ class EventHandlersMixin:
         if panel_idx != self._panel_group.focused_idx:  # type: ignore[attr-defined]
             self._panel_group.focused_idx = panel_idx  # type: ignore[attr-defined]
 
+        old_idx = self.current_idx
+        old_group_key = getattr(self, "_current_group_key", None)
+        if (
+            old_group_key is None
+            and 0 <= old_idx < len(self._agents)
+            and (target_global != old_idx or event.group_key is not None)
+        ):
+            old_agent = self._agents[old_idx]
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+            else:
+                manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+                if manual_ids is not None:
+                    manual_ids.discard(old_agent.identity)
+
         # Updating current_idx clears _current_attempt_number (setter
         # in AceApp). Set the attempt number after so attempt-child
         # selections land on the pinned view.
@@ -483,6 +499,13 @@ class EventHandlersMixin:
 
         if event.group_key is None and 0 <= target_global < len(self._agents):
             target_agent = self._agents[target_global]
+            ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+            if callable(ack_unread):
+                ack_unread(target_agent)
+                return
+            manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+            if isinstance(manual_ids, set) and target_agent.identity in manual_ids:
+                return
             unread_ids = getattr(self, "_unread_completed_agent_ids", None)
             if unread_ids is not None and target_agent.identity in unread_ids:
                 unread_ids.discard(target_agent.identity)

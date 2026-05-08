@@ -102,6 +102,20 @@ class BasicNavigationMixin(NavigationMixinBase):
             pos = _nearest_stop_anchor(stops, old_idx, old_key)
         new_pos = (pos + direction) % len(stops)
         kind, payload = stops[new_pos]
+        old_agent = None
+        if (
+            old_key is None
+            and hasattr(self, "_agents")
+            and 0 <= old_idx < len(self._agents)  # type: ignore[attr-defined]
+        ):
+            old_agent = self._agents[old_idx]  # type: ignore[attr-defined]
+        leaving_old_agent = old_agent is not None and not (
+            kind == "agent" and payload == old_idx
+        )
+        if leaving_old_agent:
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
         if kind == "banner":
             self._current_group_key = payload
         else:
@@ -109,13 +123,9 @@ class BasicNavigationMixin(NavigationMixinBase):
             self.current_idx = payload
             if 0 <= payload < len(self._agents):  # type: ignore[attr-defined]
                 agent = self._agents[payload]  # type: ignore[attr-defined]
-                unread_ids = getattr(self, "_unread_completed_agent_ids", None)
-                if unread_ids is not None and agent.identity in unread_ids:
-                    unread_ids.discard(agent.identity)
-                    if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-                        self._refresh_agents_display(  # type: ignore[attr-defined]
-                            list_changed=True, defer_detail=True
-                        )
+                ack_unread = getattr(self, "_acknowledge_agent_unread", None)
+                if callable(ack_unread):
+                    ack_unread(agent)
         # The ``current_idx`` setter only fires ``watch_current_idx``
         # (the refresh trigger) when the index actually changes.
         # Banner-targeted stops leave ``current_idx`` untouched, and

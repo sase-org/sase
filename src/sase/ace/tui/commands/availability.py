@@ -75,6 +75,7 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.add_agent_tag",
         "app.rename_cl",
         "app.toggle_attempt_view",
+        "app.toggle_agent_unread",
         "app.start_agent_from_changespec",
         "app.jump_to_agent_changespec",
     }

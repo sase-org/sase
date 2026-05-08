@@ -87,6 +87,7 @@ class AgentsMixinCore(
     # Agent completion tracking for notifications
     _pending_attention_count: int
     _last_unread_ids: set[str]
+    _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
     _marked_agents: set[tuple[AgentType, str, str | None]]
@@ -377,6 +378,67 @@ class AgentsMixinCore(
         if self._agents and 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
         return None
+
+    def _manual_unread_ids(self) -> set[tuple[AgentType, str, str | None]]:
+        """Return the session-local manual unread guard set."""
+        manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+        if manual_ids is None:
+            manual_ids = set()
+            self._manual_unread_agent_ids = manual_ids
+        return manual_ids
+
+    def _arm_manual_unread_after_departure(self, agent: Agent | None) -> None:
+        """Let a manually unread row clear normally the next time it is selected."""
+        if agent is None:
+            return
+        self._manual_unread_ids().discard(agent.identity)
+
+    def _acknowledge_agent_unread(self, agent: Agent) -> bool:
+        """Clear unread for *agent* unless it is manually guarded.
+
+        Returns True when the visible row was patched or refreshed.
+        """
+        if agent.identity in self._manual_unread_ids():
+            return False
+
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if unread_ids is None or agent.identity not in unread_ids:
+            return False
+
+        unread_ids.discard(agent.identity)
+        if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
+        return True
+
+    def _toggle_agent_unread(self) -> None:
+        """Toggle the selected Agents-tab row's manual unread marker."""
+        if getattr(self, "_current_group_key", None) is not None:
+            return
+
+        agent = self._get_selected_agent()
+        if agent is None:
+            return
+
+        identity = agent.identity
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if unread_ids is None:
+            unread_ids = set()
+            self._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
+        manual_ids = self._manual_unread_ids()
+
+        if identity in manual_ids:
+            manual_ids.discard(identity)
+            unread_ids.discard(identity)
+        else:
+            manual_ids.add(identity)
+            unread_ids.add(identity)
+
+        if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
 
     def _agents_in_focused_panel(self) -> list[Agent]:
         """Return the agents in the currently focused tag panel.

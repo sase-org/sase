@@ -105,6 +105,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_agent_changespec", "Go to CL", False),
     ("open_agent_artifacts", "Artifacts", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
+    ("toggle_agent_unread", "Toggle Agent Unread", False),
     ("add_agent_tag", "Add Agent Tag", False),
     ("focus_next_agent_panel", "Next Panel", False),
     ("focus_prev_agent_panel", "Prev Panel", False),
@@ -272,6 +273,7 @@ class AppKeymaps:
     show_agent_run_log: str
     open_agent_artifacts: str
     toggle_attempt_view: str
+    toggle_agent_unread: str
     add_agent_tag: str
     focus_next_agent_panel: str
     focus_prev_agent_panel: str

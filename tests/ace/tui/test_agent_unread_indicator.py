@@ -10,6 +10,7 @@ from sase.ace.tui.actions.agents._loading_finalize import (
 )
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -60,6 +61,7 @@ class _SelectionApp(EventHandlersMixin):
         self._panel_group = AgentPanelGroup.from_agents(agents)
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._patch_result = patch_result
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
@@ -133,12 +135,50 @@ def test_banner_selection_does_not_clear_agent_unread() -> None:
     assert agent.identity in app._unread_completed_agent_ids
 
 
+def test_manual_unread_mouse_selection_preserves_selected_row() -> None:
+    agent = _agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
+    )
+
+    assert agent.identity in app._unread_completed_agent_ids
+    assert agent.identity in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+
+
+def test_manual_unread_mouse_selection_arms_then_acknowledges_on_return() -> None:
+    first = _agent(name="first", status="DONE", raw_suffix="first")
+    second = _agent(name="second", status="DONE", raw_suffix="second")
+    app = _SelectionApp([first, second])
+    app._unread_completed_agent_ids.add(first.identity)
+    app._manual_unread_agent_ids.add(first.identity)
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=1)
+    )
+
+    assert first.identity in app._unread_completed_agent_ids
+    assert first.identity not in app._manual_unread_agent_ids
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
+    )
+
+    assert first.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [first]
+
+
 class _UnreadFinalizeApp:
     def __init__(self, agents: list[Agent]) -> None:
         self._agents = agents
         self.current_idx = 0
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
@@ -175,6 +215,19 @@ def test_finalizer_clears_unread_for_saved_selection_on_agents_tab() -> None:
     assert app._unread_completed_agent_ids == set()
 
 
+def test_finalizer_preserves_selected_manually_unread_agent() -> None:
+    agent = _agent(status="DONE")
+    app = _UnreadFinalizeApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+    app._agent_display_status_by_identity[agent.identity] = "DONE"
+
+    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == {agent.identity}
+    assert app._manual_unread_agent_ids == {agent.identity}
+
+
 def test_finalizer_does_not_mark_terminal_agent_on_first_seen_load() -> None:
     agent = _agent(status="DONE")
     app = _UnreadFinalizeApp([agent])
@@ -195,7 +248,20 @@ def test_finalizer_prunes_unread_identities_no_longer_visible() -> None:
     assert app._unread_completed_agent_ids == set()
 
 
-class _UnreadJumpApp(AgentsMixinCore):
+def test_finalizer_prunes_stale_manual_unread_identities() -> None:
+    visible = _agent(name="visible", status="RUNNING", raw_suffix="visible")
+    stale = _agent(name="stale", status="DONE", raw_suffix="stale")
+    app = _UnreadFinalizeApp([visible])
+    app._unread_completed_agent_ids.add(stale.identity)
+    app._manual_unread_agent_ids.add(stale.identity)
+
+    _sync_unread_completed_agents(app, on_agents_tab=False)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+
+
+class _UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin):
     def __init__(
         self,
         agents: list[Agent],
@@ -210,6 +276,7 @@ class _UnreadJumpApp(AgentsMixinCore):
         self.current_attempt_number: int | None = 3
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._visible = visible
         self._stops = stops
         self._patch_result = patch_result
@@ -236,6 +303,81 @@ class _UnreadJumpApp(AgentsMixinCore):
 
     def _refresh_agents_display_debounced(self) -> None:
         self.debounced_refresh_calls += 1
+
+
+def test_toggle_agent_unread_marks_selected_row_without_moving() -> None:
+    agent = _agent(status="RUNNING")
+    app = _UnreadJumpApp([agent])
+
+    app._toggle_agent_unread()
+
+    assert app.current_idx == 0
+    assert app._unread_completed_agent_ids == {agent.identity}
+    assert app._manual_unread_agent_ids == {agent.identity}
+    assert app.patch_calls == [agent]
+    assert app.refresh_calls == []
+
+
+def test_toggle_agent_unread_again_marks_selected_row_read() -> None:
+    agent = _agent(status="DONE")
+    app = _UnreadJumpApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    app._toggle_agent_unread()
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app.patch_calls == [agent]
+
+
+def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
+    agent = _agent(status="DONE")
+    app = _UnreadJumpApp([agent], patch_result=False)
+
+    app._toggle_agent_unread()
+
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_toggle_agent_unread_ignores_focused_banner() -> None:
+    agent = _agent(status="DONE")
+    app = _UnreadJumpApp([agent])
+    app._current_group_key = ("demo",)
+
+    app._toggle_agent_unread()
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app.patch_calls == []
+
+
+def test_navigation_away_from_manual_unread_arms_it_without_clearing() -> None:
+    first = _agent(name="first", status="DONE", raw_suffix="first")
+    second = _agent(name="second", status="DONE", raw_suffix="second")
+    app = _UnreadJumpApp([first, second])
+    app._unread_completed_agent_ids.add(first.identity)
+    app._manual_unread_agent_ids.add(first.identity)
+
+    app._navigate_agents_panel(1)
+
+    assert app.current_idx == 1
+    assert first.identity in app._unread_completed_agent_ids
+    assert first.identity not in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+
+
+def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
+    first = _agent(name="first", status="DONE", raw_suffix="first")
+    second = _agent(name="second", status="DONE", raw_suffix="second")
+    app = _UnreadJumpApp([first, second], current_idx=1)
+    app._unread_completed_agent_ids.add(first.identity)
+
+    app._navigate_agents_panel(-1)
+
+    assert app.current_idx == 0
+    assert first.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [first]
 
 
 def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> None:

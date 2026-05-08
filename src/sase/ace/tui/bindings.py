@@ -76,6 +76,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding("A", "open_agent_artifacts", "Artifacts", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
+    Binding("U", "toggle_agent_unread", "Toggle Agent Unread", show=False),
     Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
     # Tag-driven side-panel focus cycling (agents tab)
     Binding("J", "focus_next_agent_panel", "Next Panel", show=False),

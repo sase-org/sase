@@ -94,6 +94,7 @@ class AgentLoadingMixin:
     _dismissed_agent_objects: list[Agent]
     _revived_agent_raw_suffixes: set[str]
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
+    _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
 
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)

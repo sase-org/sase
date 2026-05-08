@@ -34,9 +34,14 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     if unread_ids is None:
         unread_ids = set()
         app._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
+    manual_ids = getattr(app, "_manual_unread_agent_ids", None)
+    if manual_ids is None:
+        manual_ids = set()
+        app._manual_unread_agent_ids = manual_ids  # type: ignore[attr-defined]
 
     visible_ids = {agent.identity for agent in app._agents}
     unread_ids.intersection_update(visible_ids)
+    manual_ids.intersection_update(visible_ids)
 
     selected_visible_identity = None
     if (
@@ -45,7 +50,8 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         and 0 <= app.current_idx < len(app._agents)
     ):
         selected_visible_identity = app._agents[app.current_idx].identity
-        unread_ids.discard(selected_visible_identity)
+        if selected_visible_identity not in manual_ids:
+            unread_ids.discard(selected_visible_identity)
 
     for agent in app._agents:
         old_status = old_status_by_identity.get(agent.identity)

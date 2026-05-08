@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 15:41:52
-status: wip
+status: done
 prompt: sdd/prompts/202605/agent_unread_keymap.md
 ---
 # Plan: Agents Tab Manual Unread Toggle

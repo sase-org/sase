@@ -321,6 +321,7 @@ class StateInitMixin:
 
         self._last_unread_ids: set[str] = set()
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
