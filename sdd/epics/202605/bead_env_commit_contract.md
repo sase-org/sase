@@ -1,5 +1,7 @@
 ---
 create_time: 2026-05-07 22:53:22
+bead_id: sase-2d
+tier: epic
 status: wip
 prompt: sdd/prompts/202605/bead_env_commit_contract.md
 ---
