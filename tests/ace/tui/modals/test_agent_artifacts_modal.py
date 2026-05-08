@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +15,7 @@ from sase.ace.tui.modals.agent_artifacts_modal import (
     _artifact_option_text,
     _artifact_selector_keys,
 )
+from sase.core.agent_artifact_facade import list_agent_artifacts
 
 
 class _TestApp(App[object | None]):
@@ -304,6 +306,43 @@ def test_artifact_modal_option_text_prefers_workspace_relative_path(
 
     assert "src/report.md" in plain
     assert str(workspace) not in plain
+
+
+def test_artifact_modal_displays_committed_plan_workspace_relative_path(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    workspace = tmp_path / "workspace"
+    archived_plan = tmp_path / ".sase" / "plans" / "202605" / "plan.md"
+    sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    artifacts_dir.mkdir()
+    for path in (archived_plan, sdd_plan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+    (artifacts_dir / "done.json").write_text(
+        json.dumps({"workspace_dir": str(workspace)}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "plan_path": str(archived_plan),
+                "sdd_plan_path": str(sdd_plan),
+                "plan_committed": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    artifacts = list_agent_artifacts(artifacts_dir)
+    plain = _artifact_option_text("1", artifacts[0]).plain
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(sdd_plan))
+    ]
+    assert "sdd/tales/202605/plan.md" in plain
+    assert str(workspace) not in plain
+    assert str(archived_plan) not in plain
 
 
 def test_artifact_modal_option_text_displays_pdf_markdown_source_path(

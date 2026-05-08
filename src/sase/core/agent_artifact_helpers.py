@@ -124,26 +124,42 @@ def read_markdown_pdf_source_paths(artifacts_dir: Path) -> dict[str, str]:
     return sources_by_pdf
 
 
-def filter_duplicate_home_plan_paths(
-    plan_paths: list[str],
+def selected_plan_path(
     *,
-    workspace_dir: str | None,
-) -> list[str]:
-    workspace_plan_names = {
-        Path(plan_path).name
-        for plan_path in plan_paths
-        if _is_inside_dir(plan_path, workspace_dir)
-    }
-    if not workspace_plan_names:
-        return plan_paths
-    return [
-        plan_path
-        for plan_path in plan_paths
-        if not (
-            Path(plan_path).name in workspace_plan_names
-            and _is_home_plan_path(plan_path)
-        )
-    ]
+    done: dict[str, Any],
+    agent_meta: dict[str, Any],
+    plan_marker: dict[str, Any],
+) -> str | None:
+    """Choose the single canonical plan path for an agent artifact list."""
+
+    archived_plan_path = first_str(
+        plan_marker.get("plan_path"),
+        agent_meta.get("plan_path"),
+        done.get("plan_path"),
+    )
+    sdd_plan_path = first_str(
+        agent_meta.get("sdd_plan_path"),
+        done.get("sdd_plan_path"),
+    )
+    plan_committed = _first_bool(
+        agent_meta.get("plan_committed"),
+        done.get("plan_committed"),
+    )
+
+    if plan_committed is True:
+        return sdd_plan_path or archived_plan_path
+    if plan_committed is False:
+        return archived_plan_path or sdd_plan_path
+
+    if not archived_plan_path:
+        return sdd_plan_path
+    if not sdd_plan_path:
+        return archived_plan_path
+    if path_key(archived_plan_path) == path_key(sdd_plan_path):
+        return sdd_plan_path
+    if not _path_exists(archived_plan_path) and _path_exists(sdd_plan_path):
+        return sdd_plan_path
+    return archived_plan_path
 
 
 def _read_json_array(path: Path) -> list[Any]:
@@ -155,24 +171,6 @@ def _read_json_array(path: Path) -> list[Any]:
     return data if isinstance(data, list) else []
 
 
-def _is_home_plan_path(path: Path | str) -> bool:
-    return _is_inside_dir(path, Path.home() / ".sase" / "plans")
-
-
-def _is_inside_dir(path: Path | str, parent: Path | str | None) -> bool:
-    if parent is None:
-        return False
-    try:
-        _resolved_path(path).relative_to(_resolved_path(parent))
-    except (OSError, ValueError):
-        return False
-    return True
-
-
-def _resolved_path(path: Path | str) -> Path:
-    return Path(path).expanduser().resolve(strict=False)
-
-
 def first_str(*values: Any) -> str | None:
     for value in values:
         if isinstance(value, str) and value:
@@ -180,24 +178,23 @@ def first_str(*values: Any) -> str | None:
     return None
 
 
+def _first_bool(*values: Any) -> bool | None:
+    for value in values:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered == "true":
+                return True
+            if lowered == "false":
+                return False
+    return None
+
+
 def coerce_str_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str) and item]
-
-
-def unique_values(*values: Any) -> list[str]:
-    result: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        if not isinstance(value, str) or not value:
-            continue
-        key = path_key(value)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(value)
-    return result
 
 
 def label_for_path(path: str, *, fallback: str) -> str:
@@ -215,3 +212,10 @@ def file_created_at(path: Path | str) -> str | None:
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _path_exists(path: str) -> bool:
+    try:
+        return Path(path).expanduser().exists()
+    except OSError:
+        return False

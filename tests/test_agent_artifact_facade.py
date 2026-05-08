@@ -67,13 +67,46 @@ def test_synthesize_default_artifacts_from_done_and_agent_meta(tmp_path: Path) -
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
         ("chat", str(chat)),
         ("plan", str(plan)),
-        ("plan", str(alternate_plan)),
         ("image", str(image)),
         ("pdf", str(pdf)),
     ]
     assert artifacts[0].agent_name == "agent-name"
     assert artifacts[0].project == "proj"
     assert artifacts[0].raw_timestamp == "20260507123456"
+
+
+def test_committed_sdd_plan_is_single_default_plan_artifact(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    archived_plan = tmp_path / ".sase" / "plans" / "plan.md"
+    sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    for path in (archived_plan, sdd_plan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+
+    _write_json(
+        artifacts_dir / "done.json",
+        {
+            "workspace_dir": str(workspace),
+            "plan_path": str(archived_plan),
+        },
+    )
+    _write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "sdd_plan_path": str(sdd_plan),
+            "plan_committed": True,
+        },
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(sdd_plan))
+    ]
+    assert artifacts[0].workspace_dir == str(workspace)
 
 
 def test_agent_meta_chat_path_is_used_when_done_response_is_missing(
@@ -150,6 +183,73 @@ def test_home_plan_is_skipped_when_matching_workspace_plan_exists(
 
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
         ("plan", str(workspace_plan))
+    ]
+
+
+def test_explicit_plan_duplicate_does_not_add_second_plan_row(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    archived_plan = tmp_path / ".sase" / "plans" / "plan.md"
+    sdd_plan = tmp_path / "workspace" / "sdd" / "tales" / "202605" / "plan.md"
+    explicit_plan = tmp_path / "explicit-plan.md"
+    for path in (archived_plan, sdd_plan, explicit_plan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+    _write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "plan_path": str(archived_plan),
+            "sdd_plan_path": str(sdd_plan),
+            "plan_committed": True,
+        },
+    )
+    index_path = tmp_path / ".sase" / "artifacts" / "index.jsonl"
+
+    store_explicit_agent_artifact(
+        explicit_plan,
+        artifacts_dir,
+        label="Explicit plan",
+        kind="plan",
+        artifacts_root=tmp_path / ".sase" / "artifacts",
+    )
+    artifacts = list_agent_artifacts(artifacts_dir, index_path=index_path)
+
+    plans = [artifact for artifact in artifacts if artifact.kind == "plan"]
+    assert [
+        (artifact.label, artifact.path, artifact.explicit) for artifact in plans
+    ] == [("plan.md", str(sdd_plan), False)]
+
+
+def test_single_explicit_plan_is_kept_without_metadata_plan(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    first_plan = tmp_path / "first.md"
+    second_plan = tmp_path / "second.md"
+    for path in (first_plan, second_plan):
+        path.write_text("# Plan\n", encoding="utf-8")
+    index_path = tmp_path / ".sase" / "artifacts" / "index.jsonl"
+
+    store_explicit_agent_artifact(
+        first_plan,
+        artifacts_dir,
+        label="First plan",
+        kind="plan",
+        artifacts_root=tmp_path / ".sase" / "artifacts",
+    )
+    store_explicit_agent_artifact(
+        second_plan,
+        artifacts_dir,
+        label="Second plan",
+        kind="plan",
+        artifacts_root=tmp_path / ".sase" / "artifacts",
+    )
+
+    artifacts = list_agent_artifacts(artifacts_dir, index_path=index_path)
+
+    assert [(artifact.kind, artifact.label) for artifact in artifacts] == [
+        ("plan", "First plan")
     ]
 
 

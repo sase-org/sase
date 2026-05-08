@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 
+from sase.core.agent_artifact_helpers import selected_plan_path
+
 from ...models.agent import Agent
 
 if TYPE_CHECKING:
@@ -77,31 +79,7 @@ def _selected_plan_path(
     meta: dict[str, Any],
     plan_marker: dict[str, Any],
 ) -> str | None:
-    archived_plan_path = _first_str(
-        plan_marker.get("plan_path"),
-        meta.get("plan_path"),
-        done.get("plan_path"),
-    )
-    sdd_plan_path = _first_str(meta.get("sdd_plan_path"), done.get("sdd_plan_path"))
-    plan_committed = _first_bool(meta.get("plan_committed"), done.get("plan_committed"))
-
-    if plan_committed is True:
-        return sdd_plan_path or archived_plan_path
-    if plan_committed is False:
-        return archived_plan_path or sdd_plan_path
-
-    # Historical artifacts predate plan_committed. Prefer the archived plan
-    # unless the SDD path is the only path, the same path, or clearly the only
-    # existing candidate.
-    if not archived_plan_path:
-        return sdd_plan_path
-    if not sdd_plan_path:
-        return archived_plan_path
-    if _same_resolved_path(archived_plan_path, sdd_plan_path):
-        return sdd_plan_path
-    if not _path_exists(archived_plan_path) and _path_exists(sdd_plan_path):
-        return sdd_plan_path
-    return archived_plan_path
+    return selected_plan_path(done=done, agent_meta=meta, plan_marker=plan_marker)
 
 
 def _explicit_artifact_paths(artifacts_dir: Path) -> list[str]:
@@ -177,29 +155,3 @@ def _first_str(*values: Any) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
-
-
-def _first_bool(*values: Any) -> bool | None:
-    for value in values:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered == "true":
-                return True
-            if lowered == "false":
-                return False
-    return None
-
-
-def _same_resolved_path(left: str, right: str) -> bool:
-    return Path(left).expanduser().resolve(strict=False) == Path(
-        right
-    ).expanduser().resolve(strict=False)
-
-
-def _path_exists(path: str) -> bool:
-    try:
-        return Path(path).expanduser().exists()
-    except OSError:
-        return False

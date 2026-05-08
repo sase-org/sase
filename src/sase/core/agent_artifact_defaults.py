@@ -11,13 +11,12 @@ from sase.core.agent_artifact_helpers import (
     coerce_str_list,
     dedupe_artifacts,
     file_created_at,
-    filter_duplicate_home_plan_paths,
     first_str,
     label_for_path,
     path_key,
     read_json_object,
     read_markdown_pdf_source_paths,
-    unique_values,
+    selected_plan_path,
 )
 from sase.core.agent_artifact_types import (
     AgentArtifact,
@@ -56,23 +55,19 @@ def synthesize_default_agent_artifacts(
             )
         )
 
-    plan_paths = filter_duplicate_home_plan_paths(
-        unique_values(
-            done.get("plan_path"),
-            agent_meta.get("plan_path"),
-            agent_meta.get("sdd_plan_path"),
-            plan_marker.get("plan_path"),
-        ),
-        workspace_dir=workspace_dir,
+    plan_path = selected_plan_path(
+        done=done,
+        agent_meta=agent_meta,
+        plan_marker=plan_marker,
     )
-    for index, plan_path in enumerate(plan_paths):
+    if plan_path:
         artifacts.append(
             _default_artifact(
                 association,
                 label=label_for_path(plan_path, fallback="Plan"),
                 kind="plan",
                 path=plan_path,
-                ordinal=f"plan-{index}",
+                ordinal="plan",
                 workspace_dir=workspace_dir,
             )
         )
@@ -124,7 +119,21 @@ def list_agent_artifacts(
     chat_and_plans = [
         artifact for artifact in defaults if artifact.kind in {"chat", "plan"}
     ]
-    return dedupe_artifacts([*chat_and_plans, *explicit, *images_and_generated])
+    return dedupe_artifacts(
+        _dedupe_plan_artifacts([*chat_and_plans, *explicit, *images_and_generated])
+    )
+
+
+def _dedupe_plan_artifacts(artifacts: list[AgentArtifact]) -> list[AgentArtifact]:
+    plan_seen = False
+    deduped: list[AgentArtifact] = []
+    for artifact in artifacts:
+        if artifact.kind == "plan":
+            if plan_seen:
+                continue
+            plan_seen = True
+        deduped.append(artifact)
+    return deduped
 
 
 def _default_artifact(

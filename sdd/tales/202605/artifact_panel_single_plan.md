@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 17:17:34
-status: wip
+status: done
 prompt: sdd/prompts/202605/artifact_panel_single_plan.md
 ---
 # Plan: Single Canonical Plan Artifact in Agent Artifact Panel
