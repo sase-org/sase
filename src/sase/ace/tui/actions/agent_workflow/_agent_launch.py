@@ -64,11 +64,8 @@ def _save_replayable_vcs_selection(
     vcs_ref: tuple[str, str],
 ) -> None:
     """Persist the repeat-last selection only for launchable project owners."""
-    if not _is_launchable_replay_project(ctx.project_name):
-        return
-
     from ...modals import SelectionItem
-    from sase.ace.last_agent_selection import save_last_agent_selection
+    from sase.ace.last_agent_selection import save_last_agent_selection_if_launchable
 
     _ref = vcs_ref[1]
     if _ref == ctx.project_name:
@@ -85,8 +82,8 @@ def _save_replayable_vcs_selection(
             project_name=ctx.project_name,
             cl_name=_ref,
         )
-    app._last_custom_agent_selection = sel
-    save_last_agent_selection(sel)
+    if save_last_agent_selection_if_launchable(sel):
+        app._last_custom_agent_selection = sel
 
 
 class AgentLaunchMixin(

@@ -358,7 +358,7 @@ def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
             patch("sase.history.file_references.record_file_references")
         )
         stack.enter_context(
-            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         app._run_agent_launch_body(f"#cd:{tmp_path} do work")
 
@@ -409,7 +409,7 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_cd(
             patch("sase.history.file_references.record_file_references")
         )
         stack.enter_context(
-            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         app._run_agent_launch_body("do work")
 
@@ -478,7 +478,7 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
             patch("sase.history.file_references.record_file_references")
         )
         stack.enter_context(
-            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         app._run_agent_launch_body("#gh:sase #!sase/fix_just")
 
@@ -536,7 +536,7 @@ def test_run_agent_launch_body_does_not_save_non_launchable_resolved_vcs_ref() -
             )
         )
         save = stack.enter_context(
-            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         record_mru = stack.enter_context(
             patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage")
@@ -598,7 +598,7 @@ def test_run_agent_launch_body_saves_launchable_resolved_vcs_ref() -> None:
             )
         )
         save = stack.enter_context(
-            patch("sase.ace.last_agent_selection.save_last_agent_selection")
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
         )
         record_mru = stack.enter_context(
             patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage")

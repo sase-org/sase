@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.last_agent_selection import load_last_agent_selection
+import pytest
+
+from sase.ace.last_agent_selection import (
+    load_last_agent_selection,
+    save_last_agent_selection_if_launchable,
+)
+from sase.ace.tui.modals import SelectionItem
 
 
 def test_load_last_agent_selection_rejects_unknown_item_type(tmp_path: Path) -> None:
@@ -43,3 +49,75 @@ def test_load_last_agent_selection_rejects_non_string_fields(tmp_path: Path) -> 
 
     with patch("sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file):
         assert load_last_agent_selection() is None
+
+
+def test_save_if_launchable_rejects_non_launchable_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selection_file = tmp_path / "last_agent_selection.json"
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        lambda _name, projects_dir=None: False,
+    )
+
+    selection = SelectionItem(
+        display_name="branch",
+        item_type="cl",
+        project_name="project",
+        cl_name="branch",
+    )
+    assert save_last_agent_selection_if_launchable(selection) is False
+    assert not selection_file.exists()
+
+
+def test_save_if_launchable_accepts_home_regardless_of_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selection_file = tmp_path / "last_agent_selection.json"
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file
+    )
+
+    def _fail(*_args: object, **_kwargs: object) -> bool:
+        raise AssertionError("home selections must not consult is_launchable_project")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project", _fail
+    )
+
+    selection = SelectionItem(
+        display_name="$HOME",
+        item_type="home",
+        project_name="anything",
+        cl_name=None,
+    )
+    assert save_last_agent_selection_if_launchable(selection) is True
+    data = json.loads(selection_file.read_text(encoding="utf-8"))
+    assert data["item_type"] == "home"
+
+
+def test_save_if_launchable_accepts_launchable_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selection_file = tmp_path / "last_agent_selection.json"
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        lambda _name, projects_dir=None: True,
+    )
+
+    selection = SelectionItem(
+        display_name="branch",
+        item_type="cl",
+        project_name="proj",
+        cl_name="branch",
+    )
+    assert save_last_agent_selection_if_launchable(selection) is True
+    data = json.loads(selection_file.read_text(encoding="utf-8"))
+    assert data["project_name"] == "proj"
+    assert data["cl_name"] == "branch"

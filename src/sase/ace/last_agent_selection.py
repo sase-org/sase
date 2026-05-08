@@ -58,7 +58,7 @@ def load_last_agent_selection() -> SelectionItem | None:
         return None
 
 
-def save_last_agent_selection(selection: SelectionItem) -> bool:
+def _save_last_agent_selection(selection: SelectionItem) -> bool:
     """Save the last agent selection to disk.
 
     Args:
@@ -74,6 +74,24 @@ def save_last_agent_selection(selection: SelectionItem) -> bool:
         return True
     except OSError:
         return False
+
+
+def save_last_agent_selection_if_launchable(selection: SelectionItem) -> bool:
+    """Persist *selection* only if its project is launchable.
+
+    ``home`` and ``all`` selections are always persisted. ``project`` and
+    ``cl`` selections are skipped when ``selection.project_name`` does not
+    refer to a currently launchable project on disk; this prevents stale
+    or bogus project names (e.g. an auto-created ``.gp`` for a non-cloned
+    GitHub repo) from being saved as the next ``,<space>`` replay target.
+    """
+    if selection.item_type in ("home", "all"):
+        return _save_last_agent_selection(selection)
+    from sase.ace.tui.modals.project_discovery import is_launchable_project
+
+    if not is_launchable_project(selection.project_name):
+        return False
+    return _save_last_agent_selection(selection)
 
 
 def clear_last_agent_selection() -> bool:

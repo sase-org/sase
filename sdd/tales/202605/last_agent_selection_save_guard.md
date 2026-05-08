@@ -1,6 +1,6 @@
 ---
 create_time: 2026-05-08 00:24:48
-status: wip
+status: done
 prompt: sdd/prompts/202605/last_agent_selection_save_guard.md
 ---
 # Plan: Validate `project_name` On All `save_last_agent_selection()` Call Sites

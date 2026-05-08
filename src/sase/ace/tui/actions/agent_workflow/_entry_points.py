@@ -215,15 +215,18 @@ class EntryPointsMixin:
             return
 
         # Save for <space> repeat (so ,<space> selections are also available)
-        self._last_custom_agent_selection = SelectionItem(
+        selection = SelectionItem(
             display_name=cl_name,
             item_type="cl",
             project_name=changespec.project_basename,
             cl_name=cl_name,
         )
-        from sase.ace.last_agent_selection import save_last_agent_selection
+        from sase.ace.last_agent_selection import (
+            save_last_agent_selection_if_launchable,
+        )
 
-        save_last_agent_selection(self._last_custom_agent_selection)
+        if save_last_agent_selection_if_launchable(selection):
+            self._last_custom_agent_selection = selection
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
@@ -252,15 +255,18 @@ class EntryPointsMixin:
             return
 
         # Save for <space> repeat
-        self._last_custom_agent_selection = SelectionItem(
+        selection = SelectionItem(
             display_name=cl_name,
             item_type="project" if agent.is_project_agent else "cl",
             project_name=project_name,
             cl_name=cl_name if not agent.is_project_agent else None,
         )
-        from sase.ace.last_agent_selection import save_last_agent_selection
+        from sase.ace.last_agent_selection import (
+            save_last_agent_selection_if_launchable,
+        )
 
-        save_last_agent_selection(self._last_custom_agent_selection)
+        if save_last_agent_selection_if_launchable(selection):
+            self._last_custom_agent_selection = selection
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
@@ -302,10 +308,12 @@ class EntryPointsMixin:
                 return
 
             # Save for ,<space> repeat
-            self._last_custom_agent_selection = selection
-            from sase.ace.last_agent_selection import save_last_agent_selection
+            from sase.ace.last_agent_selection import (
+                save_last_agent_selection_if_launchable,
+            )
 
-            save_last_agent_selection(selection)
+            if save_last_agent_selection_if_launchable(selection):
+                self._last_custom_agent_selection = selection
             self._start_custom_agent_from_selection(
                 selection, open_in_editor=open_in_editor
             )
@@ -496,15 +504,18 @@ class EntryPointsMixin:
         workflow_name = f"ace(run)-{timestamp}"
 
         # Save for <space> repeat
-        self._last_custom_agent_selection = SelectionItem(
+        selection = SelectionItem(
             display_name=cl_name,
             item_type="project" if is_project_agent else "cl",
             project_name=project_name,
             cl_name=cl_name if not is_project_agent else None,
         )
-        from sase.ace.last_agent_selection import save_last_agent_selection
+        from sase.ace.last_agent_selection import (
+            save_last_agent_selection_if_launchable,
+        )
 
-        save_last_agent_selection(self._last_custom_agent_selection)
+        if save_last_agent_selection_if_launchable(selection):
+            self._last_custom_agent_selection = selection
 
         # Remove any existing prompt bar before mounting a new one.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
